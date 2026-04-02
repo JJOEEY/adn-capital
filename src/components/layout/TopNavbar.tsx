@@ -240,14 +240,16 @@ export function TopNavbar() {
                   <Crown className="w-2.5 h-2.5" /> {vipTier === "PREMIUM" ? "PREMIUM" : "VIP"}
                 </span>
               )}
-              <span className="hidden md:inline text-xs text-neutral-300 font-medium max-w-[80px] truncate">
-                {session?.user?.name?.split(" ").slice(-1)[0] ?? session?.user?.email?.split("@")[0]}
-              </span>
-              {session?.user?.image ? (
-                <img src={session.user.image} alt="" className="w-7 h-7 rounded-full border border-neutral-700" />
-              ) : (
-                <UserCircle className="w-7 h-7 text-neutral-600" />
-              )}
+              <Link href="/profile" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+                <span className="hidden md:inline text-xs text-neutral-300 font-medium max-w-[80px] truncate">
+                  {session?.user?.name?.split(" ").slice(-1)[0] ?? session?.user?.email?.split("@")[0]}
+                </span>
+                {session?.user?.image ? (
+                  <img src={session.user.image} alt="" className="w-7 h-7 rounded-full border border-neutral-700" />
+                ) : (
+                  <UserCircle className="w-7 h-7 text-neutral-600" />
+                )}
+              </Link>
               <button onClick={() => signOut({ callbackUrl: "/" })} className="text-neutral-500 hover:text-red-400 transition-colors p-1" title="Đăng xuất">
                 <LogOut className="w-3.5 h-3.5" />
               </button>
