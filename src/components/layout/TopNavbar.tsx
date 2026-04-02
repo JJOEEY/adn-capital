@@ -42,7 +42,8 @@ const serviceItems = [
   { href: "/dashboard/rs-rating",  label: "RS Rating",     icon: BarChart2,   badge: null,    desc: "Xếp hạng sức mạnh cổ phiếu" },
   { href: "/terminal",             label: "Chat AI",       icon: MessageSquare, badge: "HOT", desc: "Trợ lý đầu tư AI" },
   { href: "/dashboard/signal-map", label: "Tín Hiệu",      icon: Zap,         badge: null,    desc: "Bản đồ tín hiệu giao dịch" },
-  { href: "/margin",               label: "Ký Quỹ Margin", icon: Banknote,    badge: "MỚI",   desc: "Tư vấn ký quỹ margin" },
+  { href: "/formula-test",         label: "Test Công Thức", icon: FlaskConical, badge: "MỚI",  desc: "Test 3 công thức chọn cổ phiếu" },
+  { href: "/margin",               label: "Ký Quỹ Margin", icon: Banknote,    badge: null,    desc: "Tư vấn ký quỹ margin" },
 ];
 
 export function TopNavbar() {
