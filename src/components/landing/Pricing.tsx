@@ -27,64 +27,67 @@ const plans: PricingPlan[] = [
     id: "1m",
     name: "Gói 1 Tháng",
     period: "/tháng",
-    price: 1_000_000,
-    dnsePrice: 700_000,
+    price: 199_000,
+    dnsePrice: 99_000,
     icon: <Zap className="w-5 h-5" />,
     accent: "sky",
     features: [
-      "Chat AI không giới hạn",
-      "Dashboard đầy đủ",
-      "Tín hiệu giao dịch",
-      "RS Rating toàn thị trường",
+      "Hệ thống AI tư vấn mạnh mẽ 20 lượt/ngày",
+      "Nhận chỉ báo cập nhật hằng ngày",
+      "Theo dõi tin tức thị trường - liên thị trường",
+      "Tích hợp phân tích kỹ thuật, cơ bản",
     ],
   },
   {
     id: "3m",
     name: "Gói 3 Tháng",
     period: "/3 tháng",
-    price: 2_000_000,
-    dnsePrice: 1_500_000,
+    price: 499_000,
+    dnsePrice: 299_000,
     icon: <Star className="w-5 h-5" />,
     accent: "blue",
     features: [
-      "Tất cả tính năng Gói 1 Tháng",
-      "Nhật ký + Phân tích tâm lý AI",
-      "Báo cáo thị trường 8:00 & 17:00",
-      "Tiết kiệm hơn so với gói tháng",
+      "Hệ thống AI tư vấn mạnh mẽ 30 lượt/ngày",
+      "Nhận chỉ báo cập nhật hằng ngày",
+      "Theo dõi tin tức thị trường - liên thị trường",
+      "Tích hợp phân tích kỹ thuật, cơ bản",
     ],
   },
   {
     id: "6m",
     name: "Gói 6 Tháng",
     period: "/6 tháng",
-    price: 3_800_000,
-    dnsePrice: 3_000_000,
+    price: 1_099_000,
+    dnsePrice: 499_000,
     icon: <Crown className="w-5 h-5" />,
     accent: "emerald",
     ribbon: "Bán chạy nhất",
     features: [
-      "Tất cả tính năng Gói 3 Tháng",
-      "Ưu tiên tính năng mới",
-      "Radar Leader Alert",
-      "Top 5 Siêu Cổ Phiếu",
-      "Hỗ trợ ưu tiên qua chat",
+      "Hệ thống AI tư vấn mạnh mẽ không giới hạn",
+      "Nhận chỉ báo cập nhật hằng ngày",
+      "Theo dõi tin tức thị trường - liên thị trường",
+      "Tích hợp phân tích kỹ thuật, cơ bản",
+      "Kiểm tra lịch sử tín hiệu 30 ngày",
     ],
   },
   {
     id: "12m",
     name: "Gói 12 Tháng",
     period: "/năm",
-    price: 7_000_000,
-    dnsePrice: 6_000_000,
+    price: 2_199_000,
+    dnsePrice: 1_099_000,
     icon: <Sparkles className="w-5 h-5" />,
     accent: "purple",
     ribbon: "Tiết kiệm nhất",
     features: [
-      "Tất cả tính năng Gói 6 Tháng",
-      "Tư vấn 1-1 hàng tháng",
-      "VIP Discord community",
-      "Whitelist tính năng beta",
-      "Tiết kiệm tối đa so với gói tháng",
+      "Hệ thống AI tư vấn mạnh mẽ không giới hạn",
+      "Nhận chỉ báo cập nhật hằng ngày",
+      "Theo dõi tin tức thị trường - liên thị trường",
+      "Tích hợp phân tích kỹ thuật, cơ bản",
+      "Kiểm tra lịch sử tín hiệu 30 ngày",
+      "Hỗ trợ tư vấn 1-1 từ đội ngũ ADN Capital",
+      "Nhận Report Weekly sớm nhất",
+      "Tín hiệu Telegram",
     ],
   },
 ];
@@ -375,6 +378,7 @@ export default function Pricing() {
               key={plan.id}
               plan={plan}
               isDNSE={isDNSE}
+              isSignedIn={isSignedIn}
               index={idx}
             />
           ))}
@@ -390,14 +394,42 @@ export default function Pricing() {
 function PricingCard({
   plan,
   isDNSE,
+  isSignedIn,
   index,
 }: {
   plan: PricingPlan;
   isDNSE: boolean;
+  isSignedIn: boolean;
   index: number;
 }) {
+  const [loading, setLoading] = useState(false);
   const t = accentTokens[plan.accent];
   const displayPrice = isDNSE ? plan.dnsePrice : plan.price;
+
+  const handleCheckout = async () => {
+    if (!isSignedIn) {
+      window.location.href = "/auth";
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch("/api/payment/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planId: plan.id, useDnsePrice: isDNSE }),
+      });
+      const data = await res.json();
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+      } else {
+        alert(data.error ?? "Không tạo được link thanh toán");
+      }
+    } catch {
+      alert("Lỗi kết nối, vui lòng thử lại.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <motion.div
@@ -468,13 +500,15 @@ function PricingCard({
 
       {/* ── CTA Button ────────────────────────────────────────────── */}
       <button
+        onClick={handleCheckout}
+        disabled={loading}
         className={`
           w-full py-3 rounded-xl text-sm font-bold transition-all
-          cursor-pointer active:scale-95
+          cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed
           ${t.btn}
         `}
       >
-        Đăng Ký Ngay
+        {loading ? "Đang tạo..." : "Đăng Ký Ngay"}
       </button>
     </motion.div>
   );

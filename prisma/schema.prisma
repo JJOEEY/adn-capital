@@ -83,6 +83,7 @@ model PaymentOrder {
   id            String   @id @default(cuid())
   userId        String
   orderCode     String   @unique
+  planId        String   @default("1m")
   amount        Int
   description   String
   paymentLinkId String?

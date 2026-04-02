@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentDbUser } from "@/lib/current-user";
 import {
-  GIA_GOI_VIP_VND,
-  MO_TA_GOI_VIP,
-  TEN_SAN_PHAM_VIP,
+  layPlan,
   payos,
   taoMaDonHangPayOS,
 } from "@/lib/payos";
@@ -30,6 +28,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const body = await request.json();
+    const planId = body.planId as string;
+    const useDnsePrice = body.useDnsePrice === true;
+
+    const plan = layPlan(planId);
+    if (!plan) {
+      return NextResponse.json(
+        { error: "Gói không hợp lệ" },
+        { status: 400 },
+      );
+    }
+
+    // Chỉ cho dùng giá DNSE nếu user đã xác minh DNSE
+    const amount = useDnsePrice && dbUser.dnseVerified ? plan.dnsePrice : plan.price;
+
     const orderCode = taoMaDonHangPayOS();
     const origin = request.nextUrl.origin;
 
@@ -37,25 +50,26 @@ export async function POST(request: NextRequest) {
       data: {
         userId: dbUser.id,
         orderCode: String(orderCode),
-        amount: GIA_GOI_VIP_VND,
-        description: MO_TA_GOI_VIP,
+        planId: plan.id,
+        amount,
+        description: plan.description,
         status: "CREATING",
       },
     });
 
     const ketQuaThanhToan = await payos.createPaymentLink({
       orderCode,
-      amount: GIA_GOI_VIP_VND,
-      description: MO_TA_GOI_VIP,
+      amount,
+      description: plan.description,
       returnUrl: taoReturnUrl(origin, orderCode),
       cancelUrl: taoCancelUrl(origin, orderCode),
       buyerEmail: dbUser.email,
       buyerName: dbUser.name ?? undefined,
       items: [
         {
-          name: TEN_SAN_PHAM_VIP,
+          name: plan.name,
           quantity: 1,
-          price: GIA_GOI_VIP_VND,
+          price: amount,
         },
       ],
     });

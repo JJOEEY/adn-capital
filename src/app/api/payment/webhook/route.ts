@@ -1,7 +1,7 @@
 import { addDays } from "date-fns";
 import { NextRequest, NextResponse } from "next/server";
 import {
-  SO_NGAY_VIP,
+  layPlan,
   payos,
   type DuLieuWebhookDaXacThuc,
   type DuLieuWebhookPayOS,
@@ -78,11 +78,13 @@ export async function POST(request: NextRequest) {
     }
 
     const now = new Date();
+    const plan = layPlan(donHang.planId ?? "1m");
+    const soNgayVip = plan?.days ?? 30;
     const mocGiaHan =
       donHang.user.vipUntil && donHang.user.vipUntil > now
         ? donHang.user.vipUntil
         : now;
-    const vipUntilMoi = addDays(mocGiaHan, SO_NGAY_VIP);
+    const vipUntilMoi = addDays(mocGiaHan, soNgayVip);
 
     await prisma.$transaction([
       prisma.user.update({

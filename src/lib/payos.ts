@@ -6,10 +6,28 @@ import {
   type WebhookData,
 } from "@payos/node";
 
-export const GIA_GOI_VIP_VND = 1_000_000;
-export const SO_NGAY_VIP = 30;
-export const MO_TA_GOI_VIP = "Nang cap VIP ADN Bot";
-export const TEN_SAN_PHAM_VIP = "Goi VIP ADN Bot";
+/* ═══════════════════════════════════════════════════════════════════════════
+ *  PLAN DEFINITIONS
+ * ═══════════════════════════════════════════════════════════════════════════ */
+export interface VipPlan {
+  id: string;
+  name: string;
+  days: number;
+  price: number;       // giá niêm yết (VND)
+  dnsePrice: number;   // giá KH DNSE (VND)
+  description: string;
+}
+
+export const VIP_PLANS: Record<string, VipPlan> = {
+  "1m":  { id: "1m",  name: "Gói 1 Tháng",   days: 30,  price: 199_000,   dnsePrice: 99_000,    description: "VIP 1 Thang ADN Capital" },
+  "3m":  { id: "3m",  name: "Gói 3 Tháng",   days: 90,  price: 499_000,   dnsePrice: 299_000,   description: "VIP 3 Thang ADN Capital" },
+  "6m":  { id: "6m",  name: "Gói 6 Tháng",   days: 180, price: 1_099_000, dnsePrice: 499_000,   description: "VIP 6 Thang ADN Capital" },
+  "12m": { id: "12m", name: "Gói 12 Tháng",  days: 365, price: 2_199_000, dnsePrice: 1_099_000, description: "VIP 12 Thang ADN Capital" },
+};
+
+export function layPlan(planId: string): VipPlan | null {
+  return VIP_PLANS[planId] ?? null;
+}
 
 let payosClient: PayOS | null = null;
 
