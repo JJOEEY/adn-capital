@@ -97,7 +97,7 @@ function AuthPageContent() {
       setError("Email hoặc mật khẩu không đúng");
       setLoading(false);
     } else {
-      router.replace("/dashboard");
+      window.location.href = "/dashboard";
     }
   };
 
@@ -134,7 +134,7 @@ function AuthPageContent() {
         setMode("login");
         setLoading(false);
       } else {
-        router.replace("/dashboard");
+        window.location.href = "/dashboard";
       }
     } catch {
       setError("Lỗi kết nối server");
