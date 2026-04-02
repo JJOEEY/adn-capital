@@ -1,0 +1,461 @@
+"use client";
+
+import { useEffect, useState, useMemo, useCallback, memo, Suspense } from "react";
+import dynamic from "next/dynamic";
+import useSWR from "swr";
+import { RefreshCw, Bot, Zap, ShieldAlert, Flame, AlertTriangle, TrendingUp } from "lucide-react";
+import { MainLayout } from "@/components/layout/MainLayout";
+import { Button } from "@/components/ui/Button";
+import { TickerTape, TickerTapeSkeleton } from "@/components/dashboard/TickerTape";
+import { VNIndexChart, VNIndexChartSkeleton } from "@/components/dashboard/VNIndexChart";
+import { MarketBreadth, MarketBreadthSkeleton } from "@/components/dashboard/MarketBreadth";
+import { TopLeaders, TopLeadersSkeleton } from "@/components/dashboard/TopLeaders";
+import { GaugeChartSkeleton } from "@/components/dashboard/GaugeChart";
+import { LeaderRadar, LeaderRadarSkeleton } from "@/components/dashboard/LeaderRadar";
+import { MorningNews } from "@/components/dashboard/MorningNews";
+import { EveningNews } from "@/components/dashboard/EveningNews";
+import { MorningNewsSkeleton, EveningNewsSkeleton } from "@/components/dashboard/NewsSkeleton";
+
+// Step 1: Lazy load GaugeChart (recharts nặng) — SSR: false
+const GaugeChart = dynamic(
+  () => import("@/components/dashboard/GaugeChart").then((m) => m.GaugeChart),
+  { ssr: false, loading: () => <GaugeChartSkeleton /> },
+);
+
+interface MarketData {
+  status: "GOOD" | "BAD" | "NEUTRAL";
+  phase: "no_trade" | "probe" | "full_margin";
+  description: string;
+  indicators: Record<string, boolean>;
+  verdict: string;
+  action: string;
+  vnindex: { value: number; change: number; changePercent: number };
+  hnx: { value: number; change: number; changePercent: number };
+  vn30: { value: number; change: number; changePercent: number };
+  updown: { up: number; down: number; unchanged: number };
+  totalVolume: string;
+  aiSummary: string;
+  date: string;
+  globalIndices: Array<{ name: string; value: number; changePercent: number; icon: string }>;
+  vnMarketBullets: string[];
+  macroBullets: string[];
+  riskBullets: string[];
+  opportunityBullets: string[];
+  chartData: Array<{ date: string; close: number }>;
+}
+
+/** Dữ liệu "Đánh giá Đáy Thị Trường" từ Python API */
+interface MarketOverview {
+  ticker: string;
+  score: number;
+  max_score: number;
+  level: 1 | 2 | 3;
+  status_badge: string;
+  market_breadth: string;
+  monthly_summary?: string;
+  weekly_summary?: string;
+  technical_highlights: {
+    ema: string;
+    vsa: string;
+    divergence: string;
+    monthly?: string;
+    weekly?: string;
+  };
+  reasons: string[];
+  action_message: string;
+  disclaimer: string;
+  liquidity: number;
+  price: number;
+}
+
+interface RSStock {
+  symbol: string;
+  name: string;
+  rsRating: number;
+  price: number;
+  changePercent: number;
+  sector: string;
+}
+
+/** Format số tiền tệ đẹp: 10542.3 → "10,542" */
+function fmtLiquidity(tyVnd: number): string {
+  return new Intl.NumberFormat("vi-VN", {
+    maximumFractionDigits: 0,
+  }).format(Math.round(tyVnd));
+}
+
+/** SWR fetcher — throw on HTTP error để SWR retry */
+const swrFetcher = (url: string) =>
+  fetch(url, { signal: AbortSignal.timeout(12_000) }).then((r) => {
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  });
+
+export default function DashboardPage() {
+  /* ── Hydration guard: chỉ render data-dependent content sau khi mount ── */
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  /* ── SWR config chung: giữ data cũ, không gọi lại khi chuyển tab ── */
+  const swrOpts = {
+    keepPreviousData: true,
+    revalidateOnFocus: false,
+    dedupingInterval: 60_000,
+    refreshInterval: 60_000,
+  };
+
+  /* ── 3 SWR hooks song song ── */
+  const {
+    data,
+    isLoading: loadingMarket,
+    isValidating: validatingMarket,
+    mutate: mutateMarket,
+  } = useSWR<MarketData>("/api/market", swrFetcher, swrOpts);
+
+  const {
+    data: overview,
+    mutate: mutateOverview,
+  } = useSWR<MarketOverview>("/api/market-overview", swrFetcher, {
+    ...swrOpts,
+    shouldRetryOnError: false,
+  });
+
+  const {
+    data: rsRaw,
+    mutate: mutateRs,
+  } = useSWR<{ stocks?: RSStock[]; data?: RSStock[] }>("/api/rs-rating", swrFetcher, {
+    ...swrOpts,
+    shouldRetryOnError: false,
+  });
+
+  /* ── Derived state ── */
+  const loading = !mounted || (!data && loadingMarket);
+  const refreshing = mounted && !!data && validatingMarket;
+
+  const handleRefresh = useCallback(() => {
+    mutateMarket();
+    mutateOverview();
+    mutateRs();
+  }, [mutateMarket, mutateOverview, mutateRs]);
+
+  const tickerItems = useMemo(() => {
+    if (!data) return [];
+    return [
+      { name: "VNINDEX", value: data.vnindex.value, change: data.vnindex.change, changePercent: data.vnindex.changePercent },
+      { name: "VN30", value: data.vn30.value, change: data.vn30.change, changePercent: data.vn30.changePercent },
+      { name: "HNX", value: data.hnx.value, change: data.hnx.change, changePercent: data.hnx.changePercent },
+      ...data.globalIndices.filter((i) => !["VN-INDEX", "HNX"].includes(i.name)).map((i) => ({
+        name: i.name,
+        value: i.value,
+        change: 0,
+        changePercent: i.changePercent,
+      })),
+    ];
+  }, [data]);
+
+  const leaderRows = useMemo(() => {
+    const stocks: RSStock[] = rsRaw?.stocks ?? rsRaw?.data ?? [];
+    return stocks.slice(0, 5).map((s, i) => ({
+      rank: i + 1,
+      symbol: s.symbol,
+      name: s.name,
+      rsRating: s.rsRating,
+      price: s.price,
+      changePercent: s.changePercent,
+      sector: s.sector,
+    }));
+  }, [rsRaw]);
+
+  // Thanh khoản: ưu tiên từ Python backend (đã fix)
+  const liquidityDisplay = overview
+    ? `${fmtLiquidity(overview.liquidity)} Tỷ VNĐ`
+    : data?.totalVolume ?? "N/A";
+
+  return (
+    <MainLayout>
+      {/* ═══ TICKER TAPE ═══ */}
+      {loading || !data ? <TickerTapeSkeleton /> : <TickerTape items={tickerItems} />}
+
+      <div className="p-3 md:p-6 space-y-4 md:space-y-5 max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-baseline gap-2">
+              <h1 className="text-xl sm:text-2xl font-black text-white">Dashboard</h1>
+              <span className="text-[10px] font-bold text-emerald-400/50 uppercase tracking-widest hidden sm:inline">
+                BENTO
+              </span>
+            </div>
+            <p className="text-xs text-neutral-500 mt-0.5">
+              Tổng quan thị trường · {data?.date ?? "..."}
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-2 text-xs text-emerald-400/70 border border-emerald-500/20 px-3 py-1.5 rounded-lg bg-emerald-500/5">
+              <Bot className="w-3 h-3" />
+              ADN CAPITAL
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleRefresh}
+              loading={refreshing}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />
+              Làm mới
+            </Button>
+          </div>
+        </div>
+
+        {/* ═══ HERO: Chart + Gauge (7:3) ═══ */}
+        <div className="grid grid-cols-1 lg:grid-cols-10 gap-4">
+          {/* Cột Trái: Chart + Breadth */}
+          <div className="lg:col-span-7 flex flex-col gap-3">
+            {!data ? (
+              <>
+                <VNIndexChartSkeleton />
+                <MarketBreadthSkeleton />
+              </>
+            ) : (
+              <>
+                <VNIndexChart
+                  data={data.chartData}
+                  currentValue={data.vnindex.value}
+                  changePercent={data.vnindex.changePercent}
+                />
+                <MarketBreadth
+                  up={data.updown.up}
+                  down={data.updown.down}
+                  unchanged={data.updown.unchanged}
+                  totalVolume={liquidityDisplay}
+                />
+              </>
+            )}
+          </div>
+
+          {/* Cột Phải: Gauge + Market Status Card */}
+          <div className="lg:col-span-3 flex flex-col gap-3">
+            {/* Đồng hồ Gauge */}
+            {!mounted ? (
+              <GaugeCardSkeleton />
+            ) : (
+              <GaugeCard overview={overview ?? null} />
+            )}
+
+            {/* Thẻ Trạng Thái 3D */}
+            {mounted && <MarketStatusCard overview={overview ?? null} />}
+          </div>
+        </div>
+
+        {/* ═══ AI SUMMARY ═══ */}
+        {data?.aiSummary ? (
+          <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-4 min-h-[80px]">
+            <div className="flex items-center gap-2 mb-2">
+              <Bot className="w-4 h-4 text-emerald-400" />
+              <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">
+                AI Nhận Định
+              </span>
+            </div>
+            <p className="text-sm text-neutral-300 leading-relaxed italic whitespace-normal break-words">
+              &ldquo;{data.aiSummary}&rdquo;
+            </p>
+          </div>
+        ) : !data ? (
+          <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-4 min-h-[80px] animate-pulse">
+            <div className="h-3 w-24 bg-neutral-800 rounded mb-3" />
+            <div className="space-y-2">
+              <div className="h-3 w-full bg-neutral-800 rounded" />
+              <div className="h-3 w-3/4 bg-neutral-800 rounded" />
+            </div>
+          </div>
+        ) : null}
+
+        {/* ═══ MORNING NEWS + EOD FLASH NOTE ═══ */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Suspense fallback={<MorningNewsSkeleton />}>
+            <MorningNews />
+          </Suspense>
+          <Suspense fallback={<EveningNewsSkeleton />}>
+            <EveningNews />
+          </Suspense>
+        </div>
+
+        {/* ═══ LEADER RADAR — Cầu Dao Tổng ═══ */}
+        {!mounted ? <LeaderRadarSkeleton /> : <LeaderRadar />}
+
+        {/* ═══ BOTTOM: Top Leaders ═══ */}
+        {!mounted || !rsRaw ? (
+          <TopLeadersSkeleton />
+        ) : leaderRows.length > 0 ? (
+          <TopLeaders stocks={leaderRows} />
+        ) : null}
+      </div>
+    </MainLayout>
+  );
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ *  GaugeCard – Thẻ chứa Đồng hồ bán nguyệt (chỉ Gauge, không stat rườm rà)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+const GaugeCard = memo(function GaugeCard({ overview }: { overview: MarketOverview | null }) {
+  const score = overview?.score ?? 0;
+  const maxScore = overview?.max_score ?? 10;
+  const liquidity = overview?.liquidity ?? 0;
+
+  return (
+    <div className="rounded-2xl border border-neutral-800 bg-neutral-900/90 p-4 sm:p-5 flex flex-col items-center transform-gpu will-change-transform hover:border-neutral-700 hover:shadow-lg hover:shadow-neutral-900/50 transition-all duration-300">
+      {/* Header */}
+      <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-2 self-start">
+        Đánh Giá Vĩ Mô Đa Khung (W/M)
+      </p>
+
+      {/* Đồng hồ */}
+      {overview ? <GaugeChart score={score} maxScore={maxScore} /> : <GaugeChartSkeleton />}
+
+      {/* Thanh khoản */}
+      {overview && (
+        <p className="text-xs text-neutral-400 mt-2">
+          Thanh khoản: <span className="font-bold text-neutral-200">{fmtLiquidity(liquidity)} Tỷ VNĐ</span>
+        </p>
+      )}
+    </div>
+  );
+});
+
+function GaugeCardSkeleton() {
+  return (
+    <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4 sm:p-5">
+      <div className="h-3 w-32 bg-neutral-800 rounded animate-pulse mb-3" />
+      <div className="h-[200px] rounded-xl bg-neutral-800/50 animate-pulse" />
+    </div>
+  );
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ *  MarketStatusCard – Thẻ trạng thái 3D nổi khối + Backlight Glow
+ *  Bọc React.memo để tránh re-render gây lag
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Cấu hình màu + icon theo Level */
+const LEVEL_CONFIG = {
+  1: {
+    border: "border-red-900 hover:border-red-500/50",
+    shadow: "hover:shadow-[0_0_40px_-10px_rgba(239,68,68,0.7)]",
+    text: "text-red-500",
+    bg: "bg-red-500/5",
+    glow: "bg-red-500/20",
+    Icon: ShieldAlert,
+  },
+  2: {
+    border: "border-orange-900 hover:border-orange-500/50",
+    shadow: "hover:shadow-[0_0_40px_-10px_rgba(245,158,11,0.7)]",
+    text: "text-orange-500",
+    bg: "bg-orange-500/5",
+    glow: "bg-orange-500/20",
+    Icon: Zap,
+  },
+  3: {
+    border: "border-purple-900 hover:border-purple-500/50",
+    shadow: "hover:shadow-[0_0_40px_-10px_rgba(168,85,247,0.7)]",
+    text: "text-purple-500",
+    bg: "bg-purple-500/5",
+    glow: "bg-purple-500/20",
+    Icon: Flame,
+  },
+} as const;
+
+const MarketStatusCard = memo(function MarketStatusCard({
+  overview,
+}: {
+  overview: MarketOverview | null;
+}) {
+  const level = overview?.level ?? 1;
+  const score = overview?.score ?? 0;
+  const maxScore = overview?.max_score ?? 10;
+  const statusBadge = overview?.status_badge ?? "🔴 QUAN SÁT";
+  const breadth = overview?.market_breadth ?? "Không có dữ liệu";
+  const highlights = overview?.technical_highlights;
+  const monthlySummary = overview?.monthly_summary ?? highlights?.monthly ?? "";
+  const weeklySummary = overview?.weekly_summary ?? highlights?.weekly ?? "";
+  const actionMessage = overview?.action_message ?? "Đang tải dữ liệu...";
+  const disclaimer = overview?.disclaimer ?? "";
+
+  const cfg = LEVEL_CONFIG[level as 1 | 2 | 3] ?? LEVEL_CONFIG[1];
+  const { Icon } = cfg;
+
+  return (
+    <div
+      className={`
+        relative overflow-hidden rounded-2xl bg-gray-900 border
+        transition-all duration-300 ease-out cursor-pointer
+        transform-gpu will-change-transform
+        hover:-translate-y-2 hover:scale-[1.02]
+        ${cfg.border} ${cfg.shadow}
+      `}
+    >
+      {/* Backlight glow */}
+      <div
+        className={`absolute -top-10 -right-10 w-40 h-40 rounded-full blur-3xl opacity-30 ${cfg.glow}`}
+      />
+
+      <div className="relative z-10 p-4 sm:p-5">
+        {/* Header: Icon + Badge */}
+        <div className="flex items-center justify-between mb-3">
+          <div className={`p-2 rounded-xl ${cfg.bg}`}>
+            <Icon className={`w-5 h-5 ${cfg.text}`} />
+          </div>
+          <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${cfg.bg} ${cfg.text}`}>
+            {statusBadge.replace(/🟢|🟡|🔴/g, "").trim()}
+          </span>
+        </div>
+
+        {/* Score */}
+        <div className="flex items-baseline gap-2 mb-2">
+          <span className={`text-3xl sm:text-4xl font-black ${cfg.text}`}>
+            {score}
+          </span>
+          <span className="text-sm text-gray-500 font-bold">/ {maxScore}</span>
+          <span className={`text-[10px] font-bold uppercase tracking-wider ${cfg.text}`}>
+            Level {level}
+          </span>
+        </div>
+
+        {/* Market Breadth */}
+        <p className="text-[11px] text-gray-500 mb-3">
+          📊 {breadth}
+        </p>
+
+        {/* W/M Timeframe Summary */}
+        <div className="space-y-1.5 mb-3">
+          {monthlySummary && (
+            <div className="flex items-start gap-1.5 text-[11px]">
+              <span className="shrink-0 font-bold text-purple-400">Khung Tháng (M):</span>
+              <span className="text-gray-400">{monthlySummary}</span>
+            </div>
+          )}
+          {weeklySummary && (
+            <div className="flex items-start gap-1.5 text-[11px]">
+              <span className="shrink-0 font-bold text-cyan-400">Khung Tuần (W):</span>
+              <span className="text-gray-400">{weeklySummary}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Action Message */}
+        <p className="text-sm text-gray-400 leading-relaxed italic">
+          &ldquo;{actionMessage}&rdquo;
+        </p>
+
+        {/* Disclaimer */}
+        {disclaimer && (
+          <p className="text-[9px] text-gray-600 mt-2">
+            {disclaimer}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+});
