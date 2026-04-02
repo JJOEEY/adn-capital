@@ -22,6 +22,8 @@ import {
   Menu,
   X,
   Zap as ZapIcon,
+  Layers,
+  Banknote,
 } from "lucide-react";
 import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 import { USAGE_LIMITS } from "@/lib/utils";
@@ -29,11 +31,13 @@ import { USAGE_LIMITS } from "@/lib/utils";
 const navItems = [
   { href: "/",                    label: "Trang Chủ",          icon: Home,            badge: null },
   { href: "/dashboard",           label: "Dashboard",          icon: LayoutDashboard,  badge: null },
+  { href: "/san-pham",            label: "Sản Phẩm",           icon: Layers,           badge: null },
   { href: "/backtest",            label: "Backtest",           icon: FlaskConical,     badge: null },
   { href: "/rs-rating",           label: "RS Rating",          icon: BarChart2,        badge: null },
   { href: "/journal",             label: "Nhật Ký",            icon: BookOpen,         badge: null },
   { href: "/terminal",            label: "Chat AI",            icon: MessageSquare,    badge: "HOT" },
   { href: "/dashboard/signal-map",label: "Tín Hiệu",          icon: Zap,             badge: null },
+  { href: "/margin",              label: "Ký Quỹ",             icon: Banknote,         badge: "MỚI" },
   { href: "/admin",               label: "Quản Lý",           icon: Users,            badge: null },
 ];
 
