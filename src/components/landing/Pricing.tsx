@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useSession } from "next-auth/react";
 import { motion } from "framer-motion";
 import { Check, Crown, Zap, Star, Shield, Gift, Sparkles, ExternalLink, Clock } from "lucide-react";
 
@@ -158,19 +159,66 @@ function formatVND(amount: number): string {
  *  MAIN COMPONENT
  * ═══════════════════════════════════════════════════════════════════════════ */
 export default function Pricing() {
+  const { status } = useSession();
+  const isSignedIn = status === "authenticated";
+
   const [dnseId, setDnseId] = useState("");
   const [isDNSE, setIsDNSE] = useState(false);
   const [applied, setApplied] = useState(false);
   const [pending, setPending] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
-  const handleApply = () => {
+  /** Load trạng thái DNSE của user khi đã đăng nhập */
+  const loadDnseStatus = useCallback(async () => {
+    if (!isSignedIn) return;
+    try {
+      const res = await fetch("/api/user/dnse");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.dnseId) {
+        setDnseId(data.dnseId);
+        setApplied(true);
+        setPending(!data.dnseVerified);
+        setIsDNSE(data.dnseVerified === true);
+      }
+    } catch { /* ignore */ }
+  }, [isSignedIn]);
+
+  useEffect(() => {
+    loadDnseStatus();
+  }, [loadDnseStatus]);
+
+  const handleApply = async () => {
     const trimmed = dnseId.trim();
     if (trimmed.length < 3) return;
-    // Hiện tại apply ngay — sau này sẽ verify qua DB
-    // Nếu ID chưa có trong hệ thống → pending chờ duyệt
-    setApplied(true);
-    setPending(false); // TODO: set true nếu ID chưa verify trong DB
-    setIsDNSE(true);
+    setErrorMsg("");
+
+    if (!isSignedIn) {
+      setErrorMsg("Vui lòng đăng nhập trước khi nhập ID DNSE.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/user/dnse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dnseId: trimmed }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setErrorMsg(data.error ?? "Không thể gửi ID DNSE.");
+        return;
+      }
+      setApplied(true);
+      setPending(!data.dnseVerified);
+      setIsDNSE(data.dnseVerified === true);
+    } catch {
+      setErrorMsg("Lỗi kết nối, vui lòng thử lại.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleRemove = () => {
@@ -178,6 +226,7 @@ export default function Pricing() {
     setIsDNSE(false);
     setApplied(false);
     setPending(false);
+    setErrorMsg("");
   };
 
   return (
@@ -306,11 +355,15 @@ export default function Pricing() {
                 />
                 <button
                   onClick={handleApply}
-                  className="px-5 py-2.5 text-sm font-bold rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black transition-all cursor-pointer"
+                  disabled={submitting}
+                  className="px-5 py-2.5 text-sm font-bold rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Áp dụng
+                  {submitting ? "..." : "Áp dụng"}
                 </button>
               </div>
+            )}
+            {errorMsg && (
+              <p className="text-xs text-red-400 mt-2">{errorMsg}</p>
             )}
           </div>
         </motion.div>

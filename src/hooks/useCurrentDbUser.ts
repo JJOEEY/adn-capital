@@ -12,6 +12,9 @@ interface CurrentDbUser {
   role: "FREE" | "VIP";
   chatCount: number;
   vipUntil: string | null;
+  dnseId: string | null;
+  dnseVerified: boolean;
+  dnseAppliedAt: string | null;
   isAdmin?: boolean;
 }
 

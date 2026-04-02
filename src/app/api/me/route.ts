@@ -32,6 +32,9 @@ export async function GET() {
       role: dbUser.role,
       chatCount: dbUser.chatCount,
       vipUntil: dbUser.vipUntil?.toISOString() ?? null,
+      dnseId: dbUser.dnseId ?? null,
+      dnseVerified: dbUser.dnseVerified ?? false,
+      dnseAppliedAt: dbUser.dnseAppliedAt?.toISOString() ?? null,
       isAdmin: ADMIN_EMAILS.includes(dbUser.email?.toLowerCase() ?? ""),
     },
   });
