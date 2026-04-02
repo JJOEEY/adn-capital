@@ -405,6 +405,7 @@ function PricingCard({
   const [loading, setLoading] = useState(false);
   const t = accentTokens[plan.accent];
   const displayPrice = isDNSE ? plan.dnsePrice : plan.price;
+  const savingsPct = Math.round((1 - plan.dnsePrice / plan.price) * 100);
 
   const handleCheckout = async () => {
     if (!isSignedIn) {
@@ -473,18 +474,32 @@ function PricingCard({
 
       {/* ── Price ─────────────────────────────────────────────────── */}
       <div className="mb-6">
-        {isDNSE && (
-          <p className="text-sm text-neutral-500 line-through mb-1">
-            {formatVND(plan.price)}
-          </p>
-        )}
-        <p className={`text-3xl font-black ${t.priceText}`}>
-          {formatVND(displayPrice)}
-        </p>
-        {isDNSE && (
-          <span className="inline-block mt-2 text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full">
-            Ưu đãi DNSE
-          </span>
+        {isDNSE ? (
+          <>
+            <div className="flex items-center gap-2 mb-1">
+              <p className="text-sm text-neutral-500 line-through">
+                {formatVND(plan.price)}
+              </p>
+              <span className="inline-flex items-center gap-0.5 text-[11px] font-black uppercase tracking-wide bg-red-500/15 text-red-400 border border-red-500/25 px-2 py-0.5 rounded-full animate-pulse">
+                -{savingsPct}%
+              </span>
+            </div>
+            <p className={`text-3xl font-black ${t.priceText}`}>
+              {formatVND(displayPrice)}
+            </p>
+            <span className="inline-block mt-2 text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+              Tiết kiệm {formatVND(plan.price - plan.dnsePrice)}
+            </span>
+          </>
+        ) : (
+          <>
+            <p className={`text-3xl font-black ${t.priceText}`}>
+              {formatVND(displayPrice)}
+            </p>
+            <p className="mt-1.5 text-[10px] text-neutral-500">
+              Chỉ <span className="text-emerald-400 font-semibold">{formatVND(plan.dnsePrice)}</span> với DNSE <span className="text-emerald-400">(-{savingsPct}%)</span>
+            </p>
+          </>
         )}
       </div>
 

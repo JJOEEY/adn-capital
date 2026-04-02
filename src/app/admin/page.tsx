@@ -141,6 +141,13 @@ function UsersTab() {
   const [filter, setFilter] = useState<"all" | "pending" | "verified">("all");
   const [vipMenuUser, setVipMenuUser] = useState<string | null>(null);
   const [customDays, setCustomDays] = useState("");
+  const [confirmAction, setConfirmAction] = useState<{
+    userId: string;
+    email: string;
+    role: string;
+    days?: number;
+    label: string;
+  } | null>(null);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -445,7 +452,13 @@ function UsersTab() {
                               <button
                                 key={preset.days}
                                 onClick={() => {
-                                  handleSetRole(user.id, "VIP", preset.days);
+                                  setConfirmAction({
+                                    userId: user.id,
+                                    email: user.email,
+                                    role: "VIP",
+                                    days: preset.days,
+                                    label: `Cấp ${preset.tier} ${preset.label}`,
+                                  });
                                   setVipMenuUser(null);
                                 }}
                                 className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs hover:bg-neutral-800 transition-colors cursor-pointer"
@@ -475,7 +488,13 @@ function UsersTab() {
                                   onClick={() => {
                                     const d = parseInt(customDays);
                                     if (d > 0) {
-                                      handleSetRole(user.id, "VIP", d);
+                                      setConfirmAction({
+                                        userId: user.id,
+                                        email: user.email,
+                                        role: "VIP",
+                                        days: d,
+                                        label: `Cấp VIP ${d} ngày (tùy chọn)`,
+                                      });
                                       setVipMenuUser(null);
                                       setCustomDays("");
                                     }
@@ -491,7 +510,12 @@ function UsersTab() {
                                 <div className="border-t border-neutral-800 pt-1.5 mt-1">
                                   <button
                                     onClick={() => {
-                                      handleSetRole(user.id, "FREE");
+                                      setConfirmAction({
+                                        userId: user.id,
+                                        email: user.email,
+                                        role: "FREE",
+                                        label: "Hạ về FREE",
+                                      });
                                       setVipMenuUser(null);
                                     }}
                                     className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
@@ -513,6 +537,73 @@ function UsersTab() {
           </tbody>
         </table>
       </div>
+
+      {/* ── Confirmation Modal ──────────────────────────────────── */}
+      {confirmAction && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-neutral-900 border border-neutral-700 rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className={`p-2.5 rounded-xl ${
+                confirmAction.role === "FREE"
+                  ? "bg-red-500/10 border border-red-500/20"
+                  : "bg-purple-500/10 border border-purple-500/20"
+              }`}>
+                {confirmAction.role === "FREE" ? (
+                  <ShieldX className="w-5 h-5 text-red-400" />
+                ) : (
+                  <Crown className="w-5 h-5 text-purple-400" />
+                )}
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white">Xác nhận thay đổi</h3>
+                <p className="text-[10px] text-neutral-500">Hành động không thể hoàn tác tự động</p>
+              </div>
+            </div>
+            <div className="bg-neutral-800/60 rounded-xl p-3 space-y-1.5 text-xs">
+              <p className="text-neutral-400">
+                User: <span className="text-white font-mono">{confirmAction.email}</span>
+              </p>
+              <p className="text-neutral-400">
+                Thao tác:{" "}
+                <span className={`font-bold ${
+                  confirmAction.role === "FREE" ? "text-red-400" : "text-purple-400"
+                }`}>
+                  {confirmAction.label}
+                </span>
+              </p>
+              {confirmAction.days && (
+                <p className="text-neutral-400">
+                  VIP đến:{" "}
+                  <span className="text-emerald-400 font-semibold">
+                    {new Date(Date.now() + confirmAction.days * 86400000).toLocaleDateString("vi-VN")}
+                  </span>
+                </p>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmAction(null)}
+                className="flex-1 px-4 py-2.5 rounded-xl border border-neutral-700 text-xs font-bold text-neutral-400 hover:text-white hover:border-neutral-600 transition-all cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={() => {
+                  handleSetRole(confirmAction.userId, confirmAction.role, confirmAction.days);
+                  setConfirmAction(null);
+                }}
+                className={`flex-1 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  confirmAction.role === "FREE"
+                    ? "bg-red-500 hover:bg-red-400 text-white"
+                    : "bg-purple-500 hover:bg-purple-400 text-white"
+                }`}
+              >
+                Xác nhận
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
