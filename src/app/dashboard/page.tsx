@@ -11,7 +11,7 @@ import { VNIndexChart, VNIndexChartSkeleton } from "@/components/dashboard/VNInd
 import { MarketBreadth, MarketBreadthSkeleton } from "@/components/dashboard/MarketBreadth";
 import { TopLeaders, TopLeadersSkeleton } from "@/components/dashboard/TopLeaders";
 import { GaugeChartSkeleton } from "@/components/dashboard/GaugeChart";
-import { LeaderRadar, LeaderRadarSkeleton } from "@/components/dashboard/LeaderRadar";
+import { ReversePointIndex, RPISkeleton } from "@/components/dashboard/ReversePointIndex";
 import { MorningNews } from "@/components/dashboard/MorningNews";
 import { EveningNews } from "@/components/dashboard/EveningNews";
 import { MorningNewsSkeleton, EveningNewsSkeleton } from "@/components/dashboard/NewsSkeleton";
@@ -287,9 +287,9 @@ export default function DashboardPage() {
           </Suspense>
         </div>
 
-        {/* ═══ LEADER RADAR — Cầu Dao Tổng ═══ */}
-        <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem Radar Leader Alert">
-          {!mounted ? <LeaderRadarSkeleton /> : <LeaderRadar />}
+        {/* ═══ RPI — Chỉ báo Điểm Đảo Chiều ═══ */}
+        <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem Chỉ báo Điểm Đảo Chiều">
+          {!mounted ? <RPISkeleton /> : <ReversePointIndex />}
         </LockOverlay>
 
         {/* ═══ BOTTOM: Top Leaders ═══ */}
