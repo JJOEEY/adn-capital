@@ -19,6 +19,8 @@ import {
   AlertTriangle,
   CheckCircle2,
   Loader2,
+  Upload,
+  Link as LinkIcon,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -33,8 +35,13 @@ export default function ProfilePage() {
   const [avatarUrl, setAvatarUrl] = useState("");
   const [editingAvatar, setEditingAvatar] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [avatarMode, setAvatarMode] = useState<"upload" | "url">("upload");
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [previewFile, setPreviewFile] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   useEffect(() => {
     if (!isLoading && status !== "loading" && !isAuthenticated) {
@@ -87,6 +94,49 @@ export default function ProfilePage() {
   const handleSaveAvatar = () => {
     setEditingAvatar(false);
     save({ image: avatarUrl });
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      setMsg({ type: "err", text: "File quá lớn (tối đa 2MB)" });
+      return;
+    }
+    if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)) {
+      setMsg({ type: "err", text: "Chỉ chấp nhận JPG, PNG, WebP, GIF" });
+      return;
+    }
+    setSelectedFile(file);
+    setPreviewFile(URL.createObjectURL(file));
+  };
+
+  const handleUploadAvatar = async () => {
+    if (!selectedFile) return;
+    setUploading(true);
+    setMsg(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+      const res = await fetch("/api/user/avatar", {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) {
+        const e = await res.json();
+        throw new Error(e.error ?? "Lỗi upload");
+      }
+      setMsg({ type: "ok", text: "Cập nhật avatar thành công!" });
+      setEditingAvatar(false);
+      setSelectedFile(null);
+      setPreviewFile(null);
+      await updateSession();
+      setTimeout(() => window.location.reload(), 800);
+    } catch (err) {
+      setMsg({ type: "err", text: err instanceof Error ? err.message : "Lỗi" });
+    } finally {
+      setUploading(false);
+    }
   };
 
   if (isLoading || status === "loading") {
@@ -231,46 +281,153 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Avatar URL edit modal */}
+          {/* Avatar edit panel */}
           {editingAvatar && (
-            <div className="mt-4 p-4 bg-neutral-800/60 rounded-xl border border-neutral-700 space-y-3">
-              <p className="text-xs font-bold text-neutral-400">URL Avatar mới</p>
-              <input
-                value={avatarUrl}
-                onChange={(e) => setAvatarUrl(e.target.value)}
-                placeholder="https://example.com/avatar.jpg"
-                className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500/50 placeholder-neutral-600"
-              />
-              <div className="flex gap-2">
+            <div className="mt-4 p-4 bg-neutral-800/60 rounded-xl border border-neutral-700 space-y-4">
+              {/* Tabs: Upload / URL */}
+              <div className="flex gap-1 bg-neutral-900 rounded-lg p-0.5">
                 <button
-                  onClick={handleSaveAvatar}
-                  disabled={saving}
-                  className="px-4 py-2 rounded-lg bg-emerald-500/15 text-emerald-400 text-xs font-bold hover:bg-emerald-500/25 transition-colors cursor-pointer"
+                  onClick={() => setAvatarMode("upload")}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-colors cursor-pointer ${
+                    avatarMode === "upload"
+                      ? "bg-emerald-500/15 text-emerald-400"
+                      : "text-neutral-500 hover:text-neutral-300"
+                  }`}
                 >
-                  {saving ? "Đang lưu..." : "Lưu Avatar"}
+                  <Upload className="w-3 h-3" />
+                  Tải lên
                 </button>
                 <button
-                  onClick={() => {
-                    setEditingAvatar(false);
-                    setAvatarUrl(dbUser.image ?? "");
-                  }}
-                  className="px-4 py-2 rounded-lg border border-neutral-700 text-neutral-400 text-xs font-bold hover:border-neutral-600 transition-colors cursor-pointer"
+                  onClick={() => setAvatarMode("url")}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-colors cursor-pointer ${
+                    avatarMode === "url"
+                      ? "bg-emerald-500/15 text-emerald-400"
+                      : "text-neutral-500 hover:text-neutral-300"
+                  }`}
                 >
-                  Hủy
+                  <LinkIcon className="w-3 h-3" />
+                  Nhập URL
                 </button>
-                {dbUser.image && (
-                  <button
-                    onClick={() => {
-                      setAvatarUrl("");
-                      setEditingAvatar(false);
-                      save({ image: "" });
-                    }}
-                    className="px-4 py-2 rounded-lg text-red-400 text-xs font-bold hover:bg-red-500/10 transition-colors cursor-pointer ml-auto"
-                  >
-                    Xóa avatar
-                  </button>
-                )}
               </div>
+
+              {avatarMode === "upload" ? (
+                <div className="space-y-3">
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+                  {previewFile ? (
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={previewFile}
+                        alt="Preview"
+                        className="w-16 h-16 rounded-xl border border-neutral-700 object-cover"
+                      />
+                      <div className="flex-1">
+                        <p className="text-xs text-neutral-400 truncate">{selectedFile?.name}</p>
+                        <p className="text-[10px] text-neutral-600">{selectedFile ? (selectedFile.size / 1024).toFixed(0) + " KB" : ""}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => fileRef.current?.click()}
+                      className="w-full py-6 rounded-xl border-2 border-dashed border-neutral-700 hover:border-emerald-500/30 flex flex-col items-center gap-2 transition-colors cursor-pointer"
+                    >
+                      <Upload className="w-6 h-6 text-neutral-600" />
+                      <span className="text-xs text-neutral-500">Chọn ảnh từ máy tính</span>
+                      <span className="text-[10px] text-neutral-600">JPG, PNG, WebP, GIF — tối đa 2MB</span>
+                    </button>
+                  )}
+                  <div className="flex gap-2">
+                    {previewFile ? (
+                      <>
+                        <button
+                          onClick={handleUploadAvatar}
+                          disabled={uploading}
+                          className="px-4 py-2 rounded-lg bg-emerald-500/15 text-emerald-400 text-xs font-bold hover:bg-emerald-500/25 transition-colors cursor-pointer"
+                        >
+                          {uploading ? "Đang tải..." : "Lưu Avatar"}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedFile(null);
+                            setPreviewFile(null);
+                          }}
+                          className="px-4 py-2 rounded-lg border border-neutral-700 text-neutral-400 text-xs font-bold hover:border-neutral-600 transition-colors cursor-pointer"
+                        >
+                          Chọn lại
+                        </button>
+                      </>
+                    ) : null}
+                    <button
+                      onClick={() => {
+                        setEditingAvatar(false);
+                        setSelectedFile(null);
+                        setPreviewFile(null);
+                      }}
+                      className={`px-4 py-2 rounded-lg border border-neutral-700 text-neutral-400 text-xs font-bold hover:border-neutral-600 transition-colors cursor-pointer ${previewFile ? "" : ""}`}
+                    >
+                      Hủy
+                    </button>
+                    {dbUser.image && (
+                      <button
+                        onClick={() => {
+                          setAvatarUrl("");
+                          setEditingAvatar(false);
+                          setSelectedFile(null);
+                          setPreviewFile(null);
+                          save({ image: "" });
+                        }}
+                        className="px-4 py-2 rounded-lg text-red-400 text-xs font-bold hover:bg-red-500/10 transition-colors cursor-pointer ml-auto"
+                      >
+                        Xóa avatar
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <input
+                    value={avatarUrl}
+                    onChange={(e) => setAvatarUrl(e.target.value)}
+                    placeholder="https://example.com/avatar.jpg"
+                    className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500/50 placeholder-neutral-600"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleSaveAvatar}
+                      disabled={saving}
+                      className="px-4 py-2 rounded-lg bg-emerald-500/15 text-emerald-400 text-xs font-bold hover:bg-emerald-500/25 transition-colors cursor-pointer"
+                    >
+                      {saving ? "Đang lưu..." : "Lưu Avatar"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditingAvatar(false);
+                        setAvatarUrl(dbUser.image ?? "");
+                      }}
+                      className="px-4 py-2 rounded-lg border border-neutral-700 text-neutral-400 text-xs font-bold hover:border-neutral-600 transition-colors cursor-pointer"
+                    >
+                      Hủy
+                    </button>
+                    {dbUser.image && (
+                      <button
+                        onClick={() => {
+                          setAvatarUrl("");
+                          setEditingAvatar(false);
+                          save({ image: "" });
+                        }}
+                        className="px-4 py-2 rounded-lg text-red-400 text-xs font-bold hover:bg-red-500/10 transition-colors cursor-pointer ml-auto"
+                      >
+                        Xóa avatar
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
