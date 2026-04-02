@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",
-    "@google/generative-ai": "^0.21.0",
+    "@google/genai": "^1.48.0",
     "@payos/node": "^2.0.5",
     "@prisma/client": "^5.22.0",
     "bcryptjs": "^3.0.3",
