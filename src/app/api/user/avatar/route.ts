@@ -10,6 +10,12 @@ export const dynamic = "force-dynamic";
 const MAX_SIZE = 2 * 1024 * 1024; // 2 MB
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
+/** Upload directory — outside public/ so it works in standalone mode */
+function getUploadDir() {
+  // Use env var or fallback to sibling of project root
+  return process.env.AVATAR_UPLOAD_DIR || path.join(process.cwd(), "..", "uploads", "avatars");
+}
+
 /**
  * POST /api/user/avatar — Upload avatar từ máy tính
  */
@@ -40,14 +46,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Generate safe filename
+  // Generate safe filename (only alphanumeric + dash + dot)
   const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
   const safeExt = ["jpg", "jpeg", "png", "webp", "gif"].includes(ext) ? ext : "jpg";
   const hash = crypto.randomBytes(8).toString("hex");
-  const filename = `${session.user.id}-${hash}.${safeExt}`;
+  const filename = `${session.user.id.replace(/[^a-zA-Z0-9-]/g, "")}-${hash}.${safeExt}`;
 
   // Ensure upload directory exists
-  const uploadDir = path.join(process.cwd(), "public", "uploads", "avatars");
+  const uploadDir = getUploadDir();
   await mkdir(uploadDir, { recursive: true });
 
   // Write file
@@ -55,8 +61,8 @@ export async function POST(req: NextRequest) {
   const filePath = path.join(uploadDir, filename);
   await writeFile(filePath, bytes);
 
-  // Build URL path
-  const imageUrl = `/uploads/avatars/${filename}`;
+  // Build URL path — served via /api/user/avatar/[filename]
+  const imageUrl = `/api/user/avatar/${filename}`;
 
   // Update user in DB
   await prisma.user.update({
