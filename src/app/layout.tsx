@@ -6,6 +6,10 @@ export const metadata: Metadata = {
   title: "ADN Capital - Trợ lý Chứng khoán Việt Nam",
   description: "Hệ thống AI phân tích chứng khoán Việt Nam chuyên nghiệp. Phân tích kỹ thuật, cơ bản, tín hiệu giao dịch.",
   keywords: ["chứng khoán", "AI", "phân tích kỹ thuật", "Vietnam stock", "ADN AI"],
+  icons: {
+    icon: "/logo.jpg",
+    apple: "/logo.jpg",
+  },
 };
 
 // Patch removeChild/insertBefore để tránh crash do browser extension chèn DOM
