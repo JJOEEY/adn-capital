@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Check, Crown, Zap, Star, Shield, Gift, Sparkles } from "lucide-react";
+import { Check, Crown, Zap, Star, Shield, Gift, Sparkles, ExternalLink, Clock } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════════════════════════
  *  PRICING SECTION — Landing Page "Chốt Sale"
@@ -27,7 +27,7 @@ const plans: PricingPlan[] = [
     name: "Gói 1 Tháng",
     period: "/tháng",
     price: 1_000_000,
-    dnsePrice: 500_000,
+    dnsePrice: 700_000,
     icon: <Zap className="w-5 h-5" />,
     accent: "sky",
     features: [
@@ -41,23 +41,23 @@ const plans: PricingPlan[] = [
     id: "3m",
     name: "Gói 3 Tháng",
     period: "/3 tháng",
-    price: 3_000_000,
-    dnsePrice: 1_800_000,
+    price: 2_000_000,
+    dnsePrice: 1_500_000,
     icon: <Star className="w-5 h-5" />,
     accent: "blue",
     features: [
       "Tất cả tính năng Gói 1 Tháng",
       "Nhật ký + Phân tích tâm lý AI",
       "Báo cáo thị trường 8:00 & 17:00",
-      "Tiết kiệm 10% so với gói tháng",
+      "Tiết kiệm hơn so với gói tháng",
     ],
   },
   {
     id: "6m",
     name: "Gói 6 Tháng",
     period: "/6 tháng",
-    price: 6_000_000,
-    dnsePrice: 4_500_000,
+    price: 3_800_000,
+    dnsePrice: 3_000_000,
     icon: <Crown className="w-5 h-5" />,
     accent: "emerald",
     ribbon: "Bán chạy nhất",
@@ -73,7 +73,7 @@ const plans: PricingPlan[] = [
     id: "12m",
     name: "Gói 12 Tháng",
     period: "/năm",
-    price: 12_000_000,
+    price: 7_000_000,
     dnsePrice: 6_000_000,
     icon: <Sparkles className="w-5 h-5" />,
     accent: "purple",
@@ -83,7 +83,7 @@ const plans: PricingPlan[] = [
       "Tư vấn 1-1 hàng tháng",
       "VIP Discord community",
       "Whitelist tính năng beta",
-      "Giảm 50% so với gói tháng",
+      "Tiết kiệm tối đa so với gói tháng",
     ],
   },
 ];
@@ -161,22 +161,27 @@ export default function Pricing() {
   const [dnseId, setDnseId] = useState("");
   const [isDNSE, setIsDNSE] = useState(false);
   const [applied, setApplied] = useState(false);
+  const [pending, setPending] = useState(false);
 
   const handleApply = () => {
-    if (dnseId.trim().length >= 3) {
-      setIsDNSE(true);
-      setApplied(true);
-    }
+    const trimmed = dnseId.trim();
+    if (trimmed.length < 3) return;
+    // Hiện tại apply ngay — sau này sẽ verify qua DB
+    // Nếu ID chưa có trong hệ thống → pending chờ duyệt
+    setApplied(true);
+    setPending(false); // TODO: set true nếu ID chưa verify trong DB
+    setIsDNSE(true);
   };
 
   const handleRemove = () => {
     setDnseId("");
     setIsDNSE(false);
     setApplied(false);
+    setPending(false);
   };
 
   return (
-    <section className="relative py-20 sm:py-28 px-4 bg-gray-900">
+    <section className="relative py-20 sm:py-28 px-4 bg-neutral-950">
       {/* Background glow */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[600px] bg-emerald-500/[0.03] rounded-full blur-3xl pointer-events-none" />
 
@@ -204,6 +209,42 @@ export default function Pricing() {
           </p>
         </motion.div>
 
+        {/* ── Free Trial Banner ────────────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.5, delay: 0.05 }}
+          className="max-w-2xl mx-auto mb-8"
+        >
+          <div className="relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.04] p-5">
+            <div className="absolute top-0 right-0 w-40 h-40 bg-emerald-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+            <div className="relative flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/15 flex items-center justify-center shrink-0">
+                <Gift className="w-5 h-5 text-emerald-400" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-bold text-white mb-1">
+                  🎁 Mở tài khoản DNSE — Trải nghiệm miễn phí 1 tháng!
+                </p>
+                <p className="text-xs text-neutral-400 leading-relaxed">
+                  Mở tài khoản chứng khoán DNSE qua link giới thiệu, sau khi tài khoản được duyệt (~1 tiếng),
+                  nhập ID DNSE vào ô bên dưới để kích hoạt <span className="text-emerald-400 font-semibold">VIP miễn phí 1 tháng</span> + giá ưu đãi DNSE cho các gói tiếp theo.
+                </p>
+              </div>
+              <a
+                href="https://s.dnse.vn/HVxkDz"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold transition-all hover:scale-105 active:scale-95"
+              >
+                Mở TK DNSE
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          </div>
+        </motion.div>
+
         {/* ── Promocode DNSE ───────────────────────────────────────── */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -214,22 +255,37 @@ export default function Pricing() {
         >
           <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-5 backdrop-blur-sm">
             <div className="flex items-center gap-2 mb-2">
-              <Gift className="w-4 h-4 text-emerald-400" />
+              <Shield className="w-4 h-4 text-emerald-400" />
               <span className="text-sm font-bold text-white">
-                Khách hàng DNSE?
+                Nhập ID tài khoản DNSE
               </span>
             </div>
             <p className="text-xs text-neutral-500 mb-3">
-              Nhập ID tài khoản DNSE để nhận ưu đãi giảm đến 50%
+              Áp dụng giá ưu đãi dành riêng cho khách hàng DNSE
             </p>
 
             {applied ? (
-              <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/25 rounded-xl px-4 py-3">
+              <div className={`flex items-center justify-between rounded-xl px-4 py-3 ${
+                pending
+                  ? "bg-amber-500/10 border border-amber-500/25"
+                  : "bg-emerald-500/10 border border-emerald-500/25"
+              }`}>
                 <div className="flex items-center gap-2">
-                  <Shield className="w-4 h-4 text-emerald-400" />
-                  <span className="text-sm text-emerald-400 font-bold">
-                    DNSE: {dnseId}
-                  </span>
+                  {pending ? (
+                    <Clock className="w-4 h-4 text-amber-400" />
+                  ) : (
+                    <Shield className="w-4 h-4 text-emerald-400" />
+                  )}
+                  <div>
+                    <span className={`text-sm font-bold ${pending ? "text-amber-400" : "text-emerald-400"}`}>
+                      DNSE: {dnseId}
+                    </span>
+                    {pending && (
+                      <p className="text-[10px] text-amber-400/70 mt-0.5">
+                        Đang chờ xác minh (~1 tiếng sau khi mở TK)
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <button
                   onClick={handleRemove}
