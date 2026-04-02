@@ -54,7 +54,7 @@ export default function MarginPage() {
     if (!form.name.trim()) e.name = "Vui lòng nhập họ tên.";
     if (!form.phone.trim()) e.phone = "Vui lòng nhập số điện thoại.";
     if (isKyQuy && !form.marginRatio) e.marginRatio = "Vui lòng chọn tỉ lệ ký quỹ.";
-    if (!form.loanAmount) e.loanAmount = "Vui lòng chọn hạn mức vay.";
+    if (!form.loanAmount) e.loanAmount = isKyQuy ? "Vui lòng chọn hạn mức vay." : "Vui lòng nhập cổ phiếu muốn giao dịch.";
     return e;
   };
 
@@ -208,12 +208,18 @@ export default function MarginPage() {
                     </select>
                   </FormField>
                 )}
-                <FormField label="Hạn mức vay mong muốn" required error={errors.loanAmount}>
-                  <select value={form.loanAmount} onChange={(e) => set("loanAmount", e.target.value)} className={selectCls(!!errors.loanAmount)}>
-                    <option value="">Chọn hạn mức...</option>
-                    {LOAN_RANGES.map((r) => <option key={r} value={r}>{r}</option>)}
-                  </select>
-                </FormField>
+                {isKyQuy ? (
+                  <FormField label="Hạn mức vay mong muốn" required error={errors.loanAmount}>
+                    <select value={form.loanAmount} onChange={(e) => set("loanAmount", e.target.value)} className={selectCls(!!errors.loanAmount)}>
+                      <option value="">Chọn hạn mức...</option>
+                      {LOAN_RANGES.map((r) => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                  </FormField>
+                ) : (
+                  <FormField label="Cổ phiếu muốn giao dịch T0" required error={errors.loanAmount}>
+                    <input type="text" value={form.loanAmount} onChange={(e) => set("loanAmount", e.target.value)} placeholder="VD: VNM, FPT, HPG..." className={inputCls(!!errors.loanAmount)} />
+                  </FormField>
+                )}
                 {errors.submit && <p className="text-xs text-red-400">{errors.submit}</p>}
                 <button type="submit" disabled={submitting}
                   className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-sm font-black transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer">
