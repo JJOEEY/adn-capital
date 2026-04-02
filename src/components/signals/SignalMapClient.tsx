@@ -28,25 +28,29 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 export function SignalMapClient() {
   const [tab, setTab] = useState<Tab>("today");
 
-  // Tín hiệu hôm nay
+  // Lịch sử 30 ngày (dùng cho cả 2 tab, lọc client-side)
   const { data, isLoading, isValidating, mutate } = useSWR<{ signals: Signal[] }>(
-    "/api/signals",
+    "/api/signals?days=30",
     fetcher,
     { refreshInterval: 300_000, revalidateOnFocus: false, keepPreviousData: true }
   );
 
-  // Lịch sử 30 ngày
-  const { data: historyData, isLoading: historyLoading } = useSWR<{ signals: Signal[] }>(
-    tab === "history" ? "/api/signals?days=30" : null,
-    fetcher,
-    { revalidateOnFocus: false, keepPreviousData: true }
-  );
-
-  const signals = data?.signals ?? [];
-  const historySignals = historyData?.signals ?? [];
+  const allSignals = data?.signals ?? [];
   const [filter, setFilter] = useState<BoLoc>("all");
 
-  const activeSignals = tab === "today" ? signals : historySignals;
+  // Lọc "hôm nay" theo ngày VN (so sánh phần date của createdAt theo locale vi-VN)
+  const todayStr = new Date().toLocaleDateString("vi-VN");
+  const todaySignals = allSignals.filter(
+    (s) => new Date(s.createdAt).toLocaleDateString("vi-VN") === todayStr
+  );
+  // Lịch sử = các tín hiệu KHÔNG phải hôm nay
+  const historySignals = allSignals.filter(
+    (s) => new Date(s.createdAt).toLocaleDateString("vi-VN") !== todayStr
+  );
+
+  const isHistoryLoading = isLoading;
+
+  const activeSignals = tab === "today" ? todaySignals : historySignals;
   const daLoc = filter === "all" ? activeSignals : activeSignals.filter((s) => s.type === filter);
 
   const soLuong = {
@@ -159,7 +163,7 @@ export function SignalMapClient() {
       </div>
 
       {/* === Lưới tín hiệu === */}
-      {(tab === "today" ? isLoading : historyLoading) ? (
+      {(tab === "today" ? isLoading : isHistoryLoading) ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="h-40 rounded-2xl bg-neutral-900 animate-pulse" />

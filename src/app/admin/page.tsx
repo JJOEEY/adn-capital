@@ -49,7 +49,21 @@ interface UserRow {
   createdAt: string;
 }
 
-type Tab = "registrations" | "users";
+type Tab = "registrations" | "users" | "margin";
+
+interface MarginRow {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string;
+  company: string | null;
+  tickers: string;
+  marginRatio: string;
+  loanAmount: string;
+  status: string;
+  note: string | null;
+  createdAt: string;
+}
 
 const VIP_PRESETS = [
   { label: "7 ngày", days: 7, tier: "VIP" },
@@ -99,7 +113,7 @@ export default function AdminPage() {
     <MainLayout>
       <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
         {/* ── Tab Navigation ──────────────────────────────────────── */}
-        <div className="flex items-center gap-1 bg-neutral-900/60 p-1 rounded-xl border border-neutral-800 w-fit">
+        <div className="flex items-center gap-1 bg-neutral-900/60 p-1 rounded-xl border border-neutral-800 w-fit flex-wrap">
           <button
             onClick={() => setTab("users")}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
@@ -122,9 +136,22 @@ export default function AdminPage() {
             <CreditCard className="w-3.5 h-3.5" />
             Đăng Ký Khóa Học
           </button>
+          <button
+            onClick={() => setTab("margin")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              tab === "margin"
+                ? "bg-amber-500/15 text-amber-400 border border-amber-500/25"
+                : "text-neutral-500 hover:text-white"
+            }`}
+          >
+            <Crown className="w-3.5 h-3.5" />
+            Tư Vấn Margin
+          </button>
         </div>
 
-        {tab === "users" ? <UsersTab /> : <RegistrationsTab />}
+        {tab === "users" && <UsersTab />}
+        {tab === "registrations" && <RegistrationsTab />}
+        {tab === "margin" && <MarginTab />}
       </div>
     </MainLayout>
   );
@@ -826,5 +853,161 @@ function RegistrationsTab() {
         </table>
       </div>
     </>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ *  TAB 3: TƯ VẤN MARGIN
+ * ═══════════════════════════════════════════════════════════════════════════ */
+function MarginTab() {
+  const [rows, setRows] = useState<MarginRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState<string | null>(null);
+  const [editNote, setEditNote] = useState<Record<string, string>>({});
+
+  const fetchRows = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/margin");
+      if (!res.ok) throw new Error();
+      setRows(await res.json());
+    } catch {
+      setError("Không thể tải danh sách tư vấn margin.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchRows(); }, [fetchRows]);
+
+  const updateRow = async (id: string, patch: { status?: string; note?: string }) => {
+    setSaving(id);
+    try {
+      const res = await fetch(`/api/admin/margin?id=${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      if (!res.ok) throw new Error();
+      const updated = await res.json();
+      setRows((prev) => prev.map((r) => (r.id === id ? updated : r)));
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const statusColor = (s: string) =>
+    s === "NEW" ? "text-amber-400 bg-amber-500/10 border-amber-500/20"
+    : s === "CONTACTED" ? "text-blue-400 bg-blue-500/10 border-blue-500/20"
+    : "text-emerald-400 bg-emerald-500/10 border-emerald-500/20";
+
+  const statusLabel = (s: string) =>
+    s === "NEW" ? "Mới" : s === "CONTACTED" ? "Đã liên hệ" : "Hoàn thành";
+
+  if (loading) return (
+    <div className="flex items-center justify-center py-16">
+      <RefreshCw className="w-6 h-6 text-neutral-600 animate-spin" />
+    </div>
+  );
+  if (error) return <p className="text-sm text-red-400 py-8 text-center">{error}</p>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-black text-white">Tư Vấn Margin</h2>
+          <p className="text-xs text-neutral-500">{rows.length} yêu cầu</p>
+        </div>
+        <button
+          onClick={fetchRows}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-xs text-neutral-300 transition-all cursor-pointer"
+        >
+          <RefreshCw className="w-3 h-3" /> Làm mới
+        </button>
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="text-center py-16 text-neutral-600 text-sm">Chưa có yêu cầu nào.</div>
+      ) : (
+        <div className="space-y-3">
+          {rows.map((row) => (
+            <div key={row.id} className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-4 sm:p-5 space-y-3">
+              {/* Header row */}
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-black text-white">{row.name}</p>
+                  <div className="flex items-center gap-3 mt-0.5 text-xs text-neutral-500">
+                    <span>{row.phone}</span>
+                    {row.email && <span>{row.email}</span>}
+                    {row.company && <span>· {row.company}</span>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusColor(row.status)}`}>
+                    {statusLabel(row.status)}
+                  </span>
+                  <span className="text-[10px] text-neutral-600">
+                    {new Date(row.createdAt).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                  </span>
+                </div>
+              </div>
+
+              {/* Details */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div>
+                  <p className="text-neutral-600 mb-0.5">Mã CK</p>
+                  <p className="text-neutral-200 font-mono font-medium">{row.tickers}</p>
+                </div>
+                <div>
+                  <p className="text-neutral-600 mb-0.5">Tỉ lệ ký quỹ</p>
+                  <p className="text-neutral-200">{row.marginRatio}</p>
+                </div>
+                <div>
+                  <p className="text-neutral-600 mb-0.5">Hạn mức vay</p>
+                  <p className="text-neutral-200">{row.loanAmount}</p>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-neutral-800">
+                {/* Status selector */}
+                <select
+                  value={row.status}
+                  onChange={(e) => updateRow(row.id, { status: e.target.value })}
+                  disabled={saving === row.id}
+                  className="px-2.5 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700 text-xs text-white focus:outline-none cursor-pointer disabled:opacity-50"
+                >
+                  <option value="NEW">Mới</option>
+                  <option value="CONTACTED">Đã liên hệ</option>
+                  <option value="DONE">Hoàn thành</option>
+                </select>
+
+                {/* Note */}
+                <input
+                  type="text"
+                  placeholder="Ghi chú..."
+                  value={editNote[row.id] ?? row.note ?? ""}
+                  onChange={(e) => setEditNote((prev) => ({ ...prev, [row.id]: e.target.value }))}
+                  className="flex-1 min-w-[160px] px-2.5 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700 text-xs text-white placeholder-neutral-600 focus:outline-none"
+                />
+                <button
+                  onClick={() => {
+                    const note = editNote[row.id] ?? row.note ?? "";
+                    updateRow(row.id, { note });
+                  }}
+                  disabled={saving === row.id}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold hover:bg-emerald-500/20 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {saving === row.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                  Lưu
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

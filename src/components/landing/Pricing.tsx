@@ -406,6 +406,7 @@ function PricingCard({
   const t = accentTokens[plan.accent];
   const displayPrice = isDNSE ? plan.dnsePrice : plan.price;
   const savingsPct = Math.round((1 - plan.dnsePrice / plan.price) * 100);
+  const showPctBadge = isDNSE && (plan.id === "6m" || plan.id === "12m");
 
   const handleCheckout = async () => {
     if (!isSignedIn) {
@@ -480,9 +481,11 @@ function PricingCard({
               <p className="text-sm text-neutral-500 line-through">
                 {formatVND(plan.price)}
               </p>
-              <span className="inline-flex items-center gap-0.5 text-[11px] font-black uppercase tracking-wide bg-red-500/15 text-red-400 border border-red-500/25 px-2 py-0.5 rounded-full animate-pulse">
-                -{savingsPct}%
-              </span>
+              {showPctBadge && (
+                <span className="inline-flex items-center gap-0.5 text-[11px] font-black uppercase tracking-wide bg-red-500/15 text-red-400 border border-red-500/25 px-2 py-0.5 rounded-full animate-pulse">
+                  -{savingsPct}%
+                </span>
+              )}
             </div>
             <p className={`text-3xl font-black ${t.priceText}`}>
               {formatVND(displayPrice)}
@@ -497,7 +500,10 @@ function PricingCard({
               {formatVND(displayPrice)}
             </p>
             <p className="mt-1.5 text-[10px] text-neutral-500">
-              Chỉ <span className="text-emerald-400 font-semibold">{formatVND(plan.dnsePrice)}</span> với DNSE <span className="text-emerald-400">(-{savingsPct}%)</span>
+              Chỉ <span className="text-emerald-400 font-semibold">{formatVND(plan.dnsePrice)}</span> với DNSE{" "}
+              {(plan.id === "6m" || plan.id === "12m") && (
+                <span className="text-red-400">(-{savingsPct}%)</span>
+              )}
             </p>
           </>
         )}
