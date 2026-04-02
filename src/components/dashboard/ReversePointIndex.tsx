@@ -127,8 +127,8 @@ function GaugeSVG({ value }: { value: number }) {
 /* ── Mini Line Chart ───────────────────────────────────────────────────── */
 function RPIChart({ history }: { history: RPIData["history"] }) {
   const width = 600;
-  const height = 180;
-  const padding = { top: 15, right: 15, bottom: 45, left: 30 };
+  const height = 200;
+  const padding = { top: 15, right: 15, bottom: 55, left: 30 };
   const chartW = width - padding.left - padding.right;
   const chartH = height - padding.top - padding.bottom;
 
@@ -155,8 +155,8 @@ function RPIChart({ history }: { history: RPIData["history"] }) {
   // Grid lines
   const gridY = [0, 1.0, 2.0, 3.0, 4.0, 5.0];
 
-  // Date labels (show ~5-7 labels)
-  const step = Math.max(1, Math.floor(history.length / 6));
+  // Date labels (show ~8-10 labels, shorter format dd/mm)
+  const step = Math.max(1, Math.floor(history.length / 9));
   const dateLabels = history.filter((_, i) => i % step === 0 || i === history.length - 1);
 
   return (
@@ -236,13 +236,13 @@ function RPIChart({ history }: { history: RPIData["history"] }) {
           <text
             key={idx}
             x={xScale(idx)}
-            y={height - 5}
-            textAnchor="middle"
+            y={height - 8}
+            textAnchor="end"
             className="fill-neutral-500"
-            fontSize="8"
-            transform={`rotate(-35, ${xScale(idx)}, ${height - 5})`}
+            fontSize="9"
+            transform={`rotate(-45, ${xScale(idx)}, ${height - 8})`}
           >
-            {d.date}
+            {d.date.replace(/\/\d{4}$/, "")}
           </text>
         );
       })}
@@ -373,18 +373,6 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
               </span>
             </div>
           </div>
-        </div>
-
-        {/* Component scores */}
-        <div className="mb-4 space-y-1.5">
-          <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-1">
-            Chi tiết thành phần
-          </p>
-          <ComponentBadge label="RSI (14)" score={data.components.rsi.score} weight={data.components.rsi.weight} />
-          <ComponentBadge label="Bollinger Band" score={data.components.bollinger.score} weight={data.components.bollinger.weight} />
-          <ComponentBadge label="MACD" score={data.components.macd.score} weight={data.components.macd.weight} />
-          <ComponentBadge label="Stochastic" score={data.components.stochastic.score} weight={data.components.stochastic.weight} />
-          <ComponentBadge label="Volume Div." score={data.components.volume_divergence.score} weight={data.components.volume_divergence.weight} />
         </div>
 
         {/* Historical chart */}
