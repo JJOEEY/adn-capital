@@ -9,7 +9,7 @@ import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 import { USAGE_LIMITS } from "@/lib/utils";
 
 export function Topbar() {
-  const { dbUser, role, isAuthenticated, isLoading } = useCurrentDbUser();
+  const { dbUser, role, vipTier, isAuthenticated, isLoading } = useCurrentDbUser();
   const { data: session } = useSession();
   const [mounted, setMounted] = useState(false);
 
@@ -45,7 +45,7 @@ export function Topbar() {
             </div>
           )}
           {!showSkeleton && isAuthenticated && limit === Infinity && (
-            <div className="flex items-center gap-1.5 text-xs text-purple-400">
+            <div className={`flex items-center gap-1.5 text-xs ${vipTier === "PREMIUM" ? "text-amber-400" : "text-purple-400"}`}>
               <Crown className="w-3 h-3" />
               <span>Không giới hạn</span>
             </div>
@@ -58,9 +58,13 @@ export function Topbar() {
           ) : isAuthenticated ? (
             <>
               {role === "VIP" && (
-                <div className="flex items-center gap-1.5 text-[10px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/25 px-2 py-1 rounded-lg uppercase">
+                <div className={`flex items-center gap-1.5 text-[10px] font-bold border px-2 py-1 rounded-lg uppercase ${
+                  vipTier === "PREMIUM"
+                    ? "bg-amber-500/10 text-amber-400 border-amber-500/25"
+                    : "bg-purple-500/10 text-purple-400 border-purple-500/25"
+                }`}>
                   <Crown className="w-2.5 h-2.5" />
-                  VIP
+                  {vipTier === "PREMIUM" ? "PREMIUM" : "VIP"}
                 </div>
               )}
 

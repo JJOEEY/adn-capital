@@ -12,6 +12,7 @@ interface CurrentDbUser {
   role: "FREE" | "VIP";
   chatCount: number;
   vipUntil: string | null;
+  vipTier: "VIP" | "PREMIUM" | null;
   dnseId: string | null;
   dnseVerified: boolean;
   dnseAppliedAt: string | null;
@@ -74,6 +75,7 @@ export function useCurrentDbUser() {
     session,
     dbUser,
     role,
+    vipTier: dbUser?.vipTier ?? null,
     isAuthenticated: !!isSignedIn,
     isGuest: !isSignedIn,
     isFreeUser: !!isSignedIn && role === "FREE",

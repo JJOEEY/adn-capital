@@ -39,7 +39,7 @@ const navItems = [
 
 export function TopNavbar() {
   const pathname = usePathname();
-  const { dbUser, role, isAuthenticated, isAdmin, isLoading } = useCurrentDbUser();
+  const { dbUser, role, vipTier, isAuthenticated, isAdmin, isLoading } = useCurrentDbUser();
   const { data: session } = useSession();
   const [mounted, setMounted] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -116,9 +116,9 @@ export function TopNavbar() {
             </div>
           )}
           {!showSkeleton && isAuthenticated && limit === Infinity && (
-            <div className="hidden sm:flex items-center gap-1 text-[10px] text-purple-400">
+            <div className={`hidden sm:flex items-center gap-1 text-[10px] ${vipTier === "PREMIUM" ? "text-amber-400" : "text-purple-400"}`}>
               <Crown className="w-3 h-3" />
-              VIP
+              {vipTier === "PREMIUM" ? "PREMIUM" : "VIP"}
             </div>
           )}
 
@@ -128,8 +128,12 @@ export function TopNavbar() {
           ) : isAuthenticated ? (
             <div className="flex items-center gap-2">
               {role === "VIP" && (
-                <span className="hidden sm:flex items-center gap-1 text-[9px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/25 px-1.5 py-0.5 rounded-md">
-                  <Crown className="w-2.5 h-2.5" /> VIP
+                <span className={`hidden sm:flex items-center gap-1 text-[9px] font-bold border px-1.5 py-0.5 rounded-md ${
+                  vipTier === "PREMIUM"
+                    ? "bg-amber-500/10 text-amber-400 border-amber-500/25"
+                    : "bg-purple-500/10 text-purple-400 border-purple-500/25"
+                }`}>
+                  <Crown className="w-2.5 h-2.5" /> {vipTier === "PREMIUM" ? "PREMIUM" : "VIP"}
                 </span>
               )}
               <span className="hidden md:inline text-xs text-neutral-300 font-medium max-w-[80px] truncate">

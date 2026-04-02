@@ -51,6 +51,14 @@ interface UserRow {
 
 type Tab = "registrations" | "users";
 
+const VIP_PRESETS = [
+  { label: "7 ngày", days: 7, tier: "VIP" },
+  { label: "1 tháng", days: 30, tier: "VIP" },
+  { label: "3 tháng", days: 90, tier: "VIP" },
+  { label: "6 tháng", days: 180, tier: "PREMIUM" },
+  { label: "12 tháng", days: 365, tier: "PREMIUM" },
+] as const;
+
 export default function AdminPage() {
   const { status } = useSession();
   const { isAdmin, isLoading: userLoading } = useCurrentDbUser();
@@ -131,6 +139,8 @@ function UsersTab() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "pending" | "verified">("all");
+  const [vipMenuUser, setVipMenuUser] = useState<string | null>(null);
+  const [customDays, setCustomDays] = useState("");
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -323,21 +333,43 @@ function UsersTab() {
                   </td>
 
                   <td className="px-4 py-3">
-                    <span
-                      className={`inline-block px-2 py-0.5 rounded-full border text-[10px] font-bold ${
-                        user.role === "VIP"
-                          ? "bg-purple-500/10 text-purple-400 border-purple-500/20"
-                          : "bg-neutral-500/10 text-neutral-400 border-neutral-500/20"
-                      }`}
-                    >
-                      {user.role}
-                    </span>
+                    {(() => {
+                      if (user.role !== "VIP") return (
+                        <span className="inline-block px-2 py-0.5 rounded-full border text-[10px] font-bold bg-neutral-500/10 text-neutral-400 border-neutral-500/20">FREE</span>
+                      );
+                      const daysLeft = user.vipUntil ? Math.ceil((new Date(user.vipUntil).getTime() - Date.now()) / 86400000) : 0;
+                      const isPremium = daysLeft > 90;
+                      return (
+                        <span className={`inline-block px-2 py-0.5 rounded-full border text-[10px] font-bold ${
+                          isPremium
+                            ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                            : "bg-purple-500/10 text-purple-400 border-purple-500/20"
+                        }`}>
+                          {isPremium ? "PREMIUM" : "VIP"}
+                        </span>
+                      );
+                    })()}
                   </td>
 
                   <td className="px-4 py-3 text-xs text-neutral-500">
-                    {user.vipUntil
-                      ? new Date(user.vipUntil).toLocaleDateString("vi-VN")
-                      : "—"}
+                    {user.vipUntil ? (
+                      <div className="flex items-center gap-1.5">
+                        <span>{new Date(user.vipUntil).toLocaleDateString("vi-VN")}</span>
+                        {(() => {
+                          const daysLeft = Math.ceil((new Date(user.vipUntil).getTime() - Date.now()) / 86400000);
+                          const tier = daysLeft > 90 ? "PREMIUM" : "VIP";
+                          return (
+                            <span className={`text-[9px] font-bold px-1 py-0.5 rounded border ${
+                              tier === "PREMIUM"
+                                ? "bg-amber-500/10 text-amber-400 border-amber-500/25"
+                                : "bg-purple-500/10 text-purple-400 border-purple-500/25"
+                            }`}>
+                              {tier}
+                            </span>
+                          );
+                        })()}
+                      </div>
+                    ) : "—"}
                   </td>
 
                   <td className="px-4 py-3">
@@ -392,27 +424,87 @@ function UsersTab() {
                         </>
                       )}
 
-                      {/* VIP 30 ngày */}
-                      {user.role !== "VIP" && (
+                      {/* Cấp VIP / Premium */}
+                      <div className="relative">
                         <button
-                          onClick={() => handleSetRole(user.id, "VIP", 30)}
-                          className="p-1.5 rounded-md hover:bg-purple-500/10 text-neutral-500 hover:text-purple-400 transition-colors cursor-pointer"
-                          title="Cấp VIP 30 ngày"
+                          onClick={() => setVipMenuUser(vipMenuUser === user.id ? null : user.id)}
+                          className={`p-1.5 rounded-md transition-colors cursor-pointer ${
+                            user.role === "VIP"
+                              ? "bg-purple-500/10 text-purple-400 hover:bg-purple-500/20"
+                              : "hover:bg-purple-500/10 text-neutral-500 hover:text-purple-400"
+                          }`}
+                          title="Cấp VIP / Premium"
                         >
                           <Crown className="w-3.5 h-3.5" />
                         </button>
-                      )}
 
-                      {/* Hạ về FREE */}
-                      {user.role === "VIP" && (
-                        <button
-                          onClick={() => handleSetRole(user.id, "FREE")}
-                          className="p-1.5 rounded-md hover:bg-red-500/10 text-neutral-500 hover:text-red-400 transition-colors cursor-pointer"
-                          title="Hạ về FREE"
-                        >
-                          <ShieldX className="w-3.5 h-3.5" />
-                        </button>
-                      )}
+                        {vipMenuUser === user.id && (
+                          <div className="absolute right-0 top-full mt-1 z-50 w-56 bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl p-2 space-y-1">
+                            <p className="text-[10px] text-neutral-500 px-2 pt-1 pb-0.5 font-bold uppercase tracking-wider">Chọn gói thời gian</p>
+                            {VIP_PRESETS.map((preset) => (
+                              <button
+                                key={preset.days}
+                                onClick={() => {
+                                  handleSetRole(user.id, "VIP", preset.days);
+                                  setVipMenuUser(null);
+                                }}
+                                className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs hover:bg-neutral-800 transition-colors cursor-pointer"
+                              >
+                                <span className="text-neutral-200">{preset.label}</span>
+                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
+                                  preset.tier === "PREMIUM"
+                                    ? "bg-amber-500/10 text-amber-400 border-amber-500/25"
+                                    : "bg-purple-500/10 text-purple-400 border-purple-500/25"
+                                }`}>
+                                  {preset.tier}
+                                </span>
+                              </button>
+                            ))}
+                            <div className="border-t border-neutral-800 pt-1.5 mt-1 px-1">
+                              <div className="flex gap-1">
+                                <input
+                                  type="number"
+                                  value={customDays}
+                                  onChange={(e) => setCustomDays(e.target.value)}
+                                  placeholder="Số ngày..."
+                                  min={1}
+                                  max={3650}
+                                  className="flex-1 px-2 py-1 rounded-md bg-neutral-800 border border-neutral-700 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500/50 w-20"
+                                />
+                                <button
+                                  onClick={() => {
+                                    const d = parseInt(customDays);
+                                    if (d > 0) {
+                                      handleSetRole(user.id, "VIP", d);
+                                      setVipMenuUser(null);
+                                      setCustomDays("");
+                                    }
+                                  }}
+                                  className="px-2.5 py-1 rounded-md bg-emerald-500/15 text-emerald-400 text-xs font-bold hover:bg-emerald-500/25 transition-colors cursor-pointer"
+                                >
+                                  OK
+                                </button>
+                              </div>
+                            </div>
+                            {user.role === "VIP" && (
+                              <>
+                                <div className="border-t border-neutral-800 pt-1.5 mt-1">
+                                  <button
+                                    onClick={() => {
+                                      handleSetRole(user.id, "FREE");
+                                      setVipMenuUser(null);
+                                    }}
+                                    className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                                  >
+                                    <ShieldX className="w-3 h-3" />
+                                    Hạ về FREE
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </td>
                 </tr>

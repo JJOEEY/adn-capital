@@ -22,6 +22,15 @@ export async function GET() {
     });
   }
 
+  // Tính vipTier: PREMIUM nếu vipUntil > 90 ngày, VIP nếu ≤ 90 ngày
+  let vipTier: "VIP" | "PREMIUM" | null = null;
+  if (dbUser.role === "VIP" && dbUser.vipUntil) {
+    const daysLeft = Math.ceil(
+      (new Date(dbUser.vipUntil).getTime() - Date.now()) / 86400000
+    );
+    vipTier = daysLeft > 90 ? "PREMIUM" : "VIP";
+  }
+
   return NextResponse.json({
     isAuthenticated: true,
     user: {
@@ -32,6 +41,7 @@ export async function GET() {
       role: dbUser.role,
       chatCount: dbUser.chatCount,
       vipUntil: dbUser.vipUntil?.toISOString() ?? null,
+      vipTier,
       dnseId: dbUser.dnseId ?? null,
       dnseVerified: dbUser.dnseVerified ?? false,
       dnseAppliedAt: dbUser.dnseAppliedAt?.toISOString() ?? null,
