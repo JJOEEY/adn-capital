@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Blue circle background -->
+  <circle cx="50" cy="50" r="50" fill="#1877F2"/>
+  <!-- White "f" letterform -->
+  <path fill="white" d="M64 33H56C53.2 33 52 34.4 52 37.5V44H64L62 56H52V88H40V56H32V44H40V36.5C40 25.5 46.5 20 57 20C61.5 20 66 20.7 66 20.7L64 33Z"/>
+</svg>
