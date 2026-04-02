@@ -556,6 +556,25 @@ function UsersTab() {
                           </div>
                         )}
                       </div>
+
+                      {/* Cấp ADMIN */}
+                      <button
+                        onClick={() =>
+                          setConfirmAction(
+                            user.role === "ADMIN"
+                              ? { userId: user.id, email: user.email, role: "FREE", label: "Thu hồi quyền ADMIN → FREE" }
+                              : { userId: user.id, email: user.email, role: "ADMIN", label: "Cấp quyền ADMIN" }
+                          )
+                        }
+                        className={`p-1.5 rounded-md transition-colors cursor-pointer ${
+                          user.role === "ADMIN"
+                            ? "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+                            : "hover:bg-emerald-500/10 text-neutral-500 hover:text-emerald-400"
+                        }`}
+                        title={user.role === "ADMIN" ? "Thu hồi ADMIN" : "Cấp quyền ADMIN"}
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -573,10 +592,14 @@ function UsersTab() {
               <div className={`p-2.5 rounded-xl ${
                 confirmAction.role === "FREE"
                   ? "bg-red-500/10 border border-red-500/20"
+                  : confirmAction.role === "ADMIN"
+                  ? "bg-emerald-500/10 border border-emerald-500/20"
                   : "bg-purple-500/10 border border-purple-500/20"
               }`}>
                 {confirmAction.role === "FREE" ? (
                   <ShieldX className="w-5 h-5 text-red-400" />
+                ) : confirmAction.role === "ADMIN" ? (
+                  <ShieldCheck className="w-5 h-5 text-emerald-400" />
                 ) : (
                   <Crown className="w-5 h-5 text-purple-400" />
                 )}
@@ -593,7 +616,7 @@ function UsersTab() {
               <p className="text-neutral-400">
                 Thao tác:{" "}
                 <span className={`font-bold ${
-                  confirmAction.role === "FREE" ? "text-red-400" : "text-purple-400"
+                  confirmAction.role === "FREE" ? "text-red-400" : confirmAction.role === "ADMIN" ? "text-emerald-400" : "text-purple-400"
                 }`}>
                   {confirmAction.label}
                 </span>
@@ -622,6 +645,8 @@ function UsersTab() {
                 className={`flex-1 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   confirmAction.role === "FREE"
                     ? "bg-red-500 hover:bg-red-400 text-white"
+                    : confirmAction.role === "ADMIN"
+                    ? "bg-emerald-500 hover:bg-emerald-400 text-white"
                     : "bg-purple-500 hover:bg-purple-400 text-white"
                 }`}
               >
