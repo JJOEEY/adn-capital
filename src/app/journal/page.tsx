@@ -8,6 +8,7 @@ import {
   Brain,
 } from "lucide-react";
 import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
+import { useSubscription } from "@/hooks/useSubscription";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { JournalForm } from "@/components/journal/JournalForm";
 import { JournalList } from "@/components/journal/JournalList";
@@ -19,6 +20,7 @@ import type { JournalEntry } from "@/types";
 export default function JournalPage() {
   const router = useRouter();
   const { isAuthenticated, isLoading: authLoading } = useCurrentDbUser();
+  const { isVip } = useSubscription();
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"form" | "list" | "analysis">("list");
@@ -91,6 +93,32 @@ export default function JournalPage() {
               className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-sm transition-all"
             >
               Đăng nhập
+            </button>
+          </Card>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  if (!isVip) {
+    return (
+      <MainLayout>
+        <div className="p-6 flex items-center justify-center min-h-[60vh]">
+          <Card className="p-10 text-center max-w-sm">
+            <div className="w-14 h-14 rounded-2xl bg-neutral-800 border border-neutral-700 flex items-center justify-center mx-auto mb-4">
+              <Lock className="w-6 h-6 text-neutral-400" />
+            </div>
+            <h2 className="text-lg font-bold text-white mb-2">
+              🔒 Tính năng VIP
+            </h2>
+            <p className="text-sm text-neutral-500 mb-5">
+              Nâng cấp VIP để sử dụng Nhật Ký Giao Dịch và phân tích tâm lý AI.
+            </p>
+            <button
+              onClick={() => router.push("/pricing")}
+              className="w-full py-3 rounded-xl bg-purple-500 hover:bg-purple-400 text-white font-bold text-sm transition-all"
+            >
+              Nâng Cấp VIP
             </button>
           </Card>
         </div>

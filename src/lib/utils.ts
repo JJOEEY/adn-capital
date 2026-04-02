@@ -97,6 +97,6 @@ export function truncate(text: string, maxLen: number): string {
 
 export const USAGE_LIMITS: Record<string, number> = {
   GUEST: 3,
-  FREE: 10,
+  FREE: 5,
   VIP: Infinity,
 };

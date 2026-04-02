@@ -22,8 +22,8 @@ export function useSubscription() {
   const isRsRatingLocked = !isVip;
   // Phân tích tâm lý AI: chỉ VIP
   const isPsychologyLocked = !isVip;
-  // Nhật ký: cần đăng nhập
-  const isJournalLocked = !isAuthenticated;
+  // Nhật ký: cần đăng nhập + VIP
+  const isJournalLocked = !isVip;
 
   return {
     role,

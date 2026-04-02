@@ -64,11 +64,36 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (token.id) {
         const dbUser = await prisma.user.findUnique({
           where: { id: token.id as string },
-          select: { role: true, vipUntil: true },
+          select: { role: true, vipUntil: true, createdAt: true },
         });
         if (dbUser) {
-          token.role = dbUser.role;
-          token.vipUntil = dbUser.vipUntil?.toISOString() ?? null;
+          // ── VIP 7-day trial campaign: user đăng ký hôm nay chưa có vipUntil → tặng 7 ngày ──
+          const now = new Date();
+          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const createdDate = new Date(dbUser.createdAt);
+          const createdDay = new Date(createdDate.getFullYear(), createdDate.getMonth(), createdDate.getDate());
+
+          if (createdDay >= today && !dbUser.vipUntil && dbUser.role === "FREE") {
+            const trialEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+            await prisma.user.update({
+              where: { id: token.id as string },
+              data: { role: "VIP", vipUntil: trialEnd },
+            });
+            token.role = "VIP";
+            token.vipUntil = trialEnd.toISOString();
+          }
+          // ── Auto-downgrade: VIP đã hết hạn → trả về FREE ──
+          else if (dbUser.role === "VIP" && dbUser.vipUntil && dbUser.vipUntil < now) {
+            await prisma.user.update({
+              where: { id: token.id as string },
+              data: { role: "FREE", vipUntil: null },
+            });
+            token.role = "FREE";
+            token.vipUntil = null;
+          } else {
+            token.role = dbUser.role;
+            token.vipUntil = dbUser.vipUntil?.toISOString() ?? null;
+          }
         }
       }
 

@@ -15,6 +15,8 @@ import { LeaderRadar, LeaderRadarSkeleton } from "@/components/dashboard/LeaderR
 import { MorningNews } from "@/components/dashboard/MorningNews";
 import { EveningNews } from "@/components/dashboard/EveningNews";
 import { MorningNewsSkeleton, EveningNewsSkeleton } from "@/components/dashboard/NewsSkeleton";
+import { LockOverlay } from "@/components/ui/LockOverlay";
+import { useSubscription } from "@/hooks/useSubscription";
 
 // Step 1: Lazy load GaugeChart (recharts nặng) — SSR: false
 const GaugeChart = dynamic(
@@ -92,6 +94,9 @@ const swrFetcher = (url: string) =>
   });
 
 export default function DashboardPage() {
+  const { isVip } = useSubscription();
+  const isDashboardLocked = !isVip;
+
   /* ── Hydration guard: chỉ render data-dependent content sau khi mount ── */
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -235,15 +240,17 @@ export default function DashboardPage() {
 
           {/* Cột Phải: Gauge + Market Status Card */}
           <div className="lg:col-span-3 flex flex-col gap-3">
-            {/* Đồng hồ Gauge */}
-            {!mounted ? (
-              <GaugeCardSkeleton />
-            ) : (
-              <GaugeCard overview={overview ?? null} />
-            )}
+            <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem Đánh giá Vĩ mô">
+              {/* Đồng hồ Gauge */}
+              {!mounted ? (
+                <GaugeCardSkeleton />
+              ) : (
+                <GaugeCard overview={overview ?? null} />
+              )}
 
-            {/* Thẻ Trạng Thái 3D */}
-            {mounted && <MarketStatusCard overview={overview ?? null} />}
+              {/* Thẻ Trạng Thái 3D */}
+              {mounted && <MarketStatusCard overview={overview ?? null} />}
+            </LockOverlay>
           </div>
         </div>
 
@@ -281,14 +288,18 @@ export default function DashboardPage() {
         </div>
 
         {/* ═══ LEADER RADAR — Cầu Dao Tổng ═══ */}
-        {!mounted ? <LeaderRadarSkeleton /> : <LeaderRadar />}
+        <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem Radar Leader Alert">
+          {!mounted ? <LeaderRadarSkeleton /> : <LeaderRadar />}
+        </LockOverlay>
 
         {/* ═══ BOTTOM: Top Leaders ═══ */}
-        {!mounted || !rsRaw ? (
-          <TopLeadersSkeleton />
-        ) : leaderRows.length > 0 ? (
-          <TopLeaders stocks={leaderRows} />
-        ) : null}
+        <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem Top 5 Siêu Cổ Phiếu">
+          {!mounted || !rsRaw ? (
+            <TopLeadersSkeleton />
+          ) : leaderRows.length > 0 ? (
+            <TopLeaders stocks={leaderRows} />
+          ) : null}
+        </LockOverlay>
       </div>
     </MainLayout>
   );
