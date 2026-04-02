@@ -21,11 +21,11 @@ export default async function DashboardSignalMapPage() {
     redirect("/auth");
   }
 
-  const isVip = dbUser.role === "VIP";
+  const hasAccess = dbUser.role === "VIP" || dbUser.role === "ADMIN";
 
   return (
     <MainLayout>
-      {isVip ? <SignalMapClient /> : <UpgradeVIP />}
+      {hasAccess ? <SignalMapClient /> : <UpgradeVIP />}
     </MainLayout>
   );
 }

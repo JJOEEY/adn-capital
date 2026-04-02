@@ -99,4 +99,5 @@ export const USAGE_LIMITS: Record<string, number> = {
   GUEST: 3,
   FREE: 5,
   VIP: Infinity,
+  ADMIN: Infinity,
 };

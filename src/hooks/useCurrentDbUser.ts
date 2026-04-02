@@ -9,7 +9,7 @@ interface CurrentDbUser {
   email: string;
   name: string | null;
   image: string | null;
-  role: "FREE" | "VIP";
+  role: "FREE" | "VIP" | "ADMIN";
   chatCount: number;
   vipUntil: string | null;
   vipTier: "VIP" | "PREMIUM" | null;
@@ -79,7 +79,7 @@ export function useCurrentDbUser() {
     isAuthenticated: !!isSignedIn,
     isGuest: !isSignedIn,
     isFreeUser: !!isSignedIn && role === "FREE",
-    isVip: role === "VIP",
+    isVip: role === "VIP" || role === "ADMIN",
     isAdmin: !!dbUser?.isAdmin,
     isLoading: !isLoaded || (isSignedIn && isFetching),
   };

@@ -12,18 +12,21 @@ export function useSubscription() {
     isAuthenticated,
     isLoading,
     isVip,
+    isAdmin,
     isGuest,
     isFreeUser,
   } = useCurrentDbUser();
 
-  // Signal Map: chỉ VIP mới dùng được
-  const isSignalLocked = !isVip;
-  // RS Rating: chỉ VIP
-  const isRsRatingLocked = !isVip;
-  // Phân tích tâm lý AI: chỉ VIP
-  const isPsychologyLocked = !isVip;
-  // Nhật ký: cần đăng nhập + VIP
-  const isJournalLocked = !isVip;
+  // ADMIN có toàn quyền, VIP mở khóa tính năng
+  const hasFullAccess = isAdmin || isVip;
+  // Signal Map: VIP hoặc ADMIN
+  const isSignalLocked = !hasFullAccess;
+  // RS Rating: VIP hoặc ADMIN
+  const isRsRatingLocked = !hasFullAccess;
+  // Phân tích tâm lý AI: VIP hoặc ADMIN
+  const isPsychologyLocked = !hasFullAccess;
+  // Nhật ký: VIP hoặc ADMIN
+  const isJournalLocked = !hasFullAccess;
 
   return {
     role,

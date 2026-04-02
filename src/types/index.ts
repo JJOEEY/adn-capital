@@ -39,7 +39,7 @@ export interface JournalEntry {
   createdAt: string;
 }
 
-export type UserRole = "GUEST" | "FREE" | "VIP";
+export type UserRole = "GUEST" | "FREE" | "VIP" | "ADMIN";
 
 export interface MarketStatusData {
   status: "GOOD" | "BAD" | "NEUTRAL";

@@ -82,7 +82,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             token.role = "VIP";
             token.vipUntil = trialEnd.toISOString();
           }
-          // ── Auto-downgrade: VIP đã hết hạn → trả về FREE ──
+          // ── Auto-downgrade: VIP đã hết hạn → trả về FREE (ADMIN không bị downgrade) ──
           else if (dbUser.role === "VIP" && dbUser.vipUntil && dbUser.vipUntil < now) {
             await prisma.user.update({
               where: { id: token.id as string },
