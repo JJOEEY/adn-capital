@@ -50,3 +50,6 @@ prisma/migrations/
 # IDE
 .idea/
 .vscode/
+
+# push script (local only)
+push-to-github.ps1
