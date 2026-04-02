@@ -10,16 +10,22 @@ export async function POST(req: NextRequest) {
       name?: string;
       email?: string;
       phone?: string;
-      company?: string;
+      product?: string;
       tickers?: string;
       marginRatio?: string;
       loanAmount?: string;
     };
 
-    const { name, email, phone, company, tickers, marginRatio, loanAmount } = body;
+    const { name, email, phone, product, tickers, marginRatio, loanAmount } = body;
+    const productValue = product?.trim() || "ky-quy";
 
-    if (!name?.trim() || !phone?.trim() || !tickers?.trim() || !marginRatio?.trim() || !loanAmount?.trim()) {
+    if (!name?.trim() || !phone?.trim() || !loanAmount?.trim()) {
       return NextResponse.json({ error: "Vui lòng điền đầy đủ thông tin bắt buộc." }, { status: 400 });
+    }
+
+    // Tỉ lệ ký quỹ bắt buộc khi sản phẩm là ký quỹ
+    if (productValue === "ky-quy" && !marginRatio?.trim()) {
+      return NextResponse.json({ error: "Vui lòng chọn tỉ lệ ký quỹ." }, { status: 400 });
     }
 
     const entry = await prisma.marginConsultation.create({
@@ -27,9 +33,9 @@ export async function POST(req: NextRequest) {
         name: name.trim(),
         email: email?.trim() || null,
         phone: phone.trim(),
-        company: company?.trim() || null,
-        tickers: tickers.trim(),
-        marginRatio: marginRatio.trim(),
+        product: productValue,
+        tickers: tickers?.trim() || null,
+        marginRatio: productValue === "ky-quy" ? (marginRatio?.trim() || null) : null,
         loanAmount: loanAmount.trim(),
       },
     });

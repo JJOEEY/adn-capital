@@ -148,9 +148,9 @@ model MarginConsultation {
   name        String
   email       String?
   phone       String
-  company     String?
-  tickers     String   // comma-separated mã CK
-  marginRatio String   // Tỉ lệ ký quỹ
+  product     String   @default("ky-quy")  // ky-quy | mua-nhanh-ban-nhanh
+  tickers     String?  // comma-separated mã CK (optional)
+  marginRatio String?  // Tỉ lệ ký quỹ (only for ky-quy)
   loanAmount  String
   status      String   @default("NEW")  // NEW | CONTACTED | DONE
   note        String?

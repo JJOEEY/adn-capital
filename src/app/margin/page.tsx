@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -12,37 +12,38 @@ import {
   CheckCircle2,
   Phone,
   Mail,
-  Building2,
   ChevronDown,
   Loader2,
 } from "lucide-react";
 
-/* ═══════════════════════════════════════════════════════════════════════════
- *  KÝ QUỸ MARGIN — Trang sản phẩm ký quỹ ADN Capital
- * ═══════════════════════════════════════════════════════════════════════════ */
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+ *  KÃ QUá»¸ MARGIN
+ * â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 const MARGIN_RATIOS = [
-  "Dưới 25%",
-  "25% – 50%",
-  "50% – 75%",
-  "Trên 75%",
+  "2:8 (Vay 80%)",
+  "3:7 (Vay 70%)",
+  "4:6 (Vay 60%)",
+  "5:5 (Vay 50%)",
+  "KhÃ¡c (LiÃªn há»‡ Ä‘á»ƒ Ä‘Æ°á»£c tÆ° váº¥n)",
 ];
 
 const LOAN_RANGES = [
-  "Dưới 500 triệu",
-  "500 triệu – 1 tỷ",
-  "1 tỷ – 3 tỷ",
-  "3 tỷ – 10 tỷ",
-  "Trên 10 tỷ",
+  "DÆ°á»›i 500 triá»‡u",
+  "500 triá»‡u â€“ 1 tá»·",
+  "1 tá»· â€“ 3 tá»·",
+  "3 tá»· â€“ 10 tá»·",
+  "TrÃªn 10 tá»·",
 ];
+
+type Product = "ky-quy" | "mua-nhanh-ban-nhanh";
 
 export default function MarginPage() {
   const [form, setForm] = useState({
     name: "",
     email: "",
     phone: "",
-    company: "",
-    tickers: "",
+    product: "ky-quy" as Product,
     marginRatio: "",
     loanAmount: "",
   });
@@ -50,13 +51,14 @@ export default function MarginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
 
+  const isKyQuy = form.product === "ky-quy";
+
   const validate = () => {
     const e: Record<string, string> = {};
-    if (!form.name.trim()) e.name = "Vui lòng nhập họ tên.";
-    if (!form.phone.trim()) e.phone = "Vui lòng nhập số điện thoại.";
-    if (!form.tickers.trim()) e.tickers = "Vui lòng nhập ít nhất 1 mã.";
-    if (!form.marginRatio) e.marginRatio = "Vui lòng chọn tỉ lệ ký quỹ.";
-    if (!form.loanAmount) e.loanAmount = "Vui lòng chọn hạn mức vay.";
+    if (!form.name.trim()) e.name = "Vui lÃ²ng nháº­p há» tÃªn.";
+    if (!form.phone.trim()) e.phone = "Vui lÃ²ng nháº­p sá»‘ Ä‘iá»‡n thoáº¡i.";
+    if (isKyQuy && !form.marginRatio) e.marginRatio = "Vui lÃ²ng chá»n tá»‰ lá»‡ kÃ½ quá»¹.";
+    if (!form.loanAmount) e.loanAmount = "Vui lÃ²ng chá»n háº¡n má»©c vay.";
     return e;
   };
 
@@ -70,10 +72,13 @@ export default function MarginPage() {
       const res = await fetch("/api/margin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          marginRatio: isKyQuy ? form.marginRatio : undefined,
+        }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Lỗi");
+      if (!res.ok) throw new Error(data.error ?? "Lá»—i");
       setSuccess(true);
     } catch (err) {
       setErrors({ submit: (err as Error).message });
@@ -85,120 +90,68 @@ export default function MarginPage() {
   const set = (field: string, value: string) =>
     setForm((prev) => ({ ...prev, [field]: value }));
 
+  const setProduct = (p: Product) => {
+    setForm((prev) => ({ ...prev, product: p, marginRatio: "" }));
+    setErrors((prev) => { const e = { ...prev }; delete e.marginRatio; return e; });
+  };
+
   return (
     <MainLayout>
       <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-10">
 
-        {/* ── Hero Header ────────────────────────────────────── */}
+        {/* â”€â”€ Hero â”€â”€ */}
         <div className="rounded-2xl overflow-hidden border border-neutral-800 bg-gradient-to-br from-neutral-900 via-neutral-900 to-emerald-950/30 p-6 sm:p-8">
           <span className="inline-block text-[10px] font-bold text-emerald-400 uppercase tracking-[0.3em] mb-3 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full">
-            Dịch vụ ký quỹ
+            Dá»‹ch vá»¥ kÃ½ quá»¹
           </span>
           <h1 className="text-3xl sm:text-4xl font-black text-white mb-2">
-            Ký Quỹ <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">Margin</span>
+            KÃ½ Quá»¹ <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">Margin</span>
           </h1>
           <p className="text-neutral-400 text-sm sm:text-base max-w-2xl">
-            Giải pháp ký quỹ linh hoạt, lãi suất tối ưu — đồng hành cùng chiến lược đầu tư của bạn.
+            Giáº£i phÃ¡p kÃ½ quá»¹ linh hoáº¡t, lÃ£i suáº¥t tá»‘i Æ°u â€” Ä‘á»“ng hÃ nh cÃ¹ng chiáº¿n lÆ°á»£c Ä‘áº§u tÆ° cá»§a báº¡n.
           </p>
         </div>
 
-        {/* ══════════════════════════════════════════════════════════
-         *  HÀNG 1: GIÁ TRỊ NỔI BẬT
-         * ══════════════════════════════════════════════════════════ */}
+        {/* â”€â”€ HÃ ng 1 â”€â”€ */}
         <section className="space-y-5">
           <div className="text-center space-y-1.5">
-            <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-              GIÁ TRỊ NỔI BẬT CỦA ADN CAPITAL
-            </h2>
-            <p className="text-sm text-neutral-500 max-w-lg mx-auto">
-              Tài sản càng lớn, điều quan trọng nhất là kiếm tiền bền vững từ lãi kép
-            </p>
+            <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">GIÃ TRá»Š Ná»”I Báº¬T Cá»¦A ADN CAPITAL</h2>
+            <p className="text-sm text-neutral-500 max-w-lg mx-auto">TÃ i sáº£n cÃ ng lá»›n, Ä‘iá»u quan trá»ng nháº¥t lÃ  kiáº¿m tiá»n bá»n vá»¯ng tá»« lÃ£i kÃ©p</p>
           </div>
-
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <FeatureCard
-              icon={<Shield className="w-5 h-5" />}
-              iconBg="bg-blue-500/10 border-blue-500/20"
-              iconColor="text-blue-400"
-              title="Uy tín khẳng định"
-              desc="Hơn 10 năm làm NĐT chuyên nghiệp, đồng hành cùng nhà đầu tư với dịch vụ chuyên nghiệp và đáng tin cậy."
-            />
-            <FeatureCard
-              icon={<Layers className="w-5 h-5" />}
-              iconBg="bg-emerald-500/10 border-emerald-500/20"
-              iconColor="text-emerald-400"
-              title="Giải pháp linh hoạt"
-              desc="Đa dạng gói ký quỹ, hỗ trợ toàn diện với tỉ lệ ký quỹ cao và hợp pháp."
-            />
-            <FeatureCard
-              icon={<Users className="w-5 h-5" />}
-              iconBg="bg-purple-500/10 border-purple-500/20"
-              iconColor="text-purple-400"
-              title="Tư vấn cá nhân"
-              desc="Đội ngũ chuyên gia cùng hệ thống Quant Trading sẵn sàng đồng hành và tối ưu chiến lược đầu tư."
-            />
+            <FeatureCard icon={<Shield className="w-5 h-5" />} iconBg="bg-blue-500/10 border-blue-500/20" iconColor="text-blue-400" title="Uy tÃ­n kháº³ng Ä‘á»‹nh" desc="HÆ¡n 10 nÄƒm lÃ m NÄT chuyÃªn nghiá»‡p, Ä‘á»“ng hÃ nh cÃ¹ng nhÃ  Ä‘áº§u tÆ° vá»›i dá»‹ch vá»¥ chuyÃªn nghiá»‡p vÃ  Ä‘Ã¡ng tin cáº­y." />
+            <FeatureCard icon={<Layers className="w-5 h-5" />} iconBg="bg-emerald-500/10 border-emerald-500/20" iconColor="text-emerald-400" title="Giáº£i phÃ¡p linh hoáº¡t" desc="Äa dáº¡ng gÃ³i kÃ½ quá»¹, há»— trá»£ toÃ n diá»‡n vá»›i tá»‰ lá»‡ kÃ½ quá»¹ cao vÃ  há»£p phÃ¡p." />
+            <FeatureCard icon={<Users className="w-5 h-5" />} iconBg="bg-purple-500/10 border-purple-500/20" iconColor="text-purple-400" title="TÆ° váº¥n cÃ¡ nhÃ¢n" desc="Äá»™i ngÅ© chuyÃªn gia cÃ¹ng há»‡ thá»‘ng Quant Trading sáºµn sÃ ng Ä‘á»“ng hÃ nh vÃ  tá»‘i Æ°u chiáº¿n lÆ°á»£c Ä‘áº§u tÆ°." />
           </div>
         </section>
 
-        {/* ══════════════════════════════════════════════════════════
-         *  HÀNG 2: SẢN PHẨM ĐẶC THÙ
-         * ══════════════════════════════════════════════════════════ */}
+        {/* â”€â”€ HÃ ng 2 â”€â”€ */}
         <section className="space-y-5">
           <div className="text-center space-y-1.5">
-            <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-              SẢN PHẨM ĐẶC THÙ NỔI BẬT
-            </h2>
-            <p className="text-sm text-neutral-500 max-w-lg mx-auto">
-              Sản phẩm ký quỹ và sản phẩm hỗ trợ đầu tư nổi bật
-            </p>
+            <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">Sáº¢N PHáº¨M Äáº¶C THÃ™ Ná»”I Báº¬T</h2>
+            <p className="text-sm text-neutral-500 max-w-lg mx-auto">Sáº£n pháº©m kÃ½ quá»¹ vÃ  sáº£n pháº©m há»— trá»£ Ä‘áº§u tÆ° ná»•i báº­t</p>
           </div>
-
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <FeatureCard
-              icon={<Percent className="w-5 h-5" />}
-              iconBg="bg-amber-500/10 border-amber-500/20"
-              iconColor="text-amber-400"
-              title="Lãi suất chỉ từ 5,99%/năm"
-              desc="Phí giao dịch từ 0.1%. Tối ưu hóa lợi nhuận và giảm thiểu chi phí."
-            />
-            <FeatureCard
-              icon={<TrendingUp className="w-5 h-5" />}
-              iconBg="bg-cyan-500/10 border-cyan-500/20"
-              iconColor="text-cyan-400"
-              title="Tỉ lệ ký quỹ cao"
-              desc="Tỉ lệ ký quỹ từ 25%, đa dạng nhu cầu sản phẩm."
-            />
-            <FeatureCard
-              icon={<Zap className="w-5 h-5" />}
-              iconBg="bg-yellow-500/10 border-yellow-500/20"
-              iconColor="text-yellow-400"
-              title="Mua nhanh – Bán nhanh"
-              desc="Không cần phải chờ T+2,5 để có thể bán cổ phiếu, giải pháp toàn diện cho NĐT lướt sóng."
-            />
+            <FeatureCard icon={<Percent className="w-5 h-5" />} iconBg="bg-amber-500/10 border-amber-500/20" iconColor="text-amber-400" title="LÃ£i suáº¥t chá»‰ tá»« 5,99%/nÄƒm" desc="PhÃ­ giao dá»‹ch tá»« 0.1%. Tá»‘i Æ°u hÃ³a lá»£i nhuáº­n vÃ  giáº£m thiá»ƒu chi phÃ­." />
+            <FeatureCard icon={<TrendingUp className="w-5 h-5" />} iconBg="bg-cyan-500/10 border-cyan-500/20" iconColor="text-cyan-400" title="Tá»‰ lá»‡ kÃ½ quá»¹ cao" desc="Tá»‰ lá»‡ kÃ½ quá»¹ tá»« 25%, Ä‘a dáº¡ng nhu cáº§u sáº£n pháº©m." />
+            <FeatureCard icon={<Zap className="w-5 h-5" />} iconBg="bg-yellow-500/10 border-yellow-500/20" iconColor="text-yellow-400" title="Mua nhanh â€“ BÃ¡n nhanh" desc="KhÃ´ng cáº§n pháº£i chá» T+2,5 Ä‘á»ƒ cÃ³ thá»ƒ bÃ¡n cá»• phiáº¿u, giáº£i phÃ¡p toÃ n diá»‡n cho NÄT lÆ°á»›t sÃ³ng." />
           </div>
         </section>
 
-        {/* ══════════════════════════════════════════════════════════
-         *  FORM TƯ VẤN
-         * ══════════════════════════════════════════════════════════ */}
+        {/* â”€â”€ Form tÆ° váº¥n â”€â”€ */}
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-          {/* Left: intro */}
+          {/* Left */}
           <div className="space-y-6">
             <div>
-              <h2 className="text-xl sm:text-2xl font-black text-white mb-2">
-                Tư Vấn Vay Margin Theo Nhu Cầu
-              </h2>
-              <p className="text-sm text-neutral-400 leading-relaxed">
-                Điền thông tin để đội ngũ chuyên gia ADN Capital liên hệ tư vấn gói ký quỹ phù hợp nhất với chiến lược đầu tư của bạn.
-              </p>
+              <h2 className="text-xl sm:text-2xl font-black text-white mb-2">TÆ° Váº¥n Theo Nhu Cáº§u</h2>
+              <p className="text-sm text-neutral-400 leading-relaxed">Äiá»n thÃ´ng tin Ä‘á»ƒ Ä‘á»™i ngÅ© chuyÃªn gia ADN Capital liÃªn há»‡ tÆ° váº¥n sáº£n pháº©m phÃ¹ há»£p nháº¥t vá»›i chiáº¿n lÆ°á»£c Ä‘áº§u tÆ° cá»§a báº¡n.</p>
             </div>
-
             <div className="space-y-3">
               {[
-                { icon: <CheckCircle2 className="w-4 h-4 text-emerald-400" />, text: "Tư vấn hoàn toàn miễn phí" },
-                { icon: <CheckCircle2 className="w-4 h-4 text-emerald-400" />, text: "Thông tin được bảo mật tuyệt đối" },
-                { icon: <CheckCircle2 className="w-4 h-4 text-emerald-400" />, text: "Phản hồi trong vòng 2 giờ làm việc" },
-                { icon: <CheckCircle2 className="w-4 h-4 text-emerald-400" />, text: "Lãi suất cạnh tranh nhất thị trường" },
+                { icon: <CheckCircle2 className="w-4 h-4 text-emerald-400" />, text: "TÆ° váº¥n hoÃ n toÃ n miá»…n phÃ­" },
+                { icon: <CheckCircle2 className="w-4 h-4 text-emerald-400" />, text: "ThÃ´ng tin Ä‘Æ°á»£c báº£o máº­t tuyá»‡t Ä‘á»‘i" },
+                { icon: <CheckCircle2 className="w-4 h-4 text-emerald-400" />, text: "Pháº£n há»“i trong vÃ²ng 2 giá» lÃ m viá»‡c" },
+                { icon: <CheckCircle2 className="w-4 h-4 text-emerald-400" />, text: "LÃ£i suáº¥t cáº¡nh tranh nháº¥t thá»‹ trÆ°á»ng" },
               ].map((item, i) => (
                 <div key={i} className="flex items-center gap-3">
                   {item.icon}
@@ -206,11 +159,8 @@ export default function MarginPage() {
                 </div>
               ))}
             </div>
-
             <div className="border-t border-neutral-800 pt-5">
-              <p className="text-xs text-neutral-600 leading-relaxed">
-                Thông tin của quý NĐT, quý đối tác sẽ luôn được bảo mật một cách tuyệt đối theo chính sách bảo mật của ADN Capital.
-              </p>
+              <p className="text-xs text-neutral-600 leading-relaxed">ThÃ´ng tin cá»§a quÃ½ NÄT sáº½ luÃ´n Ä‘Æ°á»£c báº£o máº­t tuyá»‡t Ä‘á»‘i theo chÃ­nh sÃ¡ch báº£o máº­t cá»§a ADN Capital.</p>
             </div>
           </div>
 
@@ -221,41 +171,30 @@ export default function MarginPage() {
                 <div className="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
                   <CheckCircle2 className="w-7 h-7 text-emerald-400" />
                 </div>
-                <h3 className="text-lg font-black text-white">Đăng ký thành công!</h3>
-                <p className="text-sm text-neutral-400">
-                  Đội ngũ ADN Capital sẽ liên hệ với bạn sớm nhất có thể.
-                </p>
+                <h3 className="text-lg font-black text-white">ÄÄƒng kÃ½ thÃ nh cÃ´ng!</h3>
+                <p className="text-sm text-neutral-400">Äá»™i ngÅ© ADN Capital sáº½ liÃªn há»‡ vá»›i báº¡n sá»›m nháº¥t cÃ³ thá»ƒ.</p>
                 <button
-                  onClick={() => { setSuccess(false); setForm({ name:"", email:"", phone:"", company:"", tickers:"", marginRatio:"", loanAmount:"" }); }}
+                  onClick={() => { setSuccess(false); setForm({ name: "", email: "", phone: "", product: "ky-quy", marginRatio: "", loanAmount: "" }); }}
                   className="mt-2 text-xs text-emerald-400 hover:underline cursor-pointer"
                 >
-                  Gửi thêm yêu cầu
+                  Gá»­i thÃªm yÃªu cáº§u
                 </button>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+
+                {/* Há» tÃªn + SÄT */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <FormField
-                    label="Họ và Tên"
-                    required
-                    icon={<Users className="w-4 h-4" />}
-                    error={errors.name}
-                  >
+                  <FormField label="Há» vÃ  TÃªn" required icon={<Users className="w-4 h-4" />} error={errors.name}>
                     <input
                       type="text"
                       value={form.name}
                       onChange={(e) => set("name", e.target.value)}
-                      placeholder="Nguyễn Văn A"
+                      placeholder="Nguyá»…n VÄƒn A"
                       className={inputCls(!!errors.name)}
                     />
                   </FormField>
-
-                  <FormField
-                    label="Số điện thoại"
-                    required
-                    icon={<Phone className="w-4 h-4" />}
-                    error={errors.phone}
-                  >
+                  <FormField label="Sá»‘ Ä‘iá»‡n thoáº¡i" required icon={<Phone className="w-4 h-4" />} error={errors.phone}>
                     <input
                       type="tel"
                       value={form.phone}
@@ -266,10 +205,8 @@ export default function MarginPage() {
                   </FormField>
                 </div>
 
-                <FormField
-                  label="Email"
-                  icon={<Mail className="w-4 h-4" />}
-                >
+                {/* Email */}
+                <FormField label="Email" icon={<Mail className="w-4 h-4" />}>
                   <input
                     type="email"
                     value={form.email}
@@ -279,71 +216,74 @@ export default function MarginPage() {
                   />
                 </FormField>
 
-                <FormField
-                  label="Đơn vị công tác"
-                  icon={<Building2 className="w-4 h-4" />}
-                >
-                  <input
-                    type="text"
-                    value={form.company}
-                    onChange={(e) => set("company", e.target.value)}
-                    placeholder="Tên công ty / tổ chức"
-                    className={inputCls(false)}
-                  />
-                </FormField>
+                {/* Sáº£n pháº©m cáº§n tÆ° váº¥n */}
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-300 mb-2">
+                    Sáº£n pháº©m cáº§n tÆ° váº¥n <span className="text-red-400">*</span>
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setProduct("ky-quy")}
+                      className={`flex items-center gap-2 px-4 py-3 rounded-xl border text-sm font-semibold transition-all cursor-pointer ${
+                        form.product === "ky-quy"
+                          ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-400"
+                          : "bg-neutral-800 border-neutral-700 text-neutral-400 hover:border-neutral-600 hover:text-neutral-200"
+                      }`}
+                    >
+                      <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${form.product === "ky-quy" ? "border-emerald-400" : "border-neutral-600"}`}>
+                        {form.product === "ky-quy" && <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+                      </div>
+                      KÃ½ quá»¹
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setProduct("mua-nhanh-ban-nhanh")}
+                      className={`flex items-center gap-2 px-4 py-3 rounded-xl border text-sm font-semibold transition-all cursor-pointer ${
+                        form.product === "mua-nhanh-ban-nhanh"
+                          ? "bg-yellow-500/10 border-yellow-500/40 text-yellow-400"
+                          : "bg-neutral-800 border-neutral-700 text-neutral-400 hover:border-neutral-600 hover:text-neutral-200"
+                      }`}
+                    >
+                      <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${form.product === "mua-nhanh-ban-nhanh" ? "border-yellow-400" : "border-neutral-600"}`}>
+                        {form.product === "mua-nhanh-ban-nhanh" && <div className="w-1.5 h-1.5 rounded-full bg-yellow-400" />}
+                      </div>
+                      Mua nhanh â€“ BÃ¡n nhanh
+                    </button>
+                  </div>
+                </div>
 
-                <FormField
-                  label="Mã chứng khoán cần vay"
-                  required
-                  error={errors.tickers}
-                >
-                  <input
-                    type="text"
-                    value={form.tickers}
-                    onChange={(e) => set("tickers", e.target.value)}
-                    placeholder="Có thể nhập nhiều mã, ví dụ: FPT, VNM, HPG"
-                    className={inputCls(!!errors.tickers)}
-                  />
-                </FormField>
+                {/* Tá»‰ lá»‡ cho vay â€” chá»‰ hiá»‡n khi KÃ½ quá»¹ */}
+                {isKyQuy && (
+                  <FormField label="Tá»‰ lá»‡ cho vay" required icon={<ChevronDown className="w-4 h-4" />} error={errors.marginRatio}>
+                    <select
+                      value={form.marginRatio}
+                      onChange={(e) => set("marginRatio", e.target.value)}
+                      className={selectCls(!!errors.marginRatio)}
+                    >
+                      <option value="">Chá»n tá»‰ lá»‡ kÃ½ quá»¹...</option>
+                      {MARGIN_RATIOS.map((r) => (
+                        <option key={r} value={r}>{r}</option>
+                      ))}
+                    </select>
+                  </FormField>
+                )}
 
-                <FormField
-                  label="Tỉ lệ cho vay"
-                  required
-                  icon={<ChevronDown className="w-4 h-4" />}
-                  error={errors.marginRatio}
-                >
-                  <select
-                    value={form.marginRatio}
-                    onChange={(e) => set("marginRatio", e.target.value)}
-                    className={selectCls(!!errors.marginRatio)}
-                  >
-                    <option value="">Chọn tỉ lệ ký quỹ...</option>
-                    {MARGIN_RATIOS.map((r) => (
-                      <option key={r} value={r}>{r}</option>
-                    ))}
-                  </select>
-                </FormField>
-
-                <FormField
-                  label="Hạn mức vay mong muốn"
-                  required
-                  error={errors.loanAmount}
-                >
+                {/* Háº¡n má»©c vay */}
+                <FormField label="Háº¡n má»©c vay mong muá»‘n" required error={errors.loanAmount}>
                   <select
                     value={form.loanAmount}
                     onChange={(e) => set("loanAmount", e.target.value)}
                     className={selectCls(!!errors.loanAmount)}
                   >
-                    <option value="">Chọn hạn mức...</option>
+                    <option value="">Chá»n háº¡n má»©c...</option>
                     {LOAN_RANGES.map((r) => (
                       <option key={r} value={r}>{r}</option>
                     ))}
                   </select>
                 </FormField>
 
-                {errors.submit && (
-                  <p className="text-xs text-red-400">{errors.submit}</p>
-                )}
+                {errors.submit && <p className="text-xs text-red-400">{errors.submit}</p>}
 
                 <button
                   type="submit"
@@ -351,12 +291,9 @@ export default function MarginPage() {
                   className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-sm font-black transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {submitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Đang gửi...
-                    </>
+                    <><Loader2 className="w-4 h-4 animate-spin" />Äang gá»­i...</>
                   ) : (
-                    "ĐĂNG KÝ TƯ VẤN NGAY"
+                    "ÄÄ‚NG KÃ TÆ¯ Váº¤N NGAY"
                   )}
                 </button>
               </form>
@@ -369,35 +306,21 @@ export default function MarginPage() {
   );
 }
 
-/* ── Sub-components ────────────────────────────────────────────── */
-function FeatureCard({
-  icon, iconBg, iconColor, title, desc,
-}: {
-  icon: React.ReactNode;
-  iconBg: string;
-  iconColor: string;
-  title: string;
-  desc: string;
+/* â”€â”€ Sub-components â”€â”€ */
+function FeatureCard({ icon, iconBg, iconColor, title, desc }: {
+  icon: React.ReactNode; iconBg: string; iconColor: string; title: string; desc: string;
 }) {
   return (
     <div className="bg-neutral-900/60 border border-neutral-800 hover:border-neutral-700 rounded-2xl p-5 transition-all hover:-translate-y-1 duration-200">
-      <div className={`w-10 h-10 rounded-xl border flex items-center justify-center mb-4 ${iconBg} ${iconColor}`}>
-        {icon}
-      </div>
+      <div className={`w-10 h-10 rounded-xl border flex items-center justify-center mb-4 ${iconBg} ${iconColor}`}>{icon}</div>
       <h3 className="text-sm font-bold text-white mb-2">{title}</h3>
       <p className="text-xs text-neutral-400 leading-relaxed">{desc}</p>
     </div>
   );
 }
 
-function FormField({
-  label, required, icon, error, children,
-}: {
-  label: string;
-  required?: boolean;
-  icon?: React.ReactNode;
-  error?: string;
-  children: React.ReactNode;
+function FormField({ label, required, icon, error, children }: {
+  label: string; required?: boolean; icon?: React.ReactNode; error?: string; children: React.ReactNode;
 }) {
   return (
     <div>
@@ -405,9 +328,7 @@ function FormField({
         {label} {required && <span className="text-red-400">*</span>}
       </label>
       <div className="relative">
-        {icon && (
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500">{icon}</span>
-        )}
+        {icon && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500">{icon}</span>}
         <div className={icon ? "pl-9" : ""}>{children}</div>
       </div>
       {error && <p className="text-[10px] text-red-400 mt-1">{error}</p>}
@@ -424,3 +345,4 @@ const selectCls = (hasErr: boolean) =>
   `w-full px-3 py-2.5 rounded-xl bg-neutral-800 border text-sm text-white focus:outline-none transition-colors appearance-none cursor-pointer ${
     hasErr ? "border-red-500/50 focus:border-red-500 text-red-400" : "border-neutral-700 focus:border-emerald-500/50"
   }`;
+
