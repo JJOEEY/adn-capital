@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { MainLayout } from "@/components/layout/MainLayout";
+import Pricing from "@/components/landing/Pricing";
 import {
   TrendingUp,
   Zap,
@@ -27,6 +28,7 @@ export default function HomePage() {
         <HeroSection />
         <PerformanceSection />
         <GuideSection />
+        <Pricing />
         <CourseSection />
         <FooterCTA />
       </div>
