@@ -23,6 +23,7 @@ import {
   Eye,
 } from "lucide-react";
 import type { Signal } from "@/types";
+import { RPILightChart } from "@/components/formula-test/RPILightChart";
 
 /* ── Mô tả 3 công thức ────────────────────────────────────────────────── */
 const FORMULAS = [
@@ -180,6 +181,9 @@ export default function FormulaTestPage() {
             </p>
           </div>
         </div>
+
+        {/* ═══ RPI INDICATOR ═══ */}
+        <RPILightChart />
 
         {/* ═══ 3 FORMULA CARDS ═══ */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
