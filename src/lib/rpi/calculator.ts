@@ -1,6 +1,6 @@
 /**
- * RPI (Reverse Point Index) Calculator — v2
- * Formula: RSI(14)×40% + Stochastic %K(9)×35% + ROC(5)×15% + BB(20,2σ)×10%
+ * RPI (Reverse Point Index) Calculator — v2 (narrow-amplitude)
+ * Formula: RSI(7)×5% + Stochastic %K(5)×70% + ROC(5)×25%
  * VN30 mode: MEDIAN of 30 constituent stock scores per day
  */
 
@@ -88,16 +88,16 @@ export function calculateStockDailyScores(ohlcv: OHLCVData[]): DailyScore[] {
   const highs = ohlcv.map((d) => d.high);
   const lows = ohlcv.map((d) => d.low);
 
-  // [A] RSI(14) — Wilder smoothing (alpha = 1/14)
-  const rsi = calcRSI(closes, 14);
+  // [A] RSI(7) — Wilder smoothing, shorter period for more sensitivity
+  const rsi = calcRSI(closes, 7);
 
-  // [B] Stochastic %K(9) — raw, NOT smoothed %D
-  const stoch = calcStochastic(closes, highs, lows, 9);
+  // [B] Stochastic %K(5) — raw, short period for narrow amplitude
+  const stoch = calcStochastic(closes, highs, lows, 5);
 
   // [C] ROC(5)
   const roc = calcROC(closes, 5);
 
-  // [D] Bollinger Band Position (20, 2σ)
+  // [D] Bollinger Band Position (20, 2σ) — weight=0 but kept for detail display
   const bb = calcBollingerPosition(closes, 20);
 
   const results: DailyScore[] = [];
@@ -132,9 +132,9 @@ export function calculateStockDailyScores(ohlcv: OHLCVData[]): DailyScore[] {
     // [D] bb_score = clip(BB_pos / 100, 0, 1) × 5
     const bbScore = Math.max(0, Math.min(5, (bb[i]! / 100) * 5));
 
-    // Weighted: RSI(40%) + Stochastic(35%) + ROC(15%) + BB(10%)
+    // Weighted: RSI(5%) + Stochastic(70%) + ROC(25%) + BB(0%)
     const score =
-      0.40 * rsiScore + 0.35 * stochScore + 0.15 * rocScore + 0.10 * bbScore;
+      0.05 * rsiScore + 0.70 * stochScore + 0.25 * rocScore + 0.00 * bbScore;
 
     results.push({
       date: ohlcv[i].date,

@@ -458,10 +458,9 @@ export const RPIDashboard = memo(function RPIDashboard() {
                 <div className="pt-3 border-t border-neutral-800 mt-3">
                   <p className="text-[10px] font-bold text-neutral-600 uppercase tracking-wider mb-2">Chi tiết thành phần</p>
                   {[
-                    { name: "RSI (40%)", score: latest.details.rsiScore },
-                    { name: "Stochastic (35%)", score: latest.details.stochScore },
-                    { name: "ROC (15%)", score: latest.details.rocScore },
-                    { name: "Bollinger (10%)", score: latest.details.bbScore },
+                    { name: "Stochastic %K(5) — 70%", score: latest.details.stochScore },
+                    { name: "ROC(5) — 25%", score: latest.details.rocScore },
+                    { name: "RSI(7) — 5%", score: latest.details.rsiScore },
                   ].map((c) => (
                     <div key={c.name} className="flex items-center justify-between text-xs py-0.5">
                       <span className="text-neutral-500">{c.name}</span>
@@ -604,10 +603,10 @@ export const RPIDashboard = memo(function RPIDashboard() {
             Công thức tính RPI
           </p>
           <p className="text-xs text-neutral-400 leading-relaxed">
-            RPI = RSI(40%) + Stochastic %K(35%) + ROC(15%) + Bollinger Band(10%)
+            RPI = Stochastic %K(5)×70% + ROC(5)×25% + RSI(7)×5%
           </p>
           <p className="text-xs text-neutral-500 mt-1">
-            VN30: MEDIAN của 30 mã thành phần · Thang 0–5 · Trên 4.0 = Rủi ro đảo chiều giảm · Dưới 1.0 = Cơ hội đảo chiều tăng
+            Biên độ hẹp: Stoch(5) chiếm ưu thế · Thang 0–5 · Trên 4.0 = Rủi ro đảo chiều giảm · Dưới 1.0 = Cơ hội đảo chiều tăng
           </p>
         </div>
       </div>
