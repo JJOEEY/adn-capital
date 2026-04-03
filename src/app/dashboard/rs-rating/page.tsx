@@ -96,21 +96,30 @@ export default function RSRatingDashboardPage() {
   const [timKiem, setTimKiem] = useState("");
   const [filter, setFilter] = useState<"all" | LoaiRS>("all");
 
-  // ── Gọi API Python backend ────────────────────────────────────────────
+  // ── Gọi API qua Next.js proxy ───────────────────────────────────────
   const fetchData = async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("http://localhost:8000/api/v1/rs-rating", {
+      const res = await fetch("/api/rs-rating", {
         signal: AbortSignal.timeout(60_000), // timeout 60 giây (tính toán nặng)
       });
       if (!res.ok) {
         const errJson = await res.json().catch(() => null);
-        throw new Error(errJson?.detail ?? `Lỗi HTTP ${res.status}`);
+        throw new Error(errJson?.error ?? `Lỗi HTTP ${res.status}`);
       }
-      const json: RSResponse = await res.json();
-      setData(json.data ?? []);
-      setUpdatedAt(json.updated_at ?? null);
+      const json = await res.json();
+      // Proxy trả về { stocks: [...], updatedAt }  → map lại sang RSStockData
+      const mapped: RSStockData[] = (json.stocks ?? []).map(
+        (s: { symbol: string; sector: string; price: number; rsRating: number }) => ({
+          ticker: s.symbol,
+          sector: s.sector,
+          close: s.price,
+          rs_rating: s.rsRating,
+        })
+      );
+      setData(mapped);
+      setUpdatedAt(json.updatedAt ?? null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Lỗi không xác định khi gọi API");
     } finally {
