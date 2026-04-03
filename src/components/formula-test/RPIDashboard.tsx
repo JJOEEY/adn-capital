@@ -15,7 +15,7 @@ import {
   ReferenceArea,
 } from "recharts";
 import { RefreshCw, Calendar, Info, Search } from "lucide-react";
-import { calculateRPI, getLatestRPI, type OHLCVData } from "@/lib/rpi/calculator";
+import { calculateRPI, getLatestRPI, type OHLCVData, type RPIResult } from "@/lib/rpi/calculator";
 
 /* ═══════════════════════════════════════════════════════════════════════════
  *  RPIDashboard — Dark-theme RPI Dashboard with frontend calculation
@@ -62,9 +62,9 @@ const PRESET_TICKERS = [
 ];
 
 const fetcher = (url: string) =>
-  fetch(url, { signal: AbortSignal.timeout(30_000) }).then((r) => {
+  fetch(url, { signal: AbortSignal.timeout(60_000) }).then((r) => {
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    return r.json() as Promise<HistoricalResponse>;
+    return r.json();
   });
 
 /* ── Date helpers ──────────────────────────────────────────────────────── */
@@ -229,9 +229,10 @@ export const RPIDashboard = memo(function RPIDashboard() {
   const [ticker, setTicker] = useState("VN30");
   const [inputTicker, setInputTicker] = useState("");
 
-  const apiUrl = `/api/historical/${encodeURIComponent(ticker)}`;
+  const isVN30 = ticker === "VN30";
+  const apiUrl = isVN30 ? "/api/rpi-vn30" : `/api/historical/${encodeURIComponent(ticker)}`;
 
-  const { data: rawData, isLoading, error, mutate } = useSWR<HistoricalResponse>(
+  const { data: rawData, isLoading, error, mutate } = useSWR(
     apiUrl,
     fetcher,
     {
@@ -265,10 +266,12 @@ export const RPIDashboard = memo(function RPIDashboard() {
     }
   }, [inputTicker]);
 
-  // Convert API response to OHLCV data
-  const ohlcvData: OHLCVData[] = useMemo(() => {
+  // VN30 → pre-computed by server; otherwise compute client-side
+  const rpiResults: RPIResult[] = useMemo(() => {
+    if (!rawData) return [];
+    if (isVN30 && rawData.results) return rawData.results as RPIResult[];
     if (!rawData?.data?.length) return [];
-    return rawData.data.map((d) => ({
+    const ohlcv: OHLCVData[] = rawData.data.map((d: any) => ({
       date: d.timestamp.split(" ")[0],
       open: d.open,
       high: d.high,
@@ -276,13 +279,9 @@ export const RPIDashboard = memo(function RPIDashboard() {
       close: d.close,
       volume: d.volume,
     }));
-  }, [rawData]);
-
-  // Calculate RPI on frontend
-  const rpiResults = useMemo(() => {
-    if (ohlcvData.length < 30) return [];
-    return calculateRPI(ohlcvData);
-  }, [ohlcvData]);
+    if (ohlcv.length < 30) return [];
+    return calculateRPI(ohlcv);
+  }, [rawData, isVN30]);
 
   const latest = useMemo(() => getLatestRPI(rpiResults), [rpiResults]);
 
@@ -327,13 +326,13 @@ export const RPIDashboard = memo(function RPIDashboard() {
     );
   }
 
-  /* ── Not enough data ─────────────────────────────────────────────────── */
-  if (ohlcvData.length > 0 && ohlcvData.length < 30) {
+  /* ── Not enough data (single-ticker only; VN30 validated server-side) ── */
+  if (!isVN30 && rawData?.data?.length > 0 && rawData.data.length < 30) {
     return (
       <div className="rounded-2xl border border-neutral-800 bg-neutral-900/80 p-8 text-center">
         <div className="text-amber-400 text-lg font-bold mb-2">Không đủ dữ liệu</div>
         <p className="text-neutral-500 text-sm">
-          {ticker} chỉ có {ohlcvData.length} phiên, cần ít nhất 30 phiên để tính RPI.
+          {ticker} chỉ có {rawData.data.length} phiên, cần ít nhất 30 phiên để tính RPI.
         </p>
       </div>
     );
@@ -458,11 +457,10 @@ export const RPIDashboard = memo(function RPIDashboard() {
                 <div className="pt-3 border-t border-neutral-800 mt-3">
                   <p className="text-[10px] font-bold text-neutral-600 uppercase tracking-wider mb-2">Chi tiết thành phần</p>
                   {[
-                    { name: "RSI (25%)", score: latest.details.rsiScore },
-                    { name: "Stochastic (25%)", score: latest.details.stochScore },
-                    { name: "Bollinger (20%)", score: latest.details.bbScore },
-                    { name: "MACD (15%)", score: latest.details.macdScore },
-                    { name: "Volume (15%)", score: latest.details.volumeScore },
+                    { name: "RSI (40%)", score: latest.details.rsiScore },
+                    { name: "Stochastic (35%)", score: latest.details.stochScore },
+                    { name: "ROC (15%)", score: latest.details.rocScore },
+                    { name: "Bollinger (10%)", score: latest.details.bbScore },
                   ].map((c) => (
                     <div key={c.name} className="flex items-center justify-between text-xs py-0.5">
                       <span className="text-neutral-500">{c.name}</span>
@@ -605,10 +603,10 @@ export const RPIDashboard = memo(function RPIDashboard() {
             Công thức tính RPI
           </p>
           <p className="text-xs text-neutral-400 leading-relaxed">
-            RPI = RSI(25%) + Stochastic(25%) + Bollinger Band(20%) + MACD(15%) + Volume Pressure(15%)
+            RPI = RSI(40%) + Stochastic %K(35%) + ROC(15%) + Bollinger Band(10%)
           </p>
           <p className="text-xs text-neutral-500 mt-1">
-            Thang 0–5 · Trên 4.0 = Rủi ro đảo chiều giảm · Dưới 1.0 = Cơ hội đảo chiều tăng
+            VN30: MEDIAN của 30 mã thành phần · Thang 0–5 · Trên 4.0 = Rủi ro đảo chiều giảm · Dưới 1.0 = Cơ hội đảo chiều tăng
           </p>
         </div>
       </div>

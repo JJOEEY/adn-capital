@@ -1,16 +1,14 @@
 /**
- * RPI (Reverse Point Index) Calculator
- * Computes RPI from OHLCV data using 5 technical indicators
- * Weights: RSI(25%) + Stochastic(25%) + BB(20%) + MACD(15%) + Volume(15%)
+ * RPI (Reverse Point Index) Calculator — v2
+ * Formula: RSI(14)×40% + Stochastic %K(9)×35% + ROC(5)×15% + BB(20,2σ)×10%
+ * VN30 mode: MEDIAN of 30 constituent stock scores per day
  */
 
 import {
   calcRSI,
   calcStochastic,
-  calcMACD,
-  calcBollingerPosition,
-  calcVolumeRatio,
   calcROC,
+  calcBollingerPosition,
 } from "./indicators";
 
 export interface OHLCVData {
@@ -31,133 +29,221 @@ export interface RPIResult {
   details?: {
     rsiScore: number;
     stochScore: number;
+    rocScore: number;
     bbScore: number;
-    macdScore: number;
-    volumeScore: number;
   };
 }
 
-function normalize(value: number, min: number, max: number): number {
-  if (max === min) return 2.5;
-  return Math.max(0, Math.min(5, ((value - min) / (max - min)) * 5));
+interface DailyScore {
+  date: string;
+  score: number;
+  rsiScore: number;
+  stochScore: number;
+  rocScore: number;
+  bbScore: number;
 }
 
-function normalize100to5(value: number | null): number | null {
-  if (value === null) return null;
-  return Math.max(0, Math.min(5, (value / 100) * 5));
+/* ── Helpers ───────────────────────────────────────────────────────────── */
+
+function median(arr: number[]): number {
+  if (arr.length === 0) return 0;
+  const sorted = [...arr].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 !== 0
+    ? sorted[mid]
+    : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
-export function calculateRPI(ohlcvData: OHLCVData[]): RPIResult[] {
-  if (ohlcvData.length < 30) {
-    return [];
-  }
+function classify(rpi: number): { classification: string; classColor: string } {
+  if (rpi >= 4.0) return { classification: "RỦI RO ĐẢO CHIỀU GIẢM", classColor: "red" };
+  if (rpi <= 1.0) return { classification: "CƠ HỘI ĐẢO CHIỀU TĂNG", classColor: "green" };
+  return { classification: "TRUNG TÍNH", classColor: "yellow" };
+}
 
-  const closes = ohlcvData.map((d) => d.close);
-  const highs = ohlcvData.map((d) => d.high);
-  const lows = ohlcvData.map((d) => d.low);
-  const volumes = ohlcvData.map((d) => d.volume);
-
-  const rsi14 = calcRSI(closes, 14);
-  const rsi7 = calcRSI(closes, 7);
-  const stoch14 = calcStochastic(closes, highs, lows, 14);
-  const stoch5 = calcStochastic(closes, highs, lows, 5);
-  const { histogram: macdHist } = calcMACD(closes);
-  const bbPos = calcBollingerPosition(closes, 20);
-  const volRatio = calcVolumeRatio(volumes, 10);
-  const roc5 = calcROC(closes, 5);
-
-  const lookbackWindow = 30;
-
-  const results: RPIResult[] = ohlcvData.map((item, i) => {
-    if (rsi14[i] === null || stoch14[i] === null || bbPos[i] === null) {
-      return { date: item.date, rpi: null, ma7: null, classification: null, classColor: null };
+function addMA7AndClassification(results: RPIResult[]): void {
+  for (let i = 0; i < results.length; i++) {
+    if (results[i].rpi === null) continue;
+    // SMA(7)
+    if (i >= 6) {
+      const window = results.slice(i - 6, i + 1).filter((d) => d.rpi !== null);
+      if (window.length === 7) {
+        results[i].ma7 =
+          Math.round((window.reduce((s, d) => s + d.rpi!, 0) / 7) * 100) / 100;
+      }
     }
+    const { classification, classColor } = classify(results[i].rpi!);
+    results[i].classification = classification;
+    results[i].classColor = classColor;
+  }
+}
 
-    // 1. RSI Score: combine RSI(14) and RSI(7)
-    const rsiScore = normalize100to5(
-      rsi7[i] !== null ? rsi7[i]! * 0.6 + rsi14[i]! * 0.4 : rsi14[i]!,
-    )!;
+/* ══════════════════════════════════════════════════════════════════════════
+ *  Per-stock daily scores (4 indicators)
+ * ══════════════════════════════════════════════════════════════════════════ */
 
-    // 2. Stochastic Score: combine Stoch(14) and Stoch(5)
-    const stochScore = normalize100to5(
-      stoch5[i] !== null ? stoch5[i]! * 0.5 + stoch14[i]! * 0.5 : stoch14[i]!,
-    )!;
+export function calculateStockDailyScores(ohlcv: OHLCVData[]): DailyScore[] {
+  if (ohlcv.length < 20) return [];
 
-    // 3. Bollinger Band Position Score
-    const bbScore = normalize100to5(bbPos[i]!)!;
+  const closes = ohlcv.map((d) => d.close);
+  const highs = ohlcv.map((d) => d.high);
+  const lows = ohlcv.map((d) => d.low);
 
-    // 4. MACD Histogram Score (normalized in window)
-    let macdScore = 2.5;
-    if (macdHist[i] !== null) {
-      const start = Math.max(0, i - lookbackWindow);
-      const histWindow = macdHist.slice(start, i + 1).filter((v): v is number => v !== null);
-      if (histWindow.length > 0) {
-        const histMin = Math.min(...histWindow);
-        const histMax = Math.max(...histWindow);
-        macdScore = normalize(macdHist[i]!, histMin, histMax);
+  // [A] RSI(14) — Wilder smoothing (alpha = 1/14)
+  const rsi = calcRSI(closes, 14);
+
+  // [B] Stochastic %K(9) — raw, NOT smoothed %D
+  const stoch = calcStochastic(closes, highs, lows, 9);
+
+  // [C] ROC(5)
+  const roc = calcROC(closes, 5);
+
+  // [D] Bollinger Band Position (20, 2σ)
+  const bb = calcBollingerPosition(closes, 20);
+
+  const results: DailyScore[] = [];
+
+  for (let i = 0; i < ohlcv.length; i++) {
+    if (rsi[i] === null || stoch[i] === null || bb[i] === null) continue;
+
+    // [A] rsi_score = (RSI / 100) × 5
+    const rsiScore = (rsi[i]! / 100) * 5;
+
+    // [B] sto_score = (%K / 100) × 5
+    const stochScore = (stoch[i]! / 100) * 5;
+
+    // [C] ROC — rolling 60-period normalization
+    let rocScore = 2.5;
+    if (roc[i] !== null) {
+      const start = Math.max(0, i - 59);
+      const rocWindow: number[] = [];
+      for (let j = start; j <= i; j++) {
+        if (roc[j] !== null) rocWindow.push(roc[j]!);
+      }
+      if (rocWindow.length > 1) {
+        const rocMin = Math.min(...rocWindow);
+        const rocMax = Math.max(...rocWindow);
+        if (rocMax !== rocMin) {
+          const rocNorm = Math.max(0, Math.min(1, (roc[i]! - rocMin) / (rocMax - rocMin)));
+          rocScore = rocNorm * 5;
+        }
       }
     }
 
-    // 5. Volume Pressure Score
-    let volumeScore = 2.5;
-    if (volRatio[i] !== null && roc5[i] !== null) {
-      const direction = roc5[i]! > 0 ? 1 : -1;
-      const volPressure = direction * Math.min(volRatio[i]!, 3);
-      volumeScore = Math.max(0, Math.min(5, ((volPressure + 3) / 6) * 5));
-    }
+    // [D] bb_score = clip(BB_pos / 100, 0, 1) × 5
+    const bbScore = Math.max(0, Math.min(5, (bb[i]! / 100) * 5));
 
-    // RPI = weighted sum
-    const rpi =
-      0.25 * rsiScore +
-      0.25 * stochScore +
-      0.2 * bbScore +
-      0.15 * macdScore +
-      0.15 * volumeScore;
+    // Weighted: RSI(40%) + Stochastic(35%) + ROC(15%) + BB(10%)
+    const score =
+      0.40 * rsiScore + 0.35 * stochScore + 0.15 * rocScore + 0.10 * bbScore;
 
+    results.push({
+      date: ohlcv[i].date,
+      score: Math.round(score * 100) / 100,
+      rsiScore: Math.round(rsiScore * 100) / 100,
+      stochScore: Math.round(stochScore * 100) / 100,
+      rocScore: Math.round(rocScore * 100) / 100,
+      bbScore: Math.round(bbScore * 100) / 100,
+    });
+  }
+
+  return results;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+ *  Single-ticker RPI (client-side use)
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+export function calculateRPI(ohlcvData: OHLCVData[]): RPIResult[] {
+  if (ohlcvData.length < 30) return [];
+
+  const dailyScores = calculateStockDailyScores(ohlcvData);
+  const scoreMap = new Map(dailyScores.map((s) => [s.date, s]));
+
+  const results: RPIResult[] = ohlcvData.map((item) => {
+    const s = scoreMap.get(item.date);
     return {
       date: item.date,
-      rpi: Math.round(rpi * 100) / 100,
+      rpi: s ? s.score : null,
+      ma7: null,
+      classification: null,
+      classColor: null,
+      details: s
+        ? {
+            rsiScore: s.rsiScore,
+            stochScore: s.stochScore,
+            rocScore: s.rocScore,
+            bbScore: s.bbScore,
+          }
+        : undefined,
+    };
+  });
+
+  addMA7AndClassification(results);
+  return results;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+ *  VN30 mode — MEDIAN of per-stock scores (server-side use)
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+export function calculateRPIFromVN30(
+  allStocks: { ticker: string; data: OHLCVData[] }[],
+): RPIResult[] {
+  // Step 1: daily scores per stock
+  const stockScores = allStocks.map((s) => ({
+    ticker: s.ticker,
+    scores: calculateStockDailyScores(s.data),
+  }));
+
+  // Step 2: group by date
+  const dateMap = new Map<
+    string,
+    { scores: number[]; rsi: number[]; stoch: number[]; roc: number[]; bb: number[] }
+  >();
+
+  for (const st of stockScores) {
+    for (const s of st.scores) {
+      let entry = dateMap.get(s.date);
+      if (!entry) {
+        entry = { scores: [], rsi: [], stoch: [], roc: [], bb: [] };
+        dateMap.set(s.date, entry);
+      }
+      entry.scores.push(s.score);
+      entry.rsi.push(s.rsiScore);
+      entry.stoch.push(s.stochScore);
+      entry.roc.push(s.rocScore);
+      entry.bb.push(s.bbScore);
+    }
+  }
+
+  // Step 3: for each date, take MEDIAN (need >= 10 stocks)
+  const allDates = [...dateMap.keys()].sort();
+  const results: RPIResult[] = [];
+
+  for (const date of allDates) {
+    const entry = dateMap.get(date)!;
+    if (entry.scores.length < 10) continue;
+
+    results.push({
+      date,
+      rpi: Math.round(median(entry.scores) * 100) / 100,
       ma7: null,
       classification: null,
       classColor: null,
       details: {
-        rsiScore: Math.round(rsiScore * 100) / 100,
-        stochScore: Math.round(stochScore * 100) / 100,
-        bbScore: Math.round(bbScore * 100) / 100,
-        macdScore: Math.round(macdScore * 100) / 100,
-        volumeScore: Math.round(volumeScore * 100) / 100,
+        rsiScore: Math.round(median(entry.rsi) * 100) / 100,
+        stochScore: Math.round(median(entry.stoch) * 100) / 100,
+        rocScore: Math.round(median(entry.roc) * 100) / 100,
+        bbScore: Math.round(median(entry.bb) * 100) / 100,
       },
-    };
-  });
+    });
+  }
 
-  // MA7
-  results.forEach((item, i) => {
-    if (item.rpi === null) return;
-    if (i >= 6) {
-      const window = results.slice(i - 6, i + 1).filter((d) => d.rpi !== null);
-      if (window.length === 7) {
-        item.ma7 = Math.round((window.reduce((s, d) => s + d.rpi!, 0) / 7) * 100) / 100;
-      }
-    }
-  });
-
-  // Classification
-  results.forEach((item) => {
-    if (item.rpi === null) return;
-    if (item.rpi >= 4.0) {
-      item.classification = "RỦI RO ĐẢO CHIỀU GIẢM";
-      item.classColor = "red";
-    } else if (item.rpi <= 1.0) {
-      item.classification = "CƠ HỘI ĐẢO CHIỀU TĂNG";
-      item.classColor = "green";
-    } else {
-      item.classification = "TRUNG TÍNH";
-      item.classColor = "yellow";
-    }
-  });
-
+  addMA7AndClassification(results);
   return results;
 }
+
+/* ── Utility ───────────────────────────────────────────────────────────── */
 
 export function getLatestRPI(results: RPIResult[]): RPIResult | null {
   return [...results].reverse().find((r) => r.rpi !== null) ?? null;
