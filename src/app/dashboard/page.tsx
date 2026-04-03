@@ -321,13 +321,47 @@ function GaugeSVG({ score, maxScore }: { score: number; maxScore: number }) {
   const safe = Math.max(0, Math.min(maxScore, score));
   const color = getScoreColor(safe);
   const cx = 150, cy = 125, r = 90;
+  const SEGS = 60;
 
-  // Full semicircle arc path (left to right)
-  const x1 = cx + r * Math.cos(Math.PI);
-  const y1 = cy - r * Math.sin(Math.PI);
-  const x2 = cx + r * Math.cos(0);
-  const y2 = cy - r * Math.sin(0);
-  const arcD = `M ${x1} ${y1} A ${r} ${r} 0 1 0 ${x2} ${y2}`;
+  // Color stops: red(0) → orange → yellow → purple(10)
+  const STOPS: [number, [number, number, number]][] = [
+    [0.0, [239, 68, 68]],   // #ef4444
+    [0.30, [249, 115, 22]], // #f97316
+    [0.60, [234, 179, 8]],  // #eab308
+    [0.80, [168, 85, 247]], // #a855f7
+    [1.0, [139, 92, 246]],  // #8b5cf6
+  ];
+
+  function lerpColor(t: number): string {
+    const c = Math.max(0, Math.min(1, t));
+    for (let i = 0; i < STOPS.length - 1; i++) {
+      const [t0, c0] = STOPS[i];
+      const [t1, c1] = STOPS[i + 1];
+      if (c >= t0 && c <= t1) {
+        const f = (c - t0) / (t1 - t0);
+        return `rgb(${Math.round(c0[0] + (c1[0] - c0[0]) * f)},${Math.round(c0[1] + (c1[1] - c0[1]) * f)},${Math.round(c0[2] + (c1[2] - c0[2]) * f)})`;
+      }
+    }
+    const last = STOPS[STOPS.length - 1][1];
+    return `rgb(${last[0]},${last[1]},${last[2]})`;
+  }
+
+  // Build tiny arc segments
+  const arcs: { d: string; color: string }[] = [];
+  for (let i = 0; i < SEGS; i++) {
+    const sf = i / SEGS;
+    const ef = (i + 1) / SEGS;
+    const sa = Math.PI - sf * Math.PI;
+    const ea = Math.PI - ef * Math.PI;
+    const x1 = cx + r * Math.cos(sa);
+    const y1 = cy - r * Math.sin(sa);
+    const x2 = cx + r * Math.cos(ea);
+    const y2 = cy - r * Math.sin(ea);
+    arcs.push({
+      d: `M ${x1} ${y1} A ${r} ${r} 0 0 0 ${x2} ${y2}`,
+      color: lerpColor((sf + ef) / 2),
+    });
+  }
 
   // Needle
   const needleAngle = Math.PI - (safe / 10) * Math.PI;
@@ -337,26 +371,11 @@ function GaugeSVG({ score, maxScore }: { score: number; maxScore: number }) {
 
   return (
     <svg viewBox="0 0 300 155" className="w-full max-w-[280px]">
-      <defs>
-        <linearGradient id="dashGaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#ef4444" />
-          <stop offset="30%" stopColor="#f97316" />
-          <stop offset="60%" stopColor="#eab308" />
-          <stop offset="80%" stopColor="#a855f7" />
-          <stop offset="100%" stopColor="#8b5cf6" />
-        </linearGradient>
-      </defs>
-
-      {/* Single smooth gradient arc */}
-      <path
-        d={arcD}
-        fill="none"
-        stroke="url(#dashGaugeGrad)"
-        strokeWidth="18"
-        strokeLinecap="round"
-        opacity={0.85}
-      />
-
+      {/* Smooth gradient arc via many tiny segments */}
+      {arcs.map((seg, i) => (
+        <path key={i} d={seg.d} fill="none" stroke={seg.color} strokeWidth="18"
+          strokeLinecap={i === 0 || i === SEGS - 1 ? "round" : "butt"} opacity={0.85} />
+      ))}
       {/* Tick labels 0, 5, 10 */}
       {[0, 5, 10].map((t) => {
         const a = Math.PI - (t / 10) * Math.PI;

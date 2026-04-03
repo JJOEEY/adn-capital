@@ -88,18 +88,64 @@ function classifyRPI(v: number) {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
- *  GAUGE SVG — Semicircle 0–5, smooth linearGradient, needle
+ *  GAUGE SVG — Semicircle 0–5, smooth multi-segment gradient, needle
  * ══════════════════════════════════════════════════════════════════════════ */
+
+// Color stops for RPI gauge: green(0) → lime → yellow → orange → red(5)
+const RPI_COLORS: [number, [number, number, number]][] = [
+  [0.0, [22, 163, 74]],   // #16A34A  green-600
+  [0.2, [74, 222, 128]],  // #4ADE80  green-400
+  [0.35, [163, 230, 53]], // #A3E635  lime-400
+  [0.5, [234, 179, 8]],   // #EAB308  yellow-500
+  [0.7, [249, 115, 22]],  // #F97316  orange-500
+  [0.85, [239, 68, 68]],  // #EF4444  red-500
+  [1.0, [220, 38, 38]],   // #DC2626  red-600
+];
+
+function interpolateColor(t: number, stops: [number, [number, number, number]][]): string {
+  const clamped = Math.max(0, Math.min(1, t));
+  for (let i = 0; i < stops.length - 1; i++) {
+    const [t0, c0] = stops[i];
+    const [t1, c1] = stops[i + 1];
+    if (clamped >= t0 && clamped <= t1) {
+      const f = (clamped - t0) / (t1 - t0);
+      const r = Math.round(c0[0] + (c1[0] - c0[0]) * f);
+      const g = Math.round(c0[1] + (c1[1] - c0[1]) * f);
+      const b = Math.round(c0[2] + (c1[2] - c0[2]) * f);
+      return `rgb(${r},${g},${b})`;
+    }
+  }
+  const last = stops[stops.length - 1][1];
+  return `rgb(${last[0]},${last[1]},${last[2]})`;
+}
+
+const GAUGE_SEGMENTS = 60;
+
 function GaugeSVG({ value }: { value: number }) {
   const clamped = Math.max(0, Math.min(5, value));
   const cx = 150, cy = 140, r = 110;
+  const strokeW = 22;
 
-  // Full semicircle arc path (left to right)
-  const x1 = cx + r * Math.cos(Math.PI);
-  const y1 = cy - r * Math.sin(Math.PI);
-  const x2 = cx + r * Math.cos(0);
-  const y2 = cy - r * Math.sin(0);
-  const arcD = `M ${x1} ${y1} A ${r} ${r} 0 1 0 ${x2} ${y2}`;
+  // Build many tiny arc segments for smooth gradient
+  const arcs = useMemo(() => {
+    const result: { d: string; color: string }[] = [];
+    for (let i = 0; i < GAUGE_SEGMENTS; i++) {
+      const startFrac = i / GAUGE_SEGMENTS;
+      const endFrac = (i + 1) / GAUGE_SEGMENTS;
+      const startAngle = Math.PI - startFrac * Math.PI;
+      const endAngle = Math.PI - endFrac * Math.PI;
+      const x1 = cx + r * Math.cos(startAngle);
+      const y1 = cy - r * Math.sin(startAngle);
+      const x2 = cx + r * Math.cos(endAngle);
+      const y2 = cy - r * Math.sin(endAngle);
+      const midFrac = (startFrac + endFrac) / 2;
+      result.push({
+        d: `M ${x1} ${y1} A ${r} ${r} 0 0 0 ${x2} ${y2}`,
+        color: interpolateColor(midFrac, RPI_COLORS),
+      });
+    }
+    return result;
+  }, []);
 
   // Needle
   const needleAngle = Math.PI - (clamped / 5) * Math.PI;
@@ -111,26 +157,11 @@ function GaugeSVG({ value }: { value: number }) {
 
   return (
     <svg viewBox="0 0 300 170" className="w-full max-w-[320px] mx-auto">
-      <defs>
-        <linearGradient id="rpiGaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#16A34A" />
-          <stop offset="20%" stopColor="#4ADE80" />
-          <stop offset="35%" stopColor="#A3E635" />
-          <stop offset="50%" stopColor="#EAB308" />
-          <stop offset="70%" stopColor="#F97316" />
-          <stop offset="85%" stopColor="#EF4444" />
-          <stop offset="100%" stopColor="#DC2626" />
-        </linearGradient>
-      </defs>
-
-      {/* Single smooth gradient arc */}
-      <path
-        d={arcD}
-        fill="none"
-        stroke="url(#rpiGaugeGrad)"
-        strokeWidth={22}
-        strokeLinecap="round"
-      />
+      {/* Smooth gradient arc via many tiny segments */}
+      {arcs.map((seg, i) => (
+        <path key={i} d={seg.d} fill="none" stroke={seg.color} strokeWidth={strokeW}
+          strokeLinecap={i === 0 || i === GAUGE_SEGMENTS - 1 ? "round" : "butt"} />
+      ))}
 
       {/* Tick labels */}
       {ticks.map((t) => {
