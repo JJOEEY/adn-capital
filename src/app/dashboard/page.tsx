@@ -322,23 +322,12 @@ function GaugeSVG({ score, maxScore }: { score: number; maxScore: number }) {
   const color = getScoreColor(safe);
   const cx = 150, cy = 125, r = 90;
 
-  // Arc segments: 0-3 red, 4-7 orange, 8-10 purple
-  const segments = [
-    { from: 0, to: 3, color: "#ef4444" },
-    { from: 3, to: 7, color: "#f97316" },
-    { from: 7, to: 10, color: "#a855f7" },
-  ];
-
-  function arcPath(startVal: number, endVal: number) {
-    const startAngle = Math.PI - (startVal / 10) * Math.PI;
-    const endAngle = Math.PI - (endVal / 10) * Math.PI;
-    const x1 = cx + r * Math.cos(startAngle);
-    const y1 = cy - r * Math.sin(startAngle);
-    const x2 = cx + r * Math.cos(endAngle);
-    const y2 = cy - r * Math.sin(endAngle);
-    const largeArc = Math.abs(startAngle - endAngle) > Math.PI ? 1 : 0;
-    return `M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 0 ${x2} ${y2}`;
-  }
+  // Full semicircle arc path (left to right)
+  const x1 = cx + r * Math.cos(Math.PI);
+  const y1 = cy - r * Math.sin(Math.PI);
+  const x2 = cx + r * Math.cos(0);
+  const y2 = cy - r * Math.sin(0);
+  const arcD = `M ${x1} ${y1} A ${r} ${r} 0 1 0 ${x2} ${y2}`;
 
   // Needle
   const needleAngle = Math.PI - (safe / 10) * Math.PI;
@@ -348,18 +337,26 @@ function GaugeSVG({ score, maxScore }: { score: number; maxScore: number }) {
 
   return (
     <svg viewBox="0 0 300 155" className="w-full max-w-[280px]">
-      {/* Arc segments */}
-      {segments.map((seg, i) => (
-        <path
-          key={i}
-          d={arcPath(seg.from, seg.to)}
-          fill="none"
-          stroke={seg.color}
-          strokeWidth="18"
-          strokeLinecap="butt"
-          opacity={0.8}
-        />
-      ))}
+      <defs>
+        <linearGradient id="dashGaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#ef4444" />
+          <stop offset="30%" stopColor="#f97316" />
+          <stop offset="60%" stopColor="#eab308" />
+          <stop offset="80%" stopColor="#a855f7" />
+          <stop offset="100%" stopColor="#8b5cf6" />
+        </linearGradient>
+      </defs>
+
+      {/* Single smooth gradient arc */}
+      <path
+        d={arcD}
+        fill="none"
+        stroke="url(#dashGaugeGrad)"
+        strokeWidth="18"
+        strokeLinecap="round"
+        opacity={0.85}
+      />
+
       {/* Tick labels 0, 5, 10 */}
       {[0, 5, 10].map((t) => {
         const a = Math.PI - (t / 10) * Math.PI;

@@ -170,9 +170,9 @@ export default function FormulaTestPage() {
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-white leading-tight">
-              TEST CÔNG THỨC{" "}
+              TEST{" "}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-emerald-400">
-                THẺ BÀI
+                CÔNG CỤ
               </span>
             </h1>
             <p className="text-sm text-neutral-400 mt-2 max-w-2xl leading-relaxed">
