@@ -18,8 +18,8 @@ import { RefreshCw, Calendar, Info, Search } from "lucide-react";
 import { calculateRPI, getLatestRPI, type OHLCVData, type RPIResult } from "@/lib/rpi/calculator";
 
 /* ═══════════════════════════════════════════════════════════════════════════
- *  RPIDashboard — Dark-theme RPI Dashboard with frontend calculation
- *  Fetches OHLCV from /api/historical/{ticker}, calculates RPI client-side
+ *  RPIDashboard — Dark-theme TEI Dashboard with frontend calculation
+ *  Fetches OHLCV from /api/historical/{ticker}, calculates TEI client-side
  *  Supports VN30 Index + individual stocks
  * ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -82,8 +82,8 @@ function formatDateSlash(dateStr: string): string {
 
 /* ── Classify RPI ──────────────────────────────────────────────────────── */
 function classifyRPI(v: number) {
-  if (v >= 4.0) return { label: "RỦI RO ĐẢO CHIỀU GIẢM", color: "#EF4444" };
-  if (v <= 1.0) return { label: "CƠ HỘI ĐẢO CHIỀU TĂNG", color: "#22C55E" };
+  if (v >= 4.0) return { label: "CẠN KIỆT XU HƯỚNG TĂNG", color: "#EF4444" };
+  if (v <= 1.0) return { label: "CẠN KIỆT XU HƯỚNG GIẢM", color: "#22C55E" };
   return { label: "TRUNG TÍNH", color: "#EAB308" };
 }
 
@@ -333,7 +333,7 @@ export const RPIDashboard = memo(function RPIDashboard() {
       <div className="rounded-2xl border border-neutral-800 bg-neutral-900/80 p-8 text-center">
         <div className="text-amber-400 text-lg font-bold mb-2">Không đủ dữ liệu</div>
         <p className="text-neutral-500 text-sm">
-          {ticker} chỉ có {ohlcvData.length} phiên, cần ít nhất 30 phiên để tính RPI.
+          {ticker} chỉ có {ohlcvData.length} phiên, cần ít nhất 30 phiên để tính TEI.
         </p>
       </div>
     );
@@ -346,11 +346,11 @@ export const RPIDashboard = memo(function RPIDashboard() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <h2 className="text-xl font-black text-white tracking-tight">
-              CHỈ BÁO ĐIỂM ĐẢO CHIỀU{" "}
-              <span className="text-neutral-500 font-normal text-base">(Reverse Point Index – RPI)</span>
+              CHỈ BÁO CẠN KIỆT XU HƯỚNG{" "}
+              <span className="text-neutral-500 font-normal text-base">(Trend Exhaustion Index – TEI)</span>
             </h2>
             <p className="text-sm text-neutral-500 mt-1">
-              Đo lường rủi ro và cơ hội xuất hiện điểm đảo chiều theo diễn biến thị trường (*)
+              Đo lường mức độ cạn kiệt xu hướng theo diễn biến thị trường (*)
             </p>
           </div>
           <button onClick={handleRefresh} disabled={refreshing}
@@ -431,9 +431,9 @@ export const RPIDashboard = memo(function RPIDashboard() {
           <div className="space-y-5">
             <div className="border border-neutral-800 rounded-xl p-5 bg-neutral-900/50">
               {[
-                { text: "Rủi ro đảo chiều giảm (trên 4)", value: "4.0", bg: "#EF4444" },
+                { text: "Cạn kiệt xu hướng tăng (trên 4)", value: "4.0", bg: "#EF4444" },
                 { text: "Trung tính", value: "2.5", bg: "#EAB308" },
-                { text: "Cơ hội đảo chiều tăng (dưới 1)", value: "1.0", bg: "#22C55E" },
+                { text: "Cạn kiệt xu hướng giảm (dưới 1)", value: "1.0", bg: "#22C55E" },
               ].map((item, i) => (
                 <div key={item.value}
                   className={`flex items-center justify-between py-3 ${i < 2 ? "border-b border-neutral-800" : ""}`}>
@@ -499,7 +499,7 @@ export const RPIDashboard = memo(function RPIDashboard() {
               <div className="flex items-center gap-4 mt-1.5">
                 <div className="flex items-center gap-1.5">
                   <span className="inline-block w-3 h-3 bg-white rounded-sm" />
-                  <span className="text-xs text-neutral-400">RPI</span>
+                  <span className="text-xs text-neutral-400">TEI</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="inline-block w-3 h-3 bg-[#F59E0B] rounded-sm" />
@@ -578,7 +578,7 @@ export const RPIDashboard = memo(function RPIDashboard() {
                   <Line
                     type="monotone"
                     dataKey="rpi"
-                    name="RPI"
+                    name="TEI"
                     stroke="#ffffff"
                     strokeWidth={2}
                     dot={<RPIDot />}
@@ -600,13 +600,13 @@ export const RPIDashboard = memo(function RPIDashboard() {
       <div className="px-6 pb-6">
         <div className="border border-neutral-800 rounded-xl p-4 bg-neutral-900/50">
           <p className="text-[10px] font-bold text-neutral-600 uppercase tracking-wider mb-2">
-            Công thức tính RPI
+            Công thức tính TEI
           </p>
           <p className="text-xs text-neutral-400 leading-relaxed">
-            RPI = Stochastic %K(5)×70% + ROC(5)×25% + RSI(7)×5%
+            TEI = Stochastic %K(5)×70% + ROC(5)×25% + RSI(7)×5%
           </p>
           <p className="text-xs text-neutral-500 mt-1">
-            Biên độ hẹp: Stoch(5) chiếm ưu thế · Thang 0–5 · Trên 4.0 = Rủi ro đảo chiều giảm · Dưới 1.0 = Cơ hội đảo chiều tăng
+            Biên độ hẹp: Stoch(5) chiếm ưu thế · Thang 0–5 · Trên 4.0 = Cạn kiệt xu hướng tăng · Dưới 1.0 = Cạn kiệt xu hướng giảm
           </p>
         </div>
       </div>

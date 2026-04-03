@@ -1,5 +1,5 @@
 /**
- * RPI (Reverse Point Index) Calculator — v2 (narrow-amplitude)
+ * TEI (Trend Exhaustion Index) Calculator — v2 (narrow-amplitude)
  * Formula: RSI(7)×5% + Stochastic %K(5)×70% + ROC(5)×25%
  * VN30 mode: MEDIAN of 30 constituent stock scores per day
  */
@@ -55,8 +55,8 @@ function median(arr: number[]): number {
 }
 
 function classify(rpi: number): { classification: string; classColor: string } {
-  if (rpi >= 4.0) return { classification: "RỦI RO ĐẢO CHIỀU GIẢM", classColor: "red" };
-  if (rpi <= 1.0) return { classification: "CƠ HỘI ĐẢO CHIỀU TĂNG", classColor: "green" };
+  if (rpi >= 4.0) return { classification: "CẠN KIỆT XU HƯỚNG TĂNG", classColor: "red" };
+  if (rpi <= 1.0) return { classification: "CẠN KIỆT XU HƯỚNG GIẢM", classColor: "green" };
   return { classification: "TRUNG TÍNH", classColor: "yellow" };
 }
 

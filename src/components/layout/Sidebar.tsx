@@ -25,6 +25,7 @@ const navItems = [
   { href: "/journal", label: "Nhật Ký Giao Dịch", icon: BookOpen, badge: null },
   { href: "/terminal", label: "Chat AI", icon: MessageSquare, badge: "HOT" },
   { href: "/dashboard/signal-map", label: "Tín Hiệu", icon: Zap, badge: null },
+  { href: "/tei", label: "TEI", icon: TrendingUp, badge: "MỚI" },
   { href: "/margin", label: "Ký Quỹ Margin", icon: Banknote, badge: "MỚI" },
   { href: "/pricing", label: "Bảng Giá", icon: DollarSign, badge: null },
 ];

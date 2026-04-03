@@ -282,8 +282,8 @@ export default function DashboardPage() {
           </Suspense>
         </div>
 
-        {/* ═══ RPI — Chỉ báo Điểm Đảo Chiều ═══ */}
-        <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem Chỉ báo Điểm Đảo Chiều">
+        {/* ═══ TEI — Chỉ báo Cạn Kiệt Xu Hướng ═══ */}
+        <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem Chỉ báo Cạn Kiệt Xu Hướng">
           {!mounted ? <RPISkeleton /> : <ReversePointIndex />}
         </LockOverlay>
 

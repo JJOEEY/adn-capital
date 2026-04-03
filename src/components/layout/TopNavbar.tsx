@@ -24,6 +24,7 @@ import {
   Zap as ZapIcon,
   ChevronDown,
   Banknote,
+  Activity,
 } from "lucide-react";
 import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 import { USAGE_LIMITS } from "@/lib/utils";
@@ -42,6 +43,7 @@ const serviceItems: { href: string; label: string; icon: typeof BarChart2; badge
   { href: "/dashboard/rs-rating",  label: "RS Rating",     icon: BarChart2,   badge: null,    desc: "Xếp hạng sức mạnh cổ phiếu" },
   { href: "/terminal",             label: "Chat AI",       icon: MessageSquare, badge: "HOT", desc: "Trợ lý đầu tư AI" },
   { href: "/dashboard/signal-map", label: "Tín Hiệu",      icon: Zap,         badge: null,    desc: "Bản đồ tín hiệu giao dịch" },
+  { href: "/tei",                  label: "TEI",          icon: Activity,     badge: "MỚI",  desc: "Chỉ báo cạn kiệt xu hướng" },
   { href: "/formula-test",         label: "Test Công Thức", icon: FlaskConical, badge: "MỚI",  desc: "Test 3 công thức chọn cổ phiếu", adminOnly: true },
   { href: "/margin",               label: "Ký Quỹ Margin", icon: Banknote,    badge: null,    desc: "Tư vấn ký quỹ margin" },
 ];
