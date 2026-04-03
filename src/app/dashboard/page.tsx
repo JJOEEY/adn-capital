@@ -80,7 +80,7 @@ function fmtLiquidity(tyVnd: number): string {
 
 /** SWR fetcher — throw on HTTP error để SWR retry */
 const swrFetcher = (url: string) =>
-  fetch(url, { signal: AbortSignal.timeout(12_000) }).then((r) => {
+  fetch(url, { signal: AbortSignal.timeout(30_000) }).then((r) => {
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return r.json();
   });
@@ -111,10 +111,12 @@ export default function DashboardPage() {
 
   const {
     data: overview,
+    isLoading: loadingOverview,
     mutate: mutateOverview,
   } = useSWR<MarketOverview>("/api/market-overview", swrFetcher, {
     ...swrOpts,
-    shouldRetryOnError: false,
+    errorRetryCount: 3,
+    errorRetryInterval: 3000,
   });
 
   const {
@@ -122,7 +124,8 @@ export default function DashboardPage() {
     mutate: mutateRs,
   } = useSWR<{ stocks?: RSStock[]; data?: RSStock[] }>("/api/rs-rating", swrFetcher, {
     ...swrOpts,
-    shouldRetryOnError: false,
+    errorRetryCount: 3,
+    errorRetryInterval: 3000,
   });
 
   /* ── Derived state ── */
@@ -234,14 +237,14 @@ export default function DashboardPage() {
           <div className="lg:col-span-3 flex flex-col gap-3">
             <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem Đánh giá Vĩ mô">
               {/* Đồng hồ Gauge */}
-              {!mounted ? (
+              {!mounted || loadingOverview ? (
                 <GaugeCardSkeleton />
               ) : (
                 <GaugeCard overview={overview ?? null} />
               )}
 
               {/* Thẻ Trạng Thái 3D */}
-              {mounted && <MarketStatusCard overview={overview ?? null} />}
+              {mounted && !loadingOverview && <MarketStatusCard overview={overview ?? null} />}
             </LockOverlay>
           </div>
         </div>
