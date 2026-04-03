@@ -95,9 +95,20 @@ const FORMULAS = [
 type FormulaId = "SIEU_CO_PHIEU" | "TRUNG_HAN" | "DAU_CO";
 
 export default function FormulaTestPage() {
-  const { isAdmin } = useCurrentDbUser();
+  const { isAdmin, isLoading } = useCurrentDbUser();
   const { isSignalLocked } = useSubscription();
   const [scanning, setScanning] = useState(false);
+
+  // Chỉ ADMIN mới truy cập được
+  if (!isLoading && !isAdmin) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <p className="text-neutral-500">Trang này chỉ dành cho Admin.</p>
+        </div>
+      </MainLayout>
+    );
+  }
   const [signals, setSignals] = useState<Signal[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedFormula, setSelectedFormula] = useState<FormulaId | "all">("all");

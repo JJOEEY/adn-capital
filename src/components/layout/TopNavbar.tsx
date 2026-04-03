@@ -38,11 +38,11 @@ const navItems = [
 ];
 
 /* ── Dropdown: Sản Phẩm Dịch Vụ ─────────────────────────── */
-const serviceItems = [
+const serviceItems: { href: string; label: string; icon: typeof BarChart2; badge: string | null; desc: string; adminOnly?: boolean }[] = [
   { href: "/dashboard/rs-rating",  label: "RS Rating",     icon: BarChart2,   badge: null,    desc: "Xếp hạng sức mạnh cổ phiếu" },
   { href: "/terminal",             label: "Chat AI",       icon: MessageSquare, badge: "HOT", desc: "Trợ lý đầu tư AI" },
   { href: "/dashboard/signal-map", label: "Tín Hiệu",      icon: Zap,         badge: null,    desc: "Bản đồ tín hiệu giao dịch" },
-  { href: "/formula-test",         label: "Test Công Thức", icon: FlaskConical, badge: "MỚI",  desc: "Test 3 công thức chọn cổ phiếu" },
+  { href: "/formula-test",         label: "Test Công Thức", icon: FlaskConical, badge: "MỚI",  desc: "Test 3 công thức chọn cổ phiếu", adminOnly: true },
   { href: "/margin",               label: "Ký Quỹ Margin", icon: Banknote,    badge: null,    desc: "Tư vấn ký quỹ margin" },
 ];
 
@@ -152,7 +152,7 @@ export function TopNavbar() {
                           className="absolute top-full left-0 mt-2 w-64 bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden z-50"
                         >
                           <div className="p-1.5 space-y-0.5">
-                            {serviceItems.map((svc) => {
+                            {serviceItems.filter((s) => !s.adminOnly || isAdmin).map((svc) => {
                               const SvcIcon = svc.icon;
                               const svcActive = isActive(svc.href);
                               return (
@@ -302,7 +302,7 @@ export function TopNavbar() {
             {/* Sản Phẩm Dịch Vụ group trên mobile */}
             <div className="pt-1 mt-1 border-t border-neutral-800/60">
               <p className="px-3 text-[9px] font-bold text-neutral-600 uppercase tracking-widest mb-1">Sản Phẩm Dịch Vụ</p>
-              {serviceItems.map((svc) => {
+              {serviceItems.filter((s) => !s.adminOnly || isAdmin).map((svc) => {
                 const SvcIcon = svc.icon;
                 const active = isActive(svc.href);
                 return (
