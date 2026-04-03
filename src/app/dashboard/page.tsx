@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useMemo, useCallback, memo, Suspense } from "react";
-import dynamic from "next/dynamic";
 import useSWR from "swr";
 import { RefreshCw, Bot, Zap, ShieldAlert, Flame, AlertTriangle, TrendingUp } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -10,19 +9,12 @@ import { TickerTape, TickerTapeSkeleton } from "@/components/dashboard/TickerTap
 import { VNIndexChart, VNIndexChartSkeleton } from "@/components/dashboard/VNIndexChart";
 import { MarketBreadth, MarketBreadthSkeleton } from "@/components/dashboard/MarketBreadth";
 import { TopLeaders, TopLeadersSkeleton } from "@/components/dashboard/TopLeaders";
-import { GaugeChartSkeleton } from "@/components/dashboard/GaugeChart";
 import { ReversePointIndex, RPISkeleton } from "@/components/dashboard/ReversePointIndex";
 import { MorningNews } from "@/components/dashboard/MorningNews";
 import { EveningNews } from "@/components/dashboard/EveningNews";
 import { MorningNewsSkeleton, EveningNewsSkeleton } from "@/components/dashboard/NewsSkeleton";
 import { LockOverlay } from "@/components/ui/LockOverlay";
 import { useSubscription } from "@/hooks/useSubscription";
-
-// Step 1: Lazy load GaugeChart (recharts nặng) — SSR: false
-const GaugeChart = dynamic(
-  () => import("@/components/dashboard/GaugeChart").then((m) => m.GaugeChart),
-  { ssr: false, loading: () => <GaugeChartSkeleton /> },
-);
 
 interface MarketData {
   status: "GOOD" | "BAD" | "NEUTRAL";
@@ -307,13 +299,89 @@ export default function DashboardPage() {
 
 
 /* ═══════════════════════════════════════════════════════════════════════════
- *  GaugeCard – Thẻ chứa Đồng hồ bán nguyệt (chỉ Gauge, không stat rườm rà)
+ *  GaugeCard – SVG bán nguyệt nhẹ (0-10 điểm, không dùng Recharts)
  * ═══════════════════════════════════════════════════════════════════════════ */
+
+function getScoreLabel(score: number): string {
+  if (score < 4) return "QUAN SÁT";
+  if (score <= 7) return "THĂM DÒ";
+  return "FULL MARGIN";
+}
+
+function getScoreColor(score: number): string {
+  if (score < 4) return "#ef4444";
+  if (score <= 7) return "#f97316";
+  return "#a855f7";
+}
+
+function GaugeSVG({ score, maxScore }: { score: number; maxScore: number }) {
+  const safe = Math.max(0, Math.min(maxScore, score));
+  const color = getScoreColor(safe);
+  const cx = 150, cy = 125, r = 90;
+
+  // Arc segments: 0-3 red, 4-7 orange, 8-10 purple
+  const segments = [
+    { from: 0, to: 3, color: "#ef4444" },
+    { from: 3, to: 7, color: "#f97316" },
+    { from: 7, to: 10, color: "#a855f7" },
+  ];
+
+  function arcPath(startVal: number, endVal: number) {
+    const startAngle = Math.PI - (startVal / 10) * Math.PI;
+    const endAngle = Math.PI - (endVal / 10) * Math.PI;
+    const x1 = cx + r * Math.cos(startAngle);
+    const y1 = cy - r * Math.sin(startAngle);
+    const x2 = cx + r * Math.cos(endAngle);
+    const y2 = cy - r * Math.sin(endAngle);
+    const largeArc = Math.abs(startAngle - endAngle) > Math.PI ? 1 : 0;
+    return `M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 0 ${x2} ${y2}`;
+  }
+
+  // Needle
+  const needleAngle = Math.PI - (safe / 10) * Math.PI;
+  const needleLen = r * 0.75;
+  const nx = cx + needleLen * Math.cos(needleAngle);
+  const ny = cy - needleLen * Math.sin(needleAngle);
+
+  return (
+    <svg viewBox="0 0 300 155" className="w-full max-w-[280px]">
+      {/* Arc segments */}
+      {segments.map((seg, i) => (
+        <path
+          key={i}
+          d={arcPath(seg.from, seg.to)}
+          fill="none"
+          stroke={seg.color}
+          strokeWidth="18"
+          strokeLinecap="butt"
+          opacity={0.8}
+        />
+      ))}
+      {/* Tick labels 0, 5, 10 */}
+      {[0, 5, 10].map((t) => {
+        const a = Math.PI - (t / 10) * Math.PI;
+        const lx = cx + (r + 16) * Math.cos(a);
+        const ly = cy - (r + 16) * Math.sin(a);
+        return (
+          <text key={t} x={lx} y={ly} textAnchor="middle" dominantBaseline="central" fill="#6b7280" fontSize="11" fontWeight="600">
+            {t}
+          </text>
+        );
+      })}
+      {/* Needle */}
+      <line x1={cx} y1={cy} x2={nx} y2={ny} stroke={color} strokeWidth="3" strokeLinecap="round" style={{ filter: `drop-shadow(0 0 4px ${color})` }} />
+      <circle cx={cx} cy={cy} r="6" fill={color} />
+      <circle cx={cx} cy={cy} r="3" fill="#0a0a0a" />
+    </svg>
+  );
+}
 
 const GaugeCard = memo(function GaugeCard({ overview }: { overview: MarketOverview | null }) {
   const score = overview?.score ?? 0;
   const maxScore = overview?.max_score ?? 10;
   const liquidity = overview?.liquidity ?? 0;
+  const color = getScoreColor(score);
+  const label = getScoreLabel(score);
 
   return (
     <div className="rounded-2xl border border-neutral-800 bg-neutral-900/90 p-4 sm:p-5 flex flex-col items-center transform-gpu will-change-transform hover:border-neutral-700 hover:shadow-lg hover:shadow-neutral-900/50 transition-all duration-300">
@@ -322,12 +390,32 @@ const GaugeCard = memo(function GaugeCard({ overview }: { overview: MarketOvervi
         Đánh Giá Vĩ Mô Đa Khung (W/M)
       </p>
 
-      {/* Đồng hồ */}
-      {overview ? <GaugeChart score={score} maxScore={maxScore} /> : <GaugeChartSkeleton />}
+      {/* Đồng hồ SVG */}
+      {overview ? (
+        <>
+          <GaugeSVG score={score} maxScore={maxScore} />
+          <div className="flex flex-col items-center gap-2 -mt-1">
+            <div className="flex items-baseline gap-1">
+              <span className="text-3xl font-black" style={{ color, textShadow: `0 0 16px ${color}40` }}>
+                {score}
+              </span>
+              <span className="text-[11px] font-bold text-neutral-400">/ {maxScore}</span>
+            </div>
+            <div
+              className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider"
+              style={{ color, backgroundColor: `${color}15`, border: `1px solid ${color}40` }}
+            >
+              {label}
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="h-[180px] w-full rounded-xl bg-neutral-800/50 animate-pulse" />
+      )}
 
       {/* Thanh khoản */}
       {overview && (
-        <p className="text-xs text-neutral-400 mt-2">
+        <p className="text-xs text-neutral-400 mt-3">
           Thanh khoản: <span className="font-bold text-neutral-200">{fmtLiquidity(liquidity)} Tỷ VNĐ</span>
         </p>
       )}
@@ -337,9 +425,10 @@ const GaugeCard = memo(function GaugeCard({ overview }: { overview: MarketOvervi
 
 function GaugeCardSkeleton() {
   return (
-    <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4 sm:p-5">
-      <div className="h-3 w-32 bg-neutral-800 rounded animate-pulse mb-3" />
-      <div className="h-[200px] rounded-xl bg-neutral-800/50 animate-pulse" />
+    <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4 sm:p-5 flex flex-col items-center">
+      <div className="h-3 w-32 bg-neutral-800 rounded animate-pulse mb-3 self-start" />
+      <div className="h-[140px] w-full rounded-xl bg-neutral-800/50 animate-pulse" />
+      <div className="mt-3 w-20 h-6 rounded-full bg-neutral-800 animate-pulse" />
     </div>
   );
 }
