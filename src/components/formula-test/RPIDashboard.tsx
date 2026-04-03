@@ -229,8 +229,7 @@ export const RPIDashboard = memo(function RPIDashboard() {
   const [ticker, setTicker] = useState("VN30");
   const [inputTicker, setInputTicker] = useState("");
 
-  const isVN30 = ticker === "VN30";
-  const apiUrl = isVN30 ? "/api/rpi-vn30" : `/api/historical/${encodeURIComponent(ticker)}`;
+  const apiUrl = `/api/historical/${encodeURIComponent(ticker)}`;
 
   const { data: rawData, isLoading, error, mutate } = useSWR(
     apiUrl,
@@ -266,12 +265,10 @@ export const RPIDashboard = memo(function RPIDashboard() {
     }
   }, [inputTicker]);
 
-  // VN30 → pre-computed by server; otherwise compute client-side
-  const rpiResults: RPIResult[] = useMemo(() => {
-    if (!rawData) return [];
-    if (isVN30 && rawData.results) return rawData.results as RPIResult[];
+  // Convert API response to OHLCV data
+  const ohlcvData: OHLCVData[] = useMemo(() => {
     if (!rawData?.data?.length) return [];
-    const ohlcv: OHLCVData[] = rawData.data.map((d: any) => ({
+    return rawData.data.map((d: any) => ({
       date: d.timestamp.split(" ")[0],
       open: d.open,
       high: d.high,
@@ -279,9 +276,13 @@ export const RPIDashboard = memo(function RPIDashboard() {
       close: d.close,
       volume: d.volume,
     }));
-    if (ohlcv.length < 30) return [];
-    return calculateRPI(ohlcv);
-  }, [rawData, isVN30]);
+  }, [rawData]);
+
+  // Calculate RPI on frontend
+  const rpiResults = useMemo(() => {
+    if (ohlcvData.length < 30) return [];
+    return calculateRPI(ohlcvData);
+  }, [ohlcvData]);
 
   const latest = useMemo(() => getLatestRPI(rpiResults), [rpiResults]);
 
@@ -327,12 +328,12 @@ export const RPIDashboard = memo(function RPIDashboard() {
   }
 
   /* ── Not enough data (single-ticker only; VN30 validated server-side) ── */
-  if (!isVN30 && rawData?.data?.length > 0 && rawData.data.length < 30) {
+  if (ohlcvData.length > 0 && ohlcvData.length < 30) {
     return (
       <div className="rounded-2xl border border-neutral-800 bg-neutral-900/80 p-8 text-center">
         <div className="text-amber-400 text-lg font-bold mb-2">Không đủ dữ liệu</div>
         <p className="text-neutral-500 text-sm">
-          {ticker} chỉ có {rawData.data.length} phiên, cần ít nhất 30 phiên để tính RPI.
+          {ticker} chỉ có {ohlcvData.length} phiên, cần ít nhất 30 phiên để tính RPI.
         </p>
       </div>
     );

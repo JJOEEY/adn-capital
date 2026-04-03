@@ -26,7 +26,7 @@ export async function GET(
 
   try {
     const res = await fetch(
-      `${BACKEND}/api/v1/historical/${encodeURIComponent(upper)}?days=120&timeframe=1d`,
+      `${BACKEND}/api/v1/historical/${encodeURIComponent(upper)}?days=300&timeframe=1d`,
       { cache: "no-store", signal: AbortSignal.timeout(30_000) },
     );
 
