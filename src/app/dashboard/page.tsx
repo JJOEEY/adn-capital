@@ -290,13 +290,15 @@ export default function DashboardPage() {
               {!mounted ? <RPISkeleton /> : <ReversePointIndex />}
             </LockOverlay>
 
-            <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem Top 5 Siêu Cổ Phiếu">
-              {!mounted || !rsRaw ? (
-                <TopLeadersSkeleton />
-              ) : leaderRows.length > 0 ? (
-                <TopLeaders stocks={leaderRows} />
-              ) : null}
-            </LockOverlay>
+            <div className="flex-1 flex flex-col">
+              <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem Top 5 Siêu Cổ Phiếu">
+                {!mounted || !rsRaw ? (
+                  <TopLeadersSkeleton />
+                ) : leaderRows.length > 0 ? (
+                  <TopLeaders stocks={leaderRows} />
+                ) : null}
+              </LockOverlay>
+            </div>
           </div>
         </div>
       </div>

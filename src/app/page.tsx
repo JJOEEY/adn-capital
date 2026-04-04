@@ -400,9 +400,16 @@ function ServicesSection() {
   const { theme } = useTheme();
   const isDark = theme === "dark";
 
+  const svcColors: Record<string, { gradient: string; border: string; text: string; bg: string }> = {
+    blue: { gradient: "from-blue-500 to-blue-400", border: "border-blue-500/30", text: "text-blue-400", bg: "bg-blue-500/10" },
+    emerald: { gradient: "from-emerald-500 to-emerald-400", border: "border-emerald-500/30", text: "text-emerald-400", bg: "bg-emerald-500/10" },
+    yellow: { gradient: "from-yellow-500 to-yellow-400", border: "border-yellow-500/30", text: "text-yellow-400", bg: "bg-yellow-500/10" },
+  };
+  const svcColorKeys = ["blue", "emerald", "yellow"];
+
   return (
     <section className={`py-20 px-4 border-t ${isDark ? "border-white/[0.06]" : "border-slate-200/60"}`}>
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         <FadeIn>
           <div className="text-center mb-14">
             <span className={`text-[10px] font-bold uppercase tracking-[0.3em] ${isDark ? "text-blue-400" : "text-blue-600"}`}>
@@ -420,51 +427,113 @@ function ServicesSection() {
           </div>
         </FadeIn>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {services.map((svc, i) => {
-            const Icon = svc.icon;
-            return (
-              <FadeIn key={svc.href} delay={i * 0.1}>
-                <Link href={svc.href}>
-                  <div className={`glow-card group relative h-full rounded-2xl border p-6 transition-all duration-300 cursor-pointer ${
-                    isDark
-                      ? "bg-white/[0.03] backdrop-blur-xl border-white/[0.08] hover:border-white/[0.15] hover:bg-white/[0.05]"
-                      : "bg-white/60 backdrop-blur-xl border-white/50 hover:border-slate-300 hover:bg-white/80"
-                  }`}>
-                    {svc.badge && (
-                      <span className="absolute top-4 right-4 text-[9px] font-black text-emerald-400 bg-emerald-500/15 border border-emerald-500/25 px-2 py-0.5 rounded-full tracking-widest">
-                        {svc.badge}
-                      </span>
-                    )}
-                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-5 transition-transform group-hover:scale-110 duration-300 ${
-                      isDark ? "bg-white/[0.06] border border-white/[0.1]" : "bg-slate-100 border border-slate-200"
+        {/* Hexagonal triangle: 1 top center, 2 bottom */}
+        <div className="relative">
+          {/* Connecting lines (desktop) */}
+          <div className="hidden md:block absolute inset-0" style={{ zIndex: 0 }}>
+            {/* Line from top to bottom-left */}
+            <motion.div
+              className={`absolute w-[2px] ${isDark ? "bg-gradient-to-b from-blue-500/40 to-emerald-500/40" : "bg-gradient-to-b from-blue-400/30 to-emerald-400/30"}`}
+              style={{ top: "38%", left: "33%", height: "18%", transform: "rotate(-30deg)", transformOrigin: "top center" }}
+              initial={{ scaleY: 0 }}
+              whileInView={{ scaleY: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.8, delay: 0.3 }}
+            />
+            {/* Line from top to bottom-right */}
+            <motion.div
+              className={`absolute w-[2px] ${isDark ? "bg-gradient-to-b from-blue-500/40 to-yellow-500/40" : "bg-gradient-to-b from-blue-400/30 to-yellow-400/30"}`}
+              style={{ top: "38%", right: "33%", height: "18%", transform: "rotate(30deg)", transformOrigin: "top center" }}
+              initial={{ scaleY: 0 }}
+              whileInView={{ scaleY: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.8, delay: 0.5 }}
+            />
+            {/* Line bottom horizontal */}
+            <motion.div
+              className={`absolute h-[2px] ${isDark ? "bg-gradient-to-r from-emerald-500/40 to-yellow-500/40" : "bg-gradient-to-r from-emerald-400/30 to-yellow-400/30"}`}
+              style={{ bottom: "32%", left: "28%", right: "28%" }}
+              initial={{ scaleX: 0 }}
+              whileInView={{ scaleX: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.8, delay: 0.7 }}
+            />
+          </div>
+
+          {/* Top row: 1 hexagon centered */}
+          <div className="flex justify-center mb-8 md:mb-12 relative" style={{ zIndex: 1 }}>
+            <FadeIn delay={0}>
+              <Link href={services[0].href}>
+                <div className="flex flex-col items-center text-center group cursor-pointer">
+                  <motion.div
+                    whileHover={{ scale: 1.1, y: -4 }}
+                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                    className="relative mb-5"
+                  >
+                    <div className={`absolute inset-0 hexagon w-28 h-28 sm:w-32 sm:h-32 ${svcColors.blue.bg} blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
+                    <div className={`relative hexagon w-28 h-28 sm:w-32 sm:h-32 flex items-center justify-center border-2 transition-all duration-500 ${
+                      isDark
+                        ? `bg-white/[0.04] backdrop-blur-xl ${svcColors.blue.border} group-hover:bg-white/[0.08]`
+                        : "bg-white/60 backdrop-blur-xl border-white/50 group-hover:bg-white/80"
                     }`}>
-                      <Icon className={`w-6 h-6 ${svc.iconColor}`} />
+                      {services[0].badge && (
+                        <div className="absolute -top-2 -right-1 text-[8px] font-black text-emerald-400 bg-emerald-500/15 border border-emerald-500/25 px-1.5 py-0.5 rounded-full tracking-widest">
+                          {services[0].badge}
+                        </div>
+                      )}
+                      <BarChart2 className={`w-8 h-8 sm:w-10 sm:h-10 ${svcColors.blue.text} transition-transform duration-300 group-hover:scale-110`} />
                     </div>
-                    <h3 className={`text-lg font-black mb-0.5 ${isDark ? "text-white" : "text-slate-900"}`}>{svc.title}</h3>
-                    <p className={`text-xs mb-4 ${isDark ? "text-white/35" : "text-slate-400"}`}>{svc.subtitle}</p>
-                    <p className={`text-sm leading-relaxed mb-5 ${isDark ? "text-white/50" : "text-slate-500"}`}>{svc.desc}</p>
-                    <ul className="space-y-2 mb-5">
-                      {svc.features.map((f) => (
-                        <li key={f} className={`flex items-center gap-2 text-xs ${isDark ? "text-white/40" : "text-slate-500"}`}>
-                          <span className={`w-1 h-1 rounded-full flex-shrink-0 ${svc.iconColor.replace("text-", "bg-")}`} />
-                          {f}
-                        </li>
-                      ))}
-                    </ul>
-                    <div className={`flex items-center gap-1 text-xs font-bold ${svc.iconColor} group-hover:gap-2 transition-all`}>
-                      Xem ngay <ArrowRight className="w-3 h-3" />
+                  </motion.div>
+                  <h3 className={`text-base sm:text-lg font-black mb-1 ${isDark ? "text-white" : "text-slate-900"}`}>{services[0].title}</h3>
+                  <p className={`text-xs mb-2 ${isDark ? "text-white/35" : "text-slate-400"}`}>{services[0].subtitle}</p>
+                  <p className={`text-xs sm:text-sm leading-relaxed max-w-[280px] ${isDark ? "text-white/40" : "text-slate-500"}`}>{services[0].desc}</p>
+                </div>
+              </Link>
+            </FadeIn>
+          </div>
+
+          {/* Bottom row: 2 hexagons */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16 max-w-3xl mx-auto relative" style={{ zIndex: 1 }}>
+            {services.slice(1).map((svc, i) => {
+              const Icon = svc.icon;
+              const c = svcColors[svcColorKeys[i + 1]];
+              return (
+                <FadeIn key={svc.href} delay={(i + 1) * 0.15}>
+                  <Link href={svc.href}>
+                    <div className="flex flex-col items-center text-center group cursor-pointer">
+                      <motion.div
+                        whileHover={{ scale: 1.1, y: -4 }}
+                        transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                        className="relative mb-5"
+                      >
+                        <div className={`absolute inset-0 hexagon w-28 h-28 sm:w-32 sm:h-32 ${c.bg} blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
+                        <div className={`relative hexagon w-28 h-28 sm:w-32 sm:h-32 flex items-center justify-center border-2 transition-all duration-500 ${
+                          isDark
+                            ? `bg-white/[0.04] backdrop-blur-xl ${c.border} group-hover:bg-white/[0.08]`
+                            : "bg-white/60 backdrop-blur-xl border-white/50 group-hover:bg-white/80"
+                        }`}>
+                          {svc.badge && (
+                            <div className="absolute -top-2 -right-1 text-[8px] font-black text-emerald-400 bg-emerald-500/15 border border-emerald-500/25 px-1.5 py-0.5 rounded-full tracking-widest">
+                              {svc.badge}
+                            </div>
+                          )}
+                          <Icon className={`w-8 h-8 sm:w-10 sm:h-10 ${c.text} transition-transform duration-300 group-hover:scale-110`} />
+                        </div>
+                      </motion.div>
+                      <h3 className={`text-base sm:text-lg font-black mb-1 ${isDark ? "text-white" : "text-slate-900"}`}>{svc.title}</h3>
+                      <p className={`text-xs mb-2 ${isDark ? "text-white/35" : "text-slate-400"}`}>{svc.subtitle}</p>
+                      <p className={`text-xs sm:text-sm leading-relaxed max-w-[280px] ${isDark ? "text-white/40" : "text-slate-500"}`}>{svc.desc}</p>
                     </div>
-                  </div>
-                </Link>
-              </FadeIn>
-            );
-          })}
+                  </Link>
+                </FadeIn>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Margin CTA */}
-        <FadeIn delay={0.3}>
-          <div className={`glow-card mt-8 rounded-2xl border p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4 ${
+        {/* Margin CTA - below hexagons */}
+        <FadeIn delay={0.4}>
+          <div className={`glow-card mt-12 rounded-2xl border p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4 ${
             isDark
               ? "bg-white/[0.03] backdrop-blur-xl border-white/[0.08]"
               : "bg-white/60 backdrop-blur-xl border-white/50"
@@ -672,20 +741,20 @@ function ProcessSection() {
  * ═══════════════════════════════════════════════════════════════════════════ */
 const testimonials = [
   {
-    name: "Minh Tuấn",
+    name: "Anh Tuấn",
     role: "Nhà đầu tư cá nhân",
     text: "Hệ thống ADN giúp tôi tiết kiệm hàng giờ phân tích mỗi ngày. Tín hiệu chính xác, giao diện dễ dùng.",
     rating: 5,
   },
   {
-    name: "Thanh Huyền",
-    role: "Quản lý danh mục",
+    name: "Minh Nhật",
+    role: "Trader full-time",
     text: "RS Rating và bản đồ tín hiệu là hai công cụ tôi dùng hàng ngày. Tối ưu đáng kể hiệu suất đầu tư.",
     rating: 5,
   },
   {
-    name: "Đức Anh",
-    role: "Trader full-time",
+    name: "Bảo Ân",
+    role: "Nhân viên ngân hàng",
     text: "Chat AI rất ấn tượng — phân tích kỹ thuật nhanh, chính xác. Cảm giác như có một trợ lý chuyên nghiệp 24/7.",
     rating: 5,
   },

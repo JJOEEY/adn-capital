@@ -23,7 +23,7 @@ function formatPrice(v: number): string {
 
 export function TopLeaders({ stocks }: TopLeadersProps) {
   return (
-    <Card glow="purple" className="p-4 sm:p-5">
+    <Card glow="purple" className="p-4 sm:p-5 h-full flex flex-col">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <div className="p-1.5 rounded-lg bg-purple-500/10">
