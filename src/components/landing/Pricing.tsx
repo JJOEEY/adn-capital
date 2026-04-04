@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { motion } from "framer-motion";
 import { Check, Crown, Zap, Star, Shield, Gift, Sparkles, ExternalLink, Clock } from "lucide-react";
@@ -57,7 +57,7 @@ const plans: PricingPlan[] = [
     id: "6m",
     name: "Gói 6 Tháng",
     period: "/6 tháng",
-    price: 1_099_000,
+    price: 999_000,
     dnsePrice: 499_000,
     icon: <Crown className="w-5 h-5" />,
     accent: "emerald",
@@ -372,7 +372,7 @@ export default function Pricing() {
         </motion.div>
 
         {/* ── Pricing Cards Grid ───────────────────────────────────── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6" style={{ perspective: "1200px" }}>
           {plans.map((plan, idx) => (
             <PricingCard
               key={plan.id}
@@ -391,6 +391,14 @@ export default function Pricing() {
 /* ═══════════════════════════════════════════════════════════════════════════
  *  PRICING CARD
  * ═══════════════════════════════════════════════════════════════════════════ */
+
+const glowRgba: Record<PricingPlan["accent"], string> = {
+  sky: "rgba(56,189,248,0.35)",
+  blue: "rgba(59,130,246,0.35)",
+  emerald: "rgba(16,185,129,0.4)",
+  purple: "rgba(168,85,247,0.4)",
+};
+
 function PricingCard({
   plan,
   isDNSE,
@@ -403,7 +411,40 @@ function PricingCard({
   index: number;
 }) {
   const [loading, setLoading] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [tiltStyle, setTiltStyle] = useState<React.CSSProperties>({});
   const t = accentTokens[plan.accent];
+  const glow = glowRgba[plan.accent];
+
+  const handleMouseEnter = useCallback(() => {
+    setTiltStyle({
+      transform: "perspective(800px) rotateX(0deg) rotateY(0deg) scale3d(1.05,1.05,1.05)",
+      boxShadow: `0 25px 60px -12px ${glow}, 0 0 40px -8px ${glow}`,
+    });
+  }, [glow]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const el = cardRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const midX = rect.width / 2;
+    const midY = rect.height / 2;
+    const rotateY = ((x - midX) / midX) * 12;
+    const rotateX = ((midY - y) / midY) * 10;
+    setTiltStyle({
+      transform: `perspective(800px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.05,1.05,1.05)`,
+      boxShadow: `0 25px 60px -12px ${glow}, 0 0 40px -8px ${glow}`,
+    });
+  }, [glow]);
+
+  const handleMouseLeave = useCallback(() => {
+    setTiltStyle({
+      transform: "perspective(800px) rotateX(0deg) rotateY(0deg) scale3d(1,1,1)",
+      boxShadow: "none",
+    });
+  }, []);
   const displayPrice = isDNSE ? plan.dnsePrice : plan.price;
   const savingsPct = Math.round((1 - plan.dnsePrice / plan.price) * 100);
   const showPctBadge = isDNSE && (plan.id === "6m" || plan.id === "12m");
@@ -435,14 +476,23 @@ function PricingCard({
 
   return (
     <motion.div
+      ref={cardRef}
+      onMouseEnter={handleMouseEnter}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ duration: 0.5, delay: 0.15 * index }}
+      style={{
+        ...tiltStyle,
+        transition: "transform 0.25s cubic-bezier(.22,.68,0,.98), box-shadow 0.35s ease",
+        transformStyle: "preserve-3d",
+        willChange: "transform",
+      }}
       className={`
         relative flex flex-col rounded-2xl border bg-neutral-900/60 backdrop-blur-sm
-        p-6 transition-all duration-300 ease-out
-        hover:-translate-y-4
+        p-6
         ${t.border} ${t.borderHover} ${t.shadow}
         ${plan.ribbon ? "overflow-hidden" : ""}
       `}
