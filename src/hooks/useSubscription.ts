@@ -9,6 +9,7 @@ import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 export function useSubscription() {
   const {
     role,
+    vipTier,
     isAuthenticated,
     isLoading,
     isVip,
@@ -19,6 +20,8 @@ export function useSubscription() {
 
   // ADMIN có toàn quyền, VIP mở khóa tính năng
   const hasFullAccess = isAdmin || isVip;
+  // PREMIUM = vipTier PREMIUM hoặc ADMIN
+  const isPremium = isAdmin || vipTier === "PREMIUM";
   // Signal Map: VIP hoặc ADMIN
   const isSignalLocked = !hasFullAccess;
   // RS Rating: VIP hoặc ADMIN
@@ -27,17 +30,22 @@ export function useSubscription() {
   const isPsychologyLocked = !hasFullAccess;
   // Nhật ký: VIP hoặc ADMIN
   const isJournalLocked = !hasFullAccess;
+  // TEI chi tiết (/tei page): chỉ PREMIUM hoặc ADMIN
+  const isTeiPageLocked = !isPremium;
 
   return {
     role,
+    vipTier,
     isAuthenticated,
     isLoading,
     isVip,
+    isPremium,
     isFreeUser,
     isGuest,
     isSignalLocked,
     isRsRatingLocked,
     isPsychologyLocked,
     isJournalLocked,
+    isTeiPageLocked,
   };
 }

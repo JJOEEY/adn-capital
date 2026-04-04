@@ -17,6 +17,8 @@ import {
 import { RefreshCw, Calendar, Search, ChevronDown } from "lucide-react";
 import { calculateRPI, getLatestRPI, type OHLCVData, type RPIResult } from "@/lib/rpi/calculator";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { useSubscription } from "@/hooks/useSubscription";
+import { LockOverlay } from "@/components/ui/LockOverlay";
 
 /* ═══════════════════════════════════════════════════════════════════════════
  *  TEI Page — Chỉ báo Cạn Kiệt Xu Hướng (Trend Exhaustion Index)
@@ -232,6 +234,7 @@ export default function TEIPage() {
   const [inputTicker, setInputTicker] = useState("");
   const [timelineSessions, setTimelineSessions] = useState(60);
   const [timelineOpen, setTimelineOpen] = useState(false);
+  const { isTeiPageLocked } = useSubscription();
 
   const apiUrl = `/api/historical/${encodeURIComponent(ticker)}`;
 
@@ -346,6 +349,7 @@ export default function TEIPage() {
   return (
     <MainLayout>
       <div className="p-3 md:p-6 max-w-5xl mx-auto space-y-4">
+        <LockOverlay isLocked={isTeiPageLocked} message="Nâng cấp PREMIUM để xem chi tiết Chỉ báo Cạn Kiệt Xu Hướng">
         <div className="rounded-2xl border border-neutral-800 bg-neutral-900/80 overflow-hidden">
           {/* ═══ HEADER ═══ */}
           <div className="px-6 py-5 border-b border-neutral-800">
@@ -589,6 +593,7 @@ export default function TEIPage() {
             </div>
           </div>
         </div>
+        </LockOverlay>
       </div>
     </MainLayout>
   );

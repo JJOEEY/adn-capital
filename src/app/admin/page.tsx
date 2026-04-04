@@ -67,6 +67,7 @@ interface MarginRow {
 
 const VIP_PRESETS = [
   { label: "7 ngày", days: 7, tier: "VIP" },
+  { label: "2 tuần", days: 14, tier: "VIP" },
   { label: "1 tháng", days: 30, tier: "VIP" },
   { label: "3 tháng", days: 90, tier: "VIP" },
   { label: "6 tháng", days: 180, tier: "PREMIUM" },
