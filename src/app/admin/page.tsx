@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
+import { useTheme } from "@/components/providers/ThemeProvider";
 import {
   Trash2,
   CheckCircle2,
@@ -79,6 +80,8 @@ export default function AdminPage() {
   const { isAdmin, isLoading: userLoading } = useCurrentDbUser();
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("users");
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
 
   useEffect(() => {
     if (!userLoading && status !== "loading" && !isAdmin) {
@@ -90,7 +93,7 @@ export default function AdminPage() {
     return (
       <MainLayout>
         <div className="flex items-center justify-center min-h-[60vh]">
-          <RefreshCw className="w-6 h-6 text-neutral-600 animate-spin" />
+          <RefreshCw className={`w-6 h-6 animate-spin ${isDark ? "text-neutral-600" : "text-slate-400"}`} />
         </div>
       </MainLayout>
     );
@@ -103,8 +106,8 @@ export default function AdminPage() {
           <div className="p-3 bg-red-500/10 rounded-full border border-red-500/20">
             <ShieldX className="w-8 h-8 text-red-400" />
           </div>
-          <h2 className="text-lg font-bold text-white">Không có quyền truy cập</h2>
-          <p className="text-sm text-neutral-500">Trang này chỉ dành cho Admin.</p>
+          <h2 className={`text-lg font-bold ${isDark ? "text-white" : "text-slate-900"}`}>Không có quyền truy cập</h2>
+          <p className={`text-sm ${isDark ? "text-white/40" : "text-slate-500"}`}>Trang này chỉ dành cho Admin.</p>
         </div>
       </MainLayout>
     );
@@ -114,13 +117,15 @@ export default function AdminPage() {
     <MainLayout>
       <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
         {/* ── Tab Navigation ──────────────────────────────────────── */}
-        <div className="flex items-center gap-1 bg-neutral-900/60 p-1 rounded-xl border border-neutral-800 w-fit flex-wrap">
+        <div className={`flex items-center gap-1 p-1 rounded-xl border w-fit flex-wrap backdrop-blur-xl ${
+          isDark ? "bg-white/[0.04] border-white/[0.1]" : "bg-white/60 border-white/50"
+        }`}>
           <button
             onClick={() => setTab("users")}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               tab === "users"
                 ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/25"
-                : "text-neutral-500 hover:text-white"
+                : isDark ? "text-neutral-500 hover:text-white" : "text-slate-500 hover:text-slate-900"
             }`}
           >
             <Users className="w-3.5 h-3.5" />
@@ -131,7 +136,7 @@ export default function AdminPage() {
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               tab === "registrations"
                 ? "bg-purple-500/15 text-purple-400 border border-purple-500/25"
-                : "text-neutral-500 hover:text-white"
+                : isDark ? "text-neutral-500 hover:text-white" : "text-slate-500 hover:text-slate-900"
             }`}
           >
             <CreditCard className="w-3.5 h-3.5" />
@@ -142,7 +147,7 @@ export default function AdminPage() {
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               tab === "margin"
                 ? "bg-amber-500/15 text-amber-400 border border-amber-500/25"
-                : "text-neutral-500 hover:text-white"
+                : isDark ? "text-neutral-500 hover:text-white" : "text-slate-500 hover:text-slate-900"
             }`}
           >
             <Crown className="w-3.5 h-3.5" />
@@ -263,8 +268,8 @@ function UsersTab() {
             <Users className="w-5 h-5 text-emerald-400" />
           </div>
           <div>
-            <h1 className="text-xl font-black text-white">Quản Lý Users & DNSE</h1>
-            <p className="text-xs text-neutral-500">
+            <h1 className="text-xl font-black dark:text-white text-slate-900">Quản Lý Users & DNSE</h1>
+            <p className="text-xs dark:text-neutral-500 text-slate-500">
               {users.length} users · {pendingCount > 0 && (
                 <span className="text-amber-400">{pendingCount} chờ duyệt DNSE</span>
               )}
@@ -274,7 +279,7 @@ function UsersTab() {
 
         <div className="flex items-center gap-2">
           {/* Filter buttons */}
-          <div className="flex items-center gap-1 bg-neutral-900 rounded-lg border border-neutral-800 p-0.5">
+          <div className="flex items-center gap-1 dark:bg-white/[0.04] bg-white/60 rounded-lg dark:border-white/[0.1] border-white/50 border p-0.5">
             {(["all", "pending", "verified"] as const).map((f) => (
               <button
                 key={f}
@@ -285,8 +290,8 @@ function UsersTab() {
                       ? "bg-amber-500/15 text-amber-400"
                       : f === "verified"
                       ? "bg-emerald-500/15 text-emerald-400"
-                      : "bg-neutral-800 text-white"
-                    : "text-neutral-500 hover:text-white"
+                      : "dark:bg-white/[0.08] bg-slate-100 dark:text-white text-slate-900"
+                    : "dark:text-neutral-500 text-slate-500 dark:hover:text-white hover:text-slate-900"
                 }`}
               >
                 {f === "all" ? "Tất cả" : f === "pending" ? `Chờ duyệt (${pendingCount})` : "Đã xác minh"}
@@ -301,12 +306,12 @@ function UsersTab() {
               placeholder="Tìm email / tên / DNSE ID..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 pr-3 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500/50 w-56"
+              className="pl-8 pr-3 py-1.5 rounded-lg dark:bg-white/[0.06] bg-white dark:border-white/[0.1] border-slate-200 text-xs dark:text-white text-slate-900 dark:placeholder-neutral-500 placeholder-slate-400 focus:outline-none focus:border-emerald-500/50 w-56"
             />
           </div>
           <button
             onClick={fetchUsers}
-            className="p-2 rounded-lg border border-neutral-700 hover:border-neutral-600 text-neutral-400 hover:text-white transition-colors cursor-pointer"
+            className="p-2 rounded-lg dark:border-white/[0.1] border-slate-200 dark:hover:border-white/20 hover:border-slate-300 dark:text-neutral-400 text-slate-500 dark:hover:text-white hover:text-slate-900 transition-colors cursor-pointer border"
           >
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
@@ -321,10 +326,10 @@ function UsersTab() {
       )}
 
       {/* Table */}
-      <div className="overflow-x-auto rounded-xl border border-neutral-800 bg-neutral-900/60">
+      <div className="overflow-x-auto rounded-xl dark:border-white/[0.08] border-white/50 dark:bg-white/[0.03] bg-white/60 backdrop-blur-xl border">
         <table className="w-full text-left">
           <thead>
-            <tr className="border-b border-neutral-800 text-[10px] uppercase tracking-wider text-neutral-500">
+            <tr className="border-b dark:border-white/[0.06] border-slate-200 text-[10px] uppercase tracking-wider dark:text-neutral-500 text-slate-500">
               <th className="px-4 py-3 font-bold">#</th>
               <th className="px-4 py-3 font-bold">Email</th>
               <th className="px-4 py-3 font-bold">Tên</th>
@@ -353,18 +358,18 @@ function UsersTab() {
               filtered.map((user, i) => (
                 <tr
                   key={user.id}
-                  className={`border-b border-neutral-800/50 hover:bg-neutral-800/30 transition-colors ${
+                  className={`border-b dark:border-white/[0.04] border-slate-100 dark:hover:bg-white/[0.03] hover:bg-slate-50/50 transition-colors ${
                     user.dnseId && !user.dnseVerified ? "bg-amber-500/[0.03]" : ""
                   }`}
                 >
                   <td className="px-4 py-3 text-xs text-neutral-600 font-mono">{i + 1}</td>
 
                   <td className="px-4 py-3">
-                    <span className="text-xs text-white font-mono">{user.email}</span>
+                    <span className="text-xs dark:text-white text-slate-900 font-mono">{user.email}</span>
                   </td>
 
                   <td className="px-4 py-3">
-                    <span className="text-xs text-neutral-300">{user.name ?? "—"}</span>
+                    <span className="text-xs dark:text-neutral-300 text-slate-600">{user.name ?? "—"}</span>
                   </td>
 
                   <td className="px-4 py-3">
@@ -433,7 +438,7 @@ function UsersTab() {
                     )}
                   </td>
 
-                  <td className="px-4 py-3 text-xs text-neutral-500">
+                  <td className="px-4 py-3 text-xs dark:text-neutral-500 text-slate-500">
                     {new Date(user.createdAt).toLocaleDateString("vi-VN")}
                   </td>
 
@@ -588,7 +593,7 @@ function UsersTab() {
       {/* ── Confirmation Modal ──────────────────────────────────── */}
       {confirmAction && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-neutral-900 border border-neutral-700 rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4 space-y-4">
+          <div className="dark:bg-[#0c1425]/90 bg-white/90 backdrop-blur-2xl dark:border-white/[0.1] border-white/50 border rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4 space-y-4">
             <div className="flex items-center gap-3">
               <div className={`p-2.5 rounded-xl ${
                 confirmAction.role === "FREE"
@@ -606,13 +611,13 @@ function UsersTab() {
                 )}
               </div>
               <div>
-                <h3 className="text-sm font-bold text-white">Xác nhận thay đổi</h3>
-                <p className="text-[10px] text-neutral-500">Hành động không thể hoàn tác tự động</p>
+                <h3 className="text-sm font-bold dark:text-white text-slate-900">Xác nhận thay đổi</h3>
+                <p className="text-[10px] dark:text-neutral-500 text-slate-400">Hành động không thể hoàn tác tự động</p>
               </div>
             </div>
-            <div className="bg-neutral-800/60 rounded-xl p-3 space-y-1.5 text-xs">
-              <p className="text-neutral-400">
-                User: <span className="text-white font-mono">{confirmAction.email}</span>
+            <div className="dark:bg-white/[0.04] bg-slate-50 rounded-xl p-3 space-y-1.5 text-xs">
+              <p className="dark:text-neutral-400 text-slate-500">
+                User: <span className="dark:text-white text-slate-900 font-mono">{confirmAction.email}</span>
               </p>
               <p className="text-neutral-400">
                 Thao tác:{" "}
@@ -634,7 +639,7 @@ function UsersTab() {
             <div className="flex gap-2">
               <button
                 onClick={() => setConfirmAction(null)}
-                className="flex-1 px-4 py-2.5 rounded-xl border border-neutral-700 text-xs font-bold text-neutral-400 hover:text-white hover:border-neutral-600 transition-all cursor-pointer"
+                className="flex-1 px-4 py-2.5 rounded-xl border dark:border-white/[0.1] border-slate-200 text-xs font-bold dark:text-neutral-400 text-slate-500 dark:hover:text-white hover:text-slate-900 dark:hover:border-white/20 hover:border-slate-300 transition-all cursor-pointer"
               >
                 Hủy
               </button>

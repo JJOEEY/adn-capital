@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { motion } from "framer-motion";
 import { Check, Crown, Zap, Star, Shield, Gift, Sparkles, ExternalLink, Clock } from "lucide-react";
+import { useTheme } from "@/components/providers/ThemeProvider";
 
 /* ═══════════════════════════════════════════════════════════════════════════
  *  PRICING SECTION — Landing Page "Chốt Sale"
@@ -164,6 +165,8 @@ function formatVND(amount: number): string {
 export default function Pricing() {
   const { status } = useSession();
   const isSignedIn = status === "authenticated";
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
 
   const [dnseId, setDnseId] = useState("");
   const [isDNSE, setIsDNSE] = useState(false);
@@ -233,7 +236,7 @@ export default function Pricing() {
   };
 
   return (
-    <section className="relative py-20 sm:py-28 px-4 bg-neutral-950">
+    <section className={`relative py-20 sm:py-28 px-4 border-t ${isDark ? "border-white/[0.06]" : "border-slate-200/60"}`}>
       {/* Background glow */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[600px] bg-emerald-500/[0.03] rounded-full blur-3xl pointer-events-none" />
 
@@ -246,16 +249,18 @@ export default function Pricing() {
           transition={{ duration: 0.5 }}
           className="text-center mb-12"
         >
-          <span className="inline-block text-[10px] font-bold text-emerald-400 uppercase tracking-[0.3em] mb-4 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full">
+          <span className={`inline-block text-[10px] font-bold uppercase tracking-[0.3em] mb-4 px-3 py-1 rounded-full border ${
+            isDark ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" : "text-emerald-600 bg-emerald-50 border-emerald-200"
+          }`}>
             Bảng giá đầu tư
           </span>
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white">
+          <h2 className={`text-3xl sm:text-4xl lg:text-5xl font-black ${isDark ? "text-white" : "text-slate-900"}`}>
             Chọn Gói Phù Hợp Với{" "}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">
               Đại Ca
             </span>
           </h2>
-          <p className="text-neutral-400 mt-4 max-w-xl mx-auto text-sm sm:text-base">
+          <p className={`mt-4 max-w-xl mx-auto text-sm sm:text-base ${isDark ? "text-white/40" : "text-slate-500"}`}>
             Mở khoá toàn bộ sức mạnh của ADN System — Giao dịch thông minh hơn,
             nhanh hơn, chuẩn xác hơn.
           </p>
@@ -269,17 +274,21 @@ export default function Pricing() {
           transition={{ duration: 0.5, delay: 0.05 }}
           className="max-w-2xl mx-auto mb-8"
         >
-          <div className="relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.04] p-5">
+          <div className={`relative overflow-hidden rounded-2xl border p-5 ${
+            isDark ? "border-emerald-500/20 bg-emerald-500/[0.04]" : "border-emerald-200 bg-emerald-50/60"
+          }`}>
             <div className="absolute top-0 right-0 w-40 h-40 bg-emerald-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
             <div className="relative flex flex-col sm:flex-row items-start sm:items-center gap-4">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/15 flex items-center justify-center shrink-0">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                isDark ? "bg-emerald-500/15" : "bg-emerald-100"
+              }`}>
                 <Gift className="w-5 h-5 text-emerald-400" />
               </div>
               <div className="flex-1">
-                <p className="text-sm font-bold text-white mb-1">
+                <p className={`text-sm font-bold mb-1 ${isDark ? "text-white" : "text-slate-900"}`}>
                   🎁 Mở tài khoản DNSE — Trải nghiệm miễn phí 2 tuần!
                 </p>
-                <p className="text-xs text-neutral-400 leading-relaxed">
+                <p className={`text-xs leading-relaxed ${isDark ? "text-white/40" : "text-slate-500"}`}>
                   Mở tài khoản chứng khoán DNSE qua link giới thiệu, sau khi tài khoản được duyệt (~1 tiếng),
                   nhập ID DNSE vào ô bên dưới để kích hoạt <span className="text-emerald-400 font-semibold">VIP miễn phí 2 tuần</span> + giá ưu đãi DNSE cho các gói tiếp theo.
                 </p>
@@ -305,14 +314,16 @@ export default function Pricing() {
           transition={{ duration: 0.5, delay: 0.1 }}
           className="max-w-md mx-auto mb-14"
         >
-          <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-5 backdrop-blur-sm">
+          <div className={`rounded-2xl p-5 backdrop-blur-sm ${
+            isDark ? "bg-white/[0.04] border border-white/[0.1]" : "bg-white/60 border border-white/50"
+          }`}>
             <div className="flex items-center gap-2 mb-2">
               <Shield className="w-4 h-4 text-emerald-400" />
-              <span className="text-sm font-bold text-white">
+              <span className={`text-sm font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
                 Nhập ID tài khoản DNSE
               </span>
             </div>
-            <p className="text-xs text-neutral-500 mb-3">
+            <p className={`text-xs mb-3 ${isDark ? "text-white/35" : "text-slate-400"}`}>
               Áp dụng giá ưu đãi dành riêng cho khách hàng DNSE
             </p>
 
@@ -354,7 +365,11 @@ export default function Pricing() {
                   onChange={(e) => setDnseId(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleApply()}
                   placeholder="Nhập ID tài khoản DNSE..."
-                  className="flex-1 bg-neutral-800 border border-neutral-700 text-white text-sm rounded-xl px-4 py-2.5 placeholder:text-neutral-600 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                  className={`flex-1 text-sm rounded-xl px-4 py-2.5 focus:outline-none transition-colors ${
+                    isDark
+                      ? "bg-white/[0.06] border border-white/[0.1] text-white placeholder:text-white/30 focus:border-emerald-500/50"
+                      : "bg-white border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-emerald-500/50"
+                  }`}
                 />
                 <button
                   onClick={handleApply}
@@ -379,6 +394,7 @@ export default function Pricing() {
               plan={plan}
               isDNSE={isDNSE}
               isSignedIn={isSignedIn}
+              isDark={isDark}
               index={idx}
             />
           ))}
@@ -403,11 +419,13 @@ function PricingCard({
   plan,
   isDNSE,
   isSignedIn,
+  isDark,
   index,
 }: {
   plan: PricingPlan;
   isDNSE: boolean;
   isSignedIn: boolean;
+  isDark: boolean;
   index: number;
 }) {
   const [loading, setLoading] = useState(false);
@@ -454,9 +472,13 @@ function PricingCard({
       }}
       whileHover={{ scale: 1.06, y: -8 }}
       className={`
-        relative flex flex-col rounded-2xl border bg-neutral-900/60 backdrop-blur-sm
-        p-6 cursor-pointer
-        ${t.border} ${t.borderHover} ${t.shadow}
+        glow-card relative flex flex-col rounded-2xl border backdrop-blur-xl
+        p-6 cursor-pointer transition-all duration-300
+        ${isDark
+          ? "bg-white/[0.04] border-white/[0.08] hover:border-white/[0.15] hover:bg-white/[0.06]"
+          : "bg-white/60 border-white/50 hover:border-slate-300 hover:bg-white/80"
+        }
+        ${t.shadow}
         ${plan.ribbon ? "overflow-hidden" : ""}
       `}
     >
@@ -481,8 +503,8 @@ function PricingCard({
           {plan.icon}
         </div>
         <div>
-          <h3 className="text-base font-bold text-white">{plan.name}</h3>
-          <span className="text-[11px] text-neutral-500">{plan.period}</span>
+          <h3 className={`text-base font-bold ${isDark ? "text-white" : "text-slate-900"}`}>{plan.name}</h3>
+          <span className={`text-[11px] ${isDark ? "text-white/35" : "text-slate-400"}`}>{plan.period}</span>
         </div>
       </div>
 
@@ -491,7 +513,7 @@ function PricingCard({
         {isDNSE ? (
           <>
             <div className="flex items-center gap-2 mb-1">
-              <p className="text-sm text-neutral-500 line-through">
+              <p className={`text-sm line-through ${isDark ? "text-white/30" : "text-slate-400"}`}>
                 {formatVND(plan.price)}
               </p>
               {showPctBadge && (
@@ -512,7 +534,7 @@ function PricingCard({
             <p className={`text-3xl font-black ${t.priceText}`}>
               {formatVND(displayPrice)}
             </p>
-            <p className="mt-1.5 text-[10px] text-neutral-500">
+            <p className={`mt-1.5 text-[10px] ${isDark ? "text-white/30" : "text-slate-400"}`}>
               Chỉ <span className="text-emerald-400 font-semibold">{formatVND(plan.dnsePrice)}</span> với DNSE{" "}
               {(plan.id === "6m" || plan.id === "12m") && (
                 <span className="text-red-400">(-{savingsPct}%)</span>
@@ -527,7 +549,7 @@ function PricingCard({
         {plan.features.map((feat) => (
           <li key={feat} className="flex items-start gap-2.5 text-sm">
             <Check className={`w-4 h-4 mt-0.5 shrink-0 ${t.iconText}`} />
-            <span className="text-neutral-300">{feat}</span>
+            <span className={`${isDark ? "text-white/60" : "text-slate-600"}`}>{feat}</span>
           </li>
         ))}
       </ul>

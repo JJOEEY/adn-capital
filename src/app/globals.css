@@ -104,6 +104,51 @@ body {
 .glow-emerald { box-shadow: 0 0 20px rgba(16, 185, 129, 0.25); }
 .glow-purple { box-shadow: 0 0 20px rgba(168, 85, 247, 0.25); }
 
+/* ── Glow Card: hover glow + backlight + scale ── */
+.glow-card {
+  position: relative;
+  transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1),
+              box-shadow 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+}
+.glow-card::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: conic-gradient(from 180deg, transparent 60%, rgba(16,185,129,0.15) 75%, rgba(56,189,248,0.12) 85%, transparent 100%);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  z-index: -1;
+  filter: blur(12px);
+}
+.glow-card:hover::before {
+  opacity: 1;
+}
+.glow-card:hover {
+  transform: scale(1.05);
+  box-shadow:
+    0 0 40px -8px rgba(16,185,129,0.2),
+    0 0 80px -16px rgba(56,189,248,0.1),
+    0 20px 60px -15px rgba(0,0,0,0.3);
+  z-index: 10;
+}
+.light .glow-card:hover {
+  box-shadow:
+    0 0 40px -8px rgba(16,185,129,0.15),
+    0 0 80px -16px rgba(56,189,248,0.08),
+    0 20px 60px -15px rgba(0,0,0,0.12);
+}
+
+/* ── Hexagon shape ── */
+.hexagon {
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+}
+
+/* ── Smooth scroll ── */
+html {
+  scroll-behavior: smooth;
+}
+
 /* Typing animation */
 @keyframes blink {
   0%, 100% { opacity: 0.2; }
@@ -154,4 +199,27 @@ body {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
+}
+
+/* ── Floating orb animations (Cronza-style) ── */
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  33% { transform: translateY(-12px) rotate(1deg); }
+  66% { transform: translateY(8px) rotate(-1deg); }
+}
+@keyframes float-delayed {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  33% { transform: translateY(10px) rotate(-1.5deg); }
+  66% { transform: translateY(-14px) rotate(1.5deg); }
+}
+.animate-float {
+  animation: float 8s ease-in-out infinite;
+}
+.animate-float-delayed {
+  animation: float-delayed 10s ease-in-out infinite;
+}
+
+/* ── Perspective utility for 3D word reveal ── */
+.perspective-\[800px\] {
+  perspective: 800px;
 }

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useTheme } from "@/components/providers/ThemeProvider";
 import { LockOverlay } from "@/components/ui/LockOverlay";
 import { SignalCard } from "@/components/signals/SignalCard";
 import {
@@ -98,6 +99,8 @@ type FormulaId = "SIEU_CO_PHIEU" | "TRUNG_HAN" | "DAU_CO";
 export default function FormulaTestPage() {
   const { isAdmin, isLoading } = useCurrentDbUser();
   const { isSignalLocked } = useSubscription();
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const [scanning, setScanning] = useState(false);
 
   // Chỉ ADMIN mới truy cập được
@@ -105,7 +108,7 @@ export default function FormulaTestPage() {
     return (
       <MainLayout>
         <div className="flex items-center justify-center min-h-[60vh]">
-          <p className="text-neutral-500">Trang này chỉ dành cho Admin.</p>
+          <p className={`${isDark ? "text-neutral-500" : "text-slate-500"}`}>Trang này chỉ dành cho Admin.</p>
         </div>
       </MainLayout>
     );
@@ -156,7 +159,9 @@ export default function FormulaTestPage() {
     <MainLayout>
       <div className="p-3 md:p-6 space-y-5 max-w-7xl mx-auto">
         {/* ═══ HEADER ═══ */}
-        <div className="relative overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-900/80 p-5 sm:p-8">
+        <div className={`relative overflow-hidden rounded-2xl border p-5 sm:p-8 backdrop-blur-xl ${
+          isDark ? "border-white/[0.08] bg-white/[0.03]" : "border-white/50 bg-white/60"
+        }`}>
           <div className="absolute -top-20 -right-20 w-60 h-60 bg-purple-500/5 rounded-full blur-3xl" />
           <div className="absolute -bottom-16 -left-16 w-40 h-40 bg-emerald-500/5 rounded-full blur-3xl" />
 
@@ -169,13 +174,13 @@ export default function FormulaTestPage() {
                 Formula Testing Lab
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black text-white leading-tight">
+            <h1 className={`text-2xl sm:text-3xl font-black leading-tight ${isDark ? "text-white" : "text-slate-900"}`}>
               TEST{" "}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-emerald-400">
                 CÔNG CỤ
               </span>
             </h1>
-            <p className="text-sm text-neutral-400 mt-2 max-w-2xl leading-relaxed">
+            <p className={`text-sm mt-2 max-w-2xl leading-relaxed ${isDark ? "text-white/40" : "text-slate-500"}`}>
               Chạy 3 bộ lọc công thức chọn cổ phiếu trên 200 mã thanh khoản cao nhất thị trường.
               Kết quả hiển thị dạng thẻ tín hiệu real-time.
             </p>
@@ -193,7 +198,7 @@ export default function FormulaTestPage() {
             return (
               <div
                 key={f.id}
-                className={`bg-gradient-to-br ${f.gradient} border ${f.borderColor} rounded-2xl p-5 transition-all cursor-pointer`}
+                className={`glow-card bg-gradient-to-br ${f.gradient} border ${f.borderColor} rounded-2xl p-5 transition-all cursor-pointer backdrop-blur-xl`}
                 onClick={() => setExpandedFormula(isExpanded ? null : f.id)}
               >
                 <div className="flex items-center gap-3 mb-3">
@@ -201,8 +206,8 @@ export default function FormulaTestPage() {
                     <Icon className={`w-5 h-5 ${f.iconColor}`} />
                   </div>
                   <div>
-                    <h3 className="text-sm font-black text-white">{f.name}</h3>
-                    <p className="text-[10px] text-neutral-500">{f.subtitle}</p>
+                    <h3 className={`text-sm font-black ${isDark ? "text-white" : "text-slate-900"}`}>{f.name}</h3>
+                    <p className={`text-[10px] ${isDark ? "text-white/35" : "text-slate-400"}`}>{f.subtitle}</p>
                   </div>
                   {signals && (
                     <span
@@ -213,14 +218,14 @@ export default function FormulaTestPage() {
                   )}
                 </div>
 
-                <p className="text-xs text-neutral-400 leading-relaxed">
+                <p className={`text-xs leading-relaxed ${isDark ? "text-white/40" : "text-slate-500"}`}>
                   {f.description}
                 </p>
 
                 {/* Expanded: show conditions */}
                 {isExpanded && (
-                  <div className="mt-4 space-y-2 border-t border-neutral-800 pt-3">
-                    <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">
+                  <div className={`mt-4 space-y-2 border-t pt-3 ${isDark ? "border-white/[0.06]" : "border-slate-200"}`}>
+                    <p className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? "text-neutral-500" : "text-slate-400"}`}>
                       Điều kiện kích hoạt
                     </p>
                     {f.conditions.map((cond, i) => {
@@ -228,7 +233,7 @@ export default function FormulaTestPage() {
                       return (
                         <div
                           key={i}
-                          className="flex items-start gap-2 text-xs text-neutral-300"
+                          className={`flex items-start gap-2 text-xs ${isDark ? "text-neutral-300" : "text-slate-600"}`}
                         >
                           <CondIcon className={`w-3.5 h-3.5 ${f.iconColor} flex-shrink-0 mt-0.5`} />
                           <span>{cond.text}</span>
@@ -252,12 +257,14 @@ export default function FormulaTestPage() {
           isLocked={isSignalLocked}
           message="Nâng cấp VIP để chạy test công thức real-time"
         >
-          <div className="flex flex-col sm:flex-row items-center gap-4 bg-neutral-900/80 border border-neutral-800 rounded-2xl p-5">
+          <div className={`flex flex-col sm:flex-row items-center gap-4 border rounded-2xl p-5 backdrop-blur-xl ${
+            isDark ? "bg-white/[0.03] border-white/[0.08]" : "bg-white/60 border-white/50"
+          }`}>
             <div className="flex-1">
-              <h3 className="text-sm font-bold text-white">
+              <h3 className={`text-sm font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
                 Chạy quét toàn thị trường
               </h3>
-              <p className="text-xs text-neutral-500 mt-1">
+              <p className={`text-xs mt-1 ${isDark ? "text-white/35" : "text-slate-500"}`}>
                 Quét 200 mã cổ phiếu theo 3 công thức — mất khoảng 30-60 giây
               </p>
             </div>
@@ -296,14 +303,16 @@ export default function FormulaTestPage() {
         {signals !== null && (
           <div className="space-y-4">
             {/* Summary bar */}
-            <div className="flex items-center justify-between bg-neutral-900/80 border border-neutral-800 rounded-2xl p-4">
-              <div className="flex items-center gap-3">
+            <div className={`flex items-center justify-between border rounded-2xl p-4 backdrop-blur-xl ${
+              isDark ? "bg-white/[0.03] border-white/[0.08]" : "bg-white/60 border-white/50"
+            }`}>
+                <div className="flex items-center gap-3">
                 <CheckCircle2 className="w-5 h-5 text-emerald-400" />
                 <div>
-                  <p className="text-sm font-bold text-white">
+                  <p className={`text-sm font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
                     Phát hiện {signals.length} tín hiệu
                   </p>
-                  <p className="text-[10px] text-neutral-500">
+                  <p className={`text-[10px] ${isDark ? "text-white/35" : "text-slate-400"}`}>
                     {countByType("SIEU_CO_PHIEU")} Siêu CP ·{" "}
                     {countByType("TRUNG_HAN")} Trung Hạn ·{" "}
                     {countByType("DAU_CO")} Lướt Sóng
@@ -326,7 +335,9 @@ export default function FormulaTestPage() {
                   className={`text-xs px-3 py-1.5 rounded-lg border transition-all cursor-pointer ${
                     selectedFormula === item.val
                       ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-                      : "text-neutral-500 border-neutral-800 hover:border-neutral-700 hover:text-neutral-300 bg-neutral-900"
+                      : isDark
+                        ? "text-neutral-500 border-white/[0.08] hover:border-white/[0.15] hover:text-neutral-300 bg-white/[0.03]"
+                        : "text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700 bg-white/60"
                   }`}
                 >
                   {item.label}
@@ -343,9 +354,11 @@ export default function FormulaTestPage() {
                 ))}
               </div>
             ) : (
-              <div className="text-center py-12 bg-neutral-900/80 border border-neutral-800 rounded-2xl">
-                <Zap className="w-10 h-10 text-neutral-700 mx-auto mb-3" />
-                <p className="text-sm text-neutral-500">
+              <div className={`text-center py-12 border rounded-2xl backdrop-blur-xl ${
+                isDark ? "bg-white/[0.03] border-white/[0.08]" : "bg-white/60 border-white/50"
+              }`}>
+                <Zap className={`w-10 h-10 mx-auto mb-3 ${isDark ? "text-neutral-700" : "text-slate-300"}`} />
+                <p className={`text-sm ${isDark ? "text-neutral-500" : "text-slate-500"}`}>
                   {selectedFormula !== "all"
                     ? "Không có tín hiệu cho công thức này"
                     : "Không phát hiện tín hiệu nào hôm nay"}
@@ -357,10 +370,12 @@ export default function FormulaTestPage() {
 
         {/* ═══ Scanning progress ═══ */}
         {scanning && (
-          <div className="text-center py-12 bg-neutral-900/80 border border-neutral-800 rounded-2xl">
+          <div className={`text-center py-12 border rounded-2xl backdrop-blur-xl ${
+            isDark ? "bg-white/[0.03] border-white/[0.08]" : "bg-white/60 border-white/50"
+          }`}>
             <Loader2 className="w-8 h-8 text-purple-400 animate-spin mx-auto mb-4" />
-            <p className="text-sm font-bold text-white">Đang quét 200 mã cổ phiếu...</p>
-            <p className="text-xs text-neutral-500 mt-1">
+            <p className={`text-sm font-bold ${isDark ? "text-white" : "text-slate-900"}`}>Đang quét 200 mã cổ phiếu...</p>
+            <p className={`text-xs mt-1 ${isDark ? "text-white/35" : "text-slate-500"}`}>
               Tính chỉ báo kỹ thuật + chạy 3 bộ lọc công thức. Vui lòng đợi 30-60 giây.
             </p>
           </div>

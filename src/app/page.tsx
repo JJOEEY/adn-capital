@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { MainLayout } from "@/components/layout/MainLayout";
 import Pricing from "@/components/landing/Pricing";
-import { motion, useInView, AnimatePresence } from "framer-motion";
+import { motion, useInView, useScroll, useTransform, AnimatePresence } from "framer-motion";
 import {
   TrendingUp,
   Zap,
@@ -76,17 +76,17 @@ function useCountUp(end: number, duration = 2000, start = 0) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
- *  Section fade‑in wrapper
+ *  Section fade‑in wrapper — Cronza-style smooth scroll reveal
  * ═══════════════════════════════════════════════════════════════════════════ */
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-60px" });
+  const inView = useInView(ref, { once: true, margin: "-80px" });
   return (
     <motion.div
       ref={ref}
-      initial={{ opacity: 0, y: 40 }}
-      animate={inView ? { opacity: 1, y: 0 } : {}}
-      transition={{ duration: 0.7, delay, ease: [0.23, 1, 0.32, 1] }}
+      initial={{ opacity: 0, y: 60, scale: 0.97 }}
+      animate={inView ? { opacity: 1, y: 0, scale: 1 } : {}}
+      transition={{ duration: 0.8, delay, ease: [0.23, 1, 0.32, 1] }}
       className={className}
     >
       {children}
@@ -100,15 +100,30 @@ function FadeIn({ children, className = "", delay = 0 }: { children: React.React
 function HeroSection() {
   const { theme } = useTheme();
   const isDark = theme === "dark";
+  const heroRef = useRef<HTMLElement>(null);
+  const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start start", "end start"] });
+  const orbY = useTransform(scrollYProgress, [0, 1], [0, 120]);
+  const orbScale = useTransform(scrollYProgress, [0, 1], [1, 1.3]);
+  const contentY = useTransform(scrollYProgress, [0, 1], [0, 60]);
+
+  /* Cronza-style word-by-word stagger container */
+  const wordContainer = {
+    hidden: {},
+    visible: { transition: { staggerChildren: 0.08, delayChildren: 0.2 } },
+  };
+  const wordChild = {
+    hidden: { opacity: 0, y: 30, rotateX: 40 },
+    visible: { opacity: 1, y: 0, rotateX: 0, transition: { duration: 0.5, ease: [0.23, 1, 0.32, 1] } },
+  };
 
   return (
-    <section className="relative overflow-hidden py-24 sm:py-32 lg:py-40 px-4">
-      {/* Big ambient glow */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[600px] bg-emerald-500/[0.04] rounded-full blur-[120px]" />
-      <div className="absolute top-20 right-10 w-60 h-60 bg-cyan-500/[0.03] rounded-full blur-[100px]" />
-      <div className="absolute bottom-10 left-10 w-40 h-40 bg-purple-500/[0.04] rounded-full blur-[80px]" />
+    <section ref={heroRef} className="relative overflow-hidden py-24 sm:py-32 lg:py-40 px-4">
+      {/* Parallax floating orbs */}
+      <motion.div style={{ y: orbY, scale: orbScale }} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[600px] bg-emerald-500/[0.04] rounded-full blur-[120px]" />
+      <motion.div style={{ y: orbY }} className="absolute top-20 right-10 w-60 h-60 bg-cyan-500/[0.03] rounded-full blur-[100px] animate-float" />
+      <motion.div style={{ y: orbY }} className="absolute bottom-10 left-10 w-40 h-40 bg-purple-500/[0.04] rounded-full blur-[80px] animate-float-delayed" />
 
-      <div className="relative z-10 max-w-6xl mx-auto">
+      <motion.div style={{ y: contentY }} className="relative z-10 max-w-6xl mx-auto">
         {/* Badge */}
         <FadeIn>
           <div className="flex justify-center mb-6">
@@ -121,22 +136,41 @@ function HeroSection() {
           </div>
         </FadeIn>
 
-        {/* Main headline — Ryza bold split */}
-        <FadeIn delay={0.1}>
-          <h1 className="text-center">
-            <span className={`block text-4xl sm:text-6xl lg:text-8xl font-black tracking-tight leading-[0.95] ${
-              isDark ? "text-white" : "text-slate-900"
-            }`}>
-              ĐẦU TƯ CÙNG
-            </span>
-            <span className="block text-4xl sm:text-6xl lg:text-8xl font-black tracking-tight leading-[0.95] text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-cyan-400 to-emerald-400 mt-1">
-              HỆ THỐNG ADN
-            </span>
-          </h1>
-        </FadeIn>
+        {/* Main headline — Cronza-style word-by-word reveal */}
+        <motion.h1
+          className="text-center perspective-[800px]"
+          variants={wordContainer}
+          initial="hidden"
+          animate="visible"
+        >
+          <span className="block">
+            {["ĐẦU", "TƯ", "CÙNG"].map((word, i) => (
+              <motion.span
+                key={i}
+                variants={wordChild}
+                className={`inline-block text-4xl sm:text-6xl lg:text-8xl font-black tracking-tight leading-[0.95] mr-3 sm:mr-5 ${
+                  isDark ? "text-white" : "text-slate-900"
+                }`}
+              >
+                {word}
+              </motion.span>
+            ))}
+          </span>
+          <span className="block mt-1">
+            {["HỆ", "THỐNG", "ADN"].map((word, i) => (
+              <motion.span
+                key={i}
+                variants={wordChild}
+                className="inline-block text-4xl sm:text-6xl lg:text-8xl font-black tracking-tight leading-[0.95] text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-cyan-400 to-emerald-400 mr-3 sm:mr-5"
+              >
+                {word}
+              </motion.span>
+            ))}
+          </span>
+        </motion.h1>
 
         {/* Subheadline */}
-        <FadeIn delay={0.2}>
+        <FadeIn delay={0.5}>
           <p className={`text-center text-base sm:text-lg lg:text-xl max-w-2xl mx-auto mt-6 leading-relaxed ${
             isDark ? "text-white/50" : "text-slate-500"
           }`}>
@@ -146,7 +180,7 @@ function HeroSection() {
         </FadeIn>
 
         {/* CTA buttons */}
-        <FadeIn delay={0.3}>
+        <FadeIn delay={0.6}>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-10">
             <a
               href="https://s.dnse.vn/HVxkDz"
@@ -172,7 +206,7 @@ function HeroSection() {
             </Link>
           </div>
         </FadeIn>
-      </div>
+      </motion.div>
     </section>
   );
 }
@@ -294,7 +328,7 @@ function PerformanceSection() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
           {cards.map((k, i) => (
             <FadeIn key={k.label} delay={i * 0.1}>
-              <div className={`rounded-2xl border ${k.border} ${k.bg} p-6 text-center hover:scale-[1.03] transition-all duration-300 backdrop-blur-sm`}>
+              <div className={`glow-card rounded-2xl border ${k.border} ${k.bg} p-6 text-center transition-all duration-300 backdrop-blur-sm`}>
                 <k.Icon className={`w-6 h-6 ${k.color} mx-auto mb-3`} />
                 <p className={`text-3xl sm:text-4xl font-black ${k.color}`}>{k.value}</p>
                 <p className={`text-xs font-bold mt-2 uppercase ${isDark ? "text-white/70" : "text-slate-700"}`}>{k.label}</p>
@@ -392,7 +426,7 @@ function ServicesSection() {
             return (
               <FadeIn key={svc.href} delay={i * 0.1}>
                 <Link href={svc.href}>
-                  <div className={`group relative h-full rounded-2xl border p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl cursor-pointer ${
+                  <div className={`glow-card group relative h-full rounded-2xl border p-6 transition-all duration-300 cursor-pointer ${
                     isDark
                       ? "bg-white/[0.03] backdrop-blur-xl border-white/[0.08] hover:border-white/[0.15] hover:bg-white/[0.05]"
                       : "bg-white/60 backdrop-blur-xl border-white/50 hover:border-slate-300 hover:bg-white/80"
@@ -430,7 +464,7 @@ function ServicesSection() {
 
         {/* Margin CTA */}
         <FadeIn delay={0.3}>
-          <div className={`mt-8 rounded-2xl border p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4 ${
+          <div className={`glow-card mt-8 rounded-2xl border p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4 ${
             isDark
               ? "bg-white/[0.03] backdrop-blur-xl border-white/[0.08]"
               : "bg-white/60 backdrop-blur-xl border-white/50"
@@ -459,7 +493,7 @@ function ServicesSection() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
- *  PROCESS — Ryza "Approach Plan" style numbered steps
+ *  PROCESS — Cronza-style hexagon connected flow
  * ═══════════════════════════════════════════════════════════════════════════ */
 const STEPS = [
   {
@@ -467,23 +501,47 @@ const STEPS = [
     title: "Đăng ký tài khoản",
     desc: "Mở tài khoản chứng khoán miễn phí qua link giới thiệu của ADN Capital. Phí giao dịch ưu đãi từ 0.15%.",
     Icon: UserPlus,
-    pct: "30%",
+    color: "emerald",
   },
   {
     step: "02",
     title: "Kết nối hệ thống",
     desc: "Đăng nhập ADN Capital bằng Google. Hệ thống tự động kích hoạt gói VIP khi xác nhận tài khoản.",
     Icon: Rocket,
-    pct: "60%",
+    color: "cyan",
   },
   {
     step: "03",
     title: "Theo dõi tín hiệu",
     desc: "Nhận tín hiệu Mua/Bán đã được AI lọc. Dashboard hiển thị Cầu Dao Tổng, RS Rating, và Market Score realtime.",
     Icon: BarChart3,
-    pct: "100%",
+    color: "purple",
   },
 ];
+
+const stepColors: Record<string, { gradient: string; border: string; glow: string; text: string; bg: string }> = {
+  emerald: {
+    gradient: "from-emerald-500 to-emerald-400",
+    border: "border-emerald-500/30",
+    glow: "shadow-[0_0_40px_-8px_rgba(16,185,129,0.4)]",
+    text: "text-emerald-400",
+    bg: "bg-emerald-500/10",
+  },
+  cyan: {
+    gradient: "from-cyan-500 to-cyan-400",
+    border: "border-cyan-500/30",
+    glow: "shadow-[0_0_40px_-8px_rgba(6,182,212,0.4)]",
+    text: "text-cyan-400",
+    bg: "bg-cyan-500/10",
+  },
+  purple: {
+    gradient: "from-purple-500 to-purple-400",
+    border: "border-purple-500/30",
+    glow: "shadow-[0_0_40px_-8px_rgba(168,85,247,0.4)]",
+    text: "text-purple-400",
+    bg: "bg-purple-500/10",
+  },
+};
 
 function ProcessSection() {
   const { theme } = useTheme();
@@ -506,54 +564,95 @@ function ProcessSection() {
           </div>
         </FadeIn>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {STEPS.map((s, i) => (
-            <FadeIn key={s.step} delay={i * 0.12}>
-              <div className={`relative rounded-2xl border p-6 h-full transition-all duration-300 hover:scale-[1.02] ${
-                isDark
-                  ? "bg-white/[0.03] backdrop-blur-xl border-white/[0.08] hover:border-white/[0.15]"
-                  : "bg-white/60 backdrop-blur-xl border-white/50 hover:border-slate-300"
-              }`}>
-                {/* Step number — big & faded */}
-                <span className={`absolute top-4 right-5 text-5xl font-black ${isDark ? "text-white/[0.04]" : "text-slate-200/60"}`}>
-                  {s.step}
-                </span>
+        {/* Hexagon connected flow */}
+        <div className="relative">
+          {/* Connecting line (desktop) */}
+          <div className="hidden md:block absolute top-1/2 left-[16%] right-[16%] -translate-y-1/2" style={{ zIndex: 0 }}>
+            <motion.div
+              className={`h-[2px] rounded-full ${isDark ? "bg-gradient-to-r from-emerald-500/40 via-cyan-400/40 to-purple-500/40" : "bg-gradient-to-r from-emerald-400/30 via-cyan-400/30 to-purple-400/30"}`}
+              initial={{ scaleX: 0 }}
+              whileInView={{ scaleX: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 1.2, delay: 0.3, ease: [0.23, 1, 0.32, 1] }}
+              style={{ transformOrigin: "left" }}
+            />
+            {/* Arrow dots on connecting line */}
+            <motion.div
+              className="absolute top-1/2 left-[45%] -translate-y-1/2 w-3 h-3 rounded-full bg-cyan-400/60"
+              initial={{ opacity: 0, scale: 0 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.8 }}
+            />
+            <motion.div
+              className="absolute top-1/2 left-[55%] -translate-y-1/2 w-2 h-2 rounded-full bg-cyan-400/40"
+              initial={{ opacity: 0, scale: 0 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              transition={{ delay: 1 }}
+            />
+          </div>
 
-                <div className="relative z-10">
-                  <div className="flex items-center gap-3 mb-4">
-                    <span className={`flex items-center justify-center w-9 h-9 rounded-xl text-sm font-black ${
-                      isDark ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400" : "bg-emerald-50 border border-emerald-200 text-emerald-600"
-                    }`}>
-                      {s.step}
-                    </span>
-                    <s.Icon className={`w-5 h-5 ${isDark ? "text-white/30" : "text-slate-400"}`} />
-                  </div>
-                  <h3 className={`text-sm font-bold mb-2 ${isDark ? "text-white" : "text-slate-900"}`}>{s.title}</h3>
-                  <p className={`text-xs leading-relaxed ${isDark ? "text-white/40" : "text-slate-500"}`}>{s.desc}</p>
-
-                  {/* Progress bar */}
-                  <div className={`mt-4 h-1 rounded-full overflow-hidden ${isDark ? "bg-white/[0.06]" : "bg-slate-200"}`}>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-6 relative" style={{ zIndex: 1 }}>
+            {STEPS.map((s, i) => {
+              const c = stepColors[s.color];
+              return (
+                <FadeIn key={s.step} delay={i * 0.15}>
+                  <div className="flex flex-col items-center text-center group">
+                    {/* Hexagon container */}
                     <motion.div
-                      className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500"
-                      initial={{ width: 0 }}
-                      whileInView={{ width: s.pct }}
-                      viewport={{ once: true }}
-                      transition={{ duration: 1, delay: 0.3 + i * 0.2, ease: "easeOut" }}
-                    />
+                      whileHover={{ scale: 1.1, y: -4 }}
+                      transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                      className={`relative mb-6 cursor-pointer`}
+                    >
+                      {/* Glow behind hexagon */}
+                      <div className={`absolute inset-0 hexagon w-28 h-28 sm:w-32 sm:h-32 ${c.bg} blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
+
+                      {/* Hexagon shape */}
+                      <div className={`relative hexagon w-28 h-28 sm:w-32 sm:h-32 flex items-center justify-center border-2 transition-all duration-500 ${
+                        isDark
+                          ? `bg-white/[0.04] backdrop-blur-xl ${c.border} group-hover:bg-white/[0.08] group-hover:${c.glow}`
+                          : `bg-white/60 backdrop-blur-xl border-white/50 group-hover:bg-white/80`
+                      }`}>
+                        {/* Step number — small badge */}
+                        <div className={`absolute -top-2 -right-1 w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black ${
+                          isDark ? `bg-gradient-to-br ${c.gradient} text-black` : `bg-gradient-to-br ${c.gradient} text-white`
+                        }`}>
+                          {s.step}
+                        </div>
+                        <s.Icon className={`w-8 h-8 sm:w-10 sm:h-10 ${c.text} transition-transform duration-300 group-hover:scale-110`} />
+                      </div>
+                    </motion.div>
+
+                    {/* Mobile connecting arrow (between steps) */}
+                    {i < STEPS.length - 1 && (
+                      <div className="md:hidden flex flex-col items-center -mt-3 mb-3">
+                        <div className={`w-[2px] h-6 ${isDark ? "bg-white/10" : "bg-slate-200"}`} />
+                        <ChevronDown className={`w-4 h-4 -mt-1 ${isDark ? "text-white/20" : "text-slate-300"}`} />
+                      </div>
+                    )}
+
+                    {/* Text content */}
+                    <h3 className={`text-base sm:text-lg font-black mb-2 ${isDark ? "text-white" : "text-slate-900"}`}>
+                      {s.title}
+                    </h3>
+                    <p className={`text-xs sm:text-sm leading-relaxed max-w-[260px] ${isDark ? "text-white/40" : "text-slate-500"}`}>
+                      {s.desc}
+                    </p>
                   </div>
-                </div>
-              </div>
-            </FadeIn>
-          ))}
+                </FadeIn>
+              );
+            })}
+          </div>
         </div>
 
         <FadeIn delay={0.4}>
-          <div className="text-center mt-10">
+          <div className="text-center mt-12">
             <a
               href="https://s.dnse.vn/HVxkDz"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-sm transition-all hover:scale-105"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-sm transition-all hover:scale-105 shadow-[0_0_30px_-5px_rgba(16,185,129,0.3)]"
             >
               <UserPlus className="w-4 h-4" />
               Mở Tài Khoản Ngay
@@ -616,7 +715,7 @@ function TestimonialSection() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {testimonials.map((t, i) => (
             <FadeIn key={t.name} delay={i * 0.1}>
-              <div className={`rounded-2xl border p-6 h-full transition-all duration-300 hover:scale-[1.02] ${
+              <div className={`glow-card rounded-2xl border p-6 h-full transition-all duration-300 ${
                 isDark
                   ? "bg-white/[0.03] backdrop-blur-xl border-white/[0.08] hover:border-white/[0.15]"
                   : "bg-white/60 backdrop-blur-xl border-white/50 hover:border-slate-300"
@@ -688,7 +787,7 @@ function CourseSection() {
     <section className={`py-20 px-4 border-t ${isDark ? "border-white/[0.06]" : "border-slate-200/60"}`}>
       <div className="max-w-3xl mx-auto">
         <FadeIn>
-          <div className={`relative overflow-hidden rounded-2xl border p-6 sm:p-10 ${
+          <div className={`glow-card relative overflow-hidden rounded-2xl border p-6 sm:p-10 ${
             isDark
               ? "bg-white/[0.03] backdrop-blur-xl border-white/[0.08]"
               : "bg-white/60 backdrop-blur-xl border-white/50"
@@ -808,7 +907,7 @@ function FAQSection() {
         <div className="space-y-3">
           {faqs.map((faq, i) => (
             <FadeIn key={i} delay={i * 0.06}>
-              <div className={`rounded-2xl border overflow-hidden transition-all duration-300 ${
+              <div className={`glow-card rounded-2xl border overflow-hidden transition-all duration-300 ${
                 isDark
                   ? "bg-white/[0.03] backdrop-blur-xl border-white/[0.08] hover:border-white/[0.12]"
                   : "bg-white/60 backdrop-blur-xl border-white/50 hover:border-slate-300"

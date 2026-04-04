@@ -17,7 +17,7 @@ export function Card({ className, children, glass: isGlass, glow }: CardProps) {
   return (
     <div
       className={cn(
-        "rounded-2xl border transition-all duration-300",
+        "glow-card rounded-2xl border transition-all duration-300",
         isGlass
           ? isDark
             ? "bg-white/[0.04] backdrop-blur-2xl border-white/[0.1] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06),0_8px_32px_-8px_rgba(0,0,0,0.4)]"
