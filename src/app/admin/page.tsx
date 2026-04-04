@@ -479,7 +479,7 @@ function UsersTab() {
                         </button>
 
                         {vipMenuUser === user.id && (
-                          <div className="absolute right-0 top-full mt-1 z-50 w-56 dark:bg-[#0c1425]/95 bg-white/95 backdrop-blur-2xl border dark:border-white/[0.12] border-slate-200 rounded-xl shadow-2xl p-2 space-y-1">
+                          <div className="absolute right-0 top-full mt-1 z-50 w-56 dark:bg-[#0a0a0a]/95 bg-white/95 backdrop-blur-3xl border dark:border-white/[0.12] border-slate-200 rounded-xl shadow-2xl p-2 space-y-1">
                             <p className="text-[10px] dark:text-neutral-500 text-slate-400 px-2 pt-1 pb-0.5 font-bold uppercase tracking-wider">Chọn gói thời gian</p>
                             {VIP_PRESETS.map((preset) => (
                               <button
@@ -593,7 +593,7 @@ function UsersTab() {
       {/* ── Confirmation Modal ──────────────────────────────────── */}
       {confirmAction && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="dark:bg-[#0c1425]/90 bg-white/90 backdrop-blur-2xl dark:border-white/[0.1] border-white/50 border rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4 space-y-4">
+          <div className="dark:bg-[#0a0a0a]/90 bg-white/90 backdrop-blur-3xl dark:border-white/[0.1] border-white/50 border rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4 space-y-4">
             <div className="flex items-center gap-3">
               <div className={`p-2.5 rounded-xl ${
                 confirmAction.role === "FREE"

@@ -75,6 +75,7 @@ const menuSections: MenuSection[] = [
     items: [
       { href: "https://t.me/+fryvX_B-6Y9kODg1", label: "Group Telegram", icon: Send, external: true },
       { href: "/backtest", label: "Backtest", icon: FlaskConical },
+      { href: "/hdsd", label: "Hướng dẫn sử dụng", icon: BookOpen, badge: "UPDATING" },
     ],
   },
   {
@@ -219,6 +220,8 @@ export function Header() {
                               <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-md ${
                                 item.badge === "HOT"
                                   ? "bg-orange-500/20 text-orange-400 border border-orange-500/30"
+                                  : item.badge === "UPDATING"
+                                  ? "bg-amber-500/15 text-amber-400 border border-amber-500/25"
                                   : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
                               }`}>
                                 {item.badge}
@@ -303,8 +306,8 @@ export function Header() {
           collapsed ? "w-[68px]" : "w-[260px]"
         } ${
           isDark
-            ? "bg-[#0a1020]/95 backdrop-blur-2xl border-r border-white/[0.06]"
-            : "bg-white/80 backdrop-blur-2xl border-r border-slate-200/60"
+            ? "bg-[#050505]/95 backdrop-blur-3xl border-r border-white/[0.06]"
+            : "bg-white/80 backdrop-blur-3xl border-r border-slate-200/60"
         }`}>
         <SidebarContent />
       </aside>
@@ -312,8 +315,8 @@ export function Header() {
       {/* Mobile top bar */}
       <header className={`fixed top-0 left-0 right-0 z-50 h-14 lg:hidden transition-all duration-300 ${
         isDark
-          ? "bg-[#0c1425]/90 backdrop-blur-xl border-b border-white/[0.06]"
-          : "bg-white/80 backdrop-blur-xl border-b border-slate-200/60"
+          ? "bg-[#050505]/92 backdrop-blur-3xl border-b border-white/[0.06]"
+          : "bg-white/80 backdrop-blur-3xl border-b border-slate-200/60"
       }`}>
         <div className="flex items-center justify-between h-full px-3">
           <button onClick={() => setMobileOpen(!mobileOpen)}
@@ -377,8 +380,8 @@ export function Header() {
         mobileOpen ? "translate-x-0" : "-translate-x-full"
       } ${
         isDark
-          ? "bg-[#0a1020]/98 backdrop-blur-2xl border-r border-white/[0.08]"
-          : "bg-white/95 backdrop-blur-2xl border-r border-slate-200/60"
+          ? "bg-[#050505]/98 backdrop-blur-3xl border-r border-white/[0.08]"
+          : "bg-white/95 backdrop-blur-3xl border-r border-slate-200/60"
       }`}>
         <SidebarContent isMobile />
       </aside>

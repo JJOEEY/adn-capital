@@ -304,7 +304,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   return (
     <div
       className={`min-h-screen transition-colors duration-300 ${
-        isDark ? "bg-[#020617] text-slate-200" : "bg-slate-50 text-slate-800"
+        isDark ? "bg-[#000000] text-slate-200" : "bg-slate-50 text-slate-800"
       }`}
     >
       {/* ── Background glow blobs ── */}
@@ -368,7 +368,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       <div
         className={`md:hidden fixed top-0 left-0 right-0 z-30 h-16 flex items-center px-4 gap-3 border-b ${
           isDark
-            ? "bg-[#020617]/80 backdrop-blur-md border-white/10"
+            ? "bg-[#0a0a0a]/85 backdrop-blur-2xl border-white/10"
             : "bg-white/80 backdrop-blur-md border-slate-200/60"
         }`}
       >
