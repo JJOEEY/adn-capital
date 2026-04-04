@@ -479,8 +479,8 @@ function UsersTab() {
                         </button>
 
                         {vipMenuUser === user.id && (
-                          <div className="absolute right-0 top-full mt-1 z-50 w-56 bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl p-2 space-y-1">
-                            <p className="text-[10px] text-neutral-500 px-2 pt-1 pb-0.5 font-bold uppercase tracking-wider">Chọn gói thời gian</p>
+                          <div className="absolute right-0 top-full mt-1 z-50 w-56 dark:bg-[#0c1425]/95 bg-white/95 backdrop-blur-2xl border dark:border-white/[0.12] border-slate-200 rounded-xl shadow-2xl p-2 space-y-1">
+                            <p className="text-[10px] dark:text-neutral-500 text-slate-400 px-2 pt-1 pb-0.5 font-bold uppercase tracking-wider">Chọn gói thời gian</p>
                             {VIP_PRESETS.map((preset) => (
                               <button
                                 key={preset.days}
@@ -494,9 +494,9 @@ function UsersTab() {
                                   });
                                   setVipMenuUser(null);
                                 }}
-                                className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs hover:bg-neutral-800 transition-colors cursor-pointer"
+                                className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs dark:hover:bg-white/[0.06] hover:bg-slate-100 transition-colors cursor-pointer"
                               >
-                                <span className="text-neutral-200">{preset.label}</span>
+                                <span className="dark:text-neutral-200 text-slate-700">{preset.label}</span>
                                 <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
                                   preset.tier === "PREMIUM"
                                     ? "bg-amber-500/10 text-amber-400 border-amber-500/25"
@@ -506,7 +506,7 @@ function UsersTab() {
                                 </span>
                               </button>
                             ))}
-                            <div className="border-t border-neutral-800 pt-1.5 mt-1 px-1">
+                            <div className="border-t dark:border-white/[0.06] border-slate-200 pt-1.5 mt-1 px-1">
                               <div className="flex gap-1">
                                 <input
                                   type="number"
@@ -515,7 +515,7 @@ function UsersTab() {
                                   placeholder="Số ngày..."
                                   min={1}
                                   max={3650}
-                                  className="flex-1 px-2 py-1 rounded-md bg-neutral-800 border border-neutral-700 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500/50 w-20"
+                                  className="flex-1 px-2 py-1 rounded-md dark:bg-white/[0.06] bg-slate-50 border dark:border-white/[0.1] border-slate-200 text-xs dark:text-white text-slate-900 dark:placeholder-neutral-500 placeholder-slate-400 focus:outline-none focus:border-emerald-500/50 w-20"
                                 />
                                 <button
                                   onClick={() => {
@@ -540,7 +540,7 @@ function UsersTab() {
                             </div>
                             {user.role === "VIP" && (
                               <>
-                                <div className="border-t border-neutral-800 pt-1.5 mt-1">
+                                <div className="border-t dark:border-white/[0.06] border-slate-200 pt-1.5 mt-1">
                                   <button
                                     onClick={() => {
                                       setConfirmAction({
@@ -763,8 +763,8 @@ function RegistrationsTab() {
             <CreditCard className="w-5 h-5 text-purple-400" />
           </div>
           <div>
-            <h1 className="text-xl font-black text-white">Quản Lý Đăng Ký Khóa Học</h1>
-            <p className="text-xs text-neutral-500">{rows.length} bản ghi</p>
+            <h1 className="text-xl font-black dark:text-white text-slate-900">Quản Lý Đăng Ký Khóa Học</h1>
+            <p className="text-xs dark:text-neutral-500 text-slate-500">{rows.length} bản ghi</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -775,10 +775,10 @@ function RegistrationsTab() {
               placeholder="Tìm tên / Zalo..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 pr-3 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500/50 w-48"
+              className="pl-8 pr-3 py-1.5 rounded-lg dark:bg-white/[0.06] bg-white dark:border-white/[0.1] border-slate-200 text-xs dark:text-white text-slate-900 dark:placeholder-neutral-500 placeholder-slate-400 focus:outline-none focus:border-emerald-500/50 w-48"
             />
           </div>
-          <button onClick={fetchData} className="p-2 rounded-lg border border-neutral-700 hover:border-neutral-600 text-neutral-400 hover:text-white transition-colors cursor-pointer">
+          <button onClick={fetchData} className="p-2 rounded-lg border dark:border-white/[0.1] border-slate-200 dark:hover:border-white/20 hover:border-slate-300 dark:text-neutral-400 text-slate-500 dark:hover:text-white hover:text-slate-900 transition-colors cursor-pointer">
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -791,10 +791,10 @@ function RegistrationsTab() {
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-neutral-800 bg-neutral-900/60">
+      <div className="overflow-x-auto rounded-xl dark:border-white/[0.08] border-white/50 dark:bg-white/[0.03] bg-white/60 backdrop-blur-xl border">
         <table className="w-full text-left">
           <thead>
-            <tr className="border-b border-neutral-800 text-[10px] uppercase tracking-wider text-neutral-500">
+            <tr className="border-b dark:border-white/[0.06] border-slate-200 text-[10px] uppercase tracking-wider dark:text-neutral-500 text-slate-500">
               <th className="px-4 py-3 font-bold">#</th>
               <th className="px-4 py-3 font-bold">Tên</th>
               <th className="px-4 py-3 font-bold">Zalo</th>
@@ -819,25 +819,25 @@ function RegistrationsTab() {
               </tr>
             ) : (
               filtered.map((row, i) => (
-                <tr key={row.id} className="border-b border-neutral-800/50 hover:bg-neutral-800/30 transition-colors">
+                <tr key={row.id} className="border-b dark:border-white/[0.04] border-slate-100 dark:hover:bg-white/[0.03] hover:bg-slate-50/50 transition-colors">
                   <td className="px-4 py-3 text-xs text-neutral-600 font-mono">{i + 1}</td>
                   <td className="px-4 py-3">
                     {editId === row.id ? (
-                      <input value={editData.name ?? ""} onChange={(e) => setEditData({ ...editData, name: e.target.value })} className="px-2 py-1 rounded bg-neutral-800 border border-neutral-700 text-xs text-white w-32" />
+                      <input value={editData.name ?? ""} onChange={(e) => setEditData({ ...editData, name: e.target.value })} className="px-2 py-1 rounded dark:bg-white/[0.06] bg-white dark:border-white/[0.1] border-slate-200 text-xs dark:text-white text-slate-900 w-32" />
                     ) : (
-                      <span className="text-sm text-white font-medium">{row.name}</span>
+                      <span className="text-sm dark:text-white text-slate-900 font-medium">{row.name}</span>
                     )}
                   </td>
                   <td className="px-4 py-3">
                     {editId === row.id ? (
-                      <input value={editData.zalo ?? ""} onChange={(e) => setEditData({ ...editData, zalo: e.target.value })} className="px-2 py-1 rounded bg-neutral-800 border border-neutral-700 text-xs text-white w-28" />
+                      <input value={editData.zalo ?? ""} onChange={(e) => setEditData({ ...editData, zalo: e.target.value })} className="px-2 py-1 rounded dark:bg-white/[0.06] bg-white dark:border-white/[0.1] border-slate-200 text-xs dark:text-white text-slate-900 w-28" />
                     ) : (
-                      <span className="text-xs text-neutral-300 font-mono">{row.zalo}</span>
+                      <span className="text-xs dark:text-neutral-300 text-slate-600 font-mono">{row.zalo}</span>
                     )}
                   </td>
                   <td className="px-4 py-3">
                     {editId === row.id ? (
-                      <select value={editData.status ?? ""} onChange={(e) => setEditData({ ...editData, status: e.target.value })} className="px-2 py-1 rounded bg-neutral-800 border border-neutral-700 text-xs text-white">
+                      <select value={editData.status ?? ""} onChange={(e) => setEditData({ ...editData, status: e.target.value })} className="px-2 py-1 rounded dark:bg-white/[0.06] bg-white dark:border-white/[0.1] border-slate-200 text-xs dark:text-white text-slate-900">
                         <option value="CHUA_MO_TK">Chưa mở TK</option>
                         <option value="DA_MO_TK">Đã mở TK</option>
                       </select>
@@ -849,7 +849,7 @@ function RegistrationsTab() {
                   </td>
                   <td className="px-4 py-3">
                     {editId === row.id ? (
-                      <select value={editData.vipStatus ?? ""} onChange={(e) => setEditData({ ...editData, vipStatus: e.target.value })} className="px-2 py-1 rounded bg-neutral-800 border border-neutral-700 text-xs text-white">
+                      <select value={editData.vipStatus ?? ""} onChange={(e) => setEditData({ ...editData, vipStatus: e.target.value })} className="px-2 py-1 rounded dark:bg-white/[0.06] bg-white dark:border-white/[0.1] border-slate-200 text-xs dark:text-white text-slate-900">
                         <option value="NONE">NONE</option>
                         <option value="ACTIVE">ACTIVE</option>
                         <option value="EXPIRED">EXPIRED</option>
@@ -858,7 +858,7 @@ function RegistrationsTab() {
                       <span className={`inline-block px-2 py-0.5 rounded-full border text-[10px] font-bold ${vipBadge(row.vipStatus)}`}>{row.vipStatus}</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-xs text-neutral-500">{new Date(row.createdAt).toLocaleDateString("vi-VN")}</td>
+                  <td className="px-4 py-3 text-xs dark:text-neutral-500 text-slate-500">{new Date(row.createdAt).toLocaleDateString("vi-VN")}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
                       {editId === row.id ? (
@@ -868,11 +868,11 @@ function RegistrationsTab() {
                         </>
                       ) : (
                         <>
-                          <button onClick={() => startEdit(row)} className="p-1.5 rounded-md hover:bg-neutral-800 text-neutral-500 hover:text-white transition-colors cursor-pointer" title="Sửa"><Edit3 className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => startEdit(row)} className="p-1.5 rounded-md dark:hover:bg-white/[0.06] hover:bg-slate-100 dark:text-neutral-500 text-slate-400 dark:hover:text-white hover:text-slate-900 transition-colors cursor-pointer" title="Sửa"><Edit3 className="w-3.5 h-3.5" /></button>
                           {row.status !== "DA_MO_TK" && (
-                            <button onClick={() => handleApprove(row.id)} className="p-1.5 rounded-md hover:bg-emerald-500/10 text-neutral-500 hover:text-emerald-400 transition-colors cursor-pointer" title="Duyệt"><CheckCircle2 className="w-3.5 h-3.5" /></button>
+                            <button onClick={() => handleApprove(row.id)} className="p-1.5 rounded-md hover:bg-emerald-500/10 dark:text-neutral-500 text-slate-400 hover:text-emerald-400 transition-colors cursor-pointer" title="Duyệt"><CheckCircle2 className="w-3.5 h-3.5" /></button>
                           )}
-                          <button onClick={() => handleDelete(row.id)} className="p-1.5 rounded-md hover:bg-red-500/10 text-neutral-500 hover:text-red-400 transition-colors cursor-pointer" title="Xóa"><Trash2 className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => handleDelete(row.id)} className="p-1.5 rounded-md hover:bg-red-500/10 dark:text-neutral-500 text-slate-400 hover:text-red-400 transition-colors cursor-pointer" title="Xóa"><Trash2 className="w-3.5 h-3.5" /></button>
                         </>
                       )}
                     </div>
@@ -948,28 +948,28 @@ function MarginTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-black text-white">Tư Vấn Margin</h2>
-          <p className="text-xs text-neutral-500">{rows.length} yêu cầu</p>
+          <h2 className="text-lg font-black dark:text-white text-slate-900">Tư Vấn Margin</h2>
+          <p className="text-xs dark:text-neutral-500 text-slate-500">{rows.length} yêu cầu</p>
         </div>
         <button
           onClick={fetchRows}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-xs text-neutral-300 transition-all cursor-pointer"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg dark:bg-white/[0.06] bg-white dark:border-white/[0.1] border-slate-200 border dark:hover:border-white/20 hover:border-slate-300 text-xs dark:text-neutral-300 text-slate-600 transition-all cursor-pointer"
         >
           <RefreshCw className="w-3 h-3" /> Làm mới
         </button>
       </div>
 
       {rows.length === 0 ? (
-        <div className="text-center py-16 text-neutral-600 text-sm">Chưa có yêu cầu nào.</div>
+        <div className="text-center py-16 dark:text-neutral-600 text-slate-400 text-sm">Chưa có yêu cầu nào.</div>
       ) : (
         <div className="space-y-3">
           {rows.map((row) => (
-            <div key={row.id} className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-4 sm:p-5 space-y-3">
+            <div key={row.id} className="dark:bg-white/[0.03] bg-white/60 backdrop-blur-xl border dark:border-white/[0.08] border-white/50 rounded-2xl p-4 sm:p-5 space-y-3">
               {/* Header row */}
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-black text-white">{row.name}</p>
-                  <div className="flex items-center gap-3 mt-0.5 text-xs text-neutral-500">
+                  <p className="text-sm font-black dark:text-white text-slate-900">{row.name}</p>
+                  <div className="flex items-center gap-3 mt-0.5 text-xs dark:text-neutral-500 text-slate-500">
                     <span>{row.phone}</span>
                     {row.email && <span>{row.email}</span>}
                     {row.company && <span>· {row.company}</span>}
@@ -979,7 +979,7 @@ function MarginTab() {
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusColor(row.status)}`}>
                     {statusLabel(row.status)}
                   </span>
-                  <span className="text-[10px] text-neutral-600">
+                  <span className="text-[10px] dark:text-neutral-600 text-slate-400">
                     {new Date(row.createdAt).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}
                   </span>
                 </div>
@@ -988,27 +988,27 @@ function MarginTab() {
               {/* Details */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                 <div>
-                  <p className="text-neutral-600 mb-0.5">Mã CK</p>
-                  <p className="text-neutral-200 font-mono font-medium">{row.tickers}</p>
+                  <p className="dark:text-neutral-600 text-slate-400 mb-0.5">Mã CK</p>
+                  <p className="dark:text-neutral-200 text-slate-700 font-mono font-medium">{row.tickers}</p>
                 </div>
                 <div>
-                  <p className="text-neutral-600 mb-0.5">Tỉ lệ ký quỹ</p>
-                  <p className="text-neutral-200">{row.marginRatio}</p>
+                  <p className="dark:text-neutral-600 text-slate-400 mb-0.5">Tỉ lệ ký quỹ</p>
+                  <p className="dark:text-neutral-200 text-slate-700">{row.marginRatio}</p>
                 </div>
                 <div>
-                  <p className="text-neutral-600 mb-0.5">Hạn mức vay</p>
-                  <p className="text-neutral-200">{row.loanAmount}</p>
+                  <p className="dark:text-neutral-600 text-slate-400 mb-0.5">Hạn mức vay</p>
+                  <p className="dark:text-neutral-200 text-slate-700">{row.loanAmount}</p>
                 </div>
               </div>
 
               {/* Actions */}
-              <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-neutral-800">
+              <div className="flex flex-wrap items-center gap-2 pt-1 border-t dark:border-white/[0.06] border-slate-200">
                 {/* Status selector */}
                 <select
                   value={row.status}
                   onChange={(e) => updateRow(row.id, { status: e.target.value })}
                   disabled={saving === row.id}
-                  className="px-2.5 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700 text-xs text-white focus:outline-none cursor-pointer disabled:opacity-50"
+                  className="px-2.5 py-1.5 rounded-lg dark:bg-white/[0.06] bg-white dark:border-white/[0.1] border-slate-200 border text-xs dark:text-white text-slate-900 focus:outline-none cursor-pointer disabled:opacity-50"
                 >
                   <option value="NEW">Mới</option>
                   <option value="CONTACTED">Đã liên hệ</option>
@@ -1021,7 +1021,7 @@ function MarginTab() {
                   placeholder="Ghi chú..."
                   value={editNote[row.id] ?? row.note ?? ""}
                   onChange={(e) => setEditNote((prev) => ({ ...prev, [row.id]: e.target.value }))}
-                  className="flex-1 min-w-[160px] px-2.5 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700 text-xs text-white placeholder-neutral-600 focus:outline-none"
+                  className="flex-1 min-w-[160px] px-2.5 py-1.5 rounded-lg dark:bg-white/[0.06] bg-white dark:border-white/[0.1] border-slate-200 border text-xs dark:text-white text-slate-900 dark:placeholder-neutral-600 placeholder-slate-400 focus:outline-none"
                 />
                 <button
                   onClick={() => {
