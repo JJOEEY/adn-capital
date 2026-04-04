@@ -91,27 +91,42 @@ const plans: Plan[] = [
   },
 ];
 
-const colorMap: Record<string, { border: string; badge: string; btn: string; icon: string }> = {
+const colorMap: Record<string, {
+  border: string; badge: string; btn: string; icon: string;
+  hoverBorder: string; hoverShadow: string; blob: string;
+}> = {
   emerald: {
-    border: "border-emerald-500/30",
+    border: "border-emerald-900",
+    hoverBorder: "hover:border-emerald-500/50",
+    hoverShadow: "hover:shadow-[0_0_40px_-10px_rgba(16,185,129,0.7)]",
+    blob: "bg-emerald-500/20",
     badge: "bg-emerald-500/15 text-emerald-400 border-emerald-500/25",
     btn: "bg-emerald-500 hover:bg-emerald-400 text-black",
     icon: "text-emerald-400 bg-emerald-500/15",
   },
   purple: {
-    border: "border-purple-500/50",
+    border: "border-purple-900",
+    hoverBorder: "hover:border-purple-500/50",
+    hoverShadow: "hover:shadow-[0_0_40px_-10px_rgba(168,85,247,0.7)]",
+    blob: "bg-purple-500/20",
     badge: "bg-purple-500/15 text-purple-400 border-purple-500/25",
     btn: "bg-purple-500 hover:bg-purple-400 text-white",
     icon: "text-purple-400 bg-purple-500/15",
   },
   yellow: {
-    border: "border-yellow-500/30",
+    border: "border-yellow-900",
+    hoverBorder: "hover:border-yellow-500/50",
+    hoverShadow: "hover:shadow-[0_0_40px_-10px_rgba(234,179,8,0.7)]",
+    blob: "bg-yellow-500/20",
     badge: "bg-yellow-500/15 text-yellow-400 border-yellow-500/25",
     btn: "bg-yellow-500 hover:bg-yellow-400 text-black",
     icon: "text-yellow-400 bg-yellow-500/15",
   },
   orange: {
-    border: "border-orange-500/30",
+    border: "border-orange-900",
+    hoverBorder: "hover:border-orange-500/50",
+    hoverShadow: "hover:shadow-[0_0_40px_-10px_rgba(249,115,22,0.7)]",
+    blob: "bg-orange-500/20",
     badge: "bg-orange-500/15 text-orange-400 border-orange-500/25",
     btn: "bg-orange-500 hover:bg-orange-400 text-black",
     icon: "text-orange-400 bg-orange-500/15",
@@ -271,12 +286,13 @@ export function PricingClient() {
           return (
             <Card3D key={plan.id} color={plan.color} highlight={plan.highlight}>
               <div
-                className={`relative flex flex-col rounded-2xl border ${colors.border} ${
-                  plan.highlight
-                    ? "bg-neutral-800/60 shadow-xl shadow-purple-500/10"
-                    : "bg-neutral-900/70"
-                } backdrop-blur-md p-6`}
+                className={`relative overflow-hidden flex flex-col rounded-2xl border
+                  ${colors.border} ${colors.hoverBorder} ${colors.hoverShadow}
+                  bg-gray-900 backdrop-blur-md p-6
+                  transition-all duration-300 ease-out`}
               >
+              {/* Backlight glow blob */}
+              <div className={`absolute -top-10 -right-10 w-40 h-40 rounded-full blur-3xl opacity-30 ${colors.blob}`} />
               {plan.highlight && (
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                   <span className="bg-purple-500 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wide">
