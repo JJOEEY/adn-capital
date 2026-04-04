@@ -475,21 +475,23 @@ function PricingCard({
   };
 
   return (
-    <motion.div
+    <div
       ref={cardRef}
       onMouseEnter={handleMouseEnter}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ duration: 0.5, delay: 0.15 * index }}
       style={{
         ...tiltStyle,
         transition: "transform 0.25s cubic-bezier(.22,.68,0,.98), box-shadow 0.35s ease",
         transformStyle: "preserve-3d",
         willChange: "transform",
       }}
+    >
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      transition={{ duration: 0.5, delay: 0.15 * index }}
       className={`
         relative flex flex-col rounded-2xl border bg-neutral-900/60 backdrop-blur-sm
         p-6
@@ -582,5 +584,6 @@ function PricingCard({
         {loading ? "Đang tạo..." : "Đăng Ký Ngay"}
       </button>
     </motion.div>
+    </div>
   );
 }
