@@ -15,7 +15,7 @@ export function MainLayout({ children }: MainLayoutProps) {
   return (
     <div className={`min-h-screen overflow-x-hidden flex flex-col ${isDark ? "bg-city-dark" : "bg-city-light"}`}>
       <Header />
-      <main className="pt-[88px] overflow-x-hidden overflow-y-auto flex-1 px-3 md:px-0">{children}</main>
+      <main className="pt-14 lg:pt-[88px] overflow-x-hidden overflow-y-auto flex-1 px-3 md:px-0">{children}</main>
       <Footer />
     </div>
   );
