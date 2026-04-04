@@ -104,39 +104,28 @@ body {
 .glow-emerald { box-shadow: 0 0 20px rgba(16, 185, 129, 0.25); }
 .glow-purple { box-shadow: 0 0 20px rgba(168, 85, 247, 0.25); }
 
-/* ── Glow Card: hover glow + backlight + scale ── */
+/* ── Glow Card: hover amber border-glow (no blur artifacts) ── */
 .glow-card {
   position: relative;
-  transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1),
-              box-shadow 0.4s cubic-bezier(0.23, 1, 0.32, 1);
-}
-.glow-card::before {
-  content: '';
-  position: absolute;
-  inset: -2px;
-  border-radius: inherit;
-  background: conic-gradient(from 180deg, transparent 60%, rgba(16,185,129,0.15) 75%, rgba(56,189,248,0.12) 85%, transparent 100%);
-  opacity: 0;
-  transition: opacity 0.4s ease;
-  z-index: -1;
-  filter: blur(12px);
-}
-.glow-card:hover::before {
-  opacity: 1;
+  transition: transform 0.35s cubic-bezier(0.23, 1, 0.32, 1),
+              box-shadow 0.35s cubic-bezier(0.23, 1, 0.32, 1),
+              border-color 0.35s ease;
 }
 .glow-card:hover {
-  transform: scale(1.05);
+  transform: translateY(-2px);
+  border-color: rgba(245, 158, 11, 0.4) !important;
   box-shadow:
-    0 0 40px -8px rgba(16,185,129,0.2),
-    0 0 80px -16px rgba(56,189,248,0.1),
-    0 20px 60px -15px rgba(0,0,0,0.3);
+    0 0 20px -4px rgba(245, 158, 11, 0.25),
+    0 0 50px -8px rgba(245, 158, 11, 0.12),
+    0 12px 40px -10px rgba(0,0,0,0.35);
   z-index: 10;
 }
 .light .glow-card:hover {
+  border-color: rgba(245, 158, 11, 0.35) !important;
   box-shadow:
-    0 0 40px -8px rgba(16,185,129,0.15),
-    0 0 80px -16px rgba(56,189,248,0.08),
-    0 20px 60px -15px rgba(0,0,0,0.12);
+    0 0 20px -4px rgba(245, 158, 11, 0.18),
+    0 0 50px -8px rgba(245, 158, 11, 0.08),
+    0 12px 40px -10px rgba(0,0,0,0.1);
 }
 
 /* ── Hexagon shape ── */

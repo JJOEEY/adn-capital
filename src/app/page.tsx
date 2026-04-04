@@ -430,29 +430,26 @@ function ServicesSection() {
         {/* Hexagonal triangle: 1 top center, 2 bottom */}
         <div className="relative">
           {/* Connecting lines (desktop) */}
-          <div className="hidden md:block absolute inset-0" style={{ zIndex: 0 }}>
-            {/* Line from top to bottom-left */}
+          <div className="hidden md:block absolute inset-0 pointer-events-none" style={{ zIndex: 0 }}>
             <motion.div
-              className={`absolute w-[2px] ${isDark ? "bg-gradient-to-b from-blue-500/40 to-emerald-500/40" : "bg-gradient-to-b from-blue-400/30 to-emerald-400/30"}`}
-              style={{ top: "38%", left: "33%", height: "18%", transform: "rotate(-30deg)", transformOrigin: "top center" }}
+              className={`absolute w-[2px] ${isDark ? "bg-gradient-to-b from-blue-500/30 to-emerald-500/30" : "bg-gradient-to-b from-blue-400/20 to-emerald-400/20"}`}
+              style={{ top: "42%", left: "35%", height: "14%", transform: "rotate(-25deg)", transformOrigin: "top center" }}
               initial={{ scaleY: 0 }}
               whileInView={{ scaleY: 1 }}
               viewport={{ once: true }}
               transition={{ duration: 0.8, delay: 0.3 }}
             />
-            {/* Line from top to bottom-right */}
             <motion.div
-              className={`absolute w-[2px] ${isDark ? "bg-gradient-to-b from-blue-500/40 to-yellow-500/40" : "bg-gradient-to-b from-blue-400/30 to-yellow-400/30"}`}
-              style={{ top: "38%", right: "33%", height: "18%", transform: "rotate(30deg)", transformOrigin: "top center" }}
+              className={`absolute w-[2px] ${isDark ? "bg-gradient-to-b from-blue-500/30 to-yellow-500/30" : "bg-gradient-to-b from-blue-400/20 to-yellow-400/20"}`}
+              style={{ top: "42%", right: "35%", height: "14%", transform: "rotate(25deg)", transformOrigin: "top center" }}
               initial={{ scaleY: 0 }}
               whileInView={{ scaleY: 1 }}
               viewport={{ once: true }}
               transition={{ duration: 0.8, delay: 0.5 }}
             />
-            {/* Line bottom horizontal */}
             <motion.div
-              className={`absolute h-[2px] ${isDark ? "bg-gradient-to-r from-emerald-500/40 to-yellow-500/40" : "bg-gradient-to-r from-emerald-400/30 to-yellow-400/30"}`}
-              style={{ bottom: "32%", left: "28%", right: "28%" }}
+              className={`absolute h-[2px] ${isDark ? "bg-gradient-to-r from-emerald-500/30 to-yellow-500/30" : "bg-gradient-to-r from-emerald-400/20 to-yellow-400/20"}`}
+              style={{ bottom: "22%", left: "25%", right: "25%" }}
               initial={{ scaleX: 0 }}
               whileInView={{ scaleX: 1 }}
               viewport={{ once: true }}
@@ -460,71 +457,101 @@ function ServicesSection() {
             />
           </div>
 
-          {/* Top row: 1 hexagon centered */}
-          <div className="flex justify-center mb-8 md:mb-12 relative" style={{ zIndex: 1 }}>
+          {/* Top row: 1 large hexagon centered */}
+          <div className="flex justify-center mb-6 md:mb-10 relative" style={{ zIndex: 1 }}>
             <FadeIn delay={0}>
               <Link href={services[0].href}>
-                <div className="flex flex-col items-center text-center group cursor-pointer">
-                  <motion.div
-                    whileHover={{ scale: 1.1, y: -4 }}
-                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                    className="relative mb-5"
-                  >
-                    <div className={`absolute inset-0 hexagon w-28 h-28 sm:w-32 sm:h-32 ${svcColors.blue.bg} blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
-                    <div className={`relative hexagon w-28 h-28 sm:w-32 sm:h-32 flex items-center justify-center border-2 transition-all duration-500 ${
-                      isDark
-                        ? `bg-white/[0.04] backdrop-blur-xl ${svcColors.blue.border} group-hover:bg-white/[0.08]`
-                        : "bg-white/60 backdrop-blur-xl border-white/50 group-hover:bg-white/80"
+                <motion.div
+                  whileHover={{ scale: 1.05, y: -4 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                  className="group cursor-pointer relative"
+                >
+                  {/* Glow behind */}
+                  <div className={`absolute inset-0 hexagon w-48 h-48 sm:w-56 sm:h-56 ${svcColors.blue.bg} blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
+                  {/* Hexagon */}
+                  <div className={`relative hexagon w-48 h-48 sm:w-56 sm:h-56 flex flex-col items-center justify-center text-center px-8 sm:px-10 border-2 transition-all duration-500 ${
+                    isDark
+                      ? `bg-white/[0.04] backdrop-blur-xl ${svcColors.blue.border} group-hover:bg-white/[0.08] group-hover:border-amber-500/40`
+                      : "bg-white/70 backdrop-blur-xl border-white/60 group-hover:bg-white/90 group-hover:border-amber-400/40"
+                  }`}>
+                    {services[0].badge && (
+                      <span className="absolute top-5 text-[7px] font-black text-emerald-400 bg-emerald-500/15 border border-emerald-500/25 px-1.5 py-0.5 rounded-full tracking-widest">
+                        {services[0].badge}
+                      </span>
+                    )}
+                    {/* Default: icon + title */}
+                    <BarChart2 className={`w-7 h-7 sm:w-8 sm:h-8 ${svcColors.blue.text} mb-2 transition-all duration-300 group-hover:scale-75 group-hover:mb-1`} />
+                    <h3 className={`text-sm sm:text-base font-black leading-tight transition-all duration-300 ${isDark ? "text-white" : "text-slate-900"}`}>
+                      {services[0].title}
+                    </h3>
+                    {/* Hover: description */}
+                    <p className={`text-[10px] sm:text-xs leading-snug mt-1 max-w-[160px] opacity-0 max-h-0 group-hover:opacity-100 group-hover:max-h-20 transition-all duration-500 overflow-hidden ${
+                      isDark ? "text-white/50" : "text-slate-500"
                     }`}>
-                      {services[0].badge && (
-                        <div className="absolute -top-2 -right-1 text-[8px] font-black text-emerald-400 bg-emerald-500/15 border border-emerald-500/25 px-1.5 py-0.5 rounded-full tracking-widest">
-                          {services[0].badge}
-                        </div>
-                      )}
-                      <BarChart2 className={`w-8 h-8 sm:w-10 sm:h-10 ${svcColors.blue.text} transition-transform duration-300 group-hover:scale-110`} />
-                    </div>
-                  </motion.div>
-                  <h3 className={`text-base sm:text-lg font-black mb-1 ${isDark ? "text-white" : "text-slate-900"}`}>{services[0].title}</h3>
-                  <p className={`text-xs mb-2 ${isDark ? "text-white/35" : "text-slate-400"}`}>{services[0].subtitle}</p>
-                  <p className={`text-xs sm:text-sm leading-relaxed max-w-[280px] ${isDark ? "text-white/40" : "text-slate-500"}`}>{services[0].desc}</p>
-                </div>
+                      {services[0].subtitle}
+                    </p>
+                  </div>
+                </motion.div>
               </Link>
             </FadeIn>
           </div>
 
-          {/* Bottom row: 2 hexagons */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16 max-w-3xl mx-auto relative" style={{ zIndex: 1 }}>
+          {/* Mobile connecting arrow */}
+          <div className="md:hidden flex flex-col items-center -mt-3 mb-3">
+            <div className={`w-[2px] h-6 ${isDark ? "bg-white/10" : "bg-slate-200"}`} />
+            <ChevronDown className={`w-4 h-4 -mt-1 ${isDark ? "text-white/20" : "text-slate-300"}`} />
+          </div>
+
+          {/* Bottom row: 2 large hexagons */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-14 max-w-3xl mx-auto relative" style={{ zIndex: 1 }}>
             {services.slice(1).map((svc, i) => {
               const Icon = svc.icon;
               const c = svcColors[svcColorKeys[i + 1]];
               return (
                 <FadeIn key={svc.href} delay={(i + 1) * 0.15}>
                   <Link href={svc.href}>
-                    <div className="flex flex-col items-center text-center group cursor-pointer">
+                    <div className="flex flex-col items-center">
                       <motion.div
-                        whileHover={{ scale: 1.1, y: -4 }}
+                        whileHover={{ scale: 1.05, y: -4 }}
                         transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                        className="relative mb-5"
+                        className="group cursor-pointer relative"
                       >
-                        <div className={`absolute inset-0 hexagon w-28 h-28 sm:w-32 sm:h-32 ${c.bg} blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
-                        <div className={`relative hexagon w-28 h-28 sm:w-32 sm:h-32 flex items-center justify-center border-2 transition-all duration-500 ${
+                        {/* Glow behind */}
+                        <div className={`absolute inset-0 hexagon w-48 h-48 sm:w-56 sm:h-56 ${c.bg} blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
+                        {/* Hexagon */}
+                        <div className={`relative hexagon w-48 h-48 sm:w-56 sm:h-56 flex flex-col items-center justify-center text-center px-8 sm:px-10 border-2 transition-all duration-500 ${
                           isDark
-                            ? `bg-white/[0.04] backdrop-blur-xl ${c.border} group-hover:bg-white/[0.08]`
-                            : "bg-white/60 backdrop-blur-xl border-white/50 group-hover:bg-white/80"
+                            ? `bg-white/[0.04] backdrop-blur-xl ${c.border} group-hover:bg-white/[0.08] group-hover:border-amber-500/40`
+                            : "bg-white/70 backdrop-blur-xl border-white/60 group-hover:bg-white/90 group-hover:border-amber-400/40"
                         }`}>
                           {svc.badge && (
-                            <div className="absolute -top-2 -right-1 text-[8px] font-black text-emerald-400 bg-emerald-500/15 border border-emerald-500/25 px-1.5 py-0.5 rounded-full tracking-widest">
+                            <span className="absolute top-5 text-[7px] font-black text-emerald-400 bg-emerald-500/15 border border-emerald-500/25 px-1.5 py-0.5 rounded-full tracking-widest">
                               {svc.badge}
-                            </div>
+                            </span>
                           )}
-                          <Icon className={`w-8 h-8 sm:w-10 sm:h-10 ${c.text} transition-transform duration-300 group-hover:scale-110`} />
+                          {/* Default: icon + title */}
+                          <Icon className={`w-7 h-7 sm:w-8 sm:h-8 ${c.text} mb-2 transition-all duration-300 group-hover:scale-75 group-hover:mb-1`} />
+                          <h3 className={`text-sm sm:text-base font-black leading-tight transition-all duration-300 ${isDark ? "text-white" : "text-slate-900"}`}>
+                            {svc.title}
+                          </h3>
+                          {/* Hover: description */}
+                          <p className={`text-[10px] sm:text-xs leading-snug mt-1 max-w-[160px] opacity-0 max-h-0 group-hover:opacity-100 group-hover:max-h-20 transition-all duration-500 overflow-hidden ${
+                            isDark ? "text-white/50" : "text-slate-500"
+                          }`}>
+                            {svc.subtitle}
+                          </p>
                         </div>
                       </motion.div>
-                      <h3 className={`text-base sm:text-lg font-black mb-1 ${isDark ? "text-white" : "text-slate-900"}`}>{svc.title}</h3>
-                      <p className={`text-xs mb-2 ${isDark ? "text-white/35" : "text-slate-400"}`}>{svc.subtitle}</p>
-                      <p className={`text-xs sm:text-sm leading-relaxed max-w-[280px] ${isDark ? "text-white/40" : "text-slate-500"}`}>{svc.desc}</p>
                     </div>
                   </Link>
+
+                  {/* Mobile connecting arrow between bottom items */}
+                  {i === 0 && (
+                    <div className="md:hidden flex flex-col items-center mt-3 mb-3">
+                      <div className={`w-[2px] h-6 ${isDark ? "bg-white/10" : "bg-slate-200"}`} />
+                      <ChevronDown className={`w-4 h-4 -mt-1 ${isDark ? "text-white/20" : "text-slate-300"}`} />
+                    </div>
+                  )}
                 </FadeIn>
               );
             })}
