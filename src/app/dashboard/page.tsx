@@ -272,29 +272,33 @@ export default function DashboardPage() {
           </div>
         ) : null}
 
-        {/* ═══ BOTTOM 3-COL: Morning Brief | Bản tin EOD | Chỉ báo TEI ═══ */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <Suspense fallback={<MorningNewsSkeleton />}>
-            <MorningNews />
-          </Suspense>
-          <Suspense fallback={<EveningNewsSkeleton />}>
-            <EveningNews />
-          </Suspense>
-          <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem Chỉ báo Cạn Kiệt Xu Hướng">
-            <div className="md:col-span-2 lg:col-span-1">
-              {!mounted ? <RPISkeleton /> : <ReversePointIndex />}
-            </div>
-          </LockOverlay>
-        </div>
+        {/* ═══ BOTTOM: News (left 2-col) | TEI + Leaders (right) ═══ */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* Left: Morning + EOD stacked */}
+          <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Suspense fallback={<MorningNewsSkeleton />}>
+              <MorningNews />
+            </Suspense>
+            <Suspense fallback={<EveningNewsSkeleton />}>
+              <EveningNews />
+            </Suspense>
+          </div>
 
-        {/* ═══ BOTTOM: Top Leaders ═══ */}
-        <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem Top 5 Siêu Cổ Phiếu">
-          {!mounted || !rsRaw ? (
-            <TopLeadersSkeleton />
-          ) : leaderRows.length > 0 ? (
-            <TopLeaders stocks={leaderRows} />
-          ) : null}
-        </LockOverlay>
+          {/* Right: TEI + Top Leaders stacked */}
+          <div className="flex flex-col gap-4">
+            <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem Chỉ báo Cạn Kiệt Xu Hướng">
+              {!mounted ? <RPISkeleton /> : <ReversePointIndex />}
+            </LockOverlay>
+
+            <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem Top 5 Siêu Cổ Phiếu">
+              {!mounted || !rsRaw ? (
+                <TopLeadersSkeleton />
+              ) : leaderRows.length > 0 ? (
+                <TopLeaders stocks={leaderRows} />
+              ) : null}
+            </LockOverlay>
+          </div>
+        </div>
       </div>
     </MainLayout>
   );
