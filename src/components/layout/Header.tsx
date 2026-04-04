@@ -29,6 +29,7 @@ import {
   Banknote,
   Activity,
   GraduationCap,
+  ShieldCheck,
 } from "lucide-react";
 import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 import { useTheme } from "@/components/providers/ThemeProvider";
@@ -63,7 +64,7 @@ const glassDense = (isDark: boolean) =>
 
 export function Header() {
   const pathname = usePathname();
-  const { role, vipTier, isAuthenticated, isLoading } = useCurrentDbUser();
+  const { role, vipTier, isAuthenticated, isLoading, isAdmin } = useCurrentDbUser();
   const { data: session } = useSession();
   const { theme, toggleTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -216,6 +217,20 @@ export function Header() {
                 );
               })}
             </nav>
+
+            {/* Admin link — only for admins */}
+            {isAdmin && (
+              <Link href="/admin">
+                <div className={`px-4 py-2 text-[13px] font-medium rounded-xl transition-all duration-300 flex items-center gap-1.5 ${
+                  isActive("/admin")
+                    ? isDark ? "text-amber-400 bg-amber-500/10" : "text-amber-600 bg-amber-50"
+                    : isDark ? "text-amber-400/60 hover:text-amber-400 hover:bg-white/[0.06]" : "text-amber-600/60 hover:text-amber-600 hover:bg-amber-50/50"
+                }`}>
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  Quản Lý
+                </div>
+              </Link>
+            )}
 
             {/* Right: Tools */}
             <div className="flex items-center gap-1.5 shrink-0">
@@ -435,6 +450,22 @@ export function Header() {
               );
             })}
           </nav>
+
+          {/* Admin link — mobile */}
+          {isAdmin && (
+            <div className="px-2 mt-1">
+              <Link href="/admin" onClick={() => setMobileOpen(false)}>
+                <div className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-200 ${
+                  isActive("/admin")
+                    ? isDark ? "text-amber-400 bg-amber-500/10" : "text-amber-600 bg-amber-50"
+                    : isDark ? "text-amber-400/60 hover:text-amber-400 hover:bg-white/[0.06]" : "text-amber-600/60 hover:text-amber-600 hover:bg-amber-50/50"
+                } ${mobileCollapsed ? "justify-center px-0" : ""}`}>
+                  <ShieldCheck className="w-[18px] h-[18px] shrink-0" />
+                  {!mobileCollapsed && <span>Quản Lý</span>}
+                </div>
+              </Link>
+            </div>
+          )}
 
           {/* Sidebar footer */}
           <div className={`shrink-0 border-t px-2 py-3 space-y-1 ${isDark ? "border-white/[0.06]" : "border-slate-200/60"}`}>
