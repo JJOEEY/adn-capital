@@ -36,7 +36,6 @@ import { useTheme } from "@/components/providers/ThemeProvider";
 /* ── Nav items ── */
 const navItems = [
   { href: "/", label: "Trang Chủ", icon: Home },
-  { href: "/san-pham", label: "Sản Phẩm & Dịch Vụ", icon: ShoppingBag },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, hasDropdown: true },
   { href: "/journal", label: "Nhật Ký", icon: BookOpen },
   { href: "/backtest", label: "Backtest", icon: FlaskConical },
