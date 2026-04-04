@@ -447,8 +447,12 @@ function PricingCard({
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
-      transition={{ duration: 0.5, delay: 0.15 * index }}
-      whileHover={{ scale: 1.06, y: -8, transition: { duration: 0.15, ease: "easeOut" } }}
+      transition={{
+        opacity: { duration: 0.5, delay: 0.15 * index },
+        y: { duration: 0.15, ease: "easeOut" },
+        scale: { duration: 0.15, ease: "easeOut" },
+      }}
+      whileHover={{ scale: 1.06, y: -8 }}
       className={`
         relative flex flex-col rounded-2xl border bg-neutral-900/60 backdrop-blur-sm
         p-6 cursor-pointer
