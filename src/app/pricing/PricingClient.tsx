@@ -161,6 +161,14 @@ function Card3D({
   const ref = useRef<HTMLDivElement>(null);
   const [style, setStyle] = useState<React.CSSProperties>({});
 
+  const handleEnter = useCallback(() => {
+    const glow = glowMap[color] ?? "rgba(255,255,255,0.15)";
+    setStyle({
+      transform: "perspective(800px) rotateX(0deg) rotateY(0deg) scale3d(1.05,1.05,1.05)",
+      boxShadow: `0 25px 60px -12px ${glow}, 0 0 40px -8px ${glow}`,
+    });
+  }, [color]);
+
   const handleMove = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       const el = ref.current;
@@ -175,7 +183,7 @@ function Card3D({
       const glow = glowMap[color] ?? "rgba(255,255,255,0.15)";
 
       setStyle({
-        transform: `perspective(800px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.045,1.045,1.045)`,
+        transform: `perspective(800px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.05,1.05,1.05)`,
         boxShadow: `0 25px 60px -12px ${glow}, 0 0 40px -8px ${glow}`,
       });
     },
@@ -194,6 +202,7 @@ function Card3D({
   return (
     <div
       ref={ref}
+      onMouseEnter={handleEnter}
       onMouseMove={handleMove}
       onMouseLeave={handleLeave}
       style={{
