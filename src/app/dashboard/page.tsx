@@ -176,24 +176,24 @@ export default function DashboardPage() {
       {/* ═══ TICKER TAPE ═══ */}
       {loading || !data ? <TickerTapeSkeleton /> : <TickerTape items={tickerItems} />}
 
-      <div className="p-3 md:p-6 space-y-4 md:space-y-5 max-w-7xl mx-auto">
+      <div className="p-3 md:p-5 space-y-4 max-w-[1400px] mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-baseline gap-2">
-              <h1 className="text-xl sm:text-2xl font-black text-white">Dashboard</h1>
+              <h1 className="text-xl sm:text-2xl font-black text-white dark:text-white text-slate-800">Dashboard</h1>
               <span className="text-[10px] font-bold text-emerald-400/50 uppercase tracking-widest hidden sm:inline">
-                BENTO
+                OVERVIEW
               </span>
             </div>
             <p className="text-xs text-neutral-500 mt-0.5">
               Tổng quan thị trường · {data?.date ?? "..."}
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <div className="hidden sm:flex items-center gap-2 text-xs text-emerald-400/70 border border-emerald-500/20 px-3 py-1.5 rounded-lg bg-emerald-500/5">
               <Bot className="w-3 h-3" />
-              ADN CAPITAL
+              ADN AI SYSTEM
             </div>
             <Button
               variant="ghost"
@@ -210,7 +210,7 @@ export default function DashboardPage() {
         {/* ═══ HERO: Chart + Gauge (7:3) ═══ */}
         <div className="grid grid-cols-1 lg:grid-cols-10 gap-4">
           {/* Cột Trái: Chart + Breadth */}
-          <div className="lg:col-span-7 flex flex-col gap-3">
+          <div className="lg:col-span-6 flex flex-col gap-3">
             {!data ? (
               <>
                 <VNIndexChartSkeleton />
@@ -234,7 +234,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Cột Phải: Gauge + Market Status Card */}
-          <div className="lg:col-span-3 flex flex-col gap-3">
+          <div className="lg:col-span-4 flex flex-col gap-3">
             <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem Đánh giá Vĩ mô">
               {/* Đồng hồ Gauge */}
               {!mounted || loadingOverview ? (
@@ -272,20 +272,20 @@ export default function DashboardPage() {
           </div>
         ) : null}
 
-        {/* ═══ MORNING NEWS + EOD FLASH NOTE ═══ */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* ═══ BOTTOM 3-COL: Morning Brief | Bản tin EOD | Chỉ báo TEI ═══ */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <Suspense fallback={<MorningNewsSkeleton />}>
             <MorningNews />
           </Suspense>
           <Suspense fallback={<EveningNewsSkeleton />}>
             <EveningNews />
           </Suspense>
+          <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem Chỉ báo Cạn Kiệt Xu Hướng">
+            <div className="md:col-span-2 lg:col-span-1">
+              {!mounted ? <RPISkeleton /> : <ReversePointIndex />}
+            </div>
+          </LockOverlay>
         </div>
-
-        {/* ═══ TEI — Chỉ báo Cạn Kiệt Xu Hướng ═══ */}
-        <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem Chỉ báo Cạn Kiệt Xu Hướng">
-          {!mounted ? <RPISkeleton /> : <ReversePointIndex />}
-        </LockOverlay>
 
         {/* ═══ BOTTOM: Top Leaders ═══ */}
         <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem Top 5 Siêu Cổ Phiếu">
