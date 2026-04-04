@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { AuthProvider } from "@/components/providers/AuthProvider";
+import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -36,9 +37,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
         <script dangerouslySetInnerHTML={{ __html: hydrationFixScript }} />
       </head>
-      <body className="antialiased bg-neutral-950 text-neutral-100 min-h-screen overflow-x-hidden" suppressHydrationWarning>
+      <body className="antialiased min-h-screen overflow-x-hidden" suppressHydrationWarning>
         <AuthProvider>
-          {children}
+          <ThemeProvider>
+            {children}
+          </ThemeProvider>
         </AuthProvider>
       </body>
     </html>
