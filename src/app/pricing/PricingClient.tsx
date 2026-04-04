@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Check, Crown, Zap, Star, Gift, Shield } from "lucide-react";
 
 interface Plan {
@@ -125,6 +125,75 @@ const iconMap: Record<string, React.ReactNode> = {
   orange: <Crown className="w-5 h-5" />,
 };
 
+/* ── Glow color per plan ────────────────────────────────────────────── */
+const glowMap: Record<string, string> = {
+  emerald: "rgba(16,185,129,0.35)",
+  purple: "rgba(168,85,247,0.4)",
+  yellow: "rgba(234,179,8,0.35)",
+  orange: "rgba(249,115,22,0.35)",
+};
+
+/* ── 3D Interactive Card ────────────────────────────────────────────── */
+function Card3D({
+  children,
+  color,
+  highlight,
+}: {
+  children: React.ReactNode;
+  color: string;
+  highlight: boolean;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [style, setStyle] = useState<React.CSSProperties>({});
+
+  const handleMove = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const el = ref.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const midX = rect.width / 2;
+      const midY = rect.height / 2;
+      const rotateY = ((x - midX) / midX) * 12;   // max ±12deg
+      const rotateX = ((midY - y) / midY) * 10;    // max ±10deg
+      const glow = glowMap[color] ?? "rgba(255,255,255,0.15)";
+
+      setStyle({
+        transform: `perspective(800px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.045,1.045,1.045)`,
+        boxShadow: `0 25px 60px -12px ${glow}, 0 0 40px -8px ${glow}`,
+      });
+    },
+    [color],
+  );
+
+  const handleLeave = useCallback(() => {
+    setStyle({
+      transform: "perspective(800px) rotateX(0deg) rotateY(0deg) scale3d(1,1,1)",
+      boxShadow: highlight
+        ? `0 8px 30px -8px ${glowMap[color] ?? "rgba(255,255,255,0.08)"}`
+        : "none",
+    });
+  }, [color, highlight]);
+
+  return (
+    <div
+      ref={ref}
+      onMouseMove={handleMove}
+      onMouseLeave={handleLeave}
+      style={{
+        ...style,
+        transition: "transform 0.25s cubic-bezier(.22,.68,0,.98), box-shadow 0.35s ease",
+        transformStyle: "preserve-3d",
+        willChange: "transform",
+      }}
+      className="relative"
+    >
+      {children}
+    </div>
+  );
+}
+
 export function PricingClient() {
   const [promoCode, setPromoCode] = useState("");
   const [isDnse, setIsDnse] = useState(false);
@@ -193,21 +262,21 @@ export function PricingClient() {
       </div>
 
       {/* Plans */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6" style={{ perspective: "1200px" }}>
         {plans.map((plan) => {
           const colors = colorMap[plan.color];
           const showDnsePrice = isDnse && plan.dnsePrice;
           const displayPrice = showDnsePrice ? plan.dnsePrice! : plan.price;
 
           return (
-            <div
-              key={plan.id}
-              className={`relative flex flex-col rounded-2xl border ${colors.border} ${
-                plan.highlight
-                  ? "bg-neutral-800/80 shadow-xl shadow-purple-500/10"
-                  : "bg-neutral-900"
-              } p-6 transition-all hover:translate-y-[-2px]`}
-            >
+            <Card3D key={plan.id} color={plan.color} highlight={plan.highlight}>
+              <div
+                className={`relative flex flex-col rounded-2xl border ${colors.border} ${
+                  plan.highlight
+                    ? "bg-neutral-800/60 shadow-xl shadow-purple-500/10"
+                    : "bg-neutral-900/70"
+                } backdrop-blur-md p-6`}
+              >
               {plan.highlight && (
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                   <span className="bg-purple-500 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wide">
@@ -269,7 +338,8 @@ export function PricingClient() {
               >
                 {plan.cta}
               </button>
-            </div>
+              </div>
+            </Card3D>
           );
         })}
       </div>
