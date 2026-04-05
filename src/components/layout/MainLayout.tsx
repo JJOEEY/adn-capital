@@ -11,9 +11,10 @@ import { useSwipeNavigation } from "@/hooks/useSwipeNavigation";
 
 interface MainLayoutProps {
   children: React.ReactNode;
+  disableSwipe?: boolean;
 }
 
-export function MainLayout({ children }: MainLayoutProps) {
+export function MainLayout({ children, disableSwipe = false }: MainLayoutProps) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
   const { collapsed } = useSidebarStore();
@@ -39,6 +40,9 @@ export function MainLayout({ children }: MainLayoutProps) {
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
+  // Only attach swipe handlers on mobile when not disabled (e.g. chatbot input)
+  const touchProps = isMobile && !disableSwipe ? swipeHandlers : {};
+
   return (
     <div className={`min-h-screen overflow-x-hidden ${isDark ? "bg-city-dark" : "bg-city-light"}`}>
       {showSplash && <SplashScreen />}
@@ -52,7 +56,7 @@ export function MainLayout({ children }: MainLayoutProps) {
       {isMobile && <BottomTabBar />}
 
       <div
-        {...(isMobile ? swipeHandlers : {})}
+        {...touchProps}
         className={`transition-all duration-300 min-h-screen flex flex-col ${
           isMobile
             ? "pt-0 pb-20"
@@ -60,7 +64,7 @@ export function MainLayout({ children }: MainLayoutProps) {
             ? "lg:pl-[68px]"
             : "lg:pl-[260px]"
         }`}
-        style={isMobile ? { paddingBottom: "calc(80px + env(safe-area-inset-bottom, 0px))" } : undefined}
+        style={isMobile ? { paddingBottom: "calc(64px + env(safe-area-inset-bottom, 0px))" } : undefined}
       >
         <main className="flex-1 overflow-x-hidden overflow-y-auto px-0 md:px-0">{children}</main>
         {!isMobile && <Footer />}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import useSWR from "swr";
 import { motion } from "framer-motion";
 import {
@@ -47,6 +47,8 @@ export default function NotificationsPage() {
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState<{ role: "user" | "bot"; text: string }[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const { data, isLoading } = useSWR<{ notifications: Notification[] }>(
     "/api/notifications?limit=50",
@@ -69,7 +71,12 @@ export default function NotificationsPage() {
     return acc;
   }, {});
 
-  const handleChatSend = async () => {
+  // Auto-scroll to bottom when new messages appear
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages, chatLoading]);
+
+  const handleChatSend = useCallback(async () => {
     if (!chatInput.trim() || chatLoading) return;
     const msg = chatInput.trim();
     setChatInput("");
@@ -82,24 +89,33 @@ export default function NotificationsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: msg }),
       });
-      const { reply } = await res.json();
-      setChatMessages((prev) => [...prev, { role: "bot", text: reply || "Không có phản hồi." }]);
+      const data = await res.json();
+      // API returns { message: "..." } — not { reply }
+      const botReply = data.message || data.reply || data.error || "Không có phản hồi từ AI.";
+      setChatMessages((prev) => [...prev, { role: "bot", text: botReply }]);
     } catch {
       setChatMessages((prev) => [...prev, { role: "bot", text: "Lỗi kết nối. Vui lòng thử lại." }]);
     } finally {
       setChatLoading(false);
+      // Refocus input after sending on mobile
+      setTimeout(() => inputRef.current?.focus(), 100);
     }
+  }, [chatInput, chatLoading]);
+
+  const handleQuickQuestion = (q: string) => {
+    setChatInput(q);
+    setTimeout(() => inputRef.current?.focus(), 50);
   };
 
   return (
-    <MainLayout>
-      <div className="flex flex-col h-[calc(100vh-80px)] max-w-2xl mx-auto">
+    <MainLayout disableSwipe={subTab === "chatbot"}>
+      <div className="flex flex-col" style={{ height: "calc(100dvh - 80px)" }}>
         {/* Sub-tab header */}
-        <div className="shrink-0 px-4 pt-4 pb-2">
-          <div className="flex gap-2 bg-neutral-900/80 rounded-xl p-1 border border-white/[0.06]">
+        <div className="shrink-0 px-4 pt-3 pb-2">
+          <div className="flex gap-1.5 bg-neutral-900/80 rounded-xl p-1 border border-white/[0.06]">
             <button
               onClick={() => setSubTab("updates")}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 subTab === "updates"
                   ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/25"
                   : "text-neutral-500 hover:text-neutral-300"
@@ -110,7 +126,7 @@ export default function NotificationsPage() {
             </button>
             <button
               onClick={() => setSubTab("chatbot")}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 subTab === "chatbot"
                   ? "bg-purple-500/15 text-purple-400 border border-purple-500/25"
                   : "text-neutral-500 hover:text-neutral-300"
@@ -126,7 +142,6 @@ export default function NotificationsPage() {
         {subTab === "updates" ? (
           /* ── Cập nhật thông tin ── */
           <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-4">
-            {/* Schedule legend */}
             <div className="flex gap-2 flex-wrap">
               {[
                 { label: "10:00", color: "text-yellow-400 bg-yellow-500/10 border-yellow-500/20" },
@@ -141,8 +156,6 @@ export default function NotificationsPage() {
                 </span>
               ))}
             </div>
-
-            {/* Notifications */}
             {isLoading ? (
               <div className="space-y-3">
                 {[1, 2, 3, 4].map((i) => (
@@ -177,9 +190,7 @@ export default function NotificationsPage() {
                       >
                         <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center gap-2">
-                            <div className={`p-1.5 rounded-lg ${cfg.bg}`}>
-                              <Icon className={`w-4 h-4 ${cfg.color}`} />
-                            </div>
+                            <div className={`p-1.5 rounded-lg ${cfg.bg}`}><Icon className={`w-4 h-4 ${cfg.color}`} /></div>
                             <span className={`text-[10px] font-black uppercase tracking-wider ${cfg.color}`}>{cfg.label}</span>
                           </div>
                           <span className="text-[10px] text-neutral-600 font-mono">{time}</span>
@@ -195,25 +206,25 @@ export default function NotificationsPage() {
           </div>
         ) : (
           /* ── Tư vấn đầu tư (Chatbot AI) ── */
-          <div className="flex-1 flex flex-col">
-            {/* Chat messages */}
-            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+          <div className="flex-1 flex flex-col min-h-0">
+            {/* Chat messages - scrollable area */}
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 overscroll-contain">
               {chatMessages.length === 0 && (
-                <div className="flex flex-col items-center justify-center h-full text-center">
+                <div className="flex flex-col items-center justify-center h-full text-center px-4">
                   <div className="w-16 h-16 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mb-4">
                     <Bot className="w-8 h-8 text-purple-400" />
                   </div>
                   <h3 className="text-lg font-black text-white mb-1">ADN AI Advisor</h3>
-                  <p className="text-xs text-neutral-500 max-w-xs">
-                    Hỏi bất kỳ điều gì về thị trường chứng khoán, phân tích kỹ thuật, hoặc chiến
-                    lược đầu tư.
+                  <p className="text-xs text-neutral-500 max-w-xs mb-4">
+                    Hỏi bất kỳ điều gì về thị trường chứng khoán, hoặc dùng lệnh:<br />
+                    <span className="text-purple-400 font-mono">/ta MÃ</span> · <span className="text-purple-400 font-mono">/fa MÃ</span> · <span className="text-purple-400 font-mono">/news MÃ</span>
                   </p>
-                  <div className="mt-4 flex flex-wrap gap-2 justify-center">
-                    {["Nhận định VN-Index hôm nay?", "Phân tích HPG", "Có nên mua FPT?"].map((q) => (
+                  <div className="flex flex-wrap gap-2 justify-center">
+                    {["Nhận định VN-Index?", "/ta FPT", "/fa HPG", "Có nên mua VNM?"].map((q) => (
                       <button
                         key={q}
-                        onClick={() => { setChatInput(q); }}
-                        className="text-[10px] px-3 py-1.5 rounded-lg border border-neutral-800 text-neutral-400 hover:text-white hover:border-neutral-600 transition-all cursor-pointer"
+                        onClick={() => handleQuickQuestion(q)}
+                        className="text-[11px] px-3 py-2 rounded-xl border border-neutral-800 text-neutral-400 hover:text-white hover:border-purple-500/30 hover:bg-purple-500/5 transition-all cursor-pointer"
                       >
                         {q}
                       </button>
@@ -223,24 +234,32 @@ export default function NotificationsPage() {
               )}
               {chatMessages.map((m, i) => (
                 <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                  {m.role === "bot" && (
+                    <div className="w-7 h-7 rounded-full bg-purple-500/15 flex items-center justify-center shrink-0 mr-2 mt-1">
+                      <Bot className="w-3.5 h-3.5 text-purple-400" />
+                    </div>
+                  )}
                   <div
-                    className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                    className={`max-w-[80%] rounded-2xl px-4 py-3 text-[13px] leading-relaxed ${
                       m.role === "user"
-                        ? "bg-emerald-500/15 text-emerald-100 border border-emerald-500/20 rounded-br-md"
-                        : "bg-neutral-900 text-neutral-300 border border-neutral-800 rounded-bl-md"
+                        ? "bg-emerald-500/15 text-emerald-100 border border-emerald-500/20 rounded-br-sm"
+                        : "bg-neutral-900 text-neutral-300 border border-neutral-800 rounded-bl-sm"
                     }`}
                   >
-                    <div className="whitespace-pre-line">{m.text}</div>
+                    <div className="whitespace-pre-line break-words">{m.text}</div>
                   </div>
                 </div>
               ))}
               {chatLoading && (
                 <div className="flex justify-start">
-                  <div className="bg-neutral-900 border border-neutral-800 rounded-2xl rounded-bl-md px-4 py-3 flex gap-1.5">
+                  <div className="w-7 h-7 rounded-full bg-purple-500/15 flex items-center justify-center shrink-0 mr-2">
+                    <Bot className="w-3.5 h-3.5 text-purple-400" />
+                  </div>
+                  <div className="bg-neutral-900 border border-neutral-800 rounded-2xl rounded-bl-sm px-4 py-3 flex gap-1.5">
                     {[0, 1, 2].map((i) => (
                       <motion.div
                         key={i}
-                        className="w-1.5 h-1.5 rounded-full bg-purple-400"
+                        className="w-2 h-2 rounded-full bg-purple-400"
                         animate={{ opacity: [0.3, 1, 0.3] }}
                         transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.15 }}
                       />
@@ -248,22 +267,33 @@ export default function NotificationsPage() {
                   </div>
                 </div>
               )}
+              <div ref={chatEndRef} />
             </div>
 
-            {/* Chat input */}
-            <div className="shrink-0 px-4 pb-4">
-              <div className="flex gap-2 items-end">
+            {/* Chat input - fixed at bottom, above tab bar */}
+            <div className="shrink-0 px-3 py-2 bg-[#0a0a0a] border-t border-white/[0.06]">
+              <div className="flex gap-2 items-center">
                 <input
+                  ref={inputRef}
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleChatSend()}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleChatSend();
+                    }
+                  }}
                   placeholder="Hỏi về thị trường, cổ phiếu..."
-                  className="flex-1 bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-purple-500/40 transition-colors"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  enterKeyHint="send"
+                  className="flex-1 bg-neutral-900 border border-neutral-800 rounded-full px-4 py-2.5 text-[16px] text-white placeholder:text-neutral-600 focus:outline-none focus:border-purple-500/40 transition-colors"
+                  style={{ fontSize: "16px" }}
                 />
                 <button
                   onClick={handleChatSend}
                   disabled={chatLoading || !chatInput.trim()}
-                  className="shrink-0 p-3 rounded-xl bg-purple-500/20 text-purple-400 border border-purple-500/30 hover:bg-purple-500/30 disabled:opacity-40 transition-all cursor-pointer"
+                  className="shrink-0 w-10 h-10 rounded-full bg-purple-500 text-white flex items-center justify-center disabled:opacity-30 disabled:bg-neutral-800 transition-all cursor-pointer active:scale-95"
                 >
                   <Send className="w-4 h-4" />
                 </button>
