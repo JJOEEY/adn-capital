@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import useSWR from "swr";
-import { Zap, RefreshCw, History, Calendar } from "lucide-react";
+import { Zap, RefreshCw, History, Calendar, Lock, Crown } from "lucide-react";
 import { SignalCard } from "@/components/signals/SignalCard";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import type { Signal } from "@/types";
+import Link from "next/link";
 
 type BoLoc = "all" | "SIEU_CO_PHIEU" | "TRUNG_HAN" | "DAU_CO";
 type Tab = "today" | "history";
@@ -25,7 +26,7 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
  * Component bản đồ tín hiệu — chỉ dành cho user VIP.
  * Tự động làm mới mỗi 5 phút nhờ SWR refreshInterval.
  */
-export function SignalMapClient() {
+export function SignalMapClient({ isPremium = false }: { isPremium?: boolean }) {
   const [tab, setTab] = useState<Tab>("today");
 
   // Lịch sử 30 ngày (dùng cho cả 2 tab, lọc client-side)
@@ -116,15 +117,18 @@ export function SignalMapClient() {
           Hôm nay
         </button>
         <button
-          onClick={() => setTab("history")}
+          onClick={() => isPremium ? setTab("history") : null}
           className={`flex items-center gap-1.5 text-xs px-4 py-2 rounded-lg border transition-all ${
-            tab === "history"
+            !isPremium
+              ? "text-neutral-600 border-neutral-800 bg-neutral-900 cursor-not-allowed opacity-60"
+              : tab === "history"
               ? "bg-indigo-500/15 text-indigo-400 border-indigo-500/30"
               : "text-neutral-500 border-neutral-800 hover:border-neutral-700 hover:text-neutral-300 bg-neutral-900"
           }`}
         >
-          <History className="w-3.5 h-3.5" />
+          {!isPremium ? <Lock className="w-3 h-3" /> : <History className="w-3.5 h-3.5" />}
           Lịch sử 30 ngày
+          {!isPremium && <span className="text-[8px] font-bold text-amber-400 bg-amber-500/15 border border-amber-500/25 px-1 py-0 rounded">PREMIUM</span>}
         </button>
       </div>
 
@@ -183,8 +187,25 @@ export function SignalMapClient() {
             <p className="text-sm text-neutral-500">Chưa có tín hiệu nào trong ngày hôm nay</p>
           </Card>
         )
+      ) : !isPremium ? (
+        // History: Premium upgrade prompt
+        <Card className="p-12 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto mb-4">
+            <Crown className="w-8 h-8 text-amber-400" />
+          </div>
+          <h3 className="text-lg font-black text-white mb-2">Dành riêng cho Premium</h3>
+          <p className="text-sm text-neutral-500 mb-4 max-w-sm mx-auto">
+            Nâng cấp lên gói Premium để xem toàn bộ lịch sử tín hiệu 30 ngày và phân tích hiệu suất hệ thống.
+          </p>
+          <Link href="/pricing">
+            <button className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-sm font-bold transition-all cursor-pointer">
+              <Crown className="w-4 h-4" />
+              Nâng cấp Premium
+            </button>
+          </Link>
+        </Card>
       ) : (
-        // History: grouped by date
+        // History: grouped by date (Premium only)
         Object.keys(groupedByDate).length > 0 ? (
           <div className="space-y-5">
             {Object.entries(groupedByDate).map(([dateStr, signals]) => (

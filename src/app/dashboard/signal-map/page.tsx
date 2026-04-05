@@ -13,6 +13,7 @@ export const metadata = {
  * Trang Bản đồ Tín hiệu (Signal Map) — phiên bản dashboard.
  * - Route được middleware NextAuth bảo vệ ở mức đăng nhập.
  * - Paywall VIP: tài khoản FREE sẽ thấy gợi ý nâng cấp.
+ * - Lịch sử tín hiệu: chỉ dành cho PREMIUM.
  */
 export default async function DashboardSignalMapPage() {
   const dbUser = await getCurrentDbUser();
@@ -22,10 +23,11 @@ export default async function DashboardSignalMapPage() {
   }
 
   const hasAccess = dbUser.role === "VIP" || dbUser.role === "ADMIN";
+  const isPremium = dbUser.role === "ADMIN" || (dbUser as any).vipTier === "PREMIUM";
 
   return (
     <MainLayout>
-      {hasAccess ? <SignalMapClient /> : <UpgradeVIP />}
+      {hasAccess ? <SignalMapClient isPremium={isPremium} /> : <UpgradeVIP />}
     </MainLayout>
   );
 }
