@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* PWA safe area for iPhone notch */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 :root {
   --bg: #0a0a0a;
   --fg: #fafafa;
