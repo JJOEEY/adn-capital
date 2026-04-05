@@ -35,7 +35,26 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="vi" suppressHydrationWarning>
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+        {/* PWA Meta Tags */}
+        <meta name="theme-color" content="#000000" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="ADN Capital" />
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
         <script dangerouslySetInnerHTML={{ __html: hydrationFixScript }} />
+        {/* Service Worker Registration */}
+        <script dangerouslySetInnerHTML={{ __html: `
+          if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+              navigator.serviceWorker.register('/sw.js').then(function(reg) {
+                console.log('[ADN] Service Worker registered, scope:', reg.scope);
+              }).catch(function(err) {
+                console.log('[ADN] SW registration failed:', err);
+              });
+            });
+          }
+        `}} />
       </head>
       <body className="antialiased min-h-screen overflow-x-hidden" suppressHydrationWarning>
         <AuthProvider>

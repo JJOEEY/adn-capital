@@ -1,0 +1,27 @@
+{
+  "name": "ADN Capital - Trợ lý Chứng khoán Việt Nam",
+  "short_name": "ADN Capital",
+  "description": "Hệ thống AI phân tích chứng khoán Việt Nam. RS Rating, Tín hiệu giao dịch, Chat AI.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#000000",
+  "background_color": "#000000",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["finance", "business"],
+  "lang": "vi",
+  "dir": "ltr"
+}
