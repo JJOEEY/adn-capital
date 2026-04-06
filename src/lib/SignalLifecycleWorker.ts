@@ -99,9 +99,21 @@ export async function updateSignalLifecycle(): Promise<{
     return { processed: 0, activated: 0, closed: 0, pnlUpdated: 0, logs };
   }
 
+  const radarCount = signals.filter((s) => s.status === "RADAR").length;
+  const activeCount = signals.filter((s) => s.status === "ACTIVE").length;
+  console.log(`[Lifecycle] Bắt đầu — ${radarCount} RADAR, ${activeCount} ACTIVE`);
+
   // ── 2. Batch fetch giá cho tất cả tickers ─────────────────────────────
   const tickers = [...new Set(signals.map((s) => s.ticker))];
   const prices = await fetchBatchPrices(tickers);
+
+  const pricedTickers = Object.keys(prices).length;
+  console.log(`[Lifecycle] Giá: ${pricedTickers}/${tickers.length} tickers có dữ liệu`);
+
+  if (pricedTickers === 0) {
+    console.error("[Lifecycle] CẢNH BÁO: Không lấy được giá nào! Kiểm tra Python Bridge / API quota.");
+    return { processed: signals.length, activated: 0, closed: 0, pnlUpdated: 0, logs };
+  }
 
   // ── 3. Xử lý từng tín hiệu ───────────────────────────────────────────
   for (const signal of signals) {
@@ -112,10 +124,14 @@ export async function updateSignalLifecycle(): Promise<{
 
     // ═══════════════════════════════════════════════════════════════
     //  RADAR → ACTIVE: Breakout + Volume xác nhận
+    //  Nếu không có MA20 (CafeF fallback), chỉ dùng price breakout
     // ═══════════════════════════════════════════════════════════════
     if (signal.status === "RADAR") {
       const breakoutPrice = signal.entryPrice;
-      const volumeOk = ma20Volume > 0 && currentVolume > VOLUME_BREAKOUT_RATIO * ma20Volume;
+      const hasMA20 = ma20Volume > 0;
+      const volumeOk = hasMA20
+        ? currentVolume > VOLUME_BREAKOUT_RATIO * ma20Volume
+        : true; // CafeF không có MA20 → skip volume check
       const priceOk = currentPrice >= breakoutPrice;
 
       if (priceOk && volumeOk) {
@@ -146,22 +162,31 @@ export async function updateSignalLifecycle(): Promise<{
     // ═══════════════════════════════════════════════════════════════
     if (signal.status === "ACTIVE") {
       const entryPrice = signal.entryPrice;
+      if (!entryPrice || entryPrice <= 0) continue;
+
       const pnl = +((currentPrice - entryPrice) / entryPrice * 100).toFixed(2);
 
       // ── Check exit conditions ─────────────────────────────────
       let shouldClose = false;
       let closedReason = "";
 
+      // Auto-calculate target/stoploss nếu chưa có:
+      // Target = +10%, Stoploss = -7% (conservative defaults)
+      const target = signal.target ?? entryPrice * 1.10;
+      const stoploss = signal.stoploss ?? entryPrice * 0.93;
+
       // 3a. Chốt lời: currentPrice >= Target
-      if (signal.target && currentPrice >= signal.target) {
+      if (currentPrice >= target) {
         shouldClose = true;
-        closedReason = `Chốt lời đạt Target: ${currentPrice.toLocaleString()} >= ${signal.target.toLocaleString()} (+${pnl}%)`;
+        const targetLabel = signal.target ? "Target gốc" : "Target tự động +10%";
+        closedReason = `Chốt lời đạt ${targetLabel}: ${currentPrice.toLocaleString()} >= ${target.toLocaleString()} (+${pnl}%)`;
       }
 
       // 3b. Cắt lỗ: currentPrice <= Stoploss
-      if (!shouldClose && signal.stoploss && currentPrice <= signal.stoploss) {
+      if (!shouldClose && currentPrice <= stoploss) {
         shouldClose = true;
-        closedReason = `Cắt lỗ vi phạm Stoploss: ${currentPrice.toLocaleString()} <= ${signal.stoploss.toLocaleString()} (${pnl}%)`;
+        const slLabel = signal.stoploss ? "Stoploss gốc" : "Stoploss tự động -7%";
+        closedReason = `Cắt lỗ vi phạm ${slLabel}: ${currentPrice.toLocaleString()} <= ${stoploss.toLocaleString()} (${pnl}%)`;
       }
 
       // 3c. AI Exit Signal (chỉ check khi chưa chạm TP/SL)
