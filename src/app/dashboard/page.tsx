@@ -43,17 +43,29 @@ interface MarketOverview {
   ticker: string;
   score: number;
   max_score: number;
+  ta_score?: number;
+  ta_max?: number;
+  valuation_score?: number;
+  valuation_max?: number;
+  pe?: number | null;
+  pb?: number | null;
+  pe_score?: number;
+  pb_score?: number;
   level: 1 | 2 | 3;
   status_badge: string;
+  nav_allocation?: string;
+  margin_allowed?: boolean;
   market_breadth: string;
   monthly_summary?: string;
   weekly_summary?: string;
+  valuation_summary?: string;
   technical_highlights: {
     ema: string;
     vsa: string;
     divergence: string;
     monthly?: string;
     weekly?: string;
+    valuation?: string;
   };
   reasons: string[];
   action_message: string;
@@ -311,25 +323,37 @@ export default function DashboardPage() {
  *  GaugeCard – SVG bán nguyệt nhẹ (0-10 điểm, không dùng Recharts)
  * ═══════════════════════════════════════════════════════════════════════════ */
 
-function getScoreLabel(score: number): string {
-  if (score < 4) return "QUAN SÁT";
-  if (score <= 7) return "THĂM DÒ";
-  return "FULL MARGIN";
+function getScoreLabel(score: number, maxScore: number = 14): string {
+  if (maxScore <= 10) {
+    // Legacy 10-point scale
+    if (score < 4) return "NGỦ ĐÔNG";
+    if (score <= 7) return "THĂM DÒ";
+    return "THIÊN THỜI";
+  }
+  // 14-point ADN Composite
+  if (score < 6) return "NGỦ ĐÔNG";
+  if (score < 11) return "THĂM DÒ";
+  return "THIÊN THỜI";
 }
 
-function getScoreColor(score: number): string {
-  if (score < 4) return "#ef4444";
-  if (score <= 7) return "#f97316";
+function getScoreColor(score: number, maxScore: number = 14): string {
+  if (maxScore <= 10) {
+    if (score < 4) return "#ef4444";
+    if (score <= 7) return "#f97316";
+    return "#a855f7";
+  }
+  if (score < 6) return "#ef4444";
+  if (score < 11) return "#f97316";
   return "#a855f7";
 }
 
 function GaugeSVG({ score, maxScore }: { score: number; maxScore: number }) {
   const safe = Math.max(0, Math.min(maxScore, score));
-  const color = getScoreColor(safe);
+  const color = getScoreColor(safe, maxScore);
   const cx = 150, cy = 125, r = 90;
   const SEGS = 60;
 
-  // Color stops: red(0) → orange → yellow → purple(10)
+  // Color stops: red(0) → orange → yellow → purple(maxScore)
   const STOPS: [number, [number, number, number]][] = [
     [0.0, [239, 68, 68]],   // #ef4444
     [0.30, [249, 115, 22]], // #f97316
@@ -369,11 +393,15 @@ function GaugeSVG({ score, maxScore }: { score: number; maxScore: number }) {
     });
   }
 
-  // Needle
-  const needleAngle = Math.PI - (safe / 10) * Math.PI;
+  // Needle — use maxScore instead of hardcoded 10
+  const needleAngle = Math.PI - (safe / maxScore) * Math.PI;
   const needleLen = r * 0.75;
   const nx = cx + needleLen * Math.cos(needleAngle);
   const ny = cy - needleLen * Math.sin(needleAngle);
+
+  // Tick labels: 0, mid, max
+  const mid = Math.round(maxScore / 2);
+  const ticks = [0, mid, maxScore];
 
   return (
     <svg viewBox="0 0 300 155" className="w-full max-w-[280px]">
@@ -382,9 +410,9 @@ function GaugeSVG({ score, maxScore }: { score: number; maxScore: number }) {
         <path key={i} d={seg.d} fill="none" stroke={seg.color} strokeWidth="18"
           strokeLinecap={i === 0 || i === SEGS - 1 ? "round" : "butt"} opacity={0.85} />
       ))}
-      {/* Tick labels 0, 5, 10 */}
-      {[0, 5, 10].map((t) => {
-        const a = Math.PI - (t / 10) * Math.PI;
+      {/* Tick labels */}
+      {ticks.map((t) => {
+        const a = Math.PI - (t / maxScore) * Math.PI;
         const lx = cx + (r + 16) * Math.cos(a);
         const ly = cy - (r + 16) * Math.sin(a);
         return (
@@ -403,16 +431,18 @@ function GaugeSVG({ score, maxScore }: { score: number; maxScore: number }) {
 
 const GaugeCard = memo(function GaugeCard({ overview }: { overview: MarketOverview | null }) {
   const score = overview?.score ?? 0;
-  const maxScore = overview?.max_score ?? 10;
+  const maxScore = overview?.max_score ?? 14;
   const liquidity = overview?.liquidity ?? 0;
-  const color = getScoreColor(score);
-  const label = getScoreLabel(score);
+  const color = getScoreColor(score, maxScore);
+  const label = getScoreLabel(score, maxScore);
+  const taScore = overview?.ta_score;
+  const valScore = overview?.valuation_score;
 
   return (
     <div className="rounded-2xl border border-neutral-800 bg-neutral-900/90 p-4 sm:p-5 flex flex-col items-center transform-gpu will-change-transform hover:border-neutral-700 hover:shadow-lg hover:shadow-neutral-900/50 transition-all duration-300">
       {/* Header */}
       <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-2 self-start">
-        Đánh Giá Vĩ Mô Đa Khung (W/M)
+        ADN Composite Score (W/M + Định giá)
       </p>
 
       {/* Đồng hồ SVG */}
@@ -432,6 +462,13 @@ const GaugeCard = memo(function GaugeCard({ overview }: { overview: MarketOvervi
             >
               {label}
             </div>
+            {/* Score breakdown */}
+            {(taScore != null || valScore != null) && (
+              <div className="flex gap-3 text-[10px] text-neutral-500 mt-1">
+                {taScore != null && <span>TA: <span className="text-neutral-300 font-bold">{taScore}/10</span></span>}
+                {valScore != null && <span>Định giá: <span className="text-neutral-300 font-bold">{valScore}/4</span></span>}
+              </div>
+            )}
           </div>
         </>
       ) : (
@@ -499,14 +536,17 @@ const MarketStatusCard = memo(function MarketStatusCard({
 }) {
   const level = overview?.level ?? 1;
   const score = overview?.score ?? 0;
-  const maxScore = overview?.max_score ?? 10;
-  const statusBadge = overview?.status_badge ?? "🔴 QUAN SÁT";
+  const maxScore = overview?.max_score ?? 14;
+  const statusBadge = overview?.status_badge ?? "🔴 NGỦ ĐÔNG";
   const breadth = overview?.market_breadth ?? "Không có dữ liệu";
   const highlights = overview?.technical_highlights;
   const monthlySummary = overview?.monthly_summary ?? highlights?.monthly ?? "";
   const weeklySummary = overview?.weekly_summary ?? highlights?.weekly ?? "";
+  const valuationSummary = overview?.valuation_summary ?? highlights?.valuation ?? "";
   const actionMessage = overview?.action_message ?? "Đang tải dữ liệu...";
   const disclaimer = overview?.disclaimer ?? "";
+  const navAllocation = overview?.nav_allocation;
+  const marginAllowed = overview?.margin_allowed;
 
   const cfg = LEVEL_CONFIG[level as 1 | 2 | 3] ?? LEVEL_CONFIG[1];
   const { Icon } = cfg;
@@ -548,23 +588,42 @@ const MarketStatusCard = memo(function MarketStatusCard({
           </span>
         </div>
 
+        {/* NAV Allocation */}
+        {navAllocation && (
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[11px] text-gray-500">NAV:</span>
+            <span className={`text-[11px] font-bold ${cfg.text}`}>{navAllocation}</span>
+            {marginAllowed && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">
+                MARGIN OK
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Market Breadth */}
         <p className="text-[11px] text-gray-500 mb-3">
           📊 {breadth}
         </p>
 
-        {/* W/M Timeframe Summary */}
+        {/* W/M/V Timeframe Summary */}
         <div className="space-y-1.5 mb-3">
           {monthlySummary && (
             <div className="flex items-start gap-1.5 text-[11px]">
-              <span className="shrink-0 font-bold text-purple-400">Khung Tháng (M):</span>
+              <span className="shrink-0 font-bold text-purple-400">Tháng (M):</span>
               <span className="text-gray-400">{monthlySummary}</span>
             </div>
           )}
           {weeklySummary && (
             <div className="flex items-start gap-1.5 text-[11px]">
-              <span className="shrink-0 font-bold text-cyan-400">Khung Tuần (W):</span>
+              <span className="shrink-0 font-bold text-cyan-400">Tuần (W):</span>
               <span className="text-gray-400">{weeklySummary}</span>
+            </div>
+          )}
+          {valuationSummary && (
+            <div className="flex items-start gap-1.5 text-[11px]">
+              <span className="shrink-0 font-bold text-amber-400">Định giá:</span>
+              <span className="text-gray-400">{valuationSummary}</span>
             </div>
           )}
         </div>
