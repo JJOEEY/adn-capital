@@ -416,7 +416,7 @@ async function handleSignalScan5m(): Promise<NextResponse> {
       }
     }
 
-    // Lưu signals vào DB
+    // Lưu signals vào DB (chỉ Signal table, KHÔNG đẩy Notification)
     if (newSignals.length > 0) {
       await prisma.$transaction(
         newSignals.map((sig) =>
@@ -429,20 +429,6 @@ async function handleSignalScan5m(): Promise<NextResponse> {
             },
           })
         )
-      );
-
-      // Đẩy Notification tổng hợp
-      const signalList = newSignals
-        .map((s) => `• ${s.ticker}: ${s.reason}`)
-        .join("\n");
-
-      const vnNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
-      const timeStr = `${vnNow.getHours()}:${vnNow.getMinutes().toString().padStart(2, "0")}`;
-
-      await pushNotification(
-        "signal_5m",
-        `📡 ${newSignals.length} tín hiệu mới (${timeStr})`,
-        `## TÍN HIỆU MỚI PHÁT HIỆN\n\n${signalList}`
       );
     }
 

@@ -21,7 +21,7 @@ export interface FiinMarketOverview {
   max_score: number;
   level: number;
   status_badge: string;
-  market_breadth: {
+  market_breadth: string | {
     up: number;
     down: number;
     unchanged: number;
@@ -36,8 +36,8 @@ export interface FiinMarketOverview {
   };
   reasons: string[];
   action_message: string;
-  liquidity: { total: number; change_pct: number };
-  price: { current: number; change: number; change_pct: number };
+  liquidity: number | { total: number; change_pct: number };
+  price: number | { current: number; change: number; change_pct: number };
 }
 
 export interface FiinTASummary {

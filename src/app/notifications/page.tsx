@@ -33,7 +33,6 @@ const typeConfig: Record<string, { icon: typeof Zap; color: string; bg: string; 
   signal_1130:  { icon: Zap, color: "text-yellow-400", bg: "bg-yellow-500/10 border-yellow-500/20", label: "CẬP NHẬT 11:30" },
   signal_14h:   { icon: TrendingUp, color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", label: "CẬP NHẬT 14:00" },
   signal_1445:  { icon: TrendingUp, color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", label: "CẬP NHẬT 14:45" },
-  signal_5m:    { icon: Zap, color: "text-orange-400", bg: "bg-orange-500/10 border-orange-500/20", label: "TÍN HIỆU MỚI" },
 };
 
 function getConfig(type: string) {
@@ -241,7 +240,6 @@ export default function NotificationsPage() {
                   { label: "11:30", color: "text-yellow-400 bg-yellow-500/10 border-yellow-500/20" },
                   { label: "14:00", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
                   { label: "14:45", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
-                  { label: "Tín hiệu", color: "text-orange-400 bg-orange-500/10 border-orange-500/20" },
                 ].map((s) => (
                   <span key={s.label} className={`text-[9px] font-bold px-2 py-1 rounded-lg border ${s.color}`}>
                     {s.label}

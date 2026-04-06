@@ -9,11 +9,8 @@ import { fetchTAData, type TAData } from "./stockData";
 import {
   fetchMarketOverview,
   fetchRSRatingList,
-  fetchIntradaySnapshot,
   fetchPropTrading,
   type FiinMarketOverview,
-  type FiinRSRating,
-  type FiinIntradaySnapshot,
   type FiinPropTrading,
 } from "./fiinquantClient";
 
@@ -66,6 +63,138 @@ async function fetchIndexFromDchart(symbol: string): Promise<IndexData | null> {
 }
 
 // ═══════════════════════════════════════════════
+//  VNDirect Top Gainers / Losers (public API)
+// ═══════════════════════════════════════════════
+
+interface StockMove {
+  ticker: string;
+  changePct: number;
+  price?: number;
+  volume?: number;
+}
+
+async function fetchTopMovers(): Promise<{ gainers: StockMove[]; losers: StockMove[] }> {
+  const result = { gainers: [] as StockMove[], losers: [] as StockMove[] };
+
+  try {
+    // VNDirect board API — top gainers
+    const gainUrl = "https://finfo-api.vndirect.com.vn/v4/top_stocks?type=changeUp&exchange=HOSE&limit=10";
+    const loseUrl = "https://finfo-api.vndirect.com.vn/v4/top_stocks?type=changeDown&exchange=HOSE&limit=10";
+
+    const [gainRes, loseRes] = await Promise.all([
+      fetch(gainUrl, { signal: AbortSignal.timeout(10_000), headers: { "User-Agent": "Mozilla/5.0" } }).catch(() => null),
+      fetch(loseUrl, { signal: AbortSignal.timeout(10_000), headers: { "User-Agent": "Mozilla/5.0" } }).catch(() => null),
+    ]);
+
+    if (gainRes?.ok) {
+      const data = await gainRes.json();
+      const items = data?.data ?? data ?? [];
+      if (Array.isArray(items)) {
+        result.gainers = items.slice(0, 10).map((s: Record<string, unknown>) => ({
+          ticker: String(s.code || s.symbol || s.ticker || ""),
+          changePct: Number(s.changePct || s.change_pct || s.percentChange || 0),
+          price: Number(s.price || s.close || s.lastPrice || 0),
+        })).filter((s: StockMove) => s.ticker);
+      }
+    }
+
+    if (loseRes?.ok) {
+      const data = await loseRes.json();
+      const items = data?.data ?? data ?? [];
+      if (Array.isArray(items)) {
+        result.losers = items.slice(0, 10).map((s: Record<string, unknown>) => ({
+          ticker: String(s.code || s.symbol || s.ticker || ""),
+          changePct: Number(s.changePct || s.change_pct || s.percentChange || 0),
+          price: Number(s.price || s.close || s.lastPrice || 0),
+        })).filter((s: StockMove) => s.ticker);
+      }
+    }
+  } catch (err) {
+    console.error("[topMovers] Error:", err);
+  }
+
+  // Fallback: SSI iBoard
+  if (result.gainers.length === 0 && result.losers.length === 0) {
+    try {
+      const ssiUrl = "https://iboard-query.ssi.com.vn/v2/stock/type/s/hose";
+      const ssiRes = await fetch(ssiUrl, {
+        signal: AbortSignal.timeout(10_000),
+        headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
+      });
+
+      if (ssiRes.ok) {
+        const ssiData = await ssiRes.json();
+        const stocks = ssiData?.data ?? [];
+        if (Array.isArray(stocks) && stocks.length > 0) {
+          const mapped = stocks
+            .filter((s: Record<string, unknown>) => s.ss === "ATC" || s.ss === "LO" || s.ss === "C")
+            .map((s: Record<string, unknown>) => ({
+              ticker: String(s.symbol || s.ss || ""),
+              changePct: Number(s.changePc || 0),
+              price: Number(s.lastPrice || s.closePrice || 0) / 1000,
+            }))
+            .filter((s: StockMove) => s.ticker && s.ticker.length <= 5);
+
+          mapped.sort((a: StockMove, b: StockMove) => b.changePct - a.changePct);
+          result.gainers = mapped.slice(0, 10).filter((s: StockMove) => s.changePct > 0);
+          result.losers = mapped.slice(-10).reverse().filter((s: StockMove) => s.changePct < 0);
+        }
+      }
+    } catch (err) {
+      console.error("[topMovers SSI fallback] Error:", err);
+    }
+  }
+
+  return result;
+}
+
+// ═══════════════════════════════════════════════
+//  Parse Breadth Helper
+// ═══════════════════════════════════════════════
+
+function parseBreadth(raw: unknown): { up: number; down: number; unchanged: number } | null {
+  if (!raw) return null;
+
+  // Already object
+  if (typeof raw === "object" && raw !== null) {
+    const obj = raw as Record<string, unknown>;
+    if ("up" in obj && "down" in obj) {
+      return {
+        up: Number(obj.up) || 0,
+        down: Number(obj.down) || 0,
+        unchanged: Number(obj.unchanged) || 0,
+      };
+    }
+  }
+
+  // Parse string: "Tăng: 31 | Giảm: 137 | Không đổi: 31"
+  if (typeof raw === "string") {
+    const upMatch = raw.match(/[Tt]ăng[:\s]+(\d+)/);
+    const downMatch = raw.match(/[Gg]iảm[:\s]+(\d+)/);
+    const unchMatch = raw.match(/(?:[Kk]hông đổi|[Đđ]ứng)[:\s]+(\d+)/);
+
+    if (upMatch || downMatch) {
+      return {
+        up: upMatch ? parseInt(upMatch[1]) : 0,
+        down: downMatch ? parseInt(downMatch[1]) : 0,
+        unchanged: unchMatch ? parseInt(unchMatch[1]) : 0,
+      };
+    }
+  }
+
+  return null;
+}
+
+function parseLiquidity(raw: unknown): number | null {
+  if (typeof raw === "number") return raw;
+  if (typeof raw === "object" && raw !== null) {
+    const obj = raw as Record<string, unknown>;
+    return Number(obj.total) || null;
+  }
+  return null;
+}
+
+// ═══════════════════════════════════════════════
 //  Aggregated Data Fetchers
 // ═══════════════════════════════════════════════
 
@@ -81,13 +210,13 @@ export interface MarketSnapshot {
 
 /** Snapshot thị trường (dùng cho intraday notifications + briefs) */
 export async function getMarketSnapshot(): Promise<MarketSnapshot> {
-  // Fetch song song: FiinQuant + VNDirect indices
-  const [overview, fiinSnapshot, vnindex, hnx, vn30] = await Promise.all([
+  // Fetch song song: FiinQuant overview + VNDirect indices + top movers
+  const [overview, vnindex, hnx, vn30, movers] = await Promise.all([
     fetchMarketOverview(),
-    fetchIntradaySnapshot(),
     fetchIndexFromDchart("VNINDEX"),
     fetchIndexFromDchart("HNX"),
     fetchIndexFromDchart("VN30"),
+    fetchTopMovers(),
   ]);
 
   const indices: IndexData[] = [];
@@ -98,13 +227,11 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
   return {
     timestamp: new Date().toISOString(),
     indices,
-    breadth: fiinSnapshot?.breadth
-      ? fiinSnapshot.breadth
-      : overview?.market_breadth ?? null,
-    liquidity: fiinSnapshot?.liquidity ?? overview?.liquidity?.total ?? null,
+    breadth: overview ? parseBreadth(overview.market_breadth) : null,
+    liquidity: overview ? parseLiquidity(overview.liquidity) : null,
     marketOverview: overview,
-    topGainers: fiinSnapshot?.topGainers ?? [],
-    topLosers: fiinSnapshot?.topLosers ?? [],
+    topGainers: movers.gainers,
+    topLosers: movers.losers,
   };
 }
 
@@ -183,7 +310,9 @@ export function formatSnapshotForAI(snap: MarketSnapshot): string {
   }
 
   if (snap.liquidity) {
-    lines.push(`Thanh khoản: ${(snap.liquidity / 1_000_000_000).toFixed(0)} tỷ VNĐ`);
+    // liquidity có thể là tỷ VNĐ (< 100,000) hoặc VNĐ (> 1,000,000,000)
+    const liqInTy = snap.liquidity > 1_000_000 ? snap.liquidity / 1_000_000_000 : snap.liquidity;
+    lines.push(`Thanh khoản: ${liqInTy.toFixed(0)} tỷ VNĐ`);
   }
 
   if (snap.marketOverview) {
