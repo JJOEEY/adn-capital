@@ -104,9 +104,20 @@ export function SignalCard({ signal, index }: SignalCardProps) {
             {cfg.label}
           </Badge>
           {signal.status === "ACTIVE" && (
-            <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/15 border border-emerald-500/25 px-1.5 py-0.5 rounded">
-              ĐANG GIỮ
-            </span>
+            <>
+              <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/15 border border-emerald-500/25 px-1.5 py-0.5 rounded">
+                ĐANG GIỮ
+              </span>
+              {signal.currentPnl != null && (
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                  signal.currentPnl >= 0
+                    ? "text-emerald-400 bg-emerald-500/15 border-emerald-500/25"
+                    : "text-red-400 bg-red-500/15 border-red-500/25"
+                }`}>
+                  {signal.currentPnl >= 0 ? "+" : ""}{signal.currentPnl.toFixed(1)}%
+                </span>
+              )}
+            </>
           )}
           {signal.status === "CLOSED" && (
             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
@@ -155,6 +166,38 @@ export function SignalCard({ signal, index }: SignalCardProps) {
           </div>
         </div>
 
+        {/* ── Giá hiện tại (ACTIVE) hoặc Giá đóng (CLOSED) ── */}
+        {signal.status === "ACTIVE" && signal.currentPrice != null && (
+          <div className={`flex items-center justify-between rounded-lg p-2 mb-3 border ${
+            (signal.currentPnl ?? 0) >= 0
+              ? "bg-emerald-950/30 border-emerald-800/40"
+              : "bg-red-950/30 border-red-800/40"
+          }`}>
+            <span className="text-[9px] text-neutral-400 uppercase font-medium">Giá hiện tại</span>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-white font-mono">{formatPrice(signal.currentPrice)}</span>
+              <span className={`text-xs font-bold ${(signal.currentPnl ?? 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                {(signal.currentPnl ?? 0) >= 0 ? "+" : ""}{(signal.currentPnl ?? 0).toFixed(1)}%
+              </span>
+            </div>
+          </div>
+        )}
+        {signal.status === "CLOSED" && signal.closePrice != null && (
+          <div className={`flex items-center justify-between rounded-lg p-2 mb-3 border ${
+            (signal.pnl ?? 0) >= 0
+              ? "bg-emerald-950/30 border-emerald-800/40"
+              : "bg-red-950/30 border-red-800/40"
+          }`}>
+            <span className="text-[9px] text-neutral-400 uppercase font-medium">Giá đóng</span>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-white font-mono">{formatPrice(signal.closePrice)}</span>
+              <span className={`text-xs font-bold ${(signal.pnl ?? 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                {(signal.pnl ?? 0) >= 0 ? "+" : ""}{(signal.pnl ?? 0).toFixed(1)}%
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* ── Quant metrics: R/R + Seasonality ── */}
         <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-[10px] mb-3">
           {rr != null && (
@@ -188,6 +231,15 @@ export function SignalCard({ signal, index }: SignalCardProps) {
           </div>
         )}
       </div>
+
+      {/* ── Lý do đóng (CLOSED) ── */}
+      {signal.status === "CLOSED" && signal.closedReason && (
+        <div className="mx-3 mb-2 px-3 py-2 rounded-lg bg-neutral-900/60 border border-neutral-700/50">
+          <p className="text-[10px] text-neutral-400 leading-snug">
+            <span className="font-bold text-neutral-300">Lý do:</span> {signal.closedReason}
+          </p>
+        </div>
+      )}
 
       {/* ═══ 3. AI BROKER INSIGHT BOX ═══ */}
       {aiNote && (

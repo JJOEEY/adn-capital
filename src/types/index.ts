@@ -19,11 +19,14 @@ export interface Signal {
   target?: number | null;
   stoploss?: number | null;
   closePrice?: number | null;
+  currentPrice?: number | null;
+  currentPnl?: number | null;
   navAllocation: number;
   triggerSignal?: string | null;
   aiReasoning?: string | null;
   reason?: string | null;
   pnl?: number | null;
+  closedReason?: string | null;
   winRate?: number | null;
   sharpeRatio?: number | null;
   closedAt?: Date | string | null;

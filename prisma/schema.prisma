@@ -120,11 +120,14 @@ model Signal {
   target        Float?              // Giá chốt lời
   stoploss      Float?              // Giá cắt lỗ
   closePrice    Float?              // Giá đóng vị thế
+  currentPrice  Float?              // Giá hiện tại (cập nhật bởi lifecycle worker)
+  currentPnl    Float?              // Lãi/lỗ % realtime (ACTIVE)
   navAllocation Float    @default(0) // % NAV phân bổ (0-100)
   triggerSignal String?             // Lý do kích hoạt (VSA reason)
   aiReasoning   String?             // AI Broker nhận xét
   reason        String?             // Chi tiết kỹ thuật
   pnl           Float?              // Lãi/lỗ % khi CLOSED
+  closedReason  String?             // Lý do đóng: "Chốt lời Target" | "Cắt lỗ" | "AI Exit"
   winRate       Float?              // Seasonality win rate tháng hiện tại
   sharpeRatio   Float?              // Seasonality sharpe ratio tháng hiện tại
   closedAt      DateTime?           // Ngày đóng vị thế
