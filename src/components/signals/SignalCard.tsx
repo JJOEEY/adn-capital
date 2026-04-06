@@ -57,27 +57,20 @@ const TIER_CONFIG: Record<TierType, {
   },
 };
 
-/** Mock defaults cho tier nếu API chưa trả về */
-const TIER_DEFAULTS: Record<TierType, { targetMul: number; stopMul: number; defaultNav: number }> = {
-  LEADER:    { targetMul: 1.15, stopMul: 0.93, defaultNav: 30 },
-  TRUNG_HAN: { targetMul: 1.10, stopMul: 0.95, defaultNav: 20 },
-  NGAN_HAN:  { targetMul: 1.07, stopMul: 0.97, defaultNav: 10 },
-};
-
-const DEFAULT_AI_NOTE = "AI Note: Tín hiệu đạt chuẩn VSA Breakout. Mùa vụ tháng này Win Rate 80%. Tự tin giải ngân.";
-
 export function SignalCard({ signal, index }: SignalCardProps) {
   const tier = (signal.tier ?? "NGAN_HAN") as TierType;
   const cfg = TIER_CONFIG[tier] ?? TIER_CONFIG.NGAN_HAN;
-  const defaults = TIER_DEFAULTS[tier];
 
-  // ── Derived values (mock fallback nếu API chưa có) ──
-  const nav = signal.navAllocation > 0 ? signal.navAllocation : defaults.defaultNav;
-  const targetPrice = signal.target ?? +(signal.entryPrice * defaults.targetMul).toFixed(2);
-  const stoplossPrice = signal.stoploss ?? +(signal.entryPrice * defaults.stopMul).toFixed(2);
-  const rr = ((targetPrice - signal.entryPrice) / (signal.entryPrice - stoplossPrice)).toFixed(1);
-  const trigger = signal.triggerSignal || "Breakout Nền";
-  const aiNote = signal.aiReasoning || DEFAULT_AI_NOTE;
+  // ── Dữ liệu thật từ UltimateSignalEngine (không mock) ──
+  const nav = signal.navAllocation ?? 0;
+  const targetPrice = signal.target ?? null;
+  const stoplossPrice = signal.stoploss ?? null;
+  const rr =
+    targetPrice != null && stoplossPrice != null && signal.entryPrice - stoplossPrice > 0
+      ? ((targetPrice - signal.entryPrice) / (signal.entryPrice - stoplossPrice)).toFixed(1)
+      : null;
+  const trigger = signal.triggerSignal || null;
+  const aiNote = signal.aiReasoning || null;
   const winRate = signal.winRate ?? 0;
   const sharpe = signal.sharpeRatio ?? 0;
 
@@ -150,20 +143,26 @@ export function SignalCard({ signal, index }: SignalCardProps) {
           </div>
           <div className="rounded-lg bg-slate-900/60 border border-emerald-800/40 p-2 text-center">
             <p className="text-[9px] text-emerald-400 uppercase mb-0.5 font-medium">Target</p>
-            <p className="text-sm font-bold text-emerald-400 font-mono">{formatPrice(targetPrice)}</p>
+            <p className="text-sm font-bold text-emerald-400 font-mono">
+              {targetPrice != null ? formatPrice(targetPrice) : "—"}
+            </p>
           </div>
           <div className="rounded-lg bg-slate-900/60 border border-red-800/40 p-2 text-center">
             <p className="text-[9px] text-red-400 uppercase mb-0.5 font-medium">Stoploss</p>
-            <p className="text-sm font-bold text-red-400 font-mono">{formatPrice(stoplossPrice)}</p>
+            <p className="text-sm font-bold text-red-400 font-mono">
+              {stoplossPrice != null ? formatPrice(stoplossPrice) : "—"}
+            </p>
           </div>
         </div>
 
-        {/* ── Quant metrics: R/R + Seasonality + Trigger ── */}
+        {/* ── Quant metrics: R/R + Seasonality ── */}
         <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-[10px] mb-3">
-          <span className="flex items-center gap-1">
-            <Target className="w-3 h-3 text-blue-400" />
-            <span className="text-blue-400 font-bold">R/R 1:{rr}</span>
-          </span>
+          {rr != null && (
+            <span className="flex items-center gap-1">
+              <Target className="w-3 h-3 text-blue-400" />
+              <span className="text-blue-400 font-bold">R/R 1:{rr}</span>
+            </span>
+          )}
           {winRate > 0 && (
             <span className="flex items-center gap-1">
               <TrendingUp className="w-3 h-3 text-cyan-400" />
@@ -179,27 +178,31 @@ export function SignalCard({ signal, index }: SignalCardProps) {
         </div>
 
         {/* ── Trigger (Dấu hiệu kích hoạt) ── */}
-        <div className="flex items-start gap-1.5 mb-3">
-          <Zap className="w-3.5 h-3.5 text-yellow-500 mt-0.5 flex-shrink-0" />
-          <div>
-            <span className="text-[9px] text-yellow-500/70 uppercase font-bold tracking-wider">Trigger</span>
-            <p className="text-xs text-neutral-300 leading-snug line-clamp-2">{trigger}</p>
+        {trigger && (
+          <div className="flex items-start gap-1.5 mb-3">
+            <Zap className="w-3.5 h-3.5 text-yellow-500 mt-0.5 flex-shrink-0" />
+            <div>
+              <span className="text-[9px] text-yellow-500/70 uppercase font-bold tracking-wider">Trigger</span>
+              <p className="text-xs text-neutral-300 leading-snug line-clamp-2">{trigger}</p>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* ═══ 3. AI BROKER INSIGHT BOX ═══ */}
-      <div className="bg-slate-900/50 rounded-xl mx-3 mb-3 p-3 border-l-2 border-emerald-500">
-        <div className="flex items-start gap-2">
-          <Bot className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
-          <div className="min-w-0">
-            <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider">AI Broker Insight</span>
-            <p className="text-sm text-gray-300 italic leading-relaxed mt-1 line-clamp-4">
-              {aiNote.replace(/\*\*/g, "").replace(/📊|🎯|📐|💡|📅|⚠️/g, "").trim().split("\n").filter(l => l.trim()).slice(0, 3).join(" · ")}
-            </p>
+      {aiNote && (
+        <div className="bg-slate-900/50 rounded-xl mx-3 mb-3 p-3 border-l-2 border-emerald-500">
+          <div className="flex items-start gap-2">
+            <Bot className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+            <div className="min-w-0">
+              <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider">AI Broker Insight</span>
+              <p className="text-sm text-gray-300 italic leading-relaxed mt-1 line-clamp-4">
+                {aiNote.replace(/\*\*/g, "").replace(/📊|🎯|📐|💡|📅|⚠️/g, "").trim().split("\n").filter(l => l.trim()).slice(0, 3).join(" · ")}
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </Card>
   );
 }
