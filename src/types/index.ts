@@ -13,10 +13,22 @@ export interface Signal {
   id: string;
   ticker: string;
   type: "SIEU_CO_PHIEU" | "TRUNG_HAN" | "DAU_CO";
+  status: "RADAR" | "ACTIVE" | "CLOSED";
+  tier: "LEADER" | "TRUNG_HAN" | "NGAN_HAN";
   entryPrice: number;
-  currentPrice?: number | null;
+  target?: number | null;
+  stoploss?: number | null;
+  closePrice?: number | null;
+  navAllocation: number;
+  triggerSignal?: string | null;
+  aiReasoning?: string | null;
   reason?: string | null;
+  pnl?: number | null;
+  winRate?: number | null;
+  sharpeRatio?: number | null;
+  closedAt?: Date | string | null;
   createdAt: Date | string;
+  updatedAt?: Date | string;
 }
 
 export interface ChatMessage {

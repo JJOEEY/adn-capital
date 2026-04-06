@@ -1,12 +1,12 @@
 /**
  * POST /api/webhooks/signals
- * Webhook nhận tín hiệu từ Python Scanner → lưu vào DB Prisma.
+ * Webhook nhận tín hiệu từ Python Scanner → chạy qua UltimateSignalEngine → lưu DB.
  * Logic: Nếu tín hiệu cùng ticker+type đã tồn tại trong ngày → UPDATE giá mới nhất.
- *        Nếu chưa có → CREATE mới.
- *        entryPrice LUÔN được cập nhật bằng giá mới nhất từ Python.
+ *        Nếu chưa có → CREATE mới với đầy đủ tier, NAV, target/stoploss, AI reasoning.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { processSignals } from "@/lib/UltimateSignalEngine";
 
 // Secret chia sẻ giữa Python scanner và Next.js
 const WEBHOOK_SECRET = process.env.SCANNER_SECRET ?? "adn-scanner-secret-key";
@@ -46,7 +46,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ saved: 0, updated: 0, message: "Không có tín hiệu hợp lệ" });
     }
 
-    // ── 2. Lấy tín hiệu hôm nay để xác định create vs update ───────────
+    // ── 2. Chạy qua UltimateSignalEngine (VSA → Seasonality → AI Broker) ──
+    const processed = await processSignals(validSignals);
+
+    // ── 3. Lấy tín hiệu hôm nay để xác định create vs update ───────────
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
@@ -55,39 +58,53 @@ export async function POST(req: NextRequest) {
       select: { id: true, ticker: true, type: true },
     });
 
-    // Map key="TICKER|TYPE" → id để biết nên update hay create
     const existingMap = new Map<string, string>();
     for (const s of todaySignals) {
       existingMap.set(`${s.ticker}|${s.type}`, s.id);
     }
 
-    // ── 3. Upsert: update entryPrice nếu đã có, create nếu chưa ────────
+    // ── 4. Upsert: update nếu đã có, create nếu chưa ───────────────────
     let created = 0;
     let updated = 0;
 
-    const operations = validSignals.map((s) => {
+    const operations = processed.map((s) => {
       const key = `${s.ticker.toUpperCase().trim()}|${s.type}`;
       const existingId = existingMap.get(key);
 
       if (existingId) {
-        // ĐÃ CÓ trong ngày → UPDATE giá + reason mới nhất
         updated++;
         return prisma.signal.update({
           where: { id: existingId },
           data: {
             entryPrice: s.entryPrice,
+            tier: s.tier,
+            navAllocation: s.navAllocation,
+            target: s.target,
+            stoploss: s.stoploss,
+            triggerSignal: s.triggerSignal,
+            aiReasoning: s.aiReasoning,
             reason: s.reason ?? null,
+            winRate: s.winRate,
+            sharpeRatio: s.sharpeRatio,
           },
         });
       } else {
-        // CHƯA CÓ → CREATE mới
         created++;
         return prisma.signal.create({
           data: {
             ticker: s.ticker.toUpperCase().trim(),
             type: s.type,
+            status: s.status,
+            tier: s.tier,
             entryPrice: s.entryPrice,
+            target: s.target,
+            stoploss: s.stoploss,
+            navAllocation: s.navAllocation,
+            triggerSignal: s.triggerSignal,
+            aiReasoning: s.aiReasoning,
             reason: s.reason ?? null,
+            winRate: s.winRate,
+            sharpeRatio: s.sharpeRatio,
           },
         });
       }
@@ -96,14 +113,14 @@ export async function POST(req: NextRequest) {
     await prisma.$transaction(operations);
 
     console.log(
-      `[Webhook] ${created} tín hiệu mới, ${updated} cập nhật giá, tổng ${validSignals.length} xử lý`
+      `[Webhook] ${created} tín hiệu mới, ${updated} cập nhật giá, tổng ${processed.length} xử lý (UltimateEngine)`
     );
 
     return NextResponse.json({
       saved: created,
       updated,
-      tickers: validSignals.map((s) => s.ticker),
-      message: `${created} mới, ${updated} cập nhật giá`,
+      tickers: processed.map((s) => s.ticker),
+      message: `${created} mới, ${updated} cập nhật (UltimateEngine)`,
     });
   } catch (error) {
     console.error("[Webhook /api/webhooks/signals] Lỗi:", error);

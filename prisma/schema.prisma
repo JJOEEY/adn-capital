@@ -111,14 +111,28 @@ model Chat {
 }
 
 model Signal {
-  id         String   @id @default(cuid())
-  ticker     String
-  type       String
-  entryPrice Float
-  reason     String?
-  createdAt  DateTime @default(now())
+  id            String   @id @default(cuid())
+  ticker        String
+  type          String              // SIEU_CO_PHIEU | TRUNG_HAN | DAU_CO
+  status        String   @default("RADAR")  // RADAR | ACTIVE | CLOSED
+  tier          String   @default("NGAN_HAN") // LEADER | TRUNG_HAN | NGAN_HAN
+  entryPrice    Float
+  target        Float?              // Giá chốt lời
+  stoploss      Float?              // Giá cắt lỗ
+  closePrice    Float?              // Giá đóng vị thế
+  navAllocation Float    @default(0) // % NAV phân bổ (0-100)
+  triggerSignal String?             // Lý do kích hoạt (VSA reason)
+  aiReasoning   String?             // AI Broker nhận xét
+  reason        String?             // Chi tiết kỹ thuật
+  pnl           Float?              // Lãi/lỗ % khi CLOSED
+  winRate       Float?              // Seasonality win rate tháng hiện tại
+  sharpeRatio   Float?              // Seasonality sharpe ratio tháng hiện tại
+  closedAt      DateTime?           // Ngày đóng vị thế
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
 
   @@index([ticker, createdAt])
+  @@index([status, createdAt])
 }
 
 model TradingJournal {
