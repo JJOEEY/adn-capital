@@ -5,9 +5,11 @@
  * Step 3: Output AI Broker Card JSON
  *
  * Tiers: LEADER (base 30%), TRUNG_HAN (base 20%), NGAN_HAN (base 10%)
+ *
+ * API Budget: 1 batch-seasonality request cho TẤT CẢ tickers (thay vì N per-ticker)
  */
 
-const PYTHON_BRIDGE = process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000";
+import { getBatchSeasonality, type SeasonalityItem } from "@/lib/PriceCache";
 
 // ═══════════════════════════════════════════════════════════════════
 //  Types
@@ -21,13 +23,6 @@ interface RawScannerSignal {
   type: "SIEU_CO_PHIEU" | "TRUNG_HAN" | "DAU_CO";
   entryPrice: number;
   reason?: string;
-}
-
-interface SeasonalityData {
-  ticker: string;
-  currentMonth: number;
-  winRate: number;
-  sharpeRatio: number;
 }
 
 export interface ProcessedSignal {
@@ -83,19 +78,14 @@ function mapToTier(signal: RawScannerSignal): {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  Step 2: Seasonality multiplier
+//  Step 2: Seasonality multiplier (dùng batch data, KHÔNG gọi API per-ticker)
 // ═══════════════════════════════════════════════════════════════════
 
-async function fetchSeasonality(ticker: string): Promise<SeasonalityData | null> {
-  try {
-    const res = await fetch(`${PYTHON_BRIDGE}/api/v1/seasonality/${ticker}`, {
-      signal: AbortSignal.timeout(10000),
-    });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch {
-    return null;
-  }
+interface SeasonalityData {
+  ticker: string;
+  currentMonth: number;
+  winRate: number;
+  sharpeRatio: number;
 }
 
 function getSeasonalityMultiplier(data: SeasonalityData | null): {
@@ -154,19 +144,26 @@ function generateAIBrokerMessage(params: {
 
 // ═══════════════════════════════════════════════════════════════════
 //  Main Pipeline: processSignals()
+//  API Budget: 1 batch-seasonality call cho TẤT CẢ tickers
 // ═══════════════════════════════════════════════════════════════════
 
 export async function processSignals(
   rawSignals: RawScannerSignal[]
 ): Promise<ProcessedSignal[]> {
+  if (rawSignals.length === 0) return [];
+
+  // Step 2 (BATCH): Lấy seasonality cho TẤT CẢ tickers trong 1 request
+  const allTickers = [...new Set(rawSignals.map((r) => r.ticker))];
+  const seasonalityMap = await getBatchSeasonality(allTickers);
+
   const results: ProcessedSignal[] = [];
 
   for (const raw of rawSignals) {
     // Step 1: Map tier + base NAV
     const { tier, baseNav, target, stoploss } = mapToTier(raw);
 
-    // Step 2: Seasonality filter
-    const seasonality = await fetchSeasonality(raw.ticker);
+    // Step 2: Seasonality multiplier (từ batch data đã fetch ở trên)
+    const seasonality = seasonalityMap[raw.ticker] ?? null;
     const { multiplier, label: seasonalityLabel } = getSeasonalityMultiplier(seasonality);
     const navAllocation = Math.round(baseNav * multiplier);
 

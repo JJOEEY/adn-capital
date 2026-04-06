@@ -13,7 +13,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { generateText } from "@/lib/gemini";
-import { fetchTAData, type TAData } from "@/lib/stockData";
 import {
   validateCronSecret,
   logCron,
@@ -28,8 +27,6 @@ import {
   formatSnapshotForAI,
   getPropTradingData,
   formatPropTradingForAI,
-  getRSRatingStocks,
-  batchFetchTA,
 } from "@/lib/marketDataFetcher";
 import { fetchAllCafefNews, buildCafefContext } from "@/lib/cafefScraper";
 
@@ -266,98 +263,17 @@ Viết cực ngắn gọn, kiểu bullet point, phù hợp notification.`;
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  3. SIGNAL SCAN 5 PHÚT — Quét tín hiệu từ RS-Rating stocks
+//  3. SIGNAL SCAN 5 PHÚT — Delegate sang Python Scanner
+//     TỐI ƯU: 1 request duy nhất → Python batch 200 mã
 // ═══════════════════════════════════════════════════════════════
 
-interface DetectedSignal {
+const PYTHON_BRIDGE = process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000";
+
+interface PythonScanSignal {
   ticker: string;
-  type: "DAU_CO";
+  type: "SIEU_CO_PHIEU" | "TRUNG_HAN" | "DAU_CO";
   entryPrice: number;
-  reason: string;
-}
-
-function checkPanicBottom(d: TAData): string | null {
-  if (d.rsi14 >= 30) return null;
-  if (!d.macd || !d.bollinger) return null;
-
-  const { histogram, histogramPrev } = d.macd;
-  if (!(histogram < 0 && histogramPrev < 0 && histogram > histogramPrev)) return null;
-  if (d.currentPrice < d.bollinger.lower) return null;
-
-  return (
-    `BẮT ĐÁY HOẢNG LOẠN: RSI=${d.rsi14.toFixed(1)} (<30), ` +
-    `MACD Hist thu hẹp (${histogramPrev.toFixed(0)}→${histogram.toFixed(0)}), ` +
-    `Close ${d.currentPrice.toLocaleString("vi-VN")} nảy BB dưới ${d.bollinger.lower.toLocaleString("vi-VN")}`
-  );
-}
-
-function checkShortTermReversal(d: TAData): string | null {
-  if (d.rsi14 < 45 || d.rsi14 > 65) return null;
-  if (!d.macd) return null;
-
-  const crossEma10 = d.prevClose < d.prevEma10 && d.currentPrice > d.ema10;
-  const crossEma20 = d.prevClose < d.prevEma20 && d.currentPrice > d.ema20;
-  if (!crossEma10 && !crossEma20) return null;
-
-  const todayVol = d.volume10[d.volume10.length - 1] ?? 0;
-  if (d.avgVolume20 <= 0 || todayVol <= d.avgVolume20) return null;
-  if (d.macd.histogram <= d.macd.histogramPrev) return null;
-
-  const crossLabel = crossEma10 && crossEma20 ? "EMA10+EMA20" : crossEma10 ? "EMA10" : "EMA20";
-  const volRatio = (todayVol / d.avgVolume20).toFixed(1);
-
-  return (
-    `ĐẢO CHIỀU NGẮN HẠN: Close cắt lên ${crossLabel}, ` +
-    `Vol x${volRatio} TB20, MACD tăng, RSI=${d.rsi14.toFixed(1)}`
-  );
-}
-
-function checkBreakout52W(d: TAData): string | null {
-  if (!d.high52w || d.currentPrice <= 0) return null;
-  const ratio = d.currentPrice / d.high52w;
-  if (ratio < 0.95) return null; // Cần gần đỉnh 52W (>= 95%)
-
-  const todayVol = d.volume10[d.volume10.length - 1] ?? 0;
-  if (d.avgVolume20 <= 0 || todayVol <= d.avgVolume20 * 1.5) return null; // Volume phải > 1.5x TB20
-
-  return (
-    `VƯỢT ĐỈNH 52W: Giá ${d.currentPrice.toLocaleString("vi-VN")} gần đỉnh ${d.high52w.toLocaleString("vi-VN")} (${(ratio * 100).toFixed(1)}%), ` +
-    `Vol x${(todayVol / d.avgVolume20).toFixed(1)} TB20`
-  );
-}
-
-function checkSupportTest(d: TAData): string | null {
-  if (!d.bollinger) return null;
-
-  // Test MA50: giá chạm EMA50 từ trên xuống và bật lên
-  const nearEma50 = Math.abs(d.currentPrice - d.ema50) / d.ema50 < 0.02; // Trong 2% EMA50
-  const bouncing = d.currentPrice > d.prevClose;
-
-  if (!nearEma50 || !bouncing) return null;
-  if (d.rsi14 < 35 || d.rsi14 > 55) return null; // RSI hợp lệ
-
-  return (
-    `VỀ VÙNG HỖ TRỢ: Giá ${d.currentPrice.toLocaleString("vi-VN")} test EMA50 (${d.ema50.toLocaleString("vi-VN")}), ` +
-    `RSI=${d.rsi14.toFixed(1)}, đang bật lên`
-  );
-}
-
-function checkAccumulation(d: TAData): string | null {
-  if (!d.bollinger) return null;
-
-  // Tích lũy nến: BB hẹp + volume thấp
-  const bbWidth = (d.bollinger.upper - d.bollinger.lower) / d.bollinger.middle;
-  if (bbWidth > 0.08) return null; // BB phải hẹp (< 8%)
-
-  const todayVol = d.volume10[d.volume10.length - 1] ?? 0;
-  if (d.avgVolume20 > 0 && todayVol > d.avgVolume20 * 0.8) return null; // Volume phải thấp
-
-  if (d.rsi14 < 40 || d.rsi14 > 60) return null;
-
-  return (
-    `TÍCH LŨY NÉN: BB width ${(bbWidth * 100).toFixed(1)}% (<8%), ` +
-    `Vol thấp, RSI=${d.rsi14.toFixed(1)} — sắp breakout`
-  );
+  reason?: string;
 }
 
 async function handleSignalScan5m(): Promise<NextResponse> {
@@ -369,9 +285,6 @@ async function handleSignalScan5m(): Promise<NextResponse> {
   }
 
   try {
-    // Lấy danh sách RS-Rating stocks (ưu tiên FiinQuant, fallback VN30+midcap)
-    const rsStocks = await getRSRatingStocks();
-
     // Lấy các mã đã báo tín hiệu hôm nay
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
@@ -381,42 +294,22 @@ async function handleSignalScan5m(): Promise<NextResponse> {
     });
     const alreadySignaled = todaySignals.map((s: { ticker: string }) => s.ticker);
 
-    const toScan = rsStocks.filter((s) => !alreadySignaled.includes(s));
-    if (toScan.length === 0) {
-      await logCron("signal_scan_5m", "success", "Tất cả mã đã được quét", Date.now() - startTime);
-      return NextResponse.json({
-        type: "signal_scan_5m",
-        message: "Tất cả mã RS-Rating đã được quét hôm nay",
-        totalSignaledToday: alreadySignaled.length,
-      });
-    }
+    // 1 API call → Python scanner (batch 200 mã / 4 FiinQuantX calls)
+    const res = await fetch(`${PYTHON_BRIDGE}/api/v1/scan-now`, {
+      method: "POST",
+      signal: AbortSignal.timeout(90_000),
+    });
+    if (!res.ok) throw new Error(`Python scanner HTTP ${res.status}`);
+    const scanResult: { detected: number; signals: PythonScanSignal[] } = await res.json();
 
-    console.log(`[signal-5m] Quét ${toScan.length}/${rsStocks.length} mã RS-Rating`);
+    console.log(`[signal-5m] Python scanner: ${scanResult.detected} tín hiệu phát hiện`);
 
-    // Batch fetch TA data
-    const taMap = await batchFetchTA(toScan);
+    // Filter out already-signaled
+    const newSignals = scanResult.signals.filter(
+      (s) => !alreadySignaled.includes(s.ticker)
+    );
 
-    // Phát hiện tín hiệu qua 5 loại pattern
-    const newSignals: DetectedSignal[] = [];
-
-    for (const [ticker, data] of taMap) {
-      const checks = [
-        checkPanicBottom(data),
-        checkShortTermReversal(data),
-        checkBreakout52W(data),
-        checkSupportTest(data),
-        checkAccumulation(data),
-      ];
-
-      for (const reason of checks) {
-        if (reason) {
-          newSignals.push({ ticker, type: "DAU_CO", entryPrice: data.currentPrice, reason });
-          break; // 1 tín hiệu / mã
-        }
-      }
-    }
-
-    // Lưu signals vào DB (chỉ Signal table, KHÔNG đẩy Notification)
+    // Lưu signals vào DB
     if (newSignals.length > 0) {
       await prisma.$transaction(
         newSignals.map((sig) =>
@@ -434,9 +327,9 @@ async function handleSignalScan5m(): Promise<NextResponse> {
 
     const duration = Date.now() - startTime;
     await logCron("signal_scan_5m", "success",
-      `Quét ${taMap.size}/${toScan.length} mã, ${newSignals.length} tín hiệu mới`,
+      `Python scan: ${scanResult.detected} phát hiện, ${newSignals.length} tín hiệu mới`,
       duration,
-      { scanned: taMap.size, newSignals: newSignals.length }
+      { scanned: scanResult.detected, newSignals: newSignals.length }
     );
 
     return NextResponse.json({
@@ -446,8 +339,6 @@ async function handleSignalScan5m(): Promise<NextResponse> {
         ? `Phát hiện ${newSignals.length} tín hiệu mới`
         : "Không có tín hiệu mới",
       newSignals,
-      scanned: taMap.size,
-      totalRSStocks: rsStocks.length,
       totalSignaledToday: alreadySignaled.length + newSignals.length,
     });
   } catch (error) {

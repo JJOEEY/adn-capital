@@ -6,12 +6,14 @@
  * 2. ACTIVE → cập nhật currentPnl realtime
  * 3. ACTIVE → CLOSED: Khi chạm Target/Stoploss hoặc AI exit signal
  *
- * Tất cả giá lấy từ Python Bridge qua /api/v1/batch-price
+ * API Budget mỗi lần chạy:
+ * - 1 batch-price request (tất cả tickers)
+ * - 1 batch-exit-scan request (chỉ ACTIVE tickers)
+ * = TỐI ĐA 2 API calls / 5 phút
  */
 
 import { prisma } from "@/lib/prisma";
-
-const PYTHON_BRIDGE = process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000";
+import { getBatchPrices, getBatchExitScan, type PriceItem, type ExitScanItem } from "@/lib/PriceCache";
 
 // Ngưỡng volume xác nhận breakout: Vol hiện tại > 1.5× MA20
 const VOLUME_BREAKOUT_RATIO = 1.5;
@@ -20,58 +22,12 @@ const VOLUME_BREAKOUT_RATIO = 1.5;
 //  Types
 // ═══════════════════════════════════════════════════════════════════
 
-interface BatchPriceItem {
-  close: number;
-  volume: number;
-  ma20Volume: number;
-}
-
-interface ExitScanResult {
-  ticker: string;
-  shouldExit: boolean;
-  reason: string | null;
-}
-
 interface LifecycleLog {
   ticker: string;
   from: string;
   to: string;
   reason: string;
   price: number;
-}
-
-// ═══════════════════════════════════════════════════════════════════
-//  Helpers: gọi Python Bridge
-// ═══════════════════════════════════════════════════════════════════
-
-async function fetchBatchPrices(tickers: string[]): Promise<Record<string, BatchPriceItem>> {
-  if (tickers.length === 0) return {};
-  try {
-    const res = await fetch(`${PYTHON_BRIDGE}/api/v1/batch-price`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tickers }),
-      signal: AbortSignal.timeout(30000),
-    });
-    if (!res.ok) return {};
-    const data = await res.json();
-    return data.prices ?? {};
-  } catch (e) {
-    console.error("[Lifecycle] Lỗi fetch batch price:", e);
-    return {};
-  }
-}
-
-async function fetchExitScan(ticker: string): Promise<ExitScanResult | null> {
-  try {
-    const res = await fetch(`${PYTHON_BRIDGE}/api/v1/exit-scan/${ticker}`, {
-      signal: AbortSignal.timeout(15000),
-    });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch {
-    return null;
-  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -103,9 +59,9 @@ export async function updateSignalLifecycle(): Promise<{
   const activeCount = signals.filter((s) => s.status === "ACTIVE").length;
   console.log(`[Lifecycle] Bắt đầu — ${radarCount} RADAR, ${activeCount} ACTIVE`);
 
-  // ── 2. Batch fetch giá cho tất cả tickers ─────────────────────────────
+  // ── 2. Batch fetch giá cho tất cả tickers (1 API call) ──────────────
   const tickers = [...new Set(signals.map((s) => s.ticker))];
-  const prices = await fetchBatchPrices(tickers);
+  const prices = await getBatchPrices(tickers);
 
   const pricedTickers = Object.keys(prices).length;
   console.log(`[Lifecycle] Giá: ${pricedTickers}/${tickers.length} tickers có dữ liệu`);
@@ -114,6 +70,14 @@ export async function updateSignalLifecycle(): Promise<{
     console.error("[Lifecycle] CẢNH BÁO: Không lấy được giá nào! Kiểm tra Python Bridge / API quota.");
     return { processed: signals.length, activated: 0, closed: 0, pnlUpdated: 0, logs };
   }
+
+  // ── 3. Batch exit-scan cho ACTIVE tickers (1 API call) ────────────────
+  const activeTickers = [...new Set(
+    signals.filter((s) => s.status === "ACTIVE").map((s) => s.ticker)
+  )];
+  const exitScans = activeTickers.length > 0
+    ? await getBatchExitScan(activeTickers)
+    : {};
 
   // ── 3. Xử lý từng tín hiệu ───────────────────────────────────────────
   for (const signal of signals) {
@@ -189,12 +153,12 @@ export async function updateSignalLifecycle(): Promise<{
         closedReason = `Cắt lỗ vi phạm ${slLabel}: ${currentPrice.toLocaleString()} <= ${stoploss.toLocaleString()} (${pnl}%)`;
       }
 
-      // 3c. AI Exit Signal (chỉ check khi chưa chạm TP/SL)
+      // 3c. AI Exit Signal (từ batch exit-scan, KHÔNG gọi API per-ticker)
       if (!shouldClose) {
-        const exitScan = await fetchExitScan(signal.ticker);
-        if (exitScan?.shouldExit) {
+        const exitResult = exitScans[signal.ticker];
+        if (exitResult?.shouldExit) {
           shouldClose = true;
-          closedReason = `AI Bán Khẩn Cấp: ${exitScan.reason}`;
+          closedReason = `AI Bán Khẩn Cấp: ${exitResult.reason}`;
         }
       }
 
