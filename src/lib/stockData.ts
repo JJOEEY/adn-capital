@@ -361,19 +361,74 @@ export async function fetchTAData(ticker: string): Promise<TAData | null> {
 }
 
 /**
- * Fetch dữ liệu FA (P/E, P/B, ROE...).
+ * Fetch dữ liệu FA (P/E, P/B, ROE...) từ FiinQuant Bridge.
  *
- * Hiện tại các API FA công khai đều yêu cầu auth hoặc bị block.
- * Trả null + log để team biết, thay vì inject cảnh báo vào prompt Gemini.
- * Gemini sẽ dùng Google Search để bổ sung số liệu FA khi gặp null.
+ * Gọi endpoint /api/v1/fundamental/{ticker} trên Python backend.
+ * Backend dùng MarketDepth.get_stock_valuation() + FundamentalAnalysis.get_ratios()
+ * + BasicInfor để trả về P/E, P/B, EPS, ROE, ROA, vốn hoá, ngành.
  *
  * @param ticker - Mã cổ phiếu
  */
 export async function fetchFAData(ticker: string): Promise<FAData | null> {
   const code = ticker.toUpperCase();
-  console.log(`[fetchFAData] ${code}: dùng Google Search (FA API đang không khả dụng)`);
-  // Trả null có chủ đích — chat/route.ts sẽ để Gemini+GoogleSearch tự tìm số liệu FA
-  return null;
+  const BACKEND = process.env.FIINQUANT_URL ?? "http://localhost:8000";
+
+  try {
+    console.log(`[fetchFAData] ${code}: Gọi FiinQuant Bridge /api/v1/fundamental/${code}`);
+    const res = await fetch(`${BACKEND}/api/v1/fundamental/${code}`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(30_000),
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": process.env.FIINQUANT_API_KEY ?? "",
+      },
+    });
+
+    if (!res.ok) {
+      console.error(`[fetchFAData] ${code}: HTTP ${res.status}`);
+      return null;
+    }
+
+    const json = await res.json();
+
+    // Parse valuation (MarketDepth.get_stock_valuation)
+    const val = json.valuation ?? {};
+    const pe = val.pe ?? val.PE ?? val.priceToEarning ?? null;
+    const pb = val.pb ?? val.PB ?? val.priceToBook ?? null;
+
+    // Parse ratios (FundamentalAnalysis.get_ratios)
+    const ratios = Array.isArray(json.ratios) && json.ratios.length > 0 ? json.ratios[0] : {};
+    const roe = ratios.roe ?? ratios.ROE ?? ratios.returnOnEquity ?? null;
+    const roa = ratios.roa ?? ratios.ROA ?? ratios.returnOnAsset ?? null;
+    const eps = ratios.eps ?? ratios.EPS ?? ratios.earningPerShare ?? null;
+    const revenueLastQ = ratios.revenue ?? ratios.netRevenue ?? null;
+    const profitLastQ = ratios.netProfit ?? ratios.postTaxProfit ?? null;
+    const revenueGrowthYoY = ratios.revenueGrowth ?? ratios.revenueGrowthYoY ?? null;
+    const profitGrowthYoY = ratios.profitGrowth ?? ratios.profitGrowthYoY ?? null;
+    const reportDate = ratios.reportDate ?? ratios.year?.toString() ?? null;
+
+    console.log(
+      `[fetchFAData] ${code} ✓ PE=${pe}, PB=${pb}, ROE=${roe}%, EPS=${eps}`
+    );
+
+    return {
+      ticker: code,
+      pe: pe != null ? Number(pe) : null,
+      pb: pb != null ? Number(pb) : null,
+      eps: eps != null ? Number(eps) : null,
+      roe: roe != null ? Number(roe) : null,
+      roa: roa != null ? Number(roa) : null,
+      revenueLastQ: revenueLastQ != null ? Number(revenueLastQ) : null,
+      profitLastQ: profitLastQ != null ? Number(profitLastQ) : null,
+      revenueGrowthYoY: revenueGrowthYoY != null ? Number(revenueGrowthYoY) : null,
+      profitGrowthYoY: profitGrowthYoY != null ? Number(profitGrowthYoY) : null,
+      reportDate,
+      source: "FiinQuant Bridge",
+    };
+  } catch (err) {
+    console.error(`[fetchFAData] ${code}: Lỗi kết nối FiinQuant Bridge`, err);
+    return null;
+  }
 }
 
 /**

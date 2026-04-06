@@ -10,8 +10,12 @@ import {
   fetchMarketOverview,
   fetchRSRatingList,
   fetchPropTrading,
+  fetchMarketBreadth,
+  fetchInvestorTrading,
   type FiinMarketOverview,
   type FiinPropTrading,
+  type FiinMarketBreadthResponse,
+  type FiinInvestorTradingResponse,
 } from "./fiinquantClient";
 
 // ═══════════════════════════════════════════════
@@ -310,6 +314,22 @@ export async function batchFetchTA(
 /** Fetch Prop Trading (Tự Doanh) data */
 export async function getPropTradingData(): Promise<FiinPropTrading | null> {
   return fetchPropTrading();
+}
+
+/** Fetch Market Breadth (Độ rộng thị trường) */
+export async function getMarketBreadthData(
+  indices = "VNINDEX,VN30,HNXIndex"
+): Promise<FiinMarketBreadthResponse | null> {
+  return fetchMarketBreadth(indices);
+}
+
+/** Fetch Investor Trading (Tự Doanh NĐT) */
+export async function getInvestorTradingData(options?: {
+  tickers?: string;
+  fromDate?: string;
+  toDate?: string;
+}): Promise<FiinInvestorTradingResponse | null> {
+  return fetchInvestorTrading(options);
 }
 
 // ═══════════════════════════════════════════════

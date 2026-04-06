@@ -104,6 +104,41 @@ export interface FiinPropTrading {
   topSell: Array<{ ticker: string; value: number }>;
 }
 
+export interface FiinMarketBreadthItem {
+  index: string;
+  up: number;
+  down: number;
+  unchanged: number;
+  ceiling: number;
+  floor: number;
+  total: number;
+  error?: string;
+}
+
+export interface FiinMarketBreadthResponse {
+  data: FiinMarketBreadthItem[];
+  count: number;
+}
+
+export interface FiinInvestorTradingSummary {
+  proprietary?: {
+    total_buy_bn: number;
+    total_sell_bn: number;
+    total_net_bn: number;
+    top_buy: Array<{ ticker: string; net_bn: number }>;
+    top_sell: Array<{ ticker: string; net_bn: number }>;
+  };
+}
+
+export interface FiinInvestorTradingResponse {
+  data: Record<string, unknown>[];
+  summary: FiinInvestorTradingSummary;
+  columns: string[];
+  count: number;
+  from_date: string;
+  to_date: string;
+}
+
 export interface FiinMorningNews {
   date: string;
   reference_indices: Array<{ name: string; value: number; change_pct: number }>;
@@ -243,4 +278,30 @@ export async function fetchIntradaySnapshot(): Promise<FiinIntradaySnapshot | nu
 /** Scan Now (VIP feature — full market scanner) */
 export async function fetchScanNow(): Promise<unknown> {
   return fiinFetch("/api/v1/scan-now", { timeout: 120_000 });
+}
+
+/** Độ rộng thị trường (MarketBreadth) — số mã tăng/giảm/trần/sàn */
+export async function fetchMarketBreadth(
+  tickers = "VNINDEX,VN30,HNXIndex"
+): Promise<FiinMarketBreadthResponse | null> {
+  return fiinFetch<FiinMarketBreadthResponse>(
+    `/api/v1/market-breadth?tickers=${encodeURIComponent(tickers)}`
+  );
+}
+
+/** Dữ liệu giao dịch theo NĐT (Tự Doanh, Khối Ngoại...) */
+export async function fetchInvestorTrading(options?: {
+  tickers?: string;
+  fromDate?: string;
+  toDate?: string;
+}): Promise<FiinInvestorTradingResponse | null> {
+  const params = new URLSearchParams();
+  if (options?.tickers) params.set("tickers", options.tickers);
+  if (options?.fromDate) params.set("from_date", options.fromDate);
+  if (options?.toDate) params.set("to_date", options.toDate);
+  const qs = params.toString();
+  return fiinFetch<FiinInvestorTradingResponse>(
+    `/api/v1/investor-trading${qs ? `?${qs}` : ""}`,
+    { timeout: 60_000 }
+  );
 }
