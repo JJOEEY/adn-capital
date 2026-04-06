@@ -79,15 +79,20 @@ export interface FiinTASummary {
 }
 
 export interface FiinRSRating {
-  symbol: string;
+  symbol: string;          // mapped from "ticker"
   name: string;
   sector: string;
-  price: number;
+  price: number;           // mapped from "close"
   change: number;
   changePercent: number;
   volume: number;
   rsScore: number;
   rsRating: number;
+  // Raw fields from API (may be present)
+  ticker?: string;
+  close?: number;
+  prev_close?: number;
+  rs_rating?: number;
 }
 
 export interface FiinPropTrading {
@@ -185,8 +190,33 @@ export async function fetchTASummary(ticker: string): Promise<FiinTASummary | nu
 
 /** RS-Rating danh sách cổ phiếu */
 export async function fetchRSRatingList(): Promise<FiinRSRating[] | null> {
-  const data = await fiinFetch<{ stocks: FiinRSRating[] }>("/api/v1/rs-rating");
-  return data?.stocks ?? null;
+  // API trả về { count, data: [{ticker, sector, close, prev_close, rs_rating}] }
+  const raw = await fiinFetch<{ data?: unknown[]; stocks?: FiinRSRating[] }>("/api/v1/rs-rating");
+  if (!raw) return null;
+
+  const items = raw.data ?? raw.stocks ?? [];
+  if (!Array.isArray(items) || items.length === 0) return null;
+
+  return items.map((s: Record<string, unknown>) => {
+    const close = Number(s.close ?? s.price ?? 0);
+    const prevClose = Number(s.prev_close ?? s.prevClose ?? close);
+    const changePct = prevClose > 0 ? ((close - prevClose) / prevClose) * 100 : 0;
+    return {
+      symbol: String(s.ticker ?? s.symbol ?? ""),
+      ticker: String(s.ticker ?? s.symbol ?? ""),
+      name: String(s.name ?? ""),
+      sector: String(s.sector ?? ""),
+      price: close,
+      close,
+      prev_close: prevClose,
+      change: close - prevClose,
+      changePercent: Math.round(changePct * 100) / 100,
+      volume: Number(s.volume ?? 0),
+      rsScore: Number(s.rs_score ?? s.rsScore ?? 0),
+      rsRating: Number(s.rs_rating ?? s.rsRating ?? 0),
+      rs_rating: Number(s.rs_rating ?? s.rsRating ?? 0),
+    } as FiinRSRating;
+  });
 }
 
 /** Dữ liệu Tự Doanh CTCK */

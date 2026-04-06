@@ -145,6 +145,29 @@ async function fetchTopMovers(): Promise<{ gainers: StockMove[]; losers: StockMo
     }
   }
 
+  // Fallback 2: RS-Rating data (Python backend — always available)
+  if (result.gainers.length === 0 && result.losers.length === 0) {
+    try {
+      const { fetchRSRatingList } = await import("./fiinquantClient");
+      const rsStocks = await fetchRSRatingList();
+      if (rsStocks && rsStocks.length > 0) {
+        const withChange = rsStocks
+          .filter((s) => s.symbol && s.changePercent !== 0)
+          .map((s) => ({
+            ticker: s.symbol,
+            changePct: s.changePercent,
+            price: s.price,
+          }));
+
+        withChange.sort((a, b) => b.changePct - a.changePct);
+        result.gainers = withChange.filter((s) => s.changePct > 0).slice(0, 10);
+        result.losers = withChange.filter((s) => s.changePct < 0).sort((a, b) => a.changePct - b.changePct).slice(0, 10);
+      }
+    } catch (err) {
+      console.error("[topMovers RS-Rating fallback] Error:", err);
+    }
+  }
+
   return result;
 }
 
