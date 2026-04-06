@@ -606,28 +606,6 @@ const MarketStatusCard = memo(function MarketStatusCard({
           📊 {breadth}
         </p>
 
-        {/* W/M/V Timeframe Summary */}
-        <div className="space-y-1.5 mb-3">
-          {monthlySummary && (
-            <div className="flex items-start gap-1.5 text-[11px]">
-              <span className="shrink-0 font-bold text-purple-400">Tháng (M):</span>
-              <span className="text-gray-400">{monthlySummary}</span>
-            </div>
-          )}
-          {weeklySummary && (
-            <div className="flex items-start gap-1.5 text-[11px]">
-              <span className="shrink-0 font-bold text-cyan-400">Tuần (W):</span>
-              <span className="text-gray-400">{weeklySummary}</span>
-            </div>
-          )}
-          {valuationSummary && (
-            <div className="flex items-start gap-1.5 text-[11px]">
-              <span className="shrink-0 font-bold text-amber-400">Định giá:</span>
-              <span className="text-gray-400">{valuationSummary}</span>
-            </div>
-          )}
-        </div>
-
         {/* Action Message */}
         <p className="text-sm text-gray-400 leading-relaxed italic">
           &ldquo;{actionMessage}&rdquo;
