@@ -1,0 +1,215 @@
+/**
+ * FiinQuant Client — Gọi Python backend (FastAPI) đã tích hợp fiinquant library.
+ * 
+ * Credentials FiinQuant được lưu trong .env:
+ *   FIINQUANT_URL, FIINQUANT_USERNAME, FIINQUANT_PASSWORD
+ * 
+ * Python backend xử lý auth + data fetch → trả JSON cho Next.js.
+ * Module này cung cấp typed wrappers cho các endpoint.
+ */
+
+const BACKEND = () => process.env.FIINQUANT_URL ?? "http://localhost:8000";
+const TIMEOUT = 30_000;
+
+// ═══════════════════════════════════════════════
+//  Interfaces
+// ═══════════════════════════════════════════════
+
+export interface FiinMarketOverview {
+  ticker: string;
+  score: number;
+  max_score: number;
+  level: number;
+  status_badge: string;
+  market_breadth: {
+    up: number;
+    down: number;
+    unchanged: number;
+    total: number;
+  };
+  technical_highlights: {
+    ema: string;
+    vsa: string;
+    divergence: string;
+    monthly: string;
+    weekly: string;
+  };
+  reasons: string[];
+  action_message: string;
+  liquidity: { total: number; change_pct: number };
+  price: { current: number; change: number; change_pct: number };
+}
+
+export interface FiinTASummary {
+  ticker: string;
+  dataDate: string;
+  totalSessions: number;
+  price: {
+    current: number;
+    prevClose: number;
+    change: number;
+    changePct: number;
+    high52w: number;
+    low52w: number;
+  };
+  trend: {
+    direction: string;
+    strength: string;
+    adx: number;
+    adxPlus: number;
+    adxMinus: number;
+  };
+  indicators: {
+    ema10: number;
+    ema20: number;
+    ema50: number;
+    ema200: number;
+    rsi14: number;
+    macd: { macd: number; signal: number; histogram: number };
+    stoch: { k: number; d: number };
+    bb: { upper: number; middle: number; lower: number };
+    mfi14: number;
+  };
+  levels: { support: number[]; resistance: number[] };
+  volume: { last: number; avg10: number; avg20: number; ratio: number };
+  signal: string;
+  bullishScore: number;
+  bearishScore: number;
+  patterns: string[];
+}
+
+export interface FiinRSRating {
+  symbol: string;
+  name: string;
+  sector: string;
+  price: number;
+  change: number;
+  changePercent: number;
+  volume: number;
+  rsScore: number;
+  rsRating: number;
+}
+
+export interface FiinPropTrading {
+  date: string;
+  totalBuy: number;
+  totalSell: number;
+  netValue: number;
+  topBuy: Array<{ ticker: string; value: number }>;
+  topSell: Array<{ ticker: string; value: number }>;
+}
+
+export interface FiinMorningNews {
+  date: string;
+  reference_indices: Array<{ name: string; value: number; change_pct: number }>;
+  vn_market: string[];
+  macro: string[];
+  risk_opportunity: string[];
+}
+
+export interface FiinEodNews {
+  date: string;
+  vnindex: number;
+  change_pct: number;
+  liquidity: number;
+  breadth: { up: number; down: number; unchanged: number; total: number };
+  session_summary: string;
+  liquidity_detail: string;
+  foreign_flow: string;
+  notable_trades: string;
+  outlook: string;
+  sub_indices: Array<{ name: string; change_pts: number; change_pct: number }>;
+  foreign_top_buy: string[];
+  foreign_top_sell: string[];
+  prop_trading_top_buy: string[];
+  prop_trading_top_sell: string[];
+  sector_gainers: string[];
+  sector_losers: string[];
+  buy_signals: string[];
+  sell_signals: string[];
+  top_breakout: string[];
+}
+
+export interface FiinIntradaySnapshot {
+  timestamp: string;
+  vnindex: { value: number; change: number; changePct: number };
+  hnx: { value: number; change: number; changePct: number };
+  breadth: { up: number; down: number; unchanged: number };
+  liquidity: number;
+  topGainers: Array<{ ticker: string; changePct: number }>;
+  topLosers: Array<{ ticker: string; changePct: number }>;
+  topVolume: Array<{ ticker: string; volume: number }>;
+}
+
+// ═══════════════════════════════════════════════
+//  Generic Fetch Helper
+// ═══════════════════════════════════════════════
+
+async function fiinFetch<T>(path: string, options?: { timeout?: number }): Promise<T | null> {
+  try {
+    const res = await fetch(`${BACKEND()}${path}`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(options?.timeout ?? TIMEOUT),
+      headers: {
+        "Content-Type": "application/json",
+        // Python backend quản lý FiinQuant auth nội bộ
+        "x-api-key": process.env.FIINQUANT_API_KEY ?? "",
+      },
+    });
+
+    if (!res.ok) {
+      console.error(`[FiinQuant] ${path} → ${res.status}`);
+      return null;
+    }
+
+    return (await res.json()) as T;
+  } catch (err) {
+    console.error(`[FiinQuant] ${path} error:`, err);
+    return null;
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  API Endpoints
+// ═══════════════════════════════════════════════
+
+/** Market Overview (VNINDEX health score) */
+export async function fetchMarketOverview(): Promise<FiinMarketOverview | null> {
+  return fiinFetch<FiinMarketOverview>("/api/v1/market-overview");
+}
+
+/** TA Summary cho 1 mã cổ phiếu */
+export async function fetchTASummary(ticker: string): Promise<FiinTASummary | null> {
+  return fiinFetch<FiinTASummary>(`/api/v1/ta-summary/${ticker}`);
+}
+
+/** RS-Rating danh sách cổ phiếu */
+export async function fetchRSRatingList(): Promise<FiinRSRating[] | null> {
+  const data = await fiinFetch<{ stocks: FiinRSRating[] }>("/api/v1/rs-rating");
+  return data?.stocks ?? null;
+}
+
+/** Dữ liệu Tự Doanh CTCK */
+export async function fetchPropTrading(): Promise<FiinPropTrading | null> {
+  return fiinFetch<FiinPropTrading>("/api/v1/prop-trading", { timeout: 60_000 });
+}
+
+/** Morning News (Gemini + real data from Python) */
+export async function fetchMorningNews(): Promise<FiinMorningNews | null> {
+  return fiinFetch<FiinMorningNews>("/api/v1/news/morning", { timeout: 60_000 });
+}
+
+/** EOD News */
+export async function fetchEodNews(): Promise<FiinEodNews | null> {
+  return fiinFetch<FiinEodNews>("/api/v1/news/eod", { timeout: 60_000 });
+}
+
+/** Intraday Market Snapshot (realtime) */
+export async function fetchIntradaySnapshot(): Promise<FiinIntradaySnapshot | null> {
+  return fiinFetch<FiinIntradaySnapshot>("/api/v1/market-snapshot");
+}
+
+/** Scan Now (VIP feature — full market scanner) */
+export async function fetchScanNow(): Promise<unknown> {
+  return fiinFetch("/api/v1/scan-now", { timeout: 120_000 });
+}

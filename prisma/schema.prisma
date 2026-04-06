@@ -160,10 +160,66 @@ model MarginConsultation {
 
 model Notification {
   id        String   @id @default(cuid())
-  type      String   // signal_10h | signal_1130 | signal_14h | signal_1445 | market_17h | eod_19h
+  type      String   // signal_10h | signal_1130 | signal_14h | signal_1445 | market_17h | eod_19h | morning_8h | eod_15h | prop_19h | signal_5m
   title     String
   content   String   // markdown content
   createdAt DateTime @default(now())
 
   @@index([type, createdAt])
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  MODEL TỰ ĐỘNG HÓA — Cron, Báo cáo, Knowledge Base
+// ═══════════════════════════════════════════════════════════════════
+
+model MarketReport {
+  id        String   @id @default(cuid())
+  type      String   // morning_brief | eod_brief | prop_trading | intraday_update
+  title     String
+  content   String   // markdown / JSON content
+  rawData   String?  // JSON raw data từ FiinQuant/CafeF/VNDirect
+  metadata  String?  // JSON metadata (index values, breadth, etc.)
+  createdAt DateTime @default(now())
+
+  @@index([type, createdAt])
+}
+
+model CronLog {
+  id         String   @id @default(cuid())
+  cronName   String   // morning_brief | eod_brief | prop_trading | intraday | signal_scan
+  status     String   // success | error | skipped
+  message    String?
+  duration   Int?     // milliseconds
+  resultData String?  // JSON kết quả tóm tắt
+  createdAt  DateTime @default(now())
+
+  @@index([cronName, createdAt])
+}
+
+model ChatKnowledge {
+  id        String   @id @default(cuid())
+  category  String   // ta_rules | fa_rules | risk_management | market_regime | trading_psychology | glossary
+  title     String
+  content   String   // nội dung quy tắc / kiến thức
+  priority  Int      @default(0) // cao hơn = ưu tiên inject trước
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category, priority])
+}
+
+model PropTrading {
+  id            String   @id @default(cuid())
+  date          String   // YYYY-MM-DD
+  totalBuy      Float    @default(0)  // tỷ VNĐ
+  totalSell     Float    @default(0)
+  netValue      Float    @default(0)  // mua ròng / bán ròng
+  topBuy        String?  // JSON array: [{ticker, value}]
+  topSell       String?  // JSON array: [{ticker, value}]
+  rawData       String?  // JSON raw data
+  createdAt     DateTime @default(now())
+
+  @@unique([date])
+  @@index([date])
 }

@@ -22,6 +22,9 @@ sudo -u adncapital npx prisma generate
 sudo -u adncapital npx prisma db push
 sudo -u adncapital npm run build
 
+echo "[3.5/4] Seeding knowledge base..."
+sudo -u adncapital npx tsx scripts/seed-knowledge.ts 2>/dev/null || echo "⚠️  Knowledge seed skipped (tsx not found)"
+
 echo "[4/4] Restarting services..."
 # Copy static files to standalone
 cp -r public .next/standalone/ 2>/dev/null || true

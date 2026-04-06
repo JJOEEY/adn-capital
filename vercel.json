@@ -1,0 +1,41 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/cron/morning-report",
+      "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/cron/afternoon-review",
+      "schedule": "0 8 * * 1-5"
+    },
+    {
+      "path": "/api/cron?type=prop_trading",
+      "schedule": "0 12 * * 1-5"
+    },
+    {
+      "path": "/api/cron?type=intraday",
+      "schedule": "0 3 * * 1-5"
+    },
+    {
+      "path": "/api/cron?type=intraday",
+      "schedule": "30 4 * * 1-5"
+    },
+    {
+      "path": "/api/cron?type=intraday",
+      "schedule": "0 7 * * 1-5"
+    },
+    {
+      "path": "/api/cron?type=intraday",
+      "schedule": "45 7 * * 1-5"
+    },
+    {
+      "path": "/api/cron?type=signal_scan_5m",
+      "schedule": "*/5 2-8 * * 1-5"
+    },
+    {
+      "path": "/api/cron/scan-signals",
+      "schedule": "*/5 2-8 * * 1-5"
+    }
+  ]
+}

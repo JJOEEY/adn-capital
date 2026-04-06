@@ -15,7 +15,65 @@ import { getGeminiModel, getGeminiModelWithSearch } from "@/lib/gemini";
 import { USAGE_LIMITS } from "@/lib/utils";
 import { fetchTAData, fetchFAData, type TAData, type FAData } from "@/lib/stockData";
 
-const FIINQUANT_BRIDGE = "http://localhost:8000";
+const FIINQUANT_BRIDGE = process.env.FIINQUANT_URL ?? "http://localhost:8000";
+
+// ─── Knowledge Base Cache ─────────────────────────────────────
+let knowledgeCache: { content: string; ts: number } | null = null;
+const KNOWLEDGE_CACHE_TTL = 300_000; // 5 phút
+
+async function getKnowledgeContext(): Promise<string> {
+  if (knowledgeCache && Date.now() - knowledgeCache.ts < KNOWLEDGE_CACHE_TTL) {
+    return knowledgeCache.content;
+  }
+
+  try {
+    const knowledge = await prisma.chatKnowledge.findMany({
+      where: { isActive: true },
+      orderBy: [{ priority: "desc" }, { category: "asc" }],
+    });
+
+    if (knowledge.length === 0) return "";
+
+    const sections = knowledge.map(
+      (k) => `### [${k.category.toUpperCase()}] ${k.title}\n${k.content}`
+    );
+
+    const content = `
+═══════════════════════════════════════════
+📚 KNOWLEDGE BASE ADN CAPITAL (Tuân thủ nghiêm ngặt)
+═══════════════════════════════════════════
+${sections.join("\n\n")}
+═══════════════════════════════════════════`;
+
+    knowledgeCache = { content, ts: Date.now() };
+    return content;
+  } catch (err) {
+    console.error("[ChatKnowledge] Error loading:", err);
+    return "";
+  }
+}
+
+// ─── Recent Chat History ──────────────────────────────────────
+async function getRecentChatHistory(userId: string | null, limit = 6): Promise<string> {
+  if (!userId) return "";
+  try {
+    const chats = await prisma.chat.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+    });
+    if (chats.length === 0) return "";
+
+    const history = chats
+      .reverse()
+      .map((c) => `[${c.role}]: ${c.message.substring(0, 200)}`)
+      .join("\n");
+
+    return `\n\n📝 LỊCH SỬ TRÒ CHUYỆN GẦN ĐÂY:\n${history}\n`;
+  } catch {
+    return "";
+  }
+}
 
 // ─── Fetch TA Summary đã tính sẵn từ FiinQuant Bridge ────────────
 interface TASummary {
@@ -528,8 +586,11 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // ── Build journal context ──
+    // ── Build journal context + knowledge base ──
     let journalCtx = "";
+    const knowledgeCtx = await getKnowledgeContext();
+    const chatHistoryCtx = await getRecentChatHistory(userId);
+    
     if (userId) {
       const journals = await prisma.tradingJournal.findMany({
         where: { userId },
@@ -550,6 +611,9 @@ export async function POST(req: NextRequest) {
         journalCtx = `\n\n╔══ HỒ SƠ GIAO DỊCH (${journals.length} lệnh) ══╗\nMua: ${buyCount} | Bán: ${sellCount} | Tâm lý phổ biến: ${topPsych.map(([p, c]) => `${p}(${c})`).join(", ")}\n${warnings.length > 0 ? `⚠️ Điểm yếu: ${warnings.join("; ")}` : "✅ Giao dịch tốt!"}\n╚═════════════════════════════╝`;
       }
     }
+
+    // Append knowledge base + chat history vào context
+    journalCtx = knowledgeCtx + journalCtx + chatHistoryCtx;
 
     // ── Helper: fallback từ search model sang regular model ──
     async function generateWithSearchFallback(prompt: string): Promise<string> {

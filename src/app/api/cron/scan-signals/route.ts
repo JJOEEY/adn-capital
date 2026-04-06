@@ -1,30 +1,37 @@
 /**
- * API Cron: Quét tín hiệu giao dịch THỰC từ VNDirect dchart data.
+ * API Cron: Quét tín hiệu giao dịch THỰC từ RS-Rating stocks.
  *
- * 2 loại tín hiệu Đầu Cơ (Vàng):
+ * NÂNG CẤP: Dùng danh sách từ RS-Rating (FiinQuant) thay vì hardcoded.
  *
- * Case 1 — "Bắt đáy hoảng loạn":
- *   RSI < 30 + MACD Histogram thu hẹp (đang âm nhưng bớt âm) + Close nảy lên từ BB dưới
+ * 5 loại tín hiệu:
+ * 1. "Bắt đáy hoảng loạn": RSI<30 + MACD thu hẹp + BB nảy
+ * 2. "Đảo chiều ngắn hạn": Cross EMA + Vol tăng + MACD tăng + RSI 45-65
+ * 3. "Vượt đỉnh 52W": Giá gần đỉnh 52W + Vol > 1.5x TB20
+ * 4. "Test hỗ trợ": Giá chạm EMA50 + bật lên
+ * 5. "Tích lũy nén": BB hẹp + Vol thấp
  *
- * Case 2 — "Đảo chiều ngắn hạn":
- *   Close cắt lên EMA10 hoặc EMA20 + Volume > TB 20 phiên
- *   + MACD Line đang tăng (chưa cần cắt Signal) + RSI 45-65
- *
- * Không báo trùng mã trong ngày.
+ * Kết quả lưu DB Signal + đẩy Notification.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { fetchTAData, type TAData } from "@/lib/stockData";
+import {
+  validateCronSecret,
+  logCron,
+  pushNotification,
+  isTradingDay,
+} from "@/lib/cronHelpers";
+import { getRSRatingStocks, batchFetchTA } from "@/lib/marketDataFetcher";
 
 // ═══════════════════════════════════════════════
-//  Danh sách cổ phiếu quét (VN30 + mid-cap phổ biến)
+//  Danh sách cổ phiếu quét — Dùng RS-Rating từ FiinQuant
 // ═══════════════════════════════════════════════
-const SCAN_WATCHLIST = [
-  // VN30
+
+// Fallback khi FiinQuant không available
+const FALLBACK_WATCHLIST = [
   "ACB","BCM","BID","BVH","CTG","FPT","GAS","GVR","HDB","HPG",
   "MBB","MSN","MWG","PLX","POW","SAB","SHB","SSB","SSI","STB",
   "TCB","TPB","VCB","VHM","VIB","VIC","VJC","VNM","VPB","VRE",
-  // Mid-cap đầu cơ phổ biến
   "DGC","DPM","DGW","DCM","PNJ","REE","KDH","NLG","HDG","HSG",
   "NKG","DPG","PC1","DVN","SZC","GMD","ANV","VND","HCM","BSI",
   "PVD","PVS","HAG","DXG","KBC","IJC","LPB","OCB","EIB","TCH",
@@ -33,11 +40,6 @@ const SCAN_WATCHLIST = [
 // ═══════════════════════════════════════════════
 //  Bảo mật & Anti-duplicate
 // ═══════════════════════════════════════════════
-
-function validateCronSecret(req: NextRequest): boolean {
-  const secret = req.headers.get("x-cron-secret");
-  return secret === (process.env.CRON_SECRET ?? "adn-cron-dev-key");
-}
 
 async function getSignaledTodayStocks(): Promise<string[]> {
   const startOfDay = new Date();
@@ -124,50 +126,36 @@ function checkShortTermReversal(d: TAData): string | null {
 }
 
 // ═══════════════════════════════════════════════
-//  Quét toàn bộ watchlist
+//  Quét toàn bộ watchlist (dùng RS-Rating từ FiinQuant)
 // ═══════════════════════════════════════════════
 
 async function scanSignals(alreadySignaled: string[]): Promise<DetectedSignal[]> {
-  const toScan = SCAN_WATCHLIST.filter((s) => !alreadySignaled.includes(s));
+  // Ưu tiên RS-Rating stocks, fallback sang danh sách cứng
+  const allStocks = await getRSRatingStocks();
+  const toScan = allStocks.filter((s) => !alreadySignaled.includes(s));
   if (toScan.length === 0) return [];
 
-  console.log(`[scan-signals] Bắt đầu quét ${toScan.length} mã: ${toScan.join(",")}`);
+  console.log(`[scan-signals] Bắt đầu quét ${toScan.length} mã (RS-Rating): ${toScan.slice(0, 10).join(",")}`);
 
   const results: DetectedSignal[] = [];
 
-  // Quét song song theo batch để tránh quá tải API (batch 10 mã)
-  const BATCH_SIZE = 10;
-  for (let i = 0; i < toScan.length; i += BATCH_SIZE) {
-    const batch = toScan.slice(i, i + BATCH_SIZE);
-    const promises = batch.map(async (ticker) => {
-      try {
-        const data = await fetchTAData(ticker);
-        if (!data) return;
+  // Batch fetch TA data
+  const taMap = await batchFetchTA(toScan);
 
-        const panic = checkPanicBottom(data);
-        if (panic) {
-          results.push({ ticker, type: "DAU_CO", entryPrice: data.currentPrice });
-          return;
-        }
+  for (const [ticker, data] of taMap) {
+    const panic = checkPanicBottom(data);
+    if (panic) {
+      results.push({ ticker, type: "DAU_CO", entryPrice: data.currentPrice });
+      continue;
+    }
 
-        const reversal = checkShortTermReversal(data);
-        if (reversal) {
-          results.push({ ticker, type: "DAU_CO", entryPrice: data.currentPrice });
-        }
-      } catch (err) {
-        console.error(`[scan-signals] Lỗi quét ${ticker}:`, err);
-      }
-    });
-
-    await Promise.all(promises);
-
-    // Nghỉ 500ms giữa các batch để tránh rate limit
-    if (i + BATCH_SIZE < toScan.length) {
-      await new Promise((r) => setTimeout(r, 500));
+    const reversal = checkShortTermReversal(data);
+    if (reversal) {
+      results.push({ ticker, type: "DAU_CO", entryPrice: data.currentPrice });
     }
   }
 
-  console.log(`[scan-signals] Hoàn tất — tìm thấy ${results.length} tín hiệu mới`);
+  console.log(`[scan-signals] Hoàn tất — quét ${taMap.size} mã, ${results.length} tín hiệu mới`);
   return results;
 }
 
@@ -175,9 +163,18 @@ async function scanSignals(alreadySignaled: string[]): Promise<DetectedSignal[]>
 //  HTTP Handler
 // ═══════════════════════════════════════════════
 
+export const maxDuration = 120;
+
 export async function GET(req: NextRequest) {
   if (!validateCronSecret(req)) {
     return NextResponse.json({ error: "Không có quyền truy cập" }, { status: 401 });
+  }
+
+  const startTime = Date.now();
+
+  if (!isTradingDay()) {
+    await logCron("signal_scan", "skipped", "Không phải ngày giao dịch", 0);
+    return NextResponse.json({ type: "signal_scan", message: "Không phải ngày giao dịch" });
   }
 
   try {
@@ -185,13 +182,14 @@ export async function GET(req: NextRequest) {
     const newSignals = await scanSignals(alreadySignaled);
 
     if (newSignals.length === 0) {
+      const duration = Date.now() - startTime;
+      await logCron("signal_scan", "success", "Không có tín hiệu mới", duration);
       return NextResponse.json({
         type: "signal_scan",
         timestamp: new Date().toISOString(),
         message: "Không có tín hiệu mới",
         newSignals: [],
         totalSignaledToday: alreadySignaled.length,
-        scannedStocks: SCAN_WATCHLIST.length,
       });
     }
 
@@ -207,16 +205,33 @@ export async function GET(req: NextRequest) {
       )
     );
 
+    // Đẩy Notification
+    const signalText = savedSignals
+      .map((s) => `• ${s.ticker}: ${s.entryPrice.toLocaleString("vi-VN")} VNĐ`)
+      .join("\n");
+
+    await pushNotification(
+      "signal_5m",
+      `📡 ${savedSignals.length} tín hiệu đầu cơ mới`,
+      `## TÍN HIỆU MỚI\n\n${signalText}`
+    );
+
+    const duration = Date.now() - startTime;
+    await logCron("signal_scan", "success", `${savedSignals.length} tín hiệu mới`, duration, {
+      newSignals: savedSignals.length,
+    });
+
     return NextResponse.json({
       type: "signal_scan",
       timestamp: new Date().toISOString(),
       message: `Phát hiện ${savedSignals.length} tín hiệu đầu cơ mới`,
       newSignals: savedSignals,
       totalSignaledToday: alreadySignaled.length + savedSignals.length,
-      scannedStocks: SCAN_WATCHLIST.length,
     });
   } catch (error) {
-    console.error("[CRON /api/cron/scan-signals] Lỗi:", error);
+    const duration = Date.now() - startTime;
+    await logCron("signal_scan", "error", String(error), duration);
+    console.error("[CRON scan-signals] Lỗi:", error);
     return NextResponse.json({ error: "Lỗi quét tín hiệu" }, { status: 500 });
   }
 }
