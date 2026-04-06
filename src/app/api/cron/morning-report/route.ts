@@ -11,7 +11,6 @@ import { generateText } from "@/lib/gemini";
 import {
   validateCronSecret,
   logCron,
-  pushNotification,
   saveMarketReport,
   getVNDateString,
 } from "@/lib/cronHelpers";
@@ -100,12 +99,7 @@ Viết bằng tiếng Việt, phong cách trader chuyên nghiệp, dứt khoát.
       marketScore: snapshot.marketOverview?.score,
     });
 
-    // ═══ 4. Đẩy Notification ═══
-    await pushNotification(
-      "morning_8h",
-      `☀️ Báo cáo sáng ${today}`,
-      report
-    );
+    // Morning Brief chỉ hiển thị trên Dashboard, KHÔNG đẩy Notification
 
     const duration = Date.now() - startTime;
     await logCron("morning_brief", "success", `Tạo thành công trong ${duration}ms`, duration, {

@@ -1,5 +1,5 @@
-// ADN Capital — Service Worker v2 (fixed caching strategy)
-const CACHE_NAME = 'adn-capital-v2';
+// ADN Capital — Service Worker v3 (with Web Push support)
+const CACHE_NAME = 'adn-capital-v3';
 const STATIC_ASSETS = [
   '/icons/icon-192x192.png',
   '/icons/icon-512x512.png',
@@ -22,6 +22,51 @@ self.addEventListener('activate', (event) => {
     )
   );
   self.clients.claim();
+});
+
+// Push event — nhận notification từ server
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+
+  try {
+    const data = event.data.json();
+    const options = {
+      body: data.body || '',
+      icon: data.icon || '/icons/icon-192x192.png',
+      badge: data.badge || '/icons/icon-192x192.png',
+      vibrate: [200, 100, 200],
+      tag: data.tag || 'adn-notification',
+      renotify: true,
+      data: { url: data.url || '/notifications' },
+    };
+
+    event.waitUntil(
+      self.registration.showNotification(data.title || 'ADN Capital', options)
+    );
+  } catch (e) {
+    console.error('[SW] Push parse error:', e);
+  }
+});
+
+// Click notification — mở app
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  const url = event.notification.data?.url || '/notifications';
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      // Focus existing tab if open
+      for (const client of clients) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          client.navigate(url);
+          return client.focus();
+        }
+      }
+      // Otherwise open new tab
+      return self.clients.openWindow(url);
+    })
+  );
 });
 
 // Fetch strategy:

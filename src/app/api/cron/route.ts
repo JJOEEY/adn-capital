@@ -139,9 +139,7 @@ Viết tiếng Việt, ngắn gọn.`;
       netValue: propData.netValue,
     });
 
-    const netLabel = propData.netValue >= 0 ? "MUA ròng" : "BÁN ròng";
-    const netAbs = Math.abs(propData.netValue).toLocaleString("vi-VN");
-    await pushNotification("prop_19h", `🏦 Tự Doanh ${netLabel} ${netAbs} tỷ`, report);
+    // Prop Trading chỉ hiển thị trên Dashboard, KHÔNG đẩy Notification
 
     const duration = Date.now() - startTime;
     await logCron("prop_trading", "success", `Net: ${propData.netValue} tỷ`, duration);

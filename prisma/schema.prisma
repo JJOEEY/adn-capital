@@ -77,6 +77,7 @@ model User {
   chats          Chat[]
   paymentOrders  PaymentOrder[]
   tradingJournal TradingJournal[]
+  pushSubscriptions PushSubscription[]
 }
 
 model PaymentOrder {
@@ -222,4 +223,17 @@ model PropTrading {
 
   @@unique([date])
   @@index([date])
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userId    String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
 }

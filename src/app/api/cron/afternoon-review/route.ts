@@ -11,7 +11,6 @@ import { generateText } from "@/lib/gemini";
 import {
   validateCronSecret,
   logCron,
-  pushNotification,
   saveMarketReport,
   getVNDateString,
 } from "@/lib/cronHelpers";
@@ -113,12 +112,7 @@ Viết bằng tiếng Việt, dứt khoát.`;
       marketScore: snapshot.marketOverview?.score,
     });
 
-    // ═══ 4. Đẩy Notification ═══
-    await pushNotification(
-      "eod_15h",
-      `🌅 Báo cáo cuối phiên ${today}`,
-      report
-    );
+    // EOD Brief chỉ hiển thị trên Dashboard, KHÔNG đẩy Notification
 
     const duration = Date.now() - startTime;
     await logCron("eod_brief", "success", `Verdict: ${isGood ? "GOOD" : "BAD"}, ${duration}ms`, duration, {

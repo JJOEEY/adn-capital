@@ -9,8 +9,9 @@ import {
   Clock,
   TrendingUp,
   Sun,
-  Moon,
   Bell,
+  BellRing,
+  BellOff,
   Bot,
   Send,
 } from "lucide-react";
@@ -28,12 +29,11 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 /* Icon + color config per notification type */
 const typeConfig: Record<string, { icon: typeof Zap; color: string; bg: string; label: string }> = {
-  signal_10h:   { icon: Zap, color: "text-yellow-400", bg: "bg-yellow-500/10 border-yellow-500/20", label: "TÍN HIỆU 10:00" },
-  signal_1130:  { icon: Zap, color: "text-yellow-400", bg: "bg-yellow-500/10 border-yellow-500/20", label: "TÍN HIỆU 11:30" },
-  signal_14h:   { icon: Zap, color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", label: "TÍN HIỆU 14:00" },
-  signal_1445:  { icon: Zap, color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", label: "TÍN HIỆU 14:45" },
-  market_17h:   { icon: TrendingUp, color: "text-purple-400", bg: "bg-purple-500/10 border-purple-500/20", label: "BÁO CÁO THỊ TRƯỜNG 17:00" },
-  eod_19h:      { icon: Moon, color: "text-blue-400", bg: "bg-blue-500/10 border-blue-500/20", label: "BẢN TIN EOD 19:00" },
+  signal_10h:   { icon: Zap, color: "text-yellow-400", bg: "bg-yellow-500/10 border-yellow-500/20", label: "CẬP NHẬT 10:00" },
+  signal_1130:  { icon: Zap, color: "text-yellow-400", bg: "bg-yellow-500/10 border-yellow-500/20", label: "CẬP NHẬT 11:30" },
+  signal_14h:   { icon: TrendingUp, color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", label: "CẬP NHẬT 14:00" },
+  signal_1445:  { icon: TrendingUp, color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", label: "CẬP NHẬT 14:45" },
+  signal_5m:    { icon: Zap, color: "text-orange-400", bg: "bg-orange-500/10 border-orange-500/20", label: "TÍN HIỆU MỚI" },
 };
 
 function getConfig(type: string) {
@@ -42,6 +42,69 @@ function getConfig(type: string) {
 
 type SubTab = "updates" | "chatbot";
 
+/** Helper: Đăng ký web push subscription */
+async function subscribePush(): Promise<boolean> {
+  try {
+    const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+    if (!vapidKey) {
+      console.warn("[Push] VAPID public key chưa cấu hình");
+      return false;
+    }
+
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") return false;
+
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(vapidKey),
+    });
+
+    await fetch("/api/push-subscribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ subscription: sub.toJSON() }),
+    });
+
+    return true;
+  } catch (err) {
+    console.error("[Push] Lỗi đăng ký:", err);
+    return false;
+  }
+}
+
+/** Helper: Hủy web push subscription */
+async function unsubscribePush(): Promise<boolean> {
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (!sub) return true;
+
+    await fetch("/api/push-subscribe", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ endpoint: sub.endpoint }),
+    });
+
+    await sub.unsubscribe();
+    return true;
+  } catch (err) {
+    console.error("[Push] Lỗi hủy:", err);
+    return false;
+  }
+}
+
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
 export default function NotificationsPage() {
   const [subTab, setSubTab] = useState<SubTab>("updates");
   const [chatInput, setChatInput] = useState("");
@@ -49,6 +112,8 @@ export default function NotificationsPage() {
   const [chatLoading, setChatLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
 
   const { data, isLoading } = useSWR<{ notifications: Notification[] }>(
     "/api/notifications?limit=50",
@@ -57,6 +122,32 @@ export default function NotificationsPage() {
   );
 
   const notifications = data?.notifications ?? [];
+
+  // Check push subscription status on mount
+  useEffect(() => {
+    if ("serviceWorker" in navigator && "PushManager" in window) {
+      navigator.serviceWorker.ready.then((reg) => {
+        reg.pushManager.getSubscription().then((sub) => {
+          setPushEnabled(!!sub);
+        });
+      });
+    }
+  }, []);
+
+  const handleTogglePush = async () => {
+    setPushLoading(true);
+    try {
+      if (pushEnabled) {
+        const ok = await unsubscribePush();
+        if (ok) setPushEnabled(false);
+      } else {
+        const ok = await subscribePush();
+        if (ok) setPushEnabled(true);
+      }
+    } finally {
+      setPushLoading(false);
+    }
+  };
 
   // Group by date
   const grouped = notifications.reduce<Record<string, Notification[]>>((acc, n) => {
@@ -142,19 +233,36 @@ export default function NotificationsPage() {
         {subTab === "updates" ? (
           /* ── Cập nhật thông tin ── */
           <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-4">
-            <div className="flex gap-2 flex-wrap">
-              {[
-                { label: "10:00", color: "text-yellow-400 bg-yellow-500/10 border-yellow-500/20" },
-                { label: "11:30", color: "text-yellow-400 bg-yellow-500/10 border-yellow-500/20" },
-                { label: "14:00", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
-                { label: "14:45", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
-                { label: "17:00", color: "text-purple-400 bg-purple-500/10 border-purple-500/20" },
-                { label: "19:00", color: "text-blue-400 bg-blue-500/10 border-blue-500/20" },
-              ].map((s) => (
-                <span key={s.label} className={`text-[9px] font-bold px-2 py-1 rounded-lg border ${s.color}`}>
-                  {s.label}
-                </span>
-              ))}
+            {/* Push toggle + filter tags */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex gap-2 flex-wrap flex-1">
+                {[
+                  { label: "10:00", color: "text-yellow-400 bg-yellow-500/10 border-yellow-500/20" },
+                  { label: "11:30", color: "text-yellow-400 bg-yellow-500/10 border-yellow-500/20" },
+                  { label: "14:00", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
+                  { label: "14:45", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
+                  { label: "Tín hiệu", color: "text-orange-400 bg-orange-500/10 border-orange-500/20" },
+                ].map((s) => (
+                  <span key={s.label} className={`text-[9px] font-bold px-2 py-1 rounded-lg border ${s.color}`}>
+                    {s.label}
+                  </span>
+                ))}
+              </div>
+              <button
+                onClick={handleTogglePush}
+                disabled={pushLoading}
+                className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-bold border transition-all cursor-pointer ${
+                  pushEnabled
+                    ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/25"
+                    : "bg-neutral-800/50 text-neutral-400 border-neutral-700 hover:text-white hover:border-emerald-500/30"
+                } ${pushLoading ? "opacity-50" : ""}`}
+              >
+                {pushEnabled ? (
+                  <><BellRing className="w-3.5 h-3.5" /> Đang bật</>
+                ) : (
+                  <><BellOff className="w-3.5 h-3.5" /> Bật thông báo</>
+                )}
+              </button>
             </div>
             {isLoading ? (
               <div className="space-y-3">
@@ -166,7 +274,7 @@ export default function NotificationsPage() {
               <div className="rounded-2xl border border-neutral-800 bg-neutral-900/80 p-12 text-center">
                 <Clock className="w-12 h-12 text-neutral-700 mx-auto mb-3" />
                 <p className="text-sm text-neutral-500">Chưa có thông báo nào</p>
-                <p className="text-xs text-neutral-600 mt-1">Bản tin sẽ tự động cập nhật vào 10h, 11h30, 14h, 14h45, 17h, 19h</p>
+                <p className="text-xs text-neutral-600 mt-1">Bản tin sẽ tự động cập nhật vào 10h, 11h30, 14h, 14h45</p>
               </div>
             ) : (
               Object.entries(grouped).map(([dateStr, items]) => (
