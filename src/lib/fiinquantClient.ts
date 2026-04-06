@@ -197,7 +197,8 @@ export async function fetchRSRatingList(): Promise<FiinRSRating[] | null> {
   const items = raw.data ?? raw.stocks ?? [];
   if (!Array.isArray(items) || items.length === 0) return null;
 
-  return items.map((s: Record<string, unknown>) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (items as any[]).map((s: Record<string, unknown>) => {
     const close = Number(s.close ?? s.price ?? 0);
     const prevClose = Number(s.prev_close ?? s.prevClose ?? close);
     const changePct = prevClose > 0 ? ((close - prevClose) / prevClose) * 100 : 0;
