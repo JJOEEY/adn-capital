@@ -25,6 +25,7 @@ import {
   Send,
   Info,
   Zap,
+  Briefcase,
   ChevronLeft,
   ChevronRight,
   Crown,
@@ -68,6 +69,7 @@ const menuSections: MenuSection[] = [
     title: "Dịch vụ",
     items: [
       { href: "/margin", label: "Ký quỹ · Mua nhanh", icon: Banknote, badge: "HOT" },
+      { href: "/portfolio", label: "Danh mục đầu tư", icon: Briefcase, badge: "MỚI" },
       { href: "/journal", label: "Nhật ký giao dịch", icon: BookOpen },
     ],
   },

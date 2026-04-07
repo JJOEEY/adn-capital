@@ -6,7 +6,6 @@ import { useSession } from "next-auth/react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 import {
-  UserCircle,
   Calendar,
   Clock,
   Crown,
