@@ -1,5 +1,37 @@
 # CHANGELOG — Hệ Sinh Thái Nhật Ký & Quản Trị Tâm Lý AI (All-In-One)
 
+## [2026-04-08] — Visual Asset Manager (Redesign Danh Mục)
+
+### NEW: Trang /portfolio — Visual Asset Manager
+- **API Backend**: `/api/portfolio` — Tổng hợp NAV, FIFO PnL, holdings, allocation %, signal AI tags, lịch sử giao dịch theo mã
+- **Header Glassmorphism**: Tổng NAV (font 3xl, gradient glow), Tiền mặt, Đang nắm giữ, PnL đã chốt — hiệu ứng kính mờ backdrop-blur
+- **Donut Chart (Recharts Pie)**: Tỷ trọng phân bổ tài sản (% mỗi mã + tiền mặt), tooltip tương tác
+- **Win Rate Bar**: Hiển thị W/L ratio với progress bar
+
+### Smart Table
+- **Cột**: Mã CP, Khối lượng, Giá vốn, Giá TT, Lãi/Lỗ (số + %)
+- **Sparklines**: Biểu đồ 7 ngày (Recharts LineChart 80×28px) cho mỗi mã — fetch từ `/api/historical/[ticker]`
+- **AI Signal Badges**: ⚡ Leader (vàng), 🛡️ Trung hạn (xanh dương), 🎯 Ngắn hạn (xanh lá) — lấy từ Signal model
+
+### Expandable Row (Accordion)
+- Click vào dòng → mở rộng Detail Panel bên dưới
+- **Date Range Picker**: Từ ngày — Đến ngày
+- **Lịch sử giao dịch**: Tất cả MUA/BÁN của mã đó, lọc theo thời gian, hiển thị psychologyTag
+- **Realized PnL trong kỳ**: Tính FIFO trong khoảng lọc, hiển thị badge lớn (xanh/đỏ)
+
+### Navigation
+- Thêm "Danh Mục" vào: Sidebar (DashboardLayout), Header menu, BottomTabBar (mobile)
+- Icon: Briefcase (lucide-react)
+
+### Files Changed (6 files, +1020 lines)
+- `src/app/api/portfolio/route.ts` — NEW: Portfolio API endpoint
+- `src/app/portfolio/page.tsx` — NEW: Full portfolio page
+- `src/components/layout/DashboardLayout.tsx` — Added Briefcase + /portfolio nav
+- `src/components/layout/Header.tsx` — Added Briefcase + /portfolio menu item
+- `src/components/pwa/BottomTabBar.tsx` — Replaced "Nhật Ký" with "Danh Mục" on mobile
+
+---
+
 ## [2026-04-08] — Triển Khai Toàn Diện
 
 ### PHẦN 1: DATABASE & CƠ CHẾ BẢO MẬT RIÊNG TƯ
