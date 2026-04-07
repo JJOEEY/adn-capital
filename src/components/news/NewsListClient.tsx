@@ -5,10 +5,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { FileText } from "lucide-react";
 import { mockArticles, mockCategories, type MockArticle } from "@/lib/mock-articles";
+import { MainLayout } from "@/components/layout/MainLayout";
 
-// ── Placeholder fallback ──
-const PLACEHOLDER_IMG = "/data/placeholder-news.svg";
-
+// ── Image with Fallback ── renders gradient placeholder on error
 function ImgWithFallback({
   src,
   alt,
@@ -24,11 +23,20 @@ function ImgWithFallback({
   sizes?: string;
   priority?: boolean;
 }) {
-  const [imgSrc, setImgSrc] = useState(src);
-  const handleError = useCallback(() => setImgSrc(PLACEHOLDER_IMG), []);
+  const [hasError, setHasError] = useState(false);
+  const handleError = useCallback(() => setHasError(true), []);
+
+  if (hasError || !src) {
+    return (
+      <div className={`${fill ? "absolute inset-0" : ""} bg-gradient-to-br from-slate-800 via-slate-700 to-slate-900 flex items-center justify-center`}>
+        <span className="text-xs font-bold text-slate-500 tracking-wider uppercase">ADN Capital</span>
+      </div>
+    );
+  }
+
   return (
     <Image
-      src={imgSrc || PLACEHOLDER_IMG}
+      src={src}
       alt={alt}
       fill={fill}
       className={className}
@@ -219,6 +227,7 @@ export function NewsListClient() {
   });
 
   return (
+    <MainLayout>
     <div className="max-w-7xl mx-auto px-4 py-6">
       {/* ── Header ── */}
       <div className="flex items-center justify-between mb-5">
@@ -300,6 +309,7 @@ export function NewsListClient() {
         </div>
       )}
     </div>
+    </MainLayout>
   );
 }
 

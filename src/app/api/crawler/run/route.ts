@@ -28,6 +28,7 @@ interface CrawledItem {
 interface AIRewriteResult {
   title: string;
   aiSummary: string;
+  content?: string;
   sentiment: "Tích cực" | "Tiêu cực" | "Trung tính";
   tags: string[];
 }
@@ -122,20 +123,47 @@ async function crawlResearchPDFs(): Promise<CrawledItem[]> {
 
 // ── Step 2: AI Rewrite via Gemini ──
 async function aiRewrite(item: CrawledItem): Promise<AIRewriteResult> {
-  const prompt = `Bạn là biên tập viên tài chính chuyên nghiệp. Hãy xử lý bài báo sau và trả về JSON (KHÔNG có markdown code block):
+  // Try to fetch full article content from source URL
+  let fullContent = item.content;
+  if (item.sourceUrl) {
+    try {
+      const pageRes = await fetch(item.sourceUrl, {
+        headers: { "User-Agent": "ADN-Capital-Bot/1.0" },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (pageRes.ok) {
+        const html = await pageRes.text();
+        // Extract main article body from CafeF / VnEconomy / generic pages
+        const bodyMatch =
+          html.match(/<div[^>]*class="[^"]*detail-content[^"]*"[^>]*>([\s\S]*?)<\/div>\s*(?:<div[^>]*class="[^"]*(?:relate|tag|box-social|author-info))/i) ||
+          html.match(/<div[^>]*id="[^"]*(?:mainContent|articleContent|newsContent)[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<div/i) ||
+          html.match(/<article[^>]*>([\s\S]*?)<\/article>/i) ||
+          html.match(/<div[^>]*class="[^"]*knc-content[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+        if (bodyMatch?.[1] && bodyMatch[1].length > 200) {
+          fullContent = bodyMatch[1];
+        }
+      }
+    } catch {
+      // Fallback to RSS excerpt
+    }
+  }
+
+  const prompt = `Ngươi là một Biên tập viên Tài chính cấp cao. Dữ liệu đầu vào là một bài báo thô. Hãy trả về JSON (KHÔNG markdown code block) với các phần sau:
 
 TIÊU ĐỀ GỐC: ${item.originalTitle}
 
-NỘI DUNG TÓM TẮT: ${item.excerpt}
+NỘI DUNG BÀI BÁO:
+${fullContent}
 
-YÊU CẦU:
+YÊU CẦU TRẢ VỀ JSON:
 1. "title": Viết lại tiêu đề cho giật gân, hấp dẫn hơn (tiếng Việt, tối đa 120 ký tự)
-2. "aiSummary": Tóm tắt thành 2-3 câu ngắn gọn, có con số cụ thể nếu có
-3. "sentiment": Phân loại "Tích cực" hoặc "Tiêu cực" hoặc "Trung tính"
-4. "tags": Mảng 2-4 tags phù hợp (VD: ["Thị trường", "VN-Index", "Khối ngoại"])
+2. "aiSummary": Tóm tắt cực ngắn gọn thành 3 gạch đầu dòng (dùng • thay cho -)
+3. "content": Nội dung chi tiết của bài báo dạng HTML. [QUAN TRỌNG]: BẮT BUỘC phải giữ nguyên 100% độ dài, duy trì TẤT CẢ các đoạn văn, số liệu, trích dẫn và luận điểm của bài gốc. Chỉ thực hiện: làm sạch thẻ HTML lỗi, xóa text quảng cáo/liên kết nội bộ của báo gốc, format lại bằng các thẻ <p>, <h2>, <h3>, <strong>, <ul>, <li> cho đẹp mắt. TUYỆT ĐỐI KHÔNG ĐƯỢC TÓM TẮT, CẮT XÉN HAY RÚT NGẮN PHẦN content NÀY.
+4. "sentiment": Phân loại "Tích cực" hoặc "Tiêu cực" hoặc "Trung tính"
+5. "tags": Mảng 2-4 tags phù hợp (VD: ["Thị trường", "VN-Index", "Khối ngoại"])
 
 Trả về ĐÚNG JSON format:
-{"title":"...","aiSummary":"...","sentiment":"...","tags":["..."]}`;
+{"title":"...","aiSummary":"...","content":"<p>...</p>","sentiment":"...","tags":["..."]}`;
 
   try {
     const response = await genAI.models.generateContent({
@@ -155,12 +183,17 @@ Trả về ĐÚNG JSON format:
     if (!result.title || !result.sentiment) {
       throw new Error("Missing required fields in AI response");
     }
+    // If AI returned content, use it; otherwise keep original
+    if (result.content) {
+      item.content = result.content;
+    }
     return result;
   } catch (err) {
     console.warn("[AI Rewrite] Failed, using fallback:", err);
     return {
       title: item.originalTitle,
       aiSummary: item.excerpt.slice(0, 200),
+      content: fullContent,
       sentiment: "Trung tính",
       tags: ["Tin tức"],
     };
@@ -195,7 +228,7 @@ async function saveArticle(
       title: aiResult.title,
       originalTitle: item.originalTitle,
       slug: generateSlug(aiResult.title),
-      content: item.content,
+      content: aiResult.content || item.content,
       excerpt: item.excerpt,
       aiSummary: aiResult.aiSummary,
       sourceUrl: item.sourceUrl,

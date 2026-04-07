@@ -5,15 +5,44 @@ import Link from "next/link";
 import Image from "next/image";
 import { FileText } from "lucide-react";
 import { getArticleBySlug, getRelatedArticles, type MockArticle } from "@/lib/mock-articles";
+import { MainLayout } from "@/components/layout/MainLayout";
 
 const PLACEHOLDER_IMG = "/data/placeholder-news.svg";
 
+// Detail page: hide image entirely on error (no grey placeholder)
+function HeroImage({ src, alt }: { src: string; alt: string }) {
+  const [hasError, setHasError] = useState(false);
+  const handleError = useCallback(() => setHasError(true), []);
+  if (hasError || !src) return null;
+  return (
+    <div className="relative aspect-[16/9] rounded-xl overflow-hidden mb-8">
+      <Image
+        src={src}
+        alt={alt}
+        fill
+        className="object-cover"
+        sizes="(max-width: 768px) 100vw, 800px"
+        priority
+        onError={handleError}
+      />
+    </div>
+  );
+}
+
+// Related card: fallback gradient on error
 function ImgWithFallback({ src, alt, fill, className, sizes, priority }: {
   src: string; alt: string; fill?: boolean; className?: string; sizes?: string; priority?: boolean;
 }) {
-  const [imgSrc, setImgSrc] = useState(src);
-  const handleError = useCallback(() => setImgSrc(PLACEHOLDER_IMG), []);
-  return <Image src={imgSrc || PLACEHOLDER_IMG} alt={alt} fill={fill} className={className} sizes={sizes} priority={priority} onError={handleError} />;
+  const [hasError, setHasError] = useState(false);
+  const handleError = useCallback(() => setHasError(true), []);
+  if (hasError || !src) {
+    return (
+      <div className={`${fill ? "absolute inset-0" : ""} bg-gradient-to-br from-slate-800 via-slate-700 to-slate-900 flex items-center justify-center`}>
+        <span className="text-[9px] font-bold text-slate-500 uppercase">ADN</span>
+      </div>
+    );
+  }
+  return <Image src={src} alt={alt} fill={fill} className={className} sizes={sizes} priority={priority} onError={handleError} />;
 }
 
 function timeAgo(dateStr: string): string {
@@ -71,6 +100,7 @@ export function ArticleDetailClient({ slug }: { slug: string }) {
 
   if (!article) {
     return (
+      <MainLayout>
       <div className="max-w-3xl mx-auto px-4 py-20 text-center">
         <h1 className="text-2xl font-bold text-white mb-4">Không tìm thấy bài viết</h1>
         <p className="text-slate-400 mb-6">Bài viết bạn tìm kiếm không tồn tại hoặc đã bị xóa.</p>
@@ -78,6 +108,7 @@ export function ArticleDetailClient({ slug }: { slug: string }) {
           ← Quay lại trang tin tức
         </Link>
       </div>
+      </MainLayout>
     );
   }
 
@@ -92,6 +123,7 @@ export function ArticleDetailClient({ slug }: { slug: string }) {
   });
 
   return (
+    <MainLayout>
     <div className="max-w-4xl mx-auto px-4 py-8">
       {/* ── Breadcrumb ── */}
       <nav className="flex items-center gap-2 text-sm text-slate-500 mb-6">
@@ -177,17 +209,8 @@ export function ArticleDetailClient({ slug }: { slug: string }) {
         </div>
       )}
 
-      {/* ── Hero Image ── */}
-      <div className="relative aspect-[16/9] rounded-xl overflow-hidden mb-8">
-        <ImgWithFallback
-          src={article.imageUrl}
-          alt={article.title}
-          fill
-          className="object-cover"
-          sizes="(max-width: 768px) 100vw, 800px"
-          priority
-        />
-      </div>
+      {/* ── Hero Image (hidden if broken) ── */}
+      <HeroImage src={article.imageUrl} alt={article.title} />
 
       {/* ── Article Body ── */}
       <article
@@ -233,5 +256,6 @@ export function ArticleDetailClient({ slug }: { slug: string }) {
         </Link>
       </div>
     </div>
+    </MainLayout>
   );
 }
