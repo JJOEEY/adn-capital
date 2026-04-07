@@ -136,14 +136,24 @@ async function aiRewrite(item: CrawledItem): Promise<AIRewriteResult> {
       });
       if (pageRes.ok) {
         const html = await pageRes.text();
-        // Extract main article body from CafeF / VnEconomy / generic pages
+        // Extract main article body from VnExpress / CafeF / generic pages
         const bodyMatch =
+          html.match(/<article[^>]*class="[^"]*fck_detail[^"]*"[^>]*>([\s\S]*?)<\/article>/i) ||
+          html.match(/<div[^>]*class="[^"]*fck_detail[^"]*"[^>]*>([\s\S]*?)<\/div>\s*(?:<div|<\/section)/i) ||
           html.match(/<div[^>]*class="[^"]*detail-content[^"]*"[^>]*>([\s\S]*?)<\/div>\s*(?:<div[^>]*class="[^"]*(?:relate|tag|box-social|author-info))/i) ||
-          html.match(/<div[^>]*id="[^"]*(?:mainContent|articleContent|newsContent)[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<div/i) ||
-          html.match(/<article[^>]*>([\s\S]*?)<\/article>/i) ||
-          html.match(/<div[^>]*class="[^"]*knc-content[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+          html.match(/<div[^>]*class="[^"]*knc-content[^"]*"[^>]*>([\s\S]*?)<\/div>/i) ||
+          html.match(/<article[^>]*>([\s\S]*?)<\/article>/i);
         if (bodyMatch?.[1] && bodyMatch[1].length > 200) {
-          fullContent = bodyMatch[1];
+          // Clean VnExpress/CafeF bloat: strip figures, scripts, styles, data-components
+          fullContent = bodyMatch[1]
+            .replace(/<figure[\s\S]*?<\/figure>/gi, "")
+            .replace(/<script[\s\S]*?<\/script>/gi, "")
+            .replace(/<style[\s\S]*?<\/style>/gi, "")
+            .replace(/<div[^>]*data-component[^>]*>[\s\S]*?<\/div>/gi, "")
+            .replace(/<span[^>]*id="article-end"[^>]*><\/span>/gi, "")
+            .replace(/<img[^>]*>/gi, "")
+            .replace(/\s{2,}/g, " ")
+            .trim();
         }
       }
     } catch {
@@ -192,6 +202,10 @@ Trả về JSON với các key:
     // Validate required fields
     if (!result.title || !result.sentiment) {
       throw new Error("Missing required fields in AI response");
+    }
+    // Normalize aiSummary: Gemini sometimes returns array instead of string
+    if (Array.isArray(result.aiSummary)) {
+      result.aiSummary = (result.aiSummary as string[]).join("\n");
     }
     // If AI returned content, use it; otherwise keep original
     if (result.content) {
