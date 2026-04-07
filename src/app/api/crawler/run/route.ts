@@ -267,19 +267,37 @@ function cleanHtml(html: string): string {
 }
 
 // ═══ Main Handler ═══
-export async function POST() {
-  // Auth check: ADMIN only
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Chưa đăng nhập" }, { status: 401 });
-  }
+export async function POST(request: Request) {
+  // Auth: ADMIN session OR x-api-key header (for cron/automation)
+  const apiKey = request.headers.get("x-api-key");
+  const CRAWLER_API_KEY = process.env.CRAWLER_API_KEY;
 
-  const dbUser = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { systemRole: true },
-  });
-  if (dbUser?.systemRole !== "ADMIN") {
-    return NextResponse.json({ error: "Chỉ ADMIN mới được chạy crawler" }, { status: 403 });
+  let adminUserId: string;
+
+  if (apiKey && CRAWLER_API_KEY && apiKey === CRAWLER_API_KEY) {
+    // API key auth: find first admin user
+    const admin = await prisma.user.findFirst({
+      where: { systemRole: "ADMIN" },
+      select: { id: true },
+    });
+    if (!admin) {
+      return NextResponse.json({ error: "No admin user found" }, { status: 500 });
+    }
+    adminUserId = admin.id;
+  } else {
+    // Session auth
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Chưa đăng nhập" }, { status: 401 });
+    }
+    const dbUser = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { systemRole: true },
+    });
+    if (dbUser?.systemRole !== "ADMIN") {
+      return NextResponse.json({ error: "Chỉ ADMIN mới được chạy crawler" }, { status: 403 });
+    }
+    adminUserId = session.user.id;
   }
 
   try {
@@ -300,7 +318,7 @@ export async function POST() {
 
     for (const item of allItems) {
       const aiResult = await aiRewrite(item);
-      const saved = await saveArticle(item, aiResult, session.user.id);
+      const saved = await saveArticle(item, aiResult, adminUserId);
       results.push(saved);
     }
 
