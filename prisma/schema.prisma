@@ -83,6 +83,7 @@ model User {
   tradingJournal TradingJournal[]
   pushSubscriptions PushSubscription[]
   notifications  Notification[]
+  articles       Article[]
 }
 
 model PaymentOrder {
@@ -297,4 +298,52 @@ model Changelog {
   createdAt   DateTime @default(now())
 
   @@index([component, createdAt])
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  CMS — Quản trị Nội dung (Articles & Categories)
+// ═══════════════════════════════════════════════════════════════════
+// systemRole mở rộng: ADMIN | USER | WRITER
+// WRITER = full quyền VIP 3 tháng + quyền tạo bài viết
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String    @unique          // Thị trường, Quốc tế, Bất động sản...
+  slug      String    @unique
+  sortOrder Int       @default(0)
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  articles Article[]
+
+  @@index([slug])
+  @@index([sortOrder])
+}
+
+model Article {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  content     String                           // Rich text / HTML
+  excerpt     String?                          // Mô tả ngắn
+  aiSummary   String?                          // AI tóm tắt ngắn đầu bài
+  authorId    String
+  sourceUrl   String?                          // Nguồn gốc bài báo nếu kéo về
+  imageUrl    String?                          // Ảnh đại diện bài viết
+  status      String   @default("DRAFT")       // DRAFT | PENDING_APPROVAL | PUBLISHED | REJECTED
+  tags        String   @default("[]")          // JSON array: ["Tin tức", "Vĩ mô", "Tích cực"]
+  sentiment   String?                          // Tích cực | Tiêu cực | Trung tính
+  categoryId  String?
+  publishedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  author   User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([status, publishedAt])
+  @@index([categoryId, publishedAt])
+  @@index([authorId, createdAt])
+  @@index([slug])
 }

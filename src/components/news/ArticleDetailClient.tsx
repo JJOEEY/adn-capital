@@ -1,0 +1,206 @@
+"use client";
+
+import Link from "next/link";
+import Image from "next/image";
+import { getArticleBySlug, getRelatedArticles, type MockArticle } from "@/lib/mock-articles";
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins} phút trước`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} giờ trước`;
+  const days = Math.floor(hours / 24);
+  return `${days} ngày trước`;
+}
+
+function SentimentBadge({ sentiment }: { sentiment: string }) {
+  const map: Record<string, { bg: string; text: string; dot: string }> = {
+    "Tích cực": { bg: "bg-emerald-500/15", text: "text-emerald-400", dot: "bg-emerald-400" },
+    "Tiêu cực": { bg: "bg-red-500/15", text: "text-red-400", dot: "bg-red-400" },
+    "Trung tính": { bg: "bg-amber-500/15", text: "text-amber-400", dot: "bg-amber-400" },
+  };
+  const s = map[sentiment] ?? map["Trung tính"];
+  return (
+    <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${s.bg} ${s.text}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
+      {sentiment}
+    </span>
+  );
+}
+
+function RelatedCard({ article }: { article: MockArticle }) {
+  return (
+    <Link
+      href={`/khac/tin-tuc/${article.slug}`}
+      className="group flex gap-3 py-3 border-b border-white/5 last:border-b-0"
+    >
+      <div className="relative w-24 h-16 flex-shrink-0 rounded-lg overflow-hidden">
+        <Image
+          src={article.imageUrl}
+          alt={article.title}
+          fill
+          className="object-cover group-hover:scale-105 transition-transform duration-300"
+          sizes="96px"
+        />
+      </div>
+      <div className="flex-1 min-w-0">
+        <h4 className="text-sm font-semibold text-slate-200 leading-snug group-hover:text-blue-400 transition-colors line-clamp-2">
+          {article.title}
+        </h4>
+        <span className="text-[11px] text-slate-500 mt-1 block">{timeAgo(article.publishedAt)}</span>
+      </div>
+    </Link>
+  );
+}
+
+export function ArticleDetailClient({ slug }: { slug: string }) {
+  const article = getArticleBySlug(slug);
+
+  if (!article) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-20 text-center">
+        <h1 className="text-2xl font-bold text-white mb-4">Không tìm thấy bài viết</h1>
+        <p className="text-slate-400 mb-6">Bài viết bạn tìm kiếm không tồn tại hoặc đã bị xóa.</p>
+        <Link href="/khac/tin-tuc" className="text-blue-400 hover:underline">
+          ← Quay lại trang tin tức
+        </Link>
+      </div>
+    );
+  }
+
+  const related = getRelatedArticles(article.id, article.categorySlug, 5);
+  const publishDate = new Date(article.publishedAt).toLocaleDateString("vi-VN", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  return (
+    <div className="max-w-4xl mx-auto px-4 py-8">
+      {/* ── Breadcrumb ── */}
+      <nav className="flex items-center gap-2 text-sm text-slate-500 mb-6">
+        <Link href="/khac/tin-tuc" className="hover:text-blue-400 transition-colors">
+          Tin tức
+        </Link>
+        <span>/</span>
+        <span className="text-blue-400">{article.categoryName}</span>
+      </nav>
+
+      {/* ── Title ── */}
+      <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white leading-tight mb-4">
+        {article.title}
+      </h1>
+
+      {/* ── Meta: Author, Date, Sentiment ── */}
+      <div className="flex flex-wrap items-center gap-3 mb-6 text-sm text-slate-400">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-xs font-bold">
+            {article.authorName.charAt(0)}
+          </div>
+          <span className="font-medium text-slate-300">{article.authorName}</span>
+        </div>
+        <span className="text-slate-600">|</span>
+        <span>{publishDate}</span>
+        <span className="text-slate-600">|</span>
+        <SentimentBadge sentiment={article.sentiment} />
+        {article.sourceUrl && (
+          <>
+            <span className="text-slate-600">|</span>
+            <span className="text-slate-500">
+              Nguồn: <span className="text-blue-400">{new URL(article.sourceUrl).hostname}</span>
+            </span>
+          </>
+        )}
+      </div>
+
+      {/* ── Tags ── */}
+      <div className="flex flex-wrap gap-2 mb-6">
+        {article.tags.map((tag) => (
+          <span
+            key={tag}
+            className="text-xs font-medium px-2.5 py-1 rounded-full bg-white/5 text-slate-400 border border-white/10"
+          >
+            #{tag}
+          </span>
+        ))}
+      </div>
+
+      {/* ── AI Summary Box ── */}
+      {article.aiSummary && (
+        <div className="relative mb-8 p-5 rounded-xl bg-gradient-to-br from-blue-500/10 via-purple-500/5 to-transparent border border-blue-500/20">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="flex items-center gap-1.5 text-xs font-bold text-blue-400 uppercase tracking-wider">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+              </svg>
+              AI Tóm tắt
+            </span>
+          </div>
+          <p className="text-sm text-slate-300 leading-relaxed">
+            {article.aiSummary}
+          </p>
+        </div>
+      )}
+
+      {/* ── Hero Image ── */}
+      <div className="relative aspect-[16/9] rounded-xl overflow-hidden mb-8">
+        <Image
+          src={article.imageUrl}
+          alt={article.title}
+          fill
+          className="object-cover"
+          sizes="(max-width: 768px) 100vw, 800px"
+          priority
+        />
+      </div>
+
+      {/* ── Article Body ── */}
+      <article
+        className="prose prose-invert prose-lg max-w-none
+          prose-headings:text-white prose-headings:font-bold
+          prose-p:text-slate-300 prose-p:leading-relaxed
+          prose-strong:text-white
+          prose-a:text-blue-400 prose-a:no-underline hover:prose-a:underline
+          mb-12"
+        dangerouslySetInnerHTML={{ __html: article.content }}
+      />
+
+      {/* ── Divider ── */}
+      <div className="border-t border-white/10 my-8" />
+
+      {/* ── Related Articles ── */}
+      {related.length > 0 && (
+        <div>
+          <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+            <svg className="w-5 h-5 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+            </svg>
+            Tin liên quan
+          </h3>
+          <div className="bg-white/[0.02] rounded-xl border border-white/5 p-4">
+            {related.map((r) => (
+              <RelatedCard key={r.id} article={r} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Back Link ── */}
+      <div className="mt-8 text-center">
+        <Link
+          href="/khac/tin-tuc"
+          className="inline-flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300 transition-colors"
+        >
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M19 12H5M12 19l-7-7 7-7" />
+          </svg>
+          Quay lại trang tin tức
+        </Link>
+      </div>
+    </div>
+  );
+}
