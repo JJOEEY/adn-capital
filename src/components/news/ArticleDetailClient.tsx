@@ -1,11 +1,29 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { FileText } from "lucide-react";
-import { getArticleBySlug, getRelatedArticles, type MockArticle } from "@/lib/mock-articles";
+import { FileText, Loader2 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
+
+// ── Types from API ──
+interface Article {
+  id: string;
+  title: string;
+  slug: string;
+  content: string;
+  excerpt: string | null;
+  aiSummary: string | null;
+  sourceUrl: string | null;
+  imageUrl: string | null;
+  pdfUrl: string | null;
+  status: string;
+  tags: string[];
+  sentiment: string | null;
+  publishedAt: string | null;
+  author: { id: string; name: string | null; image: string | null } | null;
+  category: { id: string; name: string; slug: string } | null;
+}
 
 const PLACEHOLDER_IMG = "/data/placeholder-news.svg";
 
@@ -70,7 +88,7 @@ function SentimentBadge({ sentiment }: { sentiment: string }) {
   );
 }
 
-function RelatedCard({ article }: { article: MockArticle }) {
+function RelatedCard({ article }: { article: Article }) {
   return (
     <Link
       href={`/khac/tin-tuc/${article.slug}`}
@@ -78,7 +96,7 @@ function RelatedCard({ article }: { article: MockArticle }) {
     >
       <div className="relative w-24 h-16 flex-shrink-0 rounded-lg overflow-hidden">
         <ImgWithFallback
-          src={article.imageUrl}
+          src={article.imageUrl ?? ""}
           alt={article.title}
           fill
           className="object-cover group-hover:scale-105 transition-transform duration-300"
@@ -89,16 +107,45 @@ function RelatedCard({ article }: { article: MockArticle }) {
         <h4 className="text-sm font-semibold text-slate-200 leading-snug group-hover:text-blue-400 transition-colors line-clamp-2">
           {article.title}
         </h4>
-        <span className="text-[11px] text-slate-500 mt-1 block">{timeAgo(article.publishedAt)}</span>
+        <span className="text-[11px] text-slate-500 mt-1 block">{article.publishedAt ? timeAgo(article.publishedAt) : ""}</span>
       </div>
     </Link>
   );
 }
 
 export function ArticleDetailClient({ slug }: { slug: string }) {
-  const article = getArticleBySlug(slug);
+  const [article, setArticle] = useState<Article | null>(null);
+  const [related, setRelated] = useState<Article[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
-  if (!article) {
+  useEffect(() => {
+    fetch(`/api/articles/by-slug/${encodeURIComponent(slug)}`)
+      .then((r) => {
+        if (!r.ok) { setNotFound(true); return null; }
+        return r.json();
+      })
+      .then((data) => {
+        if (data) {
+          setArticle(data.article);
+          setRelated(data.related ?? []);
+        }
+      })
+      .catch(() => setNotFound(true))
+      .finally(() => setLoading(false));
+  }, [slug]);
+
+  if (loading) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
+        </div>
+      </MainLayout>
+    );
+  }
+
+  if (notFound || !article) {
     return (
       <MainLayout>
       <div className="max-w-3xl mx-auto px-4 py-20 text-center">
@@ -112,15 +159,18 @@ export function ArticleDetailClient({ slug }: { slug: string }) {
     );
   }
 
-  const related = getRelatedArticles(article.id, article.categorySlug, 5);
-  const publishDate = new Date(article.publishedAt).toLocaleDateString("vi-VN", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const authorName = article.author?.name ?? "ADN Capital";
+  const categoryName = article.category?.name ?? "";
+  const publishDate = article.publishedAt
+    ? new Date(article.publishedAt).toLocaleDateString("vi-VN", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "";
 
   return (
     <MainLayout>
@@ -131,7 +181,7 @@ export function ArticleDetailClient({ slug }: { slug: string }) {
           Tin tức
         </Link>
         <span>/</span>
-        <span className="text-blue-400">{article.categoryName}</span>
+        <span className="text-blue-400">{categoryName}</span>
       </nav>
 
       {/* ── Title ── */}
@@ -143,14 +193,14 @@ export function ArticleDetailClient({ slug }: { slug: string }) {
       <div className="flex flex-wrap items-center gap-3 mb-6 text-sm text-slate-400">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-xs font-bold">
-            {article.authorName.charAt(0)}
+            {authorName.charAt(0)}
           </div>
-          <span className="font-medium text-slate-300">{article.authorName}</span>
+          <span className="font-medium text-slate-300">{authorName}</span>
         </div>
         <span className="text-slate-600">|</span>
         <span>{publishDate}</span>
         <span className="text-slate-600">|</span>
-        <SentimentBadge sentiment={article.sentiment} />
+        {article.sentiment && <SentimentBadge sentiment={article.sentiment} />}
         {article.sourceUrl && (
           <>
             <span className="text-slate-600">|</span>
@@ -210,7 +260,7 @@ export function ArticleDetailClient({ slug }: { slug: string }) {
       )}
 
       {/* ── Hero Image (hidden if broken) ── */}
-      <HeroImage src={article.imageUrl} alt={article.title} />
+      <HeroImage src={article.imageUrl ?? ""} alt={article.title} />
 
       {/* ── Article Body ── */}
       <article

@@ -1,11 +1,34 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { FileText } from "lucide-react";
-import { mockArticles, mockCategories, type MockArticle } from "@/lib/mock-articles";
+import { FileText, Loader2 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
+
+// ── Types from API ──
+interface Article {
+  id: string;
+  title: string;
+  slug: string;
+  content: string;
+  excerpt: string | null;
+  aiSummary: string | null;
+  sourceUrl: string | null;
+  imageUrl: string | null;
+  pdfUrl: string | null;
+  status: string;
+  tags: string[];
+  sentiment: string | null;
+  publishedAt: string | null;
+  author: { id: string; name: string | null; image: string | null } | null;
+  category: { id: string; name: string; slug: string } | null;
+}
+interface Category {
+  id: string;
+  name: string;
+  slug: string;
+}
 
 // ── Image with Fallback ── renders gradient placeholder on error
 function ImgWithFallback({
@@ -76,12 +99,14 @@ function SentimentBadge({ sentiment }: { sentiment: string }) {
 // ═══════════════════════════════════════════════════════════
 //  HERO CARD — Bài nổi bật trên cùng cột chính
 // ═══════════════════════════════════════════════════════════
-function HeroCard({ article }: { article: MockArticle }) {
+function HeroCard({ article }: { article: Article }) {
+  const authorName = article.author?.name ?? "ADN Capital";
+  const categoryName = article.category?.name ?? "";
   return (
     <Link href={`/khac/tin-tuc/${article.slug}`} className="group block mb-5">
       <div className="relative aspect-[16/9] rounded-2xl overflow-hidden">
         <ImgWithFallback
-          src={article.imageUrl}
+          src={article.imageUrl ?? ""}
           alt={article.title}
           fill
           className="object-cover transition-transform duration-500 group-hover:scale-105"
@@ -92,21 +117,23 @@ function HeroCard({ article }: { article: MockArticle }) {
         <div className="absolute bottom-0 left-0 right-0 p-5 md:p-6">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-[10px] font-bold text-white/90 bg-blue-500/80 px-2 py-0.5 rounded uppercase tracking-wider">
-              {article.categoryName}
+              {categoryName}
             </span>
-            <SentimentBadge sentiment={article.sentiment} />
+            {article.sentiment && <SentimentBadge sentiment={article.sentiment} />}
             <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/20 px-1.5 py-0.5 rounded">AI</span>
           </div>
           <h2 className="text-xl md:text-2xl font-extrabold text-white leading-tight mb-2 group-hover:text-blue-300 transition-colors line-clamp-3 drop-shadow-lg">
             {article.title}
           </h2>
-          <p className="text-sm text-white/70 leading-relaxed line-clamp-2 mb-2 hidden md:block">
-            {article.aiSummary}
-          </p>
+          {article.aiSummary && (
+            <p className="text-sm text-white/70 leading-relaxed line-clamp-2 mb-2 hidden md:block">
+              {article.aiSummary}
+            </p>
+          )}
           <div className="flex items-center gap-3 text-[11px] text-white/50">
-            <span>{article.authorName}</span>
+            <span>{authorName}</span>
             <span>·</span>
-            <span>{timeAgo(article.publishedAt)}</span>
+            <span>{article.publishedAt ? timeAgo(article.publishedAt) : ""}</span>
           </div>
         </div>
       </div>
@@ -117,7 +144,8 @@ function HeroCard({ article }: { article: MockArticle }) {
 // ═══════════════════════════════════════════════════════════
 //  ARTICLE ROW — Thumbnail trái, nội dung phải
 // ═══════════════════════════════════════════════════════════
-function ArticleRow({ article }: { article: MockArticle }) {
+function ArticleRow({ article }: { article: Article }) {
+  const categoryName = article.category?.name ?? "";
   return (
     <Link
       href={`/khac/tin-tuc/${article.slug}`}
@@ -125,7 +153,7 @@ function ArticleRow({ article }: { article: MockArticle }) {
     >
       <div className="relative w-[100px] h-[72px] md:w-[120px] md:h-[80px] flex-shrink-0 rounded-xl overflow-hidden">
         <ImgWithFallback
-          src={article.imageUrl}
+          src={article.imageUrl ?? ""}
           alt={article.title}
           fill
           className="object-cover transition-transform duration-300 group-hover:scale-105"
@@ -134,8 +162,8 @@ function ArticleRow({ article }: { article: MockArticle }) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-[9px] font-bold text-blue-400 uppercase tracking-wider">{article.categoryName}</span>
-          <SentimentBadge sentiment={article.sentiment} />
+          <span className="text-[9px] font-bold text-blue-400 uppercase tracking-wider">{categoryName}</span>
+          {article.sentiment && <SentimentBadge sentiment={article.sentiment} />}
         </div>
         <h3 className="text-[13px] md:text-sm font-bold text-slate-200 leading-snug group-hover:text-blue-400 transition-colors line-clamp-2">
           {article.title}
@@ -147,7 +175,7 @@ function ArticleRow({ article }: { article: MockArticle }) {
               <span>·</span>
             </>
           )}
-          <span>{timeAgo(article.publishedAt)}</span>
+          <span>{article.publishedAt ? timeAgo(article.publishedAt) : ""}</span>
           {article.tags.slice(0, 2).map((tag) => (
             <span key={tag} className="text-blue-400/50">#{tag}</span>
           ))}
@@ -160,7 +188,8 @@ function ArticleRow({ article }: { article: MockArticle }) {
 // ═══════════════════════════════════════════════════════════
 //  RESEARCH PDF CARD — Sidebar báo cáo phân tích
 // ═══════════════════════════════════════════════════════════
-function ResearchPdfCard({ article }: { article: MockArticle }) {
+function ResearchPdfCard({ article }: { article: Article }) {
+  const authorName = article.author?.name ?? "ADN Capital";
   return (
     <div className="flex gap-3 py-3 border-b border-white/[0.06] last:border-b-0">
       <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-red-500/15 flex items-center justify-center">
@@ -174,9 +203,9 @@ function ResearchPdfCard({ article }: { article: MockArticle }) {
           {article.title}
         </Link>
         <div className="flex items-center gap-2 mt-1">
-          <span className="text-[9px] font-bold text-slate-500">{article.authorName}</span>
+          <span className="text-[9px] font-bold text-slate-500">{authorName}</span>
           <span className="text-[9px] text-slate-600">·</span>
-          <span className="text-[9px] text-slate-500">{timeAgo(article.publishedAt)}</span>
+          <span className="text-[9px] text-slate-500">{article.publishedAt ? timeAgo(article.publishedAt) : ""}</span>
         </div>
         {article.pdfUrl && (
           <a
@@ -200,20 +229,31 @@ function ResearchPdfCard({ article }: { article: MockArticle }) {
 // ═══════════════════════════════════════════════════════════
 export function NewsListClient() {
   const [activeCategory, setActiveCategory] = useState<string>("tat-ca");
+  const [articles, setArticles] = useState<Article[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const publishedArticles = useMemo(
-    () => mockArticles.filter((a) => a.status === "PUBLISHED"),
-    []
-  );
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/articles?status=PUBLISHED&limit=50").then((r) => r.json()),
+      fetch("/api/categories").then((r) => r.json()),
+    ])
+      .then(([artRes, catRes]) => {
+        setArticles(artRes.articles ?? []);
+        setCategories(catRes.categories ?? []);
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
 
   const filtered = useMemo(() => {
-    if (activeCategory === "tat-ca") return publishedArticles;
-    return publishedArticles.filter((a) => a.categorySlug === activeCategory);
-  }, [activeCategory, publishedArticles]);
+    if (activeCategory === "tat-ca") return articles;
+    return articles.filter((a) => a.category?.slug === activeCategory);
+  }, [activeCategory, articles]);
 
   const researchArticles = useMemo(
-    () => publishedArticles.filter((a) => a.pdfUrl),
-    [publishedArticles]
+    () => articles.filter((a) => a.pdfUrl),
+    [articles]
   );
 
   const hero = filtered[0];
@@ -245,15 +285,19 @@ export function NewsListClient() {
         <TabButton active={activeCategory === "tat-ca"} onClick={() => setActiveCategory("tat-ca")}>
           Tất cả
         </TabButton>
-        {mockCategories.map((cat) => (
+        {categories.map((cat) => (
           <TabButton key={cat.id} active={activeCategory === cat.slug} onClick={() => setActiveCategory(cat.slug)}>
             {cat.name}
           </TabButton>
         ))}
       </div>
 
-      {/* ── Main Grid 7:3 ── */}
-      {filtered.length === 0 ? (
+      {/* ── Loading ── */}
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="text-center py-20 text-slate-500">
           <p className="text-lg">Chưa có bài viết nào trong mục này</p>
         </div>
@@ -288,7 +332,7 @@ export function NewsListClient() {
             <div className="bg-white/[0.03] rounded-2xl border border-white/[0.06] p-4">
               <h3 className="text-sm font-bold text-white mb-3">📈 Đọc nhiều nhất</h3>
               <div className="space-y-3">
-                {publishedArticles.slice(0, 5).map((article, idx) => (
+                {articles.slice(0, 5).map((article, idx) => (
                   <Link key={article.id} href={`/khac/tin-tuc/${article.slug}`} className="flex gap-3 group">
                     <span className={`text-2xl font-black w-8 text-center flex-shrink-0 ${
                       idx === 0 ? "text-red-400" : idx === 1 ? "text-orange-400" : idx === 2 ? "text-amber-400" : "text-slate-600"
@@ -299,7 +343,7 @@ export function NewsListClient() {
                       <p className="text-[13px] font-semibold text-slate-300 leading-snug group-hover:text-blue-400 transition-colors line-clamp-2">
                         {article.title}
                       </p>
-                      <p className="text-[10px] text-slate-500 mt-1">{timeAgo(article.publishedAt)}</p>
+                      <p className="text-[10px] text-slate-500 mt-1">{article.publishedAt ? timeAgo(article.publishedAt) : ""}</p>
                     </div>
                   </Link>
                 ))}
