@@ -7,6 +7,11 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "lh3.googleusercontent.com" },
       { protocol: "https", hostname: "platform-lookaside.fbsbx.com" },
       { protocol: "https", hostname: "avatars.githubusercontent.com" },
+      { protocol: "https", hostname: "**.vnecdn.net" },
+      { protocol: "https", hostname: "**.vnexpress.net" },
+      { protocol: "https", hostname: "**.cafef.vn" },
+      { protocol: "https", hostname: "**.mediacdn.vn" },
+      { protocol: "https", hostname: "**.cafefcdn.com" },
     ],
   },
   async headers() {

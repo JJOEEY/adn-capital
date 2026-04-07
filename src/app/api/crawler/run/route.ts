@@ -151,27 +151,34 @@ async function aiRewrite(item: CrawledItem): Promise<AIRewriteResult> {
     }
   }
 
-  const prompt = `Ngươi là một Biên tập viên Tài chính cấp cao. Dữ liệu đầu vào là một bài báo thô. Hãy trả về JSON (KHÔNG markdown code block) với các phần sau:
+  const prompt = `Bạn là một Chuyên gia phân tích vĩ mô và Nhà báo tài chính kỳ cựu đang làm việc tại ADN Capital. Nhiệm vụ của bạn là biên tập lại bài báo thô được cung cấp. Bạn phải tuân thủ TUYỆT ĐỐI các luật lệ sau:
+
+1. GIỌNG VĂN KHÁCH QUAN, LẠNH LÙNG: Viết theo phong cách báo chí tài chính quốc tế (Reuters, Bloomberg, CafeF). Tập trung 100% vào sự kiện, dữ liệu, con số và luận điểm logic.
+2. CÁC TỪ CẤM (BLACKLIST): Tuyệt đối KHÔNG sử dụng các cụm từ sáo rỗng của AI như: "bức tranh toàn cảnh", "hành trình", "nhìn chung", "đáng chú ý", "không thể phủ nhận", "thời đại số", "có thể thấy", "như chúng ta đã biết", "sự trỗi dậy", "thắp sáng", "SỐC", "bùng nổ", "chấn động". Không dùng dấu chấm than (!).
+3. CẤU TRÚC: aiSummary phải là 3 gạch đầu dòng súc tích (dùng •), đi thẳng vào số liệu. Phần content phải giữ nguyên 100% độ dài bài gốc, giữ mọi số liệu, trích dẫn, luận điểm, nhưng được format lại bằng các thẻ <p>, <h3> rõ ràng, mạch lạc. KHÔNG liệt kê kiểu checklist. KHÔNG tóm tắt, cắt xén hay rút ngắn.
+4. ĐỊNH DẠNG: Trả về chuẩn JSON (KHÔNG markdown code block).
 
 TIÊU ĐỀ GỐC: ${item.originalTitle}
 
 NỘI DUNG BÀI BÁO:
 ${fullContent}
 
-YÊU CẦU TRẢ VỀ JSON:
-1. "title": Viết lại tiêu đề cho giật gân, hấp dẫn hơn (tiếng Việt, tối đa 120 ký tự)
-2. "aiSummary": Tóm tắt cực ngắn gọn thành 3 gạch đầu dòng (dùng • thay cho -)
-3. "content": Nội dung chi tiết của bài báo dạng HTML. [QUAN TRỌNG]: BẮT BUỘC phải giữ nguyên 100% độ dài, duy trì TẤT CẢ các đoạn văn, số liệu, trích dẫn và luận điểm của bài gốc. Chỉ thực hiện: làm sạch thẻ HTML lỗi, xóa text quảng cáo/liên kết nội bộ của báo gốc, format lại bằng các thẻ <p>, <h2>, <h3>, <strong>, <ul>, <li> cho đẹp mắt. TUYỆT ĐỐI KHÔNG ĐƯỢC TÓM TẮT, CẮT XÉN HAY RÚT NGẮN PHẦN content NÀY.
-4. "sentiment": Phân loại "Tích cực" hoặc "Tiêu cực" hoặc "Trung tính"
-5. "tags": Mảng 2-4 tags phù hợp (VD: ["Thị trường", "VN-Index", "Khối ngoại"])
+Trả về JSON với các key:
+- "title": Tiêu đề biên tập lại, ngắn gọn, khách quan, tối đa 100 ký tự, KHÔNG giật gân, KHÔNG dấu chấm than
+- "aiSummary": 3 gạch đầu dòng (•) súc tích, toàn số liệu
+- "content": HTML đầy đủ bài gốc, format bằng <p> <h3> <strong>, giữ 100% nội dung
+- "sentiment": "Tích cực" hoặc "Tiêu cực" hoặc "Trung tính"
+- "tags": Mảng 2-4 tags
 
-Trả về ĐÚNG JSON format:
 {"title":"...","aiSummary":"...","content":"<p>...</p>","sentiment":"...","tags":["..."]}`;
 
   try {
     const response = await genAI.models.generateContent({
       model: "gemini-2.5-flash",
       contents: prompt,
+      config: {
+        temperature: 0.2,
+      },
     });
 
     const text = response.text ?? "";
