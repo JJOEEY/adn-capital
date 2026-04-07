@@ -17,6 +17,7 @@ interface PricingPlan {
   period: string;
   price: number;        // giá thường (VND)
   dnsePrice: number;    // giá DNSE (VND)
+  discountPct: number;  // % chiết khấu DNSE
   features: string[];
   icon: React.ReactNode;
   accent: "sky" | "blue" | "emerald" | "purple";
@@ -28,8 +29,9 @@ const plans: PricingPlan[] = [
     id: "1m",
     name: "Gói 1 Tháng",
     period: "/tháng",
-    price: 199_000,
-    dnsePrice: 99_000,
+    price: 249_000,
+    dnsePrice: 224_000,
+    discountPct: 10,
     icon: <Zap className="w-5 h-5" />,
     accent: "sky",
     features: [
@@ -43,8 +45,9 @@ const plans: PricingPlan[] = [
     id: "3m",
     name: "Gói 3 Tháng",
     period: "/3 tháng",
-    price: 499_000,
-    dnsePrice: 299_000,
+    price: 649_000,
+    dnsePrice: 519_000,
+    discountPct: 20,
     icon: <Star className="w-5 h-5" />,
     accent: "blue",
     features: [
@@ -58,8 +61,9 @@ const plans: PricingPlan[] = [
     id: "6m",
     name: "Gói 6 Tháng",
     period: "/6 tháng",
-    price: 999_000,
-    dnsePrice: 499_000,
+    price: 1_199_000,
+    dnsePrice: 839_000,
+    discountPct: 30,
     icon: <Crown className="w-5 h-5" />,
     accent: "emerald",
     ribbon: "Bán chạy nhất",
@@ -75,8 +79,9 @@ const plans: PricingPlan[] = [
     id: "12m",
     name: "Gói 12 Tháng",
     period: "/năm",
-    price: 2_199_000,
-    dnsePrice: 1_099_000,
+    price: 1_999_000,
+    dnsePrice: 1_199_000,
+    discountPct: 40,
     icon: <Sparkles className="w-5 h-5" />,
     accent: "purple",
     ribbon: "Tiết kiệm nhất",
@@ -432,7 +437,6 @@ function PricingCard({
   const t = accentTokens[plan.accent];
   const glowShadow = glowRgba[plan.accent];
   const displayPrice = isDNSE ? plan.dnsePrice : plan.price;
-  const savingsPct = Math.round((1 - plan.dnsePrice / plan.price) * 100);
   const showPctBadge = isDNSE && (plan.id === "6m" || plan.id === "12m");
 
   const handleCheckout = async () => {
@@ -518,7 +522,7 @@ function PricingCard({
               </p>
               {showPctBadge && (
                 <span className="inline-flex items-center gap-0.5 text-[11px] font-black uppercase tracking-wide bg-red-500/15 text-red-400 border border-red-500/25 px-2 py-0.5 rounded-full animate-pulse">
-                  -{savingsPct}%
+                  -{plan.discountPct}%
                 </span>
               )}
             </div>
@@ -536,9 +540,7 @@ function PricingCard({
             </p>
             <p className={`mt-1.5 text-[10px] ${isDark ? "text-white/30" : "text-slate-400"}`}>
               Chỉ <span className="text-emerald-400 font-semibold">{formatVND(plan.dnsePrice)}</span> với DNSE{" "}
-              {(plan.id === "6m" || plan.id === "12m") && (
-                <span className="text-red-400">(-{savingsPct}%)</span>
-              )}
+              <span className="text-red-400">(-{plan.discountPct}%)</span>
             </p>
           </>
         )}

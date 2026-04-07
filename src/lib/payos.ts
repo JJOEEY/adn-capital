@@ -19,10 +19,10 @@ export interface VipPlan {
 }
 
 export const VIP_PLANS: Record<string, VipPlan> = {
-  "1m":  { id: "1m",  name: "Gói 1 Tháng",   days: 30,  price: 199_000,   dnsePrice: 99_000,    description: "VIP 1 Thang ADN Capital" },
-  "3m":  { id: "3m",  name: "Gói 3 Tháng",   days: 90,  price: 499_000,   dnsePrice: 299_000,   description: "VIP 3 Thang ADN Capital" },
-  "6m":  { id: "6m",  name: "Gói 6 Tháng",   days: 180, price: 1_099_000, dnsePrice: 499_000,   description: "VIP 6 Thang ADN Capital" },
-  "12m": { id: "12m", name: "Gói 12 Tháng",  days: 365, price: 2_199_000, dnsePrice: 1_099_000, description: "VIP 12 Thang ADN Capital" },
+  "1m":  { id: "1m",  name: "Gói 1 Tháng",   days: 30,  price: 249_000,   dnsePrice: 224_000,   description: "VIP 1 Thang ADN Capital" },
+  "3m":  { id: "3m",  name: "Gói 3 Tháng",   days: 90,  price: 649_000,   dnsePrice: 519_000,   description: "VIP 3 Thang ADN Capital" },
+  "6m":  { id: "6m",  name: "Gói 6 Tháng",   days: 180, price: 1_199_000, dnsePrice: 839_000,   description: "VIP 6 Thang ADN Capital" },
+  "12m": { id: "12m", name: "Gói 12 Tháng",  days: 365, price: 1_999_000, dnsePrice: 1_199_000, description: "VIP 12 Thang ADN Capital" },
 };
 
 export function layPlan(planId: string): VipPlan | null {
