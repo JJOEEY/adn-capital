@@ -7,7 +7,6 @@ import {
   Home,
   BarChart2,
   BookOpen,
-  Briefcase,
   Zap,
   MessageSquare,
   Menu,
@@ -15,7 +14,7 @@ import {
 
 const tabs = [
   { href: "/dashboard", label: "Trang chủ", icon: Home },
-  { href: "/portfolio", label: "Danh Mục", icon: Briefcase },
+  { href: "/journal", label: "Nhật Ký", icon: BookOpen },
   { href: "/dashboard/signal-map", label: "Tín Hiệu", icon: Zap },
   { href: "/notifications", label: "Tin nhắn", icon: MessageSquare },
   { href: "/menu", label: "Menu", icon: Menu },
