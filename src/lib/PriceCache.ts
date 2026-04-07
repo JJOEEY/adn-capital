@@ -3,7 +3,7 @@
  *
  * Nguyên tắc:
  * - 1 batch request duy nhất lấy giá TẤT CẢ tickers
- * - Cache TTL 60s (intraday) → TỐI ĐA 1 API call/phút
+ * - Cache TTL 15s — VNStock Silver 300 req/min cho phép refresh nhanh
  * - Mọi module (Lifecycle, SignalEngine, UI) đều đọc từ cache
  * - Không bao giờ gọi API giá per-ticker
  */
@@ -31,8 +31,8 @@ export interface ExitScanItem {
 //  Cache instances (module-level singletons)
 // ═══════════════════════════════════════════════════════════════════
 
-// Price cache: TTL 60s — tối đa 1 batch-price call/phút
-const priceCache = new NodeCache({ stdTTL: 60, checkperiod: 30 });
+// Price cache: TTL 15s — VNStock Silver cho phép refresh nhanh hơn
+const priceCache = new NodeCache({ stdTTL: 15, checkperiod: 10 });
 
 // Exit-scan cache: TTL 300s — heavy computation, chỉ cần 1 lần/5 phút
 const exitScanCache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
