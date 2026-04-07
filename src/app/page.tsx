@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
@@ -127,7 +127,7 @@ function HeroSection() {
         {/* Badge */}
         <FadeIn>
           <div className="flex justify-center mb-6">
-            <span className={`inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.3em] px-4 py-1.5 rounded-full border ${
+            <span className={`inline-flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.3em] px-4 py-1.5 rounded-full border ${
               isDark ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" : "text-emerald-600 bg-emerald-50 border-emerald-200"
             }`}>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -310,7 +310,7 @@ function PerformanceSection() {
       <div className="max-w-5xl mx-auto">
         <FadeIn>
           <div className="text-center mb-12">
-            <span className={`text-[10px] font-bold uppercase tracking-[0.3em] ${isDark ? "text-emerald-400" : "text-emerald-600"}`}>
+            <span className={`text-[12px] font-bold uppercase tracking-[0.3em] ${isDark ? "text-emerald-400" : "text-emerald-600"}`}>
               Track Record
             </span>
             <h2 className={`text-3xl sm:text-4xl lg:text-5xl font-black mt-3 ${isDark ? "text-white" : "text-slate-900"}`}>
@@ -332,7 +332,7 @@ function PerformanceSection() {
                 <k.Icon className={`w-6 h-6 ${k.color} mx-auto mb-3`} />
                 <p className={`text-3xl sm:text-4xl font-black ${k.color}`}>{k.value}</p>
                 <p className={`text-xs font-bold mt-2 uppercase ${isDark ? "text-white/70" : "text-slate-700"}`}>{k.label}</p>
-                <p className={`text-[10px] mt-1 ${isDark ? "text-white/30" : "text-slate-400"}`}>{k.sub}</p>
+                <p className={`text-[12px] mt-1 ${isDark ? "text-white/30" : "text-slate-400"}`}>{k.sub}</p>
               </div>
             </FadeIn>
           ))}
@@ -348,7 +348,7 @@ function PerformanceSection() {
         </FadeIn>
 
         {snapshot?.generated_at && (
-          <p className={`text-[9px] text-center mt-4 ${isDark ? "text-white/20" : "text-slate-400"}`}>
+          <p className={`text-[11px] text-center mt-4 ${isDark ? "text-white/20" : "text-slate-400"}`}>
             Dữ liệu được cập nhật tự động vào 00:00 ngày {snapshot.generated_at.split(" ")[0]}
           </p>
         )}
@@ -412,7 +412,7 @@ function ServicesSection() {
       <div className="max-w-5xl mx-auto">
         <FadeIn>
           <div className="text-center mb-14">
-            <span className={`text-[10px] font-bold uppercase tracking-[0.3em] ${isDark ? "text-blue-400" : "text-blue-600"}`}>
+            <span className={`text-[12px] font-bold uppercase tracking-[0.3em] ${isDark ? "text-blue-400" : "text-blue-600"}`}>
               Platform
             </span>
             <h2 className={`text-3xl sm:text-4xl lg:text-5xl font-black mt-3 ${isDark ? "text-white" : "text-slate-900"}`}>
@@ -485,7 +485,7 @@ function ServicesSection() {
                       {services[0].title}
                     </h3>
                     {/* Hover: description */}
-                    <p className={`text-[10px] sm:text-xs leading-snug mt-1 max-w-[160px] opacity-0 max-h-0 group-hover:opacity-100 group-hover:max-h-20 transition-all duration-500 overflow-hidden ${
+                    <p className={`text-[12px] sm:text-xs leading-snug mt-1 max-w-[160px] opacity-0 max-h-0 group-hover:opacity-100 group-hover:max-h-20 transition-all duration-500 overflow-hidden ${
                       isDark ? "text-white/50" : "text-slate-500"
                     }`}>
                       {services[0].subtitle}
@@ -535,7 +535,7 @@ function ServicesSection() {
                             {svc.title}
                           </h3>
                           {/* Hover: description */}
-                          <p className={`text-[10px] sm:text-xs leading-snug mt-1 max-w-[160px] opacity-0 max-h-0 group-hover:opacity-100 group-hover:max-h-20 transition-all duration-500 overflow-hidden ${
+                          <p className={`text-[12px] sm:text-xs leading-snug mt-1 max-w-[160px] opacity-0 max-h-0 group-hover:opacity-100 group-hover:max-h-20 transition-all duration-500 overflow-hidden ${
                             isDark ? "text-white/50" : "text-slate-500"
                           }`}>
                             {svc.subtitle}
@@ -648,7 +648,7 @@ function ProcessSection() {
       <div className="max-w-5xl mx-auto">
         <FadeIn>
           <div className="text-center mb-14">
-            <span className={`text-[10px] font-bold uppercase tracking-[0.3em] ${isDark ? "text-cyan-400" : "text-cyan-600"}`}>
+            <span className={`text-[12px] font-bold uppercase tracking-[0.3em] ${isDark ? "text-cyan-400" : "text-cyan-600"}`}>
               Process
             </span>
             <h2 className={`text-3xl sm:text-4xl lg:text-5xl font-black mt-3 ${isDark ? "text-white" : "text-slate-900"}`}>
@@ -711,7 +711,7 @@ function ProcessSection() {
                           : `bg-white/60 backdrop-blur-xl border-white/50 group-hover:bg-white/80`
                       }`}>
                         {/* Step number — small badge */}
-                        <div className={`absolute -top-2 -right-1 w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black ${
+                        <div className={`absolute -top-2 -right-1 w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-black ${
                           isDark ? `bg-gradient-to-br ${c.gradient} text-black` : `bg-gradient-to-br ${c.gradient} text-white`
                         }`}>
                           {s.step}
@@ -753,7 +753,7 @@ function ProcessSection() {
               <UserPlus className="w-4 h-4" />
               Mở Tài Khoản Ngay
             </a>
-            <p className={`text-[10px] mt-2 ${isDark ? "text-white/20" : "text-slate-400"}`}>
+            <p className={`text-[12px] mt-2 ${isDark ? "text-white/20" : "text-slate-400"}`}>
               * Link giới thiệu DNSE — Đối tác của ADN Capital
             </p>
           </div>
@@ -796,7 +796,7 @@ function TestimonialSection() {
       <div className="max-w-5xl mx-auto">
         <FadeIn>
           <div className="text-center mb-14">
-            <span className={`text-[10px] font-bold uppercase tracking-[0.3em] ${isDark ? "text-purple-400" : "text-purple-600"}`}>
+            <span className={`text-[12px] font-bold uppercase tracking-[0.3em] ${isDark ? "text-purple-400" : "text-purple-600"}`}>
               Testimonials
             </span>
             <h2 className={`text-3xl sm:text-4xl lg:text-5xl font-black mt-3 ${isDark ? "text-white" : "text-slate-900"}`}>
@@ -835,7 +835,7 @@ function TestimonialSection() {
                   </div>
                   <div>
                     <p className={`text-xs font-bold ${isDark ? "text-white/80" : "text-slate-800"}`}>{t.name}</p>
-                    <p className={`text-[10px] ${isDark ? "text-white/30" : "text-slate-400"}`}>{t.role}</p>
+                    <p className={`text-[12px] ${isDark ? "text-white/30" : "text-slate-400"}`}>{t.role}</p>
                   </div>
                 </div>
               </div>
@@ -893,7 +893,7 @@ function CourseSection() {
             <div className="relative z-10">
               <div className="flex items-center gap-2 mb-3">
                 <BookOpen className="w-5 h-5 text-purple-400" />
-                <span className="text-[10px] font-bold text-purple-400 uppercase tracking-[0.2em]">
+                <span className="text-[12px] font-bold text-purple-400 uppercase tracking-[0.2em]">
                   Khóa Học
                 </span>
               </div>
@@ -988,7 +988,7 @@ function FAQSection() {
       <div className="max-w-3xl mx-auto">
         <FadeIn>
           <div className="text-center mb-14">
-            <span className={`text-[10px] font-bold uppercase tracking-[0.3em] ${isDark ? "text-amber-400" : "text-amber-600"}`}>
+            <span className={`text-[12px] font-bold uppercase tracking-[0.3em] ${isDark ? "text-amber-400" : "text-amber-600"}`}>
               FAQ
             </span>
             <h2 className={`text-3xl sm:text-4xl lg:text-5xl font-black mt-3 ${isDark ? "text-white" : "text-slate-900"}`}>
@@ -1078,7 +1078,7 @@ function FooterCTA() {
             <span className="text-emerald-500/70 font-bold">ADN CAPITAL</span>
             {" · "}Hỗ trợ: admin@adncapital.vn
           </p>
-          <p className={`text-[9px] mt-2 ${isDark ? "text-white/15" : "text-slate-400"}`}>
+          <p className={`text-[11px] mt-2 ${isDark ? "text-white/15" : "text-slate-400"}`}>
             * Đầu tư chứng khoán luôn có rủi ro. Kết quả quá khứ không đảm bảo lợi nhuận tương lai.
           </p>
         </FadeIn>

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { MainLayout } from "@/components/layout/MainLayout";
 import Link from "next/link";
@@ -63,7 +63,7 @@ export default function SanPhamPage() {
 
         {/* ── Header ──────────────────────────────────────────── */}
         <div className="rounded-2xl overflow-hidden border border-neutral-800 bg-gradient-to-br from-neutral-900 via-neutral-900 to-blue-950/20 p-6 sm:p-8">
-          <span className="inline-block text-[10px] font-bold text-blue-400 uppercase tracking-[0.3em] mb-3 bg-blue-500/10 border border-blue-500/20 px-3 py-1 rounded-full">
+          <span className="inline-block text-[12px] font-bold text-blue-400 uppercase tracking-[0.3em] mb-3 bg-blue-500/10 border border-blue-500/20 px-3 py-1 rounded-full">
             ADN Capital Platform
           </span>
           <h1 className="text-3xl sm:text-4xl font-black text-white mb-2">
@@ -86,7 +86,7 @@ export default function SanPhamPage() {
                 <div className={`group relative h-full bg-gradient-to-b ${svc.gradientFrom} to-transparent bg-neutral-900/60 border border-neutral-800 hover:border-neutral-700 rounded-2xl p-5 transition-all duration-200 hover:-translate-y-1 hover:shadow-xl cursor-pointer`}>
                   {/* Badge */}
                   {svc.badge && (
-                    <span className="absolute top-4 right-4 text-[9px] font-black text-emerald-400 bg-emerald-500/15 border border-emerald-500/25 px-2 py-0.5 rounded-full tracking-widest">
+                    <span className="absolute top-4 right-4 text-[11px] font-black text-emerald-400 bg-emerald-500/15 border border-emerald-500/25 px-2 py-0.5 rounded-full tracking-widest">
                       {svc.badge}
                     </span>
                   )}
@@ -126,7 +126,7 @@ export default function SanPhamPage() {
           {isAdminOrWriter && (
             <Link href="/khac/tin-tuc">
               <div className="group relative h-full bg-gradient-to-b from-blue-500/10 to-transparent bg-neutral-900/60 border border-neutral-800 hover:border-neutral-700 rounded-2xl p-5 transition-all duration-200 hover:-translate-y-1 hover:shadow-xl cursor-pointer">
-                <span className="absolute top-4 right-4 text-[9px] font-black text-amber-400 bg-amber-500/15 border border-amber-500/25 px-2 py-0.5 rounded-full tracking-widest">
+                <span className="absolute top-4 right-4 text-[11px] font-black text-amber-400 bg-amber-500/15 border border-amber-500/25 px-2 py-0.5 rounded-full tracking-widest">
                   BETA
                 </span>
 

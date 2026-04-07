@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
@@ -139,7 +139,7 @@ export function Header() {
                   <span className="text-emerald-400 drop-shadow-[0_0_8px_rgba(16,185,129,0.4)]">ADN</span>
                   <span className={isDark ? " text-white/90" : " text-slate-800"}> AI System</span>
                 </p>
-                <p className={`text-[9px] tracking-wider uppercase ${isDark ? "text-white/25" : "text-slate-400"}`}>
+                <p className={`text-[11px] tracking-wider uppercase ${isDark ? "text-white/25" : "text-slate-400"}`}>
                   AI-Powered Platform
                 </p>
               </div>
@@ -169,12 +169,12 @@ export function Header() {
             </div>
             {role === "VIP" && (
               <div className="mt-2">
-                <span className={`inline-flex items-center gap-1 text-[9px] font-bold border px-2 py-0.5 rounded-lg ${
+                <span className={`inline-flex items-center gap-1 text-[11px] font-bold border px-2 py-0.5 rounded-lg ${
                   vipTier === "PREMIUM" ? "bg-amber-500/10 text-amber-400 border-amber-500/25" : "bg-purple-500/10 text-purple-400 border-purple-500/25"
                 }`}><Crown className="w-2.5 h-2.5" />{vipTier === "PREMIUM" ? "PREMIUM" : "VIP"}</span>
               </div>
             )}
-            <p className={`text-[9px] mt-2 ${isDark ? "text-white/20" : "text-slate-400"}`}>
+            <p className={`text-[11px] mt-2 ${isDark ? "text-white/20" : "text-slate-400"}`}>
               Last login: {lastLogin}
             </p>
           </div>
@@ -187,7 +187,7 @@ export function Header() {
             return (
               <div key={section.title || "home"}>
                 {section.title && !w && (
-                  <p className={`text-[9px] font-bold uppercase tracking-[0.15em] px-3 mb-1 ${
+                  <p className={`text-[11px] font-bold uppercase tracking-[0.15em] px-3 mb-1 ${
                     isDark ? "text-white/20" : "text-slate-400"
                   }`}>
                     {section.title}
@@ -204,7 +204,7 @@ export function Header() {
 
                     const itemContent = (
                       <div
-                        className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-medium transition-all duration-200 cursor-pointer ${
+                        className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-[15px] font-medium transition-all duration-200 cursor-pointer ${
                           w ? "justify-center px-0 mx-1" : ""
                         } ${
                           active
@@ -222,7 +222,7 @@ export function Header() {
                           <>
                             <span className="flex-1 truncate">{item.label}</span>
                             {item.badge && (
-                              <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-md ${
+                              <span className={`text-[12px] font-black px-1.5 py-0.5 rounded-md ${
                                 item.badge === "HOT"
                                   ? "bg-orange-500/20 text-orange-400 border border-orange-500/30"
                                   : item.badge === "UPDATING"
@@ -260,7 +260,7 @@ export function Header() {
         {/* Footer: theme + auth + collapse */}
         <div className={`shrink-0 border-t px-2 py-3 space-y-1 ${isDark ? "border-white/[0.06]" : "border-slate-200/60"}`}>
           <button onClick={toggleTheme}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-medium transition-all ${
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[15px] font-medium transition-all ${
               isDark ? "text-amber-400/60 hover:text-amber-300 hover:bg-white/[0.06]" : "text-slate-500 hover:text-slate-700 hover:bg-black/[0.04]"
             } ${w ? "justify-center px-0 mx-1" : ""}`}
             title={isDark ? "Light Mode" : "Dark Mode"}>
@@ -272,7 +272,7 @@ export function Header() {
             <div className={`h-10 rounded-xl animate-pulse ${isDark ? "bg-white/5" : "bg-slate-100"}`} />
           ) : isAuthenticated ? (
             <button onClick={() => { signOut({ callbackUrl: "/" }); if (isMobile) setMobileOpen(false); }}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-medium transition-all ${
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[15px] font-medium transition-all ${
                 isDark ? "text-red-400/60 hover:text-red-400 hover:bg-red-500/10" : "text-red-500/60 hover:text-red-500 hover:bg-red-50"
               } ${w ? "justify-center px-0 mx-1" : ""}`}>
               <LogOut className="w-[18px] h-[18px] shrink-0" />
@@ -280,7 +280,7 @@ export function Header() {
             </button>
           ) : (
             <Link href="/auth" onClick={() => isMobile && setMobileOpen(false)}>
-              <div className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-medium transition-all ${
+              <div className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-[15px] font-medium transition-all ${
                 isDark ? "text-emerald-400 bg-emerald-500/10" : "text-emerald-600 bg-emerald-50"
               } ${w ? "justify-center px-0 mx-1" : ""}`}>
                 <LogIn className="w-[18px] h-[18px] shrink-0" />
@@ -291,7 +291,7 @@ export function Header() {
 
           {!isMobile && (
             <button onClick={toggleCollapse}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] transition-all ${
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[15px] transition-all ${
                 isDark ? "text-white/25 hover:text-white/50 hover:bg-white/[0.04]" : "text-slate-400 hover:text-slate-600 hover:bg-black/[0.03]"
               } ${w ? "justify-center px-0 mx-1" : ""}`}>
               {collapsed ? <ChevronRight className="w-[18px] h-[18px]" /> : <ChevronLeft className="w-[18px] h-[18px]" />}
@@ -352,7 +352,7 @@ export function Header() {
               </Link>
             ) : isAuthenticated ? (
               <Link href="/profile">
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-bold ${
                   isDark ? "bg-emerald-500/15 text-emerald-400" : "bg-emerald-50 text-emerald-600"
                 }`}>{userName.charAt(0).toUpperCase()}</div>
               </Link>

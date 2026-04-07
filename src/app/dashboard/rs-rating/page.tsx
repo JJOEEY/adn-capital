@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useMemo } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -165,7 +165,7 @@ export default function RSRatingDashboardPage() {
       }`}
     >
       {label}
-      <span className="ml-1.5 text-[10px] opacity-70">({soLuong})</span>
+      <span className="ml-1.5 text-[12px] opacity-70">({soLuong})</span>
     </button>
   );
 
@@ -189,7 +189,7 @@ export default function RSRatingDashboardPage() {
           </div>
           <div className="flex items-center gap-3">
             {updatedAt && (
-              <span className="text-[10px] text-neutral-600 hidden sm:inline">
+              <span className="text-[12px] text-neutral-600 hidden sm:inline">
                 Dữ liệu: {updatedAt}
               </span>
             )}

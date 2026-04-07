@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
@@ -93,7 +93,7 @@ export default function MenuPage() {
                   <p className="text-xs text-neutral-500 truncate">{userEmail}</p>
                   {role === "VIP" && (
                     <span
-                      className={`inline-flex items-center gap-1 text-[9px] font-bold border px-2 py-0.5 rounded-lg mt-1.5 ${
+                      className={`inline-flex items-center gap-1 text-[11px] font-bold border px-2 py-0.5 rounded-lg mt-1.5 ${
                         vipTier === "PREMIUM"
                           ? "bg-amber-500/10 text-amber-400 border-amber-500/25"
                           : "bg-purple-500/10 text-purple-400 border-purple-500/25"
@@ -125,7 +125,7 @@ export default function MenuPage() {
         {/* Menu groups */}
         {menuGroups.map((group) => (
           <div key={group.title} className="rounded-2xl border border-white/[0.06] bg-neutral-900/80 overflow-hidden">
-            <p className="px-4 pt-3 pb-1 text-[9px] font-bold text-neutral-500 uppercase tracking-[0.15em]">
+            <p className="px-4 pt-3 pb-1 text-[11px] font-bold text-neutral-500 uppercase tracking-[0.15em]">
               {group.title}
             </p>
             {group.items.map((item, idx) => {
@@ -138,7 +138,7 @@ export default function MenuPage() {
                   <span className="flex-1 text-sm text-white/80 font-medium">{item.label}</span>
                   {item.badge && (
                     <span
-                      className={`text-[8px] font-black px-1.5 py-0.5 rounded ${
+                      className={`text-[12px] font-black px-1.5 py-0.5 rounded ${
                         item.badge === "HOT"
                           ? "bg-orange-500/20 text-orange-400 border border-orange-500/30"
                           : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
@@ -180,7 +180,7 @@ export default function MenuPage() {
         )}
 
         {/* Footer */}
-        <p className="text-center text-[10px] text-neutral-700 pt-2">
+        <p className="text-center text-[12px] text-neutral-700 pt-2">
           Powered by <span className="text-emerald-500/50 font-bold">ADN CAPITAL</span> · v2.0
         </p>
       </div>

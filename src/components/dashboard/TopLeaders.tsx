@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Crown, TrendingUp } from "lucide-react";
 import { Card } from "@/components/ui/Card";
@@ -33,12 +33,12 @@ export function TopLeaders({ stocks }: TopLeadersProps) {
             <h3 className="text-sm font-black text-purple-400 uppercase tracking-wider">
               Top 5 Siêu Cổ Phiếu
             </h3>
-            <p className="text-[10px] text-neutral-500">RS Rating cao nhất hôm nay</p>
+            <p className="text-[12px] text-neutral-500">RS Rating cao nhất hôm nay</p>
           </div>
         </div>
         <a
           href="/rs-rating"
-          className="text-[10px] font-bold text-purple-400/70 hover:text-purple-400 transition-colors uppercase tracking-wider"
+          className="text-[12px] font-bold text-purple-400/70 hover:text-purple-400 transition-colors uppercase tracking-wider"
         >
           Xem tất cả →
         </a>
@@ -48,7 +48,7 @@ export function TopLeaders({ stocks }: TopLeadersProps) {
       <div className="overflow-x-auto">
         <table className="w-full text-left">
           <thead>
-            <tr className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider border-b border-neutral-800">
+            <tr className="text-[12px] font-bold text-neutral-500 uppercase tracking-wider border-b border-neutral-800">
               <th className="pb-2 pr-2">#</th>
               <th className="pb-2 pr-3">Mã</th>
               <th className="pb-2 pr-3 hidden sm:table-cell">Ngành</th>
@@ -73,7 +73,7 @@ export function TopLeaders({ stocks }: TopLeadersProps) {
                     <span className="text-sm font-black text-white group-hover:text-purple-300 transition-colors">
                       {s.symbol}
                     </span>
-                    <p className="text-[10px] text-neutral-500 sm:hidden">{s.sector}</p>
+                    <p className="text-[12px] text-neutral-500 sm:hidden">{s.sector}</p>
                   </div>
                 </td>
                 <td className="py-2.5 pr-3 hidden sm:table-cell">

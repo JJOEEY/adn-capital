@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { Card } from "@/components/ui/Card";
@@ -38,7 +38,7 @@ export function VNIndexChart({ data, currentValue, changePercent }: VNIndexChart
     <Card className="p-4 h-full">
       <div className="flex items-center justify-between mb-3">
         <div>
-          <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">VN-INDEX 30 PHIÊN</p>
+          <p className="text-[12px] font-bold text-neutral-500 uppercase tracking-wider">VN-INDEX 30 PHIÊN</p>
           <div className="flex items-baseline gap-2 mt-1">
             <span className="text-2xl font-black text-white font-mono">
               {new Intl.NumberFormat("vi-VN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(currentValue)}

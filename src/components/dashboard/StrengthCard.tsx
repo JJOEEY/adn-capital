@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { ShieldCheck, ShieldAlert } from "lucide-react";
 
@@ -26,14 +26,14 @@ export function StrengthCard({ phase, verdict, action }: StrengthCardProps) {
         <div className={`p-2 rounded-xl ${verdictBg}`}>
           <Icon className={`w-5 h-5 ${verdictColor}`} />
         </div>
-        <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">
+        <p className="text-[12px] font-bold text-neutral-500 uppercase tracking-wider">
           Đánh giá VN-Index
         </p>
       </div>
 
       {/* Big verdict */}
       <div className={`text-center py-6 rounded-xl ${verdictBg} mb-4 flex-1 flex flex-col items-center justify-center`}>
-        <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-1">
+        <p className="text-[12px] font-bold text-neutral-400 uppercase tracking-widest mb-1">
           Trạng thái
         </p>
         <p className={`text-2xl sm:text-3xl font-black tracking-tight ${verdictColor}`}>

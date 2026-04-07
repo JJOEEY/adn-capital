@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { MainLayout } from "@/components/layout/MainLayout";
 import { BacktestSection } from "@/components/dashboard/BacktestSection";
@@ -19,7 +19,7 @@ export default function BacktestPage() {
               <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
                 <FlaskConical className="w-5 h-5 text-emerald-400" />
               </div>
-              <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-[0.2em]">
+              <span className="text-[12px] font-bold text-emerald-400 uppercase tracking-[0.2em]">
                 Simulation & Risk Management
               </span>
             </div>

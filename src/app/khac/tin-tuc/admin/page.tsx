@@ -1,9 +1,16 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Loader2, RefreshCw, PenSquare, Trash2, ExternalLink, ShieldAlert } from "lucide-react";
+import dynamic from "next/dynamic";
+import { Loader2, RefreshCw, PenSquare, Trash2, ExternalLink } from "lucide-react";
 import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
+
+const RichTextEditor = dynamic(() => import("@/components/editor/RichTextEditor"), {
+  ssr: false,
+  loading: () => <div className="h-[300px] rounded-xl border border-white/10 bg-white/[0.03] flex items-center justify-center"><Loader2 className="w-5 h-5 text-slate-500 animate-spin" /></div>,
+});
 
 // ── Types ──
 interface Article {
@@ -177,20 +184,17 @@ export default function AdminArticlesPage() {
   };
 
   // ── Auth guard ──
-  if (authLoading) {
+  const router = useRouter();
+  useEffect(() => {
+    if (!authLoading && !isWriter) {
+      router.replace("/khac/tin-tuc");
+    }
+  }, [authLoading, isWriter, router]);
+
+  if (authLoading || !isWriter) {
     return (
       <div className="min-h-screen bg-[#0d1117] flex items-center justify-center">
         <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
-      </div>
-    );
-  }
-  if (!isWriter) {
-    return (
-      <div className="min-h-screen bg-[#0d1117] flex flex-col items-center justify-center gap-4">
-        <ShieldAlert className="w-12 h-12 text-red-400" />
-        <h1 className="text-xl font-bold text-white">Không có quyền truy cập</h1>
-        <p className="text-sm text-slate-400">Chỉ Admin và Writer mới được phép truy cập trang này.</p>
-        <Link href="/khac/tin-tuc" className="text-sm text-cyan-400 hover:underline">← Quay lại Tin tức</Link>
       </div>
     );
   }
@@ -272,7 +276,12 @@ export default function AdminArticlesPage() {
                 value={writeContent}
                 onChange={(e) => setWriteContent(e.target.value)}
                 rows={8}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500/50 resize-y"
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500/50 resize-y hidden"
+              />
+              <RichTextEditor
+                content={writeContent}
+                onChange={setWriteContent}
+                placeholder="Nội dung bài viết... (hỗ trợ copy-paste hình ảnh, kéo-thả file ảnh)"
               />
               <div className="flex items-center gap-3">
                 <button
@@ -332,11 +341,11 @@ export default function AdminArticlesPage() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-white/10">
-                    <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-3">Bài viết</th>
-                    <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-3 hidden md:table-cell">Tác giả</th>
-                    <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-3 hidden sm:table-cell">Chuyên mục</th>
-                    <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-3">Trạng thái</th>
-                    <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-3">Thao tác</th>
+                    <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-5 py-4">Bài viết</th>
+                    <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-5 py-4 hidden md:table-cell">Tác giả</th>
+                    <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-5 py-4 hidden sm:table-cell">Chuyên mục</th>
+                    <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-5 py-4">Trạng thái</th>
+                    <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-5 py-4">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -349,7 +358,7 @@ export default function AdminArticlesPage() {
                   ) : (
                     filtered.map((article) => (
                       <tr key={article.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
-                        <td className="px-4 py-3">
+                        <td className="px-5 py-3.5">
                           <Link
                             href={`/khac/tin-tuc/${article.slug}`}
                             className="text-sm font-medium text-slate-200 hover:text-blue-400 transition-colors line-clamp-1"
@@ -373,16 +382,16 @@ export default function AdminArticlesPage() {
                             )}
                           </div>
                         </td>
-                        <td className="px-4 py-3 hidden md:table-cell">
+                        <td className="px-5 py-3.5 hidden md:table-cell">
                           <span className="text-sm text-slate-400">{article.author?.name ?? "—"}</span>
                         </td>
-                        <td className="px-4 py-3 hidden sm:table-cell">
+                        <td className="px-5 py-3.5 hidden sm:table-cell">
                           <span className="text-xs text-blue-400">{article.category?.name ?? "—"}</span>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-5 py-3.5">
                           <StatusBadge status={article.status} />
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-5 py-3.5">
                           <div className="flex items-center gap-2">
                             {actionLoading === article.id ? (
                               <Loader2 className="w-4 h-4 text-slate-400 animate-spin" />

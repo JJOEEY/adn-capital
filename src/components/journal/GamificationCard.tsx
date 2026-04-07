@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { motion } from "framer-motion";
 import { Trophy, Target, TrendingUp, TrendingDown, BarChart2 } from "lucide-react";
@@ -108,7 +108,7 @@ export function GamificationCard({ entries }: GamificationCardProps) {
           <div key={s.label} className={`${s.bg} border border-neutral-800 rounded-xl p-3`}>
             <div className={`${s.color} flex items-center gap-1.5 mb-1`}>
               {s.icon}
-              <span className="text-[10px] text-neutral-500">{s.label}</span>
+              <span className="text-[12px] text-neutral-500">{s.label}</span>
             </div>
             <p className={`text-lg font-black ${s.color} font-mono`}>{s.value}</p>
           </div>
@@ -117,7 +117,7 @@ export function GamificationCard({ entries }: GamificationCardProps) {
 
       {/* Badges */}
       <div>
-        <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider mb-2.5 flex items-center justify-between">
+        <p className="text-[12px] font-semibold text-neutral-500 uppercase tracking-wider mb-2.5 flex items-center justify-between">
           Huy Hiệu
           <span className="text-neutral-600">{earnedIds.size}/{BADGES.length}</span>
         </p>
@@ -136,10 +136,10 @@ export function GamificationCard({ entries }: GamificationCardProps) {
               >
                 <span className="text-lg">{badge.icon}</span>
                 <div className="min-w-0">
-                  <p className={`text-[10px] font-bold truncate ${earned ? "text-yellow-400" : "text-neutral-600"}`}>
+                  <p className={`text-[12px] font-bold truncate ${earned ? "text-yellow-400" : "text-neutral-600"}`}>
                     {badge.name}
                   </p>
-                  <p className="text-[9px] text-neutral-700 leading-tight truncate">
+                  <p className="text-[11px] text-neutral-700 leading-tight truncate">
                     {badge.description}
                   </p>
                 </div>

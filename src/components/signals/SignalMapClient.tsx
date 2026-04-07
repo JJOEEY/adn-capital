@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import useSWR from "swr";
@@ -96,21 +96,21 @@ export function SignalMapClient({ isPremium = false }: { isPremium?: boolean }) 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
         <Card className="p-3 text-center bg-cyan-500/5 border-cyan-500/20">
           <p className="text-2xl font-black text-cyan-400">{stats.radar}</p>
-          <p className="text-[10px] text-neutral-500 mt-0.5">Tầm ngắm</p>
+          <p className="text-[12px] text-neutral-500 mt-0.5">Tầm ngắm</p>
         </Card>
         <Card className="p-3 text-center bg-emerald-500/5 border-emerald-500/20">
           <p className="text-2xl font-black text-emerald-400">{stats.active}</p>
-          <p className="text-[10px] text-neutral-500 mt-0.5">Đang giữ</p>
+          <p className="text-[12px] text-neutral-500 mt-0.5">Đang giữ</p>
         </Card>
         <Card className="p-3 text-center bg-neutral-500/5 border-neutral-700">
           <p className="text-2xl font-black text-neutral-300">{stats.closed}</p>
-          <p className="text-[10px] text-neutral-500 mt-0.5">Đã đóng</p>
+          <p className="text-[12px] text-neutral-500 mt-0.5">Đã đóng</p>
         </Card>
         <Card className={`p-3 text-center ${stats.totalPnl >= 0 ? "bg-emerald-500/5 border-emerald-500/20" : "bg-red-500/5 border-red-500/20"}`}>
           <p className={`text-2xl font-black ${stats.totalPnl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
             {stats.totalPnl >= 0 ? "+" : ""}{stats.totalPnl.toFixed(1)}%
           </p>
-          <p className="text-[10px] text-neutral-500 mt-0.5">PnL tổng ({stats.winCount}W / {stats.loseCount}L)</p>
+          <p className="text-[12px] text-neutral-500 mt-0.5">PnL tổng ({stats.winCount}W / {stats.loseCount}L)</p>
         </Card>
       </div>
 
@@ -133,11 +133,11 @@ export function SignalMapClient({ isPremium = false }: { isPremium?: boolean }) 
           >
             {value === "CLOSED" && !isPremium ? <Lock className="w-3 h-3" /> : <Icon className="w-3.5 h-3.5" />}
             {label}
-            <span className="text-[10px] opacity-60">
+            <span className="text-[12px] opacity-60">
               ({value === "RADAR" ? stats.radar : value === "ACTIVE" ? stats.active : stats.closed})
             </span>
             {value === "CLOSED" && !isPremium && (
-              <span className="text-[8px] font-bold text-amber-400 bg-amber-500/15 border border-amber-500/25 px-1 py-0 rounded">VIP</span>
+              <span className="text-[12px] font-bold text-amber-400 bg-amber-500/15 border border-amber-500/25 px-1 py-0 rounded">VIP</span>
             )}
           </button>
         ))}

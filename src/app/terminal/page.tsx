@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -46,7 +46,7 @@ export default function TerminalPage() {
             </div>
             <div>
               <p className="text-sm font-bold text-white">ADN AI Terminal</p>
-              <p className="text-[10px] text-neutral-500">
+              <p className="text-[12px] text-neutral-500">
                 Chuyên gia chứng khoán VN • Online
               </p>
             </div>

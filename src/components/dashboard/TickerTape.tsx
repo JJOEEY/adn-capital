@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 interface TickerItem {
   name: string;
@@ -26,7 +26,7 @@ function TickerChip({ item }: { item: TickerItem }) {
     <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-lg ${bg} flex-shrink-0`}>
       <span className="text-xs font-bold text-neutral-300">{item.name}</span>
       <span className={`text-sm font-black font-mono ${color}`}>{formatIdx(item.value)}</span>
-      <span className={`text-[10px] font-bold ${color} ${blinkClass}`}>
+      <span className={`text-[12px] font-bold ${color} ${blinkClass}`}>
         {isUp ? "▲" : isDown ? "▼" : "—"}{" "}
         {item.changePercent > 0 ? "+" : ""}{item.changePercent.toFixed(2).replace(".", ",")}%
       </span>

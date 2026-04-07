@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -170,7 +170,7 @@ export default function FormulaTestPage() {
               <div className="p-2 rounded-xl bg-purple-500/10 border border-purple-500/20">
                 <Zap className="w-5 h-5 text-purple-400" />
               </div>
-              <span className="text-[10px] font-bold text-purple-400 uppercase tracking-[0.2em]">
+              <span className="text-[12px] font-bold text-purple-400 uppercase tracking-[0.2em]">
                 Formula Testing Lab
               </span>
             </div>
@@ -207,7 +207,7 @@ export default function FormulaTestPage() {
                   </div>
                   <div>
                     <h3 className={`text-sm font-black ${isDark ? "text-white" : "text-slate-900"}`}>{f.name}</h3>
-                    <p className={`text-[10px] ${isDark ? "text-white/35" : "text-slate-400"}`}>{f.subtitle}</p>
+                    <p className={`text-[12px] ${isDark ? "text-white/35" : "text-slate-400"}`}>{f.subtitle}</p>
                   </div>
                   {signals && (
                     <span
@@ -225,7 +225,7 @@ export default function FormulaTestPage() {
                 {/* Expanded: show conditions */}
                 {isExpanded && (
                   <div className={`mt-4 space-y-2 border-t pt-3 ${isDark ? "border-white/[0.06]" : "border-slate-200"}`}>
-                    <p className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? "text-neutral-500" : "text-slate-400"}`}>
+                    <p className={`text-[12px] font-bold uppercase tracking-wider ${isDark ? "text-neutral-500" : "text-slate-400"}`}>
                       Điều kiện kích hoạt
                     </p>
                     {f.conditions.map((cond, i) => {
@@ -243,7 +243,7 @@ export default function FormulaTestPage() {
                   </div>
                 )}
 
-                <div className="mt-3 flex items-center gap-1 text-[10px] text-neutral-600">
+                <div className="mt-3 flex items-center gap-1 text-[12px] text-neutral-600">
                   <Info className="w-3 h-3" />
                   {isExpanded ? "Bấm để thu gọn" : "Bấm để xem điều kiện"}
                 </div>
@@ -312,7 +312,7 @@ export default function FormulaTestPage() {
                   <p className={`text-sm font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
                     Phát hiện {signals.length} tín hiệu
                   </p>
-                  <p className={`text-[10px] ${isDark ? "text-white/35" : "text-slate-400"}`}>
+                  <p className={`text-[12px] ${isDark ? "text-white/35" : "text-slate-400"}`}>
                     {countByType("SIEU_CO_PHIEU")} Siêu CP ·{" "}
                     {countByType("TRUNG_HAN")} Trung Hạn ·{" "}
                     {countByType("DAU_CO")} Lướt Sóng

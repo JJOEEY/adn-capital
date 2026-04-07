@@ -55,7 +55,7 @@ export function BottomTabBar() {
                   }`}
                 />
                 <span
-                  className={`text-[9px] font-medium transition-colors duration-200 ${
+                  className={`text-[11px] font-medium transition-colors duration-200 ${
                     active ? "text-emerald-400" : "text-white/35"
                   }`}
                 >

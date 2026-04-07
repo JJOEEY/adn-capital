@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -64,7 +64,7 @@ export default function RSRatingPage() {
           </div>
           <div className="flex items-center gap-3">
             {updatedAt && (
-              <span className="text-[10px] text-neutral-600 hidden sm:inline">
+              <span className="text-[12px] text-neutral-600 hidden sm:inline">
                 Cập nhật: {new Date(updatedAt).toLocaleTimeString("vi-VN")}
               </span>
             )}

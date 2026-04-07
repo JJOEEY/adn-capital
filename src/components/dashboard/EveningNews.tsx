@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import useSWR from "swr";
 import {
@@ -84,13 +84,13 @@ export function EveningNews() {
             <h3 className="text-xs font-black text-indigo-400 uppercase tracking-wider">
               Bản Tin Tổng Hợp ({data.date})
             </h3>
-            <p className="text-[10px] text-gray-500 mt-0.5">
+            <p className="text-[12px] text-gray-500 mt-0.5">
               END-OF-DAY BRIEF
             </p>
           </div>
         </div>
         <div className="text-right">
-          <span className="text-[10px] text-gray-600 font-mono block">
+          <span className="text-[12px] text-gray-600 font-mono block">
             {data.date}
           </span>
           {data.vnindex > 0 && (
@@ -299,7 +299,7 @@ export function EveningNews() {
                 Nhận Định Phiên Tới
               </h4>
             </div>
-            <p className="text-[13px] text-gray-300 leading-relaxed italic">
+            <p className="text-[15px] text-gray-300 leading-relaxed italic">
               &ldquo;{data.outlook}&rdquo;
             </p>
           </div>
@@ -307,10 +307,10 @@ export function EveningNews() {
 
         {/* Footer */}
         <div className="flex flex-col items-center gap-0.5 pt-2">
-          <p className="text-[9px] text-gray-500 font-medium">
+          <p className="text-[11px] text-gray-500 font-medium">
             Thông tin nội bộ - ADN Capital
           </p>
-          <p className="text-[9px] text-indigo-400/60 font-bold tracking-wider">
+          <p className="text-[11px] text-indigo-400/60 font-bold tracking-wider">
             ADNCAPITAL.COM.VN
           </p>
         </div>

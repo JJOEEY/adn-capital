@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
 
@@ -201,7 +201,7 @@ export function StockChart({ symbol, exchange = "HOSE" }: StockChartProps) {
             {symbol} — Biểu đồ kỹ thuật
           </span>
         </div>
-        <div className="flex items-center gap-2 text-[10px] text-neutral-600 font-mono">
+        <div className="flex items-center gap-2 text-[12px] text-neutral-600 font-mono">
           <span className="text-yellow-500">━ EMA10</span>
           <span className="text-purple-500">━ EMA30</span>
           <span>{exchange}:{symbol}</span>
@@ -227,7 +227,7 @@ export function StockChart({ symbol, exchange = "HOSE" }: StockChartProps) {
               <span className="text-xs text-yellow-500/80 font-mono">
                 Hệ thống Dữ liệu đang bảo trì
               </span>
-              <span className="text-[10px] text-neutral-600">
+              <span className="text-[12px] text-neutral-600">
                 Vui lòng thử lại sau ít phút
               </span>
             </div>

@@ -9,6 +9,11 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontSize: {
+        /* Global Upscale Typography: bump small sizes for readability */
+        'xs': ['0.875rem', { lineHeight: '1.375rem' }],    /* 14px (was 12px) */
+        'sm': ['0.9375rem', { lineHeight: '1.5rem' }],     /* 15px (was 14px) */
+      },
       animation: {
         "pulse-glow": "pulseGlow 2s ease-in-out infinite alternate",
         "fade-in": "fadeIn 0.3s ease-in-out",

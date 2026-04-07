@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
@@ -58,7 +58,7 @@ export function Topbar() {
           ) : isAuthenticated ? (
             <>
               {role === "VIP" && (
-                <div className={`flex items-center gap-1.5 text-[10px] font-bold border px-2 py-1 rounded-lg uppercase ${
+                <div className={`flex items-center gap-1.5 text-[12px] font-bold border px-2 py-1 rounded-lg uppercase ${
                   vipTier === "PREMIUM"
                     ? "bg-amber-500/10 text-amber-400 border-amber-500/25"
                     : "bg-purple-500/10 text-purple-400 border-purple-500/25"

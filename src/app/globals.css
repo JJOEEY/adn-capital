@@ -35,6 +35,16 @@ body {
   color: var(--fg);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", Inter, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+/* ── Global Upscale: minimum font sizes for forms & buttons ── */
+input, textarea, select, button {
+  font-size: 16px; /* Prevents iOS auto-zoom on focus */
+}
+input::placeholder, textarea::placeholder {
+  font-size: inherit;
 }
 
 /* ── Background: city image with dark overlay ── */
@@ -217,3 +227,60 @@ html {
 .perspective-\[800px\] {
   perspective: 800px;
 }
+
+/* ── TipTap Rich Text Editor ── */
+.tiptap {
+  outline: none;
+}
+.tiptap p {
+  margin-bottom: 0.75em;
+}
+.tiptap h2 {
+  font-size: 1.4em;
+  font-weight: 700;
+  margin: 1.2em 0 0.5em;
+  color: #e2e8f0;
+}
+.tiptap h3 {
+  font-size: 1.15em;
+  font-weight: 600;
+  margin: 1em 0 0.4em;
+  color: #e2e8f0;
+}
+.tiptap ul, .tiptap ol {
+  padding-left: 1.5em;
+  margin-bottom: 0.75em;
+}
+.tiptap ul { list-style-type: disc; }
+.tiptap ol { list-style-type: decimal; }
+.tiptap li { margin-bottom: 0.25em; }
+.tiptap blockquote {
+  border-left: 3px solid rgba(34, 211, 238, 0.4);
+  padding-left: 1em;
+  margin: 0.75em 0;
+  color: #94a3b8;
+  font-style: italic;
+}
+.tiptap img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  margin: 1em 0;
+}
+.tiptap hr {
+  border: none;
+  border-top: 1px solid rgba(255,255,255,0.1);
+  margin: 1.5em 0;
+}
+.tiptap a {
+  color: #22d3ee;
+  text-decoration: underline;
+}
+.tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #475569;
+  pointer-events: none;
+  height: 0;
+}
+.tiptap strong { font-weight: 700; color: #f1f5f9; }

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 interface MarketBreadthProps {
   up: number;
@@ -15,10 +15,10 @@ export function MarketBreadth({ up, down, unchanged, totalVolume }: MarketBreadt
   return (
     <div className="bg-neutral-900 rounded-xl border border-neutral-800 p-3 min-h-[100px] flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider whitespace-normal break-words">
+        <p className="text-[12px] font-bold text-neutral-500 uppercase tracking-wider whitespace-normal break-words">
           Độ Rộng Thị Trường
         </p>
-        <span className="text-[10px] text-neutral-600 font-mono flex-shrink-0">Vol: {totalVolume}</span>
+        <span className="text-[12px] text-neutral-600 font-mono flex-shrink-0">Vol: {totalVolume}</span>
       </div>
 
       {/* Breadth bar */}
@@ -55,7 +55,7 @@ export function MarketBreadth({ up, down, unchanged, totalVolume }: MarketBreadt
       </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-3 text-[10px] font-bold flex-wrap">
+      <div className="flex items-center gap-3 text-[12px] font-bold flex-wrap">
         <span className="flex items-center gap-1">
           <span className="w-2 h-2 rounded-full bg-purple-500 inline-block" /> Trần {ceil}
         </span>

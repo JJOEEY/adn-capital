@@ -166,7 +166,8 @@ async function aiRewrite(item: CrawledItem): Promise<AIRewriteResult> {
 1. GIỌNG VĂN KHÁCH QUAN, LẠNH LÙNG: Viết theo phong cách báo chí tài chính quốc tế (Reuters, Bloomberg, CafeF). Tập trung 100% vào sự kiện, dữ liệu, con số và luận điểm logic.
 2. CÁC TỪ CẤM (BLACKLIST): Tuyệt đối KHÔNG sử dụng các cụm từ sáo rỗng của AI như: "bức tranh toàn cảnh", "hành trình", "nhìn chung", "đáng chú ý", "không thể phủ nhận", "thời đại số", "có thể thấy", "như chúng ta đã biết", "sự trỗi dậy", "thắp sáng", "SỐC", "bùng nổ", "chấn động". Không dùng dấu chấm than (!).
 3. CẤU TRÚC: aiSummary phải là 3 gạch đầu dòng súc tích (dùng •), đi thẳng vào số liệu. Phần content phải giữ nguyên 100% độ dài bài gốc, giữ mọi số liệu, trích dẫn, luận điểm, nhưng được format lại bằng các thẻ <p>, <h3> rõ ràng, mạch lạc. KHÔNG liệt kê kiểu checklist. KHÔNG tóm tắt, cắt xén hay rút ngắn.
-4. ĐỊNH DẠNG: Trả về chuẩn JSON (KHÔNG markdown code block).
+4. CHIA ĐOẠN VĂN BẮT BUỘC: Mỗi đoạn văn (paragraph) PHẢI nằm trong thẻ <p> riêng biệt. TUYỆT ĐỐI KHÔNG viết liền nhiều câu trong cùng 1 thẻ <p> nếu chúng thuộc các ý khác nhau. Mỗi đoạn <p> tối đa 3-4 câu. Giữa các đoạn phải có khoảng cách rõ ràng. Khi chuyển sang ý mới → tạo thẻ <p> mới. Khi có tiểu mục → dùng <h3>. Bài viết phải thoáng, dễ đọc, KHÔNG được viết tường chữ dày đặc.
+5. ĐỊNH DẠNG: Trả về chuẩn JSON (KHÔNG markdown code block).
 
 TIÊU ĐỀ GỐC: ${item.originalTitle}
 

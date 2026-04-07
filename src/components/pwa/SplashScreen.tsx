@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -49,7 +49,7 @@ export function SplashScreen() {
                 <span className="text-emerald-400">ADN</span>{" "}
                 <span className="text-white">Capital</span>
               </h1>
-              <p className="text-[10px] text-white/30 tracking-[0.3em] uppercase mt-1">
+              <p className="text-[12px] text-white/30 tracking-[0.3em] uppercase mt-1">
                 AI-Powered Investment
               </p>
             </div>

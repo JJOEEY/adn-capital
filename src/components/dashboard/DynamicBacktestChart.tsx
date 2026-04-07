@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { memo, useEffect, useState } from "react";
 import {
@@ -43,7 +43,7 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-neutral-900/95 border border-neutral-700 rounded-xl px-4 py-3 shadow-xl backdrop-blur-sm">
-      <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-2">
+      <p className="text-[12px] font-bold text-neutral-400 uppercase tracking-wider mb-2">
         {label}
       </p>
       {payload.map((p) => (
@@ -137,17 +137,17 @@ export const DynamicBacktestChart = memo(function DynamicBacktestChart() {
             <h3 className="text-sm font-bold text-white">
               So sánh hiệu suất tích lũy
             </h3>
-            <p className="text-[10px] text-neutral-500">
+            <p className="text-[12px] text-neutral-500">
               {periodLabel} · Vốn ban đầu = 100%
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
+          <span className="text-[12px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
             {adnReturn}
           </span>
           {vniReturn && (
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-neutral-800 text-neutral-400 border border-neutral-700 font-bold">
+            <span className="text-[12px] px-2 py-0.5 rounded-full bg-neutral-800 text-neutral-400 border border-neutral-700 font-bold">
               {vniReturn}
             </span>
           )}
@@ -231,7 +231,7 @@ export const DynamicBacktestChart = memo(function DynamicBacktestChart() {
       <ChartLegend />
 
       {/* Footnote */}
-      <p className="text-[9px] text-neutral-600 text-center mt-3">
+      <p className="text-[11px] text-neutral-600 text-center mt-3">
         * Dữ liệu backtest thực tế. Hiệu suất quá khứ không đảm bảo lợi nhuận tương lai.
         {snapshot.generated_at && ` Cập nhật: ${snapshot.generated_at}.`}
       </p>

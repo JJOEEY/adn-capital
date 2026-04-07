@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { motion } from "framer-motion";
 import { Bot, User } from "lucide-react";
@@ -126,7 +126,7 @@ export function ChatBubble({ message }: ChatBubbleProps) {
           )}
         </div>
 
-        <span className="text-[10px] text-neutral-600 px-1">
+        <span className="text-[12px] text-neutral-600 px-1">
           {new Date(message.createdAt).toLocaleTimeString("vi-VN", {
             hour: "2-digit",
             minute: "2-digit",

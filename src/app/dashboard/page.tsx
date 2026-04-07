@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useMemo, useCallback, memo, Suspense } from "react";
 import useSWR from "swr";
@@ -161,7 +161,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-baseline gap-2">
               <h1 className="text-xl sm:text-2xl font-black text-white dark:text-white text-slate-800">Dashboard</h1>
-              <span className="text-[10px] font-bold text-emerald-400/50 uppercase tracking-widest hidden sm:inline">
+              <span className="text-[12px] font-bold text-emerald-400/50 uppercase tracking-widest hidden sm:inline">
                 OVERVIEW
               </span>
             </div>
@@ -233,7 +233,7 @@ export default function DashboardPage() {
           <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-4 min-h-[80px]">
             <div className="flex items-center gap-2 mb-2">
               <Bot className="w-4 h-4 text-emerald-400" />
-              <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">
+              <span className="text-[12px] font-bold text-emerald-400 uppercase tracking-wider">
                 AI Nhận Định
               </span>
             </div>
@@ -398,7 +398,7 @@ const GaugeCard = memo(function GaugeCard({ overview }: { overview: MarketOvervi
   return (
     <div className="rounded-2xl border border-neutral-800 bg-neutral-900/90 p-4 sm:p-5 flex flex-col items-center transform-gpu will-change-transform hover:border-neutral-700 hover:shadow-lg hover:shadow-neutral-900/50 transition-all duration-300">
       {/* Header */}
-      <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-2 self-start">
+      <p className="text-[12px] font-bold text-neutral-500 uppercase tracking-wider mb-2 self-start">
         ADN Composite Score (W/M + Định giá)
       </p>
 
@@ -414,14 +414,14 @@ const GaugeCard = memo(function GaugeCard({ overview }: { overview: MarketOvervi
               <span className="text-[11px] font-bold text-neutral-400">/ {maxScore}</span>
             </div>
             <div
-              className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider"
+              className="px-3 py-1 rounded-full text-[12px] font-bold uppercase tracking-wider"
               style={{ color, backgroundColor: `${color}15`, border: `1px solid ${color}40` }}
             >
               {label}
             </div>
             {/* Score breakdown */}
             {(taScore != null || valScore != null) && (
-              <div className="flex gap-3 text-[10px] text-neutral-500 mt-1">
+              <div className="flex gap-3 text-[12px] text-neutral-500 mt-1">
                 {taScore != null && <span>TA: <span className="text-neutral-300 font-bold">{taScore}/10</span></span>}
                 {valScore != null && <span>Định giá: <span className="text-neutral-300 font-bold">{valScore}/4</span></span>}
               </div>
@@ -540,7 +540,7 @@ const MarketStatusCard = memo(function MarketStatusCard({
             {score}
           </span>
           <span className="text-sm text-gray-500 font-bold">/ {maxScore}</span>
-          <span className={`text-[10px] font-bold uppercase tracking-wider ${cfg.text}`}>
+          <span className={`text-[12px] font-bold uppercase tracking-wider ${cfg.text}`}>
             Level {level}
           </span>
         </div>
@@ -551,7 +551,7 @@ const MarketStatusCard = memo(function MarketStatusCard({
             <span className="text-[11px] text-gray-500">NAV:</span>
             <span className={`text-[11px] font-bold ${cfg.text}`}>{navAllocation}</span>
             {marginAllowed && (
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">
+              <span className="text-[12px] font-bold px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">
                 MARGIN OK
               </span>
             )}
@@ -570,7 +570,7 @@ const MarketStatusCard = memo(function MarketStatusCard({
 
         {/* Disclaimer */}
         {disclaimer && (
-          <p className="text-[9px] text-gray-600 mt-2">
+          <p className="text-[11px] text-gray-600 mt-2">
             {disclaimer}
           </p>
         )}

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import useSWR from "swr";
@@ -242,7 +242,7 @@ export default function NotificationsPage() {
                   { label: "14:00", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
                   { label: "14:45", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
                 ].map((s) => (
-                  <span key={s.label} className={`text-[9px] font-bold px-2 py-1 rounded-lg border ${s.color}`}>
+                  <span key={s.label} className={`text-[11px] font-bold px-2 py-1 rounded-lg border ${s.color}`}>
                     {s.label}
                   </span>
                 ))}
@@ -250,7 +250,7 @@ export default function NotificationsPage() {
               <button
                 onClick={handleTogglePush}
                 disabled={pushLoading}
-                className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-bold border transition-all cursor-pointer ${
+                className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-bold border transition-all cursor-pointer ${
                   pushEnabled
                     ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/25"
                     : "bg-neutral-800/50 text-neutral-400 border-neutral-700 hover:text-white hover:border-emerald-500/30"
@@ -281,7 +281,7 @@ export default function NotificationsPage() {
                   <div className="flex items-center gap-2">
                     <Sun className="w-3.5 h-3.5 text-neutral-600" />
                     <span className="text-xs font-bold text-neutral-500">{dateStr}</span>
-                    <span className="text-[10px] text-neutral-700">({items.length} bản tin)</span>
+                    <span className="text-[12px] text-neutral-700">({items.length} bản tin)</span>
                   </div>
                   {items.map((n, idx) => {
                     const cfg = getConfig(n.type);
@@ -298,9 +298,9 @@ export default function NotificationsPage() {
                         <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center gap-2">
                             <div className={`p-1.5 rounded-lg ${cfg.bg}`}><Icon className={`w-4 h-4 ${cfg.color}`} /></div>
-                            <span className={`text-[10px] font-black uppercase tracking-wider ${cfg.color}`}>{cfg.label}</span>
+                            <span className={`text-[12px] font-black uppercase tracking-wider ${cfg.color}`}>{cfg.label}</span>
                           </div>
-                          <span className="text-[10px] text-neutral-600 font-mono">{time}</span>
+                          <span className="text-[12px] text-neutral-600 font-mono">{time}</span>
                         </div>
                         <h3 className="text-sm font-bold text-white mb-2">{n.title}</h3>
                         <div className="text-xs text-neutral-400 leading-relaxed whitespace-pre-line">{n.content}</div>
@@ -347,7 +347,7 @@ export default function NotificationsPage() {
                     </div>
                   )}
                   <div
-                    className={`max-w-[80%] rounded-2xl px-4 py-3 text-[13px] leading-relaxed ${
+                    className={`max-w-[80%] rounded-2xl px-4 py-3 text-[15px] leading-relaxed ${
                       m.role === "user"
                         ? "bg-emerald-500/15 text-emerald-100 border border-emerald-500/20 rounded-br-sm"
                         : "bg-neutral-900 text-neutral-300 border border-neutral-800 rounded-bl-sm"

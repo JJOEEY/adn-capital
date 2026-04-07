@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -306,7 +306,7 @@ export default function ProfilePage() {
               <p className="text-sm text-neutral-500 mt-0.5">{dbUser.email}</p>
               <div className="flex items-center gap-2 mt-2 justify-center sm:justify-start">
                 <span
-                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold ${roleColor}`}
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[12px] font-bold ${roleColor}`}
                 >
                   {isAdmin ? (
                     <ShieldCheck className="w-2.5 h-2.5" />
@@ -368,7 +368,7 @@ export default function ProfilePage() {
                       />
                       <div className="flex-1">
                         <p className="text-xs text-neutral-400 truncate">{selectedFile?.name}</p>
-                        <p className="text-[10px] text-neutral-600">{selectedFile ? (selectedFile.size / 1024).toFixed(0) + " KB" : ""}</p>
+                        <p className="text-[12px] text-neutral-600">{selectedFile ? (selectedFile.size / 1024).toFixed(0) + " KB" : ""}</p>
                       </div>
                     </div>
                   ) : (
@@ -378,7 +378,7 @@ export default function ProfilePage() {
                     >
                       <Upload className="w-6 h-6 text-neutral-600" />
                       <span className="text-xs text-neutral-500">Chọn ảnh từ máy tính</span>
-                      <span className="text-[10px] text-neutral-600">JPG, PNG, WebP, GIF — tối đa 2MB</span>
+                      <span className="text-[12px] text-neutral-600">JPG, PNG, WebP, GIF — tối đa 2MB</span>
                     </button>
                   )}
                   <div className="flex gap-2">
@@ -555,7 +555,7 @@ export default function ProfilePage() {
                 <p className="text-sm font-medium text-white">
                   Nhận đánh giá tâm lý hàng tuần từ ADN AI
                 </p>
-                <p className="text-[10px] text-neutral-500 mt-0.5">
+                <p className="text-[12px] text-neutral-500 mt-0.5">
                   AI sẽ phân tích giao dịch tuần và gửi nhận xét riêng tư vào 17h Thứ 6
                 </p>
               </div>

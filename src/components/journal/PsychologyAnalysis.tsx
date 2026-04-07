@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -84,7 +84,7 @@ export function PsychologyAnalysis() {
                   <p className={`text-lg font-black font-mono ${stat.color}`}>
                     {stat.value}{stat.suffix}
                   </p>
-                  <p className="text-[10px] text-neutral-600 mt-0.5">{stat.label}</p>
+                  <p className="text-[12px] text-neutral-600 mt-0.5">{stat.label}</p>
                 </Card>
               ))}
             </div>
@@ -172,7 +172,7 @@ export function PsychologyAnalysis() {
                     <ol className="space-y-2">
                       {result.analysis.recommendations.map((r, i) => (
                         <li key={i} className="flex gap-3 text-xs text-neutral-300 leading-relaxed">
-                          <span className="w-5 h-5 rounded-full bg-blue-500/15 border border-blue-500/20 text-blue-400 text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <span className="w-5 h-5 rounded-full bg-blue-500/15 border border-blue-500/20 text-blue-400 text-[12px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
                             {i + 1}
                           </span>
                           {r}

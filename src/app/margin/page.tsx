@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -92,7 +92,7 @@ export default function MarginPage() {
       <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-10">
 
         <div className="rounded-2xl overflow-hidden border border-neutral-800 bg-gradient-to-br from-neutral-900 via-neutral-900 to-emerald-950/30 p-6 sm:p-8">
-          <span className="inline-block text-[10px] font-bold text-emerald-400 uppercase tracking-[0.3em] mb-3 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full">
+          <span className="inline-block text-[12px] font-bold text-emerald-400 uppercase tracking-[0.3em] mb-3 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full">
             Dịch vụ ký quỹ
           </span>
           <h1 className="text-3xl sm:text-4xl font-black text-white mb-2">
@@ -259,7 +259,7 @@ function FormField({ label, required, icon, error, children }: {
         {icon && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500">{icon}</span>}
         <div className={icon ? "pl-9" : ""}>{children}</div>
       </div>
-      {error && <p className="text-[10px] text-red-400 mt-1">{error}</p>}
+      {error && <p className="text-[12px] text-red-400 mt-1">{error}</p>}
     </div>
   );
 }

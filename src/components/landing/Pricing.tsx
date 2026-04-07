@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
@@ -275,7 +275,7 @@ export default function Pricing() {
           transition={{ duration: 0.5 }}
           className="text-center mb-12"
         >
-          <span className={`inline-block text-[10px] font-bold uppercase tracking-[0.3em] mb-4 px-3 py-1 rounded-full border ${
+          <span className={`inline-block text-[12px] font-bold uppercase tracking-[0.3em] mb-4 px-3 py-1 rounded-full border ${
             isDark ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" : "text-emerald-600 bg-emerald-50 border-emerald-200"
           }`}>
             Bảng giá đầu tư
@@ -370,7 +370,7 @@ export default function Pricing() {
                       DNSE: {dnseId}
                     </span>
                     {pending && (
-                      <p className="text-[10px] text-amber-400/70 mt-0.5">
+                      <p className="text-[12px] text-amber-400/70 mt-0.5">
                         Đang chờ xác minh (~1 tiếng sau khi mở TK)
                       </p>
                     )}
@@ -512,7 +512,7 @@ function PricingCard({
         <div
           className={`
             absolute top-5 -right-10 rotate-45 ${t.ribbon}
-            text-[10px] font-bold text-white uppercase tracking-wider
+            text-[12px] font-bold text-white uppercase tracking-wider
             py-1 w-40 text-center shadow-lg
           `}
         >
@@ -550,7 +550,7 @@ function PricingCard({
             <p className={`text-3xl font-black ${t.priceText}`}>
               {formatVND(displayPrice)}
             </p>
-            <span className="inline-block mt-2 text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+            <span className="inline-block mt-2 text-[12px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full">
               Tiết kiệm {formatVND(plan.price - plan.dnsePrice)}
             </span>
           </>
@@ -559,7 +559,7 @@ function PricingCard({
             <p className={`text-3xl font-black ${t.priceText}`}>
               {formatVND(displayPrice)}
             </p>
-            <p className={`mt-1.5 text-[10px] ${isDark ? "text-white/30" : "text-slate-400"}`}>
+            <p className={`mt-1.5 text-[12px] ${isDark ? "text-white/30" : "text-slate-400"}`}>
               Chỉ <span className="text-emerald-400 font-semibold">{formatVND(plan.dnsePrice)}</span> với DNSE{" "}
               <span className="text-red-400">(-{plan.discountPct}%)</span>
             </p>

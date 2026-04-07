@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback, useMemo, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -155,7 +155,7 @@ function TickerDetailPanel({ ticker, transactions }: { ticker: string; transacti
           {/* Top row: Date filter + Realized PnL */}
           <div className="flex flex-wrap items-end gap-3 mb-3">
             <div>
-              <label className="text-[10px] text-neutral-500 block mb-1">
+              <label className="text-[12px] text-neutral-500 block mb-1">
                 <Calendar className="w-3 h-3 inline mr-0.5" />
                 Từ ngày
               </label>
@@ -167,7 +167,7 @@ function TickerDetailPanel({ ticker, transactions }: { ticker: string; transacti
               />
             </div>
             <div>
-              <label className="text-[10px] text-neutral-500 block mb-1">Đến ngày</label>
+              <label className="text-[12px] text-neutral-500 block mb-1">Đến ngày</label>
               <input
                 type="date"
                 value={to}
@@ -178,7 +178,7 @@ function TickerDetailPanel({ ticker, transactions }: { ticker: string; transacti
             {(from || to) && (
               <button
                 onClick={() => { setFrom(""); setTo(""); }}
-                className="text-[10px] text-neutral-500 hover:text-neutral-300 underline pb-1.5"
+                className="text-[12px] text-neutral-500 hover:text-neutral-300 underline pb-1.5"
               >
                 Xóa lọc
               </button>
@@ -193,7 +193,7 @@ function TickerDetailPanel({ ticker, transactions }: { ticker: string; transacti
                     : "bg-red-500/10 border-red-500/20 text-red-400"
                 }`}
               >
-                <span className="text-[10px] opacity-70 uppercase tracking-wider">
+                <span className="text-[12px] opacity-70 uppercase tracking-wider">
                   Lãi/Lỗ chốt {from || to ? "(trong kỳ)" : ""}
                 </span>
                 <span className="font-black font-mono text-sm">
@@ -217,7 +217,7 @@ function TickerDetailPanel({ ticker, transactions }: { ticker: string; transacti
                 >
                   <div className="flex items-center gap-3">
                     <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                      className={`text-[12px] font-bold px-2 py-0.5 rounded ${
                         tx.action === "BUY"
                           ? "bg-emerald-500/15 text-emerald-400"
                           : "bg-red-500/15 text-red-400"
@@ -228,17 +228,17 @@ function TickerDetailPanel({ ticker, transactions }: { ticker: string; transacti
                     <span className="text-xs font-mono text-neutral-200">
                       {fmt(tx.price)} × {tx.qty.toLocaleString("vi-VN")}
                     </span>
-                    <span className="text-[10px] text-neutral-600">
+                    <span className="text-[12px] text-neutral-600">
                       = {fmt(tx.price * tx.qty)}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
                     {tx.psychologyTag && (
-                      <span className="text-[9px] text-neutral-500 bg-neutral-800 px-1.5 py-0.5 rounded">
+                      <span className="text-[11px] text-neutral-500 bg-neutral-800 px-1.5 py-0.5 rounded">
                         {tx.psychologyTag}
                       </span>
                     )}
-                    <span className="text-[10px] text-neutral-600 font-mono">
+                    <span className="text-[12px] text-neutral-600 font-mono">
                       {new Date(tx.date).toLocaleDateString("vi-VN")}
                     </span>
                   </div>
@@ -381,7 +381,7 @@ export function PnLSummary() {
         <div className="flex flex-wrap items-end gap-3">
           <Filter className="w-4 h-4 text-neutral-500 self-center" />
           <div>
-            <label className="text-[10px] text-neutral-500 block mb-1">Từ ngày</label>
+            <label className="text-[12px] text-neutral-500 block mb-1">Từ ngày</label>
             <input
               type="date"
               value={globalFrom}
@@ -390,7 +390,7 @@ export function PnLSummary() {
             />
           </div>
           <div>
-            <label className="text-[10px] text-neutral-500 block mb-1">Đến ngày</label>
+            <label className="text-[12px] text-neutral-500 block mb-1">Đến ngày</label>
             <input
               type="date"
               value={globalTo}
@@ -415,7 +415,7 @@ export function PnLSummary() {
             </button>
           )}
           {(globalFrom || globalTo) && (
-            <span className="text-[10px] text-amber-400/70 self-center ml-auto">
+            <span className="text-[12px] text-amber-400/70 self-center ml-auto">
               Đang lọc: {globalFrom || "..."} → {globalTo || "..."}
             </span>
           )}
@@ -431,7 +431,7 @@ export function PnLSummary() {
           </div>
           <button
             onClick={() => setEditingNAV(!editingNAV)}
-            className="text-[10px] text-neutral-500 hover:text-neutral-300 transition-colors underline"
+            className="text-[12px] text-neutral-500 hover:text-neutral-300 transition-colors underline"
           >
             {editingNAV ? "Hủy" : "Cài đặt vốn"}
           </button>
@@ -444,7 +444,7 @@ export function PnLSummary() {
             className="mb-4 p-3 bg-neutral-800/50 rounded-xl border border-neutral-700 flex items-end gap-2"
           >
             <div className="flex-1">
-              <label className="text-[10px] text-neutral-500 block mb-1">
+              <label className="text-[12px] text-neutral-500 block mb-1">
                 Vốn ban đầu (VNĐ)
               </label>
               <input
@@ -467,24 +467,24 @@ export function PnLSummary() {
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div>
-            <p className="text-[10px] text-neutral-600">Vốn ban đầu</p>
+            <p className="text-[12px] text-neutral-600">Vốn ban đầu</p>
             <p className="text-sm font-bold font-mono text-neutral-300">{fmt(data.initialNAV)}</p>
           </div>
           <div>
-            <p className="text-[10px] text-neutral-600">Lãi/Lỗ đã chốt</p>
+            <p className="text-[12px] text-neutral-600">Lãi/Lỗ đã chốt</p>
             <p className={`text-sm font-bold font-mono ${pnlColor}`}>
               {data.realizedPnL >= 0 ? "+" : ""}{fmt(data.realizedPnL)}
             </p>
           </div>
           <div>
-            <p className="text-[10px] text-neutral-600">Đang giữ (tạm tính)</p>
+            <p className="text-[12px] text-neutral-600">Đang giữ (tạm tính)</p>
             <p className="text-sm font-bold font-mono text-blue-400">{fmt(data.holdingsValue)}</p>
           </div>
           <div>
-            <p className="text-[10px] text-neutral-600">Current NAV</p>
+            <p className="text-[12px] text-neutral-600">Current NAV</p>
             <p className="text-lg font-black font-mono text-white">{fmt(data.currentNAV)}</p>
             {data.initialNAV > 0 && (
-              <p className={`text-[10px] font-bold ${navChange >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+              <p className={`text-[12px] font-bold ${navChange >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                 {navChange >= 0 ? "+" : ""}{navChange.toFixed(1)}%
               </p>
             )}
@@ -503,7 +503,7 @@ export function PnLSummary() {
           <Card key={s.label} className="p-3">
             <div className={`flex items-center gap-1 mb-1 ${s.color}`}>
               {s.icon}
-              <span className="text-[10px] text-neutral-500">{s.label}</span>
+              <span className="text-[12px] text-neutral-500">{s.label}</span>
             </div>
             <p className={`text-lg font-black font-mono ${s.color}`}>{s.value}</p>
           </Card>
@@ -541,13 +541,13 @@ export function PnLSummary() {
             <table className="w-full text-left">
               <thead>
                 <tr className="border-b border-white/[0.06]">
-                  <th className="text-[10px] uppercase tracking-wider text-neutral-500 font-medium px-4 py-3">Mã CP</th>
-                  <th className="text-[10px] uppercase tracking-wider text-neutral-500 font-medium px-3 py-3 text-right">KL</th>
-                  <th className="text-[10px] uppercase tracking-wider text-neutral-500 font-medium px-3 py-3 text-right">Giá vốn</th>
-                  <th className="text-[10px] uppercase tracking-wider text-neutral-500 font-medium px-3 py-3 text-right hidden sm:table-cell">Giá TT</th>
-                  <th className="text-[10px] uppercase tracking-wider text-neutral-500 font-medium px-3 py-3 text-right">Lãi/Lỗ</th>
-                  <th className="text-[10px] uppercase tracking-wider text-neutral-500 font-medium px-3 py-3 text-center hidden sm:table-cell">7 ngày</th>
-                  <th className="text-[10px] uppercase tracking-wider text-neutral-500 font-medium px-3 py-3 w-8"></th>
+                  <th className="text-[12px] uppercase tracking-wider text-neutral-500 font-medium px-4 py-3">Mã CP</th>
+                  <th className="text-[12px] uppercase tracking-wider text-neutral-500 font-medium px-3 py-3 text-right">KL</th>
+                  <th className="text-[12px] uppercase tracking-wider text-neutral-500 font-medium px-3 py-3 text-right">Giá vốn</th>
+                  <th className="text-[12px] uppercase tracking-wider text-neutral-500 font-medium px-3 py-3 text-right hidden sm:table-cell">Giá TT</th>
+                  <th className="text-[12px] uppercase tracking-wider text-neutral-500 font-medium px-3 py-3 text-right">Lãi/Lỗ</th>
+                  <th className="text-[12px] uppercase tracking-wider text-neutral-500 font-medium px-3 py-3 text-center hidden sm:table-cell">7 ngày</th>
+                  <th className="text-[12px] uppercase tracking-wider text-neutral-500 font-medium px-3 py-3 w-8"></th>
                 </tr>
               </thead>
               <tbody>
@@ -599,7 +599,7 @@ export function PnLSummary() {
                           <p className={`text-xs font-bold font-mono ${pnlVal >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                             {pnlVal >= 0 ? "+" : ""}{fmt(pnlVal)}
                           </p>
-                          <p className={`text-[9px] font-mono ${pnlPct >= 0 ? "text-emerald-500/60" : "text-red-500/60"}`}>
+                          <p className={`text-[11px] font-mono ${pnlPct >= 0 ? "text-emerald-500/60" : "text-red-500/60"}`}>
                             {pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(1)}%
                           </p>
                         </td>
@@ -657,7 +657,7 @@ export function PnLSummary() {
                     {t.pnl >= 0 ? "+" : ""}{fmt(t.pnl)}
                   </span>
                   {t.date && (
-                    <span className="text-[9px] text-neutral-700 font-mono">
+                    <span className="text-[11px] text-neutral-700 font-mono">
                       {new Date(t.date).toLocaleDateString("vi-VN")}
                     </span>
                   )}

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
@@ -204,7 +204,7 @@ export default function JournalPage() {
               >
                 <div className={`${s.color} flex items-center gap-1.5 mb-1`}>
                   {s.icon}
-                  <span className="text-[10px] text-neutral-500 font-medium">{s.label}</span>
+                  <span className="text-[12px] text-neutral-500 font-medium">{s.label}</span>
                 </div>
                 <p className={`text-xl font-black ${s.color} font-mono`}>{s.value}</p>
               </div>
@@ -236,7 +236,7 @@ export default function JournalPage() {
                   {tab.label}
                   {tab.count !== null && (
                     <span
-                      className={`text-[10px] rounded-md px-1.5 py-0.5 font-bold ${
+                      className={`text-[12px] rounded-md px-1.5 py-0.5 font-bold ${
                         activeTab === tab.id
                           ? "bg-neutral-700 text-neutral-300"
                           : "bg-neutral-800/80 text-neutral-600"

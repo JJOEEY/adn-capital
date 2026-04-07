@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -76,7 +76,7 @@ export function JournalList({ entries, onDeleted, onDateFilter }: JournalListPro
       {/* Date Range Filter */}
       <div className="flex items-end gap-2 flex-wrap bg-neutral-900/50 border border-neutral-800 rounded-xl p-3">
         <div className="flex-1 min-w-[120px]">
-          <label className="text-[10px] text-neutral-500 block mb-1">Từ ngày</label>
+          <label className="text-[12px] text-neutral-500 block mb-1">Từ ngày</label>
           <input
             type="date"
             value={dateFrom}
@@ -85,7 +85,7 @@ export function JournalList({ entries, onDeleted, onDateFilter }: JournalListPro
           />
         </div>
         <div className="flex-1 min-w-[120px]">
-          <label className="text-[10px] text-neutral-500 block mb-1">Đến ngày</label>
+          <label className="text-[12px] text-neutral-500 block mb-1">Đến ngày</label>
           <input
             type="date"
             value={dateTo}
@@ -125,7 +125,7 @@ export function JournalList({ entries, onDeleted, onDateFilter }: JournalListPro
               }`}
             >
               {FILTER_LABELS[f]}
-              <span className="ml-1.5 text-[10px] opacity-60">{count}</span>
+              <span className="ml-1.5 text-[12px] opacity-60">{count}</span>
             </button>
           );
         })}
@@ -179,7 +179,7 @@ export function JournalList({ entries, onDeleted, onDateFilter }: JournalListPro
                         {entry.action === "BUY" ? "Mua" : "Bán"}
                       </Badge>
                       {(entry.psychologyTag || entry.psychology) && (
-                        <span className={`text-[10px] font-medium ${psychColor}`}>
+                        <span className={`text-[12px] font-medium ${psychColor}`}>
                           {entry.psychologyTag || entry.psychology}
                         </span>
                       )}
@@ -187,19 +187,19 @@ export function JournalList({ entries, onDeleted, onDateFilter }: JournalListPro
 
                     <div className="grid grid-cols-3 gap-x-4 gap-y-1 mb-2">
                       <div>
-                        <p className="text-[10px] text-neutral-600">Giá</p>
+                        <p className="text-[12px] text-neutral-600">Giá</p>
                         <p className="text-xs font-mono font-semibold text-neutral-200">
                           {entry.price.toLocaleString("vi-VN")}
                         </p>
                       </div>
                       <div>
-                        <p className="text-[10px] text-neutral-600">KL</p>
+                        <p className="text-[12px] text-neutral-600">KL</p>
                         <p className="text-xs font-mono font-semibold text-neutral-200">
                           {entry.quantity.toLocaleString("vi-VN")}
                         </p>
                       </div>
                       <div>
-                        <p className="text-[10px] text-neutral-600">Giá trị</p>
+                        <p className="text-[12px] text-neutral-600">Giá trị</p>
                         <p className="text-xs font-mono font-semibold text-neutral-200">
                           {(entry.price * entry.quantity).toLocaleString("vi-VN")}
                         </p>
@@ -210,7 +210,7 @@ export function JournalList({ entries, onDeleted, onDateFilter }: JournalListPro
                     {entry.tradeReason && (
                       <button
                         onClick={() => setExpandedId(isExpanded ? null : entry.id)}
-                        className="flex items-center gap-1 text-[10px] text-neutral-500 hover:text-neutral-300 transition-colors mt-1"
+                        className="flex items-center gap-1 text-[12px] text-neutral-500 hover:text-neutral-300 transition-colors mt-1"
                       >
                         <MessageSquare className="w-2.5 h-2.5" />
                         Lý do giao dịch
@@ -239,7 +239,7 @@ export function JournalList({ entries, onDeleted, onDateFilter }: JournalListPro
 
                     <div className="flex items-center gap-1 mt-1">
                       <Clock className="w-2.5 h-2.5 text-neutral-700" />
-                      <span className="text-[10px] text-neutral-600">
+                      <span className="text-[12px] text-neutral-600">
                         {format(new Date(displayDate), "dd/MM/yy HH:mm", {
                           locale: vi,
                         })}

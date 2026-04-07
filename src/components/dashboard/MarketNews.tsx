@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import useSWR from "swr";
@@ -29,10 +29,10 @@ export function MorningNews() {
       >
         <div className="flex items-center gap-2">
           <Sun className="w-4 h-4 text-amber-400" />
-          <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">
+          <span className="text-[12px] font-bold text-amber-400 uppercase tracking-wider">
             Morning Intelligence
           </span>
-          <span className="text-[10px] text-neutral-500">{data.date}</span>
+          <span className="text-[12px] text-neutral-500">{data.date}</span>
         </div>
         {expanded ? (
           <ChevronUp className="w-4 h-4 text-neutral-500" />
@@ -47,7 +47,7 @@ export function MorningNews() {
           {/* Chỉ số tham chiếu */}
           {data.reference_indices && data.reference_indices.length > 0 && (
             <div>
-              <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-2">
+              <p className="text-[12px] font-bold text-neutral-500 uppercase tracking-wider mb-2">
                 Chỉ số tham chiếu
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -62,7 +62,7 @@ export function MorningNews() {
                         {typeof idx.value === "number" ? idx.value.toLocaleString("vi-VN") : idx.value}
                       </span>
                       <span
-                        className={`text-[10px] ml-1.5 ${
+                        className={`text-[12px] ml-1.5 ${
                           idx.change_pct > 0 ? "text-emerald-400" : idx.change_pct < 0 ? "text-red-400" : "text-neutral-500"
                         }`}
                       >
@@ -130,12 +130,12 @@ export function EODSummary() {
       >
         <div className="flex items-center gap-2">
           <Moon className="w-4 h-4 text-indigo-400" />
-          <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">
+          <span className="text-[12px] font-bold text-indigo-400 uppercase tracking-wider">
             EOD Flash Note
           </span>
-          <span className="text-[10px] text-neutral-500">{data.date}</span>
+          <span className="text-[12px] text-neutral-500">{data.date}</span>
           {data.vnindex && (
-            <span className={`text-[10px] font-bold ${pctColor}`}>
+            <span className={`text-[12px] font-bold ${pctColor}`}>
               VNI {data.vnindex.toFixed(1)} ({data.change_pct > 0 ? "+" : ""}{data.change_pct}%)
             </span>
           )}
@@ -184,7 +184,7 @@ export function EODSummary() {
             <div className="bg-indigo-500/5 border border-indigo-500/20 rounded-xl p-3">
               <div className="flex items-center gap-1.5 mb-1.5">
                 <Lightbulb className="w-3.5 h-3.5 text-indigo-400" />
-                <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">
+                <span className="text-[12px] font-bold text-indigo-400 uppercase tracking-wider">
                   Nhận định phiên tới
                 </span>
               </div>
@@ -220,7 +220,7 @@ function BulletSection({
     <div>
       <div className="flex items-center gap-1.5 mb-2">
         {icon}
-        <span className={`text-[10px] font-bold text-${color}-400 uppercase tracking-wider`}>
+        <span className={`text-[12px] font-bold text-${color}-400 uppercase tracking-wider`}>
           {title}
         </span>
       </div>
@@ -240,7 +240,7 @@ function StatChip({ label, value, color, bg }: { label: string; value: string | 
   return (
     <div className={`${bg} border border-neutral-800 rounded-lg px-3 py-2 text-center`}>
       <p className={`text-lg font-black ${color}`}>{value}</p>
-      <p className="text-[10px] text-neutral-500 mt-0.5">{label}</p>
+      <p className="text-[12px] text-neutral-500 mt-0.5">{label}</p>
     </div>
   );
 }
@@ -248,7 +248,7 @@ function StatChip({ label, value, color, bg }: { label: string; value: string | 
 function TextBlock({ title, text, color }: { title: string; text: string; color: string }) {
   return (
     <div>
-      <p className={`text-[10px] font-bold text-${color}-400 uppercase tracking-wider mb-1`}>
+      <p className={`text-[12px] font-bold text-${color}-400 uppercase tracking-wider mb-1`}>
         {title}
       </p>
       <p className="text-[11px] text-neutral-400 leading-relaxed">{text}</p>
@@ -261,7 +261,7 @@ function NewsSkeleton({ title, icon }: { title: string; icon: React.ReactNode })
     <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-4">
       <div className="flex items-center gap-2">
         {icon}
-        <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">{title}</span>
+        <span className="text-[12px] font-bold text-neutral-500 uppercase tracking-wider">{title}</span>
       </div>
       <div className="mt-3 space-y-2">
         <div className="h-3 w-3/4 bg-neutral-800 rounded animate-pulse" />

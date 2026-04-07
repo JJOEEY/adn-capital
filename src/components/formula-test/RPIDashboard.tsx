@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { memo, useMemo, useState, useCallback } from "react";
 import useSWR from "swr";
@@ -456,7 +456,7 @@ export const RPIDashboard = memo(function RPIDashboard() {
               {/* Component scores */}
               {latest?.details && (
                 <div className="pt-3 border-t border-neutral-800 mt-3">
-                  <p className="text-[10px] font-bold text-neutral-600 uppercase tracking-wider mb-2">Chi tiết thành phần</p>
+                  <p className="text-[12px] font-bold text-neutral-600 uppercase tracking-wider mb-2">Chi tiết thành phần</p>
                   {[
                     { name: "Stochastic %K(5) — 70%", score: latest.details.stochScore },
                     { name: "ROC(5) — 25%", score: latest.details.rocScore },
@@ -599,7 +599,7 @@ export const RPIDashboard = memo(function RPIDashboard() {
       {/* ═══ FORMULA INFO ═══ */}
       <div className="px-6 pb-6">
         <div className="border border-neutral-800 rounded-xl p-4 bg-neutral-900/50">
-          <p className="text-[10px] font-bold text-neutral-600 uppercase tracking-wider mb-2">
+          <p className="text-[12px] font-bold text-neutral-600 uppercase tracking-wider mb-2">
             Công thức tính TEI
           </p>
           <p className="text-xs text-neutral-400 leading-relaxed">

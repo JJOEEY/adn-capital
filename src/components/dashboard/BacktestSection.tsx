@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { memo, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
@@ -119,7 +119,7 @@ export const BacktestSection = memo(function BacktestSection() {
       <div className="relative z-10 max-w-6xl mx-auto px-4">
         {/* Header */}
         <div className="text-center mb-10">
-          <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-[0.3em]">
+          <span className="text-[12px] font-bold text-emerald-400 uppercase tracking-[0.3em]">
             Backtest Results
           </span>
           <h2 className="text-2xl sm:text-3xl font-black text-white mt-2">
@@ -144,10 +144,10 @@ export const BacktestSection = memo(function BacktestSection() {
                 <s.Icon className={`w-4 h-4 ${s.color}`} />
               </div>
               <p className={`text-2xl font-black ${s.color}`}>{s.value}</p>
-              <p className="text-[10px] font-bold text-neutral-400 uppercase mt-1">
+              <p className="text-[12px] font-bold text-neutral-400 uppercase mt-1">
                 {s.label}
               </p>
-              <p className="text-[10px] text-neutral-500 mt-0.5">{s.sub}</p>
+              <p className="text-[12px] text-neutral-500 mt-0.5">{s.sub}</p>
             </div>
           ))}
         </div>
@@ -201,14 +201,14 @@ export const BacktestSection = memo(function BacktestSection() {
                     </div>
                     <div>
                       <span
-                        className={`text-[10px] font-bold uppercase tracking-wider ${
+                        className={`text-[12px] font-bold uppercase tracking-wider ${
                           isProtect ? "text-cyan-400" : "text-emerald-400"
                         }`}
                       >
                         {e.period}
                       </span>
                       <span
-                        className={`ml-2 text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                        className={`ml-2 text-[11px] font-bold px-2 py-0.5 rounded-full ${
                           isProtect
                             ? "bg-cyan-500/10 text-cyan-300"
                             : "bg-emerald-500/10 text-emerald-300"
@@ -238,7 +238,7 @@ export const BacktestSection = memo(function BacktestSection() {
                     >
                       {e.saved}
                     </p>
-                    <p className="text-[9px] font-medium text-neutral-500 uppercase tracking-wide">
+                    <p className="text-[11px] font-medium text-neutral-500 uppercase tracking-wide">
                       {isProtect ? "Bảo vệ vốn" : "Lợi nhuận"}
                     </p>
                   </div>
@@ -249,12 +249,12 @@ export const BacktestSection = memo(function BacktestSection() {
         </div>
 
         {/* Disclaimer */}
-        <p className="text-[9px] text-neutral-600 text-center mt-6">
+        <p className="text-[11px] text-neutral-600 text-center mt-6">
           * Kết quả backtest dựa trên dữ liệu lịch sử, không đảm bảo hiệu suất
           tương lai. Đầu tư luôn có rủi ro.
         </p>
         {snapshot?.generated_at && (
-          <p className="text-[9px] text-neutral-600 text-center mt-1">
+          <p className="text-[11px] text-neutral-600 text-center mt-1">
             Dữ liệu được cập nhật tự động vào 00:00 ngày {snapshot.generated_at.split(" ")[0]}
           </p>
         )}

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -292,7 +292,7 @@ function UsersTab() {
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                className={`px-3 py-1 rounded-md text-[12px] font-bold transition-all cursor-pointer ${
                   filter === f
                     ? f === "pending"
                       ? "bg-amber-500/15 text-amber-400"
@@ -337,7 +337,7 @@ function UsersTab() {
       <div className="overflow-x-auto rounded-xl dark:border-white/[0.08] border-white/50 dark:bg-white/[0.03] bg-white/60 backdrop-blur-xl border">
         <table className="w-full text-left">
           <thead>
-            <tr className="border-b dark:border-white/[0.06] border-slate-200 text-[10px] uppercase tracking-wider dark:text-neutral-500 text-slate-500">
+            <tr className="border-b dark:border-white/[0.06] border-slate-200 text-[12px] uppercase tracking-wider dark:text-neutral-500 text-slate-500">
               <th className="px-4 py-3 font-bold">#</th>
               <th className="px-4 py-3 font-bold">Email</th>
               <th className="px-4 py-3 font-bold">Tên</th>
@@ -384,12 +384,12 @@ function UsersTab() {
                   <td className="px-4 py-3">
                     {(() => {
                       if (user.role !== "VIP") return (
-                        <span className="inline-block px-2 py-0.5 rounded-full border text-[10px] font-bold bg-neutral-500/10 text-neutral-400 border-neutral-500/20">FREE</span>
+                        <span className="inline-block px-2 py-0.5 rounded-full border text-[12px] font-bold bg-neutral-500/10 text-neutral-400 border-neutral-500/20">FREE</span>
                       );
                       const daysLeft = user.vipUntil ? Math.ceil((new Date(user.vipUntil).getTime() - Date.now()) / 86400000) : 0;
                       const isPremium = daysLeft > 90;
                       return (
-                        <span className={`inline-block px-2 py-0.5 rounded-full border text-[10px] font-bold ${
+                        <span className={`inline-block px-2 py-0.5 rounded-full border text-[12px] font-bold ${
                           isPremium
                             ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
                             : "bg-purple-500/10 text-purple-400 border-purple-500/20"
@@ -401,7 +401,7 @@ function UsersTab() {
                   </td>
 
                   <td className="px-4 py-3">
-                    <span className={`inline-block px-2 py-0.5 rounded-full border text-[10px] font-bold ${
+                    <span className={`inline-block px-2 py-0.5 rounded-full border text-[12px] font-bold ${
                       user.systemRole === "ADMIN"
                         ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                         : "bg-neutral-500/10 text-neutral-500 border-neutral-500/20"
@@ -418,7 +418,7 @@ function UsersTab() {
                           const daysLeft = Math.ceil((new Date(user.vipUntil).getTime() - Date.now()) / 86400000);
                           const tier = daysLeft > 90 ? "PREMIUM" : "VIP";
                           return (
-                            <span className={`text-[9px] font-bold px-1 py-0.5 rounded border ${
+                            <span className={`text-[11px] font-bold px-1 py-0.5 rounded border ${
                               tier === "PREMIUM"
                                 ? "bg-amber-500/10 text-amber-400 border-amber-500/25"
                                 : "bg-purple-500/10 text-purple-400 border-purple-500/25"
@@ -445,12 +445,12 @@ function UsersTab() {
                     {!user.dnseId ? (
                       <span className="text-xs text-neutral-600">—</span>
                     ) : user.dnseVerified ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[12px] font-bold bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
                         <ShieldCheck className="w-3 h-3" />
                         Xác minh
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold bg-amber-500/10 text-amber-400 border-amber-500/20 animate-pulse">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[12px] font-bold bg-amber-500/10 text-amber-400 border-amber-500/20 animate-pulse">
                         <Clock className="w-3 h-3" />
                         Chờ duyệt
                       </span>
@@ -499,7 +499,7 @@ function UsersTab() {
 
                         {vipMenuUser === user.id && (
                           <div className="absolute right-0 top-full mt-1 z-50 w-56 dark:bg-[#0a0a0a]/95 bg-white/95 backdrop-blur-3xl border dark:border-white/[0.12] border-slate-200 rounded-xl shadow-2xl p-2 space-y-1">
-                            <p className="text-[10px] dark:text-neutral-500 text-slate-400 px-2 pt-1 pb-0.5 font-bold uppercase tracking-wider">Chọn gói thời gian</p>
+                            <p className="text-[12px] dark:text-neutral-500 text-slate-400 px-2 pt-1 pb-0.5 font-bold uppercase tracking-wider">Chọn gói thời gian</p>
                             {VIP_PRESETS.map((preset) => (
                               <button
                                 key={preset.days}
@@ -516,7 +516,7 @@ function UsersTab() {
                                 className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs dark:hover:bg-white/[0.06] hover:bg-slate-100 transition-colors cursor-pointer"
                               >
                                 <span className="dark:text-neutral-200 text-slate-700">{preset.label}</span>
-                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
+                                <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded border ${
                                   preset.tier === "PREMIUM"
                                     ? "bg-amber-500/10 text-amber-400 border-amber-500/25"
                                     : "bg-purple-500/10 text-purple-400 border-purple-500/25"
@@ -631,7 +631,7 @@ function UsersTab() {
               </div>
               <div>
                 <h3 className="text-sm font-bold dark:text-white text-slate-900">Xác nhận thay đổi</h3>
-                <p className="text-[10px] dark:text-neutral-500 text-slate-400">Hành động không thể hoàn tác tự động</p>
+                <p className="text-[12px] dark:text-neutral-500 text-slate-400">Hành động không thể hoàn tác tự động</p>
               </div>
             </div>
             <div className="dark:bg-white/[0.04] bg-slate-50 rounded-xl p-3 space-y-1.5 text-xs">
@@ -813,7 +813,7 @@ function RegistrationsTab() {
       <div className="overflow-x-auto rounded-xl dark:border-white/[0.08] border-white/50 dark:bg-white/[0.03] bg-white/60 backdrop-blur-xl border">
         <table className="w-full text-left">
           <thead>
-            <tr className="border-b dark:border-white/[0.06] border-slate-200 text-[10px] uppercase tracking-wider dark:text-neutral-500 text-slate-500">
+            <tr className="border-b dark:border-white/[0.06] border-slate-200 text-[12px] uppercase tracking-wider dark:text-neutral-500 text-slate-500">
               <th className="px-4 py-3 font-bold">#</th>
               <th className="px-4 py-3 font-bold">Tên</th>
               <th className="px-4 py-3 font-bold">Zalo</th>
@@ -861,7 +861,7 @@ function RegistrationsTab() {
                         <option value="DA_MO_TK">Đã mở TK</option>
                       </select>
                     ) : (
-                      <span className={`inline-block px-2 py-0.5 rounded-full border text-[10px] font-bold ${statusBadge(row.status)}`}>
+                      <span className={`inline-block px-2 py-0.5 rounded-full border text-[12px] font-bold ${statusBadge(row.status)}`}>
                         {row.status === "DA_MO_TK" ? "Đã mở TK" : "Chưa mở TK"}
                       </span>
                     )}
@@ -874,7 +874,7 @@ function RegistrationsTab() {
                         <option value="EXPIRED">EXPIRED</option>
                       </select>
                     ) : (
-                      <span className={`inline-block px-2 py-0.5 rounded-full border text-[10px] font-bold ${vipBadge(row.vipStatus)}`}>{row.vipStatus}</span>
+                      <span className={`inline-block px-2 py-0.5 rounded-full border text-[12px] font-bold ${vipBadge(row.vipStatus)}`}>{row.vipStatus}</span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-xs dark:text-neutral-500 text-slate-500">{new Date(row.createdAt).toLocaleDateString("vi-VN")}</td>
@@ -995,10 +995,10 @@ function MarginTab() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusColor(row.status)}`}>
+                  <span className={`text-[12px] font-bold px-2 py-0.5 rounded-full border ${statusColor(row.status)}`}>
                     {statusLabel(row.status)}
                   </span>
-                  <span className="text-[10px] dark:text-neutral-600 text-slate-400">
+                  <span className="text-[12px] dark:text-neutral-600 text-slate-400">
                     {new Date(row.createdAt).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}
                   </span>
                 </div>

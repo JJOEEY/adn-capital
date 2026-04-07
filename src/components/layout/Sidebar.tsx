@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
@@ -74,7 +74,7 @@ export function Sidebar() {
           />
           <div>
             <p className="text-sm font-bold text-white leading-tight">ADN Capital</p>
-            <p className="text-[10px] text-neutral-500 leading-tight">Investment System</p>
+            <p className="text-[12px] text-neutral-500 leading-tight">Investment System</p>
           </div>
         </div>
         {/* Nút đóng trên mobile */}
@@ -96,7 +96,7 @@ export function Sidebar() {
               <span className={`font-mono font-medium ml-auto ${vnindex.changePercent >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                 {vnindex.value.toLocaleString("vi-VN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
-              <span className={`text-[10px] ${vnindex.changePercent >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+              <span className={`text-[12px] ${vnindex.changePercent >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                 {vnindex.changePercent >= 0 ? "+" : ""}{vnindex.changePercent.toFixed(2)}%
               </span>
             </>
@@ -108,7 +108,7 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        <p className="px-3 text-[10px] font-semibold text-neutral-600 uppercase tracking-widest mb-2">
+        <p className="px-3 text-[12px] font-semibold text-neutral-600 uppercase tracking-widest mb-2">
           Menu
         </p>
         {navItems.map((item) => {
@@ -132,7 +132,7 @@ export function Sidebar() {
                 />
                 <span className="flex-1 font-medium">{item.label}</span>
                 {item.badge && (
-                  <span className="text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded-md">
+                  <span className="text-[11px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded-md">
                     {item.badge}
                   </span>
                 )}
@@ -147,7 +147,7 @@ export function Sidebar() {
 
       {/* Footer */}
       <div className="px-5 py-4 border-t border-neutral-800/60">
-        <p className="text-[10px] text-neutral-600 text-center font-medium tracking-wide">
+        <p className="text-[12px] text-neutral-600 text-center font-medium tracking-wide">
           Powered by <span className="text-emerald-500/70 font-bold">ADN CAPITAL</span>
         </p>
       </div>

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
@@ -273,7 +273,7 @@ export function JournalForm({ onSaved }: JournalFormProps) {
             className={`${inputCls} min-h-[80px] resize-y`}
             maxLength={1000}
           />
-          <p className="text-[10px] text-neutral-600 mt-1 text-right">
+          <p className="text-[12px] text-neutral-600 mt-1 text-right">
             {form.tradeReason.length}/1000
           </p>
         </div>

@@ -56,7 +56,7 @@ function ImgWithFallback({ src, alt, fill, className, sizes, priority }: {
   if (hasError || !src) {
     return (
       <div className={`${fill ? "absolute inset-0" : ""} bg-gradient-to-br from-slate-800 via-slate-700 to-slate-900 flex items-center justify-center`}>
-        <span className="text-[9px] font-bold text-slate-500 uppercase">ADN</span>
+        <span className="text-[11px] font-bold text-slate-500 uppercase">ADN</span>
       </div>
     );
   }

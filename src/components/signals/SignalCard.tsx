@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Zap, Clock, Target, TrendingUp, Bot, BarChart3 } from "lucide-react";
 import { Card } from "@/components/ui/Card";
@@ -94,7 +94,7 @@ export function SignalCard({ signal, index }: SignalCardProps) {
           </div>
           <div className="flex items-center gap-1 text-neutral-500">
             <Clock className="w-3 h-3" />
-            <span className="text-[10px]">{thoiGian}</span>
+            <span className="text-[12px]">{thoiGian}</span>
           </div>
         </div>
 
@@ -105,11 +105,11 @@ export function SignalCard({ signal, index }: SignalCardProps) {
           </Badge>
           {signal.status === "ACTIVE" && (
             <>
-              <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/15 border border-emerald-500/25 px-1.5 py-0.5 rounded">
+              <span className="text-[12px] font-bold text-emerald-400 bg-emerald-500/15 border border-emerald-500/25 px-1.5 py-0.5 rounded">
                 ĐANG GIỮ
               </span>
               {signal.currentPnl != null && (
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                <span className={`text-[12px] font-bold px-1.5 py-0.5 rounded border ${
                   signal.currentPnl >= 0
                     ? "text-emerald-400 bg-emerald-500/15 border-emerald-500/25"
                     : "text-red-400 bg-red-500/15 border-red-500/25"
@@ -120,7 +120,7 @@ export function SignalCard({ signal, index }: SignalCardProps) {
             </>
           )}
           {signal.status === "CLOSED" && (
-            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+            <span className={`text-[12px] font-bold px-1.5 py-0.5 rounded border ${
               (signal.pnl ?? 0) >= 0
                 ? "text-emerald-400 bg-emerald-500/15 border-emerald-500/25"
                 : "text-red-400 bg-red-500/15 border-red-500/25"
@@ -133,7 +133,7 @@ export function SignalCard({ signal, index }: SignalCardProps) {
         {/* ═══ 1. THANH TỶ TRỌNG VỐN (NAV Progress Bar) ═══ */}
         <div className="mb-4">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-neutral-400 uppercase tracking-wider font-medium">
+            <span className="text-[12px] text-neutral-400 uppercase tracking-wider font-medium">
               Tỷ trọng đề xuất
             </span>
             <span className="text-xs font-bold text-white">{nav}% NAV</span>
@@ -149,17 +149,17 @@ export function SignalCard({ signal, index }: SignalCardProps) {
         {/* ═══ 2. GRID THÔNG SỐ LỆNH: Entry / Target / Stoploss + R/R ═══ */}
         <div className="grid grid-cols-3 gap-1.5 mb-3">
           <div className="rounded-lg bg-slate-900/60 border border-slate-700/50 p-2 text-center">
-            <p className="text-[9px] text-slate-400 uppercase mb-0.5 font-medium">Entry</p>
+            <p className="text-[11px] text-slate-400 uppercase mb-0.5 font-medium">Entry</p>
             <p className="text-sm font-bold text-white font-mono">{formatPrice(signal.entryPrice)}</p>
           </div>
           <div className="rounded-lg bg-slate-900/60 border border-emerald-800/40 p-2 text-center">
-            <p className="text-[9px] text-emerald-400 uppercase mb-0.5 font-medium">Target</p>
+            <p className="text-[11px] text-emerald-400 uppercase mb-0.5 font-medium">Target</p>
             <p className="text-sm font-bold text-emerald-400 font-mono">
               {targetPrice != null ? formatPrice(targetPrice) : "—"}
             </p>
           </div>
           <div className="rounded-lg bg-slate-900/60 border border-red-800/40 p-2 text-center">
-            <p className="text-[9px] text-red-400 uppercase mb-0.5 font-medium">Stoploss</p>
+            <p className="text-[11px] text-red-400 uppercase mb-0.5 font-medium">Stoploss</p>
             <p className="text-sm font-bold text-red-400 font-mono">
               {stoplossPrice != null ? formatPrice(stoplossPrice) : "—"}
             </p>
@@ -173,7 +173,7 @@ export function SignalCard({ signal, index }: SignalCardProps) {
               ? "bg-emerald-950/30 border-emerald-800/40"
               : "bg-red-950/30 border-red-800/40"
           }`}>
-            <span className="text-[9px] text-neutral-400 uppercase font-medium">Giá hiện tại</span>
+            <span className="text-[11px] text-neutral-400 uppercase font-medium">Giá hiện tại</span>
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold text-white font-mono">{formatPrice(signal.currentPrice)}</span>
               <span className={`text-xs font-bold ${(signal.currentPnl ?? 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
@@ -188,7 +188,7 @@ export function SignalCard({ signal, index }: SignalCardProps) {
               ? "bg-emerald-950/30 border-emerald-800/40"
               : "bg-red-950/30 border-red-800/40"
           }`}>
-            <span className="text-[9px] text-neutral-400 uppercase font-medium">Giá đóng</span>
+            <span className="text-[11px] text-neutral-400 uppercase font-medium">Giá đóng</span>
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold text-white font-mono">{formatPrice(signal.closePrice)}</span>
               <span className={`text-xs font-bold ${(signal.pnl ?? 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
@@ -199,7 +199,7 @@ export function SignalCard({ signal, index }: SignalCardProps) {
         )}
 
         {/* ── Quant metrics: R/R + Seasonality ── */}
-        <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-[10px] mb-3">
+        <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-[12px] mb-3">
           {rr != null && (
             <span className="flex items-center gap-1">
               <Target className="w-3 h-3 text-blue-400" />
@@ -225,7 +225,7 @@ export function SignalCard({ signal, index }: SignalCardProps) {
           <div className="flex items-start gap-1.5 mb-3">
             <Zap className="w-3.5 h-3.5 text-yellow-500 mt-0.5 flex-shrink-0" />
             <div>
-              <span className="text-[9px] text-yellow-500/70 uppercase font-bold tracking-wider">Trigger</span>
+              <span className="text-[11px] text-yellow-500/70 uppercase font-bold tracking-wider">Trigger</span>
               <p className="text-xs text-neutral-300 leading-snug line-clamp-2">{trigger}</p>
             </div>
           </div>
@@ -235,7 +235,7 @@ export function SignalCard({ signal, index }: SignalCardProps) {
       {/* ── Lý do đóng (CLOSED) ── */}
       {signal.status === "CLOSED" && signal.closedReason && (
         <div className="mx-3 mb-2 px-3 py-2 rounded-lg bg-neutral-900/60 border border-neutral-700/50">
-          <p className="text-[10px] text-neutral-400 leading-snug">
+          <p className="text-[12px] text-neutral-400 leading-snug">
             <span className="font-bold text-neutral-300">Lý do:</span> {signal.closedReason}
           </p>
         </div>
@@ -247,7 +247,7 @@ export function SignalCard({ signal, index }: SignalCardProps) {
           <div className="flex items-start gap-2">
             <Bot className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
             <div className="min-w-0">
-              <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider">AI Broker Insight</span>
+              <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider">AI Broker Insight</span>
               <p className="text-sm text-gray-300 italic leading-relaxed mt-1 line-clamp-4">
                 {aiNote.replace(/\*\*/g, "").replace(/📊|🎯|📐|💡|📅|⚠️/g, "").trim().split("\n").filter(l => l.trim()).slice(0, 3).join(" · ")}
               </p>

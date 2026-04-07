@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { memo, useMemo } from "react";
 import useSWR from "swr";
@@ -252,17 +252,17 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
         {/* Header */}
         <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
+            <span className="text-[12px] font-bold text-neutral-400 uppercase tracking-wider">
               Chỉ báo Cạn Kiệt Xu Hướng (TEI)
             </span>
-            <span className="text-[9px] text-neutral-600 bg-neutral-800 px-1.5 py-0.5 rounded">VN30</span>
+            <span className="text-[11px] text-neutral-600 bg-neutral-800 px-1.5 py-0.5 rounded">VN30</span>
           </div>
-          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${cfg.badge}`}>
+          <span className={`text-[12px] font-bold px-2 py-0.5 rounded-full border ${cfg.badge}`}>
             {classification.label}
           </span>
         </div>
 
-        <p className="text-[10px] text-neutral-500 mb-3">
+        <p className="text-[12px] text-neutral-500 mb-3">
           Đo lường mức độ cạn kiệt xu hướng theo diễn biến thị trường
         </p>
 
@@ -279,7 +279,7 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
               <p className="text-sm font-black mt-0.5" style={{ color: classification.color }}>
                 {classification.label}
               </p>
-              <p className="text-[10px] text-neutral-500 mt-0.5">Cập nhật: {updatedDate}</p>
+              <p className="text-[12px] text-neutral-500 mt-0.5">Cập nhật: {updatedDate}</p>
             </div>
           </div>
 
@@ -316,15 +316,15 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
         {chartData.length > 2 && (
           <div>
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Dữ liệu lịch sử</p>
+              <p className="text-[12px] font-bold text-neutral-400 uppercase tracking-wider">Dữ liệu lịch sử</p>
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1.5">
                   <span className="inline-block w-3 h-3 bg-white rounded-sm" />
-                  <span className="text-[9px] text-neutral-500">TEI</span>
+                  <span className="text-[11px] text-neutral-500">TEI</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="inline-block w-3 h-3 bg-[#F59E0B] rounded-sm" />
-                  <span className="text-[9px] text-neutral-500">Trung Bình MA7</span>
+                  <span className="text-[11px] text-neutral-500">Trung Bình MA7</span>
                 </div>
               </div>
             </div>
@@ -402,7 +402,7 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
 
         {/* Footer */}
         <div className="flex items-center justify-between mt-3 pt-2 border-t border-neutral-800">
-          <span className="text-[10px] text-neutral-500">
+          <span className="text-[12px] text-neutral-500">
             TEI MA7: <span className={`font-bold ${cfg.text}`}>{teiMA7.toFixed(2)}</span>
           </span>
         </div>

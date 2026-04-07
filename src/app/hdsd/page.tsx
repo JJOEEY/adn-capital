@@ -19,7 +19,7 @@ export default function HDSDPage() {
             <h1 className={`text-xl font-black tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}>
               Hướng Dẫn Sử Dụng
             </h1>
-            <span className="text-[9px] font-black bg-amber-500/15 text-amber-400 border border-amber-500/25 px-2 py-0.5 rounded-lg tracking-widest">
+            <span className="text-[11px] font-black bg-amber-500/15 text-amber-400 border border-amber-500/25 px-2 py-0.5 rounded-lg tracking-widest">
               UPDATING
             </span>
           </div>

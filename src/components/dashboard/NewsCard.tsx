@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { motion } from "framer-motion";
 import { TrendingUp, TrendingDown, Minus, Newspaper } from "lucide-react";
@@ -56,10 +56,10 @@ export function NewsGrid({ news }: NewsCardProps) {
               {item.summary}
             </p>
             <div className="flex items-center gap-2 mt-2.5 pl-7">
-              <span className="text-[10px] text-neutral-600 bg-neutral-800 px-2 py-0.5 rounded-md">
+              <span className="text-[12px] text-neutral-600 bg-neutral-800 px-2 py-0.5 rounded-md">
                 {item.category}
               </span>
-              <span className="text-[10px] text-neutral-600">{item.time}</span>
+              <span className="text-[12px] text-neutral-600">{item.time}</span>
             </div>
           </Card>
         </motion.div>

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useRef, KeyboardEvent } from "react";
 import { motion } from "framer-motion";
@@ -58,7 +58,7 @@ export function ChatInput({ onSend, disabled, placeholder }: ChatInputProps) {
               textareaRef.current?.focus();
             }}
             disabled={disabled}
-            className="flex-shrink-0 text-[10px] font-medium text-neutral-400 border border-neutral-800 hover:border-emerald-500/40 hover:text-emerald-400 px-2.5 py-1 rounded-lg bg-neutral-900 hover:bg-emerald-500/5 transition-all disabled:opacity-40"
+            className="flex-shrink-0 text-[12px] font-medium text-neutral-400 border border-neutral-800 hover:border-emerald-500/40 hover:text-emerald-400 px-2.5 py-1 rounded-lg bg-neutral-900 hover:bg-emerald-500/5 transition-all disabled:opacity-40"
           >
             {cmd.label}
           </button>
@@ -80,7 +80,7 @@ export function ChatInput({ onSend, disabled, placeholder }: ChatInputProps) {
             className="w-full resize-none bg-neutral-900 border border-neutral-800 focus:border-emerald-500/50 text-neutral-100 placeholder-neutral-600 text-sm px-4 py-3 rounded-xl outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           />
           {value.length > 0 && (
-            <span className="absolute right-3 bottom-2.5 text-[10px] text-neutral-600">
+            <span className="absolute right-3 bottom-2.5 text-[12px] text-neutral-600">
               {value.length}/2000
             </span>
           )}
@@ -105,7 +105,7 @@ export function ChatInput({ onSend, disabled, placeholder }: ChatInputProps) {
         </motion.button>
       </div>
 
-      <p className="text-[10px] text-neutral-700 mt-2 text-center">
+      <p className="text-[12px] text-neutral-700 mt-2 text-center">
         Enter để gửi · Shift+Enter xuống dòng
       </p>
     </div>

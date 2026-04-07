@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
@@ -119,7 +119,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 <span className="text-emerald-400">ADN</span>{" "}
                 <span className={isDark ? "text-white" : "text-slate-900"}>Capital</span>
               </p>
-              <p className={`text-[10px] leading-tight ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+              <p className={`text-[12px] leading-tight ${isDark ? "text-slate-500" : "text-slate-400"}`}>
                 Investment System
               </p>
             </div>
@@ -196,7 +196,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                     <Icon className={`w-5 h-5 shrink-0 ${active ? "text-emerald-400" : ""}`} />
                     {!collapsed && <span>{item.label}</span>}
                     {!collapsed && item.badge && (
-                      <span className="text-[8px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0 rounded ml-auto">
+                      <span className="text-[12px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0 rounded ml-auto">
                         {item.badge}
                       </span>
                     )}
@@ -236,7 +236,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                                 <span>{child.label}</span>
                                 {child.badge && (
                                   <span
-                                    className={`text-[8px] font-black px-1.5 py-0 rounded ml-auto ${
+                                    className={`text-[12px] font-black px-1.5 py-0 rounded ml-auto ${
                                       child.badge === "HOT"
                                         ? "bg-orange-500/20 text-orange-400 border border-orange-500/30"
                                         : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -33,7 +33,7 @@ function AuthPageShell({ children }: { children: React.ReactNode }) {
           {children}
         </div>
 
-        <p className="text-[10px] text-neutral-600 text-center mt-6">
+        <p className="text-[12px] text-neutral-600 text-center mt-6">
           Powered by <span className="text-emerald-500/70 font-bold">ADN CAPITAL</span>
         </p>
       </motion.div>
@@ -198,7 +198,7 @@ function AuthPageContent() {
       {/* Divider */}
       <div className="flex items-center gap-3 my-4">
         <div className="flex-1 h-px bg-neutral-800" />
-        <span className="text-[10px] text-neutral-600 uppercase tracking-wide">hoặc</span>
+        <span className="text-[12px] text-neutral-600 uppercase tracking-wide">hoặc</span>
         <div className="flex-1 h-px bg-neutral-800" />
       </div>
 

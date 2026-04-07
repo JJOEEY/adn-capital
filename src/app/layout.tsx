@@ -56,7 +56,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }
         `}} />
       </head>
-      <body className="antialiased min-h-screen overflow-x-hidden" suppressHydrationWarning>
+      <body className="antialiased min-h-screen overflow-x-hidden text-base leading-relaxed" suppressHydrationWarning>
         <AuthProvider>
           <ThemeProvider>
             {children}

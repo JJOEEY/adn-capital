@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { memo } from "react";
 import useSWR from "swr";
@@ -133,12 +133,12 @@ export const LeaderRadar = memo(function LeaderRadar() {
             <div className={`p-1.5 rounded-lg ${cfg.glow}`}>
               <Icon className={`w-4 h-4 ${cfg.text}`} />
             </div>
-            <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
+            <span className="text-[12px] font-bold text-neutral-400 uppercase tracking-wider">
               Radar Leader Alert
             </span>
           </div>
           <span
-            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${cfg.badge}`}
+            className={`text-[12px] font-bold px-2 py-0.5 rounded-full border ${cfg.badge}`}
           >
             {state}
           </span>
@@ -147,7 +147,7 @@ export const LeaderRadar = memo(function LeaderRadar() {
         {/* Cash Ratio Bar */}
         <div className="mb-3">
           <div className="flex items-baseline justify-between mb-1">
-            <span className="text-[10px] text-neutral-500 uppercase tracking-wider">
+            <span className="text-[12px] text-neutral-500 uppercase tracking-wider">
               Tỷ lệ tiền mặt
             </span>
             <span className={`text-lg font-black ${cfg.text}`}>
@@ -181,7 +181,7 @@ export const LeaderRadar = memo(function LeaderRadar() {
             <>
               <div className="flex items-center gap-1.5 mb-2">
                 <TrendingUp className="w-3 h-3 text-emerald-400" />
-                <span className="text-[10px] font-bold text-emerald-400 uppercase">
+                <span className="text-[12px] font-bold text-emerald-400 uppercase">
                   Ngành dẫn dắt: {data.leading_sector}
                 </span>
               </div>
@@ -192,10 +192,10 @@ export const LeaderRadar = memo(function LeaderRadar() {
                     className="bg-neutral-800/60 rounded-lg p-2 text-center border border-neutral-700/50"
                   >
                     <p className="text-xs font-bold text-white">{l.ticker}</p>
-                    <p className="text-[10px] text-neutral-400">
+                    <p className="text-[12px] text-neutral-400">
                       RS {l.rs_rating}
                     </p>
-                    <p className="text-[10px] text-neutral-500">
+                    <p className="text-[12px] text-neutral-500">
                       {l.close.toLocaleString("vi-VN")}
                     </p>
                   </div>
@@ -204,7 +204,7 @@ export const LeaderRadar = memo(function LeaderRadar() {
             </>
           ) : (
             <div className="flex items-center gap-2 bg-neutral-800/40 rounded-lg p-3">
-              <span className="text-[10px] text-neutral-500">
+              <span className="text-[12px] text-neutral-500">
                 Chưa có cổ phiếu leader — Không có ngành nào đủ mạnh để dẫn dắt.
               </span>
             </div>
@@ -214,7 +214,7 @@ export const LeaderRadar = memo(function LeaderRadar() {
         {/* Floor Leaders (nếu có) */}
         {data.floor_leaders?.length > 0 && (
           <div className="mb-3 bg-red-500/5 border border-red-500/20 rounded-lg p-2">
-            <p className="text-[10px] font-bold text-red-400 uppercase mb-1">
+            <p className="text-[12px] font-bold text-red-400 uppercase mb-1">
               ⚠ Leader chạm sàn
             </p>
             {data.floor_leaders.map((f) => (
@@ -234,11 +234,11 @@ export const LeaderRadar = memo(function LeaderRadar() {
 
         {/* Macro Score */}
         <div className="flex items-center justify-between mt-2 pt-2 border-t border-neutral-800">
-          <span className="text-[10px] text-neutral-500">
+          <span className="text-[12px] text-neutral-500">
             Macro Score: {data.macro_score ?? 0}/10
           </span>
           {data.updated_at && (
-            <span className="text-[10px] text-neutral-600">
+            <span className="text-[12px] text-neutral-600">
               {data.updated_at}
             </span>
           )}
@@ -248,7 +248,7 @@ export const LeaderRadar = memo(function LeaderRadar() {
         {data.history.length > 0 && (
           <div className="mt-2 space-y-1">
             {data.history.slice(-2).map((h, i) => (
-              <p key={i} className="text-[9px] text-neutral-600">
+              <p key={i} className="text-[11px] text-neutral-600">
                 [{h.date}] {h.event}: {h.detail}
               </p>
             ))}

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import useSWR from "swr";
 import {
@@ -85,18 +85,18 @@ export function MorningNews() {
             <h3 className="text-xs font-black text-amber-400 uppercase tracking-wider">
               Bản Tin Sáng ADN Capital
             </h3>
-            <p className="text-[10px] text-gray-500 mt-0.5">
+            <p className="text-[12px] text-gray-500 mt-0.5">
               MORNING BRIEF
             </p>
           </div>
         </div>
-        <span className="text-[10px] text-gray-600 font-mono">{data.date}</span>
+        <span className="text-[12px] text-gray-600 font-mono">{data.date}</span>
       </div>
 
       <div className="relative z-10 p-5 space-y-5">
         {/* ═══ PHẦN TOP: 5 Chỉ số Tham chiếu ═══ */}
         <div>
-          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+          <p className="text-[12px] font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
             <BarChart3 className="w-3.5 h-3.5" />
             Chỉ số Tham chiếu (so phiên trước)
           </p>
@@ -110,7 +110,7 @@ export function MorningNews() {
                   className="relative bg-gray-800/50 border border-gray-700/40 rounded-xl px-3 py-3 hover:border-gray-600/50 transition-colors"
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] text-gray-400 font-medium truncate">
+                    <span className="text-[12px] text-gray-400 font-medium truncate">
                       {idx.name}
                     </span>
                     <span className="text-sm">
@@ -184,10 +184,10 @@ export function MorningNews() {
 
         {/* ─── Footer ─── */}
         <div className="flex flex-col items-center gap-0.5 pt-2">
-          <p className="text-[9px] text-gray-500 font-medium">
+          <p className="text-[11px] text-gray-500 font-medium">
             Powered by ADN Capital
           </p>
-          <p className="text-[9px] text-amber-500/60 font-bold tracking-wider">
+          <p className="text-[11px] text-amber-500/60 font-bold tracking-wider">
             ADNCAPITAL.COM.VN
           </p>
         </div>

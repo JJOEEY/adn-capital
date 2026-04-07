@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useMemo, useCallback, useEffect } from "react";
 import Link from "next/link";
@@ -90,7 +90,7 @@ function SentimentBadge({ sentiment }: { sentiment: string }) {
   };
   const s = map[sentiment] ?? map["Trung tính"];
   return (
-    <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${s.bg} ${s.text}`}>
+    <span className={`inline-flex items-center gap-1 text-[12px] font-semibold px-1.5 py-0.5 rounded-full ${s.bg} ${s.text}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
       {sentiment}
     </span>
@@ -117,11 +117,11 @@ function HeroCard({ article }: { article: Article }) {
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
         <div className="absolute bottom-0 left-0 right-0 p-5 md:p-6">
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-[10px] font-bold text-white/90 bg-blue-500/80 px-2 py-0.5 rounded uppercase tracking-wider">
+            <span className="text-[12px] font-bold text-white/90 bg-blue-500/80 px-2 py-0.5 rounded uppercase tracking-wider">
               {categoryName}
             </span>
             {article.sentiment && <SentimentBadge sentiment={article.sentiment} />}
-            <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/20 px-1.5 py-0.5 rounded">AI</span>
+            <span className="text-[12px] font-bold text-emerald-400 bg-emerald-500/20 px-1.5 py-0.5 rounded">AI</span>
           </div>
           <h2 className="text-xl md:text-2xl font-extrabold text-white leading-tight mb-2 group-hover:text-blue-300 transition-colors line-clamp-3 drop-shadow-lg">
             {article.title}
@@ -163,13 +163,13 @@ function ArticleRow({ article }: { article: Article }) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-[9px] font-bold text-blue-400 uppercase tracking-wider">{categoryName}</span>
+          <span className="text-[11px] font-bold text-blue-400 uppercase tracking-wider">{categoryName}</span>
           {article.sentiment && <SentimentBadge sentiment={article.sentiment} />}
         </div>
-        <h3 className="text-[13px] md:text-sm font-bold text-slate-200 leading-snug group-hover:text-blue-400 transition-colors line-clamp-2">
+        <h3 className="text-[15px] md:text-sm font-bold text-slate-200 leading-snug group-hover:text-blue-400 transition-colors line-clamp-2">
           {article.title}
         </h3>
-        <div className="flex items-center gap-2 mt-1.5 text-[10px] text-slate-500">
+        <div className="flex items-center gap-2 mt-1.5 text-[12px] text-slate-500">
           {article.sourceUrl && (
             <>
               <span>{new URL(article.sourceUrl).hostname.replace("www.", "")}</span>
@@ -199,21 +199,21 @@ function ResearchPdfCard({ article }: { article: Article }) {
       <div className="flex-1 min-w-0">
         <Link
           href={`/khac/tin-tuc/${article.slug}`}
-          className="text-[13px] font-semibold text-slate-200 leading-snug hover:text-blue-400 transition-colors line-clamp-2 block"
+          className="text-[15px] font-semibold text-slate-200 leading-snug hover:text-blue-400 transition-colors line-clamp-2 block"
         >
           {article.title}
         </Link>
         <div className="flex items-center gap-2 mt-1">
-          <span className="text-[9px] font-bold text-slate-500">{authorName}</span>
-          <span className="text-[9px] text-slate-600">·</span>
-          <span className="text-[9px] text-slate-500">{article.publishedAt ? timeAgo(article.publishedAt) : ""}</span>
+          <span className="text-[11px] font-bold text-slate-500">{authorName}</span>
+          <span className="text-[11px] text-slate-600">·</span>
+          <span className="text-[11px] text-slate-500">{article.publishedAt ? timeAgo(article.publishedAt) : ""}</span>
         </div>
         {article.pdfUrl && (
           <a
             href={article.pdfUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 mt-1.5 text-[10px] font-bold text-red-400 hover:text-red-300 transition-colors"
+            className="inline-flex items-center gap-1 mt-1.5 text-[12px] font-bold text-red-400 hover:text-red-300 transition-colors"
             onClick={(e) => e.stopPropagation()}
           >
             <FileText className="w-3 h-3" />
@@ -289,7 +289,7 @@ export function NewsListClient() {
               Quản lý bài viết
             </Link>
           )}
-          <div className="text-right text-[13px] text-slate-500 hidden md:block">{dateStr}</div>
+          <div className="text-right text-[15px] text-slate-500 hidden md:block">{dateStr}</div>
         </div>
       </div>
 
@@ -353,10 +353,10 @@ export function NewsListClient() {
                       {idx + 1}
                     </span>
                     <div className="min-w-0">
-                      <p className="text-[13px] font-semibold text-slate-300 leading-snug group-hover:text-blue-400 transition-colors line-clamp-2">
+                      <p className="text-[15px] font-semibold text-slate-300 leading-snug group-hover:text-blue-400 transition-colors line-clamp-2">
                         {article.title}
                       </p>
-                      <p className="text-[10px] text-slate-500 mt-1">{article.publishedAt ? timeAgo(article.publishedAt) : ""}</p>
+                      <p className="text-[12px] text-slate-500 mt-1">{article.publishedAt ? timeAgo(article.publishedAt) : ""}</p>
                     </div>
                   </Link>
                 ))}
@@ -384,7 +384,7 @@ function TabButton({
     <button
       onClick={onClick}
       className={`
-        whitespace-nowrap px-3.5 py-1.5 rounded-full text-[13px] font-semibold transition-all duration-200
+        whitespace-nowrap px-3.5 py-1.5 rounded-full text-[15px] font-semibold transition-all duration-200
         ${
           active
             ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"

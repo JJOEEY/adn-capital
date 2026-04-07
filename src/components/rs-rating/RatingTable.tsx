@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { motion } from "framer-motion";
@@ -42,7 +42,7 @@ export function RatingTable({ stocks }: RatingTableProps) {
       }`}
     >
       {label}
-      <span className="ml-1.5 text-[10px] opacity-70">({count})</span>
+      <span className="ml-1.5 text-[12px] opacity-70">({count})</span>
     </button>
   );
 

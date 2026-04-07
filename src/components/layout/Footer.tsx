@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { MapPin, Phone } from "lucide-react";
@@ -49,11 +49,11 @@ export function Footer() {
           <div className={`mt-5 pt-4 border-t flex flex-col sm:flex-row items-center justify-between gap-2 ${
             isDark ? "border-white/[0.06]" : "border-slate-200/60"
           }`}>
-            <p className={`text-[10px] ${isDark ? "text-white/20" : "text-slate-400"}`}>
+            <p className={`text-[12px] ${isDark ? "text-white/20" : "text-slate-400"}`}>
               &copy; {new Date().getFullYear()} ADN Capital. All rights reserved.
             </p>
             <Link href="/pricing">
-              <span className={`text-[10px] transition-colors cursor-pointer ${
+              <span className={`text-[12px] transition-colors cursor-pointer ${
                 isDark ? "text-white/20 hover:text-emerald-400" : "text-slate-400 hover:text-emerald-500"
               }`}>
                 B&#x1EA3;ng gi&#xE1; d&#x1ECB;ch v&#x1EE5;

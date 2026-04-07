@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+﻿import { cn } from "@/lib/utils";
 
 type BadgeVariant = "emerald" | "purple" | "yellow" | "red" | "blue" | "gray";
 
@@ -21,7 +21,7 @@ export function Badge({ variant = "gray", className, children }: BadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-md border",
+        "inline-flex items-center gap-1 text-[12px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-md border",
         variantClasses[variant],
         className
       )}

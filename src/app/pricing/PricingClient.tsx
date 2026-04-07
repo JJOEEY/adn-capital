@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useRef, useCallback } from "react";
 import { Check, Crown, Zap, Star, Gift, Shield, Lock, Sparkles } from "lucide-react";
@@ -329,7 +329,7 @@ export function PricingClient() {
               <div className={`absolute -top-10 -right-10 w-40 h-40 rounded-full blur-3xl opacity-30 ${colors.blob}`} />
               {plan.highlight && (
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                  <span className="bg-purple-500 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wide">
+                  <span className="bg-purple-500 text-white text-[12px] font-bold px-3 py-1 rounded-full uppercase tracking-wide">
                     Phổ biến nhất
                   </span>
                 </div>
@@ -342,7 +342,7 @@ export function PricingClient() {
                     {iconMap[plan.color]}
                   </div>
                   {plan.badge && (
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${colors.badge}`}>
+                    <span className={`text-[12px] font-bold px-2 py-0.5 rounded-md border ${colors.badge}`}>
                       {plan.badge}
                     </span>
                   )}
@@ -363,7 +363,7 @@ export function PricingClient() {
                   <span className="text-xs text-neutral-500">{plan.period}</span>
                 </div>
                 {showDnsePrice && (
-                  <div className="inline-flex items-center gap-1 text-[10px] font-bold mt-1 px-2 py-0.5 rounded-md border bg-emerald-500/15 text-emerald-400 border-emerald-500/25">
+                  <div className="inline-flex items-center gap-1 text-[12px] font-bold mt-1 px-2 py-0.5 rounded-md border bg-emerald-500/15 text-emerald-400 border-emerald-500/25">
                     <Gift className="w-3 h-3" />
                     Ưu đãi DNSE
                   </div>
