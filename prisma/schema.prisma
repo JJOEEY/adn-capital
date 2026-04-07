@@ -322,22 +322,24 @@ model Category {
 }
 
 model Article {
-  id          String   @id @default(cuid())
-  title       String
-  slug        String   @unique
-  content     String                           // Rich text / HTML
-  excerpt     String?                          // Mô tả ngắn
-  aiSummary   String?                          // AI tóm tắt ngắn đầu bài
-  authorId    String
-  sourceUrl   String?                          // Nguồn gốc bài báo nếu kéo về
-  imageUrl    String?                          // Ảnh đại diện bài viết
-  status      String   @default("DRAFT")       // DRAFT | PENDING_APPROVAL | PUBLISHED | REJECTED
-  tags        String   @default("[]")          // JSON array: ["Tin tức", "Vĩ mô", "Tích cực"]
-  sentiment   String?                          // Tích cực | Tiêu cực | Trung tính
-  categoryId  String?
-  publishedAt DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(cuid())
+  title         String
+  originalTitle String?                          // Tiêu đề gốc cào được (đối chiếu AI viết lại)
+  slug          String   @unique
+  content       String                           // Rich text / HTML
+  excerpt       String?                          // Mô tả ngắn
+  aiSummary     String?                          // AI tóm tắt ngắn đầu bài
+  authorId      String
+  sourceUrl     String?                          // Nguồn gốc bài báo nếu kéo về
+  imageUrl      String?                          // Ảnh đại diện bài viết
+  pdfUrl        String?                          // Link tải báo cáo Research PDF từ CTCK
+  status        String   @default("DRAFT")       // DRAFT | PENDING_APPROVAL | PUBLISHED | REJECTED
+  tags          String   @default("[]")          // JSON array: ["Tin tức", "Vĩ mô", "Tích cực"]
+  sentiment     String?                          // Tích cực | Tiêu cực | Trung tính
+  categoryId    String?
+  publishedAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   author   User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
   category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)

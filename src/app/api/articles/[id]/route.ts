@@ -16,7 +16,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
   try {
     const body = await request.json();
-    const { status, title, content, excerpt, aiSummary, tags, sentiment, categoryId } = body;
+    const { status, title, content, excerpt, aiSummary, tags, sentiment, categoryId, pdfUrl, originalTitle } = body;
 
     const updateData: Record<string, unknown> = {};
 
@@ -38,6 +38,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (tags !== undefined) updateData.tags = JSON.stringify(tags);
     if (sentiment !== undefined) updateData.sentiment = sentiment;
     if (categoryId !== undefined) updateData.categoryId = categoryId;
+    if (pdfUrl !== undefined) updateData.pdfUrl = pdfUrl;
+    if (originalTitle !== undefined) updateData.originalTitle = originalTitle;
 
     const article = await prisma.article.update({
       where: { id },

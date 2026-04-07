@@ -1,8 +1,20 @@
 "use client";
 
+import { useState, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { FileText } from "lucide-react";
 import { getArticleBySlug, getRelatedArticles, type MockArticle } from "@/lib/mock-articles";
+
+const PLACEHOLDER_IMG = "/data/placeholder-news.svg";
+
+function ImgWithFallback({ src, alt, fill, className, sizes, priority }: {
+  src: string; alt: string; fill?: boolean; className?: string; sizes?: string; priority?: boolean;
+}) {
+  const [imgSrc, setImgSrc] = useState(src);
+  const handleError = useCallback(() => setImgSrc(PLACEHOLDER_IMG), []);
+  return <Image src={imgSrc || PLACEHOLDER_IMG} alt={alt} fill={fill} className={className} sizes={sizes} priority={priority} onError={handleError} />;
+}
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -36,7 +48,7 @@ function RelatedCard({ article }: { article: MockArticle }) {
       className="group flex gap-3 py-3 border-b border-white/5 last:border-b-0"
     >
       <div className="relative w-24 h-16 flex-shrink-0 rounded-lg overflow-hidden">
-        <Image
+        <ImgWithFallback
           src={article.imageUrl}
           alt={article.title}
           fill
@@ -146,9 +158,28 @@ export function ArticleDetailClient({ slug }: { slug: string }) {
         </div>
       )}
 
+      {/* ── PDF Download ── */}
+      {article.pdfUrl && (
+        <div className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center gap-3">
+          <FileText className="w-6 h-6 text-red-400 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-bold text-red-400">Báo cáo Research PDF</p>
+            <p className="text-xs text-slate-400 mt-0.5">Tải xuống để xem chi tiết phân tích đầy đủ</p>
+          </div>
+          <a
+            href={article.pdfUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-2 text-sm font-bold text-white bg-red-500/80 hover:bg-red-500 rounded-lg transition-colors"
+          >
+            Tải PDF
+          </a>
+        </div>
+      )}
+
       {/* ── Hero Image ── */}
       <div className="relative aspect-[16/9] rounded-xl overflow-hidden mb-8">
-        <Image
+        <ImgWithFallback
           src={article.imageUrl}
           alt={article.title}
           fill

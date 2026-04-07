@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { title, content, excerpt, aiSummary, sourceUrl, imageUrl, tags, sentiment, categoryId, authorId } = body;
+    const { title, content, excerpt, aiSummary, sourceUrl, imageUrl, pdfUrl, originalTitle, tags, sentiment, categoryId, authorId } = body;
 
     if (!title || !content || !authorId) {
       return NextResponse.json({ error: "Thiếu title, content, hoặc authorId" }, { status: 400 });
@@ -81,12 +81,14 @@ export async function POST(request: NextRequest) {
     const article = await prisma.article.create({
       data: {
         title,
+        originalTitle: originalTitle || null,
         slug,
         content,
         excerpt: excerpt || null,
         aiSummary: aiSummary || null,
         sourceUrl: sourceUrl || null,
         imageUrl: imageUrl || null,
+        pdfUrl: pdfUrl || null,
         tags: JSON.stringify(tags || []),
         sentiment: sentiment || null,
         categoryId: categoryId || null,

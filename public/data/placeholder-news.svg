@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450" viewBox="0 0 800 450">
+  <rect width="800" height="450" fill="#1e293b"/>
+  <rect x="320" y="145" width="160" height="160" rx="16" fill="#334155"/>
+  <path d="M380 205 L400 185 L420 205 L440 175 L460 215" stroke="#64748b" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="385" cy="190" r="8" fill="#64748b"/>
+  <text x="400" y="340" text-anchor="middle" fill="#475569" font-family="system-ui" font-size="14" font-weight="600">Ảnh không khả dụng</text>
+</svg>

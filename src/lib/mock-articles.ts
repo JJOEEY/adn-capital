@@ -12,6 +12,8 @@ export interface MockArticle {
   aiSummary: string;
   authorName: string;
   sourceUrl: string | null;
+  originalTitle: string | null;
+  pdfUrl: string | null;
   imageUrl: string;
   status: string;
   tags: string[];
@@ -38,6 +40,7 @@ export const mockArticles: MockArticle[] = [
   {
     id: "art-1",
     title: "Nhà đầu tư ồ ạt mở tài khoản, khối ngoại lập kỷ lục trong tháng VN-Index mất hơn 200 điểm",
+    originalTitle: null,
     slug: "nha-dau-tu-o-at-mo-tai-khoan-khoi-ngoai-lap-ky-luc",
     excerpt: "Tháng 3 ghi nhận số lượng tài khoản chứng khoán tăng đột biến đến từ cả nhà đầu tư trong nước và nước ngoài.",
     content: `<p><strong>Tháng 3 ghi nhận số lượng tài khoản chứng khoán tăng đột biến đến từ cả nhà đầu tư trong nước và nước ngoài.</strong></p>
@@ -49,6 +52,7 @@ export const mockArticles: MockArticle[] = [
     authorName: "ADN Capital",
     sourceUrl: "https://cafef.vn/nha-dau-tu-o-at-mo-tai-khoan",
     imageUrl: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800&h=450&fit=crop",
+    pdfUrl: null,
     status: "PUBLISHED",
     tags: ["Tin tức", "Thị trường"],
     sentiment: "Tích cực",
@@ -60,6 +64,7 @@ export const mockArticles: MockArticle[] = [
   {
     id: "art-2",
     title: "Cổ phiếu giảm, dầu tăng vì căng thẳng Mỹ - Iran",
+    originalTitle: null,
     slug: "co-phieu-giam-dau-tang-vi-cang-thang-my-iran",
     excerpt: "Thị trường chứng khoán giảm điểm, giá dầu tăng mạnh do lo ngại xung đột Trung Đông leo thang trước thời hạ...",
     content: `<p><strong>Thị trường chứng khoán giảm điểm, giá dầu tăng mạnh do lo ngại xung đột Trung Đông leo thang.</strong></p>
@@ -70,6 +75,7 @@ export const mockArticles: MockArticle[] = [
     authorName: "ADN Capital",
     sourceUrl: "https://bloomberg.com",
     imageUrl: "https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=800&h=450&fit=crop",
+    pdfUrl: null,
     status: "PUBLISHED",
     tags: ["Quốc tế", "Dầu mỏ"],
     sentiment: "Tiêu cực",
@@ -81,6 +87,7 @@ export const mockArticles: MockArticle[] = [
   {
     id: "art-3",
     title: "Goolsbee: Chiến tranh Iran gây khó cho Fed",
+    originalTitle: null,
     slug: "goolsbee-chien-tranh-iran-gay-kho-cho-fed",
     excerpt: "Thành viên Fed Goolsbee cảnh báo một cuộc chiến tranh Iran có thể gây ra cú sốc 'đình trệ lạm phát' (stagflation)...",
     content: `<p><strong>Thành viên Fed Goolsbee cảnh báo về rủi ro stagflation từ xung đột Iran.</strong></p>
@@ -91,6 +98,7 @@ export const mockArticles: MockArticle[] = [
     authorName: "ADN Capital",
     sourceUrl: "https://investing.com",
     imageUrl: "https://images.unsplash.com/photo-1526628953301-3e589a6a8b74?w=800&h=450&fit=crop",
+    pdfUrl: null,
     status: "PUBLISHED",
     tags: ["Vĩ mô", "Fed"],
     sentiment: "Tiêu cực",
@@ -102,6 +110,7 @@ export const mockArticles: MockArticle[] = [
   {
     id: "art-4",
     title: "Wall Street: Hồi phục nhẹ trước hạn chót Iran",
+    originalTitle: null,
     slug: "wall-street-hoi-phuc-nhe-truoc-han-chot-iran",
     excerpt: "Thị trường chứng khoán Mỹ hồi phục nhẹ cuối phiên khi nhà đầu tư chờ đợi quyết định về thỏa thuận hạt nhân...",
     content: `<p><strong>Thị trường Mỹ hồi phục nhẹ cuối phiên giao dịch.</strong></p>
@@ -112,6 +121,7 @@ export const mockArticles: MockArticle[] = [
     authorName: "ADN Capital",
     sourceUrl: "https://titanlabs.news",
     imageUrl: "https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?w=800&h=450&fit=crop",
+    pdfUrl: null,
     status: "PUBLISHED",
     tags: ["Quốc tế", "Chứng khoán"],
     sentiment: "Trung tính",
@@ -123,6 +133,7 @@ export const mockArticles: MockArticle[] = [
   {
     id: "art-5",
     title: "Giá dầu thực tế chạm đỉnh kỷ lục do căng thẳng Iran",
+    originalTitle: null,
     slug: "gia-dau-thuc-te-cham-dinh-ky-luc-do-cang-thang-iran",
     excerpt: "Giá dầu thế giới tiến gần mốc kỷ lục khi Mỹ gia tăng trừng phạt Iran, phản ánh sự khan hiếm nguồn cung do xuất...",
     content: `<p><strong>Giá dầu thực tế chạm mức kỷ lục do căng thẳng địa chính trị.</strong></p>
@@ -133,6 +144,7 @@ export const mockArticles: MockArticle[] = [
     authorName: "ADN Capital",
     sourceUrl: "https://bloomberg.com",
     imageUrl: "https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?w=800&h=450&fit=crop",
+    pdfUrl: null,
     status: "PUBLISHED",
     tags: ["Quốc tế", "Dầu mỏ"],
     sentiment: "Tiêu cực",
@@ -144,6 +156,7 @@ export const mockArticles: MockArticle[] = [
   {
     id: "art-6",
     title: "Trump đe dọa Iran giữa căng thẳng eo biển Hormuz",
+    originalTitle: null,
     slug: "trump-de-doa-iran-giua-cang-thang-eo-bien-hormuz",
     excerpt: "Tổng thống Trump cảnh báo Iran về những hậu quả nghiêm trọng trong trường hợp khóa mới lại eo biển Hormuz...",
     content: `<p><strong>Căng thẳng Mỹ-Iran leo thang xung quanh eo biển Hormuz.</strong></p>
@@ -154,6 +167,7 @@ export const mockArticles: MockArticle[] = [
     authorName: "ADN Capital",
     sourceUrl: "https://bloomberg.com",
     imageUrl: "https://images.unsplash.com/photo-1529399261278-4dbe4987c4e2?w=800&h=450&fit=crop",
+    pdfUrl: null,
     status: "PUBLISHED",
     tags: ["Quốc tế", "Địa chính trị"],
     sentiment: "Tiêu cực",
@@ -165,6 +179,7 @@ export const mockArticles: MockArticle[] = [
   {
     id: "art-7",
     title: "Cáp treo Fansipan Sa Pa lãi sau thuế gần 29 tỷ đồng",
+    originalTitle: null,
     slug: "cap-treo-fansipan-sa-pa-lai-sau-thue-gan-29-ty",
     excerpt: "Công ty Dịch vụ du lịch cáp treo Fansipan Sa Pa báo lãi sau thuế xấp xỉ 29 tỷ đồng năm 2025, tăng trưởng hơn...",
     content: `<p><strong>Dịch vụ cáp treo Fansipan Sa Pa ghi nhận kết quả kinh doanh tích cực năm 2025.</strong></p>
@@ -174,6 +189,7 @@ export const mockArticles: MockArticle[] = [
     authorName: "ADN Capital",
     sourceUrl: "https://vnexpress.net",
     imageUrl: "https://images.unsplash.com/photo-1583417319070-4a69db38a482?w=800&h=450&fit=crop",
+    pdfUrl: null,
     status: "PUBLISHED",
     tags: ["Doanh nghiệp"],
     sentiment: "Tích cực",
@@ -185,6 +201,7 @@ export const mockArticles: MockArticle[] = [
   {
     id: "art-8",
     title: "Khảo sát niềm tin kinh doanh 6 tháng đầu năm 2026",
+    originalTitle: null,
     slug: "khao-sat-niem-tin-kinh-doanh-6-thang-dau-nam-2026",
     excerpt: "Ban IV và VnExpress khảo sát tình hình kinh doanh đầu năm 2026 nhằm tổng hợp ý kiến doanh nghiệp, góp phần...",
     content: `<p><strong>Kết quả khảo sát niềm tin kinh doanh nửa đầu năm 2026.</strong></p>
@@ -195,6 +212,7 @@ export const mockArticles: MockArticle[] = [
     authorName: "ADN Capital",
     sourceUrl: "https://vnexpress.net",
     imageUrl: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&h=450&fit=crop",
+    pdfUrl: null,
     status: "PUBLISHED",
     tags: ["Vĩ mô", "Kinh tế"],
     sentiment: "Trung tính",
@@ -206,6 +224,7 @@ export const mockArticles: MockArticle[] = [
   {
     id: "art-9",
     title: "MBS: Lợi nhuận quý I đạt 292 tỷ đồng, tăng 8%",
+    originalTitle: null,
     slug: "mbs-loi-nhuan-quy-i-dat-292-ty-dong-tang-8",
     excerpt: "CTCP Chứng khoán MB (MBS) là CTCK đầu tiên công bố BCTC quý I/2026 với lợi nhuận sau thuế đạt gần 292 tỷ...",
     content: `<p><strong>MBS công bố kết quả kinh doanh quý I/2026 khả quan.</strong></p>
@@ -216,6 +235,7 @@ export const mockArticles: MockArticle[] = [
     authorName: "ADN Capital",
     sourceUrl: "https://vietnambiz.vn",
     imageUrl: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800&h=450&fit=crop",
+    pdfUrl: null,
     status: "PUBLISHED",
     tags: ["Doanh nghiệp", "Chứng khoán"],
     sentiment: "Tích cực",
@@ -227,6 +247,7 @@ export const mockArticles: MockArticle[] = [
   {
     id: "art-10",
     title: "Dragon Capital: Dòng tiền lớn đã vào cổ phiếu VN",
+    originalTitle: null,
     slug: "dragon-capital-dong-tien-lon-da-vao-co-phieu-vn",
     excerpt: "Dragon Capital nhận định dòng tiền đổ vào lớn đang giai đoạn vào cổ phiếu Việt Nam, không chờ nâng hạng, do định...",
     content: `<p><strong>Dragon Capital: Cơ hội "vàng" cho cổ phiếu Việt Nam.</strong></p>
@@ -237,6 +258,7 @@ export const mockArticles: MockArticle[] = [
     authorName: "ADN Capital",
     sourceUrl: "https://vietnambiz.vn",
     imageUrl: "https://images.unsplash.com/photo-1642790106117-e829e14a795f?w=800&h=450&fit=crop",
+    pdfUrl: null,
     status: "PUBLISHED",
     tags: ["Thị trường", "Khối ngoại"],
     sentiment: "Tích cực",
@@ -248,6 +270,7 @@ export const mockArticles: MockArticle[] = [
   {
     id: "art-11",
     title: "Khối ngoại tiếp tục bán ròng 800 tỷ, xả mạnh 3 cổ phiếu ngân hàng",
+    originalTitle: null,
     slug: "khoi-ngoai-ban-rong-800-ty-xa-manh-3-co-phieu-ngan-hang",
     excerpt: "Phiên 7/4: Khối ngoại tiếp tục bán ròng mạnh trên sàn HoSE, tập trung bán 3 mã ngân hàng lớn.",
     content: `<p><strong>Khối ngoại tiếp tục xả hàng mạnh trên thị trường chứng khoán Việt Nam.</strong></p>
@@ -258,6 +281,7 @@ export const mockArticles: MockArticle[] = [
     authorName: "ADN Capital",
     sourceUrl: null,
     imageUrl: "https://images.unsplash.com/photo-1535320903710-d993d3d77d29?w=800&h=450&fit=crop",
+    pdfUrl: null,
     status: "PUBLISHED",
     tags: ["Thị trường", "Khối ngoại"],
     sentiment: "Tiêu cực",
@@ -269,6 +293,7 @@ export const mockArticles: MockArticle[] = [
   {
     id: "art-12",
     title: "Một thế lực âm thầm 'gom hàng' khi chứng khoán rơi về vùng giá thấp",
+    originalTitle: null,
     slug: "mot-the-luc-am-tham-gom-hang-khi-chung-khoan-roi-ve-vung-gia-thap",
     excerpt: "Trong khi nhà đầu tư cá nhân bán tháo, một nhóm tổ chức đã âm thầm tích lũy lượng lớn cổ phiếu giá rẻ.",
     content: `<p><strong>Tổ chức nội địa âm thầm "gom hàng" khi thị trường giảm sâu.</strong></p>
@@ -279,6 +304,7 @@ export const mockArticles: MockArticle[] = [
     authorName: "ADN Capital",
     sourceUrl: null,
     imageUrl: "https://images.unsplash.com/photo-1518186285589-2f7649de83e0?w=800&h=450&fit=crop",
+    pdfUrl: null,
     status: "PUBLISHED",
     tags: ["Thị trường", "Phân tích"],
     sentiment: "Tích cực",
@@ -290,6 +316,7 @@ export const mockArticles: MockArticle[] = [
   {
     id: "art-13",
     title: "VN-Index giảm sốc 35 điểm, thanh khoản cạn kiệt",
+    originalTitle: null,
     slug: "vn-index-giam-soc-35-diem-thanh-khoan-can-kiet",
     excerpt: "Cổ phiếu VIX nổi sóng kịch trần trong ngày thị trường cạn thanh khoản, VN-Index mất 35 điểm.",
     content: `<p><strong>VN-Index trải qua phiên giao dịch tồi tệ nhất tháng 4/2026.</strong></p>
@@ -300,6 +327,7 @@ export const mockArticles: MockArticle[] = [
     authorName: "ADN Capital",
     sourceUrl: null,
     imageUrl: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800&h=450&fit=crop",
+    pdfUrl: null,
     status: "PUBLISHED",
     tags: ["Thị trường"],
     sentiment: "Tiêu cực",
@@ -311,6 +339,7 @@ export const mockArticles: MockArticle[] = [
   {
     id: "art-14",
     title: "NHNN giữ nguyên lãi suất điều hành, hỗ trợ doanh nghiệp",
+    originalTitle: null,
     slug: "nhnn-giu-nguyen-lai-suat-dieu-hanh-ho-tro-doanh-nghiep",
     excerpt: "Ngân hàng Nhà nước quyết định giữ nguyên mức lãi suất tái cấp vốn ở 4,5%, tiếp tục hỗ trợ nền kinh tế.",
     content: `<p><strong>NHNN giữ nguyên lãi suất, ưu tiên ổn định kinh tế vĩ mô.</strong></p>
@@ -321,6 +350,7 @@ export const mockArticles: MockArticle[] = [
     authorName: "ADN Capital",
     sourceUrl: null,
     imageUrl: "https://images.unsplash.com/photo-1501167786227-4cba60f6d58f?w=800&h=450&fit=crop",
+    pdfUrl: null,
     status: "PUBLISHED",
     tags: ["Chính sách", "Ngân hàng"],
     sentiment: "Trung tính",
@@ -332,6 +362,7 @@ export const mockArticles: MockArticle[] = [
   {
     id: "art-15",
     title: "VinHomes: Doanh số bán hàng Q1 tăng 150%, đặt kỳ vọng lớn 2026",
+    originalTitle: null,
     slug: "vinhomes-doanh-so-ban-hang-q1-tang-150-phan-tram",
     excerpt: "VinHomes ghi nhận doanh số bán hàng kỷ lục trong quý I/2026, tăng 150% YoY nhờ các dự án mới ra mắt.",
     content: `<p><strong>VinHomes tiếp tục thống trị thị trường bất động sản.</strong></p>
@@ -342,6 +373,7 @@ export const mockArticles: MockArticle[] = [
     authorName: "ADN Capital",
     sourceUrl: null,
     imageUrl: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&h=450&fit=crop",
+    pdfUrl: null,
     status: "PUBLISHED",
     tags: ["Doanh nghiệp", "Bất động sản"],
     sentiment: "Tích cực",
@@ -353,6 +385,7 @@ export const mockArticles: MockArticle[] = [
   {
     id: "art-16",
     title: "FPT đạt doanh thu 1 tỷ USD từ AI và chuyển đổi số",
+    originalTitle: null,
     slug: "fpt-dat-doanh-thu-1-ty-usd-tu-ai-va-chuyen-doi-so",
     excerpt: "Tập đoàn FPT đạt cột mốc doanh thu 1 tỷ USD từ các dịch vụ AI và chuyển đổi số trong Q1/2026.",
     content: `<p><strong>FPT cán mốc lịch sử doanh thu AI.</strong></p>
@@ -363,6 +396,7 @@ export const mockArticles: MockArticle[] = [
     authorName: "ADN Capital",
     sourceUrl: null,
     imageUrl: "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800&h=450&fit=crop",
+    pdfUrl: null,
     status: "PUBLISHED",
     tags: ["Doanh nghiệp", "Công nghệ"],
     sentiment: "Tích cực",
@@ -374,6 +408,7 @@ export const mockArticles: MockArticle[] = [
   {
     id: "art-17",
     title: "Bitcoin vượt 90.000 USD giữa bất ổn địa chính trị",
+    originalTitle: null,
     slug: "bitcoin-vuot-90000-usd-giua-bat-on-dia-chinh-tri",
     excerpt: "Bitcoin tiếp tục đà tăng vượt 90.000 USD khi nhà đầu tư tìm kiếm tài sản trú ẩn ngoài vàng.",
     content: `<p><strong>Bitcoin lập đỉnh mới 90.000 USD.</strong></p>
@@ -384,6 +419,7 @@ export const mockArticles: MockArticle[] = [
     authorName: "ADN Capital",
     sourceUrl: null,
     imageUrl: "https://images.unsplash.com/photo-1518546305927-5a555bb7020d?w=800&h=450&fit=crop",
+    pdfUrl: null,
     status: "PUBLISHED",
     tags: ["Crypto", "Bitcoin"],
     sentiment: "Tích cực",
@@ -395,6 +431,7 @@ export const mockArticles: MockArticle[] = [
   {
     id: "art-18",
     title: "Ngân hàng VPBank: Lãi ròng quý I tăng 35%, NIM mở rộng",
+    originalTitle: null,
     slug: "vpbank-lai-rong-quy-i-tang-35-nim-mo-rong",
     excerpt: "VPBank ghi nhận lợi nhuận ròng quý I/2026 tăng 35% so với cùng kỳ, biên lãi thuần NIM cải thiện đáng kể.",
     content: `<p><strong>VPBank tiếp tục tăng trưởng mạnh trong Q1/2026.</strong></p>
@@ -405,6 +442,7 @@ export const mockArticles: MockArticle[] = [
     authorName: "ADN Capital",
     sourceUrl: null,
     imageUrl: "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=800&h=450&fit=crop",
+    pdfUrl: null,
     status: "PUBLISHED",
     tags: ["Doanh nghiệp", "Ngân hàng"],
     sentiment: "Tích cực",
@@ -416,6 +454,7 @@ export const mockArticles: MockArticle[] = [
   {
     id: "art-19",
     title: "Phiên giao dịch thảm hoạ: Margin call đẩy VN-Index giảm 4 phiên liên tiếp",
+    originalTitle: null,
     slug: "phien-giao-dich-tham-hoa-margin-call-day-vn-index-giam-4-phien-lien-tiep",
     excerpt: "Lệnh margin call hàng loạt khiến VN-Index rung lắc mạnh, giảm phiên thứ 4 liên tiếp xuống vùng 1.150 điểm.",
     content: `<p><strong>Áp lực margin call bao trùm thị trường.</strong></p>
@@ -426,6 +465,7 @@ export const mockArticles: MockArticle[] = [
     authorName: "ADN Capital",
     sourceUrl: null,
     imageUrl: "https://images.unsplash.com/photo-1543286386-713bdd548da4?w=800&h=450&fit=crop",
+    pdfUrl: null,
     status: "PUBLISHED",
     tags: ["Thị trường", "Margin"],
     sentiment: "Tiêu cực",
@@ -437,6 +477,7 @@ export const mockArticles: MockArticle[] = [
   {
     id: "art-20",
     title: "Tín hiệu tích cực từ đàm phán nâng hạng MSCI Emerging Markets",
+    originalTitle: null,
     slug: "tin-hieu-tich-cuc-tu-dam-phan-nang-hang-msci-emerging-markets",
     excerpt: "Việt Nam có thêm tiến triển trong lộ trình nâng hạng MSCI Emerging Markets với 2 tiêu chí đã đạt chuẩn.",
     content: `<p><strong>Nâng hạng MSCI: 2/3 tiêu chí đã đạt.</strong></p>
@@ -447,6 +488,7 @@ export const mockArticles: MockArticle[] = [
     authorName: "ADN Capital",
     sourceUrl: null,
     imageUrl: "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=800&h=450&fit=crop",
+    pdfUrl: null,
     status: "PUBLISHED",
     tags: ["Chính sách", "MSCI"],
     sentiment: "Tích cực",
@@ -454,6 +496,73 @@ export const mockArticles: MockArticle[] = [
     categoryName: "Chính sách",
     publishedAt: "2026-04-05T10:00:00Z",
     createdAt: "2026-04-05T09:30:00Z",
+  },
+  // ═══ Research PDF Articles ═══
+  {
+    id: "art-21",
+    title: "SSI Research: Triển vọng ngành Ngân hàng Q2/2026 — NIM phục hồi, tín dụng tăng tốc",
+    originalTitle: "SSI Research - Banking Sector Outlook Q2/2026",
+    slug: "ssi-research-trien-vong-nganh-ngan-hang-q2-2026",
+    excerpt: "Báo cáo phân tích ngành ngân hàng Q2/2026 từ SSI Research: NIM dự kiến phục hồi về 3.6%, tăng trưởng tín dụng 16% cả năm.",
+    content: `<p><strong>SSI Research đánh giá lạc quan ngành ngân hàng trong Q2/2026.</strong></p>
+<p>Theo báo cáo mới nhất, NIM toàn ngành dự kiến phục hồi về mức 3.6% trong Q2, tăng từ 3.3% của Q1 nhờ lãi suất cho vay ổn định trong khi chi phí vốn giảm. Tăng trưởng tín dụng cả năm dự kiến đạt 16%.</p>
+<p>Top picks: VCB (Mua, TP 98.000đ), TCB (Mua, TP 32.000đ), MBB (Mua, TP 28.000đ).</p>`,
+    aiSummary: "SSI Research: NIM ngành NH phục hồi 3.6% Q2 (vs 3.3% Q1). Tín dụng +16% cả năm. Top picks: VCB, TCB, MBB.",
+    authorName: "SSI Research",
+    sourceUrl: "https://www.ssi.com.vn/en/research-center",
+    imageUrl: "https://images.unsplash.com/photo-1501167786227-4cba60f6d58f?w=800&h=450&fit=crop",
+    pdfUrl: "https://www.ssi.com.vn/upload/files/research/banking-q2-2026.pdf",
+    status: "PUBLISHED",
+    tags: ["Báo cáo", "Ngân hàng", "SSI"],
+    sentiment: "Tích cực",
+    categorySlug: "ngan-hang",
+    categoryName: "Ngân hàng",
+    publishedAt: "2026-04-08T08:00:00Z",
+    createdAt: "2026-04-08T07:00:00Z",
+  },
+  {
+    id: "art-22",
+    title: "VNDirect: Chiến lược đầu tư tháng 4/2026 — Phòng thủ trước, tấn công sau",
+    originalTitle: "VNDirect - Monthly Investment Strategy April 2026",
+    slug: "vndirect-chien-luoc-dau-tu-thang-4-2026",
+    excerpt: "VNDirect khuyến nghị chiến lược phòng thủ trong nửa đầu tháng 4, chuyển sang tấn công khi VN-Index test vùng hỗ trợ 1.150.",
+    content: `<p><strong>VNDirect: Chiến lược tháng 4 — cân bằng rủi ro và cơ hội.</strong></p>
+<p>Báo cáo chiến lược tháng 4/2026 từ VNDirect khuyến nghị nhà đầu tư duy trì tỷ trọng cổ phiếu 50-60% NAV trong nửa đầu tháng. Nếu VN-Index test thành công vùng 1.140-1.150, tăng lên 70-80%.</p>
+<p>Danh mục khuyến nghị: TCB, FPT, MWG, DGC, PNJ. Tránh: nhóm BĐS dân cư, thép.</p>`,
+    aiSummary: "VNDirect T4: Phòng thủ 50-60% NAV nửa đầu tháng, tấn công 70-80% nếu VNI giữ 1.150. Mua: TCB, FPT, MWG, DGC, PNJ.",
+    authorName: "VNDirect Research",
+    sourceUrl: "https://www.vndirect.com.vn/nhan-dinh/",
+    imageUrl: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&h=450&fit=crop",
+    pdfUrl: "https://www.vndirect.com.vn/docs/strategy-apr-2026.pdf",
+    status: "PUBLISHED",
+    tags: ["Báo cáo", "Chiến lược", "VNDirect"],
+    sentiment: "Trung tính",
+    categorySlug: "thi-truong",
+    categoryName: "Thị trường",
+    publishedAt: "2026-04-07T23:00:00Z",
+    createdAt: "2026-04-07T22:00:00Z",
+  },
+  {
+    id: "art-23",
+    title: "HSC: Phân tích cổ phiếu FPT — AI là động lực tăng trưởng dài hạn, TP 165.000đ",
+    originalTitle: "HSC Research - FPT Corporation: AI as Long-term Growth Driver",
+    slug: "hsc-phan-tich-co-phieu-fpt-ai-dong-luc-tang-truong",
+    excerpt: "HSC nâng khuyến nghị FPT lên MUA với giá mục tiêu 165.000đ, upside 28% từ giá hiện tại. AI đóng góp 25% doanh thu 2026.",
+    content: `<p><strong>HSC: FPT — ngôi sao AI của Việt Nam.</strong></p>
+<p>HSC nâng khuyến nghị cổ phiếu FPT từ "Khả quan" lên "Mua" với giá mục tiêu 165.000đ/cp, upside 28%. Doanh thu AI dự kiến đóng góp 25% tổng DT năm 2026, tăng từ 18% năm 2025.</p>
+<p>Rủi ro: Cạnh tranh từ các công ty AI toàn cầu, biến động tỷ giá USD/VND ảnh hưởng hợp đồng xuất khẩu.</p>`,
+    aiSummary: "HSC nâng FPT lên MUA, TP 165.000đ (+28%). AI đóng góp 25% DT 2026 (vs 18% 2025). Rủi ro: cạnh tranh AI toàn cầu, tỷ giá.",
+    authorName: "HSC Research",
+    sourceUrl: "https://www.hsc.com.vn/vn/nhan-dinh-phan-tich",
+    imageUrl: "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800&h=450&fit=crop",
+    pdfUrl: "https://www.hsc.com.vn/docs/fpt-analysis-apr-2026.pdf",
+    status: "PUBLISHED",
+    tags: ["Báo cáo", "FPT", "HSC", "Công nghệ"],
+    sentiment: "Tích cực",
+    categorySlug: "doanh-nghiep",
+    categoryName: "Doanh nghiệp",
+    publishedAt: "2026-04-07T22:30:00Z",
+    createdAt: "2026-04-07T21:30:00Z",
   },
 ];
 
