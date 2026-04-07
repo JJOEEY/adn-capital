@@ -2,11 +2,13 @@
 
 import { MainLayout } from "@/components/layout/MainLayout";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import {
   MessageSquare,
   Zap,
   ArrowRight,
   TrendingUp,
+  Newspaper,
 } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -51,6 +53,10 @@ const services = [
 ];
 
 export default function SanPhamPage() {
+  const { data: session } = useSession();
+  const systemRole = (session?.user as { systemRole?: string } | undefined)?.systemRole;
+  const isAdminOrWriter = systemRole === "ADMIN" || systemRole === "WRITER";
+
   return (
     <MainLayout>
       <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-8">
@@ -115,6 +121,41 @@ export default function SanPhamPage() {
               </Link>
             );
           })}
+
+          {/* ── Tin Tức Tài Chính (ADMIN / WRITER only) ── */}
+          {isAdminOrWriter && (
+            <Link href="/khac/tin-tuc">
+              <div className="group relative h-full bg-gradient-to-b from-blue-500/10 to-transparent bg-neutral-900/60 border border-neutral-800 hover:border-neutral-700 rounded-2xl p-5 transition-all duration-200 hover:-translate-y-1 hover:shadow-xl cursor-pointer">
+                <span className="absolute top-4 right-4 text-[9px] font-black text-amber-400 bg-amber-500/15 border border-amber-500/25 px-2 py-0.5 rounded-full tracking-widest">
+                  BETA
+                </span>
+
+                <div className="w-12 h-12 rounded-2xl border flex items-center justify-center mb-4 bg-blue-500/10 border-blue-500/20 text-blue-400 transition-transform group-hover:scale-110 duration-200">
+                  <Newspaper className="w-6 h-6" />
+                </div>
+
+                <h2 className="text-lg font-black text-white mb-0.5">Tin Tức Tài Chính</h2>
+                <p className="text-xs text-neutral-500 mb-3">CMS — Quản trị nội dung AI</p>
+
+                <p className="text-sm text-neutral-400 leading-relaxed mb-5">
+                  Hệ thống tin tức tài chính tích hợp AI tóm tắt. Đọc tin theo chuyên mục, phân tích sentiment tự động, luồng duyệt bài chuyên nghiệp.
+                </p>
+
+                <ul className="space-y-2 mb-5">
+                  {["AI tóm tắt bài viết", "Phân tích Tích cực / Tiêu cực", "Luồng duyệt bài WRITER → ADMIN", "Giao diện CafeF / VNExpress"].map((f) => (
+                    <li key={f} className="flex items-center gap-2 text-xs text-neutral-400">
+                      <span className="w-1 h-1 rounded-full flex-shrink-0 bg-blue-400" />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="flex items-center gap-1 text-xs font-bold text-blue-400 group-hover:gap-2 transition-all">
+                  Xem ngay <ArrowRight className="w-3 h-3" />
+                </div>
+              </div>
+            </Link>
+          )}
         </div>
 
         {/* ── Margin CTA ───────────────────────────────────────── */}
