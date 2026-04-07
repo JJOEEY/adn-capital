@@ -80,9 +80,9 @@ export function SignalMapClient({ isPremium = false }: { isPremium?: boolean }) 
             <Bot className="w-5 h-5 text-cyan-400" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-black text-white">Signal Dashboard</h1>
+            <h1 className="text-xl sm:text-2xl font-black text-white">ADN AI Broker</h1>
             <p className="text-xs sm:text-sm text-neutral-500 truncate">
-              UltimateSignalEngine — VSA × Seasonality × AI Broker
+              Broker System Powered by ADN Capital
             </p>
           </div>
         </div>
@@ -206,7 +206,7 @@ export function SignalMapClient({ isPremium = false }: { isPremium?: boolean }) 
       {/* ═══ Footer ═══ */}
       <div className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-4 text-center">
         <p className="text-xs sm:text-sm text-neutral-400">
-          🤖 Tín hiệu được xử lý bởi <span className="text-cyan-400 font-semibold">UltimateSignalEngine</span> — VSA scan → Seasonality filter → AI Broker output
+          🤖 Tất cả các khuyến nghị đều mang tính chất tham khảo, khách hàng vui lòng tự chịu trách nhiệm trong quyết định đầu tư của mình.
         </p>
       </div>
     </div>

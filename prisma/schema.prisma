@@ -256,3 +256,16 @@ model PushSubscription {
 
   @@index([userId])
 }
+
+model AvatarUpload {
+  id        String   @id @default(cuid())
+  userId    String
+  filename  String
+  filePath  String   // đường dẫn filesystem tới file ảnh
+  url       String   // URL truy cập: /api/user/avatar/[filename]
+  mimeType  String?
+  size      Int?     // bytes
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}

@@ -64,11 +64,23 @@ export async function POST(req: NextRequest) {
   // Build URL path — served via /api/user/avatar/[filename]
   const imageUrl = `/api/user/avatar/${filename}`;
 
-  // Update user in DB
-  await prisma.user.update({
-    where: { id: session.user.id },
-    data: { image: imageUrl },
-  });
+  // Update user in DB + lưu bản ghi vào AvatarUpload
+  await Promise.all([
+    prisma.user.update({
+      where: { id: session.user.id },
+      data: { image: imageUrl },
+    }),
+    prisma.avatarUpload.create({
+      data: {
+        userId: session.user.id,
+        filename,
+        filePath,
+        url: imageUrl,
+        mimeType: file.type,
+        size: file.size,
+      },
+    }),
+  ]);
 
   return NextResponse.json({ image: imageUrl });
 }
