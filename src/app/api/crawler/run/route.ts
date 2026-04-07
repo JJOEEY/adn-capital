@@ -49,13 +49,13 @@ function generateSlug(title: string): string {
   );
 }
 
-// ── Step 1: CafeF RSS Crawler (thử nghiệm) ──
-async function crawlCafeF(): Promise<CrawledItem[]> {
+// ── Step 1: VnExpress RSS Crawler ──
+async function crawlNews(): Promise<CrawledItem[]> {
   const RSS_FEEDS = [
-    { url: "https://cafef.vn/rss/thi-truong-chung-khoan.rss", category: "thi-truong" },
-    { url: "https://cafef.vn/rss/kinh-te-vi-mo-dau-tu.rss", category: "vi-mo" },
-    { url: "https://cafef.vn/rss/doanh-nghiep.rss", category: "doanh-nghiep" },
-    { url: "https://cafef.vn/rss/tai-chinh-quoc-te.rss", category: "quoc-te" },
+    { url: "https://vnexpress.net/rss/chung-khoan.rss", category: "thi-truong" },
+    { url: "https://vnexpress.net/rss/kinh-doanh.rss", category: "doanh-nghiep" },
+    { url: "https://vnexpress.net/rss/kinh-doanh/vi-mo.rss", category: "vi-mo" },
+    { url: "https://vnexpress.net/rss/kinh-doanh/quoc-te.rss", category: "quoc-te" },
   ];
 
   const items: CrawledItem[] = [];
@@ -64,6 +64,7 @@ async function crawlCafeF(): Promise<CrawledItem[]> {
     try {
       const res = await fetch(feed.url, {
         headers: { "User-Agent": "ADN-Capital-Bot/1.0" },
+        redirect: "follow",
         signal: AbortSignal.timeout(10000),
       });
       if (!res.ok) continue;
@@ -80,8 +81,10 @@ async function crawlCafeF(): Promise<CrawledItem[]> {
         const title = extractTag(itemXml, "title");
         const link = extractTag(itemXml, "link");
         const description = extractTag(itemXml, "description");
-        const imgMatch = itemXml.match(/url="([^"]+\.(?:jpg|jpeg|png|webp)[^"]*)"/i)
-          || itemXml.match(/src="([^"]+\.(?:jpg|jpeg|png|webp)[^"]*)"/i)
+        // VnExpress uses <enclosure url="..."/> for images
+        const enclosureMatch = itemXml.match(/enclosure[^>]*url="([^"]+)"/i);
+        const imgMatch = enclosureMatch
+          || itemXml.match(/url="([^"]+\.(?:jpg|jpeg|png|webp)[^"]*)"/i)
           || description.match(/src="([^"]+\.(?:jpg|jpeg|png|webp)[^"]*)"/i);
 
         if (title && link) {
@@ -90,7 +93,7 @@ async function crawlCafeF(): Promise<CrawledItem[]> {
             excerpt: cleanHtml(description).slice(0, 300),
             content: `<p>${cleanHtml(description)}</p>`,
             sourceUrl: link.trim(),
-            imageUrl: imgMatch?.[1] ?? null,
+            imageUrl: imgMatch?.[1]?.replace(/&amp;/g, "&") ?? null,
             pdfUrl: null,
             categorySlug: feed.category,
           });
@@ -281,7 +284,7 @@ export async function POST() {
 
   try {
     // Step 1: Crawl
-    const [newsItems, pdfItems] = await Promise.all([crawlCafeF(), crawlResearchPDFs()]);
+    const [newsItems, pdfItems] = await Promise.all([crawlNews(), crawlResearchPDFs()]);
     const allItems = [...newsItems, ...pdfItems];
 
     if (allItems.length === 0) {
