@@ -21,7 +21,6 @@ import {
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, badge: null },
   { href: "/san-pham", label: "Sản Phẩm & Dịch Vụ", icon: Layers, badge: null },
-  { href: "/dashboard/rs-rating", label: "RS Rating", icon: BarChart2, badge: null },
   { href: "/journal", label: "Nhật Ký Giao Dịch", icon: BookOpen, badge: null },
   { href: "/terminal", label: "Chat AI", icon: MessageSquare, badge: "HOT" },
   { href: "/dashboard/signal-map", label: "Tín Hiệu", icon: Zap, badge: null },

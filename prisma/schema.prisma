@@ -8,7 +8,8 @@ datasource db {
 }
 
 // ═══ Ghi chú: SQLite không hỗ trợ enum, dùng String thay thế ═══
-// UserRole: FREE | VIP
+// systemRole: ADMIN | USER  (quyền hệ thống)
+// subscriptionTier: FREE | VIP | PREMIUM  (gói cước, tính từ vipUntil)
 // SignalType: SIEU_CO_PHIEU | TRUNG_HAN | DAU_CO
 // TradeAction: BUY | SELL
 
@@ -60,7 +61,8 @@ model User {
   id            String           @id @default(uuid())
   email         String           @unique
   password      String?
-  role          String           @default("FREE")
+  role          String           @default("FREE")       // subscription: FREE | VIP (giữ tương thích)
+  systemRole    String           @default("USER")       // quyền hệ thống: ADMIN | USER
   vipUntil      DateTime?
   name          String?
   image         String?

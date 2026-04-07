@@ -9,7 +9,8 @@ interface CurrentDbUser {
   email: string;
   name: string | null;
   image: string | null;
-  role: "FREE" | "VIP" | "ADMIN";
+  role: "FREE" | "VIP";
+  systemRole: "ADMIN" | "USER";
   chatCount: number;
   vipUntil: string | null;
   vipTier: "VIP" | "PREMIUM" | null;
@@ -70,6 +71,7 @@ export function useCurrentDbUser() {
   }, [isLoaded, isSignedIn]);
 
   const role: UserRole = !isSignedIn ? "GUEST" : (dbUser?.role ?? "FREE");
+  const isAdmin = dbUser?.systemRole === "ADMIN" || !!dbUser?.isAdmin;
 
   return {
     session,
@@ -78,9 +80,9 @@ export function useCurrentDbUser() {
     vipTier: dbUser?.vipTier ?? null,
     isAuthenticated: !!isSignedIn,
     isGuest: !isSignedIn,
-    isFreeUser: !!isSignedIn && role === "FREE",
-    isVip: role === "VIP" || role === "ADMIN",
-    isAdmin: !!dbUser?.isAdmin,
+    isFreeUser: !!isSignedIn && role === "FREE" && !isAdmin,
+    isVip: isAdmin || role === "VIP" || !!dbUser?.vipTier,
+    isAdmin,
     isLoading: !isLoaded || (isSignedIn && isFetching),
   };
 }

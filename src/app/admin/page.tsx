@@ -42,6 +42,7 @@ interface UserRow {
   email: string;
   name: string | null;
   role: string;
+  systemRole: string;
   vipUntil: string | null;
   dnseId: string | null;
   dnseVerified: boolean;
@@ -177,7 +178,8 @@ function UsersTab() {
   const [confirmAction, setConfirmAction] = useState<{
     userId: string;
     email: string;
-    role: string;
+    role?: string;
+    systemRole?: string;
     days?: number;
     label: string;
   } | null>(null);
@@ -226,13 +228,19 @@ function UsersTab() {
     }
   };
 
-  const handleSetRole = async (userId: string, role: string, vipDays?: number) => {
-    const data: Record<string, unknown> = { role };
-    if (role === "VIP" && vipDays) {
-      data.vipUntil = new Date(Date.now() + vipDays * 86400000).toISOString();
+  const handleSetRole = async (userId: string, role?: string, vipDays?: number, systemRole?: string) => {
+    const data: Record<string, unknown> = {};
+    if (systemRole !== undefined) {
+      data.systemRole = systemRole;
     }
-    if (role === "FREE") {
-      data.vipUntil = null;
+    if (role !== undefined) {
+      data.role = role;
+      if (role === "VIP" && vipDays) {
+        data.vipUntil = new Date(Date.now() + vipDays * 86400000).toISOString();
+      }
+      if (role === "FREE") {
+        data.vipUntil = null;
+      }
     }
     const res = await fetch(`/api/admin/users/${userId}`, {
       method: "PATCH",
@@ -334,6 +342,7 @@ function UsersTab() {
               <th className="px-4 py-3 font-bold">Email</th>
               <th className="px-4 py-3 font-bold">Tên</th>
               <th className="px-4 py-3 font-bold">Role</th>
+              <th className="px-4 py-3 font-bold">Quyền</th>
               <th className="px-4 py-3 font-bold">VIP đến</th>
               <th className="px-4 py-3 font-bold">DNSE ID</th>
               <th className="px-4 py-3 font-bold">DNSE Status</th>
@@ -344,13 +353,13 @@ function UsersTab() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={9} className="px-4 py-12 text-center">
+                <td colSpan={10} className="px-4 py-12 text-center">
                   <RefreshCw className="w-5 h-5 text-neutral-600 animate-spin mx-auto" />
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-4 py-12 text-center text-xs text-neutral-600">
+                <td colSpan={10} className="px-4 py-12 text-center text-xs text-neutral-600">
                   Không có user nào.
                 </td>
               </tr>
@@ -389,6 +398,16 @@ function UsersTab() {
                         </span>
                       );
                     })()}
+                  </td>
+
+                  <td className="px-4 py-3">
+                    <span className={`inline-block px-2 py-0.5 rounded-full border text-[10px] font-bold ${
+                      user.systemRole === "ADMIN"
+                        ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                        : "bg-neutral-500/10 text-neutral-500 border-neutral-500/20"
+                    }`}>
+                      {user.systemRole === "ADMIN" ? "ADMIN" : "USER"}
+                    </span>
                   </td>
 
                   <td className="px-4 py-3 text-xs text-neutral-500">
@@ -563,21 +582,21 @@ function UsersTab() {
                         )}
                       </div>
 
-                      {/* Cấp ADMIN */}
+                      {/* Cấp ADMIN (systemRole) */}
                       <button
                         onClick={() =>
                           setConfirmAction(
-                            user.role === "ADMIN"
-                              ? { userId: user.id, email: user.email, role: "FREE", label: "Thu hồi quyền ADMIN → FREE" }
-                              : { userId: user.id, email: user.email, role: "ADMIN", label: "Cấp quyền ADMIN" }
+                            user.systemRole === "ADMIN"
+                              ? { userId: user.id, email: user.email, systemRole: "USER", label: "Thu hồi quyền ADMIN → USER" }
+                              : { userId: user.id, email: user.email, systemRole: "ADMIN", label: "Cấp quyền ADMIN" }
                           )
                         }
                         className={`p-1.5 rounded-md transition-colors cursor-pointer ${
-                          user.role === "ADMIN"
+                          user.systemRole === "ADMIN"
                             ? "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
                             : "hover:bg-emerald-500/10 text-neutral-500 hover:text-emerald-400"
                         }`}
-                        title={user.role === "ADMIN" ? "Thu hồi ADMIN" : "Cấp quyền ADMIN"}
+                        title={user.systemRole === "ADMIN" ? "Thu hồi ADMIN" : "Cấp quyền ADMIN"}
                       >
                         <ShieldCheck className="w-3.5 h-3.5" />
                       </button>
@@ -596,15 +615,15 @@ function UsersTab() {
           <div className="dark:bg-[#0a0a0a]/90 bg-white/90 backdrop-blur-3xl dark:border-white/[0.1] border-white/50 border rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4 space-y-4">
             <div className="flex items-center gap-3">
               <div className={`p-2.5 rounded-xl ${
-                confirmAction.role === "FREE"
+                confirmAction.role === "FREE" || confirmAction.systemRole === "USER"
                   ? "bg-red-500/10 border border-red-500/20"
-                  : confirmAction.role === "ADMIN"
+                  : confirmAction.systemRole === "ADMIN"
                   ? "bg-emerald-500/10 border border-emerald-500/20"
                   : "bg-purple-500/10 border border-purple-500/20"
               }`}>
-                {confirmAction.role === "FREE" ? (
+                {confirmAction.role === "FREE" || confirmAction.systemRole === "USER" ? (
                   <ShieldX className="w-5 h-5 text-red-400" />
-                ) : confirmAction.role === "ADMIN" ? (
+                ) : confirmAction.systemRole === "ADMIN" ? (
                   <ShieldCheck className="w-5 h-5 text-emerald-400" />
                 ) : (
                   <Crown className="w-5 h-5 text-purple-400" />
@@ -622,7 +641,7 @@ function UsersTab() {
               <p className="text-neutral-400">
                 Thao tác:{" "}
                 <span className={`font-bold ${
-                  confirmAction.role === "FREE" ? "text-red-400" : confirmAction.role === "ADMIN" ? "text-emerald-400" : "text-purple-400"
+                  confirmAction.role === "FREE" || confirmAction.systemRole === "USER" ? "text-red-400" : confirmAction.systemRole === "ADMIN" ? "text-emerald-400" : "text-purple-400"
                 }`}>
                   {confirmAction.label}
                 </span>
@@ -645,13 +664,13 @@ function UsersTab() {
               </button>
               <button
                 onClick={() => {
-                  handleSetRole(confirmAction.userId, confirmAction.role, confirmAction.days);
+                  handleSetRole(confirmAction.userId, confirmAction.role, confirmAction.days, confirmAction.systemRole);
                   setConfirmAction(null);
                 }}
                 className={`flex-1 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  confirmAction.role === "FREE"
+                  confirmAction.role === "FREE" || confirmAction.systemRole === "USER"
                     ? "bg-red-500 hover:bg-red-400 text-white"
-                    : confirmAction.role === "ADMIN"
+                    : confirmAction.systemRole === "ADMIN"
                     ? "bg-emerald-500 hover:bg-emerald-400 text-white"
                     : "bg-purple-500 hover:bg-purple-400 text-white"
                 }`}

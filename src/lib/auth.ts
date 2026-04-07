@@ -60,13 +60,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.id = user.id;
       }
 
-      // Luôn lấy role mới nhất từ DB (quan trọng khi admin cập nhật VIP)
+      // Luôn lấy role + systemRole mới nhất từ DB
       if (token.id) {
         const dbUser = await prisma.user.findUnique({
           where: { id: token.id as string },
-          select: { role: true, vipUntil: true, createdAt: true },
+          select: { role: true, systemRole: true, vipUntil: true, createdAt: true },
         });
         if (dbUser) {
+          // Luôn truyền systemRole
+          token.systemRole = dbUser.systemRole ?? "USER";
+
           // ── VIP 7-day trial campaign: user đăng ký hôm nay chưa có vipUntil → tặng 7 ngày ──
           const now = new Date();
           const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -82,7 +85,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             token.role = "VIP";
             token.vipUntil = trialEnd.toISOString();
           }
-          // ── Auto-downgrade: VIP đã hết hạn → trả về FREE (ADMIN không bị downgrade) ──
+          // ── Auto-downgrade: VIP đã hết hạn → trả về FREE ──
           else if (dbUser.role === "VIP" && dbUser.vipUntil && dbUser.vipUntil < now) {
             await prisma.user.update({
               where: { id: token.id as string },
@@ -105,6 +108,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (session.user) {
         session.user.id = token.id as string;
         session.user.role = (token.role as string) ?? "FREE";
+        session.user.systemRole = (token.systemRole as string) ?? "USER";
         session.user.vipUntil = (token.vipUntil as string) ?? null;
       }
       return session;

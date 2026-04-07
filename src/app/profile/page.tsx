@@ -173,7 +173,7 @@ export default function ProfilePage() {
     : null;
 
   const roleLabel =
-    role === "ADMIN"
+    isAdmin
       ? "ADMIN"
       : role === "VIP"
       ? vipTier === "PREMIUM"
@@ -182,7 +182,7 @@ export default function ProfilePage() {
       : "FREE";
 
   const roleColor =
-    role === "ADMIN"
+    isAdmin
       ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
       : role === "VIP"
       ? vipTier === "PREMIUM"
@@ -268,7 +268,7 @@ export default function ProfilePage() {
                 <span
                   className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold ${roleColor}`}
                 >
-                  {role === "ADMIN" ? (
+                  {isAdmin ? (
                     <ShieldCheck className="w-2.5 h-2.5" />
                   ) : role === "VIP" ? (
                     <Crown className="w-2.5 h-2.5" />
@@ -443,7 +443,7 @@ export default function ProfilePage() {
               </span>
             </div>
             <p className="text-lg font-bold text-white">
-              {role === "ADMIN"
+              {isAdmin
                 ? "Không giới hạn"
                 : vipUntilDate
                 ? vipUntilDate.toLocaleDateString("vi-VN", {
@@ -463,7 +463,7 @@ export default function ProfilePage() {
                 Trạng thái
               </span>
             </div>
-            {role === "ADMIN" ? (
+            {isAdmin ? (
               <p className="text-lg font-bold text-emerald-400">ADMIN</p>
             ) : isVip ? (
               <div>
@@ -490,11 +490,11 @@ export default function ProfilePage() {
               </span>
             </div>
             <p className="text-lg font-bold text-white">
-              {role === "ADMIN"
+              {isAdmin
                 ? "Admin – Toàn quyền"
                 : isVip
-                ? `RS - ${vipTier === "PREMIUM" ? "Premium" : "VIP"}`
-                : "RS - Free"}
+                ? `ADN - ${vipTier === "PREMIUM" ? "Premium" : "VIP"}`
+                : "ADN - Free"}
             </p>
           </div>
         </div>

@@ -59,7 +59,6 @@ const menuSections: MenuSection[] = [
   {
     title: "Sản phẩm đầu tư",
     items: [
-      { href: "/dashboard/rs-rating", label: "RS Rating", icon: BarChart2 },
       { href: "/tei", label: "Chỉ báo TEI", icon: Activity, badge: "MỚI" },
       { href: "/terminal", label: "Tư vấn đầu tư", icon: MessageSquare },
       { href: "/dashboard/signal-map", label: "Tín Hiệu", icon: Zap },

@@ -1,19 +1,8 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isAdmin } from "@/lib/admin-check";
 
 export const dynamic = "force-dynamic";
-
-const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "")
-  .split(",")
-  .map((e) => e.trim().toLowerCase())
-  .filter(Boolean);
-
-async function isAdmin() {
-  const session = await auth();
-  if (!session?.user?.email) return false;
-  return ADMIN_EMAILS.includes(session.user.email.toLowerCase());
-}
 
 /**
  * GET /api/admin/users — Lấy danh sách tất cả users
@@ -29,6 +18,7 @@ export async function GET() {
       email: true,
       name: true,
       role: true,
+      systemRole: true,
       vipUntil: true,
       dnseId: true,
       dnseVerified: true,

@@ -14,7 +14,6 @@ import {
 
 const tabs = [
   { href: "/dashboard", label: "Trang chủ", icon: Home },
-  { href: "/dashboard/rs-rating", label: "RS-Rating", icon: BarChart2 },
   { href: "/journal", label: "Nhật Ký", icon: BookOpen },
   { href: "/dashboard/signal-map", label: "Tín Hiệu", icon: Zap },
   { href: "/notifications", label: "Tin nhắn", icon: MessageSquare },

@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/Button";
 import { TickerTape, TickerTapeSkeleton } from "@/components/dashboard/TickerTape";
 import { VNIndexChart, VNIndexChartSkeleton } from "@/components/dashboard/VNIndexChart";
 import { MarketBreadth, MarketBreadthSkeleton } from "@/components/dashboard/MarketBreadth";
-import { TopLeaders, TopLeadersSkeleton } from "@/components/dashboard/TopLeaders";
 import { ReversePointIndex, RPISkeleton } from "@/components/dashboard/ReversePointIndex";
 import { MorningNews } from "@/components/dashboard/MorningNews";
 import { EveningNews } from "@/components/dashboard/EveningNews";
@@ -74,15 +73,6 @@ interface MarketOverview {
   price: number;
 }
 
-interface RSStock {
-  symbol: string;
-  name: string;
-  rsRating: number;
-  price: number;
-  changePercent: number;
-  sector: string;
-}
-
 /** Format số tiền tệ đẹp: 10542.3 → "10,542" */
 function fmtLiquidity(tyVnd: number): string {
   return new Intl.NumberFormat("vi-VN", {
@@ -131,15 +121,6 @@ export default function DashboardPage() {
     errorRetryInterval: 3000,
   });
 
-  const {
-    data: rsRaw,
-    mutate: mutateRs,
-  } = useSWR<{ stocks?: RSStock[]; data?: RSStock[] }>("/api/rs-rating", swrFetcher, {
-    ...swrOpts,
-    errorRetryCount: 3,
-    errorRetryInterval: 3000,
-  });
-
   /* ── Derived state ── */
   const loading = !mounted || (!data && loadingMarket);
   const refreshing = mounted && !!data && validatingMarket;
@@ -147,8 +128,7 @@ export default function DashboardPage() {
   const handleRefresh = useCallback(() => {
     mutateMarket();
     mutateOverview();
-    mutateRs();
-  }, [mutateMarket, mutateOverview, mutateRs]);
+  }, [mutateMarket, mutateOverview]);
 
   const tickerItems = useMemo(() => {
     if (!data) return [];
@@ -164,19 +144,6 @@ export default function DashboardPage() {
       })),
     ];
   }, [data]);
-
-  const leaderRows = useMemo(() => {
-    const stocks: RSStock[] = rsRaw?.stocks ?? rsRaw?.data ?? [];
-    return stocks.slice(0, 5).map((s, i) => ({
-      rank: i + 1,
-      symbol: s.symbol,
-      name: s.name,
-      rsRating: s.rsRating,
-      price: s.price,
-      changePercent: s.changePercent,
-      sector: s.sector,
-    }));
-  }, [rsRaw]);
 
   // Thanh khoản: ưu tiên từ Python backend (đã fix)
   const liquidityDisplay = overview
@@ -301,16 +268,6 @@ export default function DashboardPage() {
             <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem Chỉ báo Cạn Kiệt Xu Hướng">
               {!mounted ? <RPISkeleton /> : <ReversePointIndex />}
             </LockOverlay>
-
-            <div className="flex-1 flex flex-col">
-              <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem Top 5 Siêu Cổ Phiếu">
-                {!mounted || !rsRaw ? (
-                  <TopLeadersSkeleton />
-                ) : leaderRows.length > 0 ? (
-                  <TopLeaders stocks={leaderRows} />
-                ) : null}
-              </LockOverlay>
-            </div>
           </div>
         </div>
       </div>

@@ -3,7 +3,6 @@
 import { MainLayout } from "@/components/layout/MainLayout";
 import Link from "next/link";
 import {
-  BarChart2,
   MessageSquare,
   Zap,
   ArrowRight,
@@ -15,23 +14,6 @@ import {
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 const services = [
-  {
-    href: "/dashboard/rs-rating",
-    icon: BarChart2,
-    iconBg: "bg-blue-500/10 border-blue-500/20",
-    iconColor: "text-blue-400",
-    gradientFrom: "from-blue-500/10",
-    badge: null,
-    title: "RS Rating",
-    subtitle: "Xếp hạng sức mạnh tương đối",
-    desc: "Chấm điểm sức mạnh cổ phiếu so với toàn thị trường. Tìm cổ phiếu dẫn dắt, tránh cổ phiếu yếu — theo phương pháp William O'Neil / CAN SLIM.",
-    features: [
-      "RS Score 1–99 cho từng mã",
-      "Cập nhật theo phiên giao dịch",
-      "Lọc theo ngành / nhóm cốt lõi",
-      "Top leaders & laggards",
-    ],
-  },
   {
     href: "/terminal",
     icon: MessageSquare,
@@ -61,7 +43,7 @@ const services = [
     desc: "Nhận tín hiệu mua/bán theo hệ thống Quant Trading của ADN Capital — bộ lọc đa chiều, tối ưu cho thị trường Việt Nam với tỷ lệ thắng thực chiến cao.",
     features: [
       "Tín hiệu mua/bán tự động",
-      "Bộ lọc Volume & RS cùng lúc",
+      "Bộ lọc Volume & sức mạnh cùng lúc",
       "Lịch sử tín hiệu đầy đủ",
       "Thông báo theo thời gian thực",
     ],

@@ -59,7 +59,7 @@ const BACKTEST_EVENTS = [
     period: "Q1/2025",
     type: "capture" as const,
     event: "SSI breakout RS=95 — Sóng tăng mạnh nhất năm",
-    result: "Market trên EMA50, tín hiệu VSA xác nhận + RS Rating top 5%. Lãi kép tự động tăng size → capture +45% upside chỉ trong 1 quý.",
+    result: "Market trên EMA50, tín hiệu VSA xác nhận + Mùa vụ thuận lợi. Lãi kép tự động tăng size → capture +45% upside chỉ trong 1 quý.",
     saved: "+45%",
     tag: "Bắt sóng lớn",
   },

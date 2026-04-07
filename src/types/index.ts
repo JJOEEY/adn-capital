@@ -55,6 +55,7 @@ export interface JournalEntry {
 }
 
 export type UserRole = "GUEST" | "FREE" | "VIP" | "ADMIN";
+export type SystemRole = "ADMIN" | "USER";
 
 export interface MarketStatusData {
   status: "GOOD" | "BAD" | "NEUTRAL";
