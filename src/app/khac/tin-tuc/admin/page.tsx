@@ -2,8 +2,8 @@
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { Loader2, RefreshCw, PenSquare, Trash2, ExternalLink } from "lucide-react";
-import { useSession } from "next-auth/react";
+import { Loader2, RefreshCw, PenSquare, Trash2, ExternalLink, ShieldAlert } from "lucide-react";
+import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 
 // ── Types ──
 interface Article {
@@ -47,7 +47,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function AdminArticlesPage() {
-  const { data: session } = useSession();
+  const { isWriter, isLoading: authLoading, dbUser } = useCurrentDbUser();
   const [articles, setArticles] = useState<Article[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -158,7 +158,7 @@ export default function AdminArticlesPage() {
           content: writeContent.trim(),
           categoryId: writeCategoryId || null,
           imageUrl: writeImageUrl.trim() || null,
-          authorId: (session?.user as { id?: string })?.id ?? "",
+          authorId: dbUser?.id ?? "",
         }),
       });
       if (res.ok) {
@@ -175,6 +175,25 @@ export default function AdminArticlesPage() {
       setWriteSubmitting(false);
     }
   };
+
+  // ── Auth guard ──
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-[#0d1117] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
+      </div>
+    );
+  }
+  if (!isWriter) {
+    return (
+      <div className="min-h-screen bg-[#0d1117] flex flex-col items-center justify-center gap-4">
+        <ShieldAlert className="w-12 h-12 text-red-400" />
+        <h1 className="text-xl font-bold text-white">Không có quyền truy cập</h1>
+        <p className="text-sm text-slate-400">Chỉ Admin và Writer mới được phép truy cập trang này.</p>
+        <Link href="/khac/tin-tuc" className="text-sm text-cyan-400 hover:underline">← Quay lại Tin tức</Link>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0d1117] p-6">

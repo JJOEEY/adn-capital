@@ -10,7 +10,7 @@ interface CurrentDbUser {
   name: string | null;
   image: string | null;
   role: "FREE" | "VIP";
-  systemRole: "ADMIN" | "USER";
+  systemRole: "ADMIN" | "USER" | "WRITER";
   chatCount: number;
   vipUntil: string | null;
   vipTier: "VIP" | "PREMIUM" | null;
@@ -74,6 +74,7 @@ export function useCurrentDbUser() {
 
   const role: UserRole = !isSignedIn ? "GUEST" : (dbUser?.role ?? "FREE");
   const isAdmin = dbUser?.systemRole === "ADMIN" || !!dbUser?.isAdmin;
+  const isWriter = isAdmin || dbUser?.systemRole === "WRITER";
 
   return {
     session,
@@ -85,6 +86,7 @@ export function useCurrentDbUser() {
     isFreeUser: !!isSignedIn && role === "FREE" && !isAdmin,
     isVip: isAdmin || role === "VIP" || !!dbUser?.vipTier,
     isAdmin,
+    isWriter,
     isLoading: !isLoaded || (isSignedIn && isFetching),
   };
 }

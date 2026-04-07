@@ -3,8 +3,9 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { FileText, Loader2 } from "lucide-react";
+import { FileText, Loader2, Settings } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 
 // ── Types from API ──
 interface Article {
@@ -232,6 +233,7 @@ export function NewsListClient() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const { isWriter } = useCurrentDbUser();
 
   useEffect(() => {
     Promise.all([
@@ -277,7 +279,18 @@ export function NewsListClient() {
           </h1>
           <p className="text-sm text-slate-500 mt-1">Cập nhật liên tục · AI tổng hợp &amp; phân tích</p>
         </div>
-        <div className="text-right text-[13px] text-slate-500 hidden md:block">{dateStr}</div>
+        <div className="flex items-center gap-3">
+          {isWriter && (
+            <Link
+              href="/khac/tin-tuc/admin"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/15 text-blue-400 border border-blue-500/25 hover:bg-blue-500/25 transition-colors text-xs font-medium"
+            >
+              <Settings className="w-3.5 h-3.5" />
+              Quản lý bài viết
+            </Link>
+          )}
+          <div className="text-right text-[13px] text-slate-500 hidden md:block">{dateStr}</div>
+        </div>
       </div>
 
       {/* ── Category Tabs ── */}
