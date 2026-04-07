@@ -51,8 +51,13 @@ export interface JournalEntry {
   price: number;
   quantity: number;
   psychology: string;
+  psychologyTag?: string | null;
+  tradeReason?: string | null;
+  tradeDate?: string | null;
   createdAt: string;
 }
+
+export type PsychologyTag = "Có kế hoạch" | "Tự tin" | "FOMO" | "Theo room" | "Cảm tính" | "Hoảng loạn";
 
 export type UserRole = "GUEST" | "FREE" | "VIP" | "ADMIN";
 export type SystemRole = "ADMIN" | "USER";

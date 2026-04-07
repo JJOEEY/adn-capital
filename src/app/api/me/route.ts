@@ -47,6 +47,8 @@ export async function GET() {
       dnseId: dbUser.dnseId ?? null,
       dnseVerified: dbUser.dnseVerified ?? false,
       dnseAppliedAt: dbUser.dnseAppliedAt?.toISOString() ?? null,
+      initialJournalNAV: dbUser.initialJournalNAV ?? null,
+      enableAIReview: dbUser.enableAIReview ?? true,
       isAdmin,
     },
   });

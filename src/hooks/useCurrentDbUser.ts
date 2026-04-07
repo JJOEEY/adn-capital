@@ -17,6 +17,8 @@ interface CurrentDbUser {
   dnseId: string | null;
   dnseVerified: boolean;
   dnseAppliedAt: string | null;
+  initialJournalNAV: number | null;
+  enableAIReview: boolean;
   isAdmin?: boolean;
 }
 

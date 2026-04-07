@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import {
   BookOpen, Lock, TrendingUp, TrendingDown, Target,
-  Brain,
+  Brain, DollarSign,
 } from "lucide-react";
 import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -14,6 +14,7 @@ import { JournalForm } from "@/components/journal/JournalForm";
 import { JournalList } from "@/components/journal/JournalList";
 import { PsychologyAnalysis } from "@/components/journal/PsychologyAnalysis";
 import { GamificationCard } from "@/components/journal/GamificationCard";
+import { PnLSummary } from "@/components/journal/PnLSummary";
 import { Card } from "@/components/ui/Card";
 import type { JournalEntry } from "@/types";
 
@@ -23,16 +24,20 @@ export default function JournalPage() {
   const { isVip } = useSubscription();
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"form" | "list" | "analysis">("list");
+  const [activeTab, setActiveTab] = useState<"form" | "list" | "analysis" | "pnl">("list");
   const [mounted, setMounted] = useState(false);
+  const [dateFilter, setDateFilter] = useState({ from: "", to: "" });
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const fetchEntries = useCallback(async () => {
+  const fetchEntries = useCallback(async (from?: string, to?: string) => {
     try {
-      const res = await fetch("/api/journal?limit=50");
+      const params = new URLSearchParams({ limit: "50" });
+      if (from) params.set("from", from);
+      if (to) params.set("to", to);
+      const res = await fetch(`/api/journal?${params}`);
       if (res.ok) {
         const data = await res.json();
         setEntries(data.entries ?? []);
@@ -44,19 +49,23 @@ export default function JournalPage() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      fetchEntries();
+      fetchEntries(dateFilter.from, dateFilter.to);
     } else if (!authLoading) {
       setLoading(false);
     }
-  }, [isAuthenticated, authLoading, fetchEntries]);
+  }, [isAuthenticated, authLoading, fetchEntries, dateFilter]);
 
   const handleSaved = () => {
-    fetchEntries();
+    fetchEntries(dateFilter.from, dateFilter.to);
     setActiveTab("list");
   };
 
   const handleDeleted = (id: string) => {
     setEntries((prev) => prev.filter((e) => e.id !== id));
+  };
+
+  const handleDateFilter = (from: string, to: string) => {
+    setDateFilter({ from, to });
   };
 
   const buyCount = entries.filter((e) => e.action === "BUY").length;
@@ -109,7 +118,7 @@ export default function JournalPage() {
               <Lock className="w-6 h-6 text-neutral-400" />
             </div>
             <h2 className="text-lg font-bold text-white mb-2">
-              🔒 Tính năng VIP
+              Tính năng VIP
             </h2>
             <p className="text-sm text-neutral-500 mb-5">
               Nâng cấp VIP để sử dụng Nhật Ký Giao Dịch và phân tích tâm lý AI.
@@ -130,8 +139,14 @@ export default function JournalPage() {
     { id: "list" as const, label: "Lịch sử", count: entries.length },
     { id: "form" as const, label: "Ghi mới", count: null },
     {
+      id: "pnl" as const,
+      label: "PnL Tổng",
+      count: null,
+      icon: <DollarSign className="w-3 h-3" />,
+    },
+    {
       id: "analysis" as const,
-      label: "Phân tích AI",
+      label: "AI Phân tích",
       count: null,
       icon: <Brain className="w-3 h-3" />,
     },
@@ -148,7 +163,7 @@ export default function JournalPage() {
           <div>
             <h1 className="text-xl sm:text-2xl font-black text-white">Nhật Ký Giao Dịch</h1>
             <p className="text-sm text-neutral-500">
-              AI học hành vi · Phân tích tâm lý · Cải thiện kỷ luật
+              AI học hành vi · Phân tích tâm lý · Kỷ luật T+2.5
             </p>
           </div>
         </div>
@@ -206,12 +221,12 @@ export default function JournalPage() {
           {/* Right column */}
           <div className="xl:col-span-2 space-y-4">
             {/* Tabs */}
-            <div className="flex gap-1 bg-neutral-900 border border-neutral-800 p-1 rounded-xl">
+            <div className="flex gap-1 bg-neutral-900 border border-neutral-800 p-1 rounded-xl overflow-x-auto">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex-1 text-sm py-2 px-3 rounded-lg font-medium transition-all flex items-center justify-center gap-1.5 ${
+                  className={`flex-1 text-sm py-2 px-3 rounded-lg font-medium transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${
                     activeTab === tab.id
                       ? "bg-neutral-800 text-white shadow-sm"
                       : "text-neutral-500 hover:text-neutral-300"
@@ -254,8 +269,11 @@ export default function JournalPage() {
                   <JournalList
                     entries={entries}
                     onDeleted={handleDeleted}
+                    onDateFilter={handleDateFilter}
                   />
                 ))}
+
+              {activeTab === "pnl" && <PnLSummary />}
 
               {activeTab === "analysis" && <PsychologyAnalysis />}
             </motion.div>

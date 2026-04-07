@@ -21,6 +21,7 @@ import {
   Loader2,
   Upload,
   Link as LinkIcon,
+  Brain,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -42,6 +43,34 @@ export default function ProfilePage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [previewFile, setPreviewFile] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [enableAIReview, setEnableAIReview] = useState(true);
+  const [aiReviewLoading, setAiReviewLoading] = useState(false);
+
+  // Sync enableAIReview from dbUser
+  useEffect(() => {
+    if (dbUser) {
+      setEnableAIReview(dbUser.enableAIReview ?? true);
+    }
+  }, [dbUser]);
+
+  const handleToggleAIReview = async () => {
+    setAiReviewLoading(true);
+    try {
+      const res = await fetch("/api/user/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enableAIReview: !enableAIReview }),
+      });
+      if (res.ok) {
+        setEnableAIReview(!enableAIReview);
+        setMsg({ type: "ok", text: !enableAIReview ? "Đã bật đánh giá AI hàng tuần" : "Đã tắt đánh giá AI hàng tuần" });
+      }
+    } catch {
+      setMsg({ type: "err", text: "Lỗi cập nhật cài đặt" });
+    } finally {
+      setAiReviewLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!isLoading && status !== "loading" && !isAuthenticated) {
@@ -55,6 +84,18 @@ export default function ProfilePage() {
       setAvatarUrl(dbUser.image ?? "");
     }
   }, [dbUser]);
+
+  // Load AI Review setting
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetch("/api/user/settings")
+        .then((r) => r.json())
+        .then((d) => {
+          if (typeof d.enableAIReview === "boolean") setEnableAIReview(d.enableAIReview);
+        })
+        .catch(() => {});
+    }
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (editingName && nameRef.current) nameRef.current.focus();
@@ -498,6 +539,44 @@ export default function ProfilePage() {
             </p>
           </div>
         </div>
+
+        {/* ── Cài đặt Nhật Ký & AI Review ── */}
+        {(isVip || isAdmin) && (
+          <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Brain className="w-4 h-4 text-purple-400" />
+              <span className="text-xs font-bold text-neutral-400">
+                Cài đặt Nhật Ký & AI
+              </span>
+            </div>
+
+            {/* Toggle AI Review */}
+            <div className="flex items-center justify-between p-3 bg-neutral-800/50 rounded-xl border border-neutral-700/50">
+              <div>
+                <p className="text-sm font-medium text-white">
+                  Nhận đánh giá tâm lý hàng tuần từ ADN AI
+                </p>
+                <p className="text-[10px] text-neutral-500 mt-0.5">
+                  AI sẽ phân tích giao dịch tuần và gửi nhận xét riêng tư vào 17h Thứ 6
+                </p>
+              </div>
+              <button
+                onClick={handleToggleAIReview}
+                disabled={aiReviewLoading}
+                className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${
+                  enableAIReview ? "bg-emerald-500" : "bg-neutral-700"
+                } ${aiReviewLoading ? "opacity-50" : ""}`}
+              >
+                <div
+                  className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${
+                    enableAIReview ? "translate-x-5.5 left-0.5" : "left-0.5"
+                  }`}
+                  style={{ transform: enableAIReview ? "translateX(22px)" : "translateX(2px)" }}
+                />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ── Expired Banner ── */}
         {isExpired && (

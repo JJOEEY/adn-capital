@@ -29,10 +29,11 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 /* Icon + color config per notification type */
 const typeConfig: Record<string, { icon: typeof Zap; color: string; bg: string; label: string }> = {
-  signal_10h:   { icon: Zap, color: "text-yellow-400", bg: "bg-yellow-500/10 border-yellow-500/20", label: "CẬP NHẬT 10:00" },
-  signal_1130:  { icon: Zap, color: "text-yellow-400", bg: "bg-yellow-500/10 border-yellow-500/20", label: "CẬP NHẬT 11:30" },
-  signal_14h:   { icon: TrendingUp, color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", label: "CẬP NHẬT 14:00" },
-  signal_1445:  { icon: TrendingUp, color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", label: "CẬP NHẬT 14:45" },
+  signal_10h:       { icon: Zap, color: "text-yellow-400", bg: "bg-yellow-500/10 border-yellow-500/20", label: "CẬP NHẬT 10:00" },
+  signal_1130:      { icon: Zap, color: "text-yellow-400", bg: "bg-yellow-500/10 border-yellow-500/20", label: "CẬP NHẬT 11:30" },
+  signal_14h:       { icon: TrendingUp, color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", label: "CẬP NHẬT 14:00" },
+  signal_1445:      { icon: TrendingUp, color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", label: "CẬP NHẬT 14:45" },
+  ai_weekly_review: { icon: Bot, color: "text-purple-400", bg: "bg-purple-500/10 border-purple-500/20", label: "AI ĐÁNH GIÁ TÂM LÝ" },
 };
 
 function getConfig(type: string) {

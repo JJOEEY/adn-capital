@@ -1,8 +1,8 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trash2, Clock, BookOpen } from "lucide-react";
+import { Trash2, Clock, BookOpen, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -13,6 +13,7 @@ import { vi } from "date-fns/locale";
 interface JournalListProps {
   entries: JournalEntry[];
   onDeleted: (id: string) => void;
+  onDateFilter?: (from: string, to: string) => void;
 }
 
 type Filter = "all" | "BUY" | "SELL";
@@ -23,9 +24,12 @@ const FILTER_LABELS: Record<Filter, string> = {
   SELL: "Bán",
 };
 
-export function JournalList({ entries, onDeleted }: JournalListProps) {
+export function JournalList({ entries, onDeleted, onDateFilter }: JournalListProps) {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   const handleDelete = async (id: string) => {
     if (!confirm("Xóa nhật ký này?")) return;
@@ -36,6 +40,18 @@ export function JournalList({ entries, onDeleted }: JournalListProps) {
     } finally {
       setDeleting(null);
     }
+  };
+
+  const handleDateFilter = () => {
+    if (onDateFilter && (dateFrom || dateTo)) {
+      onDateFilter(dateFrom, dateTo);
+    }
+  };
+
+  const handleClearDateFilter = () => {
+    setDateFrom("");
+    setDateTo("");
+    if (onDateFilter) onDateFilter("", "");
   };
 
   const filtered = entries.filter((e) => {
@@ -57,7 +73,43 @@ export function JournalList({ entries, onDeleted }: JournalListProps) {
 
   return (
     <div className="space-y-3">
-      {/* Filter bar */}
+      {/* Date Range Filter */}
+      <div className="flex items-end gap-2 flex-wrap bg-neutral-900/50 border border-neutral-800 rounded-xl p-3">
+        <div className="flex-1 min-w-[120px]">
+          <label className="text-[10px] text-neutral-500 block mb-1">Từ ngày</label>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="w-full bg-neutral-800 border border-neutral-700 text-neutral-200 text-xs px-2.5 py-1.5 rounded-lg outline-none focus:border-emerald-500/50"
+          />
+        </div>
+        <div className="flex-1 min-w-[120px]">
+          <label className="text-[10px] text-neutral-500 block mb-1">Đến ngày</label>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="w-full bg-neutral-800 border border-neutral-700 text-neutral-200 text-xs px-2.5 py-1.5 rounded-lg outline-none focus:border-emerald-500/50"
+          />
+        </div>
+        <button
+          onClick={handleDateFilter}
+          className="px-3 py-1.5 text-xs font-bold bg-emerald-500/15 text-emerald-400 rounded-lg hover:bg-emerald-500/25 transition-colors"
+        >
+          Lọc
+        </button>
+        {(dateFrom || dateTo) && (
+          <button
+            onClick={handleClearDateFilter}
+            className="px-3 py-1.5 text-xs font-bold text-neutral-400 rounded-lg hover:bg-neutral-800 transition-colors"
+          >
+            Xóa lọc
+          </button>
+        )}
+      </div>
+
+      {/* Action Filter bar */}
       <div className="flex gap-1.5 flex-wrap">
         {(Object.keys(FILTER_LABELS) as Filter[]).map((f) => {
           const count =
@@ -89,6 +141,9 @@ export function JournalList({ entries, onDeleted }: JournalListProps) {
               : entry.psychology === "Hoảng loạn"
               ? "text-red-400"
               : "text-neutral-300";
+
+          const isExpanded = expandedId === entry.id;
+          const displayDate = entry.tradeDate || entry.createdAt;
 
           return (
             <motion.div
@@ -123,6 +178,11 @@ export function JournalList({ entries, onDeleted }: JournalListProps) {
                       <Badge variant={entry.action === "BUY" ? "emerald" : "red"}>
                         {entry.action === "BUY" ? "Mua" : "Bán"}
                       </Badge>
+                      {(entry.psychologyTag || entry.psychology) && (
+                        <span className={`text-[10px] font-medium ${psychColor}`}>
+                          {entry.psychologyTag || entry.psychology}
+                        </span>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-3 gap-x-4 gap-y-1 mb-2">
@@ -139,17 +199,48 @@ export function JournalList({ entries, onDeleted }: JournalListProps) {
                         </p>
                       </div>
                       <div>
-                        <p className="text-[10px] text-neutral-600">Tâm lý</p>
-                        <p className={`text-xs truncate font-medium ${psychColor}`}>
-                          {entry.psychology}
+                        <p className="text-[10px] text-neutral-600">Giá trị</p>
+                        <p className="text-xs font-mono font-semibold text-neutral-200">
+                          {(entry.price * entry.quantity).toLocaleString("vi-VN")}
                         </p>
                       </div>
                     </div>
 
+                    {/* Expandable Trade Reason */}
+                    {entry.tradeReason && (
+                      <button
+                        onClick={() => setExpandedId(isExpanded ? null : entry.id)}
+                        className="flex items-center gap-1 text-[10px] text-neutral-500 hover:text-neutral-300 transition-colors mt-1"
+                      >
+                        <MessageSquare className="w-2.5 h-2.5" />
+                        Lý do giao dịch
+                        {isExpanded ? (
+                          <ChevronUp className="w-2.5 h-2.5" />
+                        ) : (
+                          <ChevronDown className="w-2.5 h-2.5" />
+                        )}
+                      </button>
+                    )}
+
+                    <AnimatePresence>
+                      {isExpanded && entry.tradeReason && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="overflow-hidden"
+                        >
+                          <p className="text-xs text-neutral-400 mt-2 p-2 bg-neutral-800/50 rounded-lg border border-neutral-700/50 leading-relaxed">
+                            {entry.tradeReason}
+                          </p>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
                     <div className="flex items-center gap-1 mt-1">
                       <Clock className="w-2.5 h-2.5 text-neutral-700" />
                       <span className="text-[10px] text-neutral-600">
-                        {format(new Date(entry.createdAt), "dd/MM/yy HH:mm", {
+                        {format(new Date(displayDate), "dd/MM/yy HH:mm", {
                           locale: vi,
                         })}
                       </span>

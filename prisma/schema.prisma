@@ -58,21 +58,23 @@ model VerificationToken {
 // ═══════════════════════════════════════════════════════════════════
 
 model User {
-  id            String           @id @default(uuid())
-  email         String           @unique
-  password      String?
-  role          String           @default("FREE")       // subscription: FREE | VIP (giữ tương thích)
-  systemRole    String           @default("USER")       // quyền hệ thống: ADMIN | USER
-  vipUntil      DateTime?
-  name          String?
-  image         String?
-  emailVerified DateTime?
-  chatCount     Int              @default(0)
-  dnseId        String?          @unique
-  dnseVerified  Boolean          @default(false)
-  dnseAppliedAt DateTime?
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  id              String           @id @default(uuid())
+  email           String           @unique
+  password        String?
+  role            String           @default("FREE")       // subscription: FREE | VIP (giữ tương thích)
+  systemRole      String           @default("USER")       // quyền hệ thống: ADMIN | USER
+  vipUntil        DateTime?
+  name            String?
+  image           String?
+  emailVerified   DateTime?
+  chatCount       Int              @default(0)
+  dnseId          String?          @unique
+  dnseVerified    Boolean          @default(false)
+  dnseAppliedAt   DateTime?
+  initialJournalNAV Float?                                // Số dư vốn ban đầu của Nhật ký (VNĐ)
+  enableAIReview  Boolean          @default(true)          // Bật/Tắt AI đánh giá tâm lý hàng tuần
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
   accounts       Account[]
   sessions       Session[]
@@ -80,6 +82,7 @@ model User {
   paymentOrders  PaymentOrder[]
   tradingJournal TradingJournal[]
   pushSubscriptions PushSubscription[]
+  notifications  Notification[]
 }
 
 model PaymentOrder {
@@ -141,16 +144,22 @@ model Signal {
 }
 
 model TradingJournal {
-  id         String      @id @default(cuid())
-  userId     String
-  ticker     String
-  action     String
-  price      Float
-  quantity   Int
-  psychology String
-  createdAt  DateTime    @default(now())
+  id             String      @id @default(cuid())
+  userId         String
+  ticker         String
+  action         String                                    // BUY | SELL
+  price          Float
+  quantity       Int
+  psychology     String                                    // Legacy: free text (backward compat)
+  psychologyTag  String?                                   // Enum: Có kế hoạch | Tự tin | FOMO | Theo room | Cảm tính | Hoảng loạn
+  tradeReason    String?                                   // Lý do chi tiết vào/ra lệnh
+  tradeDate      DateTime?                                 // Ngày giao dịch (cho phép lùi ngày)
+  createdAt      DateTime    @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, tradeDate])
+  @@index([userId, ticker, action])
 }
 
 model CourseRegistration {
@@ -180,12 +189,16 @@ model MarginConsultation {
 
 model Notification {
   id        String   @id @default(cuid())
-  type      String   // signal_10h | signal_1130 | signal_14h | signal_1445 | market_17h | eod_19h | morning_8h | eod_15h | prop_19h | signal_5m
+  type      String   // signal_10h | signal_1130 | ... | ai_weekly_review
   title     String
   content   String   // markdown content
+  userId    String?  // NULL = global notification, non-NULL = private 1-1 cho user cụ thể
   createdAt DateTime @default(now())
 
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
   @@index([type, createdAt])
+  @@index([userId, createdAt])
 }
 
 // ═══════════════════════════════════════════════════════════════════

@@ -1,8 +1,8 @@
-﻿"use client";
+"use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Save } from "lucide-react";
+import { Save, AlertTriangle, Calendar } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 
@@ -11,12 +11,12 @@ interface JournalFormProps {
 }
 
 const PSYCHOLOGIES = [
-  { label: "Có kế hoạch", color: "emerald" },
-  { label: "Tự tin", color: "blue" },
-  { label: "FOMO", color: "yellow" },
-  { label: "Theo room", color: "orange" },
-  { label: "Cảm tính", color: "red" },
-  { label: "Hoảng loạn", color: "purple" },
+  { label: "Có kế hoạch", color: "emerald", icon: "✅" },
+  { label: "Tự tin", color: "blue", icon: "💪" },
+  { label: "FOMO", color: "yellow", icon: "⚡" },
+  { label: "Theo room", color: "orange", icon: "👥" },
+  { label: "Cảm tính", color: "red", icon: "🎲" },
+  { label: "Hoảng loạn", color: "purple", icon: "😤" },
 ];
 
 const defaultForm = {
@@ -25,22 +25,68 @@ const defaultForm = {
   price: "",
   quantity: "",
   psychology: "Có kế hoạch",
+  tradeReason: "",
+  tradeDate: new Date().toISOString().split("T")[0],
 };
 
 export function JournalForm({ onSaved }: JournalFormProps) {
   const [form, setForm] = useState(defaultForm);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [t25Block, setT25Block] = useState<{
+    blocked: boolean;
+    message: string;
+    earliestSellDate?: string;
+  } | null>(null);
 
   const update = (field: keyof typeof defaultForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     setError("");
   };
 
+  // T+2.5 check khi chuyển sang BÁN
+  const checkT25 = useCallback(async () => {
+    if (form.action !== "SELL" || !form.ticker || form.ticker.length < 2) {
+      setT25Block(null);
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        `/api/journal/t25-check?ticker=${form.ticker}&sellDate=${form.tradeDate}`
+      );
+      const data = await res.json();
+      if (!data.eligible) {
+        setT25Block({
+          blocked: true,
+          message: data.message,
+          earliestSellDate: data.earliestSellDateFormatted,
+        });
+      } else {
+        setT25Block(null);
+      }
+    } catch {
+      setT25Block(null);
+    }
+  }, [form.action, form.ticker, form.tradeDate]);
+
+  useEffect(() => {
+    const timer = setTimeout(checkT25, 500);
+    return () => clearTimeout(timer);
+  }, [checkT25]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.ticker || !form.price || !form.quantity) {
       setError("Vui lòng điền đầy đủ thông tin bắt buộc (*)");
+      return;
+    }
+    if (!form.tradeReason.trim() || form.tradeReason.trim().length < 5) {
+      setError("Vui lòng nhập lý do giao dịch chi tiết (tối thiểu 5 ký tự)");
+      return;
+    }
+    if (t25Block?.blocked) {
+      setError("Cổ phiếu chưa về tài khoản theo luật T+2.5. Không thể bán!");
       return;
     }
     setLoading(true);
@@ -54,6 +100,9 @@ export function JournalForm({ onSaved }: JournalFormProps) {
           price: parseFloat(form.price),
           quantity: parseInt(form.quantity),
           psychology: form.psychology,
+          psychologyTag: form.psychology,
+          tradeReason: form.tradeReason,
+          tradeDate: form.tradeDate,
         }),
       });
       if (!res.ok) {
@@ -61,6 +110,7 @@ export function JournalForm({ onSaved }: JournalFormProps) {
         throw new Error(data.error ?? "Lỗi lưu nhật ký");
       }
       setForm(defaultForm);
+      setT25Block(null);
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Lỗi không xác định");
@@ -81,14 +131,14 @@ export function JournalForm({ onSaved }: JournalFormProps) {
       </h2>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Row 1: Ticker, Action */}
-        <div className="grid grid-cols-2 gap-4">
+        {/* Row 1: Ticker, Action, Date */}
+        <div className="grid grid-cols-3 gap-4">
           <div>
             <label className={labelCls}>Mã cổ phiếu *</label>
             <input
               value={form.ticker}
               onChange={(e) => update("ticker", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
-              placeholder="VD: HPG, FPT, VNM"
+              placeholder="VD: HPG, FPT"
               className={`${inputCls} font-mono font-bold text-emerald-400 uppercase`}
               maxLength={10}
             />
@@ -105,7 +155,7 @@ export function JournalForm({ onSaved }: JournalFormProps) {
                     : "bg-neutral-800 text-neutral-500 hover:text-neutral-200"
                 }`}
               >
-                📈 Mua
+                Mua
               </button>
               <button
                 type="button"
@@ -116,11 +166,43 @@ export function JournalForm({ onSaved }: JournalFormProps) {
                     : "bg-neutral-800 text-neutral-500 hover:text-neutral-200"
                 }`}
               >
-                📉 Bán
+                Bán
               </button>
             </div>
           </div>
+          <div>
+            <label className={labelCls}>
+              <Calendar className="w-3 h-3 inline mr-1" />
+              Ngày đi lệnh *
+            </label>
+            <input
+              type="date"
+              value={form.tradeDate}
+              onChange={(e) => update("tradeDate", e.target.value)}
+              className={`${inputCls} font-mono`}
+              max={new Date().toISOString().split("T")[0]}
+            />
+          </div>
         </div>
+
+        {/* T+2.5 Block Warning */}
+        {t25Block?.blocked && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-start gap-3 p-3 rounded-xl bg-red-500/10 border border-red-500/25"
+          >
+            <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-bold text-red-400">
+                Cổ phiếu chưa về tài khoản theo luật T+2.5. Không thể bán!
+              </p>
+              <p className="text-xs text-red-300/70 mt-1">
+                {t25Block.message}
+              </p>
+            </div>
+          </motion.div>
+        )}
 
         {/* Row 2: Price + Quantity */}
         <div className="grid grid-cols-2 gap-4">
@@ -163,14 +245,6 @@ export function JournalForm({ onSaved }: JournalFormProps) {
                 red: active ? "bg-red-500/20 text-red-300 border-red-500/40" : "",
                 purple: active ? "bg-purple-500/20 text-purple-300 border-purple-500/40" : "",
               };
-              const iconMap: Record<string, string> = {
-                "FOMO": "⚡ ",
-                "Theo room": "👥 ",
-                "Có kế hoạch": "✅ ",
-                "Tự tin": "💪 ",
-                "Cảm tính": "🎲 ",
-                "Hoảng loạn": "😤 ",
-              };
               return (
                 <button
                   key={p.label}
@@ -182,11 +256,26 @@ export function JournalForm({ onSaved }: JournalFormProps) {
                       : "bg-neutral-800/80 text-neutral-500 border-neutral-700 hover:border-neutral-600 hover:text-neutral-300"
                   }`}
                 >
-                  {iconMap[p.label] ?? ""}{p.label}
+                  {p.icon} {p.label}
                 </button>
               );
             })}
           </div>
+        </div>
+
+        {/* Trade Reason */}
+        <div>
+          <label className={labelCls}>Lý do giao dịch chi tiết *</label>
+          <textarea
+            value={form.tradeReason}
+            onChange={(e) => update("tradeReason", e.target.value)}
+            placeholder="VD: Breakout vùng kháng cự 25.000 với volume tăng mạnh. RSI divergence dương trên khung W..."
+            className={`${inputCls} min-h-[80px] resize-y`}
+            maxLength={1000}
+          />
+          <p className="text-[10px] text-neutral-600 mt-1 text-right">
+            {form.tradeReason.length}/1000
+          </p>
         </div>
 
         {error && (
@@ -199,7 +288,14 @@ export function JournalForm({ onSaved }: JournalFormProps) {
           </motion.p>
         )}
 
-        <Button type="submit" variant="primary" size="lg" loading={loading} className="w-full">
+        <Button
+          type="submit"
+          variant="primary"
+          size="lg"
+          loading={loading}
+          className="w-full"
+          disabled={t25Block?.blocked}
+        >
           <Save className="w-4 h-4" />
           Lưu Nhật Ký
         </Button>

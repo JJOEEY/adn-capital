@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 /**
- * PATCH /api/user/profile — Cập nhật tên hiển thị và avatar
+ * PATCH /api/user/profile — Cập nhật tên hiển thị, avatar, initialJournalNAV, enableAIReview
  */
 export async function PATCH(req: NextRequest) {
   const session = await auth();
@@ -32,6 +32,20 @@ export async function PATCH(req: NextRequest) {
     data.image = body.image || null;
   }
 
+  // initialJournalNAV — Số dư vốn ban đầu nhật ký
+  if (body.initialJournalNAV !== undefined) {
+    const nav = parseFloat(body.initialJournalNAV);
+    if (isNaN(nav) || nav < 0) {
+      return NextResponse.json({ error: "Số dư vốn ban đầu không hợp lệ" }, { status: 400 });
+    }
+    data.initialJournalNAV = nav;
+  }
+
+  // enableAIReview — Bật/tắt AI đánh giá tâm lý hàng tuần
+  if (typeof body.enableAIReview === "boolean") {
+    data.enableAIReview = body.enableAIReview;
+  }
+
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: "Không có dữ liệu để cập nhật" }, { status: 400 });
   }
@@ -39,7 +53,13 @@ export async function PATCH(req: NextRequest) {
   const updated = await prisma.user.update({
     where: { id: session.user.id },
     data,
-    select: { id: true, name: true, image: true },
+    select: {
+      id: true,
+      name: true,
+      image: true,
+      initialJournalNAV: true,
+      enableAIReview: true,
+    },
   });
 
   return NextResponse.json(updated);
