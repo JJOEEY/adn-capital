@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { Check, Crown, Zap, Star, Gift, Shield } from "lucide-react";
+import { Check, Crown, Zap, Star, Gift, Shield, Lock, Sparkles } from "lucide-react";
 
 interface Plan {
   id: string;
@@ -13,79 +13,104 @@ interface Plan {
   color: string;
   highlight: boolean;
   badge?: string;
-  features: string[];
+  features: { text: string; locked?: boolean }[];
   cta: string;
 }
 
 const plans: Plan[] = [
   {
-    id: "dnse",
-    name: "DNSE Trader",
-    price: "500K",
+    id: "1m",
+    name: "Gói 1 Tháng",
+    price: "249.000đ",
+    dnsePrice: "224.000đ",
     period: "/tháng",
-    description: "Dành riêng cho khách hàng DNSE",
+    description: "Khởi đầu trải nghiệm ADN System",
     color: "emerald",
     highlight: false,
-    badge: "DNSE",
     features: [
-      "Chat AI 5 lượt/ngày",
-      "Dashboard cơ bản",
-      "Tín hiệu giao dịch",
-      "Hỗ trợ qua chat",
+      { text: "Hệ thống AI tư vấn mạnh mẽ (20 lượt/ngày)" },
+      { text: "Cập nhật tin tức hằng ngày" },
+      { text: "Theo dõi sức mạnh TT, chỉ số Cạn Kiệt Xu Hướng" },
+      { text: "Khuyến nghị cổ phiếu từ AI Broker" },
+      { text: "Sở hữu Nhật Ký Giao Dịch theo dõi hành trình" },
+      { text: "Nhật Ký AI: Phân tích tâm lý & Cơ cấu danh mục", locked: true },
+      { text: "Chỉ báo Cạn Kiệt Xu Hướng cho từng mã riêng lẻ", locked: true },
+      { text: "AI Broker cảnh báo Real-time (Mua/Bán/Đi vốn)", locked: true },
+      { text: "Nhận Report Weekly từ hệ thống ADN", locked: true },
+      { text: "Hỗ trợ tư vấn 1-1 từ ADN Capital", locked: true },
+      { text: "Tham gia room nhận tín hiệu Telegram", locked: true },
     ],
-    cta: "Đăng Ký DNSE",
+    cta: "Đăng Ký Ngay",
   },
   {
-    id: "vip3m",
-    name: "VIP 3 Tháng",
-    price: "3.000K",
-    dnsePrice: "1.800K",
+    id: "3m",
+    name: "Gói 3 Tháng",
+    price: "649.000đ",
+    dnsePrice: "519.000đ",
     period: "/3 tháng",
-    description: "Phổ biến nhất cho trader chuyên nghiệp",
+    description: "Phổ biến cho trader chú trọng chi phí",
     color: "purple",
-    highlight: true,
-    features: [
-      "Chat AI không giới hạn",
-      "Đánh giá Vĩ mô đa khung",
-      "Radar Leader Alert",
-      "Top 5 Siêu Cổ Phiếu",
-      "RS Rating toàn thị trường",
-      "Nhật ký + Phân tích tâm lý AI",
-      "Báo cáo thị trường 8:00 & 17:00",
-      "Tín hiệu Siêu Cổ Phiếu",
-    ],
-    cta: "Đăng Ký VIP 3 Tháng",
-  },
-  {
-    id: "vip6m",
-    name: "VIP 6 Tháng",
-    price: "6.000K",
-    dnsePrice: "4.500K",
-    period: "/6 tháng",
-    description: "Tiết kiệm hơn với cam kết dài hạn",
-    color: "yellow",
     highlight: false,
     features: [
-      "Tất cả tính năng VIP 3 Tháng",
-      "Ưu tiên tính năng mới",
-      "Dedicated support",
+      { text: "Hệ thống AI tư vấn mạnh mẽ (30 lượt/ngày)" },
+      { text: "Cập nhật tin tức hằng ngày" },
+      { text: "Theo dõi sức mạnh TT, chỉ số Cạn Kiệt Xu Hướng" },
+      { text: "Khuyến nghị cổ phiếu từ AI Broker" },
+      { text: "Sở hữu Nhật Ký Giao Dịch theo dõi hành trình" },
+      { text: "Nhật Ký AI: Phân tích tâm lý & Cơ cấu danh mục", locked: true },
+      { text: "Chỉ báo Cạn Kiệt Xu Hướng cho từng mã riêng lẻ", locked: true },
+      { text: "AI Broker cảnh báo Real-time (Mua/Bán/Đi vốn)", locked: true },
+      { text: "Nhận Report Weekly từ hệ thống ADN", locked: true },
+      { text: "Hỗ trợ tư vấn 1-1 từ ADN Capital", locked: true },
+      { text: "Tham gia room nhận tín hiệu Telegram", locked: true },
     ],
-    cta: "Chọn Gói 6 Tháng",
+    cta: "Đăng Ký Ngay",
   },
   {
-    id: "vip12m",
-    name: "VIP 1 Năm",
-    price: "12.000K",
-    dnsePrice: "6.000K",
+    id: "6m",
+    name: "Gói 6 Tháng",
+    price: "1.199.000đ",
+    dnsePrice: "839.000đ",
+    period: "/6 tháng",
+    description: "Bán chạy nhất — mở khóa gần như toàn bộ",
+    color: "yellow",
+    highlight: true,
+    badge: "Bán chạy",
+    features: [
+      { text: "Hệ thống AI tư vấn mạnh mẽ (Không giới hạn)" },
+      { text: "Cập nhật tin tức hằng ngày" },
+      { text: "Theo dõi sức mạnh TT, chỉ số Cạn Kiệt Xu Hướng" },
+      { text: "Khuyến nghị cổ phiếu từ AI Broker" },
+      { text: "Nhật Ký Giao Dịch, AI Phân tích & Cơ cấu danh mục" },
+      { text: "Chỉ báo Cạn Kiệt Xu Hướng cho từng mã riêng lẻ" },
+      { text: "AI Broker cảnh báo Real-time (Mua/Bán/Đi vốn)" },
+      { text: "Nhận Report Weekly từ hệ thống ADN" },
+      { text: "Hỗ trợ tư vấn 1-1 từ ADN Capital", locked: true },
+      { text: "Tham gia room nhận tín hiệu Telegram", locked: true },
+    ],
+    cta: "Đăng Ký Ngay",
+  },
+  {
+    id: "12m",
+    name: "Gói 12 Tháng",
+    price: "1.999.000đ",
+    dnsePrice: "1.199.000đ",
     period: "/năm",
-    description: "Tiết kiệm tối đa – cam kết cả năm",
+    description: "Tiết kiệm tối đa — mở khóa toàn bộ",
     color: "orange",
     highlight: false,
+    badge: "Tiết kiệm",
     features: [
-      "Tất cả tính năng VIP",
-      "Tư vấn 1-1 hàng tháng",
-      "Whitelist tính năng beta",
-      "VIP Discord community",
+      { text: "Hệ thống AI tư vấn mạnh mẽ (Không giới hạn)" },
+      { text: "Cập nhật tin tức hằng ngày" },
+      { text: "Theo dõi sức mạnh TT, chỉ số Cạn Kiệt Xu Hướng" },
+      { text: "Khuyến nghị cổ phiếu từ AI Broker" },
+      { text: "Nhật Ký Giao Dịch, AI Phân tích & Cơ cấu danh mục" },
+      { text: "Chỉ báo Cạn Kiệt Xu Hướng cho từng mã riêng lẻ" },
+      { text: "AI Broker cảnh báo Real-time (Mua/Bán/Đi vốn)" },
+      { text: "Nhận Report Weekly sớm nhất" },
+      { text: "Hỗ trợ tư vấn 1-1 từ ADN Capital" },
+      { text: "Tham gia room nhận tín hiệu Telegram" },
     ],
     cta: "Tiết Kiệm Nhiều Nhất",
   },
@@ -347,10 +372,14 @@ export function PricingClient() {
 
               {/* Features */}
               <ul className="space-y-2 flex-1 mb-6">
-                {plan.features.map((feature) => (
-                  <li key={feature} className="flex items-start gap-2 text-xs text-neutral-300">
-                    <Check className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0 mt-0.5" />
-                    {feature}
+                {plan.features.map((feat) => (
+                  <li key={feat.text} className={`flex items-start gap-2 text-xs ${feat.locked ? "opacity-50" : ""}`}>
+                    {feat.locked ? (
+                      <Lock className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-slate-500" />
+                    ) : (
+                      <Check className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0 mt-0.5" />
+                    )}
+                    <span className={feat.locked ? "text-slate-500" : "text-neutral-300"}>{feat.text}</span>
                   </li>
                 ))}
               </ul>

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { motion } from "framer-motion";
-import { Check, Crown, Zap, Star, Shield, Gift, Sparkles, ExternalLink, Clock } from "lucide-react";
+import { Check, Crown, Zap, Star, Shield, Gift, Sparkles, ExternalLink, Clock, Lock } from "lucide-react";
 import { useTheme } from "@/components/providers/ThemeProvider";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -18,7 +18,7 @@ interface PricingPlan {
   price: number;        // giá thường (VND)
   dnsePrice: number;    // giá DNSE (VND)
   discountPct: number;  // % chiết khấu DNSE
-  features: string[];
+  features: { text: string; locked?: boolean }[];
   icon: React.ReactNode;
   accent: "sky" | "blue" | "emerald" | "purple";
   ribbon?: string;      // dải băng đặc biệt
@@ -35,10 +35,17 @@ const plans: PricingPlan[] = [
     icon: <Zap className="w-5 h-5" />,
     accent: "sky",
     features: [
-      "Hệ thống AI tư vấn mạnh mẽ 20 lượt/ngày",
-      "Nhận chỉ báo cập nhật hằng ngày",
-      "Theo dõi tin tức thị trường - liên thị trường",
-      "Tích hợp phân tích kỹ thuật, cơ bản",
+      { text: "Hệ thống AI tư vấn mạnh mẽ (20 lượt/ngày)" },
+      { text: "Cập nhật tin tức hằng ngày" },
+      { text: "Theo dõi sức mạnh TT, chỉ số Cạn Kiệt Xu Hướng" },
+      { text: "Khuyến nghị cổ phiếu từ AI Broker" },
+      { text: "Sở hữu Nhật Ký Giao Dịch theo dõi hành trình" },
+      { text: "Nhật Ký AI: Phân tích tâm lý & Cơ cấu danh mục", locked: true },
+      { text: "Chỉ báo Cạn Kiệt Xu Hướng cho từng mã riêng lẻ", locked: true },
+      { text: "AI Broker cảnh báo Real-time (Mua/Bán/Đi vốn)", locked: true },
+      { text: "Nhận Report Weekly từ hệ thống ADN", locked: true },
+      { text: "Hỗ trợ tư vấn 1-1 từ ADN Capital", locked: true },
+      { text: "Tham gia room nhận tín hiệu Telegram", locked: true },
     ],
   },
   {
@@ -51,10 +58,17 @@ const plans: PricingPlan[] = [
     icon: <Star className="w-5 h-5" />,
     accent: "blue",
     features: [
-      "Hệ thống AI tư vấn mạnh mẽ 30 lượt/ngày",
-      "Nhận chỉ báo cập nhật hằng ngày",
-      "Theo dõi tin tức thị trường - liên thị trường",
-      "Tích hợp phân tích kỹ thuật, cơ bản",
+      { text: "Hệ thống AI tư vấn mạnh mẽ (30 lượt/ngày)" },
+      { text: "Cập nhật tin tức hằng ngày" },
+      { text: "Theo dõi sức mạnh TT, chỉ số Cạn Kiệt Xu Hướng" },
+      { text: "Khuyến nghị cổ phiếu từ AI Broker" },
+      { text: "Sở hữu Nhật Ký Giao Dịch theo dõi hành trình" },
+      { text: "Nhật Ký AI: Phân tích tâm lý & Cơ cấu danh mục", locked: true },
+      { text: "Chỉ báo Cạn Kiệt Xu Hướng cho từng mã riêng lẻ", locked: true },
+      { text: "AI Broker cảnh báo Real-time (Mua/Bán/Đi vốn)", locked: true },
+      { text: "Nhận Report Weekly từ hệ thống ADN", locked: true },
+      { text: "Hỗ trợ tư vấn 1-1 từ ADN Capital", locked: true },
+      { text: "Tham gia room nhận tín hiệu Telegram", locked: true },
     ],
   },
   {
@@ -68,11 +82,16 @@ const plans: PricingPlan[] = [
     accent: "emerald",
     ribbon: "Bán chạy nhất",
     features: [
-      "Hệ thống AI tư vấn mạnh mẽ không giới hạn",
-      "Nhận chỉ báo cập nhật hằng ngày",
-      "Theo dõi tin tức thị trường - liên thị trường",
-      "Tích hợp phân tích kỹ thuật, cơ bản",
-      "Kiểm tra lịch sử tín hiệu 30 ngày",
+      { text: "Hệ thống AI tư vấn mạnh mẽ (Không giới hạn)" },
+      { text: "Cập nhật tin tức hằng ngày" },
+      { text: "Theo dõi sức mạnh TT, chỉ số Cạn Kiệt Xu Hướng" },
+      { text: "Khuyến nghị cổ phiếu từ AI Broker" },
+      { text: "Nhật Ký Giao Dịch, AI Phân tích & Cơ cấu danh mục" },
+      { text: "Chỉ báo Cạn Kiệt Xu Hướng cho từng mã riêng lẻ" },
+      { text: "AI Broker cảnh báo Real-time (Mua/Bán/Đi vốn)" },
+      { text: "Nhận Report Weekly từ hệ thống ADN" },
+      { text: "Hỗ trợ tư vấn 1-1 từ ADN Capital", locked: true },
+      { text: "Tham gia room nhận tín hiệu Telegram", locked: true },
     ],
   },
   {
@@ -86,14 +105,16 @@ const plans: PricingPlan[] = [
     accent: "purple",
     ribbon: "Tiết kiệm nhất",
     features: [
-      "Hệ thống AI tư vấn mạnh mẽ không giới hạn",
-      "Nhận chỉ báo cập nhật hằng ngày",
-      "Theo dõi tin tức thị trường - liên thị trường",
-      "Tích hợp phân tích kỹ thuật, cơ bản",
-      "Kiểm tra lịch sử tín hiệu 30 ngày",
-      "Hỗ trợ tư vấn 1-1 từ đội ngũ ADN Capital",
-      "Nhận Report Weekly sớm nhất",
-      "Tín hiệu Telegram",
+      { text: "Hệ thống AI tư vấn mạnh mẽ (Không giới hạn)" },
+      { text: "Cập nhật tin tức hằng ngày" },
+      { text: "Theo dõi sức mạnh TT, chỉ số Cạn Kiệt Xu Hướng" },
+      { text: "Khuyến nghị cổ phiếu từ AI Broker" },
+      { text: "Nhật Ký Giao Dịch, AI Phân tích & Cơ cấu danh mục" },
+      { text: "Chỉ báo Cạn Kiệt Xu Hướng cho từng mã riêng lẻ" },
+      { text: "AI Broker cảnh báo Real-time (Mua/Bán/Đi vốn)" },
+      { text: "Nhận Report Weekly sớm nhất" },
+      { text: "Hỗ trợ tư vấn 1-1 từ ADN Capital" },
+      { text: "Tham gia room nhận tín hiệu Telegram" },
     ],
   },
 ];
@@ -549,9 +570,15 @@ function PricingCard({
       {/* ── Features ──────────────────────────────────────────────── */}
       <ul className="space-y-3 mb-8 flex-1">
         {plan.features.map((feat) => (
-          <li key={feat} className="flex items-start gap-2.5 text-sm">
-            <Check className={`w-4 h-4 mt-0.5 shrink-0 ${t.iconText}`} />
-            <span className={`${isDark ? "text-white/60" : "text-slate-600"}`}>{feat}</span>
+          <li key={feat.text} className={`flex items-start gap-2.5 text-sm ${feat.locked ? "opacity-50" : ""}`}>
+            {feat.locked ? (
+              <Lock className="w-4 h-4 mt-0.5 shrink-0 text-slate-500" />
+            ) : (
+              <Check className={`w-4 h-4 mt-0.5 shrink-0 ${t.iconText}`} />
+            )}
+            <span className={feat.locked ? "text-slate-500" : isDark ? "text-white/60" : "text-slate-600"}>
+              {feat.text}
+            </span>
           </li>
         ))}
       </ul>

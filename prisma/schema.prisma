@@ -282,3 +282,19 @@ model AvatarUpload {
 
   @@index([userId, createdAt])
 }
+
+// ═══════════════════════════════════════════════════════════════════
+//  CHANGELOG — Lịch sử chỉnh sửa hệ thống
+// ═══════════════════════════════════════════════════════════════════
+
+model Changelog {
+  id          String   @id @default(cuid())
+  component   String   // PricingSection, SignalMap, ...
+  action      String   // UPDATE_FEATURES, ADD_PLAN, ...
+  description String   // Mô tả chi tiết thay đổi
+  diff        String?  // JSON diff / notes
+  author      String   @default("system")
+  createdAt   DateTime @default(now())
+
+  @@index([component, createdAt])
+}
