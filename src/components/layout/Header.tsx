@@ -28,6 +28,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Crown,
+  Newspaper,
 } from "lucide-react";
 import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 import { useTheme } from "@/components/providers/ThemeProvider";
@@ -40,6 +41,7 @@ interface MenuItem {
   icon: React.ComponentType<{ className?: string }>;
   external?: boolean;
   badge?: string;
+  roles?: string[];
 }
 interface MenuSection {
   title: string;
@@ -62,6 +64,7 @@ const menuSections: MenuSection[] = [
       { href: "/tei", label: "Chỉ báo TEI", icon: Activity, badge: "MỚI" },
       { href: "/terminal", label: "Tư vấn đầu tư", icon: MessageSquare },
       { href: "/dashboard/signal-map", label: "Tín Hiệu", icon: Zap },
+      { href: "/khac/tin-tuc", label: "Tin Tức", icon: Newspaper, badge: "BETA", roles: ["ADMIN", "WRITER"] },
     ],
   },
   {
@@ -195,6 +198,7 @@ export function Header() {
                 )}
                 <div className="space-y-0.5">
                   {section.items.map((item) => {
+                    if (item.roles && !item.roles.includes(dbUser?.systemRole ?? "")) return null;
                     const Icon = item.icon;
                     const active = isActive(item.href);
 
