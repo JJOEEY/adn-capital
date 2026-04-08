@@ -1,7 +1,7 @@
 ﻿"use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, useCallback, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
@@ -21,6 +21,7 @@ import {
   Clock,
   CreditCard,
   Crown,
+  BookOpen,
 } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -51,7 +52,7 @@ interface UserRow {
   createdAt: string;
 }
 
-type Tab = "registrations" | "users" | "margin";
+type Tab = "registrations" | "users" | "margin" | "journals";
 
 interface MarginRow {
   id: string;
@@ -77,10 +78,26 @@ const VIP_PRESETS = [
 ] as const;
 
 export default function AdminPage() {
+  return (
+    <Suspense fallback={
+      <MainLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <RefreshCw className="w-6 h-6 animate-spin text-neutral-600" />
+        </div>
+      </MainLayout>
+    }>
+      <AdminPageInner />
+    </Suspense>
+  );
+}
+
+function AdminPageInner() {
   const { status } = useSession();
   const { isAdmin, isLoading: userLoading } = useCurrentDbUser();
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("users");
+  const searchParams = useSearchParams();
+  const initialTab = (searchParams.get("tab") as Tab) || "users";
+  const [tab, setTab] = useState<Tab>(initialTab);
   const { theme } = useTheme();
   const isDark = theme === "dark";
 
@@ -154,11 +171,23 @@ export default function AdminPage() {
             <Crown className="w-3.5 h-3.5" />
             Tư Vấn Margin
           </button>
+          <button
+            onClick={() => setTab("journals")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              tab === "journals"
+                ? "bg-blue-500/15 text-blue-400 border border-blue-500/25"
+                : isDark ? "text-neutral-500 hover:text-white" : "text-slate-500 hover:text-slate-900"
+            }`}
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            Nhật Ký KH
+          </button>
         </div>
 
         {tab === "users" && <UsersTab />}
         {tab === "registrations" && <RegistrationsTab />}
         {tab === "margin" && <MarginTab />}
+        {tab === "journals" && <JournalsTab />}
       </div>
     </MainLayout>
   );
@@ -1056,6 +1085,215 @@ function MarginTab() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ *  TAB 4: NHẬT KÝ GIAO DỊCH KHÁCH HÀNG
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+interface JournalEntry {
+  id: string;
+  ticker: string;
+  action: "BUY" | "SELL";
+  price: number;
+  quantity: number;
+  psychology: string | null;
+  psychologyTag: string | null;
+  tradeReason: string | null;
+  tradeDate: string | null;
+  createdAt: string;
+  user: {
+    id: string;
+    name: string | null;
+    email: string;
+  };
+}
+
+function JournalsTab() {
+  const [entries, setEntries] = useState<JournalEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [filterUser, setFilterUser] = useState("");
+  const [filterTicker, setFilterTicker] = useState("");
+  const [users, setUsers] = useState<{ id: string; name: string | null; email: string }[]>([]);
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
+  const fetchJournals = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ page: String(page), limit: "30" });
+      if (filterUser) params.set("userId", filterUser);
+      if (filterTicker) params.set("ticker", filterTicker);
+      const res = await fetch(`/api/admin/journals?${params}`);
+      const data = await res.json();
+      setEntries(data.entries ?? []);
+      setTotal(data.total ?? 0);
+      if (data.users) setUsers(data.users);
+    } catch {
+      console.error("Failed to fetch journals");
+    } finally {
+      setLoading(false);
+    }
+  }, [page, filterUser, filterTicker]);
+
+  useEffect(() => {
+    fetchJournals();
+  }, [fetchJournals]);
+
+  const totalPages = Math.ceil(total / 30);
+
+  const fmtDate = (d: string | null) => {
+    if (!d) return "—";
+    return new Date(d).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
+  };
+
+  const fmtPrice = (p: number) =>
+    new Intl.NumberFormat("vi-VN").format(p);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className={`text-lg font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
+          Nhật ký giao dịch khách hàng
+        </h2>
+        <span className={`text-xs ${isDark ? "text-neutral-500" : "text-slate-400"}`}>
+          {total} bản ghi
+        </span>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3">
+        <select
+          value={filterUser}
+          onChange={(e) => { setFilterUser(e.target.value); setPage(1); }}
+          className={`px-3 py-1.5 rounded-lg border text-xs ${
+            isDark ? "bg-white/[0.06] border-white/[0.1] text-white" : "bg-white border-slate-200 text-slate-900"
+          }`}
+        >
+          <option value="">Tất cả khách hàng</option>
+          {users.map((u) => (
+            <option key={u.id} value={u.id}>{u.name || u.email}</option>
+          ))}
+        </select>
+        <div className="flex items-center gap-2">
+          <Search className={`w-3.5 h-3.5 ${isDark ? "text-neutral-500" : "text-slate-400"}`} />
+          <input
+            type="text"
+            placeholder="Lọc mã CK..."
+            value={filterTicker}
+            onChange={(e) => { setFilterTicker(e.target.value.toUpperCase()); setPage(1); }}
+            className={`px-3 py-1.5 rounded-lg border text-xs w-32 ${
+              isDark ? "bg-white/[0.06] border-white/[0.1] text-white placeholder-neutral-600" : "bg-white border-slate-200 text-slate-900 placeholder-slate-400"
+            }`}
+          />
+        </div>
+        <button
+          onClick={fetchJournals}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold hover:bg-blue-500/20 transition-all cursor-pointer"
+        >
+          <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
+          Làm mới
+        </button>
+      </div>
+
+      {/* Table */}
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <RefreshCw className="w-5 h-5 text-neutral-500 animate-spin" />
+        </div>
+      ) : entries.length === 0 ? (
+        <p className={`text-sm text-center py-12 ${isDark ? "text-neutral-500" : "text-slate-400"}`}>
+          Không có nhật ký nào.
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className={`border-b ${isDark ? "border-white/[0.06]" : "border-slate-200"}`}>
+                <th className={`text-left py-2 px-3 font-bold ${isDark ? "text-neutral-400" : "text-slate-500"}`}>Ngày</th>
+                <th className={`text-left py-2 px-3 font-bold ${isDark ? "text-neutral-400" : "text-slate-500"}`}>Khách hàng</th>
+                <th className={`text-left py-2 px-3 font-bold ${isDark ? "text-neutral-400" : "text-slate-500"}`}>Mã CK</th>
+                <th className={`text-center py-2 px-3 font-bold ${isDark ? "text-neutral-400" : "text-slate-500"}`}>Lệnh</th>
+                <th className={`text-right py-2 px-3 font-bold ${isDark ? "text-neutral-400" : "text-slate-500"}`}>Giá</th>
+                <th className={`text-right py-2 px-3 font-bold ${isDark ? "text-neutral-400" : "text-slate-500"}`}>KL</th>
+                <th className={`text-right py-2 px-3 font-bold ${isDark ? "text-neutral-400" : "text-slate-500"}`}>Giá trị</th>
+                <th className={`text-left py-2 px-3 font-bold ${isDark ? "text-neutral-400" : "text-slate-500"}`}>Tâm lý</th>
+                <th className={`text-left py-2 px-3 font-bold ${isDark ? "text-neutral-400" : "text-slate-500"}`}>Lý do</th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((e) => (
+                <tr key={e.id} className={`border-b ${isDark ? "border-white/[0.04] hover:bg-white/[0.02]" : "border-slate-100 hover:bg-slate-50"}`}>
+                  <td className={`py-2 px-3 ${isDark ? "text-neutral-300" : "text-slate-700"}`}>{fmtDate(e.tradeDate || e.createdAt)}</td>
+                  <td className="py-2 px-3">
+                    <div>
+                      <span className={`font-medium ${isDark ? "text-white" : "text-slate-900"}`}>{e.user.name || "—"}</span>
+                      <span className={`block text-[11px] ${isDark ? "text-neutral-500" : "text-slate-400"}`}>{e.user.email}</span>
+                    </div>
+                  </td>
+                  <td className={`py-2 px-3 font-bold ${isDark ? "text-white" : "text-slate-900"}`}>{e.ticker}</td>
+                  <td className="py-2 px-3 text-center">
+                    <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-bold ${
+                      e.action === "BUY"
+                        ? "bg-emerald-500/15 text-emerald-400"
+                        : "bg-red-500/15 text-red-400"
+                    }`}>
+                      {e.action === "BUY" ? "MUA" : "BÁN"}
+                    </span>
+                  </td>
+                  <td className={`py-2 px-3 text-right ${isDark ? "text-neutral-300" : "text-slate-700"}`}>{fmtPrice(e.price)}</td>
+                  <td className={`py-2 px-3 text-right ${isDark ? "text-neutral-300" : "text-slate-700"}`}>{fmtPrice(e.quantity)}</td>
+                  <td className={`py-2 px-3 text-right font-medium ${isDark ? "text-neutral-200" : "text-slate-800"}`}>
+                    {fmtPrice(e.price * e.quantity)}
+                  </td>
+                  <td className="py-2 px-3">
+                    {e.psychologyTag && (
+                      <span className={`inline-block px-1.5 py-0.5 rounded text-[11px] ${isDark ? "bg-white/[0.06] text-neutral-300" : "bg-slate-100 text-slate-600"}`}>
+                        {e.psychologyTag}
+                      </span>
+                    )}
+                  </td>
+                  <td className={`py-2 px-3 max-w-[200px] truncate ${isDark ? "text-neutral-400" : "text-slate-500"}`}>
+                    {e.tradeReason || "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 pt-2">
+          <button
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page <= 1}
+            className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer disabled:opacity-30 ${
+              isDark ? "bg-white/[0.06] text-white hover:bg-white/[0.1]" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+            }`}
+          >
+            ← Trước
+          </button>
+          <span className={`text-xs ${isDark ? "text-neutral-400" : "text-slate-500"}`}>
+            {page} / {totalPages}
+          </span>
+          <button
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page >= totalPages}
+            className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer disabled:opacity-30 ${
+              isDark ? "bg-white/[0.06] text-white hover:bg-white/[0.1]" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+            }`}
+          >
+            Tiếp →
+          </button>
         </div>
       )}
     </div>

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
@@ -27,11 +27,11 @@ import {
 } from "lucide-react";
 import { useTheme } from "@/components/providers/ThemeProvider";
 
-/* ---------------------------------------------------------------------------
- *  LANDING PAGE � Ryza-inspired Full-scroll Sale Funnel
- *  Hero ? Indicators ? Performance ? Services ? Process ? Testimonials ?
- *  Pricing ? Course ? FAQ ? CTA
- * --------------------------------------------------------------------------- */
+/* ═══════════════════════════════════════════════════════════════════════════
+ *  LANDING PAGE — Ryza-inspired Full-scroll Sale Funnel
+ *  Hero → Indicators → Performance → Services → Process → Testimonials →
+ *  Pricing → Course → FAQ → CTA
+ * ═══════════════════════════════════════════════════════════════════════════ */
 
 export default function HomePage() {
   return (
@@ -52,9 +52,9 @@ export default function HomePage() {
   );
 }
 
-/* ---------------------------------------------------------------------------
+/* ═══════════════════════════════════════════════════════════════════════════
  *  Animated counter hook
- * --------------------------------------------------------------------------- */
+ * ═══════════════════════════════════════════════════════════════════════════ */
 function useCountUp(end: number, duration = 2000, start = 0) {
   const [count, setCount] = useState(start);
   const ref = useRef<HTMLDivElement>(null);
@@ -75,9 +75,9 @@ function useCountUp(end: number, duration = 2000, start = 0) {
   return { count, ref };
 }
 
-/* ---------------------------------------------------------------------------
- *  Section fade-in wrapper � Cronza-style smooth scroll reveal
- * --------------------------------------------------------------------------- */
+/* ═══════════════════════════════════════════════════════════════════════════
+ *  Section fade‑in wrapper — Cronza-style smooth scroll reveal
+ * ═══════════════════════════════════════════════════════════════════════════ */
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, margin: "-80px" });
@@ -94,9 +94,9 @@ function FadeIn({ children, className = "", delay = 0 }: { children: React.React
   );
 }
 
-/* ---------------------------------------------------------------------------
- *  HERO � Ryza-style bold typography + stats row
- * --------------------------------------------------------------------------- */
+/* ═══════════════════════════════════════════════════════════════════════════
+ *  HERO — Ryza-style bold typography + stats row
+ * ═══════════════════════════════════════════════════════════════════════════ */
 function HeroSection() {
   const { theme } = useTheme();
   const isDark = theme === "dark";
@@ -131,12 +131,12 @@ function HeroSection() {
               isDark ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" : "text-emerald-600 bg-emerald-50 border-emerald-200"
             }`}>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              ADN CAPITAL � Quant Trading System
+              ADN CAPITAL · Quant Trading System
             </span>
           </div>
         </FadeIn>
 
-        {/* Main headline � Cronza-style word-by-word reveal */}
+        {/* Main headline — Cronza-style word-by-word reveal */}
         <motion.h1
           className="text-center perspective-[800px]"
           variants={wordContainer}
@@ -144,7 +144,7 @@ function HeroSection() {
           animate="visible"
         >
           <span className="block">
-            {["�?U", "TU", "C�NG"].map((word, i) => (
+            {["ĐẦU", "TƯ", "CÙNG"].map((word, i) => (
               <motion.span
                 key={i}
                 variants={wordChild}
@@ -157,7 +157,7 @@ function HeroSection() {
             ))}
           </span>
           <span className="block mt-1">
-            {["H?", "TH?NG", "ADN"].map((word, i) => (
+            {["HỆ", "THỐNG", "ADN"].map((word, i) => (
               <motion.span
                 key={i}
                 variants={wordChild}
@@ -174,8 +174,8 @@ function HeroSection() {
           <p className={`text-center text-base sm:text-lg lg:text-xl max-w-2xl mx-auto mt-6 leading-relaxed ${
             isDark ? "text-white/50" : "text-slate-500"
           }`}>
-            H? th?ng giao d?ch thu?t to�n k?t h?p AI � T? d?ng qu�t t�n hi?u,
-            qu?n tr? r?i ro v� b?o v? danh m?c 24/7.
+            Hệ thống giao dịch thuật toán kết hợp AI — Tự động quét tín hiệu,
+            quản trị rủi ro và bảo vệ danh mục 24/7.
           </p>
         </FadeIn>
 
@@ -189,7 +189,7 @@ function HeroSection() {
               className="group flex items-center gap-2 px-7 py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-sm transition-all hover:scale-[1.03] active:scale-[0.97] shadow-[0_0_30px_-5px_rgba(16,185,129,0.3)]"
             >
               <UserPlus className="w-4 h-4" />
-              M? T�i Kho?n Ngay
+              Mở Tài Khoản Ngay
               <ArrowUpRight className="w-4 h-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
             </a>
             <Link
@@ -201,7 +201,7 @@ function HeroSection() {
               }`}
             >
               <BarChart3 className="w-4 h-4" />
-              Xem L?ch S? L?i Nhu?n
+              Xem Lịch Sử Lợi Nhuận
               <ChevronRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
             </Link>
           </div>
@@ -211,9 +211,9 @@ function HeroSection() {
   );
 }
 
-/* ---------------------------------------------------------------------------
- *  INDICATOR BANNER � Ryza-style animated counters
- * --------------------------------------------------------------------------- */
+/* ═══════════════════════════════════════════════════════════════════════════
+ *  INDICATOR BANNER — Ryza-style animated counters
+ * ═══════════════════════════════════════════════════════════════════════════ */
 function IndicatorBanner() {
   const { theme } = useTheme();
   const isDark = theme === "dark";
@@ -223,9 +223,9 @@ function IndicatorBanner() {
   const c3 = useCountUp(98, 2000);
 
   const stats = [
-    { ref: c1.ref, val: `${c1.count}+`, label: "T�n hi?u d� x�c nh?n th�nh c�ng" },
-    { ref: c2.ref, val: `${c2.count}K`, label: "Lu?t truy c?p & s? d?ng h? th?ng" },
-    { ref: c3.ref, val: `${c3.count}%`, label: "T? l? h�i l�ng t? kh�ch h�ng" },
+    { ref: c1.ref, val: `${c1.count}+`, label: "Tín hiệu đã xác nhận thành công" },
+    { ref: c2.ref, val: `${c2.count}K`, label: "Lượt truy cập & sử dụng hệ thống" },
+    { ref: c3.ref, val: `${c3.count}%`, label: "Tỷ lệ hài lòng từ khách hàng" },
   ];
 
   return (
@@ -242,9 +242,9 @@ function IndicatorBanner() {
   );
 }
 
-/* ---------------------------------------------------------------------------
- *  PERFORMANCE � Track Record with backtest data (kept from original)
- * --------------------------------------------------------------------------- */
+/* ═══════════════════════════════════════════════════════════════════════════
+ *  PERFORMANCE — Track Record with backtest data (kept from original)
+ * ═══════════════════════════════════════════════════════════════════════════ */
 interface BacktestSnapshot {
   generated_at: string;
   period: string;
@@ -272,23 +272,23 @@ function PerformanceSection() {
   }, []);
 
   const kpi = snapshot?.kpi;
-  const period = snapshot ? `${snapshot.start_year}�${snapshot.end_year}` : "...";
+  const period = snapshot ? `${snapshot.start_year}–${snapshot.end_year}` : "...";
   const years = snapshot ? snapshot.end_year - snapshot.start_year : 0;
 
   const cards = [
     {
-      label: "L?i Nhu?n T�ch Luy",
-      value: kpi ? `+${kpi.total_return.toFixed(0)}%` : "�",
-      sub: `Giai do?n ${period}${years ? ` (${years} nam)` : ""}`,
+      label: "Lợi Nhuận Tích Lũy",
+      value: kpi ? `+${kpi.total_return.toFixed(0)}%` : "—",
+      sub: `Giai đoạn ${period}${years ? ` (${years} năm)` : ""}`,
       Icon: TrendingUp,
       color: "text-emerald-400",
       border: isDark ? "border-emerald-500/20" : "border-emerald-300/40",
       bg: isDark ? "bg-emerald-500/[0.04]" : "bg-emerald-50/60",
     },
     {
-      label: "Nh�n V?n",
-      value: kpi ? `x${kpi.multiplier.toFixed(1)}` : "�",
-      sub: "S? l?n nh�n t�i kho?n (l�i k�p)",
+      label: "Nhân Vốn",
+      value: kpi ? `x${kpi.multiplier.toFixed(1)}` : "—",
+      sub: "Số lần nhân tài khoản (lãi kép)",
       Icon: Rocket,
       color: "text-amber-400",
       border: isDark ? "border-amber-500/20" : "border-amber-300/40",
@@ -296,8 +296,8 @@ function PerformanceSection() {
     },
     {
       label: "Win Rate",
-      value: kpi ? `${kpi.win_rate.toFixed(0)}%` : "�",
-      sub: "T? l? t�n hi?u ch�nh x�c",
+      value: kpi ? `${kpi.win_rate.toFixed(0)}%` : "—",
+      sub: "Tỷ lệ tín hiệu chính xác",
       Icon: Zap,
       color: "text-purple-400",
       border: isDark ? "border-purple-500/20" : "border-purple-300/40",
@@ -314,13 +314,13 @@ function PerformanceSection() {
               Track Record
             </span>
             <h2 className={`text-3xl sm:text-4xl lg:text-5xl font-black mt-3 ${isDark ? "text-white" : "text-slate-900"}`}>
-              Hi?u su?t{" "}
+              Hiệu suất{" "}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">
-                th?c chi?n
+                thực chiến
               </span>
             </h2>
             <p className={`text-sm mt-3 max-w-lg mx-auto ${isDark ? "text-white/40" : "text-slate-500"}`}>
-              K?t qu? backtest t? 2015 d?n 2025 theo c�ng th?c c?a ADN Capital
+              Kết quả backtest từ 2015 đến 2025 theo công thức của ADN Capital
             </p>
           </div>
         </FadeIn>
@@ -342,14 +342,14 @@ function PerformanceSection() {
           <div className="text-center">
             <Link href="/backtest"
               className="inline-flex items-center gap-2 text-sm text-emerald-400 hover:text-emerald-300 font-medium transition-colors">
-              Tr?i nghi?m Backtest �?ng <ArrowRight className="w-4 h-4" />
+              Trải nghiệm Backtest Động <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
         </FadeIn>
 
         {snapshot?.generated_at && (
           <p className={`text-[11px] text-center mt-4 ${isDark ? "text-white/20" : "text-slate-400"}`}>
-            D? li?u du?c c?p nh?t t? d?ng v�o 00:00 ng�y {snapshot.generated_at.split(" ")[0]}
+            Dữ liệu được cập nhật tự động vào 00:00 ngày {snapshot.generated_at.split(" ")[0]}
           </p>
         )}
       </div>
@@ -357,20 +357,20 @@ function PerformanceSection() {
   );
 }
 
-/* ---------------------------------------------------------------------------
- *  SERVICES � San Pham content (moved from /san-pham)
- * --------------------------------------------------------------------------- */
+/* ═══════════════════════════════════════════════════════════════════════════
+ *  SERVICES — San Pham content (moved from /san-pham)
+ * ═══════════════════════════════════════════════════════════════════════════ */
 const services = [
   {
     href: "/tei",
     icon: TrendingUp,
     iconColor: "text-blue-400",
     gradientFrom: "from-blue-500/10",
-    badge: "M?I",
-    title: "Ch? b�o TEI",
-    subtitle: "Ch? b�o c?n ki?t xu hu?ng",
-    desc: "�o lu?ng m?c d? c?n ki?t xu hu?ng th? tru?ng theo di?n bi?n gi�. X�c d?nh khi n�o xu hu?ng tang/gi?m s?p d?o chi?u.",
-    features: ["Gauge tr?c quan 0�5 di?m", "Bi?u d? l?ch s? TEI + MA7", "H? tr? m?i m� CK & ch? s?", "C?p nh?t theo phi�n giao d?ch"],
+    badge: "MỚI",
+    title: "Chỉ báo TEI",
+    subtitle: "Chỉ báo cạn kiệt xu hướng",
+    desc: "Đo lường mức độ cạn kiệt xu hướng thị trường theo diễn biến giá. Xác định khi nào xu hướng tăng/giảm sắp đảo chiều.",
+    features: ["Gauge trực quan 0–5 điểm", "Biểu đồ lịch sử TEI + MA7", "Hỗ trợ mọi mã CK & chỉ số", "Cập nhật theo phiên giao dịch"],
   },
   {
     href: "/terminal",
@@ -379,9 +379,9 @@ const services = [
     gradientFrom: "from-emerald-500/10",
     badge: "HOT",
     title: "Chat AI",
-    subtitle: "Tr? l� d?u tu th�ng minh",
-    desc: "H?i d�p ph�n t�ch k? thu?t, co b?n, vi m� v?i AI chuy�n s�u v? th? tru?ng ch?ng kho�n Vi?t Nam.",
-    features: ["Ph�n t�ch k? thu?t theo y�u c?u", "T�m t?t b�o c�o t�i ch�nh", "Market sentiment & vi m�", "Lu?n di?m Long / Short"],
+    subtitle: "Trợ lý đầu tư thông minh",
+    desc: "Hỏi đáp phân tích kỹ thuật, cơ bản, vĩ mô với AI chuyên sâu về thị trường chứng khoán Việt Nam.",
+    features: ["Phân tích kỹ thuật theo yêu cầu", "Tóm tắt báo cáo tài chính", "Market sentiment & vĩ mô", "Luận điểm Long / Short"],
   },
   {
     href: "/dashboard/signal-map",
@@ -390,9 +390,9 @@ const services = [
     gradientFrom: "from-yellow-500/10",
     badge: null,
     title: "ADN AI Broker",
-    subtitle: "Tr? l� d?ng h�nh khuy?n ngh? d?u tu",
-    desc: "Nh?n t�n hi?u mua/b�n theo h? th?ng Quant Trading c?a ADN Capital � b? l?c da chi?u, t?i uu cho VN.",
-    features: ["T�n hi?u mua/b�n t? d?ng", "B? l?c Volume & RS c�ng l�c", "L?ch s? t�n hi?u d?y d?", "Th�ng b�o theo th?i gian th?c"],
+    subtitle: "Trợ lý đồng hành khuyến nghị đầu tư",
+    desc: "Nhận tín hiệu mua/bán theo hệ thống Quant Trading của ADN Capital — bộ lọc đa chiều, tối ưu cho VN.",
+    features: ["Tín hiệu mua/bán tự động", "Bộ lọc Volume & RS cùng lúc", "Lịch sử tín hiệu đầy đủ", "Thông báo theo thời gian thực"],
   },
 ];
 
@@ -416,13 +416,13 @@ function ServicesSection() {
               Platform
             </span>
             <h2 className={`text-3xl sm:text-4xl lg:text-5xl font-black mt-3 ${isDark ? "text-white" : "text-slate-900"}`}>
-              S?n ph?m &{" "}
+              Sản phẩm &{" "}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
-                D?ch v?
+                Dịch vụ
               </span>
             </h2>
             <p className={`text-sm mt-3 max-w-lg mx-auto ${isDark ? "text-white/40" : "text-slate-500"}`}>
-              H? sinh th�i c�ng c? d?u tu ch?ng kho�n to�n di?n � t? ph�n t�ch k? thu?t, AI h? tr? d?n t�n hi?u giao d?ch.
+              Hệ sinh thái công cụ đầu tư chứng khoán toàn diện — từ phân tích kỹ thuật, AI hỗ trợ đến tín hiệu giao dịch.
             </p>
           </div>
         </FadeIn>
@@ -571,14 +571,14 @@ function ServicesSection() {
               <TrendingUp className="w-5 h-5 text-emerald-400" />
             </div>
             <div className="flex-1">
-              <h3 className={`text-sm font-black mb-0.5 ${isDark ? "text-white" : "text-slate-900"}`}>K� Qu? Margin</h3>
+              <h3 className={`text-sm font-black mb-0.5 ${isDark ? "text-white" : "text-slate-900"}`}>Ký Quỹ Margin</h3>
               <p className={`text-xs ${isDark ? "text-white/40" : "text-slate-500"}`}>
-                L�i su?t t? 5,99%/nam � Tu v?n mi?n ph�, ph?n h?i trong 2 gi?.
+                Lãi suất từ 5,99%/năm — Tư vấn miễn phí, phản hồi trong 2 giờ.
               </p>
             </div>
             <Link href="/margin">
               <button className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-black transition-all cursor-pointer">
-                �ang k� tu v?n <ArrowRight className="w-3 h-3" />
+                Đăng ký tư vấn <ArrowRight className="w-3 h-3" />
               </button>
             </Link>
           </div>
@@ -588,28 +588,28 @@ function ServicesSection() {
   );
 }
 
-/* ---------------------------------------------------------------------------
- *  PROCESS � Cronza-style hexagon connected flow
- * --------------------------------------------------------------------------- */
+/* ═══════════════════════════════════════════════════════════════════════════
+ *  PROCESS — Cronza-style hexagon connected flow
+ * ═══════════════════════════════════════════════════════════════════════════ */
 const STEPS = [
   {
     step: "01",
-    title: "�ang k� t�i kho?n",
-    desc: "M? t�i kho?n ch?ng kho�n mi?n ph� qua link gi?i thi?u c?a ADN Capital. Ph� giao d?ch uu d�i t? 0.15%.",
+    title: "Đăng ký tài khoản",
+    desc: "Mở tài khoản chứng khoán miễn phí qua link giới thiệu của ADN Capital. Phí giao dịch ưu đãi từ 0.15%.",
     Icon: UserPlus,
     color: "emerald",
   },
   {
     step: "02",
-    title: "K?t n?i h? th?ng",
-    desc: "�ang nh?p ADN Capital b?ng Google. H? th?ng t? d?ng k�ch ho?t g�i VIP khi x�c nh?n t�i kho?n.",
+    title: "Kết nối hệ thống",
+    desc: "Đăng nhập ADN Capital bằng Google. Hệ thống tự động kích hoạt gói VIP khi xác nhận tài khoản.",
     Icon: Rocket,
     color: "cyan",
   },
   {
     step: "03",
-    title: "Theo d�i t�n hi?u",
-    desc: "Nh?n t�n hi?u Mua/B�n d� du?c AI l?c. Dashboard hi?n th? C?u Dao T?ng, RS Rating, v� Market Score realtime.",
+    title: "Theo dõi tín hiệu",
+    desc: "Nhận tín hiệu Mua/Bán đã được AI lọc. Dashboard hiển thị Cầu Dao Tổng, RS Rating, và Market Score realtime.",
     Icon: BarChart3,
     color: "purple",
   },
@@ -652,9 +652,9 @@ function ProcessSection() {
               Process
             </span>
             <h2 className={`text-3xl sm:text-4xl lg:text-5xl font-black mt-3 ${isDark ? "text-white" : "text-slate-900"}`}>
-              Quy tr�nh{" "}
+              Quy trình{" "}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-emerald-400">
-                3 bu?c
+                3 bước
               </span>
             </h2>
           </div>
@@ -710,7 +710,7 @@ function ProcessSection() {
                           ? `bg-white/[0.04] backdrop-blur-xl ${c.border} group-hover:bg-white/[0.08] group-hover:${c.glow}`
                           : `bg-white/60 backdrop-blur-xl border-white/50 group-hover:bg-white/80`
                       }`}>
-                        {/* Step number � small badge */}
+                        {/* Step number — small badge */}
                         <div className={`absolute -top-2 -right-1 w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-black ${
                           isDark ? `bg-gradient-to-br ${c.gradient} text-black` : `bg-gradient-to-br ${c.gradient} text-white`
                         }`}>
@@ -751,10 +751,10 @@ function ProcessSection() {
               className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-sm transition-all hover:scale-105 shadow-[0_0_30px_-5px_rgba(16,185,129,0.3)]"
             >
               <UserPlus className="w-4 h-4" />
-              M? T�i Kho?n Ngay
+              Mở Tài Khoản Ngay
             </a>
             <p className={`text-[12px] mt-2 ${isDark ? "text-white/20" : "text-slate-400"}`}>
-              * Link gi?i thi?u DNSE � �?i t�c c?a ADN Capital
+              * Link giới thiệu DNSE — Đối tác của ADN Capital
             </p>
           </div>
         </FadeIn>
@@ -763,26 +763,26 @@ function ProcessSection() {
   );
 }
 
-/* ---------------------------------------------------------------------------
- *  TESTIMONIALS � Ryza "What People Say" style
- * --------------------------------------------------------------------------- */
+/* ═══════════════════════════════════════════════════════════════════════════
+ *  TESTIMONIALS — Ryza "What People Say" style
+ * ═══════════════════════════════════════════════════════════════════════════ */
 const testimonials = [
   {
-    name: "Anh Tu?n",
-    role: "Nh� d?u tu c� nh�n",
-    text: "H? th?ng ADN gi�p t�i ti?t ki?m h�ng gi? ph�n t�ch m?i ng�y. T�n hi?u ch�nh x�c, giao di?n d? d�ng.",
+    name: "Anh Tuấn",
+    role: "Nhà đầu tư cá nhân",
+    text: "Hệ thống ADN giúp tôi tiết kiệm hàng giờ phân tích mỗi ngày. Tín hiệu chính xác, giao diện dễ dùng.",
     rating: 5,
   },
   {
-    name: "Minh Nh?t",
+    name: "Minh Nhật",
     role: "Trader full-time",
-    text: "RS Rating v� b?n d? t�n hi?u l� hai c�ng c? t�i d�ng h�ng ng�y. T?i uu d�ng k? hi?u su?t d?u tu.",
+    text: "RS Rating và bản đồ tín hiệu là hai công cụ tôi dùng hàng ngày. Tối ưu đáng kể hiệu suất đầu tư.",
     rating: 5,
   },
   {
-    name: "B?o �n",
-    role: "Nh�n vi�n ng�n h�ng",
-    text: "Chat AI r?t ?n tu?ng � ph�n t�ch k? thu?t nhanh, ch�nh x�c. C?m gi�c nhu c� m?t tr? l� chuy�n nghi?p 24/7.",
+    name: "Bảo Ân",
+    role: "Nhân viên ngân hàng",
+    text: "Chat AI rất ấn tượng — phân tích kỹ thuật nhanh, chính xác. Cảm giác như có một trợ lý chuyên nghiệp 24/7.",
     rating: 5,
   },
 ];
@@ -800,9 +800,9 @@ function TestimonialSection() {
               Testimonials
             </span>
             <h2 className={`text-3xl sm:text-4xl lg:text-5xl font-black mt-3 ${isDark ? "text-white" : "text-slate-900"}`}>
-              Kh�ch h�ng{" "}
+              Khách hàng{" "}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
-                n�i g�
+                nói gì
               </span>
             </h2>
           </div>
@@ -847,9 +847,9 @@ function TestimonialSection() {
   );
 }
 
-/* ---------------------------------------------------------------------------
- *  COURSE � �ang k� kh�a h?c (kept from original)
- * --------------------------------------------------------------------------- */
+/* ═══════════════════════════════════════════════════════════════════════════
+ *  COURSE — Đăng ký khóa học (kept from original)
+ * ═══════════════════════════════════════════════════════════════════════════ */
 function CourseSection() {
   const { theme } = useTheme();
   const isDark = theme === "dark";
@@ -870,10 +870,10 @@ function CourseSection() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: name.trim(), zalo: zalo.trim() }),
       });
-      if (!res.ok) throw new Error("L?i dang k�");
+      if (!res.ok) throw new Error("Lỗi đăng ký");
       setDone(true);
     } catch {
-      setError("�ang k� th?t b?i, vui l�ng th? l?i.");
+      setError("Đăng ký thất bại, vui lòng thử lại.");
     } finally {
       setSubmitting(false);
     }
@@ -894,16 +894,16 @@ function CourseSection() {
               <div className="flex items-center gap-2 mb-3">
                 <BookOpen className="w-5 h-5 text-purple-400" />
                 <span className="text-[12px] font-bold text-purple-400 uppercase tracking-[0.2em]">
-                  Kh�a H?c
+                  Khóa Học
                 </span>
               </div>
 
               <h2 className={`text-xl sm:text-2xl font-black mb-2 ${isDark ? "text-white" : "text-slate-900"}`}>
-                Hi?u R� B?n Ch?t C?a �?u Tu
+                Hiểu Rõ Bản Chất Của Đầu Tư
               </h2>
               <p className={`text-sm leading-relaxed mb-6 ${isDark ? "text-white/50" : "text-slate-500"}`}>
-                Kh�a h?c to�n di?n v? giao d?ch th?c chi?n � n?m b?t co h?i d?u tu t? con s? 0,
-                qu?n tr? r?i ro v� x�y d?ng danh m?c.
+                Khóa học toàn diện về giao dịch thực chiến — nắm bắt cơ hội đầu tư từ con số 0,
+                quản trị rủi ro và xây dựng danh mục.
               </p>
 
               {done ? (
@@ -912,14 +912,14 @@ function CourseSection() {
                 }`}>
                   <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
                   <div>
-                    <p className="text-sm font-bold text-emerald-400">�ang k� th�nh c�ng!</p>
-                    <p className={`text-xs ${isDark ? "text-white/40" : "text-slate-500"}`}>Admin s? li�n h? qua Zalo trong 24h.</p>
+                    <p className="text-sm font-bold text-emerald-400">Đăng ký thành công!</p>
+                    <p className={`text-xs ${isDark ? "text-white/40" : "text-slate-500"}`}>Admin sẽ liên hệ qua Zalo trong 24h.</p>
                   </div>
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-3">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <input type="text" placeholder="H? v� t�n" value={name} onChange={(e) => setName(e.target.value)}
+                    <input type="text" placeholder="Họ và tên" value={name} onChange={(e) => setName(e.target.value)}
                       required maxLength={100}
                       className={`w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${
                         isDark
@@ -927,7 +927,7 @@ function CourseSection() {
                           : "bg-white border border-slate-200 text-slate-900 placeholder-slate-400 focus:border-emerald-500/50"
                       }`}
                     />
-                    <input type="text" placeholder="S? Zalo" value={zalo} onChange={(e) => setZalo(e.target.value)}
+                    <input type="text" placeholder="Số Zalo" value={zalo} onChange={(e) => setZalo(e.target.value)}
                       required maxLength={15}
                       className={`w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${
                         isDark
@@ -939,7 +939,7 @@ function CourseSection() {
                   {error && <p className="text-xs text-red-400">{error}</p>}
                   <button type="submit" disabled={submitting}
                     className="flex items-center justify-center gap-2 w-full sm:w-auto px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold text-sm transition-all">
-                    {submitting ? "�ang g?i..." : "�ang K� Kh�a H?c"}
+                    {submitting ? "Đang gửi..." : "Đăng Ký Khóa Học"}
                     {!submitting && <ArrowRight className="w-3.5 h-3.5" />}
                   </button>
                 </form>
@@ -952,29 +952,29 @@ function CourseSection() {
   );
 }
 
-/* ---------------------------------------------------------------------------
- *  FAQ � Ryza "Ask Us Anything" style accordion
- * --------------------------------------------------------------------------- */
+/* ═══════════════════════════════════════════════════════════════════════════
+ *  FAQ — Ryza "Ask Us Anything" style accordion
+ * ═══════════════════════════════════════════════════════════════════════════ */
 const faqs = [
   {
-    q: "ADN Capital l� g�?",
-    a: "ADN Capital l� h? th?ng giao d?ch thu?t to�n k?t h?p AI, t? d?ng qu�t t�n hi?u mua/b�n, ph�n t�ch k? thu?t & qu?n tr? r?i ro cho nh� d?u tu ch?ng kho�n Vi?t Nam.",
+    q: "ADN Capital là gì?",
+    a: "ADN Capital là hệ thống giao dịch thuật toán kết hợp AI, tự động quét tín hiệu mua/bán, phân tích kỹ thuật & quản trị rủi ro cho nhà đầu tư chứng khoán Việt Nam.",
   },
   {
-    q: "L�m th? n�o d? s? d?ng h? th?ng?",
-    a: "B?n ch? c?n m? t�i kho?n ch?ng kho�n qua link gi?i thi?u t? ADN Capital, dang nh?p b?ng Google v� h? th?ng s? t? k�ch ho?t.",
+    q: "Làm thế nào để sử dụng hệ thống?",
+    a: "Bạn chỉ cần mở tài khoản chứng khoán qua link giới thiệu từ ADN Capital, đăng nhập bằng Google và hệ thống sẽ tự kích hoạt.",
   },
   {
-    q: "Ph� s? d?ng h? th?ng nhu th? n�o?",
-    a: "ADN Capital c� c? g�i mi?n ph� (FREE) v� c�c g�i VIP / Premium v?i nhi?u t�nh nang n�ng cao hon. Xem chi ti?t ? ph?n B?ng gi� ph�a tr�n.",
+    q: "Phí sử dụng hệ thống như thế nào?",
+    a: "ADN Capital có cả gói miễn phí (FREE) và các gói VIP / Premium với nhiều tính năng nâng cao hơn. Xem chi tiết ở phần Bảng giá phía trên.",
   },
   {
-    q: "T�n hi?u c� ch�nh x�c kh�ng?",
-    a: "H? th?ng du?c ki?m ch?ng qua backtest t? 2015�2025 v?i win rate tr�n 60%. Tuy nhi�n, d?u tu ch?ng kho�n lu�n c� r?i ro � k?t qu? qu� kh? kh�ng d?m b?o tuong lai.",
+    q: "Tín hiệu có chính xác không?",
+    a: "Hệ thống được kiểm chứng qua backtest từ 2015–2025 với win rate trên 60%. Tuy nhiên, đầu tư chứng khoán luôn có rủi ro — kết quả quá khứ không đảm bảo tương lai.",
   },
   {
-    q: "T�i c� th? h?y dang k� b?t c? l�c n�o kh�ng?",
-    a: "Ho�n to�n c� th?. B?n c� th? h?y g�i VIP b?t c? l�c n�o v� chuy?n v? g�i FREE m� kh�ng b? t�nh ph� th�m.",
+    q: "Tôi có thể hủy đăng ký bất cứ lúc nào không?",
+    a: "Hoàn toàn có thể. Bạn có thể hủy gói VIP bất cứ lúc nào và chuyển về gói FREE mà không bị tính phí thêm.",
   },
 ];
 
@@ -992,9 +992,9 @@ function FAQSection() {
               FAQ
             </span>
             <h2 className={`text-3xl sm:text-4xl lg:text-5xl font-black mt-3 ${isDark ? "text-white" : "text-slate-900"}`}>
-              C�u h?i{" "}
+              Câu hỏi{" "}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-400">
-                thu?ng g?p
+                thường gặp
               </span>
             </h2>
           </div>
@@ -1041,9 +1041,9 @@ function FAQSection() {
   );
 }
 
-/* ---------------------------------------------------------------------------
- *  FOOTER CTA � Ryza "Let's Work Together" style
- * --------------------------------------------------------------------------- */
+/* ═══════════════════════════════════════════════════════════════════════════
+ *  FOOTER CTA — Ryza "Let's Work Together" style
+ * ═══════════════════════════════════════════════════════════════════════════ */
 function FooterCTA() {
   const { theme } = useTheme();
   const isDark = theme === "dark";
@@ -1053,13 +1053,13 @@ function FooterCTA() {
       <div className="max-w-3xl mx-auto text-center">
         <FadeIn>
           <h2 className={`text-3xl sm:text-4xl lg:text-5xl font-black mb-4 ${isDark ? "text-white" : "text-slate-900"}`}>
-            B?t d?u{" "}
+            Bắt đầu{" "}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">
-              ngay h�m nay
+              ngay hôm nay
             </span>
           </h2>
           <p className={`text-sm mb-8 ${isDark ? "text-white/40" : "text-slate-500"}`}>
-            �?u tu th�ng minh hon v?i h? th?ng ADN Capital.
+            Đầu tư thông minh hơn với hệ thống ADN Capital.
           </p>
           <a
             href="https://s.dnse.vn/AhkV3Y"
@@ -1068,7 +1068,7 @@ function FooterCTA() {
             className="inline-flex items-center gap-2 px-8 py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-sm transition-all hover:scale-[1.03] shadow-[0_0_40px_-8px_rgba(16,185,129,0.3)]"
           >
             <UserPlus className="w-4 h-4" />
-            M? T�i Kho?n Mi?n Ph�
+            Mở Tài Khoản Miễn Phí
             <ArrowUpRight className="w-4 h-4" />
           </a>
         </FadeIn>
@@ -1076,10 +1076,10 @@ function FooterCTA() {
           <p className={`text-xs mt-8 ${isDark ? "text-white/20" : "text-slate-400"}`}>
             Powered by{" "}
             <span className="text-emerald-500/70 font-bold">ADN CAPITAL</span>
-            {" � "}H? tr?: admin@adncapital.vn
+            {" · "}Hỗ trợ: admin@adncapital.vn
           </p>
           <p className={`text-[11px] mt-2 ${isDark ? "text-white/15" : "text-slate-400"}`}>
-            * �?u tu ch?ng kho�n lu�n c� r?i ro. K?t qu? qu� kh? kh�ng d?m b?o l?i nhu?n tuong lai.
+            * Đầu tư chứng khoán luôn có rủi ro. Kết quả quá khứ không đảm bảo lợi nhuận tương lai.
           </p>
         </FadeIn>
       </div>

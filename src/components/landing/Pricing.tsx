@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
@@ -6,120 +6,120 @@ import { motion } from "framer-motion";
 import { Check, Crown, Zap, Star, Shield, Gift, Sparkles, ExternalLink, Clock, Lock } from "lucide-react";
 import { useTheme } from "@/components/providers/ThemeProvider";
 
-/* ---------------------------------------------------------------------------
- *  PRICING SECTION � Landing Page "Ch?t Sale"
- *  Promocode DNSE ? 4 Pricing Cards (1M / 3M / 6M-PRO / 12M-VIP)
- * --------------------------------------------------------------------------- */
+/* ═══════════════════════════════════════════════════════════════════════════
+ *  PRICING SECTION — Landing Page "Chốt Sale"
+ *  Promocode DNSE → 4 Pricing Cards (1M / 3M / 6M-PRO / 12M-VIP)
+ * ═══════════════════════════════════════════════════════════════════════════ */
 
 interface PricingPlan {
   id: string;
   name: string;
   period: string;
-  price: number;        // gi� thu?ng (VND)
-  dnsePrice: number;    // gi� DNSE (VND)
-  discountPct: number;  // % chi?t kh?u DNSE
+  price: number;        // giá thường (VND)
+  dnsePrice: number;    // giá DNSE (VND)
+  discountPct: number;  // % chiết khấu DNSE
   features: { text: string; locked?: boolean }[];
   icon: React.ReactNode;
   accent: "sky" | "blue" | "emerald" | "purple";
-  ribbon?: string;      // d?i bang d?c bi?t
+  ribbon?: string;      // dải băng đặc biệt
 }
 
 const plans: PricingPlan[] = [
   {
     id: "1m",
-    name: "G�i 1 Th�ng",
-    period: "/th�ng",
+    name: "Gói 1 Tháng",
+    period: "/tháng",
     price: 249_000,
     dnsePrice: 224_000,
     discountPct: 10,
     icon: <Zap className="w-5 h-5" />,
     accent: "sky",
     features: [
-      { text: "H? th?ng AI tu v?n m?nh m? (20 lu?t/ng�y)" },
-      { text: "C?p nh?t tin t?c h?ng ng�y" },
-      { text: "Theo d�i s?c m?nh TT, ch? s? C?n Ki?t Xu Hu?ng" },
-      { text: "Khuy?n ngh? c? phi?u t? AI Broker" },
-      { text: "S? h?u Nh?t K� Giao D?ch theo d�i h�nh tr�nh" },
-      { text: "Nh?t K� AI: Ph�n t�ch t�m l� & Co c?u danh m?c", locked: true },
-      { text: "Ch? b�o C?n Ki?t Xu Hu?ng cho t?ng m� ri�ng l?", locked: true },
-      { text: "AI Broker c?nh b�o Real-time (Mua/B�n/�i v?n)", locked: true },
-      { text: "Nh?n Report Weekly t? h? th?ng ADN", locked: true },
-      { text: "H? tr? tu v?n 1-1 t? ADN Capital", locked: true },
-      { text: "Tham gia room nh?n t�n hi?u Telegram", locked: true },
+      { text: "Hệ thống AI tư vấn mạnh mẽ (20 lượt/ngày)" },
+      { text: "Cập nhật tin tức hằng ngày" },
+      { text: "Theo dõi sức mạnh TT, chỉ số Cạn Kiệt Xu Hướng" },
+      { text: "Khuyến nghị cổ phiếu từ AI Broker" },
+      { text: "Sở hữu Nhật Ký Giao Dịch theo dõi hành trình" },
+      { text: "Nhật Ký AI: Phân tích tâm lý & Cơ cấu danh mục", locked: true },
+      { text: "Chỉ báo Cạn Kiệt Xu Hướng cho từng mã riêng lẻ", locked: true },
+      { text: "AI Broker cảnh báo Real-time (Mua/Bán/Đi vốn)", locked: true },
+      { text: "Nhận Report Weekly từ hệ thống ADN", locked: true },
+      { text: "Hỗ trợ tư vấn 1-1 từ ADN Capital", locked: true },
+      { text: "Tham gia room nhận tín hiệu Telegram", locked: true },
     ],
   },
   {
     id: "3m",
-    name: "G�i 3 Th�ng",
-    period: "/3 th�ng",
+    name: "Gói 3 Tháng",
+    period: "/3 tháng",
     price: 649_000,
     dnsePrice: 519_000,
     discountPct: 20,
     icon: <Star className="w-5 h-5" />,
     accent: "blue",
     features: [
-      { text: "H? th?ng AI tu v?n m?nh m? (30 lu?t/ng�y)" },
-      { text: "C?p nh?t tin t?c h?ng ng�y" },
-      { text: "Theo d�i s?c m?nh TT, ch? s? C?n Ki?t Xu Hu?ng" },
-      { text: "Khuy?n ngh? c? phi?u t? AI Broker" },
-      { text: "S? h?u Nh?t K� Giao D?ch theo d�i h�nh tr�nh" },
-      { text: "Nh?t K� AI: Ph�n t�ch t�m l� & Co c?u danh m?c", locked: true },
-      { text: "Ch? b�o C?n Ki?t Xu Hu?ng cho t?ng m� ri�ng l?", locked: true },
-      { text: "AI Broker c?nh b�o Real-time (Mua/B�n/�i v?n)", locked: true },
-      { text: "Nh?n Report Weekly t? h? th?ng ADN", locked: true },
-      { text: "H? tr? tu v?n 1-1 t? ADN Capital", locked: true },
-      { text: "Tham gia room nh?n t�n hi?u Telegram", locked: true },
+      { text: "Hệ thống AI tư vấn mạnh mẽ (30 lượt/ngày)" },
+      { text: "Cập nhật tin tức hằng ngày" },
+      { text: "Theo dõi sức mạnh TT, chỉ số Cạn Kiệt Xu Hướng" },
+      { text: "Khuyến nghị cổ phiếu từ AI Broker" },
+      { text: "Sở hữu Nhật Ký Giao Dịch theo dõi hành trình" },
+      { text: "Nhật Ký AI: Phân tích tâm lý & Cơ cấu danh mục", locked: true },
+      { text: "Chỉ báo Cạn Kiệt Xu Hướng cho từng mã riêng lẻ", locked: true },
+      { text: "AI Broker cảnh báo Real-time (Mua/Bán/Đi vốn)", locked: true },
+      { text: "Nhận Report Weekly từ hệ thống ADN", locked: true },
+      { text: "Hỗ trợ tư vấn 1-1 từ ADN Capital", locked: true },
+      { text: "Tham gia room nhận tín hiệu Telegram", locked: true },
     ],
   },
   {
     id: "6m",
-    name: "G�i 6 Th�ng",
-    period: "/6 th�ng",
+    name: "Gói 6 Tháng",
+    period: "/6 tháng",
     price: 1_199_000,
     dnsePrice: 839_000,
     discountPct: 30,
     icon: <Crown className="w-5 h-5" />,
     accent: "emerald",
-    ribbon: "B�n ch?y nh?t",
+    ribbon: "Bán chạy nhất",
     features: [
-      { text: "H? th?ng AI tu v?n m?nh m? (Kh�ng gi?i h?n)" },
-      { text: "C?p nh?t tin t?c h?ng ng�y" },
-      { text: "Theo d�i s?c m?nh TT, ch? s? C?n Ki?t Xu Hu?ng" },
-      { text: "Khuy?n ngh? c? phi?u t? AI Broker" },
-      { text: "Nh?t K� Giao D?ch, AI Ph�n t�ch & Co c?u danh m?c" },
-      { text: "Ch? b�o C?n Ki?t Xu Hu?ng cho t?ng m� ri�ng l?" },
-      { text: "AI Broker c?nh b�o Real-time (Mua/B�n/�i v?n)" },
-      { text: "Nh?n Report Weekly t? h? th?ng ADN" },
-      { text: "H? tr? tu v?n 1-1 t? ADN Capital", locked: true },
-      { text: "Tham gia room nh?n t�n hi?u Telegram", locked: true },
+      { text: "Hệ thống AI tư vấn mạnh mẽ (Không giới hạn)" },
+      { text: "Cập nhật tin tức hằng ngày" },
+      { text: "Theo dõi sức mạnh TT, chỉ số Cạn Kiệt Xu Hướng" },
+      { text: "Khuyến nghị cổ phiếu từ AI Broker" },
+      { text: "Nhật Ký Giao Dịch, AI Phân tích & Cơ cấu danh mục" },
+      { text: "Chỉ báo Cạn Kiệt Xu Hướng cho từng mã riêng lẻ" },
+      { text: "AI Broker cảnh báo Real-time (Mua/Bán/Đi vốn)" },
+      { text: "Nhận Report Weekly từ hệ thống ADN" },
+      { text: "Hỗ trợ tư vấn 1-1 từ ADN Capital", locked: true },
+      { text: "Tham gia room nhận tín hiệu Telegram", locked: true },
     ],
   },
   {
     id: "12m",
-    name: "G�i 12 Th�ng",
-    period: "/nam",
+    name: "Gói 12 Tháng",
+    period: "/năm",
     price: 1_999_000,
     dnsePrice: 1_199_000,
     discountPct: 40,
     icon: <Sparkles className="w-5 h-5" />,
     accent: "purple",
-    ribbon: "Ti?t ki?m nh?t",
+    ribbon: "Tiết kiệm nhất",
     features: [
-      { text: "H? th?ng AI tu v?n m?nh m? (Kh�ng gi?i h?n)" },
-      { text: "C?p nh?t tin t?c h?ng ng�y" },
-      { text: "Theo d�i s?c m?nh TT, ch? s? C?n Ki?t Xu Hu?ng" },
-      { text: "Khuy?n ngh? c? phi?u t? AI Broker" },
-      { text: "Nh?t K� Giao D?ch, AI Ph�n t�ch & Co c?u danh m?c" },
-      { text: "Ch? b�o C?n Ki?t Xu Hu?ng cho t?ng m� ri�ng l?" },
-      { text: "AI Broker c?nh b�o Real-time (Mua/B�n/�i v?n)" },
-      { text: "Nh?n Report Weekly s?m nh?t" },
-      { text: "H? tr? tu v?n 1-1 t? ADN Capital" },
-      { text: "Tham gia room nh?n t�n hi?u Telegram" },
+      { text: "Hệ thống AI tư vấn mạnh mẽ (Không giới hạn)" },
+      { text: "Cập nhật tin tức hằng ngày" },
+      { text: "Theo dõi sức mạnh TT, chỉ số Cạn Kiệt Xu Hướng" },
+      { text: "Khuyến nghị cổ phiếu từ AI Broker" },
+      { text: "Nhật Ký Giao Dịch, AI Phân tích & Cơ cấu danh mục" },
+      { text: "Chỉ báo Cạn Kiệt Xu Hướng cho từng mã riêng lẻ" },
+      { text: "AI Broker cảnh báo Real-time (Mua/Bán/Đi vốn)" },
+      { text: "Nhận Report Weekly sớm nhất" },
+      { text: "Hỗ trợ tư vấn 1-1 từ ADN Capital" },
+      { text: "Tham gia room nhận tín hiệu Telegram" },
     ],
   },
 ];
 
-/* -- Accent colour tokens ----------------------------------------------- */
+/* ── Accent colour tokens ─────────────────────────────────────────────── */
 const accentTokens: Record<
   PricingPlan["accent"],
   {
@@ -180,14 +180,14 @@ const accentTokens: Record<
   },
 };
 
-/* -- Helpers ------------------------------------------------------------- */
+/* ── Helpers ───────────────────────────────────────────────────────────── */
 function formatVND(amount: number): string {
-  return amount.toLocaleString("vi-VN") + "d";
+  return amount.toLocaleString("vi-VN") + "đ";
 }
 
-/* ---------------------------------------------------------------------------
+/* ═══════════════════════════════════════════════════════════════════════════
  *  MAIN COMPONENT
- * --------------------------------------------------------------------------- */
+ * ═══════════════════════════════════════════════════════════════════════════ */
 export default function Pricing() {
   const { status } = useSession();
   const isSignedIn = status === "authenticated";
@@ -201,7 +201,7 @@ export default function Pricing() {
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  /** Load tr?ng th�i DNSE c?a user khi d� dang nh?p */
+  /** Load trạng thái DNSE của user khi đã đăng nhập */
   const loadDnseStatus = useCallback(async () => {
     if (!isSignedIn) return;
     try {
@@ -227,7 +227,7 @@ export default function Pricing() {
     setErrorMsg("");
 
     if (!isSignedIn) {
-      setErrorMsg("Vui l�ng dang nh?p tru?c khi nh?p ID DNSE.");
+      setErrorMsg("Vui lòng đăng nhập trước khi nhập ID DNSE.");
       return;
     }
 
@@ -240,14 +240,14 @@ export default function Pricing() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setErrorMsg(data.error ?? "Kh�ng th? g?i ID DNSE.");
+        setErrorMsg(data.error ?? "Không thể gửi ID DNSE.");
         return;
       }
       setApplied(true);
       setPending(!data.dnseVerified);
       setIsDNSE(data.dnseVerified === true);
     } catch {
-      setErrorMsg("L?i k?t n?i, vui l�ng th? l?i.");
+      setErrorMsg("Lỗi kết nối, vui lòng thử lại.");
     } finally {
       setSubmitting(false);
     }
@@ -267,7 +267,7 @@ export default function Pricing() {
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[600px] bg-emerald-500/[0.03] rounded-full blur-3xl pointer-events-none" />
 
       <div className="relative z-10 max-w-6xl mx-auto">
-        {/* -- Heading ------------------------------------------------ */}
+        {/* ── Heading ──────────────────────────────────────────────── */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -278,21 +278,21 @@ export default function Pricing() {
           <span className={`inline-block text-[12px] font-bold uppercase tracking-[0.3em] mb-4 px-3 py-1 rounded-full border ${
             isDark ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" : "text-emerald-600 bg-emerald-50 border-emerald-200"
           }`}>
-            B?ng gi� d?u tu
+            Bảng giá đầu tư
           </span>
           <h2 className={`text-3xl sm:text-4xl lg:text-5xl font-black ${isDark ? "text-white" : "text-slate-900"}`}>
-            Ch?n G�i Ph� H?p V?i{" "}
+            Chọn Gói Phù Hợp Với{" "}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">
-              �?i Ca
+              Đại Ca
             </span>
           </h2>
           <p className={`mt-4 max-w-xl mx-auto text-sm sm:text-base ${isDark ? "text-white/40" : "text-slate-500"}`}>
-            M? kho� to�n b? s?c m?nh c?a ADN System � Giao d?ch th�ng minh hon,
-            nhanh hon, chu?n x�c hon.
+            Mở khoá toàn bộ sức mạnh của ADN System — Giao dịch thông minh hơn,
+            nhanh hơn, chuẩn xác hơn.
           </p>
         </motion.div>
 
-        {/* -- Free Trial Banner -------------------------------------- */}
+        {/* ── Free Trial Banner ────────────────────────────────────── */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -312,27 +312,27 @@ export default function Pricing() {
               </div>
               <div className="flex-1">
                 <p className={`text-sm font-bold mb-1 ${isDark ? "text-white" : "text-slate-900"}`}>
-                  ?? M? t�i kho?n DNSE � Tr?i nghi?m mi?n ph� 2 tu?n!
+                  🎁 Mở tài khoản DNSE — Trải nghiệm miễn phí 2 tuần!
                 </p>
                 <p className={`text-xs leading-relaxed ${isDark ? "text-white/40" : "text-slate-500"}`}>
-                  M? t�i kho?n ch?ng kho�n DNSE qua link gi?i thi?u, sau khi t�i kho?n du?c duy?t (~1 ti?ng),
-                  nh?p ID DNSE v�o � b�n du?i d? k�ch ho?t <span className="text-emerald-400 font-semibold">VIP mi?n ph� 2 tu?n</span> + gi� uu d�i DNSE cho c�c g�i ti?p theo.
+                  Mở tài khoản chứng khoán DNSE qua link giới thiệu, sau khi tài khoản được duyệt (~1 tiếng),
+                  nhập ID DNSE vào ô bên dưới để kích hoạt <span className="text-emerald-400 font-semibold">VIP miễn phí 2 tuần</span> + giá ưu đãi DNSE cho các gói tiếp theo.
                 </p>
               </div>
               <a
-                href="https://s.dnse.vn/AhkV3Y"
+                href="https://s.dnse.vn/HVxkDz"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold transition-all hover:scale-105 active:scale-95"
               >
-                M? TK DNSE
+                Mở TK DNSE
                 <ExternalLink className="w-3 h-3" />
               </a>
             </div>
           </div>
         </motion.div>
 
-        {/* -- Promocode DNSE ----------------------------------------- */}
+        {/* ── Promocode DNSE ───────────────────────────────────────── */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -346,11 +346,11 @@ export default function Pricing() {
             <div className="flex items-center gap-2 mb-2">
               <Shield className="w-4 h-4 text-emerald-400" />
               <span className={`text-sm font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
-                Nh?p ID t�i kho?n DNSE
+                Nhập ID tài khoản DNSE
               </span>
             </div>
             <p className={`text-xs mb-3 ${isDark ? "text-white/35" : "text-slate-400"}`}>
-              �p d?ng gi� uu d�i d�nh ri�ng cho kh�ch h�ng DNSE
+              Áp dụng giá ưu đãi dành riêng cho khách hàng DNSE
             </p>
 
             {applied ? (
@@ -371,7 +371,7 @@ export default function Pricing() {
                     </span>
                     {pending && (
                       <p className="text-[12px] text-amber-400/70 mt-0.5">
-                        �ang ch? x�c minh (~1 ti?ng sau khi m? TK)
+                        Đang chờ xác minh (~1 tiếng sau khi mở TK)
                       </p>
                     )}
                   </div>
@@ -380,7 +380,7 @@ export default function Pricing() {
                   onClick={handleRemove}
                   className="text-xs text-neutral-500 hover:text-red-400 transition-colors cursor-pointer"
                 >
-                  X�a
+                  Xóa
                 </button>
               </div>
             ) : (
@@ -390,7 +390,7 @@ export default function Pricing() {
                   value={dnseId}
                   onChange={(e) => setDnseId(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleApply()}
-                  placeholder="Nh?p ID t�i kho?n DNSE..."
+                  placeholder="Nhập ID tài khoản DNSE..."
                   className={`flex-1 text-sm rounded-xl px-4 py-2.5 focus:outline-none transition-colors ${
                     isDark
                       ? "bg-white/[0.06] border border-white/[0.1] text-white placeholder:text-white/30 focus:border-emerald-500/50"
@@ -402,7 +402,7 @@ export default function Pricing() {
                   disabled={submitting}
                   className="px-5 py-2.5 text-sm font-bold rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {submitting ? "..." : "�p d?ng"}
+                  {submitting ? "..." : "Áp dụng"}
                 </button>
               </div>
             )}
@@ -412,7 +412,7 @@ export default function Pricing() {
           </div>
         </motion.div>
 
-        {/* -- Pricing Cards Grid ------------------------------------- */}
+        {/* ── Pricing Cards Grid ───────────────────────────────────── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6" style={{ perspective: "1200px" }}>
           {plans.map((plan, idx) => (
             <PricingCard
@@ -430,9 +430,9 @@ export default function Pricing() {
   );
 }
 
-/* ---------------------------------------------------------------------------
+/* ═══════════════════════════════════════════════════════════════════════════
  *  PRICING CARD
- * --------------------------------------------------------------------------- */
+ * ═══════════════════════════════════════════════════════════════════════════ */
 
 const glowRgba: Record<PricingPlan["accent"], string> = {
   sky: "0_0_50px_-8px_rgba(56,189,248,0.5)",
@@ -476,10 +476,10 @@ function PricingCard({
       if (data.checkoutUrl) {
         window.location.href = data.checkoutUrl;
       } else {
-        alert(data.error ?? "Kh�ng t?o du?c link thanh to�n");
+        alert(data.error ?? "Không tạo được link thanh toán");
       }
     } catch {
-      alert("L?i k?t n?i, vui l�ng th? l?i.");
+      alert("Lỗi kết nối, vui lòng thử lại.");
     } finally {
       setLoading(false);
     }
@@ -507,7 +507,7 @@ function PricingCard({
         ${plan.ribbon ? "overflow-hidden" : ""}
       `}
     >
-      {/* -- Ribbon -------------------------------------------------- */}
+      {/* ── Ribbon ────────────────────────────────────────────────── */}
       {plan.ribbon && (
         <div
           className={`
@@ -520,7 +520,7 @@ function PricingCard({
         </div>
       )}
 
-      {/* -- Icon + Name --------------------------------------------- */}
+      {/* ── Icon + Name ───────────────────────────────────────────── */}
       <div className="flex items-center gap-3 mb-5">
         <div
           className={`w-10 h-10 rounded-xl flex items-center justify-center ${t.iconBg} ${t.iconText}`}
@@ -533,7 +533,7 @@ function PricingCard({
         </div>
       </div>
 
-      {/* -- Price --------------------------------------------------- */}
+      {/* ── Price ─────────────────────────────────────────────────── */}
       <div className="mb-6">
         {isDNSE ? (
           <>
@@ -551,7 +551,7 @@ function PricingCard({
               {formatVND(displayPrice)}
             </p>
             <span className="inline-block mt-2 text-[12px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full">
-              Ti?t ki?m {formatVND(plan.price - plan.dnsePrice)}
+              Tiết kiệm {formatVND(plan.price - plan.dnsePrice)}
             </span>
           </>
         ) : (
@@ -560,14 +560,14 @@ function PricingCard({
               {formatVND(displayPrice)}
             </p>
             <p className={`mt-1.5 text-[12px] ${isDark ? "text-white/30" : "text-slate-400"}`}>
-              Ch? <span className="text-emerald-400 font-semibold">{formatVND(plan.dnsePrice)}</span> v?i DNSE{" "}
+              Chỉ <span className="text-emerald-400 font-semibold">{formatVND(plan.dnsePrice)}</span> với DNSE{" "}
               <span className="text-red-400">(-{plan.discountPct}%)</span>
             </p>
           </>
         )}
       </div>
 
-      {/* -- Features ------------------------------------------------ */}
+      {/* ── Features ──────────────────────────────────────────────── */}
       <ul className="space-y-3 mb-8 flex-1">
         {plan.features.map((feat) => (
           <li key={feat.text} className={`flex items-start gap-2.5 text-sm ${feat.locked ? "opacity-50" : ""}`}>
@@ -583,7 +583,7 @@ function PricingCard({
         ))}
       </ul>
 
-      {/* -- CTA Button ---------------------------------------------- */}
+      {/* ── CTA Button ────────────────────────────────────────────── */}
       <button
         onClick={handleCheckout}
         disabled={loading}
@@ -593,7 +593,7 @@ function PricingCard({
           ${t.btn}
         `}
       >
-        {loading ? "�ang t?o..." : "�ang K� Ngay"}
+        {loading ? "Đang tạo..." : "Đăng Ký Ngay"}
       </button>
     </motion.div>
   );

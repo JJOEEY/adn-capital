@@ -16,6 +16,11 @@ import {
   Crown,
   ChevronRight,
   User,
+  Settings,
+  Shield,
+  Users,
+  Newspaper,
+  Bell,
 } from "lucide-react";
 
 interface MenuGroup {
@@ -33,7 +38,7 @@ interface MenuGroup {
 
 export default function MenuPage() {
   const { data: session } = useSession();
-  const { dbUser, role, vipTier, isAuthenticated, isLoading } = useCurrentDbUser();
+  const { dbUser, role, vipTier, isAuthenticated, isLoading, isAdmin, isWriter } = useCurrentDbUser();
 
   const userName = dbUser?.name || session?.user?.name || "User";
   const userImage = dbUser?.image || session?.user?.image || null;
@@ -58,9 +63,23 @@ export default function MenuPage() {
     {
       title: "Khác",
       items: [
+        { href: "/notifications", label: "Thông báo", icon: Bell },
         { href: "#", label: "About Us (cập nhật sau)", icon: Info },
       ],
     },
+    // Admin group — only shown to admin/writer
+    ...(isAdmin || isWriter
+      ? [
+          {
+            title: "Quản lý hệ thống",
+            items: [
+              { href: "/admin", label: "Admin CRM", icon: Shield, badge: "ADMIN" as const },
+              { href: "/khac/tin-tuc/admin", label: "Quản lý bài viết", icon: Newspaper },
+              { href: "/admin?tab=journals", label: "Nhật ký khách hàng", icon: Users },
+            ],
+          },
+        ]
+      : []),
   ];
 
   return (

@@ -5,18 +5,17 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   Home,
-  BarChart2,
   BookOpen,
   Zap,
-  MessageSquare,
+  Newspaper,
   Menu,
 } from "lucide-react";
 
 const tabs = [
   { href: "/dashboard", label: "Trang chủ", icon: Home },
   { href: "/journal", label: "Nhật Ký", icon: BookOpen },
-  { href: "/dashboard/signal-map", label: "Tín Hiệu", icon: Zap },
-  { href: "/notifications", label: "Tin nhắn", icon: MessageSquare },
+  { href: "/dashboard/signal-map", label: "ADN AI Broker", icon: Zap },
+  { href: "/tin-tuc", label: "Tin Tức", icon: Newspaper },
   { href: "/menu", label: "Menu", icon: Menu },
 ];
 
