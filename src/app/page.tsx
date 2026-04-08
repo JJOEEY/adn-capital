@@ -362,15 +362,15 @@ function PerformanceSection() {
  * ═══════════════════════════════════════════════════════════════════════════ */
 const services = [
   {
-    href: "/dashboard/rs-rating",
-    icon: BarChart2,
+    href: "/tei",
+    icon: TrendingUp,
     iconColor: "text-blue-400",
     gradientFrom: "from-blue-500/10",
-    badge: null,
-    title: "RS Rating",
-    subtitle: "Xếp hạng sức mạnh tương đối",
-    desc: "Chấm điểm sức mạnh cổ phiếu so với toàn thị trường. Tìm cổ phiếu dẫn dắt, tránh cổ phiếu yếu — theo phương pháp William O'Neil / CAN SLIM.",
-    features: ["RS Score 1–99 cho từng mã", "Cập nhật theo phiên giao dịch", "Lọc theo ngành / nhóm cốt lõi", "Top leaders & laggards"],
+    badge: "MỚI",
+    title: "Chỉ báo TEI",
+    subtitle: "Chỉ báo cạn kiệt xu hướng",
+    desc: "Đo lường mức độ cạn kiệt xu hướng thị trường theo diễn biến giá. Xác định khi nào xu hướng tăng/giảm sắp đảo chiều.",
+    features: ["Gauge trực quan 0–5 điểm", "Biểu đồ lịch sử TEI + MA7", "Hỗ trợ mọi mã CK & chỉ số", "Cập nhật theo phiên giao dịch"],
   },
   {
     href: "/terminal",
@@ -389,7 +389,7 @@ const services = [
     iconColor: "text-yellow-400",
     gradientFrom: "from-yellow-500/10",
     badge: null,
-    title: "Tín Hiệu",
+    title: "ADN AI Broker",
     subtitle: "Bản đồ tín hiệu giao dịch",
     desc: "Nhận tín hiệu mua/bán theo hệ thống Quant Trading của ADN Capital — bộ lọc đa chiều, tối ưu cho VN.",
     features: ["Tín hiệu mua/bán tự động", "Bộ lọc Volume & RS cùng lúc", "Lịch sử tín hiệu đầy đủ", "Thông báo theo thời gian thực"],
@@ -480,7 +480,7 @@ function ServicesSection() {
                       </span>
                     )}
                     {/* Default: icon + title */}
-                    <BarChart2 className={`w-7 h-7 sm:w-8 sm:h-8 ${svcColors.blue.text} mb-2 transition-all duration-300 group-hover:scale-75 group-hover:mb-1`} />
+                    <TrendingUp className={`w-7 h-7 sm:w-8 sm:h-8 ${svcColors.blue.text} mb-2 transition-all duration-300 group-hover:scale-75 group-hover:mb-1`} />
                     <h3 className={`text-sm sm:text-base font-black leading-tight transition-all duration-300 ${isDark ? "text-white" : "text-slate-900"}`}>
                       {services[0].title}
                     </h3>
