@@ -212,9 +212,9 @@ export function JournalForm({ onSaved }: JournalFormProps) {
               type="number"
               value={form.price}
               onChange={(e) => update("price", e.target.value)}
-              placeholder="24700"
+              placeholder="20050"
               className={`${inputCls} font-mono`}
-              step="100"
+              step="10"
               min="0"
             />
           </div>
