@@ -196,12 +196,12 @@ function ArticleRow({ article }: { article: Article }) {
           {article.title}
         </h3>
         <div className="flex items-center gap-2 mt-1.5 text-[12px] text-slate-500">
-          {article.sourceUrl && (
-            <>
-              <span>{new URL(article.sourceUrl).hostname.replace("www.", "")}</span>
-              <span>·</span>
-            </>
-          )}
+          {article.sourceUrl && (() => {
+            try {
+              const host = new URL(article.sourceUrl!).hostname.replace("www.", "");
+              return <><span>{host}</span><span>·</span></>;
+            } catch { return null; }
+          })()}
           <span>{article.publishedAt ? timeAgo(article.publishedAt) : ""}</span>
         </div>
       </div>

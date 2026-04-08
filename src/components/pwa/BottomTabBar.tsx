@@ -6,16 +6,16 @@ import { motion } from "framer-motion";
 import {
   Home,
   BookOpen,
-  Zap,
   Newspaper,
+  MessageSquare,
   Menu,
 } from "lucide-react";
 
 const tabs = [
   { href: "/dashboard", label: "Trang chủ", icon: Home },
   { href: "/journal", label: "Nhật Ký", icon: BookOpen },
-  { href: "/dashboard/signal-map", label: "ADN AI Broker", icon: Zap },
   { href: "/tin-tuc", label: "Tin Tức", icon: Newspaper },
+  { href: "/notifications", label: "Tin nhắn", icon: MessageSquare },
   { href: "/menu", label: "Menu", icon: Menu },
 ];
 
