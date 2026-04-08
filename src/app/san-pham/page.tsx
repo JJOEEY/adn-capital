@@ -40,7 +40,7 @@ const services = [
     iconColor: "text-yellow-400",
     gradientFrom: "from-yellow-500/10",
     badge: null,
-    title: "Tín Hiệu",
+    title: "ADN AI Broker",
     subtitle: "Bản đồ tín hiệu giao dịch",
     desc: "Nhận tín hiệu mua/bán theo hệ thống Quant Trading của ADN Capital — bộ lọc đa chiều, tối ưu cho thị trường Việt Nam với tỷ lệ thắng thực chiến cao.",
     features: [

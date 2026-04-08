@@ -45,7 +45,7 @@ const navItems: NavItem[] = [
     icon: Zap,
     children: [
       { href: "/terminal", label: "Chat AI", icon: MessageSquare, badge: "HOT" },
-      { href: "/dashboard/signal-map", label: "Tín Hiệu", icon: Zap },
+      { href: "/dashboard/signal-map", label: "ADN AI Broker", icon: Zap },
       { href: "/tei", label: "TEI", icon: Activity, badge: "MỚI" },
       { href: "/margin", label: "Ký Quỹ Margin", icon: Banknote },
     ],

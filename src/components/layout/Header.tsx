@@ -63,7 +63,7 @@ const menuSections: MenuSection[] = [
     items: [
       { href: "/tei", label: "Chỉ báo TEI", icon: Activity, badge: "MỚI" },
       { href: "/terminal", label: "Tư vấn đầu tư", icon: MessageSquare },
-      { href: "/dashboard/signal-map", label: "Tín Hiệu", icon: Zap },
+      { href: "/dashboard/signal-map", label: "ADN AI Broker", icon: Zap },
       { href: "/khac/tin-tuc", label: "Tin Tức", icon: Newspaper, badge: "BETA", roles: ["ADMIN", "WRITER"] },
     ],
   },
