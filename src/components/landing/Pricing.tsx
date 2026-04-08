@@ -7,7 +7,7 @@ import { Check, Crown, Zap, Star, Shield, Gift, Sparkles, ExternalLink, Clock, L
 import { useTheme } from "@/components/providers/ThemeProvider";
 
 /* ---------------------------------------------------------------------------
- *  PRICING SECTION — Landing Page "Ch?t Sale"
+ *  PRICING SECTION ï¿½ Landing Page "Ch?t Sale"
  *  Promocode DNSE ? 4 Pricing Cards (1M / 3M / 6M-PRO / 12M-VIP)
  * --------------------------------------------------------------------------- */
 
@@ -15,8 +15,8 @@ interface PricingPlan {
   id: string;
   name: string;
   period: string;
-  price: number;        // giá thu?ng (VND)
-  dnsePrice: number;    // giá DNSE (VND)
+  price: number;        // giï¿½ thu?ng (VND)
+  dnsePrice: number;    // giï¿½ DNSE (VND)
   discountPct: number;  // % chi?t kh?u DNSE
   features: { text: string; locked?: boolean }[];
   icon: React.ReactNode;
@@ -27,76 +27,76 @@ interface PricingPlan {
 const plans: PricingPlan[] = [
   {
     id: "1m",
-    name: "Gói 1 Tháng",
-    period: "/tháng",
+    name: "Gï¿½i 1 Thï¿½ng",
+    period: "/thï¿½ng",
     price: 249_000,
     dnsePrice: 224_000,
     discountPct: 10,
     icon: <Zap className="w-5 h-5" />,
     accent: "sky",
     features: [
-      { text: "H? th?ng AI tu v?n m?nh m? (20 lu?t/ngày)" },
-      { text: "C?p nh?t tin t?c h?ng ngày" },
-      { text: "Theo dõi s?c m?nh TT, ch? s? C?n Ki?t Xu Hu?ng" },
+      { text: "H? th?ng AI tu v?n m?nh m? (20 lu?t/ngï¿½y)" },
+      { text: "C?p nh?t tin t?c h?ng ngï¿½y" },
+      { text: "Theo dï¿½i s?c m?nh TT, ch? s? C?n Ki?t Xu Hu?ng" },
       { text: "Khuy?n ngh? c? phi?u t? AI Broker" },
-      { text: "S? h?u Nh?t Ký Giao D?ch theo dõi hành trình" },
-      { text: "Nh?t Ký AI: Phân tích tâm lý & Co c?u danh m?c", locked: true },
-      { text: "Ch? báo C?n Ki?t Xu Hu?ng cho t?ng mã riêng l?", locked: true },
-      { text: "AI Broker c?nh báo Real-time (Mua/Bán/Ði v?n)", locked: true },
+      { text: "S? h?u Nh?t Kï¿½ Giao D?ch theo dï¿½i hï¿½nh trï¿½nh" },
+      { text: "Nh?t Kï¿½ AI: Phï¿½n tï¿½ch tï¿½m lï¿½ & Co c?u danh m?c", locked: true },
+      { text: "Ch? bï¿½o C?n Ki?t Xu Hu?ng cho t?ng mï¿½ riï¿½ng l?", locked: true },
+      { text: "AI Broker c?nh bï¿½o Real-time (Mua/Bï¿½n/ï¿½i v?n)", locked: true },
       { text: "Nh?n Report Weekly t? h? th?ng ADN", locked: true },
       { text: "H? tr? tu v?n 1-1 t? ADN Capital", locked: true },
-      { text: "Tham gia room nh?n tín hi?u Telegram", locked: true },
+      { text: "Tham gia room nh?n tï¿½n hi?u Telegram", locked: true },
     ],
   },
   {
     id: "3m",
-    name: "Gói 3 Tháng",
-    period: "/3 tháng",
+    name: "Gï¿½i 3 Thï¿½ng",
+    period: "/3 thï¿½ng",
     price: 649_000,
     dnsePrice: 519_000,
     discountPct: 20,
     icon: <Star className="w-5 h-5" />,
     accent: "blue",
     features: [
-      { text: "H? th?ng AI tu v?n m?nh m? (30 lu?t/ngày)" },
-      { text: "C?p nh?t tin t?c h?ng ngày" },
-      { text: "Theo dõi s?c m?nh TT, ch? s? C?n Ki?t Xu Hu?ng" },
+      { text: "H? th?ng AI tu v?n m?nh m? (30 lu?t/ngï¿½y)" },
+      { text: "C?p nh?t tin t?c h?ng ngï¿½y" },
+      { text: "Theo dï¿½i s?c m?nh TT, ch? s? C?n Ki?t Xu Hu?ng" },
       { text: "Khuy?n ngh? c? phi?u t? AI Broker" },
-      { text: "S? h?u Nh?t Ký Giao D?ch theo dõi hành trình" },
-      { text: "Nh?t Ký AI: Phân tích tâm lý & Co c?u danh m?c", locked: true },
-      { text: "Ch? báo C?n Ki?t Xu Hu?ng cho t?ng mã riêng l?", locked: true },
-      { text: "AI Broker c?nh báo Real-time (Mua/Bán/Ði v?n)", locked: true },
+      { text: "S? h?u Nh?t Kï¿½ Giao D?ch theo dï¿½i hï¿½nh trï¿½nh" },
+      { text: "Nh?t Kï¿½ AI: Phï¿½n tï¿½ch tï¿½m lï¿½ & Co c?u danh m?c", locked: true },
+      { text: "Ch? bï¿½o C?n Ki?t Xu Hu?ng cho t?ng mï¿½ riï¿½ng l?", locked: true },
+      { text: "AI Broker c?nh bï¿½o Real-time (Mua/Bï¿½n/ï¿½i v?n)", locked: true },
       { text: "Nh?n Report Weekly t? h? th?ng ADN", locked: true },
       { text: "H? tr? tu v?n 1-1 t? ADN Capital", locked: true },
-      { text: "Tham gia room nh?n tín hi?u Telegram", locked: true },
+      { text: "Tham gia room nh?n tï¿½n hi?u Telegram", locked: true },
     ],
   },
   {
     id: "6m",
-    name: "Gói 6 Tháng",
-    period: "/6 tháng",
+    name: "Gï¿½i 6 Thï¿½ng",
+    period: "/6 thï¿½ng",
     price: 1_199_000,
     dnsePrice: 839_000,
     discountPct: 30,
     icon: <Crown className="w-5 h-5" />,
     accent: "emerald",
-    ribbon: "Bán ch?y nh?t",
+    ribbon: "Bï¿½n ch?y nh?t",
     features: [
-      { text: "H? th?ng AI tu v?n m?nh m? (Không gi?i h?n)" },
-      { text: "C?p nh?t tin t?c h?ng ngày" },
-      { text: "Theo dõi s?c m?nh TT, ch? s? C?n Ki?t Xu Hu?ng" },
+      { text: "H? th?ng AI tu v?n m?nh m? (Khï¿½ng gi?i h?n)" },
+      { text: "C?p nh?t tin t?c h?ng ngï¿½y" },
+      { text: "Theo dï¿½i s?c m?nh TT, ch? s? C?n Ki?t Xu Hu?ng" },
       { text: "Khuy?n ngh? c? phi?u t? AI Broker" },
-      { text: "Nh?t Ký Giao D?ch, AI Phân tích & Co c?u danh m?c" },
-      { text: "Ch? báo C?n Ki?t Xu Hu?ng cho t?ng mã riêng l?" },
-      { text: "AI Broker c?nh báo Real-time (Mua/Bán/Ði v?n)" },
+      { text: "Nh?t Kï¿½ Giao D?ch, AI Phï¿½n tï¿½ch & Co c?u danh m?c" },
+      { text: "Ch? bï¿½o C?n Ki?t Xu Hu?ng cho t?ng mï¿½ riï¿½ng l?" },
+      { text: "AI Broker c?nh bï¿½o Real-time (Mua/Bï¿½n/ï¿½i v?n)" },
       { text: "Nh?n Report Weekly t? h? th?ng ADN" },
       { text: "H? tr? tu v?n 1-1 t? ADN Capital", locked: true },
-      { text: "Tham gia room nh?n tín hi?u Telegram", locked: true },
+      { text: "Tham gia room nh?n tï¿½n hi?u Telegram", locked: true },
     ],
   },
   {
     id: "12m",
-    name: "Gói 12 Tháng",
+    name: "Gï¿½i 12 Thï¿½ng",
     period: "/nam",
     price: 1_999_000,
     dnsePrice: 1_199_000,
@@ -105,16 +105,16 @@ const plans: PricingPlan[] = [
     accent: "purple",
     ribbon: "Ti?t ki?m nh?t",
     features: [
-      { text: "H? th?ng AI tu v?n m?nh m? (Không gi?i h?n)" },
-      { text: "C?p nh?t tin t?c h?ng ngày" },
-      { text: "Theo dõi s?c m?nh TT, ch? s? C?n Ki?t Xu Hu?ng" },
+      { text: "H? th?ng AI tu v?n m?nh m? (Khï¿½ng gi?i h?n)" },
+      { text: "C?p nh?t tin t?c h?ng ngï¿½y" },
+      { text: "Theo dï¿½i s?c m?nh TT, ch? s? C?n Ki?t Xu Hu?ng" },
       { text: "Khuy?n ngh? c? phi?u t? AI Broker" },
-      { text: "Nh?t Ký Giao D?ch, AI Phân tích & Co c?u danh m?c" },
-      { text: "Ch? báo C?n Ki?t Xu Hu?ng cho t?ng mã riêng l?" },
-      { text: "AI Broker c?nh báo Real-time (Mua/Bán/Ði v?n)" },
+      { text: "Nh?t Kï¿½ Giao D?ch, AI Phï¿½n tï¿½ch & Co c?u danh m?c" },
+      { text: "Ch? bï¿½o C?n Ki?t Xu Hu?ng cho t?ng mï¿½ riï¿½ng l?" },
+      { text: "AI Broker c?nh bï¿½o Real-time (Mua/Bï¿½n/ï¿½i v?n)" },
       { text: "Nh?n Report Weekly s?m nh?t" },
       { text: "H? tr? tu v?n 1-1 t? ADN Capital" },
-      { text: "Tham gia room nh?n tín hi?u Telegram" },
+      { text: "Tham gia room nh?n tï¿½n hi?u Telegram" },
     ],
   },
 ];
@@ -201,7 +201,7 @@ export default function Pricing() {
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  /** Load tr?ng thái DNSE c?a user khi dã dang nh?p */
+  /** Load tr?ng thï¿½i DNSE c?a user khi dï¿½ dang nh?p */
   const loadDnseStatus = useCallback(async () => {
     if (!isSignedIn) return;
     try {
@@ -227,7 +227,7 @@ export default function Pricing() {
     setErrorMsg("");
 
     if (!isSignedIn) {
-      setErrorMsg("Vui lòng dang nh?p tru?c khi nh?p ID DNSE.");
+      setErrorMsg("Vui lï¿½ng dang nh?p tru?c khi nh?p ID DNSE.");
       return;
     }
 
@@ -240,14 +240,14 @@ export default function Pricing() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setErrorMsg(data.error ?? "Không th? g?i ID DNSE.");
+        setErrorMsg(data.error ?? "Khï¿½ng th? g?i ID DNSE.");
         return;
       }
       setApplied(true);
       setPending(!data.dnseVerified);
       setIsDNSE(data.dnseVerified === true);
     } catch {
-      setErrorMsg("L?i k?t n?i, vui lòng th? l?i.");
+      setErrorMsg("L?i k?t n?i, vui lï¿½ng th? l?i.");
     } finally {
       setSubmitting(false);
     }
@@ -278,17 +278,17 @@ export default function Pricing() {
           <span className={`inline-block text-[12px] font-bold uppercase tracking-[0.3em] mb-4 px-3 py-1 rounded-full border ${
             isDark ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" : "text-emerald-600 bg-emerald-50 border-emerald-200"
           }`}>
-            B?ng giá d?u tu
+            B?ng giï¿½ d?u tu
           </span>
           <h2 className={`text-3xl sm:text-4xl lg:text-5xl font-black ${isDark ? "text-white" : "text-slate-900"}`}>
-            Ch?n Gói Phù H?p V?i{" "}
+            Ch?n Gï¿½i Phï¿½ H?p V?i{" "}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">
-              Ð?i Ca
+              ï¿½?i Ca
             </span>
           </h2>
           <p className={`mt-4 max-w-xl mx-auto text-sm sm:text-base ${isDark ? "text-white/40" : "text-slate-500"}`}>
-            M? khoá toàn b? s?c m?nh c?a ADN System — Giao d?ch thông minh hon,
-            nhanh hon, chu?n xác hon.
+            M? khoï¿½ toï¿½n b? s?c m?nh c?a ADN System ï¿½ Giao d?ch thï¿½ng minh hon,
+            nhanh hon, chu?n xï¿½c hon.
           </p>
         </motion.div>
 
@@ -312,11 +312,11 @@ export default function Pricing() {
               </div>
               <div className="flex-1">
                 <p className={`text-sm font-bold mb-1 ${isDark ? "text-white" : "text-slate-900"}`}>
-                  ?? M? tài kho?n DNSE — Tr?i nghi?m mi?n phí 2 tu?n!
+                  ?? M? tï¿½i kho?n DNSE ï¿½ Tr?i nghi?m mi?n phï¿½ 2 tu?n!
                 </p>
                 <p className={`text-xs leading-relaxed ${isDark ? "text-white/40" : "text-slate-500"}`}>
-                  M? tài kho?n ch?ng khoán DNSE qua link gi?i thi?u, sau khi tài kho?n du?c duy?t (~1 ti?ng),
-                  nh?p ID DNSE vào ô bên du?i d? kích ho?t <span className="text-emerald-400 font-semibold">VIP mi?n phí 2 tu?n</span> + giá uu dãi DNSE cho các gói ti?p theo.
+                  M? tï¿½i kho?n ch?ng khoï¿½n DNSE qua link gi?i thi?u, sau khi tï¿½i kho?n du?c duy?t (~1 ti?ng),
+                  nh?p ID DNSE vï¿½o ï¿½ bï¿½n du?i d? kï¿½ch ho?t <span className="text-emerald-400 font-semibold">VIP mi?n phï¿½ 2 tu?n</span> + giï¿½ uu dï¿½i DNSE cho cï¿½c gï¿½i ti?p theo.
                 </p>
               </div>
               <a
@@ -346,11 +346,11 @@ export default function Pricing() {
             <div className="flex items-center gap-2 mb-2">
               <Shield className="w-4 h-4 text-emerald-400" />
               <span className={`text-sm font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
-                Nh?p ID tài kho?n DNSE
+                Nh?p ID tï¿½i kho?n DNSE
               </span>
             </div>
             <p className={`text-xs mb-3 ${isDark ? "text-white/35" : "text-slate-400"}`}>
-              Áp d?ng giá uu dãi dành riêng cho khách hàng DNSE
+              ï¿½p d?ng giï¿½ uu dï¿½i dï¿½nh riï¿½ng cho khï¿½ch hï¿½ng DNSE
             </p>
 
             {applied ? (
@@ -371,7 +371,7 @@ export default function Pricing() {
                     </span>
                     {pending && (
                       <p className="text-[12px] text-amber-400/70 mt-0.5">
-                        Ðang ch? xác minh (~1 ti?ng sau khi m? TK)
+                        ï¿½ang ch? xï¿½c minh (~1 ti?ng sau khi m? TK)
                       </p>
                     )}
                   </div>
@@ -380,7 +380,7 @@ export default function Pricing() {
                   onClick={handleRemove}
                   className="text-xs text-neutral-500 hover:text-red-400 transition-colors cursor-pointer"
                 >
-                  Xóa
+                  Xï¿½a
                 </button>
               </div>
             ) : (
@@ -390,7 +390,7 @@ export default function Pricing() {
                   value={dnseId}
                   onChange={(e) => setDnseId(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleApply()}
-                  placeholder="Nh?p ID tài kho?n DNSE..."
+                  placeholder="Nh?p ID tï¿½i kho?n DNSE..."
                   className={`flex-1 text-sm rounded-xl px-4 py-2.5 focus:outline-none transition-colors ${
                     isDark
                       ? "bg-white/[0.06] border border-white/[0.1] text-white placeholder:text-white/30 focus:border-emerald-500/50"
@@ -402,7 +402,7 @@ export default function Pricing() {
                   disabled={submitting}
                   className="px-5 py-2.5 text-sm font-bold rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {submitting ? "..." : "Áp d?ng"}
+                  {submitting ? "..." : "ï¿½p d?ng"}
                 </button>
               </div>
             )}
@@ -476,10 +476,10 @@ function PricingCard({
       if (data.checkoutUrl) {
         window.location.href = data.checkoutUrl;
       } else {
-        alert(data.error ?? "Không t?o du?c link thanh toán");
+        alert(data.error ?? "Khï¿½ng t?o du?c link thanh toï¿½n");
       }
     } catch {
-      alert("L?i k?t n?i, vui lòng th? l?i.");
+      alert("L?i k?t n?i, vui lï¿½ng th? l?i.");
     } finally {
       setLoading(false);
     }
@@ -593,7 +593,7 @@ function PricingCard({
           ${t.btn}
         `}
       >
-        {loading ? "Ðang t?o..." : "Ðang Ký Ngay"}
+        {loading ? "ï¿½ang t?o..." : "ï¿½ang Kï¿½ Ngay"}
       </button>
     </motion.div>
   );
