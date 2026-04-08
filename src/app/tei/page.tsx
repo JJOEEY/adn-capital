@@ -276,7 +276,7 @@ export default function TEIPage() {
   const ohlcvData: OHLCVData[] = useMemo(() => {
     if (!rawData?.data?.length) return [];
     return rawData.data.map((d: any) => ({
-      date: d.timestamp.split(" ")[0],
+      date: (d.date ?? d.timestamp ?? "").split("T")[0].split(" ")[0],
       open: d.open,
       high: d.high,
       low: d.low,
