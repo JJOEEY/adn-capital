@@ -35,13 +35,16 @@ interface TxRecord {
 interface PnLData {
   initialNAV: number;
   realizedPnL: number;
-  holdingsValue: number;
+  unrealizedPnL: number;
+  holdingsCostBasis: number;
+  holdingsMarketValue: number;
   currentNAV: number;
   currentHoldings: {
     ticker: string;
     qty: number;
     avgPrice: number;
     totalCost: number;
+    marketPrice: number;
     marketValue: number;
   }[];
   closedTrades: {
@@ -370,6 +373,7 @@ export function PnLSummary() {
   if (!data) return null;
 
   const pnlColor = data.realizedPnL >= 0 ? "text-emerald-400" : "text-red-400";
+  const unrealizedColor = data.unrealizedPnL >= 0 ? "text-emerald-400" : "text-red-400";
   const navChange = data.initialNAV > 0
     ? ((data.currentNAV - data.initialNAV) / data.initialNAV * 100)
     : 0;
@@ -477,8 +481,10 @@ export function PnLSummary() {
             </p>
           </div>
           <div>
-            <p className="text-[12px] text-neutral-600">Đang giữ (tạm tính)</p>
-            <p className="text-sm font-bold font-mono text-blue-400">{fmt(data.holdingsValue)}</p>
+            <p className="text-[12px] text-neutral-600">Lãi/Lỗ chưa chốt</p>
+            <p className={`text-sm font-bold font-mono ${unrealizedColor}`}>
+              {data.unrealizedPnL >= 0 ? "+" : ""}{fmt(data.unrealizedPnL)}
+            </p>
           </div>
           <div>
             <p className="text-[12px] text-neutral-600">Current NAV</p>
@@ -558,7 +564,7 @@ export function PnLSummary() {
                     ? (pnlVal / (h.totalCost || h.qty * h.avgPrice)) * 100
                     : 0;
                   const txs = data.txByTicker?.[h.ticker] ?? [];
-                  const marketPrice = h.qty > 0 ? Math.round(h.marketValue / h.qty) : 0;
+                  const marketPrice = h.marketPrice ?? (h.qty > 0 ? Math.round(h.marketValue / h.qty) : 0);
 
                   return (
                     <Fragment key={h.ticker}>

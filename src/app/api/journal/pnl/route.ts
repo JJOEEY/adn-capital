@@ -112,18 +112,54 @@ export async function GET(req: NextRequest) {
     }
 
     // Holdings hiện tại (mã đang giữ)
+    // Fetch giá thị trường thực từ FiinQuant bridge
+    const BACKEND = process.env.FIINQUANT_URL ?? "http://localhost:8000";
+    const holdingTickers = Object.entries(holdings)
+      .filter(([, v]) => v.qty > 0)
+      .map(([ticker]) => ticker);
+
+    const marketPrices: Record<string, number> = {};
+    await Promise.all(
+      holdingTickers.map(async (ticker) => {
+        try {
+          const res = await fetch(
+            `${BACKEND}/api/v1/historical/${encodeURIComponent(ticker)}?days=5&timeframe=1d`,
+            { cache: "no-store", signal: AbortSignal.timeout(10_000) },
+          );
+          if (res.ok) {
+            const json = await res.json();
+            const arr = json.data ?? [];
+            if (arr.length > 0) {
+              // API trả giá theo đơn vị nghìn VNĐ (25.6 = 25,600₫) → nhân 1000
+              marketPrices[ticker] = Math.round((arr[arr.length - 1].close ?? 0) * 1000);
+            }
+          }
+        } catch { /* fallback to avgPrice */ }
+      }),
+    );
+
     const currentHoldings = Object.entries(holdings)
       .filter(([, v]) => v.qty > 0)
-      .map(([ticker, v]) => ({
-        ticker,
-        qty: v.qty,
-        avgPrice: Math.round(v.avgPrice),
-        totalCost: Math.round(v.totalCost),
-        marketValue: v.qty * Math.round(v.avgPrice),
-      }));
+      .map(([ticker, v]) => {
+        const avgP = Math.round(v.avgPrice);
+        const mp = marketPrices[ticker] ?? avgP; // fallback nếu ko lấy được giá TT
+        return {
+          ticker,
+          qty: v.qty,
+          avgPrice: avgP,
+          totalCost: Math.round(v.totalCost),
+          marketPrice: mp,
+          marketValue: v.qty * mp,
+        };
+      });
 
-    const holdingsValue = currentHoldings.reduce((sum, h) => sum + h.marketValue, 0);
-    const currentNAV = initialNAV + realizedPnL + holdingsValue;
+    const holdingsCostBasis = currentHoldings.reduce((sum, h) => sum + h.totalCost, 0);
+    const holdingsMarketValue = currentHoldings.reduce((sum, h) => sum + h.marketValue, 0);
+    const unrealizedPnL = holdingsMarketValue - holdingsCostBasis;
+
+    // CÔNG THỨC CHUẨN: currentNAV = Vốn ban đầu + Lãi/Lỗ đã chốt + Lãi/Lỗ chưa chốt
+    // KHÔNG ĐƯỢC cộng initialNAV + holdingsValue (double-counting)
+    const currentNAV = initialNAV + realizedPnL + unrealizedPnL;
 
     // Win/Loss ratio
     const winTrades = closedTrades.filter((t) => t.pnl > 0).length;
@@ -150,7 +186,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       initialNAV,
       realizedPnL,
-      holdingsValue,
+      unrealizedPnL,
+      holdingsCostBasis,
+      holdingsMarketValue,
       currentNAV,
       currentHoldings,
       closedTrades: closedTrades.slice(-30).reverse(),
