@@ -80,7 +80,7 @@ export function useChat() {
             type: "widget",
             widgetType: "TICKER_DASHBOARD",
             ticker: data.ticker,
-            data: data.data,
+            data: data.data as any,
           },
         });
       } else {

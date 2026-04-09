@@ -47,11 +47,10 @@ export interface ChatMessage {
     widgetType: "TICKER_DASHBOARD";
     ticker: string;
     data: {
-      technical: { stats: any; aiInsight: string | null };
-      fundamental: { stats: any; aiInsight: string | null };
-      news: { title: string; time: string; url?: string }[];
-      behavior: { teiScore: number; status: string };
-      signal?: any;
+      technical: { data: any; aiInsight: string };
+      fundamental: { data: any; aiInsight: string; period: string | null };
+      behavior: { data: { teiScore: number; status: string; period: string }; aiInsight: string };
+      news: { data: { title: string; time: string; url?: string; source: string }[]; aiInsight: string };
     };
   };
 }
