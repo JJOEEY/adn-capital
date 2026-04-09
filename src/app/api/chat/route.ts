@@ -11,7 +11,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentDbUser } from "@/lib/current-user";
 import { prisma } from "@/lib/prisma";
-import { getGeminiModel, getGeminiModelWithSearch } from "@/lib/gemini";
+import { executeAIRequest, INTENT } from "@/lib/gemini";
 import { USAGE_LIMITS } from "@/lib/utils";
 import { fetchTAData, fetchFAData, type TAData, type FAData } from "@/lib/stockData";
 
@@ -615,20 +615,6 @@ export async function POST(req: NextRequest) {
     // Append knowledge base + chat history vào context
     journalCtx = knowledgeCtx + journalCtx + chatHistoryCtx;
 
-    // ── Helper: fallback từ search model sang regular model ──
-    async function generateWithSearchFallback(prompt: string): Promise<string> {
-      try {
-        const model = getGeminiModelWithSearch();
-        const result = await model.generateContent(prompt);
-        return result.response.text();
-      } catch (err) {
-        console.warn("[Chat] Search model lỗi, dùng regular model:", err);
-        const model = getGeminiModel();
-        const result = await model.generateContent(prompt);
-        return result.response.text();
-      }
-    }
-
     // ── Xử lý các lệnh với RAG ──
     let responseText: string;
     let chartStock: string | undefined;
@@ -643,17 +629,13 @@ export async function POST(req: NextRequest) {
 
       if (taSummary) {
         console.log(`[Chat /ta] ${stock}: FiinQuant OK – Giá=${taSummary.price.current}, Trend=${taSummary.trend.direction}, Signal=${taSummary.signal}`);
-        const model = getGeminiModel();
-        const result = await model.generateContent(buildTaPromptFromSummary(stock, taSummary, journalCtx + signalCtx));
-        responseText = result.response.text();
+        responseText = await executeAIRequest(buildTaPromptFromSummary(stock, taSummary, journalCtx + signalCtx), INTENT.PTKT);
       } else {
         // Fallback: dùng VNDirect nếu bridge lỗi
         console.warn(`[Chat /ta] ${stock}: FiinQuant Bridge lỗi, fallback VNDirect`);
         const taData = await fetchTAData(stock);
         if (taData) chartExchange = taData.exchange;
-        const model = getGeminiModel();
-        const result = await model.generateContent(buildTaPrompt(stock, taData, journalCtx + signalCtx));
-        responseText = result.response.text();
+        responseText = await executeAIRequest(buildTaPrompt(stock, taData, journalCtx + signalCtx), INTENT.PTKT);
       }
       chartStock = stock;
 
@@ -662,15 +644,15 @@ export async function POST(req: NextRequest) {
       const signalCtx = await getSignalContext(stock);
       const [taData, faData] = await Promise.all([fetchTAData(stock), fetchFAData(stock)]);
       if (taData) console.log(`[Chat /fa] ${stock}: Giá=${taData.currentPrice}, PE=${faData?.pe}`);
-      responseText = await generateWithSearchFallback(buildFaPrompt(stock, taData, faData, journalCtx + signalCtx));
+      responseText = await executeAIRequest(buildFaPrompt(stock, taData, faData, journalCtx + signalCtx), INTENT.PTCB);
 
     } else if (cmd === "/news" && stock) {
-      responseText = await generateWithSearchFallback(buildNewsPrompt(stock, journalCtx));
+      responseText = await executeAIRequest(buildNewsPrompt(stock, journalCtx), INTENT.NEWS);
 
     } else if (cmd === "/tamly" && stock) {
       console.log(`[Chat /tamly] Fetching TAData cho ${stock}...`);
       const taData = await fetchTAData(stock);
-      responseText = await generateWithSearchFallback(buildTamlyPrompt(stock, taData, journalCtx));
+      responseText = await executeAIRequest(buildTamlyPrompt(stock, taData, journalCtx), INTENT.TAMLY);
 
     } else {
       // Chat thông thường — LUÔN fetch data real-time trước khi trả lời
@@ -708,15 +690,7 @@ ${hasData ? `\n⚠️ QUAN TRỌNG: Phân tích thị trường PHẢI dựa tr�
 
 Đại ca hỏi: ${message}`;
 
-      const model = getGeminiModelWithSearch();
-      try {
-        const result = await model.generateContent(prompt);
-        responseText = result.response.text();
-      } catch {
-        const fallback = getGeminiModel();
-        const result = await fallback.generateContent(prompt);
-        responseText = result.response.text();
-      }
+      responseText = await executeAIRequest(prompt, INTENT.GENERAL);
     }
 
     // Lưu lịch sử chat
