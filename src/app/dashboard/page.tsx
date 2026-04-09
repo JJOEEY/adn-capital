@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useState, useMemo, useCallback, memo, Suspense } from "react";
+import { useEffect, useState, useMemo, useCallback, memo, Suspense, Component, type ReactNode } from "react";
 import useSWR from "swr";
 import { RefreshCw, Bot, Zap, ShieldAlert, Flame, AlertTriangle, TrendingUp } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -80,6 +80,32 @@ function fmtLiquidity(tyVnd: number): string {
   }).format(Math.round(tyVnd));
 }
 
+/** Component-level error boundary — hiện skeleton thay vì crash toàn trang */
+class SafeSection extends Component<
+  { children: ReactNode; fallback?: ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(err: Error) {
+    console.error("[Dashboard SafeSection]", err?.message);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        this.props.fallback ?? (
+          <div className="rounded-2xl border border-neutral-800 bg-neutral-900/80 p-6 text-center">
+            <p className="text-xs text-neutral-500">Không thể tải phần này</p>
+          </div>
+        )
+      );
+    }
+    return this.props.children;
+  }
+}
+
 /** SWR fetcher — throw on HTTP error để SWR retry */
 const swrFetcher = (url: string) =>
   fetch(url, { signal: AbortSignal.timeout(30_000) }).then((r) => {
@@ -132,11 +158,12 @@ export default function DashboardPage() {
 
   const tickerItems = useMemo(() => {
     if (!data) return [];
+    const gi = Array.isArray(data.globalIndices) ? data.globalIndices : [];
     return [
-      { name: "VNINDEX", value: data.vnindex.value, change: data.vnindex.change, changePercent: data.vnindex.changePercent },
-      { name: "VN30", value: data.vn30.value, change: data.vn30.change, changePercent: data.vn30.changePercent },
-      { name: "HNX", value: data.hnx.value, change: data.hnx.change, changePercent: data.hnx.changePercent },
-      ...data.globalIndices.filter((i) => !["VN-INDEX", "HNX"].includes(i.name)).map((i) => ({
+      { name: "VNINDEX", value: data.vnindex?.value ?? 0, change: data.vnindex?.change ?? 0, changePercent: data.vnindex?.changePercent ?? 0 },
+      { name: "VN30", value: data.vn30?.value ?? 0, change: data.vn30?.change ?? 0, changePercent: data.vn30?.changePercent ?? 0 },
+      { name: "HNX", value: data.hnx?.value ?? 0, change: data.hnx?.change ?? 0, changePercent: data.hnx?.changePercent ?? 0 },
+      ...gi.filter((i) => !["VN-INDEX", "HNX"].includes(i.name)).map((i) => ({
         name: i.name,
         value: i.value,
         change: 0,
@@ -196,34 +223,36 @@ export default function DashboardPage() {
                 <MarketBreadthSkeleton />
               </>
             ) : (
-              <>
+              <SafeSection fallback={<><VNIndexChartSkeleton /><MarketBreadthSkeleton /></>}>
                 <VNIndexChart
-                  data={data.chartData}
-                  currentValue={data.vnindex.value}
-                  changePercent={data.vnindex.changePercent}
+                  data={data.chartData ?? []}
+                  currentValue={data.vnindex?.value ?? 0}
+                  changePercent={data.vnindex?.changePercent ?? 0}
                 />
                 <MarketBreadth
-                  up={data.updown.up}
-                  down={data.updown.down}
-                  unchanged={data.updown.unchanged}
+                  up={data.updown?.up ?? 0}
+                  down={data.updown?.down ?? 0}
+                  unchanged={data.updown?.unchanged ?? 0}
                   totalVolume={liquidityDisplay}
                 />
-              </>
+              </SafeSection>
             )}
           </div>
 
           {/* Cột Phải: Gauge + Market Status Card */}
           <div className="lg:col-span-4 flex flex-col gap-3">
             <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem Đánh giá Vĩ mô">
-              {/* Đồng hồ Gauge */}
-              {!mounted || loadingOverview ? (
-                <GaugeCardSkeleton />
-              ) : (
-                <GaugeCard overview={overview ?? null} />
-              )}
+              <SafeSection fallback={<GaugeCardSkeleton />}>
+                {/* Đồng hồ Gauge */}
+                {!mounted || loadingOverview ? (
+                  <GaugeCardSkeleton />
+                ) : (
+                  <GaugeCard overview={overview ?? null} />
+                )}
 
-              {/* Thẻ Trạng Thái 3D */}
-              {mounted && !loadingOverview && <MarketStatusCard overview={overview ?? null} />}
+                {/* Thẻ Trạng Thái 3D */}
+                {mounted && !loadingOverview && <MarketStatusCard overview={overview ?? null} />}
+              </SafeSection>
             </LockOverlay>
           </div>
         </div>
@@ -255,18 +284,24 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Left: Morning + EOD stacked */}
           <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Suspense fallback={<MorningNewsSkeleton />}>
-              <MorningNews />
-            </Suspense>
-            <Suspense fallback={<EveningNewsSkeleton />}>
-              <EveningNews />
-            </Suspense>
+            <SafeSection fallback={<MorningNewsSkeleton />}>
+              <Suspense fallback={<MorningNewsSkeleton />}>
+                <MorningNews />
+              </Suspense>
+            </SafeSection>
+            <SafeSection fallback={<EveningNewsSkeleton />}>
+              <Suspense fallback={<EveningNewsSkeleton />}>
+                <EveningNews />
+              </Suspense>
+            </SafeSection>
           </div>
 
           {/* Right: TEI + Top Leaders stacked */}
           <div className="flex flex-col gap-4">
             <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem Chỉ báo Cạn Kiệt Xu Hướng">
-              {!mounted ? <RPISkeleton /> : <ReversePointIndex />}
+              <SafeSection fallback={<RPISkeleton />}>
+                {!mounted ? <RPISkeleton /> : <ReversePointIndex />}
+              </SafeSection>
             </LockOverlay>
           </div>
         </div>
