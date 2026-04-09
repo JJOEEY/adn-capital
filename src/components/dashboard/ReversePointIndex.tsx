@@ -1,6 +1,6 @@
-﻿"use client";
+"use client";
 
-import { memo, useMemo } from "react";
+import { memo, useMemo, useEffect } from "react";
 import useSWR from "swr";
 import {
   ResponsiveContainer,
@@ -186,18 +186,42 @@ function TEIDot(props: { cx?: number; cy?: number }) {
  *  MAIN COMPONENT — Dashboard TEI Widget
  * ═══════════════════════════════════════════════════════════════════════════ */
 export const ReversePointIndex = memo(function ReversePointIndex() {
-  const { data: rawData, isLoading } = useSWR(
+  const { data: rawData, isLoading, mutate } = useSWR(
     "/api/historical/VN30",
     fetcher,
     {
       keepPreviousData: true,
       revalidateOnFocus: false,
       dedupingInterval: 60_000,
-      refreshInterval: 300_000,
+      refreshInterval: 0, // Tắt quét 5m mặc định
       shouldRetryOnError: true,
       errorRetryCount: 3,
     },
   );
+
+  // ── Smart Scheduler: 9:30, 14:00, 15:00 T2-T6 ──
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = new Date();
+      const day = now.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+      const hour = now.getHours();
+      const min = now.getMinutes();
+
+      // Chỉ quét Thứ 2 - Thứ 6
+      if (day >= 1 && day <= 5) {
+        const is930 = hour === 9 && min === 30;
+        const is1400 = hour === 14 && min === 0;
+        const is1500 = hour === 15 && min === 0;
+
+        if (is930 || is1400 || is1500) {
+          console.log(`[TEI Scheduler] 🎯 Triggering scan at ${hour}:${min}`);
+          mutate();
+        }
+      }
+    }, 60000); // Check mỗi phút
+
+    return () => clearInterval(timer);
+  }, [mutate]);
 
   const ohlcvData: OHLCVData[] = useMemo(() => {
     if (!rawData?.data?.length) return [];

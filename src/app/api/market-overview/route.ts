@@ -9,7 +9,7 @@ import { NextResponse } from "next/server";
 export const revalidate = 300; // 5 phút Next.js cache
 
 let cache: { data: unknown; ts: number } | null = null;
-const TTL = 300_000; // 5 phút
+const TTL = 86_400_000; // 24h (End of day)
 
 const BACKEND = process.env.FIINQUANT_URL ?? "http://localhost:8000";
 

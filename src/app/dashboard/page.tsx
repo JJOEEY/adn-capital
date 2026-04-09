@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState, useMemo, useCallback, memo, Suspense, Component, type ReactNode } from "react";
 import useSWR from "swr";
@@ -143,6 +143,7 @@ export default function DashboardPage() {
     mutate: mutateOverview,
   } = useSWR<MarketOverview>("/api/market-overview", swrFetcher, {
     ...swrOpts,
+    refreshInterval: 0, // Chỉ quét 1 lần/ngày, không tự động refresh 5m
     errorRetryCount: 3,
     errorRetryInterval: 3000,
   });
