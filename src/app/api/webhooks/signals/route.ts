@@ -13,7 +13,7 @@ const WEBHOOK_SECRET = process.env.SCANNER_SECRET ?? "adn-scanner-secret-key";
 
 interface IncomingSignal {
   ticker: string;
-  type: "SIEU_CO_PHIEU" | "TRUNG_HAN" | "DAU_CO";
+  type: "SIEU_CO_PHIEU" | "TRUNG_HAN" | "DAU_CO" | "TAM_NGAM";
   entryPrice: number;
   reason?: string;
 }
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     // Validate signals
     const validSignals = signals.filter((s) => {
       if (!s.ticker || !s.type || !s.entryPrice) return false;
-      if (!["SIEU_CO_PHIEU", "TRUNG_HAN", "DAU_CO"].includes(s.type)) return false;
+      if (!["SIEU_CO_PHIEU", "TRUNG_HAN", "DAU_CO", "TAM_NGAM"].includes(s.type)) return false;
       return true;
     });
 

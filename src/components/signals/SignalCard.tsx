@@ -8,7 +8,7 @@ import type { Signal } from "@/types";
 import { formatDistanceToNow } from "date-fns";
 import { vi } from "date-fns/locale";
 
-type TierType = "LEADER" | "TRUNG_HAN" | "NGAN_HAN";
+type TierType = "LEADER" | "TRUNG_HAN" | "NGAN_HAN" | "TAM_NGAM";
 
 interface SignalCardProps {
   signal: Signal;
@@ -19,7 +19,7 @@ const TIER_CONFIG: Record<TierType, {
   icon: string;
   label: string;
   gradient: string;
-  badge: "purple" | "emerald" | "yellow";
+  badge: "purple" | "emerald" | "yellow" | "gray";
   borderColor: string;
   glowClass: string;
   navBarColor: string;
@@ -54,6 +54,16 @@ const TIER_CONFIG: Record<TierType, {
     glowClass: "shadow-amber-500/10 hover:shadow-amber-500/20",
     navBarColor: "bg-amber-500",
     navBarBg: "bg-slate-700/50",
+  },
+  TAM_NGAM: {
+    icon: "🎯",
+    label: "TẦM NGẮM",
+    gradient: "from-cyan-500/8 via-cyan-500/4 to-transparent",
+    badge: "gray",
+    borderColor: "border-cyan-500/20 hover:border-cyan-500/40 border-dashed",
+    glowClass: "shadow-cyan-500/5 hover:shadow-cyan-500/15",
+    navBarColor: "bg-cyan-500",
+    navBarBg: "bg-slate-800/50",
   },
 };
 

@@ -15,19 +15,19 @@ import { getBatchSeasonality, type SeasonalityItem } from "@/lib/PriceCache";
 //  Types
 // ═══════════════════════════════════════════════════════════════════
 
-export type SignalTier = "LEADER" | "TRUNG_HAN" | "NGAN_HAN";
+export type SignalTier = "LEADER" | "TRUNG_HAN" | "NGAN_HAN" | "TAM_NGAM";
 export type SignalStatus = "RADAR" | "ACTIVE" | "CLOSED";
 
 interface RawScannerSignal {
   ticker: string;
-  type: "SIEU_CO_PHIEU" | "TRUNG_HAN" | "DAU_CO";
+  type: "SIEU_CO_PHIEU" | "TRUNG_HAN" | "DAU_CO" | "TAM_NGAM";
   entryPrice: number;
   reason?: string;
 }
 
 export interface ProcessedSignal {
   ticker: string;
-  type: "SIEU_CO_PHIEU" | "TRUNG_HAN" | "DAU_CO";
+  type: "SIEU_CO_PHIEU" | "TRUNG_HAN" | "DAU_CO" | "TAM_NGAM";
   tier: SignalTier;
   status: SignalStatus;
   entryPrice: number;
@@ -49,12 +49,14 @@ const TIER_CONFIG: Record<SignalTier, { baseNav: number; targetPct: number; stop
   LEADER:    { baseNav: 30, targetPct: 15, stopPct: 7 },
   TRUNG_HAN: { baseNav: 20, targetPct: 10, stopPct: 5 },
   NGAN_HAN:  { baseNav: 10, targetPct: 7,  stopPct: 3 },
+  TAM_NGAM:  { baseNav: 0,  targetPct: 10, stopPct: 5 }, // Chỉ theo dõi, chưa vào lệnh
 };
 
 const TYPE_TO_TIER: Record<string, SignalTier> = {
   SIEU_CO_PHIEU: "LEADER",
   TRUNG_HAN: "TRUNG_HAN",
   DAU_CO: "NGAN_HAN",
+  TAM_NGAM: "TAM_NGAM",
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -125,6 +127,7 @@ function generateAIBrokerMessage(params: {
     LEADER: "👑 LEADER — Siêu Cổ Phiếu",
     TRUNG_HAN: "🛡️ TRUNG HẠN — Tăng trưởng",
     NGAN_HAN: "⚡ NGẮN HẠN — Lướt sóng",
+    TAM_NGAM: "🎯 TẦM NGẮM — Tiếp cận",
   };
 
   const rr = ((params.target - params.entryPrice) / (params.entryPrice - params.stoploss)).toFixed(1);

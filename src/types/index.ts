@@ -12,9 +12,9 @@ export interface StockData {
 export interface Signal {
   id: string;
   ticker: string;
-  type: "SIEU_CO_PHIEU" | "TRUNG_HAN" | "DAU_CO";
+  type: "SIEU_CO_PHIEU" | "TRUNG_HAN" | "DAU_CO" | "TAM_NGAM";
   status: "RADAR" | "ACTIVE" | "CLOSED";
-  tier: "LEADER" | "TRUNG_HAN" | "NGAN_HAN";
+  tier: "LEADER" | "TRUNG_HAN" | "NGAN_HAN" | "TAM_NGAM";
   entryPrice: number;
   target?: number | null;
   stoploss?: number | null;

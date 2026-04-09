@@ -10,7 +10,7 @@ import type { Signal } from "@/types";
 import Link from "next/link";
 
 type Tab = "RADAR" | "ACTIVE" | "CLOSED";
-type TierFilter = "all" | "LEADER" | "TRUNG_HAN" | "NGAN_HAN";
+type TierFilter = "all" | "LEADER" | "TRUNG_HAN" | "NGAN_HAN" | "TAM_NGAM";
 
 const TABS: { value: Tab; label: string; icon: typeof Crosshair; color: string }[] = [
   { value: "RADAR", label: "Tầm ngắm", icon: Crosshair, color: "cyan" },
@@ -23,6 +23,7 @@ const TIER_FILTERS: { value: TierFilter; label: string; icon: string; color: str
   { value: "LEADER", label: "👑 Leader", icon: "👑", color: "text-purple-400" },
   { value: "TRUNG_HAN", label: "🛡️ Trung hạn", icon: "🛡️", color: "text-blue-400" },
   { value: "NGAN_HAN", label: "⚡ Ngắn hạn", icon: "⚡", color: "text-amber-400" },
+  { value: "TAM_NGAM", label: "🎯 Tiếp cận", icon: "🎯", color: "text-cyan-400" },
 ];
 
 const TAB_ACTIVE_STYLES: Record<Tab, string> = {
@@ -69,6 +70,7 @@ export function SignalMapClient({ isPremium = false }: { isPremium?: boolean }) 
     LEADER: tabSignals.filter((s) => (s.tier ?? "NGAN_HAN") === "LEADER").length,
     TRUNG_HAN: tabSignals.filter((s) => (s.tier ?? "NGAN_HAN") === "TRUNG_HAN").length,
     NGAN_HAN: tabSignals.filter((s) => (s.tier ?? "NGAN_HAN") === "NGAN_HAN").length,
+    TAM_NGAM: tabSignals.filter((s) => s.tier === "TAM_NGAM").length,
   };
 
   return (
