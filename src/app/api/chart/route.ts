@@ -32,23 +32,37 @@ export async function GET(req: NextRequest) {
     if (res.ok) {
       const json = await res.json();
       if (json.data?.length) {
-        const candles = json.data.map((d: Record<string, unknown>) => {
-          // timestamp có thể là ISO string hoặc unix
-          let time: number;
-          if (typeof d.timestamp === "string") {
-            time = Math.floor(new Date(d.timestamp as string).getTime() / 1000);
-          } else {
-            time = d.timestamp as number;
-          }
-          return {
-            time,
-            open: d.open ?? 0,
-            high: d.high ?? 0,
-            low: d.low ?? 0,
-            close: d.close ?? 0,
-            volume: d.volume ?? 0,
-          };
-        });
+        const candles = json.data
+          .map((d: Record<string, unknown>) => {
+            // FiinQuant trả "date" dạng "2024-04-09 00:00" hoặc "2024-04-09"
+            // Chuẩn hoá về unix seconds UTC midnight
+            let time: number;
+            if (typeof d.date === "string") {
+              const dateOnly = (d.date as string).split(" ")[0]; // "2024-04-09"
+              time = Math.floor(new Date(`${dateOnly}T00:00:00Z`).getTime() / 1000);
+            } else if (typeof d.timestamp === "string") {
+              const dateOnly = (d.timestamp as string).split(" ")[0];
+              time = Math.floor(new Date(`${dateOnly}T00:00:00Z`).getTime() / 1000);
+            } else if (typeof d.timestamp === "number") {
+              time = d.timestamp as number;
+            } else {
+              return null; // bỏ qua row không có time
+            }
+            return {
+              time,
+              open: Number(d.open ?? 0),
+              high: Number(d.high ?? 0),
+              low: Number(d.low ?? 0),
+              close: Number(d.close ?? 0),
+              volume: Number(d.volume ?? 0),
+            };
+          })
+          .filter(Boolean)
+          // sort tăng dần + dedup theo time (lightweight-charts yêu cầu)
+          .sort((a: {time:number}, b: {time:number}) => a.time - b.time)
+          .filter((c: {time:number}, i: number, arr: {time:number}[]) =>
+            i === 0 || c.time !== arr[i - 1].time
+          );
         console.log(`[Chart] ${symbol}: FiinQuant OK – ${candles.length} nến`);
         return NextResponse.json({ symbol, candles, source: "fiinquant" });
       }
@@ -77,14 +91,19 @@ export async function GET(req: NextRequest) {
     }
 
     const SCALE = 1000;
-    const candles = json.t.map((t: number, i: number) => ({
-      time: t,
-      open: +(json.o[i] * SCALE).toFixed(0),
-      high: +(json.h[i] * SCALE).toFixed(0),
-      low: +(json.l[i] * SCALE).toFixed(0),
-      close: +(json.c[i] * SCALE).toFixed(0),
-      volume: json.v?.[i] ?? 0,
-    }));
+    const candles = json.t
+      .map((t: number, i: number) => ({
+        time: t,
+        open: +(json.o[i] * SCALE).toFixed(0),
+        high: +(json.h[i] * SCALE).toFixed(0),
+        low: +(json.l[i] * SCALE).toFixed(0),
+        close: +(json.c[i] * SCALE).toFixed(0),
+        volume: json.v?.[i] ?? 0,
+      }))
+      .sort((a: {time:number}, b: {time:number}) => a.time - b.time)
+      .filter((c: {time:number}, i: number, arr: {time:number}[]) =>
+        i === 0 || c.time !== arr[i - 1].time
+      );
 
     console.log(`[Chart] ${symbol}: VNDirect fallback OK – ${candles.length} nến`);
     return NextResponse.json({ symbol, candles, source: "vndirect" });
