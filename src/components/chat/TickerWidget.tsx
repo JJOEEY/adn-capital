@@ -1,12 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  TrendingUp,
-  BarChart3,
-  Newspaper,
-  Activity,
   ArrowUpRight,
   ArrowDownRight,
   Zap,
@@ -31,16 +27,51 @@ export interface TickerWidgetData {
 
 type TabId = "ta" | "fa" | "news" | "behavior";
 
-const TABS: { id: TabId; label: string; icon: typeof TrendingUp }[] = [
-  { id: "ta",       label: "PTKT",   icon: TrendingUp },
-  { id: "fa",       label: "PTCB",   icon: BarChart3 },
-  { id: "news",     label: "Tin Tức", icon: Newspaper },
-  { id: "behavior", label: "Hành Vi", icon: Activity },
+const TABS: { id: TabId; label: string }[] = [
+  { id: "ta",       label: "PTKT" },
+  { id: "fa",       label: "PTCB" },
+  { id: "behavior", label: "HÀNH VI" },
+  { id: "news",     label: "TIN TỨC" },
 ];
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 const fmt   = (v?: number | null) => v != null ? v.toLocaleString("vi-VN") : "—";
 const fmtPct = (v?: number | null) => v != null ? `${v >= 0 ? "+" : ""}${v.toFixed(2)}%` : "—";
+
+// ── TradingView Chart ───────────────────────────────────────────────────
+function TradingViewChart({ ticker }: { ticker: string }) {
+  const container = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!container.current) return;
+    const script = document.createElement("script");
+    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
+    script.type = "text/javascript";
+    script.async = true;
+    script.innerHTML = JSON.stringify({
+      "autosize": true,
+      "symbol": `HOSE:${ticker}`,
+      "interval": "D",
+      "timezone": "Asia/Ho_Chi_Minh",
+      "theme": "dark",
+      "style": "1",
+      "locale": "vi",
+      "enable_publishing": false,
+      "hide_top_toolbar": true,
+      "hide_legend": true,
+      "save_image": false,
+      "calendar": false,
+      "hide_volume": true,
+      "support_host": "https://www.tradingview.com"
+    });
+    container.current.innerHTML = "";
+    container.current.appendChild(script);
+  }, [ticker]);
+
+  return (
+    <div className="w-full h-[280px] sm:h-[350px] rounded-xl overflow-hidden border border-white/5 bg-black/20" ref={container} />
+  );
+}
 
 // ── Small stat box ──────────────────────────────────────────────────────
 function StatBox({ label, value, sub, highlight }: {
@@ -73,11 +104,11 @@ function AIInsightBlock({ insight }: { insight: string | null }) {
             <MessageSquareQuote className="w-3.5 h-3.5 text-yellow-400" />
           </div>
         </div>
-        <div>
+        <div className="flex-1">
           <p className="text-[9px] text-yellow-500/70 font-black uppercase tracking-widest mb-1.5">
             Nhận định AI — Khổng Minh
           </p>
-          <p className="text-[12px] text-slate-200 leading-relaxed">{insight}</p>
+          <p className="text-[12px] text-slate-200 leading-relaxed whitespace-pre-wrap">{insight}</p>
         </div>
       </div>
     </motion.div>
@@ -135,35 +166,35 @@ export function TickerWidget({ ticker, data }: TickerWidgetData) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 14, scale: 0.96 }}
+      initial={{ opacity: 0, y: 14, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-      className="w-full max-w-xl my-2"
+      className="w-full max-w-full sm:max-w-2xl my-2 mx-auto"
     >
-      <Card glass glow={isUp ? "emerald" : "red"} className="overflow-hidden">
+      <Card glass glow={isUp ? "emerald" : "red"} className="overflow-hidden border-white/10">
 
         {/* Header */}
-        <div className="px-5 pt-4 pb-3 border-b border-white/[0.07] flex items-center justify-between gap-4">
+        <div className="px-4 sm:px-6 pt-5 pb-4 border-b border-white/[0.07] flex items-center justify-between gap-4 bg-white/[0.02]">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-white/[0.07] border border-white/[0.10] flex items-center justify-center font-black text-sm text-white">
+            <div className="w-12 h-12 rounded-xl bg-white/[0.07] border border-white/[0.10] flex items-center justify-center font-black text-sm text-white shadow-inner">
               {ticker.slice(0, 3)}
             </div>
             <div>
-              <h3 className="text-base font-black text-white">{ticker}</h3>
-              <p className="text-[9px] text-slate-600 mt-0.5 uppercase font-bold tracking-wider">ADN Capital Quant</p>
+              <h3 className="text-lg font-black text-white tracking-tight">{ticker}</h3>
+              <p className="text-[10px] text-slate-500 mt-0.5 uppercase font-bold tracking-widest">ADN Capital Quant</p>
             </div>
           </div>
           <div className="text-right">
-            <p className="text-2xl font-black text-white tabular-nums">{fmt(ta?.price?.current)}</p>
-            <div className={cn("flex items-center justify-end gap-1 text-xs font-bold", isUp ? "text-emerald-400" : "text-red-400")}>
-              {isUp ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
+            <p className="text-2xl sm:text-3xl font-black text-white tabular-nums tracking-tighter">{fmt(ta?.price?.current)}</p>
+            <div className={cn("flex items-center justify-end gap-1 text-xs sm:text-sm font-black", isUp ? "text-emerald-400" : "text-red-400")}>
+              {isUp ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
               {fmtPct(ta?.price?.changePct)}
             </div>
           </div>
         </div>
 
-        {/* Tab Bar */}
-        <div className="flex border-b border-white/[0.07]">
+        {/* Tab Bar - Text Only */}
+        <div className="flex border-b border-white/[0.07] bg-black/20">
           {TABS.map(tab => {
             const active = activeTab === tab.id;
             return (
@@ -171,17 +202,16 @@ export function TickerWidget({ ticker, data }: TickerWidgetData) {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  "flex-1 pt-3 pb-2.5 flex flex-col items-center gap-1 text-[10px] font-bold transition-all duration-300 relative",
-                  active ? "text-white" : "text-slate-600 hover:text-slate-300"
+                  "flex-1 pt-4 pb-3 text-[11px] sm:text-xs font-black transition-all duration-300 relative uppercase tracking-widest",
+                  active ? "text-yellow-400" : "text-slate-500 hover:text-slate-300"
                 )}
               >
-                <tab.icon className={cn("w-3.5 h-3.5 transition-transform duration-300", active && "scale-110")} />
-                <span className="hidden xs:inline">{tab.label}</span>
+                {tab.label}
                 {active && (
                   <motion.div
                     layoutId="tabUnderline"
-                    className="absolute bottom-0 left-2 right-2 h-[2px] rounded-full bg-gradient-to-r from-yellow-500 via-orange-400 to-yellow-500"
-                    style={{ boxShadow: "0 0 10px rgba(251,191,36,0.5)" }}
+                    className="absolute bottom-0 left-0 right-0 h-[2px] bg-yellow-500"
+                    style={{ boxShadow: "0 0 12px rgba(251,191,36,0.6)" }}
                     transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
                   />
                 )}
@@ -191,20 +221,22 @@ export function TickerWidget({ ticker, data }: TickerWidgetData) {
         </div>
 
         {/* Tab Content */}
-        <div className="p-5 min-h-[220px]">
+        <div className="p-4 sm:p-6 min-h-[300px]">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
               transition={{ duration: 0.2 }}
-              className="space-y-4"
+              className="space-y-5"
             >
+              {/* PTKT */}
               {activeTab === "ta" && (
                 <>
-                  <div className="grid grid-cols-2 gap-2">
-                    <StatBox label="Xu hướng" value={ta?.trend?.direction ?? "—"} sub={ta?.trend?.strength} />
+                  <TradingViewChart ticker={ticker} />
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    <StatBox label="Xu hướng" value={ta?.trend?.direction ?? "—"} />
                     <StatBox label="Tín hiệu" value={ta?.signal ?? "—"}
                       highlight={ta?.signal?.includes("BUY") || ta?.signal?.includes("TĂNG") ? "up" :
                                  ta?.signal?.includes("SELL") || ta?.signal?.includes("GIẢM") ? "down" : "neutral"} />
@@ -212,24 +244,18 @@ export function TickerWidget({ ticker, data }: TickerWidgetData) {
                       sub={ta?.indicators?.rsi14 > 70 ? "Quá mua" : ta?.indicators?.rsi14 < 30 ? "Quá bán" : "Trung tính"} />
                     <StatBox label="Bull/Bear" value={`${ta?.bullishScore ?? "?"} / ${ta?.bearishScore ?? "?"}`} />
                   </div>
-                  {ta?.patterns?.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {ta.patterns.map((p: string) => (
-                        <span key={p} className="px-2 py-0.5 rounded-md bg-yellow-500/10 border border-yellow-500/20 text-yellow-300 text-[9px] font-bold">{p}</span>
-                      ))}
-                    </div>
-                  )}
                   <AIInsightBlock insight={data.technical?.aiInsight} />
                 </>
               )}
 
+              {/* PTCB */}
               {activeTab === "fa" && (
                 <>
                   <div className="flex items-center justify-between mb-1">
-                    <p className="text-[10px] text-slate-500 font-bold uppercase">Kỳ báo cáo: {data.fundamental.period || "N/A"}</p>
-                    <span className="px-2 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[8px] font-black">BCTC</span>
+                    <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Kỳ báo cáo: {data.fundamental.period || "N/A"}</p>
+                    <span className="px-2 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[9px] font-black">BCTC</span>
                   </div>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                     <StatBox label="P/E" value={fa?.pe ? `${fa.pe}x` : "—"} />
                     <StatBox label="P/B" value={fa?.pb ? `${fa.pb}x` : "—"} />
                     <StatBox label="ROE" value={fa?.roe ? `${fa.roe}%` : "—"} />
@@ -242,9 +268,10 @@ export function TickerWidget({ ticker, data }: TickerWidgetData) {
                 </>
               )}
 
+              {/* Tin Tức */}
               {activeTab === "news" && (
                 <>
-                  <div className="space-y-1.5">
+                  <div className="space-y-2">
                     {(data.news?.data || []).slice(0, 6).map((item, i) => (
                       <motion.a
                         key={i}
@@ -254,16 +281,16 @@ export function TickerWidget({ ticker, data }: TickerWidgetData) {
                         initial={{ opacity: 0, x: -6 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: i * 0.06 }}
-                        className="group flex items-start gap-2.5 p-2.5 rounded-lg hover:bg-white/[0.04] transition-colors block"
+                        className="group flex items-start gap-3 p-3 rounded-xl hover:bg-white/[0.04] border border-transparent hover:border-white/5 transition-all block"
                       >
-                        <div className="w-1.5 h-1.5 rounded-full bg-yellow-400/70 mt-1.5 flex-shrink-0" />
+                        <div className="w-1.5 h-1.5 rounded-full bg-yellow-400/70 mt-2 flex-shrink-0 shadow-[0_0_8px_rgba(251,191,36,0.4)]" />
                         <div className="flex-1">
-                          <p className="text-[11px] text-slate-300 group-hover:text-white transition-colors line-clamp-2 leading-relaxed">
+                          <p className="text-xs sm:text-[13px] text-slate-300 group-hover:text-white transition-colors line-clamp-2 leading-relaxed font-medium">
                             {item.title}
                           </p>
-                          <div className="flex items-center justify-between mt-1">
-                            <p className="text-[9px] text-slate-600">{item.time}</p>
-                            <p className="text-[8px] text-slate-700 font-bold uppercase">{item.source}</p>
+                          <div className="flex items-center justify-between mt-1.5">
+                            <p className="text-[10px] text-slate-600 font-bold">{item.time}</p>
+                            <p className="text-[9px] text-slate-700 font-black uppercase tracking-tighter">{item.source}</p>
                           </div>
                         </div>
                       </motion.a>
@@ -273,25 +300,26 @@ export function TickerWidget({ ticker, data }: TickerWidgetData) {
                 </>
               )}
 
+              {/* Hành Vi */}
               {activeTab === "behavior" && (
-                <div className="flex flex-col items-center gap-4">
+                <div className="flex flex-col items-center gap-6">
                   <div className="w-full flex justify-between items-center px-2">
-                    <span className="text-[9px] text-slate-500 font-bold uppercase">Dữ liệu: {behavior?.period ?? "Hôm nay"}</span>
-                    <span className="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[8px] font-black">REAL-TIME</span>
+                    <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Dữ liệu: {behavior?.period ?? "Hôm nay"}</span>
+                    <span className="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[9px] font-black uppercase">Real-time</span>
                   </div>
                   <TEIGauge value={teiScore} />
-                  <div className={cn("text-center text-sm font-black", teiColor)}>
+                  <div className={cn("text-center text-base font-black uppercase tracking-widest", teiColor)}>
                     {behavior?.status ?? "—"}
                   </div>
-                  <div className="w-full space-y-1">
+                  <div className="w-full grid grid-cols-1 sm:grid-cols-3 gap-2">
                     {[
                       { label: "Hưng phấn cực độ (≥ 4.5)", color: "text-red-400", icon: AlertTriangle },
                       { label: "Trung tính (2.0 – 4.0)", color: "text-yellow-400", icon: Minus },
                       { label: "Bi quan – Cơ hội (≤ 1.0)", color: "text-emerald-400", icon: ShieldCheck },
                     ].map(item => (
-                      <div key={item.label} className="flex items-center gap-2 text-[10px] px-2 py-1">
-                        <item.icon className={cn("w-3 h-3 flex-shrink-0", item.color)} />
-                        <span className={item.color}>{item.label}</span>
+                      <div key={item.label} className="flex items-center gap-2 text-[10px] px-3 py-2 rounded-lg bg-white/[0.02] border border-white/5">
+                        <item.icon className={cn("w-3.5 h-3.5 flex-shrink-0", item.color)} />
+                        <span className={cn("font-bold", item.color)}>{item.label}</span>
                       </div>
                     ))}
                   </div>
@@ -302,12 +330,13 @@ export function TickerWidget({ ticker, data }: TickerWidgetData) {
           </AnimatePresence>
         </div>
 
-        {/* Footer */}
-        <div className="px-5 py-2.5 border-t border-white/[0.06] flex items-center justify-between bg-white/[0.01]">
-          <span className="text-[9px] text-slate-700 italic">ADN Capital · FiinQuant Data</span>
-          <span className="text-[9px] text-slate-600">
-            <span className="font-mono">/ta {ticker}</span> để phân tích đầy đủ
-          </span>
+        {/* Footer - Cleaned up as requested */}
+        <div className="px-6 py-3 border-t border-white/[0.06] flex items-center justify-between bg-black/40">
+          <span className="text-[10px] text-slate-600 font-black uppercase tracking-widest">ADN Capital · Quant Engine</span>
+          <div className="flex items-center gap-1.5 opacity-50">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-[9px] text-emerald-500 font-black uppercase">Live Data</span>
+          </div>
         </div>
       </Card>
     </motion.div>
