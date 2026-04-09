@@ -57,8 +57,9 @@ function isCacheValid(updatedAt: Date, expiryMs: number): boolean {
   return Date.now() - updatedAt.getTime() < expiryMs;
 }
 
-export async function GET(req: NextRequest, { params }: { params: { ticker: string } }) {
-  const ticker = params.ticker.toUpperCase();
+export async function GET(req: NextRequest, { params }: { params: Promise<{ ticker: string }> }) {
+  const { ticker: rawTicker } = await params;
+  const ticker = rawTicker.toUpperCase();
 
   try {
     // ── 0. Presentation Mode: skip ALL external APIs ──────────────────────
