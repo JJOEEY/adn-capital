@@ -607,6 +607,22 @@ Dùng Google Search để bổ sung dữ liệu giao dịch mới nhất.
 - Đang có hàng / Chưa có hàng / Kẹp hàng${journalCtx ? "\n\n### 5. TƯ VẤN CÁ NHÂN" : ""}`;
 }
 
+// ─── Helpers ────────────────────────────────────────────────────
+function generateId() {
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
+/** Extract a 2-4 letter uppercase ticker from a sentence, returns null if not found */
+function extractTicker(text: string): string | null {
+  const upper = text.toUpperCase();
+  // Match explicit slash commands first: /ta FPT, /fa VNM, /news HPG
+  const cmdMatch = upper.match(/\/(?:TA|FA|NEWS|TAMLY|PTKT|PTCB)\s+([A-Z]{2,5})/);
+  if (cmdMatch) return cmdMatch[1];
+  // Then match standalone 2-5 uppercase letters (whole word)
+  const wordMatch = upper.match(/\b([A-Z]{2,5})\b/);
+  return wordMatch ? wordMatch[1] : null;
+}
+
 // ─── Main POST handler ────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
@@ -620,9 +636,96 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Tin nhắn quá dài (tối đa 2000 ký tự)" }, { status: 400 });
     }
 
+    // ══════════════════════════════════════════════════════════
+    // 🚫 TICKER INTERCEPTOR — DÒNG ĐẦU TIÊN, TRƯỚC MỌI THỨ
+    // Không để LLM quyết định widget/text. TypeScript quyết định.
+    // ══════════════════════════════════════════════════════════
+    const upper = message.trim().toUpperCase();
+    const isDirectTicker = /^[A-Z]{2,5}$/.test(upper);
+    const isAnalyzePhrase =
+      /\b[A-Z]{2,5}\b/.test(upper) && (
+        upper.includes("PHÂN TÍCH") || upper.includes("NHAN DINH") || upper.includes("NHẬN ĐỊNH") ||
+        upper.includes("NHẬ") || upper.includes("XEM") || upper.includes("TA ") ||
+        upper.includes("/TA") || upper.includes("/FA") || upper.includes("/PTKT") || upper.includes("/PTCB") ||
+        upper.includes("MUA") || upper.includes("BÁN") || upper.includes("BAN ") ||
+        upper.includes("PTKT") || upper.includes("PTCB") || upper.includes("CHART") ||
+        upper.includes("KỸ THUẬT") || upper.includes("KY THUAT") || upper.includes("CƠ BẢN") ||
+        upper.includes("CO BAN") || upper.includes("DASHBOARD")
+      );
+
+    const shouldRenderWidget = isDirectTicker || isAnalyzePhrase;
+
+    if (shouldRenderWidget) {
+      const ticker = isDirectTicker ? upper : (extractTicker(upper) ?? "FPT");
+
+      console.log(`[INTERCEPTOR] 🎯 Widget triggered for ticker: ${ticker}`);
+
+      // Auth check (don't block widget, just track usage)
+      const dbUser = await getCurrentDbUser();
+      const userId = dbUser?.id ?? null;
+      const userRole = dbUser?.role ?? "GUEST";
+      const currentUsage = dbUser ? dbUser.chatCount : guestUsage;
+      const limit = (USAGE_LIMITS as Record<string, number>)[userRole] ?? 3;
+
+      if (currentUsage >= limit) {
+        return NextResponse.json(
+          { error: "LIMIT_REACHED", message: `Đại ca hết ${limit} lượt rồi ạ 😢 Nâng cấp VIP để chat không giới hạn!` },
+          { status: 429 }
+        );
+      }
+
+      // Mock Mode — instant
+      if (await isMockMode()) {
+        console.log(`[INTERCEPTOR] 🎬 Mock Mode — serving ${ticker} from MockFactory`);
+        const mockData = MockFactory.getTicker(ticker);
+        if (userId) {
+          prisma.$transaction([
+            prisma.user.update({ where: { id: userId }, data: { chatCount: { increment: 1 } } }),
+            prisma.chat.create({ data: { userId, message, role: "user" } }),
+            prisma.chat.create({ data: { userId, message: `[WIDGET:MOCK:${ticker}]`, role: "assistant" } }),
+          ]).catch(console.error);
+        }
+        // EXACT shape that useChat.ts expects
+        return NextResponse.json({
+          id: generateId(),
+          role: "assistant",
+          type: "widget",
+          widgetType: "TICKER_DASHBOARD",
+          ticker,
+          content: "",
+          data: mockData,
+        });
+      }
+
+      // Real mode — inline service (no self-HTTP)
+      const widgetPayload = await getFullWidgetData(ticker);
+
+      if (userId) {
+        prisma.$transaction([
+          prisma.user.update({ where: { id: userId }, data: { chatCount: { increment: 1 } } }),
+          prisma.chat.create({ data: { userId, message, role: "user" } }),
+          prisma.chat.create({ data: { userId, message: `[WIDGET:${ticker}]`, role: "assistant" } }),
+        ]).catch(console.error);
+      }
+
+      // EXACT shape that useChat.ts expects — type at top level, content empty
+      return NextResponse.json({
+        id: generateId(),
+        role: "assistant",
+        type: "widget",
+        widgetType: "TICKER_DASHBOARD",
+        ticker,
+        content: "",
+        data: widgetPayload.data,   // forward only the .data object (tabs)
+        newUsage: currentUsage + 1,
+      });
+    }
+    // ══════════════════════════════════════════════════════════
+    // END INTERCEPTOR — below here = general chat only
+    // ══════════════════════════════════════════════════════════
+
     // ── Step 0: FAST intent detection (ưu tiên đầu tiên, trước mọi thứ) ──
     const { cmd, stock } = parseCommand(message);
-    const { intent, ticker: detectedTicker } = await detectIntent(message);
 
     // ── Step 1: User auth + rate limit ──
     const dbUser = await getCurrentDbUser();
@@ -636,7 +739,7 @@ export async function POST(req: NextRequest) {
       currentUsage = dbUser.chatCount;
     }
 
-    const limit = USAGE_LIMITS[userRole] ?? 3;
+    const limit = (USAGE_LIMITS as Record<string, number>)[userRole] ?? 3;
     if (currentUsage >= limit) {
       return NextResponse.json(
         { error: "LIMIT_REACHED", message: `Đại ca hết ${limit} lượt rồi ạ 😢 Nâng cấp VIP để chat không giới hạn!` },
@@ -651,42 +754,6 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // ── Step 2: ANALYZE_TICKER — highest priority, skip journal/knowledge overhead ──
-    if (intent === "ANALYZE_TICKER" && detectedTicker) {
-      console.log(`[Chat Widget] ✅ ANALYZE_TICKER => ${detectedTicker}`);
-
-      // 2a. Mock Mode — instant response, zero external calls
-      if (await isMockMode()) {
-        console.log(`[Chat Widget] 🎬 Mock Mode — serving ${detectedTicker} from MockFactory`);
-        const mockData = MockFactory.getTicker(detectedTicker);
-        if (userId) {
-          prisma.$transaction([
-            prisma.user.update({ where: { id: userId }, data: { chatCount: { increment: 1 } } }),
-            prisma.chat.create({ data: { userId, message, role: "user" } }),
-            prisma.chat.create({ data: { userId, message: `[WIDGET:MOCK:${detectedTicker}]`, role: "assistant" } }),
-          ]).catch(console.error);
-        }
-        return NextResponse.json({
-          type: "widget",
-          widgetType: "TICKER_DASHBOARD",
-          ticker: detectedTicker,
-          data: mockData,
-        });
-      }
-
-      // 2b. Real mode — call inline service (no self-HTTP call)
-      const widgetData = await getFullWidgetData(detectedTicker);
-      
-      if (userId) {
-        prisma.$transaction([
-          prisma.user.update({ where: { id: userId }, data: { chatCount: { increment: 1 } } }),
-          prisma.chat.create({ data: { userId, message, role: "user" } }),
-          prisma.chat.create({ data: { userId, message: `[WIDGET:${detectedTicker}]`, role: "assistant" } }),
-        ]).catch(console.error);
-      }
-
-      return NextResponse.json(widgetData);
-    }
 
     // ── Step 3: Build expensive context (only for non-widget requests) ──
     let journalCtx = "";
