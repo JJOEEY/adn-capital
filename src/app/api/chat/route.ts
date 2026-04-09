@@ -1,4 +1,4 @@
-﻿/**
+/**
  * /api/chat/route.ts
  *
  * API xử lý chat AI với kỹ thuật RAG (Retrieval-Augmented Generation):
@@ -280,6 +280,65 @@ const RAG_RULES = `
 3. Nếu dữ liệu thiếu 1 phần, viết: "Phần này hệ thống quant chưa cập nhật, em sẽ update sớm nhất đại ca nhé".
 4. Mọi nhận định về xu hướng/support/resistance phải DỰA TRÊN các giá trị EMA, RSI, MACD đã cung cấp.
 5. KHÔNG BAO GIỜ nhắc đến tên API, VNDirect, nguồn dữ liệu. Chỉ nói "dữ liệu real-time" hoặc "hệ thống quant".`;
+
+// ─── Known VN stock tickers for fast-path matching ─────────────
+const KNOWN_TICKERS = new Set([
+  // VN30
+  "FPT","VIC","VHM","VNM","BID","CTG","VCB","TCB","MBB","ACB",
+  "STB","VPB","HDB","MSN","GAS","POW","PLX","SAB","BCM","GVR",
+  "HPG","NVL","PDR","MWG","VRE","VJC","REE","SSI","VND","HCM",
+  "SSB","LPB","VCI","EIB","SHB","OCB","TPB","NAB","KDH","DXG",
+  "VCG","DIG","AGR","PNJ","FRT","MSH","HAG","DPM","GEX","KBC",
+  "PVT","PVD","BSR","OIL","ACV","VGC","PC1","GMD","CII","DBC",
+]);
+
+// ─── Intent Detection (REGEX-FIRST, LLM fallback) ────────────────
+async function detectIntent(msg: string): Promise<{ intent: "CHAT_GENERAL" | "ANALYZE_TICKER"; ticker?: string }> {
+  const upper = msg.trim().toUpperCase();
+
+  // ── Fast path 1: bare ticker ("fpt", "FPT", "MWG sao em") ──
+  const bareTickerMatch = upper.match(/^([A-Z]{2,5})(?:\s|$|\?|!|,|\.)/);
+  if (bareTickerMatch && KNOWN_TICKERS.has(bareTickerMatch[1])) {
+    return { intent: "ANALYZE_TICKER", ticker: bareTickerMatch[1] };
+  }
+
+  // ── Fast path 2: known ticker anywhere in short msg (<= 10 words) ──
+  const words = upper.split(/\s+/);
+  if (words.length <= 10) {
+    for (const word of words) {
+      const cleaned = word.replace(/[^A-Z]/g, "");
+      if (cleaned.length >= 2 && cleaned.length <= 5 && KNOWN_TICKERS.has(cleaned)) {
+        return { intent: "ANALYZE_TICKER", ticker: cleaned };
+      }
+    }
+  }
+
+  // ── Fast path 3: regex for any 2-5 uppercase ticker with analysis keywords ──
+  const analysisKeywords = /(nh\u1eadn \u0111\u1ecbnh|ph\u00e2n t\u00edch|c\u00f3 n\u00ean|xem|n\u00f3 sao|sao r\u1ed3i|c\u00f3 ti\u1ec1m|m\u00e3|c\u1ed5 phi\u1ebfu|k\u1eb9o|xem h\u1ed9)/i;
+  const tickerInMsg = upper.match(/\b([A-Z]{2,5})\b/);
+  if (tickerInMsg && analysisKeywords.test(msg)) {
+    return { intent: "ANALYZE_TICKER", ticker: tickerInMsg[1] };
+  }
+
+  // ── Slow path: LLM for ambiguous cases ──
+  const prompt = `Bạn là bộ phân loại ý định cho ADN AI Bot. Phân tích tin nhắn và trả về JSON duy nhất.
+Intent:
+- ANALYZE_TICKER: hỏi về 1 mã cổ phiếu cụ thể
+- CHAT_GENERAL: hỏi chung, vĩ mô, kiến thức
+
+Tin nhắn: "${msg}"
+JSON: {"intent": "...", "ticker": "..."}  (ticker chỉ có nếu ANALYZE_TICKER)`;
+
+  try {
+    const raw = await executeAIRequest(prompt, "INTENT_CLASSIFICATION" as any);
+    const cleaned = raw.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(cleaned);
+    if (parsed.ticker) parsed.ticker = parsed.ticker.toUpperCase();
+    return parsed;
+  } catch {
+    return { intent: "CHAT_GENERAL" };
+  }
+}
 
 // ─── Parse lệnh từ tin nhắn ──────────────────────────────────
 function parseCommand(msg: string): { cmd: string | null; stock: string | null } {
@@ -615,7 +674,38 @@ export async function POST(req: NextRequest) {
     // Append knowledge base + chat history vào context
     journalCtx = knowledgeCtx + journalCtx + chatHistoryCtx;
 
-    // ── Xử lý các lệnh với RAG ──
+    // ── Xử lý Intent ANALYZE_TICKER (Widget) — Ưu tiên cao nhất ──
+    const { intent, ticker: detectedTicker } = await detectIntent(message);
+    
+    if (intent === "ANALYZE_TICKER" && detectedTicker) {
+      console.log(`[Chat Widget] ✅ ANALYZE_TICKER for ${detectedTicker}`);
+      
+      // Gọi API Widget nội bộ để lấy data (đã có logic Mock Mode & AI Cache)
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+      const widgetRes = await fetch(`${baseUrl}/api/widget/${detectedTicker}`, {
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store"
+      });
+
+      if (widgetRes.ok) {
+        const widgetData = await widgetRes.json();
+
+        // Lưu lịch sử (Assistant trả về widget)
+        if (userId) {
+          await prisma.$transaction([
+            prisma.user.update({ where: { id: userId }, data: { chatCount: { increment: 1 } } }),
+            prisma.chat.create({ data: { userId, message, role: "user" } }),
+            prisma.chat.create({ data: { userId, message: `[WIDGET: TICKER_DASHBOARD ${detectedTicker}]`, role: "assistant" } }),
+          ]);
+        }
+
+        return NextResponse.json(widgetData);
+      }
+      
+      console.warn(`[Chat Widget] Failed to fetch widget data for ${detectedTicker}, falling back to general chat`);
+    }
+
+    // ── Xử lý các lệnh với RAG (Giữ nguyên logic cũ) ──
     let responseText: string;
     let chartStock: string | undefined;
     let chartExchange: string | undefined;

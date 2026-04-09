@@ -137,6 +137,8 @@ model Signal {
   winRate       Float?              // Seasonality win rate tháng hiện tại
   sharpeRatio   Float?              // Seasonality sharpe ratio tháng hiện tại
   closedAt      DateTime?           // Ngày đóng vị thế
+  rrRatio       String?             // Tỷ lệ R/R (e.g. "1:2.5")
+  holdingAction String?             // Thông báo gồng lãi / Trailing Stop
   createdAt     DateTime @default(now())
   updatedAt     DateTime @default(now()) @updatedAt
 
@@ -348,4 +350,21 @@ model Article {
   @@index([categoryId, publishedAt])
   @@index([authorId, createdAt])
   @@index([slug])
+}
+model AiInsightCache {
+  id        String   @id @default(cuid())
+  ticker    String
+  tabType   String   // PTKT | PTCB
+  content   String
+  updatedAt DateTime @updatedAt
+
+  @@unique([ticker, tabType])
+  @@index([ticker])
+}
+
+// Runtime settings controlled from Admin UI (no server restart needed)
+model SystemSetting {
+  key       String   @id   // e.g. "IS_MOCK_MODE"
+  value     String         // stored as string; "true" | "false" | numeric etc.
+  updatedAt DateTime @updatedAt
 }

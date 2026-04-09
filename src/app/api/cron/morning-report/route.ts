@@ -1,17 +1,18 @@
 /**
- * API Cron: Morning Brief — 8:00 sáng hằng ngày
+ * API Cron: Morning Brief — 08:00 T2-T6
  *
- * 1. Fetch data thực từ FiinQuant (market overview, indices)
- * 2. Fetch tin CafeF (chứng khoán, vĩ mô, quốc tế)
- * 3. Gemini viết bài dựa trên data thực (KHÔNG hallucinate)
- * 4. Lưu vào MarketReport + đẩy Notification
+ * Format: Dashboard Telegram chuyên nghiệp ADN Capital
+ * Data: FiinQuant (market ref) + CafeF RSS (news) — tối ưu API calls
+ * AI: Gemini tổng hợp và format output theo chuẩn Telegram Markdown
  */
 import { NextRequest, NextResponse } from "next/server";
 import { generateText } from "@/lib/gemini";
 import {
   validateCronSecret,
   logCron,
+  pushNotification,
   saveMarketReport,
+  isTradingDay,
   getVNDateString,
 } from "@/lib/cronHelpers";
 import { getMarketSnapshot, formatSnapshotForAI } from "@/lib/marketDataFetcher";
@@ -24,11 +25,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Không có quyền truy cập" }, { status: 401 });
   }
 
+  if (!isTradingDay()) {
+    return NextResponse.json({ message: "Không phải ngày giao dịch" });
+  }
+
   const startTime = Date.now();
   const today = getVNDateString();
 
   try {
-    // ═══ 1. Fetch data thực song song ═══
+    // ── 1. Lấy data song song (1 API call FiinQuant + 3 CafeF RSS) ──
     const [snapshot, cafefNews] = await Promise.all([
       getMarketSnapshot(),
       fetchAllCafefNews(),
@@ -37,72 +42,62 @@ export async function GET(req: NextRequest) {
     const marketContext = formatSnapshotForAI(snapshot);
     const newsContext = buildCafefContext(cafefNews);
 
-    // ═══ 2. Gemini viết bài với data thực ═══
-    const prompt = `Bạn là ADN AI Bot System - Khổng Minh của VNINDEX.
-Hôm nay là ${today}. Hãy viết BÁO CÁO SÁNG 8:00 cho nhà đầu tư chứng khoán Việt Nam.
+    const vnidx = snapshot.indices.find(i => i.ticker === "VNINDEX");
+    const vn30  = snapshot.indices.find(i => i.ticker === "VN30");
 
-QUY TẮC BẮT BUỘC:
-1. CHỈ dùng chính xác các con số trong phần "DỮ LIỆU REAL-TIME" bên dưới
-2. TUYỆT ĐỐI KHÔNG tự bịa giá, volume, ngày tháng, tên công ty
-3. Tin tức phải dựa trên phần "TIN TỨC CAFEF" bên dưới
-4. Nếu thiếu dữ liệu → nói rõ "chưa cập nhật", KHÔNG bịa số
+    // ── 2. Gemini viết theo format Dashboard chuẩn Telegram ──────────
+    const prompt = `Bạn là ADN AI Bot — Trợ lý giao dịch chuyên nghiệp của ADN Capital.
+Hôm nay: ${today}. Nhiệm vụ: Viết BẢN TIN SÁNG 8:00.
 
+DỮ LIỆU THAM CHIẾU THỊ TRƯỜNG (THỰC):
 ${marketContext}
 
+TIN TỨC CAFEF (RSS):
 ${newsContext}
 
-Cấu trúc báo cáo:
+QUY TẮC TUYỆT ĐỐI:
+1. CHỈ dùng số liệu từ DỮ LIỆU THAM CHIẾU bên trên
+2. KHÔNG bịa giá, % thay đổi, tên công ty, số liệu
+3. Nếu không có data → ghi "chưa cập nhật"
+4. Format Markdown Telegram: dùng *bold* // _italic_ // \\- \\| cho ký tự đặc biệt
 
-## ☀️ BÁO CÁO SÁNG - ${today}
+Viết theo đúng template dưới đây (giữ nguyên icon và cấu trúc):
 
-### 1. THỊ TRƯỜNG QUỐC TẾ QUA ĐÊM
-- Dựa trên tin tức quốc tế từ CafeF ở trên
-- Nếu có data DXY, vàng, dầu → ghi cụ thể
+⚡ *BẢN TIN SÁNG ADN CAPITAL — ${today}*
 
-### 2. NHẬN ĐỊNH PHIÊN SÁNG
-- VN-Index: dùng số liệu real-time ở trên
-- Điểm sức khỏe thị trường (nếu có)
-- Thanh khoản kỳ vọng
+📊 *CHỈ SỐ THAM CHIẾU:*
+🇻🇳 VN\\-INDEX: ${vnidx?.value ?? "chưa cập nhật"} \\| ${vnidx ? (vnidx.changePct >= 0 ? "+" : "") + vnidx.changePct + "%" : "N/A"}
+🇺🇸 DOW JONES: [Lấy từ tin quốc tế CafeF nếu có, không thì "chưa cập nhật"]
+💵 DXY: [Từ tin quốc tế nếu có]
+🛢️ DẦU WTI: [Từ tin quốc tế nếu có]
 
-### 3. CỔ PHIẾU CẦN THEO DÕI HÔM NAY
-- Dựa trên top tăng/giảm trong data
-- Ghi rõ lý do (kỹ thuật / tin tức)
+📈 *THỊ TRƯỜNG VIỆT NAM:*
+🔸 [Nhận xét phiên hôm qua: thanh khoản, điểm số, xu hướng]
+🔸 [Dòng tiền, khối ngoại, tâm lý NĐT]
 
-### 4. TIN TỨC ĐÁNG CHÚ Ý
-- Tóm tắt 3-5 tin quan trọng nhất từ CafeF
-- Ảnh hưởng đến thị trường
+🌐 *VĨ MÔ TRONG NƯỚC & QUỐC TẾ:*
+🔹 [Lãi suất, tỷ giá, tin kinh tế vĩ mô]
+🔹 [Tin thế giới ảnh hưởng thị trường Việt]
 
-### 5. LƯU Ý RỦI RO
-- Cảnh báo nếu thị trường có rủi ro lớn
-- Khuyến nghị tỷ trọng
+⚠️ *RỦI RO / CƠ HỘI:*
+🚨 Rủi ro: [Nhận định rủi ro nếu có]
+🎯 Cơ hội: [Nhóm ngành/cổ phiếu tiềm năng]
 
-Viết bằng tiếng Việt, phong cách trader chuyên nghiệp, dứt khoát.`;
+_Powered by ADN Capital AI_`;
 
     const report = await generateText(prompt);
 
-    // ═══ 3. Lưu DB ═══
-    const rawData = {
-      snapshot: {
-        indices: snapshot.indices,
-        breadth: snapshot.breadth,
-        liquidity: snapshot.liquidity,
-      },
-      cafefArticles: {
-        stockMarket: cafefNews.stockMarket.articles.length,
-        macro: cafefNews.macro.articles.length,
-        global: cafefNews.global.articles.length,
-      },
-    };
+    // ── 3. Lưu DB ────────────────────────────────────────────────────
+    await saveMarketReport("morning_brief", `Báo cáo sáng ${today}`, report, {
+      snapshot: { indices: snapshot.indices, breadth: snapshot.breadth, liquidity: snapshot.liquidity },
+      cafefArticles: { stockMarket: cafefNews.stockMarket.articles.length, macro: cafefNews.macro.articles.length, global: cafefNews.global.articles.length },
+    }, { indices: snapshot.indices, marketScore: snapshot.marketOverview?.score });
 
-    await saveMarketReport("morning_brief", `Báo cáo sáng ${today}`, report, rawData, {
-      indices: snapshot.indices,
-      marketScore: snapshot.marketOverview?.score,
-    });
-
-    // Morning Brief chỉ hiển thị trên Dashboard, KHÔNG đẩy Notification
+    // ── 4. Push Notification ──────────────────────────────────────────
+    await pushNotification("morning_brief", `☀️ Bản tin sáng ${today}`, report);
 
     const duration = Date.now() - startTime;
-    await logCron("morning_brief", "success", `Tạo thành công trong ${duration}ms`, duration, {
+    await logCron("morning_brief", "success", `Created in ${duration}ms`, duration, {
       indicesCount: snapshot.indices.length,
       cafefArticles: cafefNews.stockMarket.articles.length + cafefNews.macro.articles.length,
     });
@@ -120,7 +115,7 @@ Viết bằng tiếng Việt, phong cách trader chuyên nghiệp, dứt khoát.
   } catch (error) {
     const duration = Date.now() - startTime;
     await logCron("morning_brief", "error", String(error), duration);
-    console.error("[CRON morning-brief] Lỗi:", error);
+    console.error("[CRON morning-brief]", error);
     return NextResponse.json({ error: "Lỗi tạo báo cáo sáng" }, { status: 500 });
   }
 }

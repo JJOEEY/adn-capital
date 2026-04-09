@@ -61,19 +61,26 @@ function classify(rpi: number): { classification: string; classColor: string } {
 }
 
 function addMA7AndClassification(results: RPIResult[]): void {
-  for (let i = 0; i < results.length; i++) {
-    if (results[i].rpi === null) continue;
-    // SMA(7)
+  // Lọc lấy các index có rpi khác null
+  const validIndices = results
+    .map((r, idx) => (r.rpi !== null ? idx : -1))
+    .filter((idx) => idx !== -1);
+
+  for (let i = 0; i < validIndices.length; i++) {
+    const currentIdx = validIndices[i];
+    
+    // SMA(7) — Cần ít nhất 7 phiên có dữ liệu
     if (i >= 6) {
-      const window = results.slice(i - 6, i + 1).filter((d) => d.rpi !== null);
-      if (window.length === 7) {
-        results[i].ma7 =
-          Math.round((window.reduce((s, d) => s + d.rpi!, 0) / 7) * 100) / 100;
-      }
+      const windowIndices = validIndices.slice(i - 6, i + 1);
+      const windowValues = windowIndices.map((idx) => results[idx].rpi as number);
+      
+      const sum = windowValues.reduce((s, v) => s + v, 0);
+      results[currentIdx].ma7 = Math.round((sum / 7) * 100) / 100;
     }
-    const { classification, classColor } = classify(results[i].rpi!);
-    results[i].classification = classification;
-    results[i].classColor = classColor;
+
+    const { classification, classColor } = classify(results[currentIdx].rpi!);
+    results[currentIdx].classification = classification;
+    results[currentIdx].classColor = classColor;
   }
 }
 

@@ -1,28 +1,43 @@
 /**
- * UltimateSignalEngine — 3-Step Pipeline
- * Step 1: VSA/TA scan (3 tier) → base NAV%
- * Step 2: Seasonality filter → multiplier
- * Step 3: Output AI Broker Card JSON
+ * UltimateSignalEngine — 3-Step Pipeline (v2 — Optimized)
  *
- * Tiers: LEADER (base 30%), TRUNG_HAN (base 20%), NGAN_HAN (base 10%)
+ * Step 1: Map scanner signal → tier + base NAV
+ * Step 2: Seasonality filter (NodeCache memory, TTL 30 ngày per ticker-month)
+ * Step 3: AI Broker Card (Gemini — CHỈ gọi khi signal FIRST-TIME NEW/RADAR)
  *
- * API Budget: 1 batch-seasonality request cho TẤT CẢ tickers (thay vì N per-ticker)
+ * ✅ KHÔNG gọi Gemini khi chỉ cập nhật PnL định kỳ
+ * ✅ KHÔNG hardcode FiinQuant credentials
+ * ✅ Seasonality cache TTL = 30 ngày (dữ liệu chu kỳ tháng)
+ * ✅ NAV multiplier: x1.2 nếu WR > 70%, x0.5 nếu WR < 40%
  */
 
 import { getBatchSeasonality, type SeasonalityItem } from "@/lib/PriceCache";
+import NodeCache from "node-cache";
+
+// Seasonality in-memory cache: TTL 30 ngày (2592000s)
+// Key format: "ticker:YYYY-MM" — chỉ fetch lại khi sang tháng mới
+const _seasonalityMonthCache = new NodeCache({ stdTTL: 2592000, checkperiod: 86400 });
 
 // ═══════════════════════════════════════════════════════════════════
 //  Types
 // ═══════════════════════════════════════════════════════════════════
 
 export type SignalTier = "LEADER" | "TRUNG_HAN" | "NGAN_HAN" | "TAM_NGAM";
-export type SignalStatus = "RADAR" | "ACTIVE" | "CLOSED";
+export type SignalStatus = "RADAR" | "ACTIVE" | "CLOSED" | "HOLD_TO_DIE";
 
-interface RawScannerSignal {
+export interface RawScannerSignal {
   ticker: string;
   type: "SIEU_CO_PHIEU" | "TRUNG_HAN" | "DAU_CO" | "TAM_NGAM";
   entryPrice: number;
   reason?: string;
+  // Technical flags (optional, từ Python scanner)
+  rsRating?: number;
+  isVCP?: boolean;
+  emaCross10_30?: boolean;
+  emaCross50_100?: boolean;
+  isDoubleBottom?: boolean;
+  macdCrossUp?: boolean;
+  volRatio?: number;
 }
 
 export interface ProcessedSignal {
@@ -31,7 +46,7 @@ export interface ProcessedSignal {
   tier: SignalTier;
   status: SignalStatus;
   entryPrice: number;
-  target: number;
+  target: number;      // Ngưỡng cảnh báo (alert level), KHÔNG phải auto-close
   stoploss: number;
   navAllocation: number;
   triggerSignal: string;
@@ -39,17 +54,22 @@ export interface ProcessedSignal {
   reason: string;
   winRate: number;
   sharpeRatio: number;
+  rrRatio: string;       // "1:X.X" format (e.g. "1:2.5")
 }
 
 // ═══════════════════════════════════════════════════════════════════
 //  Constants
 // ═══════════════════════════════════════════════════════════════════
 
-const TIER_CONFIG: Record<SignalTier, { baseNav: number; targetPct: number; stopPct: number }> = {
-  LEADER:    { baseNav: 30, targetPct: 15, stopPct: 7 },
-  TRUNG_HAN: { baseNav: 20, targetPct: 10, stopPct: 5 },
-  NGAN_HAN:  { baseNav: 10, targetPct: 7,  stopPct: 3 },
-  TAM_NGAM:  { baseNav: 0,  targetPct: 10, stopPct: 5 }, // Chỉ theo dõi, chưa vào lệnh
+const TIER_CONFIG: Record<SignalTier, {
+  baseNav: number;
+  alertPct: number;   // Ngưỡng cảnh báo (cũ là target)
+  stopPct: number;
+}> = {
+  LEADER:    { baseNav: 30, alertPct: 20, stopPct: 7 },
+  TRUNG_HAN: { baseNav: 20, alertPct: 10, stopPct: 5 },
+  NGAN_HAN:  { baseNav: 10, alertPct: 7,  stopPct: 3 },
+  TAM_NGAM:  { baseNav: 0,  alertPct: 10, stopPct: 5 },
 };
 
 const TYPE_TO_TIER: Record<string, SignalTier> = {
@@ -66,21 +86,25 @@ const TYPE_TO_TIER: Record<string, SignalTier> = {
 function mapToTier(signal: RawScannerSignal): {
   tier: SignalTier;
   baseNav: number;
-  target: number;
+  target: number;   // Ngưỡng cảnh báo
   stoploss: number;
+  rrRatio: string;  // "1:X.X"
 } {
   const tier = TYPE_TO_TIER[signal.type] ?? "NGAN_HAN";
   const cfg = TIER_CONFIG[tier];
-  return {
-    tier,
-    baseNav: cfg.baseNav,
-    target: +(signal.entryPrice * (1 + cfg.targetPct / 100)).toFixed(2),
-    stoploss: +(signal.entryPrice * (1 - cfg.stopPct / 100)).toFixed(2),
-  };
+  const entry    = signal.entryPrice;
+  const target   = +(entry * (1 + cfg.alertPct / 100)).toFixed(2);
+  const stoploss = +(entry * (1 - cfg.stopPct  / 100)).toFixed(2);
+  const riskReward = entry - stoploss > 0
+    ? +((target - entry) / (entry - stoploss)).toFixed(2)
+    : 0;
+  const rrRatio = `1:${riskReward}`;
+  return { tier, baseNav: cfg.baseNav, target, stoploss, rrRatio };
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  Step 2: Seasonality multiplier (dùng batch data, KHÔNG gọi API per-ticker)
+//  Step 2: Seasonality — DB cache 30 ngày (TTL per tháng)
+//  API FiinQuant credentials: process.env.FIINQUANT_USER / PASS
 // ═══════════════════════════════════════════════════════════════════
 
 interface SeasonalityData {
@@ -90,28 +114,80 @@ interface SeasonalityData {
   sharpeRatio: number;
 }
 
+/**
+ * Lấy seasonality của ticker với NodeCache in-memory theo tháng.
+ * Cache key = "ticker:YYYY-MM" → TTL 30 ngày.
+ * Nếu đã có trong cache → dùng luôn, KHÔNG gọi API.
+ * Nếu chưa có → getBatchSeasonality (1 call batch).
+ */
+async function getSeasonalityCached(
+  tickers: string[]
+): Promise<Record<string, SeasonalityData | null>> {
+  const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+  const result: Record<string, SeasonalityData | null> = {};
+  const needFetch: string[] = [];
+
+  // Kiểm tra NodeCache trước (key = "ticker:YYYY-MM")
+  for (const t of tickers) {
+    const cacheKey = `${t}:${currentMonth}`;
+    const cached = _seasonalityMonthCache.get<SeasonalityData>(cacheKey);
+    if (cached) {
+      result[t] = cached;
+    } else {
+      needFetch.push(t);
+    }
+  }
+
+  if (needFetch.length === 0) {
+    console.log(`[SeasonalityCache] HIT — ${tickers.length} tickers from memory (month ${currentMonth})`);
+    return result;
+  }
+
+  // Batch fetch từ FiinQuant cho các ticker chưa có
+  try {
+    const fetched = await getBatchSeasonality(needFetch);
+
+    for (const [ticker, item] of Object.entries(fetched)) {
+      const data: SeasonalityData = { ticker, currentMonth: new Date().getMonth() + 1, winRate: item.winRate, sharpeRatio: item.sharpeRatio };
+      _seasonalityMonthCache.set(`${ticker}:${currentMonth}`, data);
+      result[ticker] = data;
+    }
+
+    for (const t of needFetch) {
+      if (!result[t]) result[t] = null;
+    }
+
+    console.log(`[SeasonalityCache] FETCHED ${Object.keys(fetched).length}/${needFetch.length} tickers, ${tickers.length - needFetch.length} cached`);
+  } catch (e) {
+    console.error("[SeasonalityCache] Batch fetch error:", e);
+    for (const t of needFetch) result[t] = null;
+  }
+
+  return result;
+}
+
 function getSeasonalityMultiplier(data: SeasonalityData | null): {
   multiplier: number;
   label: string;
 } {
   if (!data) return { multiplier: 1.0, label: "N/A" };
-
-  const { winRate, sharpeRatio } = data;
-
-  if (winRate >= 70 && sharpeRatio >= 1.0) {
-    return { multiplier: 1.2, label: "Mùa thuận lợi" };
-  }
-  if (winRate >= 50 && sharpeRatio >= 0.5) {
-    return { multiplier: 1.0, label: "Trung tính" };
-  }
-  return { multiplier: 0.5, label: "Mùa bất lợi" };
+  const { winRate } = data;
+  if (winRate > 70) return { multiplier: 1.2, label: "Mùa thuận lợi 🌿" };
+  if (winRate < 40) return { multiplier: 0.5, label: "Mùa bất lợi ⚠️" };
+  return { multiplier: 1.0, label: "Trung tính 📊" };
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  Step 3: Generate AI Broker message
+//  Step 3: AI Broker message (Gemini)
+//  CHỈ GỌI KHI signal LẦN ĐẦU TIÊN (status NEW / RADAR)
+//  Cấm gọi khi cập nhật PnL định kỳ
 // ═══════════════════════════════════════════════════════════════════
 
-function generateAIBrokerMessage(params: {
+/**
+ * Gọi Gemini để sinh AI Reasoning.
+ * Hàm này CHỈ được gọi trong processSignals() — không gọi từ lifecycle.
+ */
+async function callGeminiReasoning(params: {
   ticker: string;
   tier: SignalTier;
   entryPrice: number;
@@ -122,12 +198,88 @@ function generateAIBrokerMessage(params: {
   seasonalityLabel: string;
   winRate: number;
   sharpeRatio: number;
+  rrRatio: string;
+  raw: RawScannerSignal;
+}): Promise<string> {
+  const GEMINI_KEY = process.env.GEMINI_API_KEY;
+  if (!GEMINI_KEY) return generateFallbackMessage(params);
+
+  const checklist = buildChecklist(params.raw, params.tier);
+
+  const prompt = `Bạn là AI Broker tại ADN Capital. Viết 1 đoạn phân tích ngắn gọn (3-4 câu) về tín hiệu sau bằng tiếng Việt, giọng chuyên nghiệp, súc tích:
+Mã: ${params.ticker} | Tier: ${params.tier}
+Entry: ${params.entryPrice.toLocaleString()} | Alert: ${params.target.toLocaleString()} | SL: ${params.stoploss.toLocaleString()}
+Lý do: ${params.triggerSignal}
+Chu kỳ tháng: ${params.seasonalityLabel} (Win-Rate ${params.winRate}%, Sharpe ${params.sharpeRatio})
+NAV: ${params.navAllocation}%
+Nhắc nhở: Cơ chế gồng lãi — chỉ chốt khi TEI >= 4.5 (thị trường hưng phấn cực độ).`;
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { maxOutputTokens: 256, temperature: 0.4 },
+        }),
+        signal: AbortSignal.timeout(15_000),
+      }
+    );
+
+    if (!res.ok) throw new Error(`Gemini API ${res.status}`);
+    const data = await res.json();
+    const aiText: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+
+    return buildFinalCard({ ...params, aiText, checklist });
+  } catch (e) {
+    console.error("[Gemini] Error:", e);
+    return generateFallbackMessage({ ...params, checklist });
+  }
+}
+
+function buildChecklist(raw: RawScannerSignal, tier: SignalTier): string {
+  const checks: string[] = [];
+  if (tier === "LEADER") {
+    checks.push(`${raw.rsRating && raw.rsRating >= 85 ? "✅" : "⬜"} RS Rating ≥ 85 (${raw.rsRating ?? "N/A"})`);
+    checks.push(`${raw.isVCP ? "✅" : "⬜"} VCP (Vol co lại)`);
+    checks.push(`${raw.emaCross10_30 ? "✅" : "⬜"} EMA10 cắt lên EMA30`);
+    checks.push(`${raw.emaCross50_100 ? "✅" : "⬜"} EMA50 cắt lên EMA100`);
+    checks.push(`${raw.volRatio && raw.volRatio >= 2 ? "✅" : "⬜"} Vol ≥ 2× TB20 (x${raw.volRatio?.toFixed(1) ?? "N/A"})`);
+  } else if (tier === "TRUNG_HAN") {
+    checks.push(`${raw.emaCross10_30 ? "✅" : "⬜"} EMA10 cắt lên EMA30`);
+    checks.push(`${raw.isDoubleBottom ? "✅" : "⬜"} Mô hình 2 đáy (Double Bottom)`);
+    checks.push(`${raw.macdCrossUp ? "✅" : "⬜"} MACD Signal cắt lên`);
+    checks.push(`${raw.volRatio && raw.volRatio >= 1.5 ? "✅" : "⬜"} Vol ≥ 1.5× TB20 (x${raw.volRatio?.toFixed(1) ?? "N/A"})`);
+  } else if (tier === "NGAN_HAN") {
+    checks.push(`${raw.emaCross10_30 ? "✅" : "⬜"} EMA10 cắt lên EMA30`);
+    checks.push(`${raw.macdCrossUp ? "✅" : "⬜"} MACD cắt lên`);
+    checks.push(`${raw.volRatio && raw.volRatio >= 1.2 ? "✅" : "⬜"} Vol ≥ 1.2× TB20 (x${raw.volRatio?.toFixed(1) ?? "N/A"})`);
+  }
+  return checks.join("\n");
+}
+
+function buildFinalCard(params: {
+  ticker: string;
+  tier: SignalTier;
+  entryPrice: number;
+  target: number;
+  stoploss: number;
+  rrRatio: string;
+  navAllocation: number;
+  triggerSignal: string;
+  seasonalityLabel: string;
+  winRate: number;
+  sharpeRatio: number;
+  aiText?: string;
+  checklist?: string;
 }): string {
   const tierLabels: Record<SignalTier, string> = {
-    LEADER: "👑 LEADER — Siêu Cổ Phiếu",
+    LEADER:    "👑 LEADER — Siêu Cổ Phiếu",
     TRUNG_HAN: "🛡️ TRUNG HẠN — Tăng trưởng",
-    NGAN_HAN: "⚡ NGẮN HẠN — Lướt sóng",
-    TAM_NGAM: "🎯 TẦM NGẮM — Tiếp cận",
+    NGAN_HAN:  "⚡ NGẮN HẠN — Lướt sóng",
+    TAM_NGAM:  "🎯 TẦM NGẮM — Tiếp cận",
   };
 
   const rr = ((params.target - params.entryPrice) / (params.entryPrice - params.stoploss)).toFixed(1);
@@ -135,19 +287,40 @@ function generateAIBrokerMessage(params: {
   return [
     `📊 **${params.ticker}** — ${tierLabels[params.tier]}`,
     ``,
-    `🎯 Entry: ${params.entryPrice.toLocaleString()} | Target: ${params.target.toLocaleString()} | Stoploss: ${params.stoploss.toLocaleString()}`,
-    `📐 R/R = 1:${rr} | NAV: ${params.navAllocation}%`,
+    `🎯 Entry: ${params.entryPrice.toLocaleString()} | ⚠️ Alert: ${params.target.toLocaleString()} | 🛑 SL: ${params.stoploss.toLocaleString()}`,
+    `📐 R/R = ${params.rrRatio} | NAV: ${params.navAllocation}%`,
     ``,
+    ...(params.checklist ? [`📋 **Checklist:**\n${params.checklist}`, ``] : []),
     `💡 **Trigger:** ${params.triggerSignal}`,
     `📅 **Seasonality:** ${params.seasonalityLabel} (WR: ${params.winRate}%, Sharpe: ${params.sharpeRatio})`,
     ``,
+    ...(params.aiText ? [`🤖 **AI nhận định:**\n${params.aiText}`, ``] : []),
+    `🔥 **Gồng lãi:** Chốt khi TEI ≥ 4.5 (hưng phấn cực độ) hoặc vi phạm SL.`,
     `⚠️ Tuân thủ stoploss — Không bình quân giá xuống.`,
   ].join("\n");
 }
 
+function generateFallbackMessage(params: {
+  ticker: string;
+  tier: SignalTier;
+  entryPrice: number;
+  target: number;
+  stoploss: number;
+  rrRatio: string;
+  navAllocation: number;
+  triggerSignal: string;
+  seasonalityLabel: string;
+  winRate: number;
+  sharpeRatio: number;
+  checklist?: string;
+}): string {
+  return buildFinalCard({ ...params, aiText: undefined });
+}
+
 // ═══════════════════════════════════════════════════════════════════
 //  Main Pipeline: processSignals()
-//  API Budget: 1 batch-seasonality call cho TẤT CẢ tickers
+//  Gọi Gemini CHỈ 1 lần khi signal vào RADAR lần đầu tiên.
+//  KHÔNG gọi Gemini trong lifecycle / PnL updates.
 // ═══════════════════════════════════════════════════════════════════
 
 export async function processSignals(
@@ -155,36 +328,38 @@ export async function processSignals(
 ): Promise<ProcessedSignal[]> {
   if (rawSignals.length === 0) return [];
 
-  // Step 2 (BATCH): Lấy seasonality cho TẤT CẢ tickers trong 1 request
+  // Step 2 (BATCH DB-cached): Seasonality cho TẤT CẢ tickers
   const allTickers = [...new Set(rawSignals.map((r) => r.ticker))];
-  const seasonalityMap = await getBatchSeasonality(allTickers);
+  const seasonalityMap = await getSeasonalityCached(allTickers);
 
   const results: ProcessedSignal[] = [];
 
   for (const raw of rawSignals) {
     // Step 1: Map tier + base NAV
-    const { tier, baseNav, target, stoploss } = mapToTier(raw);
+    const { tier, baseNav, target, stoploss, rrRatio } = mapToTier(raw);
 
-    // Step 2: Seasonality multiplier (từ batch data đã fetch ở trên)
+    // Step 2: Seasonality multiplier
     const seasonality = seasonalityMap[raw.ticker] ?? null;
     const { multiplier, label: seasonalityLabel } = getSeasonalityMultiplier(seasonality);
     const navAllocation = Math.round(baseNav * multiplier);
-
-    // Step 3: AI Broker message
     const winRate = seasonality?.winRate ?? 0;
     const sharpeRatio = seasonality?.sharpeRatio ?? 0;
+    const triggerSignal = raw.reason ?? "Tín hiệu kỹ thuật";
 
-    const aiReasoning = generateAIBrokerMessage({
+    // Step 3: AI Broker message (Gemini) — CHỈ gọi cho signal MỚI
+    const aiReasoning = await callGeminiReasoning({
       ticker: raw.ticker,
       tier,
       entryPrice: raw.entryPrice,
       target,
       stoploss,
+      rrRatio,
       navAllocation,
-      triggerSignal: raw.reason ?? "Tín hiệu kỹ thuật",
+      triggerSignal,
       seasonalityLabel,
       winRate,
       sharpeRatio,
+      raw,
     });
 
     results.push({
@@ -195,8 +370,9 @@ export async function processSignals(
       entryPrice: raw.entryPrice,
       target,
       stoploss,
+      rrRatio,
       navAllocation,
-      triggerSignal: raw.reason ?? "Tín hiệu kỹ thuật",
+      triggerSignal,
       aiReasoning,
       reason: raw.reason ?? "",
       winRate,

@@ -1,17 +1,18 @@
 /**
- * API Cron: EOD Brief — 15:00 hằng ngày (sau phiên chiều)
+ * API Cron: EOD Brief — 15:00 T2-T6
  *
- * 1. Fetch data thực từ FiinQuant (market overview, indices, breadth)
- * 2. Fetch tin CafeF tổng hợp phiên
- * 3. Gemini viết bài EOD Brief dựa trên data thực
- * 4. Lưu vào MarketReport + đẩy Notification
+ * Format: Dashboard Telegram chuyên nghiệp ADN Capital
+ * Data: FiinQuant (market snapshot) + CafeF RSS (news)
+ * AI: Gemini tổng hợp và format output theo chuẩn Telegram Markdown
  */
 import { NextRequest, NextResponse } from "next/server";
 import { generateText } from "@/lib/gemini";
 import {
   validateCronSecret,
   logCron,
+  pushNotification,
   saveMarketReport,
+  isTradingDay,
   getVNDateString,
 } from "@/lib/cronHelpers";
 import { getMarketSnapshot, formatSnapshotForAI } from "@/lib/marketDataFetcher";
@@ -24,11 +25,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Không có quyền truy cập" }, { status: 401 });
   }
 
+  if (!isTradingDay()) {
+    return NextResponse.json({ message: "Không phải ngày giao dịch" });
+  }
+
   const startTime = Date.now();
   const today = getVNDateString();
 
   try {
-    // ═══ 1. Fetch data thực ═══
     const [snapshot, cafefNews] = await Promise.all([
       getMarketSnapshot(),
       fetchAllCafefNews(),
@@ -37,104 +41,65 @@ export async function GET(req: NextRequest) {
     const marketContext = formatSnapshotForAI(snapshot);
     const newsContext = buildCafefContext(cafefNews);
 
-    // ═══ 2. Gemini viết EOD Brief ═══
-    const prompt = `Bạn là ADN AI Bot System - Khổng Minh của VNINDEX.
-Hôm nay là ${today}, phiên giao dịch chiều đã kết thúc. Hãy viết BÁO CÁO CUỐI PHIÊN 15:00.
+    const vnidx = snapshot.indices.find(i => i.ticker === "VNINDEX");
+    const vn30  = snapshot.indices.find(i => i.ticker === "VN30");
+    const breadth = snapshot.breadth;
 
-QUY TẮC BẮT BUỘC:
-1. CHỈ dùng chính xác các con số trong phần "DỮ LIỆU REAL-TIME" bên dưới
-2. TUYỆT ĐỐI KHÔNG tự bịa giá, volume, ngày tháng
-3. Tin tức phải dựa trên phần "TIN TỨC CAFEF"
-4. Nếu thiếu → nói "chưa cập nhật", KHÔNG bịa số
+    const prompt = `Bạn là ADN AI Bot — trợ lý giao dịch chuyên nghiệp.
+Hôm nay: ${today}. Phiên giao dịch đã kết thúc. Hãy viết BÁO CÁO CUỐI PHIÊN 15:00.
 
+DỮ LIỆU THỊ TRƯỜNG (THỰC):
 ${marketContext}
 
+TIN TỨC CAFEF (RSS):
 ${newsContext}
 
-NHIỆM VỤ: Đo lường sức khoẻ thị trường qua hệ thống EMA và chỉ báo kỹ thuật, đưa ra verdict rõ ràng.
+QUY TẮC TUYỆT ĐỐI:
+1. CHỈ dùng số liệu từ DỮ LIỆU THỊ TRƯỜNG bên trên
+2. KHÔNG bịa giá, % thay đổi, ngày tháng
+3. Format Markdown Telegram: dùng *bold* // _italic_ // \\- \\| cho ký tự đặc biệt
 
-## 🌅 BÁO CÁO CUỐI PHIÊN - ${today}
+Viết theo đúng template dưới đây (giữ nguyên icon và cấu trúc):
 
-### 1. BẢNG ĐIỂM CHỈ SỐ KỸ THUẬT VN-INDEX
-| Chỉ báo | Trạng thái | Kết luận |
-|---------|-----------|---------|
-| EMA10 vs EMA30 | (dùng data real-time) | ĐẠT / KHÔNG ĐẠT |
-| EMA50 vs EMA100 | (dùng data real-time) | ĐẠT / KHÔNG ĐẠT |
-| RSI(14) | (dùng data real-time) | Quá mua / Hợp lệ / Quá bán |
-| MACD | (dùng data real-time) | Tín hiệu mua / bán / trung tính |
-| MFI | (dùng data real-time nếu có) | Dòng tiền vào / ra |
+🌅 *BÁO CÁO CUỐI PHIÊN — ${today}*
 
-### 2. VERDICT CUỐI CÙNG
-**[ĐẠT → Tìm cơ hội]** hoặc **[KHÔNG ĐẠT → Tắt bảng điện]**
-- Giải thích 2-3 câu dựa trên dữ liệu
+📊 *KẾT QUẢ CHỈ SỐ:*
+🇻🇳 VN\\-INDEX: ${vnidx?.value ?? "N/A"} \\| ${vnidx ? (vnidx.changePct >= 0 ? "+" : "") + vnidx.changePct + "%" : "N/A"}
+💎 VN30: ${vn30?.value ?? "N/A"} \\| ${vn30 ? (vn30.changePct >= 0 ? "+" : "") + vn30.changePct + "%" : "N/A"}
 
-### 3. TÓM TẮT PHIÊN
-- Diễn biến chính (dùng số liệu index, breadth, liquidity)
-- Thanh khoản & dòng tiền
-- Nhóm ngành dẫn dắt / kéo lùi (dùng topGainers/topLosers)
+📈 *DIỄN BIẾN THỊ TRƯỜNG:*
+• Độ rộng: ${breadth?.up ?? "?"} Tăng \\| ${breadth?.down ?? "?"} Giảm \\| ${breadth?.unchanged ?? "?"} Đứng
+• Thanh khoản: ${snapshot.liquidity ?? "?"} tỷ VNĐ
+• Khối ngoại: [Lấy từ data nếu có]
 
-### 4. TOP CỔ PHIẾU NỔI BẬT
-- 5 mã tăng mạnh nhất (từ data)
-- 5 mã giảm mạnh nhất (từ data)
+🌐 *TIN TỨC PHIÊN CHIỀU:*
+[3 tin quan trọng nhất từ CafeF, tóm tắt 1 dòng/tin]
 
-### 5. TIN TỨC ẢNH HƯỞNG
-- Tóm tắt 3 tin quan trọng từ CafeF
+🎯 *VERDICT & KẾ HOẠCH:*
+• Trạng thái: [ĐẠT - Tìm cơ hội / KHÔNG ĐẠT - Tắt bảng điện]
+• Nhận định: [1-2 câu ngắn gọn về xu hướng phiên tới]
 
-### 6. KẾ HOẠCH PHIÊN TỚI
-- Kịch bản tăng: Điều kiện & hành động
-- Kịch bản giảm: Điều kiện & hành động
-- Mức hỗ trợ / kháng cự VN-Index
-
-Viết bằng tiếng Việt, dứt khoát.`;
+_Powered by ADN Capital AI_`;
 
     const report = await generateText(prompt);
 
-    // Phân tích verdict từ báo cáo
-    const isGood =
-      report.toLowerCase().includes("đạt → tìm cơ hội") ||
-      report.toLowerCase().includes("tìm cơ hội");
+    // Phân tích verdict
+    const isGood = report.toLowerCase().includes("đạt - tìm cơ hội");
 
-    // ═══ 3. Lưu DB ═══
-    const rawData = {
-      snapshot: {
-        indices: snapshot.indices,
-        breadth: snapshot.breadth,
-        liquidity: snapshot.liquidity,
-        topGainers: snapshot.topGainers.slice(0, 10),
-        topLosers: snapshot.topLosers.slice(0, 10),
-      },
-      cafefArticles: cafefNews.stockMarket.articles.slice(0, 5),
-    };
+    await saveMarketReport("eod_brief", `Báo cáo cuối phiên ${today}`, report, {
+      snapshot: { indices: snapshot.indices, breadth: snapshot.breadth, liquidity: snapshot.liquidity },
+    }, { verdict: isGood ? "GOOD" : "BAD", indices: snapshot.indices, marketScore: snapshot.marketOverview?.score });
 
-    await saveMarketReport("eod_brief", `Báo cáo cuối phiên ${today}`, report, rawData, {
-      verdict: isGood ? "GOOD" : "BAD",
-      indices: snapshot.indices,
-      marketScore: snapshot.marketOverview?.score,
-    });
-
-    // EOD Brief chỉ hiển thị trên Dashboard, KHÔNG đẩy Notification
+    await pushNotification("eod_brief", `🌅 Bản tin cuối phiên ${today}`, report);
 
     const duration = Date.now() - startTime;
-    await logCron("eod_brief", "success", `Verdict: ${isGood ? "GOOD" : "BAD"}, ${duration}ms`, duration, {
-      verdict: isGood ? "GOOD" : "BAD",
-    });
+    await logCron("eod_brief", "success", `Verdict: ${isGood ? "GOOD" : "BAD"}`, duration);
 
-    return NextResponse.json({
-      type: "eod_brief",
-      timestamp: new Date().toISOString(),
-      verdict: isGood ? "GOOD" : "BAD",
-      verdictLabel: isGood ? "ĐẠT → Tìm cơ hội" : "KHÔNG ĐẠT → Tắt bảng điện",
-      report,
-      dataSources: {
-        fiinquant: !!snapshot.marketOverview,
-        vndirect: snapshot.indices.length > 0,
-        cafef: cafefNews.stockMarket.articles.length > 0,
-      },
-    });
+    return NextResponse.json({ type: "eod_brief", timestamp: new Date().toISOString(), verdict: isGood ? "GOOD" : "BAD", report });
   } catch (error) {
     const duration = Date.now() - startTime;
     await logCron("eod_brief", "error", String(error), duration);
-    console.error("[CRON eod-brief] Lỗi:", error);
+    console.error("[CRON eod-brief]", error);
     return NextResponse.json({ error: "Lỗi tạo báo cáo cuối phiên" }, { status: 500 });
   }
 }

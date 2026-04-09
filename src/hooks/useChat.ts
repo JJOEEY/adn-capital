@@ -41,6 +41,17 @@ export function useChat() {
         newUsage?: number;
         chartStock?: string;
         chartExchange?: string;
+        // Widget response fields
+        type?: "widget";
+        widgetType?: string;
+        ticker?: string;
+        data?: {
+          technical: { stats: any; aiInsight: string | null };
+          fundamental: { stats: any; aiInsight: string | null };
+          news: { title: string; time: string; url?: string }[];
+          behavior: { teiScore: number; status: string };
+          signal?: any;
+        };
       };
 
       if (res.status === 429) {
@@ -58,14 +69,31 @@ export function useChat() {
         throw new Error(data.error ?? "Lỗi không xác định");
       }
 
-      addMessage({
-        id: generateId(),
-        content: data.message ?? "Em không trả lời được lúc này ạ",
-        role: "assistant",
-        createdAt: new Date().toISOString(),
-        chartStock: data.chartStock,
-        chartExchange: data.chartExchange,
-      });
+      // ── Widget response: ANALYZE_TICKER intent ──
+      if (data.type === "widget" && data.ticker && data.data) {
+        addMessage({
+          id: generateId(),
+          content: `📊 Phân tích ${data.ticker}`,
+          role: "assistant",
+          createdAt: new Date().toISOString(),
+          widgetData: {
+            type: "widget",
+            widgetType: "TICKER_DASHBOARD",
+            ticker: data.ticker,
+            data: data.data,
+          },
+        });
+      } else {
+        // ── Normal text response ──
+        addMessage({
+          id: generateId(),
+          content: data.message ?? "Em không trả lời được lúc này ạ",
+          role: "assistant",
+          createdAt: new Date().toISOString(),
+          chartStock: data.chartStock,
+          chartExchange: data.chartExchange,
+        });
+      }
 
       if (data.newUsage !== undefined) {
         setChatCount(data.newUsage);

@@ -3,43 +3,48 @@
   "crons": [
     {
       "path": "/api/cron/morning-report",
-      "schedule": "0 1 * * *"
+      "schedule": "0 1 * * 1-5",
+      "comment": "08:00 VN (01:00 UTC) T2–T6 — Morning Brief"
+    },
+    {
+      "path": "/api/cron?type=intraday",
+      "schedule": "0 3 * * 1-5",
+      "comment": "10:00 VN (03:00 UTC) — Intraday Update"
+    },
+    {
+      "path": "/api/cron?type=intraday",
+      "schedule": "30 4 * * 1-5",
+      "comment": "11:30 VN (04:30 UTC) — Intraday Update"
+    },
+    {
+      "path": "/api/cron?type=intraday",
+      "schedule": "0 7 * * 1-5",
+      "comment": "14:00 VN (07:00 UTC) — Intraday Update"
+    },
+    {
+      "path": "/api/cron?type=intraday",
+      "schedule": "45 7 * * 1-5",
+      "comment": "14:45 VN (07:45 UTC) — Intraday Update"
     },
     {
       "path": "/api/cron/afternoon-review",
-      "schedule": "0 8 * * 1-5"
+      "schedule": "0 8 * * 1-5",
+      "comment": "15:00 VN (08:00 UTC) — EOD Brief"
     },
     {
       "path": "/api/cron?type=prop_trading",
-      "schedule": "0 12 * * 1-5"
-    },
-    {
-      "path": "/api/cron?type=intraday",
-      "schedule": "0 3 * * 1-5"
-    },
-    {
-      "path": "/api/cron?type=intraday",
-      "schedule": "30 4 * * 1-5"
-    },
-    {
-      "path": "/api/cron?type=intraday",
-      "schedule": "0 7 * * 1-5"
-    },
-    {
-      "path": "/api/cron?type=intraday",
-      "schedule": "45 7 * * 1-5"
+      "schedule": "0 12 * * 1-5",
+      "comment": "19:00 VN (12:00 UTC) — Prop Trading / Tự Doanh"
     },
     {
       "path": "/api/cron?type=signal_scan_5m",
-      "schedule": "*/5 2-8 * * 1-5"
-    },
-    {
-      "path": "/api/cron/scan-signals",
-      "schedule": "*/5 2-8 * * 1-5"
+      "schedule": "*/5 2-8 * * 1-5",
+      "comment": "Mỗi 5 phút từ 09:00–15:00 VN (02:00–08:00 UTC). Smart Gate nội bộ quyết định chạy thật hay skip"
     },
     {
       "path": "/api/cron/ai-weekly-review",
-      "schedule": "0 10 * * 5"
+      "schedule": "0 10 * * 5",
+      "comment": "17:00 VN T6 — Weekly AI Review"
     }
   ]
 }

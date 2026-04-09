@@ -41,6 +41,19 @@ export interface ChatMessage {
   createdAt: string;
   chartStock?: string;    // Mã cổ phiếu kèm chart (chỉ có khi dùng /ta)
   chartExchange?: string; // Sàn giao dịch: "HOSE" | "HNX" | "UPCOM"
+  // Widget-in-Chat: Khi AI trả về dashboard cổ phiếu tương tác
+  widgetData?: {
+    type: "widget";
+    widgetType: "TICKER_DASHBOARD";
+    ticker: string;
+    data: {
+      technical: { stats: any; aiInsight: string | null };
+      fundamental: { stats: any; aiInsight: string | null };
+      news: { title: string; time: string; url?: string }[];
+      behavior: { teiScore: number; status: string };
+      signal?: any;
+    };
+  };
 }
 
 export interface JournalEntry {

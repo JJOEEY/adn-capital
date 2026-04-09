@@ -1,9 +1,10 @@
-﻿"use client";
+"use client";
 
 import { motion } from "framer-motion";
 import { Bot, User } from "lucide-react";
 import type { ChatMessage } from "@/types";
 import { StockChart } from "./StockChart";
+import { TickerWidget } from "./TickerWidget";
 
 interface ChatBubbleProps {
   message: ChatMessage;
@@ -93,7 +94,7 @@ export function ChatBubble({ message }: ChatBubbleProps) {
       initial={{ opacity: 0, y: 6, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.2 }}
-      className={`flex gap-3 ${isUser ? "flex-row-reverse" : "flex-row"} ${!isUser && message.chartStock ? "flex-wrap" : ""}`}
+      className={`flex gap-3 ${isUser ? "flex-row-reverse" : "flex-row"} ${!isUser && (message.chartStock || message.widgetData) ? "flex-wrap" : ""}`}
     >
       {/* Avatar */}
       <div
@@ -110,31 +111,37 @@ export function ChatBubble({ message }: ChatBubbleProps) {
         )}
       </div>
 
-      {/* Bubble */}
-      <div className={`max-w-[85%] sm:max-w-[75%] ${isUser ? "items-end" : "items-start"} flex flex-col gap-1`}>
-        <div
-          className={`px-4 py-3 rounded-2xl ${
-            isUser
-              ? "bg-neutral-800 border border-neutral-700 rounded-tr-sm"
-              : "bg-neutral-900 border border-emerald-500/20 rounded-tl-sm"
-          }`}
-        >
-          {isUser ? (
-            <p className="text-sm text-neutral-100">{message.content}</p>
-          ) : (
-            <SimpleMarkdown text={message.content} />
-          )}
+      {/* Bubble or Widget */}
+      {!isUser && message.widgetData ? (
+        <div className="flex-1 min-w-0 ml-0">
+          <TickerWidget ticker={message.widgetData.ticker} data={message.widgetData.data} />
         </div>
+      ) : (
+        <div className={`max-w-[85%] sm:max-w-[75%] ${isUser ? "items-end" : "items-start"} flex flex-col gap-1`}>
+          <div
+            className={`px-4 py-3 rounded-2xl ${
+              isUser
+                ? "bg-neutral-800 border border-neutral-700 rounded-tr-sm"
+                : "bg-neutral-900 border border-emerald-500/20 rounded-tl-sm"
+            }`}
+          >
+            {isUser ? (
+              <p className="text-sm text-neutral-100">{message.content}</p>
+            ) : (
+              <SimpleMarkdown text={message.content} />
+            )}
+          </div>
 
-        <span className="text-[12px] text-neutral-600 px-1">
-          {new Date(message.createdAt).toLocaleTimeString("vi-VN", {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-        </span>
-      </div>
+          <span className="text-[12px] text-neutral-600 px-1">
+            {new Date(message.createdAt).toLocaleTimeString("vi-VN", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </span>
+        </div>
+      )}
 
-      {/* Chart – full width, outside bubble constraint */}
+      {/* Chart – full width */}
       {!isUser && message.chartStock && (
         <div className="w-full -mt-1 ml-11">
           <StockChart
