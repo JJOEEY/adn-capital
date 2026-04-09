@@ -1,0 +1,55 @@
+version: "3.9"
+
+services:
+  # ── Next.js Web App ───────────────────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: adn-web
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+      - PYTHON_BRIDGE_URL=http://fiinquant:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - fiinquant
+    networks:
+      - adn-net
+
+  # ── FiinQuant Python Bridge ───────────────────────────────────
+  fiinquant:
+    build:
+      context: ./fiinquant-bridge
+      dockerfile: Dockerfile.python
+    container_name: adn-fiinquant
+    restart: unless-stopped
+    environment:
+      - FIINQUANT_USER=${FIINQUANT_USER}
+      - FIINQUANT_PASS=${FIINQUANT_PASS}
+    ports:
+      - "8000:8000"
+    networks:
+      - adn-net
+
+  # ── Nginx Reverse Proxy ───────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: adn-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - web
+    networks:
+      - adn-net
+
+networks:
+  adn-net:
+    driver: bridge

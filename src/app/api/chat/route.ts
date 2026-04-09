@@ -14,6 +14,9 @@ import { prisma } from "@/lib/prisma";
 import { executeAIRequest, INTENT } from "@/lib/gemini";
 import { USAGE_LIMITS } from "@/lib/utils";
 import { fetchTAData, fetchFAData, type TAData, type FAData } from "@/lib/stockData";
+import { isMockMode } from "@/lib/settings";
+import { MockFactory } from "@/lib/mock-factory";
+import { getFullWidgetData } from "@/lib/widget-service";
 
 const FIINQUANT_BRIDGE = process.env.FIINQUANT_URL ?? "http://localhost:8000";
 
@@ -617,7 +620,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Tin nhắn quá dài (tối đa 2000 ký tự)" }, { status: 400 });
     }
 
-    // ── Xác định user Clerk và giới hạn ──
+    // ── Step 0: FAST intent detection (ưu tiên đầu tiên, trước mọi thứ) ──
+    const { cmd, stock } = parseCommand(message);
+    const { intent, ticker: detectedTicker } = await detectIntent(message);
+
+    // ── Step 1: User auth + rate limit ──
     const dbUser = await getCurrentDbUser();
     let userId: string | null = null;
     let userRole = "GUEST";
@@ -637,7 +644,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { cmd, stock } = parseCommand(message);
     if (cmd && !stock) {
       return NextResponse.json({
         message: `Em cần mã cổ phiếu đại ca ơi! Ví dụ: **/ta DGC**, **/fa FPT**, **/news VNM** 📊`,
@@ -645,11 +651,50 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // ── Build journal context + knowledge base ──
+    // ── Step 2: ANALYZE_TICKER — highest priority, skip journal/knowledge overhead ──
+    if (intent === "ANALYZE_TICKER" && detectedTicker) {
+      console.log(`[Chat Widget] ✅ ANALYZE_TICKER => ${detectedTicker}`);
+
+      // 2a. Mock Mode — instant response, zero external calls
+      if (await isMockMode()) {
+        console.log(`[Chat Widget] 🎬 Mock Mode — serving ${detectedTicker} from MockFactory`);
+        const mockData = MockFactory.getTicker(detectedTicker);
+        if (userId) {
+          prisma.$transaction([
+            prisma.user.update({ where: { id: userId }, data: { chatCount: { increment: 1 } } }),
+            prisma.chat.create({ data: { userId, message, role: "user" } }),
+            prisma.chat.create({ data: { userId, message: `[WIDGET:MOCK:${detectedTicker}]`, role: "assistant" } }),
+          ]).catch(console.error);
+        }
+        return NextResponse.json({
+          type: "widget",
+          widgetType: "TICKER_DASHBOARD",
+          ticker: detectedTicker,
+          data: mockData,
+        });
+      }
+
+      // 2b. Real mode — call inline service (no self-HTTP call)
+      const widgetData = await getFullWidgetData(detectedTicker);
+      
+      if (userId) {
+        prisma.$transaction([
+          prisma.user.update({ where: { id: userId }, data: { chatCount: { increment: 1 } } }),
+          prisma.chat.create({ data: { userId, message, role: "user" } }),
+          prisma.chat.create({ data: { userId, message: `[WIDGET:${detectedTicker}]`, role: "assistant" } }),
+        ]).catch(console.error);
+      }
+
+      return NextResponse.json(widgetData);
+    }
+
+    // ── Step 3: Build expensive context (only for non-widget requests) ──
     let journalCtx = "";
-    const knowledgeCtx = await getKnowledgeContext();
-    const chatHistoryCtx = await getRecentChatHistory(userId);
-    
+    const [knowledgeCtx, chatHistoryCtx] = await Promise.all([
+      getKnowledgeContext(),
+      getRecentChatHistory(userId),
+    ]);
+
     if (userId) {
       const journals = await prisma.tradingJournal.findMany({
         where: { userId },
@@ -667,43 +712,11 @@ export async function POST(req: NextRequest) {
         const warnings: string[] = [];
         if (psychCounts["FOMO"] >= 2) warnings.push(`hay FOMO (${psychCounts["FOMO"]} lần)`);
         if (psychCounts["Cảm tính"] >= 2) warnings.push(`giao dịch cảm tính (${psychCounts["Cảm tính"]} lần)`);
-        journalCtx = `\n\n╔══ HỒ SƠ GIAO DỊCH (${journals.length} lệnh) ══╗\nMua: ${buyCount} | Bán: ${sellCount} | Tâm lý phổ biến: ${topPsych.map(([p, c]) => `${p}(${c})`).join(", ")}\n${warnings.length > 0 ? `⚠️ Điểm yếu: ${warnings.join("; ")}` : "✅ Giao dịch tốt!"}\n╚═════════════════════════════╝`;
+        journalCtx = `\n\n╔══ HỒ SƠ GIAO DỊCH (${journals.length} lệnh) ══╗\nMua: ${buyCount} | Bán: ${sellCount} | Tâm lý: ${topPsych.map(([p, c]) => `${p}(${c})`).join(", ")}\n${warnings.length > 0 ? `⚠️ Điểm yếu: ${warnings.join("; ")}` : "✅ Giao dịch tốt!"}\n╚═════════════════════════════╝`;
       }
     }
 
-    // Append knowledge base + chat history vào context
     journalCtx = knowledgeCtx + journalCtx + chatHistoryCtx;
-
-    // ── Xử lý Intent ANALYZE_TICKER (Widget) — Ưu tiên cao nhất ──
-    const { intent, ticker: detectedTicker } = await detectIntent(message);
-    
-    if (intent === "ANALYZE_TICKER" && detectedTicker) {
-      console.log(`[Chat Widget] ✅ ANALYZE_TICKER for ${detectedTicker}`);
-      
-      // Gọi API Widget nội bộ để lấy data (đã có logic Mock Mode & AI Cache)
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-      const widgetRes = await fetch(`${baseUrl}/api/widget/${detectedTicker}`, {
-        headers: { "Content-Type": "application/json" },
-        cache: "no-store"
-      });
-
-      if (widgetRes.ok) {
-        const widgetData = await widgetRes.json();
-
-        // Lưu lịch sử (Assistant trả về widget)
-        if (userId) {
-          await prisma.$transaction([
-            prisma.user.update({ where: { id: userId }, data: { chatCount: { increment: 1 } } }),
-            prisma.chat.create({ data: { userId, message, role: "user" } }),
-            prisma.chat.create({ data: { userId, message: `[WIDGET: TICKER_DASHBOARD ${detectedTicker}]`, role: "assistant" } }),
-          ]);
-        }
-
-        return NextResponse.json(widgetData);
-      }
-      
-      console.warn(`[Chat Widget] Failed to fetch widget data for ${detectedTicker}, falling back to general chat`);
-    }
 
     // ── Xử lý các lệnh với RAG (Giữ nguyên logic cũ) ──
     let responseText: string;
