@@ -44,34 +44,52 @@ function TradingViewChart({ ticker }: { ticker: string }) {
 
   useEffect(() => {
     if (!container.current) return;
+
+    // Cleanup previous chart
+    container.current.innerHTML = "";
+    
+    const wrapper = document.createElement("div");
+    wrapper.className = "tradingview-widget-container__widget";
+    container.current.appendChild(wrapper);
+
     const script = document.createElement("script");
     script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
     script.type = "text/javascript";
     script.async = true;
+    // VN stocks: HOSE:FPT, HOSE:VCB, etc.
+    const tvSymbol = ticker.length <= 3 
+      ? `HOSE:${ticker}` 
+      : ticker.startsWith("VN") ? `HOSE:${ticker}` : `HOSE:${ticker}`;
     script.innerHTML = JSON.stringify({
       "autosize": true,
-      "symbol": `HOSE:${ticker}`,
+      "symbol": tvSymbol,
       "interval": "D",
       "timezone": "Asia/Ho_Chi_Minh",
       "theme": "dark",
       "style": "1",
       "locale": "vi",
       "enable_publishing": false,
-      "hide_top_toolbar": true,
-      "hide_legend": true,
+      "hide_top_toolbar": false,
+      "hide_legend": false,
       "save_image": false,
       "calendar": false,
-      "hide_volume": true,
+      "hide_volume": false,
       "support_host": "https://www.tradingview.com"
     });
-    container.current.innerHTML = "";
     container.current.appendChild(script);
+
+    return () => {
+      if (container.current) {
+        container.current.innerHTML = "";
+      }
+    };
   }, [ticker]);
 
   return (
-    <div className="w-full h-[280px] sm:h-[350px] rounded-xl overflow-hidden border border-white/5 bg-black/20" ref={container} />
+    <div className="tradingview-widget-container w-full h-[300px] sm:h-[380px] rounded-xl overflow-hidden border border-white/5 bg-black/20" ref={container} />
   );
 }
+
 
 // ── Small stat box ──────────────────────────────────────────────────────
 function StatBox({ label, value, sub, highlight }: {

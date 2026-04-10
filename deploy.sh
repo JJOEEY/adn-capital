@@ -1,32 +1,36 @@
 #!/bin/bash
+# ============================================
+# ADN Capital - VPS Deploy Script
+# Chạy lệnh này mỗi khi muốn cập nhật code mới
+# CÁCH DÙNG: ./deploy.sh
+# ============================================
+
 set -e
 
-cd /home/adncapital/app/adn-capital
+echo "╔══════════════════════════════════════╗"
+echo "║   ADN Capital — Deploy Update        ║"
+echo "╚══════════════════════════════════════╝"
 
-echo "=== Pulling latest code ==="
-git pull
+# --- 1. PULL CODE MỚI NHẤT ---
+echo "[1/4] 📥 Pulling latest code from GitHub..."
+git pull origin master
 
-echo "=== Installing dependencies ==="
-npm ci --production=false
+# --- 2. TẮT HỆ THỐNG CŨ ---
+echo "[2/4] 🛑 Stopping old containers..."
+docker compose down
 
-echo "=== Building ==="
-npx prisma generate
-npm run build
+# --- 3. BUILD LẠI & CHẠY ---
+echo "[3/4] 🏗️  Building & starting new containers..."
+docker compose up -d --build
 
-echo "=== Copying assets to standalone ==="
-cp -r public .next/standalone/
-cp -r .next/static .next/standalone/.next/
-cp -r node_modules/.prisma .next/standalone/node_modules/
-cp -r node_modules/@prisma .next/standalone/node_modules/
-cp .env .next/standalone/.env
+# --- 4. DỌN DẸP ---
+echo "[4/4] 🧹 Pruning unused Docker images..."
+docker image prune -f
 
-echo "=== Setting up DB symlink ==="
-mkdir -p .next/standalone/prisma
-ln -sf /home/adncapital/app/adn-capital/prisma/prod.db .next/standalone/prisma/prod.db
-cp prisma/schema.prisma .next/standalone/prisma/schema.prisma
-
-echo "=== Restarting service ==="
-systemctl restart adn-nextjs
-
-echo "=== Done! ==="
-systemctl status adn-nextjs --no-pager -l | head -15
+echo ""
+echo "╔══════════════════════════════════════╗"
+echo "║   ✅ Deploy hoàn tất!                ║"
+echo "║   🌐 https://adncapital.com.vn       ║"
+echo "╚══════════════════════════════════════╝"
+echo ""
+echo "Kiểm tra logs: docker compose logs web --tail=50"

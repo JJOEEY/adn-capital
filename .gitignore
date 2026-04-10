@@ -53,3 +53,6 @@ prisma/migrations/
 
 # push script (local only)
 push-to-github.ps1
+
+# VPS credentials (NEVER commit this)
+vps-credentials.json

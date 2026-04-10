@@ -137,16 +137,30 @@ export default function DashboardPage() {
     mutate: mutateMarket,
   } = useSWR<MarketData>("/api/market", swrFetcher, swrOpts);
 
+  // Primary: market-status (từ file cache, load tức thì ~20ms)
+  const {
+    data: marketStatus,
+  } = useSWR<MarketOverview>("/api/market-status", swrFetcher, {
+    ...swrOpts,
+    refreshInterval: 0,
+    shouldRetryOnError: false,
+  });
+
+  // Secondary: market-overview (từ Python bridge, đầy đủ hơn nhưng chậm)
   const {
     data: overview,
     isLoading: loadingOverview,
     mutate: mutateOverview,
   } = useSWR<MarketOverview>("/api/market-overview", swrFetcher, {
     ...swrOpts,
-    refreshInterval: 0, // Chỉ quét 1 lần/ngày, không tự động refresh 5m
-    errorRetryCount: 3,
-    errorRetryInterval: 3000,
+    refreshInterval: 0,
+    errorRetryCount: 2,
+    errorRetryInterval: 5000,
   });
+
+  // Dùng overview nếu có (đầy đủ), fallback về marketStatus (từ cache)
+  const effectiveOverview = overview ?? marketStatus ?? null;
+
 
   /* ── Derived state ── */
   const loading = !mounted || (!data && loadingMarket);
@@ -245,19 +259,19 @@ export default function DashboardPage() {
             <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem Đánh giá Vĩ mô">
               <SafeSection fallback={<GaugeCardSkeleton />}>
                 {/* Đồng hồ Gauge */}
-                {!mounted || (loadingOverview && !data) ? (
+                {!mounted ? (
                   <GaugeCardSkeleton />
                 ) : (
                   <GaugeCard 
-                    overview={overview ?? null} 
+                    overview={effectiveOverview} 
                     marketData={data ?? null}
                   />
                 )}
 
                 {/* Thẻ Trạng Thái 3D */}
-                {mounted && (overview || data) && (
+                {mounted && (effectiveOverview || data) && (
                   <MarketStatusCard 
-                    overview={overview ?? null} 
+                    overview={effectiveOverview} 
                     marketData={data ?? null}
                   />
                 )}
