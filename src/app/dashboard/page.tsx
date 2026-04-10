@@ -245,14 +245,22 @@ export default function DashboardPage() {
             <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem Đánh giá Vĩ mô">
               <SafeSection fallback={<GaugeCardSkeleton />}>
                 {/* Đồng hồ Gauge */}
-                {!mounted || loadingOverview ? (
+                {!mounted || (loadingOverview && !data) ? (
                   <GaugeCardSkeleton />
                 ) : (
-                  <GaugeCard overview={overview ?? null} />
+                  <GaugeCard 
+                    overview={overview ?? null} 
+                    marketData={data ?? null}
+                  />
                 )}
 
                 {/* Thẻ Trạng Thái 3D */}
-                {mounted && !loadingOverview && <MarketStatusCard overview={overview ?? null} />}
+                {mounted && (overview || data) && (
+                  <MarketStatusCard 
+                    overview={overview ?? null} 
+                    marketData={data ?? null}
+                  />
+                )}
               </SafeSection>
             </LockOverlay>
           </div>
@@ -422,8 +430,10 @@ function GaugeSVG({ score, maxScore }: { score: number; maxScore: number }) {
   );
 }
 
-const GaugeCard = memo(function GaugeCard({ overview }: { overview: MarketOverview | null }) {
-  const score = overview?.score ?? 0;
+const GaugeCard = memo(function GaugeCard({ overview, marketData }: { overview: MarketOverview | null; marketData: MarketData | null }) {
+  // Fallback score từ MarketData.status nếu overview chưa có
+  const fallbackScore = !overview && marketData ? (marketData.status === "GOOD" ? 11 : marketData.status === "BAD" ? 2 : 6) : 0;
+  const score = overview?.score ?? fallbackScore;
   const maxScore = overview?.max_score ?? 14;
   const liquidity = overview?.liquidity ?? 0;
   const color = getScoreColor(score, maxScore);
@@ -524,19 +534,24 @@ const LEVEL_CONFIG = {
 
 const MarketStatusCard = memo(function MarketStatusCard({
   overview,
+  marketData,
 }: {
   overview: MarketOverview | null;
+  marketData: MarketData | null;
 }) {
-  const level = overview?.level ?? 1;
-  const score = overview?.score ?? 0;
+  // Fallback từ marketData nếu overview chưa có
+  const fallbackScore = !overview && marketData ? (marketData.status === "GOOD" ? 11 : marketData.status === "BAD" ? 2 : 6) : 0;
+  const fallbackLevel = !overview && marketData ? (marketData.status === "GOOD" ? 3 : marketData.status === "BAD" ? 1 : 2) : 1;
+  const level = (overview?.level ?? fallbackLevel) as 1 | 2 | 3;
+  const score = overview?.score ?? fallbackScore;
   const maxScore = overview?.max_score ?? 14;
-  const statusBadge = overview?.status_badge ?? "🔴 NGỦ ĐÔNG";
-  const breadth = overview?.market_breadth ?? "Không có dữ liệu";
+  const statusBadge = overview?.status_badge ?? (marketData?.status === "GOOD" ? "🟢 THIÊN THỜI" : marketData?.status === "BAD" ? "🔴 NGỦ ĐÔNG" : "🟡 THĂM DÒ");
+  const breadth = overview?.market_breadth ?? (marketData ? `Tăng: ${marketData.updown?.up ?? 0} | Giảm: ${marketData.updown?.down ?? 0} | Không đổi: ${marketData.updown?.unchanged ?? 0}` : "Không có dữ liệu");
   const highlights = overview?.technical_highlights;
   const monthlySummary = overview?.monthly_summary ?? highlights?.monthly ?? "";
   const weeklySummary = overview?.weekly_summary ?? highlights?.weekly ?? "";
   const valuationSummary = overview?.valuation_summary ?? highlights?.valuation ?? "";
-  const actionMessage = overview?.action_message ?? "Đang tải dữ liệu...";
+  const actionMessage = overview?.action_message ?? marketData?.aiSummary ?? "Đang phân tích thị trường...";
   const disclaimer = overview?.disclaimer ?? "";
   const navAllocation = overview?.nav_allocation;
   const marginAllowed = overview?.margin_allowed;
