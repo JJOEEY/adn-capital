@@ -41,41 +41,25 @@ function saveCacheToFile(data: any) {
 }
 
 export async function GET() {
-  loadCacheFromFile();
-  const now = Date.now();
-
-  // 1. Trả cache ngay nếu còn tươi
-  if (cache && now - cache.ts < TTL) {
-    return NextResponse.json(cache.data);
-  }
-
-  // 2. Nếu đang refresh ngầm -> trả data cũ
-  if (cache && isRefreshing) {
-    return NextResponse.json(cache.data);
-  }
-
-  // 3. Fetch mới
   try {
-    isRefreshing = true;
-    const res = await fetch(`${BACKEND}/api/v1/market-overview`, {
-      cache: "no-store",
-      signal: AbortSignal.timeout(120_000),
-    });
-
-    if (!res.ok) {
-      isRefreshing = false;
-      if (cache) return NextResponse.json(cache.data);
-      return NextResponse.json({ error: "Backend error" }, { status: 502 });
+    if (fs.existsSync(CACHE_FILE)) {
+      const raw = fs.readFileSync(CACHE_FILE, "utf-8");
+      const data = JSON.parse(raw);
+      return NextResponse.json(data);
     }
-
-    const data = await res.json();
-    cache = { data, ts: Date.now() };
-    isRefreshing = false;
-    saveCacheToFile(data);
-    return NextResponse.json(data);
   } catch (err) {
-    isRefreshing = false;
-    if (cache) return NextResponse.json(cache.data);
-    return NextResponse.json({ error: "Backend timeout" }, { status: 504 });
+    console.error("[/api/market-overview] Cache read error:", err);
   }
+
+  // Fallback nếu chưa có cache (Tuyệt đối không gọi live bridge)
+  return NextResponse.json({
+    score: 0,
+    max_score: 14,
+    level: 1,
+    status_badge: "⏳ Đang cập nhật...",
+    market_breadth: "Đang tính toán...",
+    action_message: "Hệ thống đang cập nhật dữ liệu vĩ mô, vui lòng quay lại sau.",
+    last_updated: new Date().toISOString()
+  });
 }
+

@@ -22,7 +22,7 @@ CACHE_FILE = "/home/adncapital/app/adn-capital/market_cache.json"
 print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Fetching market overview...")
 
 try:
-    resp = requests.get(BRIDGE_URL, timeout=150)
+    resp = requests.get(BRIDGE_URL, timeout=300)
     resp.raise_for_status()
     data = resp.json()
     
@@ -38,7 +38,8 @@ try:
     print(f"   Saved to: {CACHE_FILE}")
 
 except requests.exceptions.Timeout:
-    print("❌ Timeout: Bridge took >150s")
+    print("❌ Timeout: Bridge took >300s")
+
     sys.exit(1)
 except Exception as e:
     print(f"❌ Error: {e}")
