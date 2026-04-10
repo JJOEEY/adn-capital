@@ -1,0 +1,34 @@
+{
+  "Account": [],
+  "AiInsightCache": [],
+  "Article": [],
+  "AvatarUpload": [],
+  "Category": [],
+  "Changelog": [
+    {
+      "id": "cmnp22xh10000g1yp8bfm56o6",
+      "component": "PricingSection",
+      "action": "UPDATE_FEATURES",
+      "description": "Cập nhật toàn bộ danh sách tính năng 4 gói cước (1M/3M/6M/12M) + hiệu ứng UI Lock/Unlock (FOMO). Tính năng Mở: icon ✔️ xanh, text sáng. Tính năng Khóa: icon 🔒, text mờ (opacity-50). Card đồng chiều cao, nút Đăng Ký thẳng hàng.",
+      "diff": "{\"date\":\"2026-04-08\",\"files\":[\"src/components/landing/Pricing.tsx\",\"src/app/pricing/PricingClient.tsx\"],\"changes\":{\"Gói 1 Tháng\":{\"unlocked\":5,\"locked\":6},\"Gói 3 Tháng\":{\"unlocked\":5,\"locked\":6},\"Gói 6 Tháng\":{\"unlocked\":8,\"locked\":2},\"Gói 12 Tháng\":{\"unlocked\":10,\"locked\":0}},\"ui\":\"Lock icon + opacity-50 cho tính năng khóa, Check icon + accent color cho tính năng mở\"}",
+      "author": "admin",
+      "createdAt": 1775592754166
+    }
+  ],
+  "Chat": [],
+  "ChatKnowledge": [],
+  "CourseRegistration": [],
+  "CronLog": [],
+  "MarginConsultation": [],
+  "MarketReport": [],
+  "Notification": [],
+  "PaymentOrder": [],
+  "PropTrading": [],
+  "PushSubscription": [],
+  "Session": [],
+  "Signal": [],
+  "SystemSetting": [],
+  "TradingJournal": [],
+  "User": [],
+  "VerificationToken": []
+}
