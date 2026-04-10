@@ -45,17 +45,16 @@ services:
   # ── FiinQuant Python Bridge ───────────────────────────────────
   fiinquant:
     build:
-      context: ./fiinquant-bridge
+      context: ../fiinquant-bridge
       dockerfile: Dockerfile.python
     container_name: adn-fiinquant
     restart: unless-stopped
-    environment:
-      - FIINQUANT_USER=${FIINQUANT_USER}
-      - FIINQUANT_PASS=${FIINQUANT_PASS}
+    env_file: .env
     ports:
       - "8000:8000"
     networks:
       - adn-net
+
 
   # ── Nginx Reverse Proxy ───────────────────────────────────────
   nginx:
