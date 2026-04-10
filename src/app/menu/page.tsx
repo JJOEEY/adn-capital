@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
@@ -49,7 +49,7 @@ export default function MenuPage() {
       title: "Công cụ",
       items: [
         { href: "/backtest", label: "Backtest", icon: FlaskConical },
-        { href: "/tei", label: "Chỉ báo TEI", icon: Activity, badge: "MỚI" },
+        { href: "/tei", label: "ART - Analytical Reversal Tracker", icon: Activity, badge: "MỚI" },
         { href: "https://t.me/+fryvX_B-6Y9kODg1", label: "Group Telegram", icon: Send, external: true },
         { href: "/hdsd", label: "Hướng dẫn sử dụng", icon: BookOpen },
       ],

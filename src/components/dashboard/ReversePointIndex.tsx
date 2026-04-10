@@ -37,12 +37,13 @@ const fetcher = (url: string) =>
 
 /* ── Classify ART — chỉ đổi text label, giữ nguyên màu sắc gauge ─────────────── */
 function classifyART(v: number) {
-  if (v < 1.0)  return { label: "HOẢNG LOẠN CỰC ĐỘ",       sublabel: "An toàn cực kỳ",   color: "#22C55E" };
-  if (v < 2.5)  return { label: "HOẢNG LOẠN - AN TOÀN",   sublabel: "Cơ hội mua tốt",   color: "#22C55E" };
-  if (v < 4.0)  return { label: "TRUNG TÍNH",               sublabel: "Theo dõi thêm",    color: "#EAB308" };
-  if (v <= 4.8) return { label: "HƯNG PHẤN - NGUY HIỂM",   sublabel: "Cẩn trọng rủi ro",   color: "#EF4444" };
-  return         { label: "HƯNG PHẤN CỰC ĐỘ",         sublabel: "Nguy hiểm cao nhất", color: "#EF4444" };
+  if (v < 1.0)  return { label: "HOẢNG LOẠN CỰC ĐỘ - AN TOÀN", sublabel: "Cơ hội mua tốt nhất", color: "#22C55E" };
+  if (v < 2.5)  return { label: "AN TOÀN",                   sublabel: "Cơ hội mua tốt",     color: "#22C55E" };
+  if (v < 4.0)  return { label: "TRUNG TÍNH",               sublabel: "Theo dõi thêm",      color: "#EAB308" };
+  if (v <= 4.8) return { label: "RỦI RO",                   sublabel: "Cẩn trọng rủi ro",    color: "#EF4444" };
+  return         { label: "HƯNG PHẤN CỰC ĐỘ - NGUY HIỂM", sublabel: "Nguy hiểm cao nhất",  color: "#EF4444" };
 }
+
 
 
 function getColorConfig(color: string) {

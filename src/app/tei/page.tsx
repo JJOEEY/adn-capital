@@ -95,10 +95,13 @@ function formatDateSlash(dateStr: string): string {
 
 /* ── Classify TEI ──────────────────────────────────────────────────────── */
 function classifyTEI(v: number) {
-  if (v >= 4.0) return { label: "CẠN KIỆT XU HƯỚNG TĂNG", color: "#EF4444" };
-  if (v <= 1.0) return { label: "CẠN KIỆT XU HƯỚNG GIẢM", color: "#22C55E" };
-  return { label: "TRUNG TÍNH", color: "#EAB308" };
+  if (v < 1.0)  return { label: "HOẢNG LOẠN CỰC ĐỘ - AN TOÀN", color: "#22C55E" };
+  if (v < 2.5)  return { label: "AN TOÀN",                   color: "#22C55E" };
+  if (v < 4.0)  return { label: "TRUNG TÍNH",               color: "#EAB308" };
+  if (v <= 4.8) return { label: "RỦI RO",                   color: "#EF4444" };
+  return         { label: "HƯNG PHẤN CỰC ĐỘ - NGUY HIỂM", color: "#EF4444" };
 }
+
 
 /* ══════════════════════════════════════════════════════════════════════════
  *  GAUGE SVG — Semicircle 0–5, smooth multi-segment gradient, needle
