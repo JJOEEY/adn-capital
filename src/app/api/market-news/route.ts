@@ -1,12 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-export const revalidate = 3600; // Cache 1 tiếng — tin tức không thay đổi thường xuyên
+export const dynamic = "force-dynamic"; // Luôn server-render để đọc data mới
 
 const BACKEND = process.env.FIINQUANT_URL ?? "http://localhost:8000";
 
 /* In-memory cache theo type */
 const cache: Record<string, { data: unknown; ts: number }> = {};
-const TTL = 3600_000; // 1 tiếng
+const TTL = 5 * 60_000; // 5 phút — đủ nhanh cho real-time
 
 /**
  * GET /api/market-news?type=morning|eod
