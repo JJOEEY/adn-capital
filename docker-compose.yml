@@ -1,6 +1,26 @@
 version: "3.9"
 
 services:
+  # ── PostgreSQL Database ───────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: adn-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-adncapital}
+      POSTGRES_USER: ${POSTGRES_USER:-adnuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      # Persistence: dữ liệu lưu tại /var/lib/9router/data trên VPS
+      - /var/lib/9router/data/postgres:/var/lib/postgresql/data
+    networks:
+      - adn-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-adnuser} -d ${POSTGRES_DB:-adncapital}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # ── Next.js Web App ───────────────────────────────────────────
   web:
     build:
@@ -15,7 +35,10 @@ services:
     ports:
       - "3000:3000"
     depends_on:
-      - fiinquant
+      db:
+        condition: service_healthy
+      fiinquant:
+        condition: service_started
     networks:
       - adn-net
 

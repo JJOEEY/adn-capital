@@ -43,6 +43,8 @@ next-env.d.ts
 *.db
 *.db-journal
 prisma/migrations/
+market_cache.json
+
 
 # clerk configuration (can include secrets)
 /.clerk/

@@ -3,9 +3,10 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
 
 // ═══ Ghi chú: SQLite không hỗ trợ enum, dùng String thay thế ═══
 // systemRole: ADMIN | USER  (quyền hệ thống)
