@@ -349,19 +349,21 @@ export default function TEIPage() {
   return (
     <MainLayout>
       <div className="p-3 md:p-6 max-w-5xl mx-auto space-y-4">
-        <LockOverlay isLocked={isTeiPageLocked} message="Nâng cấp PREMIUM để xem chi tiết Chỉ báo Cạn Kiệt Xu Hướng">
+        <LockOverlay isLocked={isTeiPageLocked} message="Nâng cấp PREMIUM để xem chi tiết ART - Analytical Reversal Tracker">
+
         <div className="rounded-2xl border border-neutral-800 bg-neutral-900/80 overflow-hidden">
           {/* ═══ HEADER ═══ */}
           <div className="px-6 py-5 border-b border-neutral-800">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
                 <h2 className="text-xl font-black text-white tracking-tight">
-                  CHỈ BÁO CẠN KIỆT XU HƯỚNG{" "}
-                  <span className="text-neutral-500 font-normal text-base">(Trend Exhaustion Index – TEI)</span>
+                  ART — Analytical Reversal Tracker{" "}
+                  <span className="text-neutral-500 font-normal text-base">(Bộ theo dõi đảo chiều xu hướng)</span>
                 </h2>
                 <p className="text-sm text-neutral-500 mt-1">
-                  Đo lường mức độ cạn kiệt xu hướng theo diễn biến thị trường
+                  Đo lường mức độ đảo chiều xu hướng theo diễn biến thị trường
                 </p>
+
               </div>
               <button onClick={handleRefresh} disabled={refreshing}
                 className="p-2 rounded-lg border border-neutral-700 hover:bg-neutral-800 text-neutral-500 hover:text-neutral-300 transition-all disabled:opacity-50 self-end"
@@ -433,9 +435,12 @@ export default function TEIPage() {
               <div className="space-y-5">
                 <div className="border border-neutral-800 rounded-xl p-5 bg-neutral-900/50">
                   {[
-                    { text: "Cạn kiệt xu hướng tăng (trên 4)", value: "4.0", bg: "#EF4444" },
-                    { text: "Trung tính", value: "2.5", bg: "#EAB308" },
-                    { text: "Cạn kiệt xu hướng giảm (dưới 1)", value: "1.0", bg: "#22C55E" },
+                  { text: "Hưng phấn cực độ (> 4.8)",         value: "4.8+", bg: "#EF4444" },
+                    { text: "Hưng phấn - Nguy hiểm (4–4.8)",  value: "4.0",  bg: "#F97316" },
+                    { text: "Trung tính (2.5–4)",               value: "2.5",  bg: "#EAB308" },
+                    { text: "Hoảng loạn - An toàn (1–2.5)",   value: "1.5",  bg: "#22C55E" },
+                    { text: "Hoảng loạn cực độ (< 1)",           value: "<1",   bg: "#16A34A" },
+
                   ].map((item, i) => (
                     <div key={item.value}
                       className={`flex items-center justify-between py-3 ${i < 2 ? "border-b border-neutral-800" : ""}`}>
@@ -469,8 +474,9 @@ export default function TEIPage() {
                   <div className="flex items-center gap-4 mt-1.5">
                     <div className="flex items-center gap-1.5">
                       <span className="inline-block w-3 h-3 bg-white rounded-sm" />
-                      <span className="text-xs text-neutral-400">TEI</span>
+                      <span className="text-xs text-neutral-400">ART</span>
                     </div>
+
                     <div className="flex items-center gap-1.5">
                       <span className="inline-block w-3 h-3 bg-[#F59E0B] rounded-sm" />
                       <span className="text-xs text-neutral-400">Trung Bình MA7</span>
@@ -575,7 +581,8 @@ export default function TEIPage() {
                       <Line
                         type="monotone"
                         dataKey="rpi"
-                        name="TEI"
+                        name="ART"
+
                         stroke="#ffffff"
                         strokeWidth={2}
                         dot={<TEIDot />}

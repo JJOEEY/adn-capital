@@ -17,8 +17,16 @@ import {
 import { calculateRPI, getLatestRPI, type OHLCVData } from "@/lib/rpi/calculator";
 
 /* ═══════════════════════════════════════════════════════════════════════════
- *  ReversePointIndex — Chỉ báo Cạn Kiệt Xu Hướng (TEI) cho VN30
- *  Dashboard widget — matches /tei page visual style
+ *  ART — Analytical Reversal Tracker (Bộ theo dõi đảo chiều xu hướng)
+ *  Formerly known as TEI. Dashboard widget for VN30.
+ *  Formula: RSI(7)×5% + Stochastic %K(5)×70% + ROC(5)×25%  → 0–5
+ *
+ *  Zones:
+ *   < 1.0  → 🟢 Hoảng loạn cực độ   (Cực kỳ an toàn để mua)
+ *   1–2    → 🟢 Hoảng loạn - An toàn
+ *   2–3.5  → 🟡 Trung tính
+ *   3.5–4.8→ 🔴 Hưng phấn - Nguy hiểm
+ *   > 4.8  → 🔴 Hưng phấn cực độ
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 const fetcher = (url: string) =>
@@ -27,50 +35,53 @@ const fetcher = (url: string) =>
     return r.json();
   });
 
-/* ── Classify TEI ──────────────────────────────────────────────────────── */
-function classifyTEI(v: number) {
-  if (v >= 4.0) return { label: "CẠN KIỆT XU HƯỚNG TĂNG", color: "#EF4444" };
-  if (v <= 1.0) return { label: "CẠN KIỆT XU HƯỚNG GIẢM", color: "#22C55E" };
-  return { label: "TRUNG TÍNH", color: "#EAB308" };
+/* ── Classify ART — chỉ đổi text label, giữ nguyên màu sắc gauge ─────────────── */
+function classifyART(v: number) {
+  if (v < 1.0)  return { label: "HOẢNG LOẠN CỰC ĐỘ",       sublabel: "An toàn cực kỳ",   color: "#22C55E" };
+  if (v < 2.5)  return { label: "HOẢNG LOẠN - AN TOÀN",   sublabel: "Cơ hội mua tốt",   color: "#22C55E" };
+  if (v < 4.0)  return { label: "TRUNG TÍNH",               sublabel: "Theo dõi thêm",    color: "#EAB308" };
+  if (v <= 4.8) return { label: "HƯNG PHẤN - NGUY HIỂM",   sublabel: "Cẩn trọng rủi ro",   color: "#EF4444" };
+  return         { label: "HƯNG PHẤN CỰC ĐỘ",         sublabel: "Nguy hiểm cao nhất", color: "#EF4444" };
 }
 
+
 function getColorConfig(color: string) {
-  if (color === "#EF4444")
+  if (color === "#16A34A" || color === "#22C55E")
     return {
-      border: "border-red-500/40",
-      shadow: "shadow-[0_0_30px_-8px_rgba(239,68,68,0.4)]",
-      glow: "bg-red-500/20",
-      text: "text-red-400",
-      badge: "bg-red-500/10 text-red-400 border-red-500/30",
-    };
-  if (color === "#22C55E")
-    return {
-      border: "border-emerald-500/30",
+      border: "border-emerald-500/40",
       shadow: "shadow-[0_0_30px_-8px_rgba(16,185,129,0.4)]",
       glow: "bg-emerald-500/20",
       text: "text-emerald-400",
       badge: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
     };
+  if (color === "#EAB308")
+    return {
+      border: "border-amber-500/30",
+      shadow: "shadow-[0_0_30px_-8px_rgba(245,158,11,0.3)]",
+      glow: "bg-amber-500/15",
+      text: "text-amber-400",
+      badge: "bg-amber-500/10 text-amber-400 border-amber-500/30",
+    };
   return {
-    border: "border-amber-500/30",
-    shadow: "shadow-[0_0_30px_-8px_rgba(245,158,11,0.3)]",
-    glow: "bg-amber-500/15",
-    text: "text-amber-400",
-    badge: "bg-amber-500/10 text-amber-400 border-amber-500/30",
+    border: "border-red-500/40",
+    shadow: "shadow-[0_0_30px_-8px_rgba(239,68,68,0.4)]",
+    glow: "bg-red-500/20",
+    text: "text-red-400",
+    badge: "bg-red-500/10 text-red-400 border-red-500/30",
   };
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
- *  GAUGE SVG — 60-segment smooth gradient (same as /tei page)
+ *  ART GAUGE SVG — 60-segment smooth gradient (Green→Yellow→Red)
  * ═══════════════════════════════════════════════════════════════════════════ */
-const TEI_COLORS: [number, [number, number, number]][] = [
-  [0.0, [22, 163, 74]],
-  [0.2, [74, 222, 128]],
-  [0.35, [163, 230, 53]],
-  [0.5, [234, 179, 8]],
-  [0.7, [249, 115, 22]],
-  [0.85, [239, 68, 68]],
-  [1.0, [220, 38, 38]],
+const ART_COLORS: [number, [number, number, number]][] = [
+  [0.0, [22, 163, 74]],    // deep green (Hoảng loạn cực độ)
+  [0.2, [74, 222, 128]],   // light green
+  [0.35, [163, 230, 53]],  // yellow-green
+  [0.5, [234, 179, 8]],    // yellow (Trung tính)
+  [0.7, [249, 115, 22]],   // orange
+  [0.85, [239, 68, 68]],   // red (Hưng phấn)
+  [1.0, [220, 38, 38]],    // deep red (Hưng phấn cực độ)
 ];
 
 function interpolateColor(t: number, stops: [number, [number, number, number]][]): string {
@@ -111,7 +122,7 @@ function GaugeSVG({ value }: { value: number }) {
       const midFrac = (startFrac + endFrac) / 2;
       result.push({
         d: `M ${x1} ${y1} A ${r} ${r} 0 0 0 ${x2} ${y2}`,
-        color: interpolateColor(midFrac, TEI_COLORS),
+        color: interpolateColor(midFrac, ART_COLORS),
       });
     }
     return result;
@@ -121,7 +132,6 @@ function GaugeSVG({ value }: { value: number }) {
   const needleLen = r - 30;
   const nx = cx + needleLen * Math.cos(needleAngle);
   const ny = cy - needleLen * Math.sin(needleAngle);
-
   const ticks = [0, 1, 2, 3, 4, 5];
 
   return (
@@ -151,11 +161,9 @@ function GaugeSVG({ value }: { value: number }) {
   );
 }
 
-/* ── Custom Tooltip (same as /tei page) ────────────────────────────────── */
+/* ── Custom Tooltip ────────────────────────────────────────────────────── */
 function CustomTooltip({
-  active,
-  payload,
-  label,
+  active, payload, label,
 }: {
   active?: boolean;
   payload?: { dataKey: string; value: number; color: string; name: string }[];
@@ -175,15 +183,15 @@ function CustomTooltip({
   );
 }
 
-/* ── TEI Dot (same as /tei page) ───────────────────────────────────────── */
-function TEIDot(props: { cx?: number; cy?: number }) {
+function ARTDot(props: { cx?: number; cy?: number }) {
   const { cx, cy } = props;
   if (cx == null || cy == null) return null;
   return <circle cx={cx} cy={cy} r={3} fill="#fff" stroke="#fff" strokeWidth={1} />;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
- *  MAIN COMPONENT — Dashboard TEI Widget
+ *  MAIN COMPONENT — Dashboard ART Widget
+ *  Fix skeleton: Card render ngay với giá trị 0, chart load sau (lazy)
  * ═══════════════════════════════════════════════════════════════════════════ */
 export const ReversePointIndex = memo(function ReversePointIndex() {
   const { data: rawData, isLoading, mutate } = useSWR(
@@ -193,40 +201,33 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
       keepPreviousData: true,
       revalidateOnFocus: false,
       dedupingInterval: 60_000,
-      refreshInterval: 0, // Tắt quét 5m mặc định
+      refreshInterval: 0,
       shouldRetryOnError: true,
       errorRetryCount: 3,
     },
   );
 
-  // ── Smart Scheduler: 9:30, 14:00, 15:00 T2-T6 ──
+  // Smart Scheduler: 9:30, 14:00, 15:00 T2-T6
   useEffect(() => {
     const timer = setInterval(() => {
       const now = new Date();
-      const day = now.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+      const day = now.getDay();
       const hour = now.getHours();
       const min = now.getMinutes();
-
-      // Chỉ quét Thứ 2 - Thứ 6
       if (day >= 1 && day <= 5) {
         const is930 = hour === 9 && min === 30;
         const is1400 = hour === 14 && min === 0;
         const is1500 = hour === 15 && min === 0;
-
-        if (is930 || is1400 || is1500) {
-          console.log(`[TEI Scheduler] 🎯 Triggering scan at ${hour}:${min}`);
-          mutate();
-        }
+        if (is930 || is1400 || is1500) mutate();
       }
-    }, 60000); // Check mỗi phút
-
+    }, 60000);
     return () => clearInterval(timer);
   }, [mutate]);
 
   const ohlcvData: OHLCVData[] = useMemo(() => {
     if (!rawData?.data?.length) return [];
     return rawData.data.map((d: any) => ({
-      date: d.timestamp.split(" ")[0],
+      date: (d.timestamp ?? d.date ?? "").split(" ")[0],
       open: d.open,
       high: d.high,
       low: d.low,
@@ -244,17 +245,17 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
 
   const chartData = useMemo(() => {
     const valid = rpiResults.filter((r) => r.rpi !== null);
-    const sliced = valid.slice(-60);
-    return sliced.map((r) => {
+    return valid.slice(-60).map((r) => {
       const clean = r.date.split(" ")[0];
       const [y, m, d] = clean.split("-");
       return { displayDate: `${d}.${m}`, rpi: r.rpi!, ma7: r.ma7 };
     });
   }, [rpiResults]);
 
-  const teiValue = latest?.rpi ?? 0;
-  const teiMA7 = latest?.ma7 ?? 0;
-  const classification = classifyTEI(teiValue);
+  // Render ngay kể cả khi isLoading — không block UI
+  const artValue = latest?.rpi ?? 0;
+  const artMA7 = latest?.ma7 ?? 0;
+  const classification = classifyART(artValue);
   const cfg = getColorConfig(classification.color);
 
   const updatedDate = useMemo(() => {
@@ -263,8 +264,6 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
     const [y, m, d] = clean.split("-");
     return `${d}/${m}/${y}`;
   }, [latest]);
-
-  if (isLoading || !rawData) return <RPISkeleton />;
 
   return (
     <div
@@ -275,50 +274,62 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
       <div className="relative z-10 p-4 sm:p-5">
         {/* Header */}
         <div className="flex items-center justify-between mb-1">
-          <div className="flex items-center gap-2">
-            <span className="text-[12px] font-bold text-neutral-400 uppercase tracking-wider">
-              Chỉ báo Cạn Kiệt Xu Hướng (TEI)
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[12px] font-bold text-neutral-300 uppercase tracking-wider">
+              ART — Analytical Reversal Tracker
             </span>
-            <span className="text-[11px] text-neutral-600 bg-neutral-800 px-1.5 py-0.5 rounded">VN30</span>
+            <span className="text-[10px] text-neutral-500">Bộ theo dõi đảo chiều xu hướng · VN30</span>
           </div>
-          <span className={`text-[12px] font-bold px-2 py-0.5 rounded-full border ${cfg.badge}`}>
+          <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${cfg.badge}`}>
             {classification.label}
           </span>
         </div>
 
-        <p className="text-[12px] text-neutral-500 mb-3">
-          Đo lường mức độ cạn kiệt xu hướng theo diễn biến thị trường
-        </p>
-
         {/* Gauge + Thresholds */}
-        <div className="flex flex-col sm:flex-row items-center gap-4 mb-4">
-          {/* Gauge */}
+        <div className="flex flex-col sm:flex-row items-center gap-4 mb-4 mt-3">
+          {/* Gauge — luôn render (với value=0 nếu đang load) */}
           <div className="flex flex-col items-center shrink-0">
-            <GaugeSVG value={teiValue} />
+            <GaugeSVG value={artValue} />
             <div className="text-center -mt-2">
-              <p className="text-2xl font-black text-white tabular-nums">
-                {teiValue.toFixed(2)}{" "}
-                <span className="text-sm font-bold text-neutral-500">ĐIỂM</span>
-              </p>
-              <p className="text-sm font-black mt-0.5" style={{ color: classification.color }}>
-                {classification.label}
-              </p>
-              <p className="text-[12px] text-neutral-500 mt-0.5">Cập nhật: {updatedDate}</p>
+              {isLoading && !latest ? (
+                <div className="flex flex-col items-center gap-1">
+                  <div className="h-8 w-24 bg-neutral-800 rounded animate-pulse" />
+                  <div className="h-4 w-32 bg-neutral-800 rounded animate-pulse" />
+                </div>
+              ) : (
+                <>
+                  <p className="text-2xl font-black text-white tabular-nums">
+                    {artValue.toFixed(2)}{" "}
+                    <span className="text-sm font-bold text-neutral-500">ĐIỂM</span>
+                  </p>
+                  <p className="text-sm font-black mt-0.5" style={{ color: classification.color }}>
+                    {classification.label}
+                  </p>
+                  <p className="text-[11px] mt-0.5" style={{ color: classification.color, opacity: 0.7 }}>
+                    {classification.sublabel}
+                  </p>
+                  {updatedDate && (
+                    <p className="text-[11px] text-neutral-500 mt-0.5">Cập nhật: {updatedDate}</p>
+                  )}
+                </>
+              )}
             </div>
           </div>
 
-          {/* Thresholds */}
+          {/* Phân vùng ART */}
           <div className="flex-1 w-full">
             <div className="border border-neutral-800 rounded-xl p-3 bg-neutral-900/50">
               {[
-                { text: "Cạn kiệt xu hướng tăng (trên 4)", value: "4.0", bg: "#EF4444" },
-                { text: "Trung tính", value: "2.5", bg: "#EAB308" },
-                { text: "Cạn kiệt xu hướng giảm (dưới 1)", value: "1.0", bg: "#22C55E" },
+                { text: "Hứng phán cục độ (> 4.8)",          value: "4.8+", bg: "#EF4444" },
+                { text: "Hứng phán - Nguy hiẻm (4–4.8)",  value: "4.0",  bg: "#F97316" },
+                { text: "Trung tính (2.5–4)",                value: "2.5",  bg: "#EAB308" },
+                { text: "Hoảng loạn - An toàn (1–2.5)",    value: "1.5",  bg: "#22C55E" },
+                { text: "Hoảng loạn cục độ (< 1)",            value: "<1",   bg: "#16A34A" },
               ].map((item, i) => (
                 <div key={item.value}
-                  className={`flex items-center justify-between py-2.5 ${i < 2 ? "border-b border-neutral-800" : ""}`}>
+                  className={`flex items-center justify-between py-2 ${i < 4 ? "border-b border-neutral-800/60" : ""}`}>
                   <span className="text-[11px] text-neutral-300 font-medium">{item.text}</span>
-                  <span className="inline-flex items-center justify-center w-8 h-8 rounded-full text-white text-xs font-bold shadow-sm"
+                  <span className="inline-flex items-center justify-center w-8 h-8 rounded-full text-white text-[10px] font-bold shadow-sm shrink-0"
                     style={{ backgroundColor: item.bg }}>
                     {item.value}
                   </span>
@@ -329,26 +340,26 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
               <div className="pt-2 border-t border-neutral-800 mt-1">
                 <div className="flex items-center justify-between text-[11px]">
                   <span className="text-neutral-500">Trung bình MA7:</span>
-                  <span className="font-bold text-white tabular-nums">{teiMA7.toFixed(2)}</span>
+                  <span className={`font-bold tabular-nums ${cfg.text}`}>{artMA7.toFixed(2)}</span>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Historical Recharts chart */}
-        {chartData.length > 2 && (
+        {/* Historical Chart — chỉ render khi đã có data, không block card */}
+        {chartData.length > 2 ? (
           <div>
             <div className="flex items-center justify-between mb-2">
               <p className="text-[12px] font-bold text-neutral-400 uppercase tracking-wider">Dữ liệu lịch sử</p>
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1.5">
                   <span className="inline-block w-3 h-3 bg-white rounded-sm" />
-                  <span className="text-[11px] text-neutral-500">TEI</span>
+                  <span className="text-[11px] text-neutral-500">ART</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="inline-block w-3 h-3 bg-[#F59E0B] rounded-sm" />
-                  <span className="text-[11px] text-neutral-500">Trung Bình MA7</span>
+                  <span className="text-[11px] text-neutral-500">MA7</span>
                 </div>
               </div>
             </div>
@@ -357,77 +368,57 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={chartData} margin={{ top: 8, right: 8, left: -5, bottom: 50 }}>
                     <defs>
-                      <linearGradient id="dashTeiMa7Fill" x1="0" y1="0" x2="0" y2="1">
+                      <linearGradient id="artMa7Fill" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.2} />
                         <stop offset="95%" stopColor="#F59E0B" stopOpacity={0.02} />
                       </linearGradient>
                     </defs>
 
-                    <ReferenceArea y1={4.0} y2={5.0} fill="rgba(239, 68, 68, 0.08)" strokeOpacity={0} />
-                    <ReferenceArea y1={1.0} y2={4.0} fill="rgba(245, 158, 11, 0.04)" strokeOpacity={0} />
-                    <ReferenceArea y1={0} y2={1.0} fill="rgba(34, 197, 94, 0.08)" strokeOpacity={0} />
+                    <ReferenceArea y1={4.8} y2={5.0} fill="rgba(220, 38, 38, 0.12)" strokeOpacity={0} />
+                    <ReferenceArea y1={3.5} y2={4.8} fill="rgba(239, 68, 68, 0.08)" strokeOpacity={0} />
+                    <ReferenceArea y1={2.0} y2={3.5} fill="rgba(245, 158, 11, 0.04)" strokeOpacity={0} />
+                    <ReferenceArea y1={1.0} y2={2.0} fill="rgba(34, 197, 94, 0.08)" strokeOpacity={0} />
+                    <ReferenceArea y1={0} y2={1.0} fill="rgba(22, 163, 74, 0.12)" strokeOpacity={0} />
 
                     <CartesianGrid stroke="#262626" strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="displayDate" tick={{ fontSize: 9, fill: "#6B7280" }}
+                      angle={-45} textAnchor="end" height={50} interval={0}
+                      tickLine={{ stroke: "#404040" }} axisLine={{ stroke: "#404040" }} />
+                    <YAxis domain={[0, 5]} ticks={[0, 1.0, 2.0, 3.0, 4.0, 5.0]}
+                      tick={{ fontSize: 10, fill: "#6B7280" }} tickFormatter={(v: number) => v.toFixed(1)}
+                      axisLine={{ stroke: "#404040" }} tickLine={{ stroke: "#404040" }} width={30} />
 
-                    <XAxis
-                      dataKey="displayDate"
-                      tick={{ fontSize: 9, fill: "#6B7280" }}
-                      angle={-45}
-                      textAnchor="end"
-                      height={50}
-                      interval={0}
-                      tickLine={{ stroke: "#404040" }}
-                      axisLine={{ stroke: "#404040" }}
-                    />
-
-                    <YAxis
-                      domain={[0, 5]}
-                      ticks={[0, 1.0, 2.0, 3.0, 4.0, 5.0]}
-                      tick={{ fontSize: 10, fill: "#6B7280" }}
-                      tickFormatter={(v: number) => v.toFixed(1)}
-                      axisLine={{ stroke: "#404040" }}
-                      tickLine={{ stroke: "#404040" }}
-                      width={30}
-                    />
-
-                    <ReferenceLine y={4.0} stroke="#EF4444" strokeDasharray="6 3" strokeOpacity={0.4} />
+                    <ReferenceLine y={4.8} stroke="#DC2626" strokeDasharray="4 4" strokeOpacity={0.5} />
+                    <ReferenceLine y={3.5} stroke="#EF4444" strokeDasharray="6 3" strokeOpacity={0.4} />
+                    <ReferenceLine y={2.0} stroke="#EAB308" strokeDasharray="6 3" strokeOpacity={0.3} />
                     <ReferenceLine y={1.0} stroke="#22C55E" strokeDasharray="6 3" strokeOpacity={0.4} />
 
                     <Tooltip content={<CustomTooltip />} cursor={{ stroke: "#525252", strokeDasharray: "4 4" }} />
-
-                    <Area
-                      type="monotone"
-                      dataKey="ma7"
-                      name="Trung Bình (MA7)"
-                      fill="url(#dashTeiMa7Fill)"
-                      stroke="#F59E0B"
-                      strokeWidth={2}
-                      dot={false}
-                      connectNulls={false}
-                      isAnimationActive={false}
-                    />
-
-                    <Line
-                      type="monotone"
-                      dataKey="rpi"
-                      name="TEI"
-                      stroke="#ffffff"
-                      strokeWidth={2}
-                      dot={<TEIDot />}
-                      activeDot={{ r: 5, fill: "#fff", stroke: "#fff" }}
-                      isAnimationActive={false}
-                    />
+                    <Area type="monotone" dataKey="ma7" name="Trung Bình (MA7)"
+                      fill="url(#artMa7Fill)" stroke="#F59E0B" strokeWidth={2}
+                      dot={false} connectNulls={false} isAnimationActive={false} />
+                    <Line type="monotone" dataKey="rpi" name="ART"
+                      stroke="#ffffff" strokeWidth={2}
+                      dot={<ARTDot />} activeDot={{ r: 5, fill: "#fff", stroke: "#fff" }}
+                      isAnimationActive={false} />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
             </div>
           </div>
-        )}
+        ) : isLoading ? (
+          <div className="h-[220px] bg-neutral-800/40 rounded-lg animate-pulse mt-2 flex items-center justify-center">
+            <span className="text-[11px] text-neutral-600">Đang tải dữ liệu lịch sử...</span>
+          </div>
+        ) : null}
 
         {/* Footer */}
         <div className="flex items-center justify-between mt-3 pt-2 border-t border-neutral-800">
           <span className="text-[12px] text-neutral-500">
-            TEI MA7: <span className={`font-bold ${cfg.text}`}>{teiMA7.toFixed(2)}</span>
+            ART MA7: <span className={`font-bold ${cfg.text}`}>{artMA7.toFixed(2)}</span>
+          </span>
+          <span className="text-[10px] text-neutral-600 italic">
+            RSI(7)×5% + Stoch(5)×70% + ROC(5)×25%
           </span>
         </div>
       </div>
@@ -435,17 +426,19 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
   );
 });
 
-/* ── Skeleton ──────────────────────────────────────────────────────────── */
+/* ── Skeleton (chỉ dùng khi chưa mount) ───────────────────────────────── */
 function RPISkeleton() {
   return (
     <div className="rounded-2xl bg-neutral-900/90 border border-neutral-700/30 p-5 animate-pulse">
-      <div className="h-4 bg-neutral-800 rounded w-48 mb-3" />
+      <div className="h-4 bg-neutral-800 rounded w-52 mb-1" />
+      <div className="h-3 bg-neutral-800/60 rounded w-36 mb-4" />
       <div className="flex gap-4">
         <div className="w-[260px] h-[170px] bg-neutral-800 rounded-lg" />
         <div className="flex-1 space-y-3">
-          <div className="h-10 bg-neutral-800 rounded-lg" />
-          <div className="h-10 bg-neutral-800 rounded-lg" />
-          <div className="h-10 bg-neutral-800 rounded-lg" />
+          <div className="h-8 bg-neutral-800 rounded-lg" />
+          <div className="h-8 bg-neutral-800 rounded-lg" />
+          <div className="h-8 bg-neutral-800 rounded-lg" />
+          <div className="h-8 bg-neutral-800 rounded-lg" />
         </div>
       </div>
       <div className="h-[220px] bg-neutral-800 rounded-lg mt-4" />
