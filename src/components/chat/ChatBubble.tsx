@@ -77,7 +77,7 @@ function renderInlineBold(text: string): React.ReactNode {
   return parts.map((part, i) => {
     if (part.startsWith("**") && part.endsWith("**")) {
       return (
-        <strong key={i} className="text-white font-semibold">
+        <strong key={i} className="font-semibold" style={{ color: "var(--text-primary)" }}>
           {part.slice(2, -2)}
         </strong>
       );
@@ -119,20 +119,20 @@ export function ChatBubble({ message }: ChatBubbleProps) {
       ) : (
         <div className={`max-w-[85%] sm:max-w-[75%] ${isUser ? "items-end" : "items-start"} flex flex-col gap-1`}>
           <div
-            className={`px-4 py-3 rounded-2xl ${
-              isUser
-                ? "bg-neutral-800 border border-neutral-700 rounded-tr-sm"
-                : "bg-neutral-900 border border-emerald-500/20 rounded-tl-sm"
-            }`}
+            className="px-4 py-3 rounded-2xl"
+            style={isUser
+              ? { background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "16px 4px 16px 16px" }
+              : { background: "var(--surface)", border: "1px solid rgba(16,185,129,0.20)", borderRadius: "4px 16px 16px 16px" }
+            }
           >
             {isUser ? (
-              <p className="text-sm text-neutral-100">{message.content}</p>
+              <p className="text-sm" style={{ color: "var(--text-secondary)" }}>{message.content}</p>
             ) : (
               <SimpleMarkdown text={message.content} />
             )}
           </div>
 
-          <span className="text-[12px] text-neutral-600 px-1">
+          <span className="text-[12px] px-1" style={{ color: "var(--text-muted)" }}>
             {new Date(message.createdAt).toLocaleTimeString("vi-VN", {
               hour: "2-digit",
               minute: "2-digit",

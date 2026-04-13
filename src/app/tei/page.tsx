@@ -185,11 +185,10 @@ function GaugeSVG({ value }: { value: number }) {
         );
       })}
       <line x1={cx} y1={cy} x2={nx} y2={ny}
-        stroke="#fff" strokeWidth="3" strokeLinecap="round"
-        style={{ filter: "drop-shadow(0 0 6px rgba(255,255,255,0.4))" }}
+        stroke="var(--text-primary)" strokeWidth="3" strokeLinecap="round"
       />
-      <circle cx={cx} cy={cy} r="7" fill="#fff" />
-      <circle cx={cx} cy={cy} r="3" fill="#0a0a0a" />
+      <circle cx={cx} cy={cy} r="7" fill="var(--text-primary)" />
+      <circle cx={cx} cy={cy} r="3" fill="var(--bg-page)" />
     </svg>
   );
 }
@@ -208,8 +207,11 @@ function CustomTooltip({
 }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-neutral-800 text-white px-4 py-3 rounded-lg shadow-xl border border-neutral-600 text-sm">
-      <p className="font-bold mb-1.5 text-yellow-300">{label}</p>
+    <div
+      className="px-4 py-3 rounded-lg shadow-xl text-sm"
+      style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
+    >
+      <p className="font-bold mb-1.5" style={{ color: "var(--text-secondary)" }}>{label}</p>
       {payload.map((p, i) => (
         <div key={i} className="flex items-center gap-2 mt-0.5">
           <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: p.color }} />
@@ -237,7 +239,7 @@ export default function TEIPage() {
   const [inputTicker, setInputTicker] = useState("");
   const [timelineSessions, setTimelineSessions] = useState(60);
   const [timelineOpen, setTimelineOpen] = useState(false);
-  const { isTeiPageLocked } = useSubscription();
+  const { isArtPageLocked } = useSubscription();
 
   const apiUrl = `/api/historical/${encodeURIComponent(ticker)}`;
 
@@ -336,11 +338,12 @@ export default function TEIPage() {
     return (
       <MainLayout>
         <div className="p-3 md:p-6 max-w-5xl mx-auto">
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-900/80 p-8 text-center">
-            <div className="text-red-400 text-lg font-bold mb-2">Không tải được dữ liệu OHLCV</div>
-            <p className="text-neutral-500 text-sm mb-4">Mã: {ticker} — Kiểm tra FiinQuant Bridge</p>
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-8 text-center">
+            <div className="text-lg font-bold mb-2" style={{ color: "var(--danger)" }}>Không tải được dữ liệu OHLCV</div>
+            <p className="text-sm mb-4" style={{ color: "var(--text-secondary)" }}>Mã: {ticker} — Kiểm tra FiinQuant Bridge</p>
             <button onClick={handleRefresh}
-              className="px-4 py-2 border border-neutral-700 rounded-lg text-sm text-neutral-400 hover:bg-neutral-800">
+              className="px-4 py-2 rounded-lg text-sm transition-colors"
+              style={{ border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
               Thử lại
             </button>
           </div>
@@ -352,24 +355,25 @@ export default function TEIPage() {
   return (
     <MainLayout>
       <div className="p-3 md:p-6 max-w-5xl mx-auto space-y-4">
-        <LockOverlay isLocked={isTeiPageLocked} message="Nâng cấp PREMIUM để xem chi tiết ART - Analytical Reversal Tracker">
+        <LockOverlay isLocked={isArtPageLocked} message="Nâng cấp PREMIUM để xem chi tiết ART - Analytical Reversal Tracker">
 
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/80 overflow-hidden">
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden">
           {/* ═══ HEADER ═══ */}
-          <div className="px-6 py-5 border-b border-neutral-800">
+          <div className="px-6 py-5 border-b border-[var(--border)]">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
-                <h2 className="text-xl font-black text-white tracking-tight">
+                <h2 className="text-xl font-black tracking-tight" style={{ color: "var(--text-primary)" }}>
                   ART — Analytical Reversal Tracker{" "}
-                  <span className="text-neutral-500 font-normal text-base">(Bộ theo dõi đảo chiều xu hướng)</span>
+                  <span className="font-normal text-base" style={{ color: "var(--text-muted)" }}>(Bộ theo dõi đảo chiều xu hướng)</span>
                 </h2>
-                <p className="text-sm text-neutral-500 mt-1">
+                <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
                   Đo lường mức độ đảo chiều xu hướng theo diễn biến thị trường
                 </p>
 
               </div>
               <button onClick={handleRefresh} disabled={refreshing}
-                className="p-2 rounded-lg border border-neutral-700 hover:bg-neutral-800 text-neutral-500 hover:text-neutral-300 transition-all disabled:opacity-50 self-end"
+                className="p-2 rounded-lg transition-all disabled:opacity-50 self-end"
+                style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}
                 title="Làm mới dữ liệu">
                 <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
               </button>
@@ -377,22 +381,24 @@ export default function TEIPage() {
           </div>
 
           {/* ═══ TICKER SELECTOR ═══ */}
-          <div className="px-6 py-4 border-b border-neutral-800 bg-neutral-900/50">
+          <div className="px-6 py-4 border-b border-[var(--border)] bg-[var(--surface-2)]">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
               <div className="flex flex-wrap gap-1.5">
                 {PRESET_TICKERS.map((t) => (
                   <button key={t.value} onClick={() => handleTickerSelect(t.value)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all
-                      ${ticker === t.value
-                        ? "bg-white text-neutral-900 shadow-sm"
-                        : "bg-neutral-800 text-neutral-400 border border-neutral-700 hover:bg-neutral-700 hover:text-neutral-200"}`}>
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+                    style={
+                      ticker === t.value
+                        ? { background: "var(--text-primary)", color: "var(--bg-page)", boxShadow: "0 1px 4px rgba(0,0,0,0.12)" }
+                        : { background: "var(--bg-hover)", color: "var(--text-secondary)", border: "1px solid var(--border)" }
+                    }>
                     {t.value}
                   </button>
                 ))}
               </div>
               <div className="flex items-center gap-2">
                 <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-500" />
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: "var(--text-muted)" }} />
                   <input
                     type="text"
                     value={inputTicker}
@@ -400,17 +406,18 @@ export default function TEIPage() {
                     onKeyDown={(e) => e.key === "Enter" && handleCustomTicker()}
                     placeholder="Nhập mã..."
                     maxLength={10}
-                    className="pl-8 pr-3 py-1.5 w-28 rounded-lg border border-neutral-700 text-xs text-white bg-neutral-800
-                      focus:outline-none focus:ring-2 focus:ring-neutral-600 placeholder:text-neutral-600"
+                    className="pl-8 pr-3 py-1.5 w-28 rounded-lg text-xs outline-none"
+                    style={{ border: "1px solid var(--border)", color: "var(--text-primary)", background: "var(--surface-2)" }}
                   />
                 </div>
                 <button onClick={handleCustomTicker}
-                  className="px-3 py-1.5 rounded-lg bg-neutral-700 text-neutral-300 text-xs font-bold hover:bg-neutral-600 transition-colors">
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+                  style={{ background: "var(--bg-hover)", color: "var(--text-secondary)", border: "1px solid var(--border)" }}>
                   Xem
                 </button>
               </div>
-              <span className="ml-auto text-xs text-neutral-500">
-                Đang xem: <span className="font-bold text-white">{ticker}</span>
+              <span className="ml-auto text-xs" style={{ color: "var(--text-muted)" }}>
+                Đang xem: <span className="font-bold" style={{ color: "var(--text-primary)" }}>{ticker}</span>
                 {rawData && <span className="ml-1">({rawData.count} phiên)</span>}
               </span>
             </div>
@@ -423,20 +430,20 @@ export default function TEIPage() {
               <div className="flex flex-col items-center">
                 <GaugeSVG value={currentTEI} />
                 <div className="text-center -mt-2">
-                  <p className="text-4xl font-black text-white tabular-nums">
+                  <p className="text-4xl font-black tabular-nums" style={{ color: "var(--text-primary)" }}>
                     {currentTEI.toFixed(2)}{" "}
-                    <span className="text-lg font-bold text-neutral-500">ĐIỂM</span>
+                    <span className="text-lg font-bold" style={{ color: "var(--text-muted)" }}>ĐIỂM</span>
                   </p>
                   <p className="text-xl font-black mt-1" style={{ color: classification.color }}>
                     {classification.label}
                   </p>
-                  <p className="text-xs text-neutral-500 mt-2">Cập nhật: {updatedDate}</p>
+                  <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>Cập nhật: {updatedDate}</p>
                 </div>
               </div>
 
               {/* Right: Thresholds + MA7 */}
               <div className="space-y-5">
-                <div className="border border-neutral-800 rounded-xl p-5 bg-neutral-900/50">
+                <div className="border border-[var(--border)] rounded-xl p-5 bg-[var(--surface-2)]">
                   {[
                   { text: "Hưng phấn cực độ (> 4.8)",         value: "4.8+", bg: "#EF4444" },
                     { text: "Hưng phấn - Nguy hiểm (4–4.8)",  value: "4.0",  bg: "#F97316" },
@@ -446,20 +453,20 @@ export default function TEIPage() {
 
                   ].map((item, i) => (
                     <div key={item.value}
-                      className={`flex items-center justify-between py-3 ${i < 2 ? "border-b border-neutral-800" : ""}`}>
-                      <span className="text-sm text-neutral-300 font-medium">{item.text}</span>
-                      <span className="inline-flex items-center justify-center w-9 h-9 rounded-full text-white text-sm font-bold shadow-sm"
-                        style={{ backgroundColor: item.bg }}>
+                      className={`flex items-center justify-between py-3 ${i < 2 ? "border-b border-[var(--border)]" : ""}`}>
+                      <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>{item.text}</span>
+                      <span className="inline-flex items-center justify-center w-9 h-9 rounded-full text-sm font-bold shadow-sm"
+                        style={{ backgroundColor: item.bg, color: "#fff" }}>
                         {item.value}
                       </span>
                     </div>
                   ))}
 
                   {/* MA7 */}
-                  <div className="pt-3 border-t border-neutral-800 mt-1">
+                  <div className="pt-3 border-t border-[var(--border)] mt-1">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-neutral-500">Trung bình MA7:</span>
-                      <span className="font-bold text-white tabular-nums">{currentMA7.toFixed(2)}</span>
+                      <span style={{ color: "var(--text-secondary)" }}>Trung bình MA7:</span>
+                      <span className="font-bold tabular-nums" style={{ color: "var(--text-primary)" }}>{currentMA7.toFixed(2)}</span>
                     </div>
                   </div>
                 </div>
@@ -469,20 +476,20 @@ export default function TEIPage() {
 
           {/* ═══ CHART SECTION WITH TIMELINE DROPDOWN ═══ */}
           <div className="px-6 pb-6">
-            <div className="border-t border-neutral-800 pt-6">
+            <div className="border-t border-[var(--border)] pt-6">
               {/* Chart header with timeline dropdown */}
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
                 <div>
-                  <h3 className="text-lg font-black text-white">DỮ LIỆU LỊCH SỬ</h3>
+                  <h3 className="text-lg font-black" style={{ color: "var(--text-primary)" }}>DỮ LIỆU LỊCH SỬ</h3>
                   <div className="flex items-center gap-4 mt-1.5">
                     <div className="flex items-center gap-1.5">
-                      <span className="inline-block w-3 h-3 bg-white rounded-sm" />
-                      <span className="text-xs text-neutral-400">ART</span>
+                      <span className="inline-block w-3 h-3 rounded-sm" style={{ background: "var(--text-primary)" }} />
+                      <span className="text-xs" style={{ color: "var(--text-secondary)" }}>ART</span>
                     </div>
 
                     <div className="flex items-center gap-1.5">
                       <span className="inline-block w-3 h-3 bg-[#F59E0B] rounded-sm" />
-                      <span className="text-xs text-neutral-400">Trung Bình MA7</span>
+                      <span className="text-xs" style={{ color: "var(--text-secondary)" }}>Trung Bình MA7</span>
                     </div>
                   </div>
                 </div>
@@ -492,14 +499,18 @@ export default function TEIPage() {
                   <div className="relative">
                     <button
                       onClick={() => setTimelineOpen(!timelineOpen)}
-                      className="flex items-center gap-2 px-3 py-2 rounded-lg border border-neutral-700 bg-neutral-800 text-sm text-neutral-300 hover:bg-neutral-700 transition-colors"
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors"
+                      style={{ border: "1px solid var(--border)", background: "var(--surface-2)", color: "var(--text-secondary)" }}
                     >
                       <Calendar className="w-3.5 h-3.5" />
                       {currentTimelineLabel}
                       <ChevronDown className={`w-3.5 h-3.5 transition-transform ${timelineOpen ? "rotate-180" : ""}`} />
                     </button>
                     {timelineOpen && (
-                      <div className="absolute right-0 top-full mt-1 z-50 w-40 rounded-lg border border-neutral-700 bg-neutral-800 shadow-xl overflow-hidden">
+                      <div
+                        className="absolute right-0 top-full mt-1 z-50 w-40 rounded-lg shadow-xl overflow-hidden"
+                        style={{ border: "1px solid var(--border)", background: "var(--surface)" }}
+                      >
                         {TIMELINE_OPTIONS.map((opt) => (
                           <button
                             key={opt.value}
@@ -507,10 +518,14 @@ export default function TEIPage() {
                               setTimelineSessions(opt.value);
                               setTimelineOpen(false);
                             }}
-                            className={`w-full text-left px-4 py-2.5 text-sm transition-colors
-                              ${timelineSessions === opt.value
-                                ? "bg-neutral-700 text-white font-bold"
-                                : "text-neutral-400 hover:bg-neutral-700/50 hover:text-neutral-200"}`}
+                            className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                              timelineSessions === opt.value
+                                ? "font-bold"
+                                : ""}`}
+                            style={{
+                              background: timelineSessions === opt.value ? "var(--bg-hover)" : "transparent",
+                              color: timelineSessions === opt.value ? "var(--text-primary)" : "var(--text-secondary)",
+                            }}
                           >
                             {opt.label}
                           </button>
@@ -520,7 +535,7 @@ export default function TEIPage() {
                   </div>
 
                   {dateRange && (
-                    <span className="text-xs text-neutral-500 hidden sm:inline">{dateRange}</span>
+                    <span className="text-xs hidden sm:inline" style={{ color: "var(--text-muted)" }}>{dateRange}</span>
                   )}
                 </div>
               </div>
@@ -596,7 +611,7 @@ export default function TEIPage() {
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <div className="h-[300px] flex items-center justify-center text-neutral-500">
+                <div className="h-[300px] flex items-center justify-center" style={{ color: "var(--text-secondary)" }}>
                   Không đủ dữ liệu lịch sử để vẽ biểu đồ
                 </div>
               )}
@@ -614,19 +629,19 @@ export default function TEIPage() {
  * ══════════════════════════════════════════════════════════════════════════ */
 function TEISkeleton() {
   return (
-    <div className="rounded-2xl border border-neutral-800 bg-neutral-900/80 p-8 animate-pulse">
-      <div className="h-8 w-64 bg-neutral-800 rounded mb-4" />
-      <div className="h-10 w-full bg-neutral-800/50 rounded-lg mb-6" />
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-8 animate-pulse">
+      <div className="h-8 w-64 rounded mb-4" style={{ background: "var(--bg-hover)" }} />
+      <div className="h-10 w-full rounded-lg mb-6" style={{ background: "var(--bg-hover)" }} />
       <div className="grid md:grid-cols-2 gap-8">
-        <div className="h-52 bg-neutral-800/50 rounded-xl" />
+        <div className="h-52 rounded-xl" style={{ background: "var(--bg-hover)" }} />
         <div className="space-y-4">
-          <div className="h-10 bg-neutral-800/50 rounded-lg" />
-          <div className="h-10 bg-neutral-800/50 rounded-lg" />
-          <div className="h-10 bg-neutral-800/50 rounded-lg" />
-          <div className="h-10 bg-neutral-800/50 rounded-lg" />
+          <div className="h-10 rounded-lg" style={{ background: "var(--bg-hover)" }} />
+          <div className="h-10 rounded-lg" style={{ background: "var(--bg-hover)" }} />
+          <div className="h-10 rounded-lg" style={{ background: "var(--bg-hover)" }} />
+          <div className="h-10 rounded-lg" style={{ background: "var(--bg-hover)" }} />
         </div>
       </div>
-      <div className="h-64 bg-neutral-800/50 rounded-xl mt-6" />
+      <div className="h-64 rounded-xl mt-6" style={{ background: "var(--bg-hover)" }} />
     </div>
   );
 }

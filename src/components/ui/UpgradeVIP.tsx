@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Crown, Loader2, Zap } from "lucide-react";
-import { Card } from "@/components/ui/Card";
 
 /**
  * Khối paywall hiển thị cho tài khoản FREE.
@@ -47,18 +46,27 @@ export function UpgradeVIP() {
 
   return (
     <div className="flex min-h-[70vh] items-center justify-center p-4 md:p-8">
-      <Card className="w-full max-w-2xl border border-yellow-500/20 bg-gradient-to-br from-yellow-500/10 via-neutral-950 to-neutral-950 p-8 text-center md:p-12">
-        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-yellow-500/30 bg-yellow-500/15">
-          <Crown className="h-8 w-8 text-yellow-400" />
+      <div
+        className="w-full max-w-2xl rounded-2xl border p-8 text-center md:p-12"
+        style={{
+          background: "var(--surface)",
+          borderColor: "rgba(234,179,8,0.20)",
+        }}
+      >
+        <div
+          className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border"
+          style={{ borderColor: "rgba(234,179,8,0.30)", background: "rgba(234,179,8,0.15)" }}
+        >
+          <Crown className="h-8 w-8" style={{ color: "#eab308" }} />
         </div>
 
-        <p className="mb-3 text-sm font-semibold uppercase tracking-[0.3em] text-yellow-400">
+        <p className="mb-3 text-sm font-semibold uppercase tracking-[0.3em]" style={{ color: "#eab308" }}>
           VIP Paywall
         </p>
-        <h1 className="mx-auto max-w-xl text-2xl font-black leading-tight text-white md:text-4xl">
+        <h1 className="mx-auto max-w-xl text-2xl font-black leading-tight md:text-4xl" style={{ color: "var(--text-primary)" }}>
           ⚡️ TÍNH NĂNG DÀNH RIÊNG CHO TÀI KHOẢN VIP. Hãy nâng cấp để xem Siêu Cổ Phiếu realtime!
         </h1>
-        <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-neutral-400 md:text-base">
+        <p className="mx-auto mt-4 max-w-xl text-sm leading-6 md:text-base" style={{ color: "var(--text-muted)" }}>
           Tài khoản FREE chỉ xem được phần giới thiệu. Để mở khóa bảng tín hiệu realtime, cần nâng cấp gói VIP.
         </p>
 
@@ -67,7 +75,10 @@ export function UpgradeVIP() {
             type="button"
             onClick={handleNangCapVip}
             disabled={dangTaoThanhToan}
-            className="inline-flex min-w-[250px] items-center justify-center gap-2 rounded-xl bg-yellow-500 px-5 py-3 text-sm font-bold text-black transition hover:bg-yellow-400 disabled:cursor-not-allowed disabled:opacity-70"
+            className="inline-flex min-w-[250px] items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-70"
+            style={{ background: "#eab308", color: "#000" }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#ca8a04")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "#eab308")}
           >
             {dangTaoThanhToan ? (
               <>
@@ -84,16 +95,21 @@ export function UpgradeVIP() {
 
           <Link
             href="/pricing"
-            className="inline-flex items-center gap-2 rounded-xl border border-yellow-500/30 bg-transparent px-5 py-3 text-sm font-bold text-yellow-300 transition hover:bg-yellow-500/10"
+            className="inline-flex items-center gap-2 rounded-xl border px-5 py-3 text-sm font-bold transition"
+            style={{
+              borderColor: "rgba(234,179,8,0.30)",
+              background: "transparent",
+              color: "#fde047",
+            }}
           >
             Xem bảng giá
           </Link>
         </div>
 
         {loiThanhToan && (
-          <p className="mt-4 text-sm text-red-400">{loiThanhToan}</p>
+          <p className="mt-4 text-sm" style={{ color: "var(--danger)" }}>{loiThanhToan}</p>
         )}
-      </Card>
+      </div>
     </div>
   );
 }

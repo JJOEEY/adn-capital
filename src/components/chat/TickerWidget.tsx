@@ -95,12 +95,12 @@ function TradingViewChart({ ticker }: { ticker: string }) {
 function StatBox({ label, value, sub, highlight }: {
   label: string; value: string; sub?: string; highlight?: "up" | "down" | "neutral";
 }) {
-  const valueColor = highlight === "up" ? "text-emerald-400" : highlight === "down" ? "text-red-400" : "text-white";
+  const valueColor = highlight === "up" ? "#16a34a" : highlight === "down" ? "var(--danger)" : "var(--text-primary)";
   return (
     <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.07]">
-      <p className="text-[9px] font-bold uppercase tracking-widest text-slate-600 mb-1">{label}</p>
-      <p className={cn("text-[13px] font-black leading-tight tabular-nums", valueColor)}>{value}</p>
-      {sub && <p className="text-[9px] text-slate-600 mt-0.5">{sub}</p>}
+      <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: "#334155" }}>{label}</p>
+      <p className="text-[13px] font-black leading-tight tabular-nums" style={{ color: valueColor }}>{value}</p>
+      {sub && <p className="text-[9px] mt-0.5" style={{ color: "#334155" }}>{sub}</p>}
     </div>
   );
 }
@@ -164,7 +164,7 @@ function TEIGauge({ value }: { value: number }) {
           return <text key={v} x={lx} y={ly} textAnchor="middle" dominantBaseline="central" fill="#4b5563" fontSize="8" fontWeight="bold">{v}</text>;
         })}
         <text x="60" y="60" textAnchor="middle" fill={strokeColor} fontSize="20" fontWeight="900">{value.toFixed(1)}</text>
-        <text x="60" y="71" textAnchor="middle" fill="#6b7280" fontSize="7" fontWeight="bold">TEI</text>
+        <text x="60" y="71" textAnchor="middle" fill="#6b7280" fontSize="7" fontWeight="bold">ART</text>
       </svg>
     </div>
   );
@@ -331,13 +331,13 @@ export function TickerWidget({ ticker, data }: TickerWidgetData) {
                   </div>
                   <div className="w-full grid grid-cols-1 sm:grid-cols-3 gap-2">
                     {[
-                      { label: "Hưng phấn cực độ (≥ 4.5)", color: "text-red-400", icon: AlertTriangle },
-                      { label: "Trung tính (2.0 – 4.0)", color: "text-yellow-400", icon: Minus },
-                      { label: "Bi quan – Cơ hội (≤ 1.0)", color: "text-emerald-400", icon: ShieldCheck },
+                      { label: "Hưng phấn cực độ (≥ 4.5)", style: { color: "var(--danger)" }, icon: AlertTriangle },
+                      { label: "Trung tính (2.0 – 4.0)", style: { color: "#eab308" }, icon: Minus },
+                      { label: "Bi quan – Cơ hội (≤ 1.0)", style: { color: "#16a34a" }, icon: ShieldCheck },
                     ].map(item => (
                       <div key={item.label} className="flex items-center gap-2 text-[10px] px-3 py-2 rounded-lg bg-white/[0.02] border border-white/5">
-                        <item.icon className={cn("w-3.5 h-3.5 flex-shrink-0", item.color)} />
-                        <span className={cn("font-bold", item.color)}>{item.label}</span>
+                        <item.icon className="w-3.5 h-3.5 flex-shrink-0" style={item.style} />
+                        <span className="font-bold" style={item.style}>{item.label}</span>
                       </div>
                     ))}
                   </div>

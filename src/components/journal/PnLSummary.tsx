@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect, useCallback, useMemo, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -73,7 +73,7 @@ const fmt = (n: number) =>
 /* ─── Sparkline mini chart ─── */
 function Sparkline({ data }: { data: { date: string; close: number }[] }) {
   if (!data || data.length < 2) {
-    return <div className="w-[72px] h-[24px] bg-neutral-800/30 rounded" />;
+    return <div className="w-[72px] h-[24px] rounded" style={{ background: "var(--surface-2)", borderRadius: 4 }} />;
   }
   const first = data[0].close;
   const last = data[data.length - 1].close;
@@ -158,7 +158,7 @@ function TickerDetailPanel({ ticker, transactions }: { ticker: string; transacti
           {/* Top row: Date filter + Realized PnL */}
           <div className="flex flex-wrap items-end gap-3 mb-3">
             <div>
-              <label className="text-[12px] text-neutral-500 block mb-1">
+              <label className="text-[12px] block mb-1" style={{ color: "var(--text-muted)" }}>
                 <Calendar className="w-3 h-3 inline mr-0.5" />
                 Từ ngày
               </label>
@@ -170,7 +170,7 @@ function TickerDetailPanel({ ticker, transactions }: { ticker: string; transacti
               />
             </div>
             <div>
-              <label className="text-[12px] text-neutral-500 block mb-1">Đến ngày</label>
+              <label className="text-[12px] block mb-1" style={{ color: "var(--text-muted)" }}>Đến ngày</label>
               <input
                 type="date"
                 value={to}
@@ -181,7 +181,8 @@ function TickerDetailPanel({ ticker, transactions }: { ticker: string; transacti
             {(from || to) && (
               <button
                 onClick={() => { setFrom(""); setTo(""); }}
-                className="text-[12px] text-neutral-500 hover:text-neutral-300 underline pb-1.5"
+                className="text-[12px] underline pb-1.5 transition-colors"
+              style={{ color: "var(--text-muted)" }}
               >
                 Xóa lọc
               </button>
@@ -190,11 +191,12 @@ function TickerDetailPanel({ ticker, transactions }: { ticker: string; transacti
             {/* Realized PnL badge */}
             {hasSells && (
               <div
-                className={`ml-auto inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs ${
-                  filteredPnL >= 0
-                    ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
-                    : "bg-red-500/10 border-red-500/20 text-red-400"
-                }`}
+                className="ml-auto inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs"
+              style={{
+                background: filteredPnL >= 0 ? "rgba(22,163,74,0.10)" : "rgba(192,57,43,0.10)",
+                borderColor: filteredPnL >= 0 ? "rgba(22,163,74,0.20)" : "rgba(192,57,43,0.20)",
+                color: filteredPnL >= 0 ? "#16a34a" : "var(--danger)",
+              }}
               >
                 <span className="text-[12px] opacity-70 uppercase tracking-wider">
                   Lãi/Lỗ chốt {from || to ? "(trong kỳ)" : ""}
@@ -209,39 +211,38 @@ function TickerDetailPanel({ ticker, transactions }: { ticker: string; transacti
           {/* Transaction list */}
           <div className="max-h-[220px] overflow-y-auto space-y-1">
             {filtered.length === 0 ? (
-              <p className="text-xs text-neutral-600 py-3 text-center">
-                Không có giao dịch {ticker} trong khoảng này
-              </p>
+              <p className="text-xs py-3 text-center" style={{ color: "var(--text-muted)" }}>Không có giao dịch {ticker} trong khoảng này</p>
             ) : (
               filtered.map((tx) => (
                 <div
                   key={tx.id}
-                  className="flex items-center justify-between py-2 px-3 rounded-lg bg-neutral-800/30 hover:bg-neutral-800/50 transition-colors"
+                  className="flex items-center justify-between py-2 px-3 rounded-lg transition-colors"
+                  style={{ background: "var(--surface-2)" }}
                 >
                   <div className="flex items-center gap-3">
                     <span
-                      className={`text-[12px] font-bold px-2 py-0.5 rounded ${
-                        tx.action === "BUY"
-                          ? "bg-emerald-500/15 text-emerald-400"
-                          : "bg-red-500/15 text-red-400"
-                      }`}
+                      className="text-[12px] font-bold px-2 py-0.5 rounded"
+                      style={{
+                        background: tx.action === "BUY" ? "rgba(22,163,74,0.15)" : "rgba(192,57,43,0.15)",
+                        color: tx.action === "BUY" ? "#16a34a" : "var(--danger)",
+                      }}
                     >
                       {tx.action === "BUY" ? "MUA" : "BÁN"}
                     </span>
-                    <span className="text-xs font-mono text-neutral-200">
+                    <span className="text-xs font-mono" style={{ color: "var(--text-secondary)" }}>
                       {fmt(tx.price)} × {tx.qty.toLocaleString("vi-VN")}
                     </span>
-                    <span className="text-[12px] text-neutral-600">
+                    <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>
                       = {fmt(tx.price * tx.qty)}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
                     {tx.psychologyTag && (
-                      <span className="text-[11px] text-neutral-500 bg-neutral-800 px-1.5 py-0.5 rounded">
+                      <span className="text-[11px] px-1.5 py-0.5 rounded" style={{ background: "var(--surface-2)", color: "var(--text-muted)" }}>
                         {tx.psychologyTag}
                       </span>
                     )}
-                    <span className="text-[12px] text-neutral-600 font-mono">
+                    <span className="text-[12px] font-mono" style={{ color: "var(--text-muted)" }}>
                       {new Date(tx.date).toLocaleDateString("vi-VN")}
                     </span>
                   </div>
@@ -353,7 +354,7 @@ export function PnLSummary() {
     return (
       <div className="space-y-3">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="h-28 rounded-2xl bg-neutral-900 animate-pulse" />
+          <div key={i} className="h-28 rounded-2xl bg-[var(--surface)] animate-pulse" />
         ))}
       </div>
     );
@@ -372,8 +373,8 @@ export function PnLSummary() {
 
   if (!data) return null;
 
-  const pnlColor = data.realizedPnL >= 0 ? "text-emerald-400" : "text-red-400";
-  const unrealizedColor = data.unrealizedPnL >= 0 ? "text-emerald-400" : "text-red-400";
+  const pnlColor = data.realizedPnL >= 0 ? "#16a34a" : "var(--danger)";
+  const unrealizedColor = data.unrealizedPnL >= 0 ? "#16a34a" : "var(--danger)";
   const navChange = data.initialNAV > 0
     ? ((data.currentNAV - data.initialNAV) / data.initialNAV * 100)
     : 0;
@@ -383,43 +384,47 @@ export function PnLSummary() {
       {/* ─── Global Date Range Filter ─── */}
       <Card className="p-3">
         <div className="flex flex-wrap items-end gap-3">
-          <Filter className="w-4 h-4 text-neutral-500 self-center" />
+          <Filter className="w-4 h-4 self-center" style={{ color: "var(--text-muted)" }} />
           <div>
-            <label className="text-[12px] text-neutral-500 block mb-1">Từ ngày</label>
+          <label className="text-[12px] block mb-1" style={{ color: "var(--text-muted)" }}>Từ ngày</label>
             <input
               type="date"
               value={globalFrom}
               onChange={(e) => setGlobalFrom(e.target.value)}
-              className="bg-neutral-800 border border-neutral-700 text-neutral-200 text-xs px-2.5 py-1.5 rounded-lg outline-none focus:border-emerald-500/50"
+              className="text-xs px-2.5 py-1.5 rounded-lg outline-none"
+              style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
             />
           </div>
           <div>
-            <label className="text-[12px] text-neutral-500 block mb-1">Đến ngày</label>
+          <label className="text-[12px] block mb-1" style={{ color: "var(--text-muted)" }}>Đến ngày</label>
             <input
               type="date"
               value={globalTo}
               onChange={(e) => setGlobalTo(e.target.value)}
-              className="bg-neutral-800 border border-neutral-700 text-neutral-200 text-xs px-2.5 py-1.5 rounded-lg outline-none focus:border-emerald-500/50"
+              className="text-xs px-2.5 py-1.5 rounded-lg outline-none"
+              style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
             />
           </div>
           <button
             onClick={handleGlobalFilter}
             disabled={loading}
-            className="px-3 py-1.5 text-xs font-bold bg-emerald-500/15 text-emerald-400 rounded-lg hover:bg-emerald-500/25 transition-colors"
+            className="px-3 py-1.5 text-xs font-bold rounded-lg transition-colors"
+            style={{ background: "rgba(22,163,74,0.15)", color: "#16a34a" }}
           >
             {loading ? "..." : "Lọc"}
           </button>
           {(globalFrom || globalTo) && (
             <button
               onClick={handleClearFilter}
-              className="p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-500 hover:text-neutral-300 transition-colors"
+              className="p-1.5 rounded-lg transition-colors"
+              style={{ color: "var(--text-muted)" }}
               title="Xóa lọc"
             >
               <X className="w-3.5 h-3.5" />
             </button>
           )}
           {(globalFrom || globalTo) && (
-            <span className="text-[12px] text-amber-400/70 self-center ml-auto">
+            <span className="text-[12px] self-center ml-auto" style={{ color: "rgba(245,158,11,0.70)" }}>
               Đang lọc: {globalFrom || "..."} → {globalTo || "..."}
             </span>
           )}
@@ -430,12 +435,13 @@ export function PnLSummary() {
       <Card glow={data.realizedPnL >= 0 ? "emerald" : "red"} className="p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <Wallet className="w-5 h-5 text-emerald-400" />
-            <h3 className="text-sm font-bold text-white">Tổng Quan NAV</h3>
+            <Wallet className="w-5 h-5" style={{ color: "#16a34a" }} />
+            <h3 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>Tổng Quan NAV</h3>
           </div>
           <button
             onClick={() => setEditingNAV(!editingNAV)}
-            className="text-[12px] text-neutral-500 hover:text-neutral-300 transition-colors underline"
+            className="text-[12px] underline transition-colors"
+            style={{ color: "var(--text-muted)" }}
           >
             {editingNAV ? "Hủy" : "Cài đặt vốn"}
           </button>
@@ -445,24 +451,27 @@ export function PnLSummary() {
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
-            className="mb-4 p-3 bg-neutral-800/50 rounded-xl border border-neutral-700 flex items-end gap-2"
+            className="mb-4 p-3 rounded-xl border flex items-end gap-2"
+            style={{ background: "var(--surface-2)", borderColor: "var(--border)" }}
           >
             <div className="flex-1">
-              <label className="text-[12px] text-neutral-500 block mb-1">
+              <label className="text-[12px] block mb-1" style={{ color: "var(--text-muted)" }}>
                 Vốn ban đầu (VNĐ)
               </label>
               <input
                 type="number"
                 value={navValue}
                 onChange={(e) => setNavValue(e.target.value)}
-                className="w-full bg-neutral-800 border border-neutral-700 text-neutral-200 text-sm px-3 py-2 rounded-lg outline-none focus:border-emerald-500/50 font-mono"
+                className="w-full text-sm px-3 py-2 rounded-lg outline-none font-mono"
+                style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
                 placeholder="100000000"
               />
             </div>
             <button
               onClick={handleSaveNAV}
               disabled={savingNAV}
-              className="px-4 py-2 text-xs font-bold bg-emerald-500/15 text-emerald-400 rounded-lg hover:bg-emerald-500/25 transition-colors"
+              className="px-4 py-2 text-xs font-bold rounded-lg transition-colors"
+              style={{ background: "rgba(22,163,74,0.15)", color: "#16a34a" }}
             >
               {savingNAV ? "..." : "Lưu"}
             </button>
@@ -471,26 +480,26 @@ export function PnLSummary() {
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div>
-            <p className="text-[12px] text-neutral-600">Vốn ban đầu</p>
-            <p className="text-sm font-bold font-mono text-neutral-300">{fmt(data.initialNAV)}</p>
+            <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>Vốn ban đầu</p>
+            <p className="text-sm font-bold font-mono" style={{ color: "var(--text-secondary)" }}>{fmt(data.initialNAV)}</p>
           </div>
           <div>
-            <p className="text-[12px] text-neutral-600">Lãi/Lỗ đã chốt</p>
-            <p className={`text-sm font-bold font-mono ${pnlColor}`}>
+            <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>Lãi/Lỗ đã chốt</p>
+            <p className="text-sm font-bold font-mono" style={{ color: pnlColor }}>
               {data.realizedPnL >= 0 ? "+" : ""}{fmt(data.realizedPnL)}
             </p>
           </div>
           <div>
-            <p className="text-[12px] text-neutral-600">Lãi/Lỗ chưa chốt</p>
-            <p className={`text-sm font-bold font-mono ${unrealizedColor}`}>
+            <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>Lãi/Lỗ chưa chốt</p>
+            <p className="text-sm font-bold font-mono" style={{ color: unrealizedColor }}>
               {data.unrealizedPnL >= 0 ? "+" : ""}{fmt(data.unrealizedPnL)}
             </p>
           </div>
           <div>
-            <p className="text-[12px] text-neutral-600">Current NAV</p>
-            <p className="text-lg font-black font-mono text-white">{fmt(data.currentNAV)}</p>
+            <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>Current NAV</p>
+            <p className="text-lg font-black font-mono" style={{ color: "var(--text-primary)" }}>{fmt(data.currentNAV)}</p>
             {data.initialNAV > 0 && (
-              <p className={`text-[12px] font-bold ${navChange >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+              <p className="text-[12px] font-bold" style={{ color: navChange >= 0 ? "#16a34a" : "var(--danger)" }}>
                 {navChange >= 0 ? "+" : ""}{navChange.toFixed(1)}%
               </p>
             )}
@@ -501,17 +510,17 @@ export function PnLSummary() {
       {/* ─── Win/Loss Stats ─── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { icon: <BarChart3 className="w-3.5 h-3.5" />, label: "Tổng lệnh", value: data.stats.totalTrades, color: "text-neutral-200" },
-          { icon: <PieChart className="w-3.5 h-3.5" />, label: "Đã chốt", value: data.stats.closedTrades, color: "text-neutral-200" },
-          { icon: <TrendingUp className="w-3.5 h-3.5" />, label: "Win", value: data.stats.winTrades, color: "text-emerald-400" },
-          { icon: <TrendingDown className="w-3.5 h-3.5" />, label: "Loss", value: data.stats.lossTrades, color: "text-red-400" },
+          { icon: <BarChart3 className="w-3.5 h-3.5" style={{ color: "var(--text-secondary)" }} />, label: "Tổng lệnh", value: data.stats.totalTrades, color: "var(--text-secondary)" },
+          { icon: <PieChart className="w-3.5 h-3.5" style={{ color: "var(--text-secondary)" }} />, label: "Đã chốt", value: data.stats.closedTrades, color: "var(--text-secondary)" },
+          { icon: <TrendingUp className="w-3.5 h-3.5" style={{ color: "#16a34a" }} />, label: "Win", value: data.stats.winTrades, color: "#16a34a" },
+          { icon: <TrendingDown className="w-3.5 h-3.5" style={{ color: "var(--danger)" }} />, label: "Loss", value: data.stats.lossTrades, color: "var(--danger)" },
         ].map((s) => (
           <Card key={s.label} className="p-3">
-            <div className={`flex items-center gap-1 mb-1 ${s.color}`}>
+            <div className="flex items-center gap-1 mb-1" style={{ color: s.color }}>
               {s.icon}
-              <span className="text-[12px] text-neutral-500">{s.label}</span>
+              <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>{s.label}</span>
             </div>
-            <p className={`text-lg font-black font-mono ${s.color}`}>{s.value}</p>
+            <p className="text-lg font-black font-mono" style={{ color: s.color }}>{s.value}</p>
           </Card>
         ))}
       </div>
@@ -520,21 +529,18 @@ export function PnLSummary() {
       {data.stats.closedTrades > 0 && (
         <Card className="p-4">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-neutral-400">Win Rate</span>
+            <span className="text-xs font-bold" style={{ color: "var(--text-muted)" }}>Win Rate</span>
             <span
-              className={`text-sm font-black font-mono ${
-                data.stats.winRate >= 50 ? "text-emerald-400" : "text-red-400"
-              }`}
+              className="text-sm font-black font-mono"
+              style={{ color: data.stats.winRate >= 50 ? "#16a34a" : "var(--danger)" }}
             >
               {data.stats.winRate}%
             </span>
           </div>
-          <div className="w-full h-2 bg-neutral-800 rounded-full overflow-hidden">
+          <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: "var(--surface-2)" }}>
             <div
-              className={`h-full rounded-full transition-all ${
-                data.stats.winRate >= 50 ? "bg-emerald-500" : "bg-red-500"
-              }`}
-              style={{ width: `${data.stats.winRate}%` }}
+              className="h-full rounded-full transition-all"
+              style={{ background: data.stats.winRate >= 50 ? "#16a34a" : "var(--danger)", width: `${data.stats.winRate}%` }}
             />
           </div>
         </Card>
@@ -547,13 +553,13 @@ export function PnLSummary() {
             <table className="w-full text-left">
               <thead>
                 <tr className="border-b border-white/[0.06]">
-                  <th className="text-[12px] uppercase tracking-wider text-neutral-500 font-medium px-4 py-3">Mã CP</th>
-                  <th className="text-[12px] uppercase tracking-wider text-neutral-500 font-medium px-3 py-3 text-right">KL</th>
-                  <th className="text-[12px] uppercase tracking-wider text-neutral-500 font-medium px-3 py-3 text-right">Giá vốn</th>
-                  <th className="text-[12px] uppercase tracking-wider text-neutral-500 font-medium px-3 py-3 text-right hidden sm:table-cell">Giá TT</th>
-                  <th className="text-[12px] uppercase tracking-wider text-neutral-500 font-medium px-3 py-3 text-right">Lãi/Lỗ</th>
-                  <th className="text-[12px] uppercase tracking-wider text-neutral-500 font-medium px-3 py-3 text-center hidden sm:table-cell">7 ngày</th>
-                  <th className="text-[12px] uppercase tracking-wider text-neutral-500 font-medium px-3 py-3 w-8"></th>
+                  <th className="text-[12px] uppercase tracking-wider font-medium px-4 py-3" style={{ color: "var(--text-muted)" }}>Mã CP</th>
+                  <th className="text-[12px] uppercase tracking-wider font-medium px-3 py-3 text-right" style={{ color: "var(--text-muted)" }}>KL</th>
+                  <th className="text-[12px] uppercase tracking-wider font-medium px-3 py-3 text-right" style={{ color: "var(--text-muted)" }}>Giá vốn</th>
+                  <th className="text-[12px] uppercase tracking-wider font-medium px-3 py-3 text-right hidden sm:table-cell" style={{ color: "var(--text-muted)" }}>Giá TT</th>
+                  <th className="text-[12px] uppercase tracking-wider font-medium px-3 py-3 text-right" style={{ color: "var(--text-muted)" }}>Lãi/Lỗ</th>
+                  <th className="text-[12px] uppercase tracking-wider font-medium px-3 py-3 text-center hidden sm:table-cell" style={{ color: "var(--text-muted)" }}>7 ngày</th>
+                  <th className="text-[12px] uppercase tracking-wider font-medium px-3 py-3 w-8" style={{ color: "var(--text-muted)" }}></th>
                 </tr>
               </thead>
               <tbody>
@@ -576,36 +582,36 @@ export function PnLSummary() {
                       >
                         {/* Ticker */}
                         <td className="px-4 py-3">
-                          <span className="text-sm font-black text-white font-mono">{h.ticker}</span>
+                          <span className="text-sm font-black font-mono" style={{ color: "var(--text-primary)" }}>{h.ticker}</span>
                         </td>
 
                         {/* Quantity */}
                         <td className="px-3 py-3 text-right">
-                          <span className="text-xs font-mono text-neutral-300">
+                          <span className="text-xs font-mono" style={{ color: "var(--text-secondary)" }}>
                             {h.qty.toLocaleString("vi-VN")}
                           </span>
                         </td>
 
                         {/* Avg Price */}
                         <td className="px-3 py-3 text-right">
-                          <span className="text-xs font-mono text-neutral-300">
+                          <span className="text-xs font-mono" style={{ color: "var(--text-secondary)" }}>
                             {fmt(h.avgPrice)}
                           </span>
                         </td>
 
                         {/* Market Price */}
                         <td className="px-3 py-3 text-right hidden sm:table-cell">
-                          <span className="text-xs font-mono text-neutral-400">
+                          <span className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>
                             {fmt(marketPrice)}
                           </span>
                         </td>
 
                         {/* PnL */}
                         <td className="px-3 py-3 text-right">
-                          <p className={`text-xs font-bold font-mono ${pnlVal >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                          <p className="text-xs font-bold font-mono" style={{ color: pnlVal >= 0 ? "#16a34a" : "var(--danger)" }}>
                             {pnlVal >= 0 ? "+" : ""}{fmt(pnlVal)}
                           </p>
-                          <p className={`text-[11px] font-mono ${pnlPct >= 0 ? "text-emerald-500/60" : "text-red-500/60"}`}>
+                          <p className="text-[11px] font-mono" style={{ color: pnlPct >= 0 ? "rgba(22,163,74,0.60)" : "rgba(192,57,43,0.60)" }}>
                             {pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(1)}%
                           </p>
                         </td>
@@ -618,7 +624,7 @@ export function PnLSummary() {
                         {/* Expand arrow */}
                         <td className="px-3 py-3">
                           <motion.div animate={{ rotate: isExpanded ? 180 : 0 }} transition={{ duration: 0.2 }}>
-                            <ChevronDown className="w-3.5 h-3.5 text-neutral-600" />
+                            <ChevronDown className="w-3.5 h-3.5" style={{ color: "var(--text-muted)" }} />
                           </motion.div>
                         </td>
                       </tr>
@@ -641,29 +647,28 @@ export function PnLSummary() {
       {/* ─── Recent Closed Trades ─── */}
       {data.closedTrades.length > 0 && (
         <Card className="p-4">
-          <h4 className="text-xs font-bold text-neutral-400 mb-3">GD đã chốt gần đây</h4>
+          <h4 className="text-xs font-bold mb-3" style={{ color: "var(--text-muted)" }}>GD đã chốt gần đây</h4>
           <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
             {data.closedTrades.map((t, i) => (
               <div
                 key={i}
-                className="flex items-center justify-between text-xs py-1 border-b border-neutral-800/50 last:border-0"
+                className="flex items-center justify-between text-xs py-1 border-b border-[var(--border)] last:border-0"
               >
                 <div className="flex items-center gap-2">
-                  <span className="font-mono font-bold text-white">{t.ticker}</span>
-                  <span className="text-neutral-600">
+                  <span className="font-mono font-bold" style={{ color: "var(--text-primary)" }}>{t.ticker}</span>
+                  <span style={{ color: "var(--text-muted)" }}>
                     {t.qty}cp | {fmt(t.buyPrice)} → {fmt(t.sellPrice)}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span
-                    className={`font-mono font-bold ${
-                      t.pnl >= 0 ? "text-emerald-400" : "text-red-400"
-                    }`}
+                    className="font-mono font-bold"
+                    style={{ color: t.pnl >= 0 ? "#16a34a" : "var(--danger)" }}
                   >
                     {t.pnl >= 0 ? "+" : ""}{fmt(t.pnl)}
                   </span>
                   {t.date && (
-                    <span className="text-[11px] text-neutral-700 font-mono">
+                    <span className="text-[11px] font-mono" style={{ color: "var(--text-muted)" }}>
                       {new Date(t.date).toLocaleDateString("vi-VN")}
                     </span>
                   )}

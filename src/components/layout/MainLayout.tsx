@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Header } from "./Header";
+import { AppHeader } from "./AppHeader";
 import { Footer } from "./Footer";
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { useSidebarStore } from "@/store/sidebarStore";
@@ -44,31 +45,36 @@ export function MainLayout({ children, disableSwipe = false }: MainLayoutProps) 
   const touchProps = isMobile && !disableSwipe ? swipeHandlers : {};
 
   return (
-    <div className={`min-h-screen overflow-x-hidden ${isDark ? "bg-city-dark" : "bg-city-light"}`}>
+    <div className={`min-h-screen flex ${isDark ? "bg-city-dark" : "bg-city-light"}`}>
       {showSplash && <SplashScreen />}
 
-      {/* Desktop: keep sidebar */}
-      <div className="hidden lg:block">
-        <Header />
-      </div>
+      {/* Sidebar (fixed on desktop) */}
+      <Header />
 
-      {/* Mobile: show bottom tab bar, hide sidebar */}
+      {/* Mobile: show bottom tab bar */}
       {isMobile && <BottomTabBar />}
 
       <div
         {...touchProps}
-        className={`transition-all duration-300 min-h-screen flex flex-col ${
+        className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ${
           isMobile
-            ? "pt-0 pb-20"
+            ? "pt-14 pb-20"
             : collapsed
-            ? "lg:pl-[68px]"
-            : "lg:pl-[260px]"
+            ? "pl-[68px]"
+            : "pl-[240px]"
         }`}
         style={isMobile ? { paddingBottom: "calc(64px + env(safe-area-inset-bottom, 0px))" } : undefined}
       >
-        <main className="flex-1 overflow-x-hidden overflow-y-auto px-0 md:px-0">{children}</main>
+        {/* In-app Header strip */}
+        {!isMobile && <AppHeader />}
+
+        <main className="flex-1 overflow-x-hidden overflow-y-auto">
+          {children}
+        </main>
+        
         {!isMobile && <Footer />}
       </div>
     </div>
   );
 }
+

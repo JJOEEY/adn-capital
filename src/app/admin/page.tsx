@@ -1,11 +1,10 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
-import { useTheme } from "@/components/providers/ThemeProvider";
 import {
   Trash2,
   CheckCircle2,
@@ -82,7 +81,7 @@ export default function AdminPage() {
     <Suspense fallback={
       <MainLayout>
         <div className="flex items-center justify-center min-h-[60vh]">
-          <RefreshCw className="w-6 h-6 animate-spin text-neutral-600" />
+          <RefreshCw className="w-6 h-6 animate-spin" style={{ color: "var(--text-muted)" }} />
         </div>
       </MainLayout>
     }>
@@ -98,8 +97,6 @@ function AdminPageInner() {
   const searchParams = useSearchParams();
   const initialTab = (searchParams.get("tab") as Tab) || "users";
   const [tab, setTab] = useState<Tab>(initialTab);
-  const { theme } = useTheme();
-  const isDark = theme === "dark";
 
   useEffect(() => {
     if (!userLoading && status !== "loading" && !isAdmin) {
@@ -111,7 +108,7 @@ function AdminPageInner() {
     return (
       <MainLayout>
         <div className="flex items-center justify-center min-h-[60vh]">
-          <RefreshCw className={`w-6 h-6 animate-spin ${isDark ? "text-neutral-600" : "text-slate-400"}`} />
+          <RefreshCw className="w-6 h-6 animate-spin" style={{ color: "var(--text-muted)" }} />
         </div>
       </MainLayout>
     );
@@ -121,11 +118,14 @@ function AdminPageInner() {
     return (
       <MainLayout>
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-          <div className="p-3 bg-red-500/10 rounded-full border border-red-500/20">
-            <ShieldX className="w-8 h-8 text-red-400" />
+          <div
+            className="p-3 rounded-full border"
+            style={{ background: "rgba(192,57,43,0.10)", borderColor: "rgba(192,57,43,0.20)" }}
+          >
+            <ShieldX className="w-8 h-8" style={{ color: "var(--danger)" }} />
           </div>
-          <h2 className={`text-lg font-bold ${isDark ? "text-white" : "text-slate-900"}`}>Không có quyền truy cập</h2>
-          <p className={`text-sm ${isDark ? "text-white/40" : "text-slate-500"}`}>Trang này chỉ dành cho Admin.</p>
+          <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>Không có quyền truy cập</h2>
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>Trang này chỉ dành cho Admin.</p>
         </div>
       </MainLayout>
     );
@@ -135,49 +135,47 @@ function AdminPageInner() {
     <MainLayout>
       <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
         {/* ── Tab Navigation ──────────────────────────────────────── */}
-        <div className={`flex items-center gap-1 p-1 rounded-xl border w-fit flex-wrap backdrop-blur-xl ${
-          isDark ? "bg-white/[0.04] border-white/[0.1]" : "bg-white/60 border-white/50"
-        }`}>
+        <div className="flex items-center gap-1 p-1 rounded-xl border w-fit flex-wrap" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
           <button
             onClick={() => setTab("users")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              tab === "users"
-                ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/25"
-                : isDark ? "text-neutral-500 hover:text-white" : "text-slate-500 hover:text-slate-900"
-            }`}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer"
+            style={tab === "users"
+              ? { background: "rgba(22,163,74,0.15)", color: "#16a34a", border: "1px solid rgba(22,163,74,0.25)" }
+              : { color: "var(--text-muted)" }
+            }
           >
             <Users className="w-3.5 h-3.5" />
             Users & DNSE
           </button>
           <button
             onClick={() => setTab("registrations")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              tab === "registrations"
-                ? "bg-purple-500/15 text-purple-400 border border-purple-500/25"
-                : isDark ? "text-neutral-500 hover:text-white" : "text-slate-500 hover:text-slate-900"
-            }`}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer"
+            style={tab === "registrations"
+              ? { background: "rgba(168,85,247,0.15)", color: "#a855f7", border: "1px solid rgba(168,85,247,0.25)" }
+              : { color: "var(--text-muted)" }
+            }
           >
             <CreditCard className="w-3.5 h-3.5" />
             Đăng Ký Khóa Học
           </button>
           <button
             onClick={() => setTab("margin")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              tab === "margin"
-                ? "bg-amber-500/15 text-amber-400 border border-amber-500/25"
-                : isDark ? "text-neutral-500 hover:text-white" : "text-slate-500 hover:text-slate-900"
-            }`}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer"
+            style={tab === "margin"
+              ? { background: "rgba(245,158,11,0.15)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.25)" }
+              : { color: "var(--text-muted)" }
+            }
           >
             <Crown className="w-3.5 h-3.5" />
             Tư Vấn Margin
           </button>
           <button
             onClick={() => setTab("journals")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              tab === "journals"
-                ? "bg-blue-500/15 text-blue-400 border border-blue-500/25"
-                : isDark ? "text-neutral-500 hover:text-white" : "text-slate-500 hover:text-slate-900"
-            }`}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer"
+            style={tab === "journals"
+              ? { background: "rgba(59,130,246,0.15)", color: "#3b82f6", border: "1px solid rgba(59,130,246,0.25)" }
+              : { color: "var(--text-muted)" }
+            }
           >
             <BookOpen className="w-3.5 h-3.5" />
             Nhật Ký KH
@@ -301,14 +299,17 @@ function UsersTab() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
-            <Users className="w-5 h-5 text-emerald-400" />
+          <div
+            className="p-2 rounded-lg border"
+            style={{ background: "rgba(22,163,74,0.10)", borderColor: "rgba(22,163,74,0.20)" }}
+          >
+            <Users className="w-5 h-5" style={{ color: "#16a34a" }} />
           </div>
           <div>
-            <h1 className="text-xl font-black dark:text-white text-slate-900">Quản Lý Users & DNSE</h1>
-            <p className="text-xs dark:text-neutral-500 text-slate-500">
+            <h1 className="text-xl font-black" style={{ color: "var(--text-primary)" }}>Quản Lý Users & DNSE</h1>
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
               {users.length} users · {pendingCount > 0 && (
-                <span className="text-amber-400">{pendingCount} chờ duyệt DNSE</span>
+                <span style={{ color: "#f59e0b" }}>{pendingCount} chờ duyệt DNSE</span>
               )}
             </p>
           </div>
@@ -316,20 +317,23 @@ function UsersTab() {
 
         <div className="flex items-center gap-2">
           {/* Filter buttons */}
-          <div className="flex items-center gap-1 dark:bg-white/[0.04] bg-white/60 rounded-lg dark:border-white/[0.1] border-white/50 border p-0.5">
+          <div
+            className="flex items-center gap-1 rounded-lg border p-0.5"
+            style={{ background: "var(--surface-2)", borderColor: "var(--border)" }}
+          >
             {(["all", "pending", "verified"] as const).map((f) => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`px-3 py-1 rounded-md text-[12px] font-bold transition-all cursor-pointer ${
-                  filter === f
-                    ? f === "pending"
-                      ? "bg-amber-500/15 text-amber-400"
-                      : f === "verified"
-                      ? "bg-emerald-500/15 text-emerald-400"
-                      : "dark:bg-white/[0.08] bg-slate-100 dark:text-white text-slate-900"
-                    : "dark:text-neutral-500 text-slate-500 dark:hover:text-white hover:text-slate-900"
-                }`}
+                className="px-3 py-1 rounded-md text-[12px] font-bold transition-all cursor-pointer"
+                style={filter === f
+                  ? f === "pending"
+                    ? { background: "rgba(245,158,11,0.15)", color: "#f59e0b" }
+                    : f === "verified"
+                    ? { background: "rgba(22,163,74,0.15)", color: "#16a34a" }
+                    : { background: "var(--bg-hover)", color: "var(--text-primary)" }
+                  : { color: "var(--text-muted)" }
+                }
               >
                 {f === "all" ? "Tất cả" : f === "pending" ? `Chờ duyệt (${pendingCount})` : "Đã xác minh"}
               </button>
@@ -337,18 +341,20 @@ function UsersTab() {
           </div>
 
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-500" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: "var(--text-muted)" }} />
             <input
               type="text"
               placeholder="Tìm email / tên / DNSE ID..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 pr-3 py-1.5 rounded-lg dark:bg-white/[0.06] bg-white dark:border-white/[0.1] border-slate-200 text-xs dark:text-white text-slate-900 dark:placeholder-neutral-500 placeholder-slate-400 focus:outline-none focus:border-emerald-500/50 w-56"
+              className="pl-8 pr-3 py-1.5 rounded-lg text-xs outline-none w-56"
+              style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
             />
           </div>
           <button
             onClick={fetchUsers}
-            className="p-2 rounded-lg dark:border-white/[0.1] border-slate-200 dark:hover:border-white/20 hover:border-slate-300 dark:text-neutral-400 text-slate-500 dark:hover:text-white hover:text-slate-900 transition-colors cursor-pointer border"
+            className="p-2 rounded-lg transition-colors cursor-pointer border"
+            style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
           >
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
@@ -356,39 +362,42 @@ function UsersTab() {
       </div>
 
       {error && (
-        <div className="flex items-center gap-3 bg-red-500/10 border border-red-500/20 rounded-xl p-4">
-          <ShieldAlert className="w-5 h-5 text-red-400 shrink-0" />
-          <p className="text-sm text-red-400">{error}</p>
+        <div
+          className="flex items-center gap-3 rounded-xl p-4 border"
+          style={{ background: "rgba(192,57,43,0.08)", borderColor: "rgba(192,57,43,0.20)" }}
+        >
+          <ShieldAlert className="w-5 h-5 shrink-0" style={{ color: "var(--danger)" }} />
+          <p className="text-sm" style={{ color: "var(--danger)" }}>{error}</p>
         </div>
       )}
 
       {/* Table */}
-      <div className="overflow-x-auto rounded-xl dark:border-white/[0.08] border-white/50 dark:bg-white/[0.03] bg-white/60 backdrop-blur-xl border">
+      <div className="overflow-x-auto rounded-xl border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
         <table className="w-full text-left">
           <thead>
-            <tr className="border-b dark:border-white/[0.06] border-slate-200 text-[12px] uppercase tracking-wider dark:text-neutral-500 text-slate-500">
-              <th className="px-4 py-3 font-bold">#</th>
-              <th className="px-4 py-3 font-bold">Email</th>
-              <th className="px-4 py-3 font-bold">Tên</th>
-              <th className="px-4 py-3 font-bold">Role</th>
-              <th className="px-4 py-3 font-bold">Quyền</th>
-              <th className="px-4 py-3 font-bold">VIP đến</th>
-              <th className="px-4 py-3 font-bold">DNSE ID</th>
-              <th className="px-4 py-3 font-bold">DNSE Status</th>
-              <th className="px-4 py-3 font-bold">Ngày ĐK</th>
-              <th className="px-4 py-3 font-bold text-right">Thao tác</th>
+            <tr className="border-b text-[12px] uppercase tracking-wider" style={{ borderColor: "var(--border)" }}>
+              <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>#</th>
+              <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>Email</th>
+              <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>Tên</th>
+              <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>Role</th>
+              <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>Quyền</th>
+              <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>VIP đến</th>
+              <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>DNSE ID</th>
+              <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>DNSE Status</th>
+              <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>Ngày ĐK</th>
+              <th className="px-4 py-3 font-bold text-right" style={{ color: "var(--text-muted)" }}>Thao tác</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
                 <td colSpan={10} className="px-4 py-12 text-center">
-                  <RefreshCw className="w-5 h-5 text-neutral-600 animate-spin mx-auto" />
+                  <RefreshCw className="w-5 h-5 animate-spin mx-auto" style={{ color: "var(--text-muted)" }} />
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={10} className="px-4 py-12 text-center text-xs text-neutral-600">
+                <td colSpan={10} className="px-4 py-12 text-center text-xs" style={{ color: "var(--text-muted)" }}>
                   Không có user nào.
                 </td>
               </tr>
@@ -396,33 +405,35 @@ function UsersTab() {
               filtered.map((user, i) => (
                 <tr
                   key={user.id}
-                  className={`border-b dark:border-white/[0.04] border-slate-100 dark:hover:bg-white/[0.03] hover:bg-slate-50/50 transition-colors ${
-                    user.dnseId && !user.dnseVerified ? "bg-amber-500/[0.03]" : ""
-                  }`}
+                  className="border-b transition-colors"
+                  style={{
+                    borderColor: "var(--border)",
+                    background: user.dnseId && !user.dnseVerified ? "rgba(245,158,11,0.03)" : undefined,
+                  }}
                 >
-                  <td className="px-4 py-3 text-xs text-neutral-600 font-mono">{i + 1}</td>
+                  <td className="px-4 py-3 text-xs font-mono" style={{ color: "var(--text-muted)" }}>{i + 1}</td>
 
                   <td className="px-4 py-3">
-                    <span className="text-xs dark:text-white text-slate-900 font-mono">{user.email}</span>
+                    <span className="text-xs font-mono" style={{ color: "var(--text-primary)" }}>{user.email}</span>
                   </td>
 
                   <td className="px-4 py-3">
-                    <span className="text-xs dark:text-neutral-300 text-slate-600">{user.name ?? "—"}</span>
+                    <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{user.name ?? "—"}</span>
                   </td>
 
                   <td className="px-4 py-3">
                     {(() => {
                       if (user.role !== "VIP") return (
-                        <span className="inline-block px-2 py-0.5 rounded-full border text-[12px] font-bold bg-neutral-500/10 text-neutral-400 border-neutral-500/20">FREE</span>
+                        <span className="inline-block px-2 py-0.5 rounded-full border text-[12px] font-bold" style={{ background: "rgba(100,116,139,0.10)", color: "var(--text-muted)", borderColor: "rgba(100,116,139,0.20)" }}>FREE</span>
                       );
                       const daysLeft = user.vipUntil ? Math.ceil((new Date(user.vipUntil).getTime() - Date.now()) / 86400000) : 0;
                       const isPremium = daysLeft > 90;
                       return (
-                        <span className={`inline-block px-2 py-0.5 rounded-full border text-[12px] font-bold ${
-                          isPremium
-                            ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                            : "bg-purple-500/10 text-purple-400 border-purple-500/20"
-                        }`}>
+                        <span className="inline-block px-2 py-0.5 rounded-full border text-[12px] font-bold" style={{
+                          background: isPremium ? "rgba(245,158,11,0.10)" : "rgba(168,85,247,0.10)",
+                          color: isPremium ? "#f59e0b" : "#a855f7",
+                          borderColor: isPremium ? "rgba(245,158,11,0.20)" : "rgba(168,85,247,0.20)",
+                        }}>
                           {isPremium ? "PREMIUM" : "VIP"}
                         </span>
                       );
@@ -430,16 +441,16 @@ function UsersTab() {
                   </td>
 
                   <td className="px-4 py-3">
-                    <span className={`inline-block px-2 py-0.5 rounded-full border text-[12px] font-bold ${
-                      user.systemRole === "ADMIN"
-                        ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                        : "bg-neutral-500/10 text-neutral-500 border-neutral-500/20"
-                    }`}>
+                    <span className="inline-block px-2 py-0.5 rounded-full border text-[12px] font-bold" style={{
+                      background: user.systemRole === "ADMIN" ? "rgba(22,163,74,0.10)" : "rgba(100,116,139,0.10)",
+                      color: user.systemRole === "ADMIN" ? "#16a34a" : "var(--text-muted)",
+                      borderColor: user.systemRole === "ADMIN" ? "rgba(22,163,74,0.20)" : "rgba(100,116,139,0.20)",
+                    }}>
                       {user.systemRole === "ADMIN" ? "ADMIN" : "USER"}
                     </span>
                   </td>
 
-                  <td className="px-4 py-3 text-xs text-neutral-500">
+                  <td className="px-4 py-3 text-xs" style={{ color: "var(--text-muted)" }}>
                     {user.vipUntil ? (
                       <div className="flex items-center gap-1.5">
                         <span>{new Date(user.vipUntil).toLocaleDateString("vi-VN")}</span>
@@ -447,11 +458,11 @@ function UsersTab() {
                           const daysLeft = Math.ceil((new Date(user.vipUntil).getTime() - Date.now()) / 86400000);
                           const tier = daysLeft > 90 ? "PREMIUM" : "VIP";
                           return (
-                            <span className={`text-[11px] font-bold px-1 py-0.5 rounded border ${
-                              tier === "PREMIUM"
-                                ? "bg-amber-500/10 text-amber-400 border-amber-500/25"
-                                : "bg-purple-500/10 text-purple-400 border-purple-500/25"
-                            }`}>
+                            <span className="text-[11px] font-bold px-1 py-0.5 rounded border" style={{
+                              background: tier === "PREMIUM" ? "rgba(245,158,11,0.10)" : "rgba(168,85,247,0.10)",
+                              color: tier === "PREMIUM" ? "#f59e0b" : "#a855f7",
+                              borderColor: tier === "PREMIUM" ? "rgba(245,158,11,0.25)" : "rgba(168,85,247,0.25)",
+                            }}>
                               {tier}
                             </span>
                           );
@@ -462,31 +473,31 @@ function UsersTab() {
 
                   <td className="px-4 py-3">
                     {user.dnseId ? (
-                      <span className="text-xs text-cyan-400 font-mono font-bold">
+                      <span className="text-xs font-mono font-bold" style={{ color: "#06b6d4" }}>
                         {user.dnseId}
                       </span>
                     ) : (
-                      <span className="text-xs text-neutral-600">—</span>
+                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>—</span>
                     )}
                   </td>
 
                   <td className="px-4 py-3">
                     {!user.dnseId ? (
-                      <span className="text-xs text-neutral-600">—</span>
+                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>—</span>
                     ) : user.dnseVerified ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[12px] font-bold bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[12px] font-bold" style={{ background: "rgba(22,163,74,0.10)", color: "#16a34a", borderColor: "rgba(22,163,74,0.20)" }}>
                         <ShieldCheck className="w-3 h-3" />
                         Xác minh
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[12px] font-bold bg-amber-500/10 text-amber-400 border-amber-500/20 animate-pulse">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[12px] font-bold animate-pulse" style={{ background: "rgba(245,158,11,0.10)", color: "#f59e0b", borderColor: "rgba(245,158,11,0.20)" }}>
                         <Clock className="w-3 h-3" />
                         Chờ duyệt
                       </span>
                     )}
                   </td>
 
-                  <td className="px-4 py-3 text-xs dark:text-neutral-500 text-slate-500">
+                  <td className="px-4 py-3 text-xs" style={{ color: "var(--text-muted)" }}>
                     {new Date(user.createdAt).toLocaleDateString("vi-VN")}
                   </td>
 
@@ -497,14 +508,16 @@ function UsersTab() {
                         <>
                           <button
                             onClick={() => handleVerifyDNSE(user.id)}
-                            className="p-1.5 rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-md transition-colors cursor-pointer"
+                            style={{ background: "rgba(22,163,74,0.10)", color: "#16a34a" }}
                             title="Duyệt DNSE"
                           >
                             <CheckCircle2 className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => handleRejectDNSE(user.id)}
-                            className="p-1.5 rounded-md bg-red-500/10 hover:bg-red-500/20 text-red-400 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-md transition-colors cursor-pointer"
+                            style={{ background: "rgba(192,57,43,0.10)", color: "var(--danger)" }}
                             title="Từ chối DNSE"
                           >
                             <X className="w-3.5 h-3.5" />
@@ -516,19 +529,19 @@ function UsersTab() {
                       <div className="relative">
                         <button
                           onClick={() => setVipMenuUser(vipMenuUser === user.id ? null : user.id)}
-                          className={`p-1.5 rounded-md transition-colors cursor-pointer ${
-                            user.role === "VIP"
-                              ? "bg-purple-500/10 text-purple-400 hover:bg-purple-500/20"
-                              : "hover:bg-purple-500/10 text-neutral-500 hover:text-purple-400"
-                          }`}
+                          className="p-1.5 rounded-md transition-colors cursor-pointer"
+                          style={user.role === "VIP"
+                            ? { background: "rgba(168,85,247,0.10)", color: "#a855f7" }
+                            : { color: "var(--text-muted)" }
+                          }
                           title="Cấp VIP / Premium"
                         >
                           <Crown className="w-3.5 h-3.5" />
                         </button>
 
                         {vipMenuUser === user.id && (
-                          <div className="absolute right-0 top-full mt-1 z-50 w-56 dark:bg-[#0a0a0a]/95 bg-white/95 backdrop-blur-3xl border dark:border-white/[0.12] border-slate-200 rounded-xl shadow-2xl p-2 space-y-1">
-                            <p className="text-[12px] dark:text-neutral-500 text-slate-400 px-2 pt-1 pb-0.5 font-bold uppercase tracking-wider">Chọn gói thời gian</p>
+                          <div className="absolute right-0 top-full mt-1 z-50 w-56 border rounded-xl shadow-2xl p-2 space-y-1" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+                            <p className="text-[12px] px-2 pt-1 pb-0.5 font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Chọn gói thời gian</p>
                             {VIP_PRESETS.map((preset) => (
                               <button
                                 key={preset.days}
@@ -542,19 +555,20 @@ function UsersTab() {
                                   });
                                   setVipMenuUser(null);
                                 }}
-                                className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs dark:hover:bg-white/[0.06] hover:bg-slate-100 transition-colors cursor-pointer"
+                                className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer"
+                                style={{ color: "var(--text-secondary)" }}
                               >
-                                <span className="dark:text-neutral-200 text-slate-700">{preset.label}</span>
-                                <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded border ${
-                                  preset.tier === "PREMIUM"
-                                    ? "bg-amber-500/10 text-amber-400 border-amber-500/25"
-                                    : "bg-purple-500/10 text-purple-400 border-purple-500/25"
-                                }`}>
+                                <span>{preset.label}</span>
+                                <span className="text-[11px] font-bold px-1.5 py-0.5 rounded border" style={{
+                                  background: preset.tier === "PREMIUM" ? "rgba(245,158,11,0.10)" : "rgba(168,85,247,0.10)",
+                                  color: preset.tier === "PREMIUM" ? "#f59e0b" : "#a855f7",
+                                  borderColor: preset.tier === "PREMIUM" ? "rgba(245,158,11,0.25)" : "rgba(168,85,247,0.25)",
+                                }}>
                                   {preset.tier}
                                 </span>
                               </button>
                             ))}
-                            <div className="border-t dark:border-white/[0.06] border-slate-200 pt-1.5 mt-1 px-1">
+                            <div className="border-t pt-1.5 mt-1 px-1" style={{ borderColor: "var(--border)" }}>
                               <div className="flex gap-1">
                                 <input
                                   type="number"
@@ -563,7 +577,8 @@ function UsersTab() {
                                   placeholder="Số ngày..."
                                   min={1}
                                   max={3650}
-                                  className="flex-1 px-2 py-1 rounded-md dark:bg-white/[0.06] bg-slate-50 border dark:border-white/[0.1] border-slate-200 text-xs dark:text-white text-slate-900 dark:placeholder-neutral-500 placeholder-slate-400 focus:outline-none focus:border-emerald-500/50 w-20"
+                                  className="flex-1 px-2 py-1 rounded-md text-xs outline-none w-20"
+                                  style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
                                 />
                                 <button
                                   onClick={() => {
@@ -580,7 +595,8 @@ function UsersTab() {
                                       setCustomDays("");
                                     }
                                   }}
-                                  className="px-2.5 py-1 rounded-md bg-emerald-500/15 text-emerald-400 text-xs font-bold hover:bg-emerald-500/25 transition-colors cursor-pointer"
+                                  className="px-2.5 py-1 rounded-md text-xs font-bold transition-colors cursor-pointer"
+                                  style={{ background: "rgba(22,163,74,0.15)", color: "#16a34a" }}
                                 >
                                   OK
                                 </button>
@@ -588,7 +604,7 @@ function UsersTab() {
                             </div>
                             {user.role === "VIP" && (
                               <>
-                                <div className="border-t dark:border-white/[0.06] border-slate-200 pt-1.5 mt-1">
+                                <div className="border-t pt-1.5 mt-1" style={{ borderColor: "var(--border)" }}>
                                   <button
                                     onClick={() => {
                                       setConfirmAction({
@@ -599,7 +615,8 @@ function UsersTab() {
                                       });
                                       setVipMenuUser(null);
                                     }}
-                                    className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                                    className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer"
+                                    style={{ color: "var(--danger)" }}
                                   >
                                     <ShieldX className="w-3 h-3" />
                                     Hạ về FREE
@@ -620,11 +637,11 @@ function UsersTab() {
                               : { userId: user.id, email: user.email, systemRole: "ADMIN", label: "Cấp quyền ADMIN" }
                           )
                         }
-                        className={`p-1.5 rounded-md transition-colors cursor-pointer ${
-                          user.systemRole === "ADMIN"
-                            ? "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
-                            : "hover:bg-emerald-500/10 text-neutral-500 hover:text-emerald-400"
-                        }`}
+                        className="p-1.5 rounded-md transition-colors cursor-pointer"
+                        style={user.systemRole === "ADMIN"
+                          ? { background: "rgba(22,163,74,0.10)", color: "#16a34a" }
+                          : { color: "var(--text-muted)" }
+                        }
                         title={user.systemRole === "ADMIN" ? "Thu hồi ADMIN" : "Cấp quyền ADMIN"}
                       >
                         <ShieldCheck className="w-3.5 h-3.5" />
@@ -640,45 +657,49 @@ function UsersTab() {
 
       {/* ── Confirmation Modal ──────────────────────────────────── */}
       {confirmAction && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="dark:bg-[#0a0a0a]/90 bg-white/90 backdrop-blur-3xl dark:border-white/[0.1] border-white/50 border rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4 space-y-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center" style={{ background: "rgba(0,0,0,0.60)" }}>
+          <div className="border rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4 space-y-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
             <div className="flex items-center gap-3">
-              <div className={`p-2.5 rounded-xl ${
-                confirmAction.role === "FREE" || confirmAction.systemRole === "USER"
-                  ? "bg-red-500/10 border border-red-500/20"
-                  : confirmAction.systemRole === "ADMIN"
-                  ? "bg-emerald-500/10 border border-emerald-500/20"
-                  : "bg-purple-500/10 border border-purple-500/20"
-              }`}>
+              <div
+                className="p-2.5 rounded-xl border"
+                style={{
+                  background: confirmAction.role === "FREE" || confirmAction.systemRole === "USER"
+                    ? "rgba(192,57,43,0.10)" : confirmAction.systemRole === "ADMIN"
+                    ? "rgba(22,163,74,0.10)" : "rgba(168,85,247,0.10)",
+                  borderColor: confirmAction.role === "FREE" || confirmAction.systemRole === "USER"
+                    ? "rgba(192,57,43,0.20)" : confirmAction.systemRole === "ADMIN"
+                    ? "rgba(22,163,74,0.20)" : "rgba(168,85,247,0.20)",
+                }}
+              >
                 {confirmAction.role === "FREE" || confirmAction.systemRole === "USER" ? (
-                  <ShieldX className="w-5 h-5 text-red-400" />
+                  <ShieldX className="w-5 h-5" style={{ color: "var(--danger)" }} />
                 ) : confirmAction.systemRole === "ADMIN" ? (
-                  <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                  <ShieldCheck className="w-5 h-5" style={{ color: "#16a34a" }} />
                 ) : (
-                  <Crown className="w-5 h-5 text-purple-400" />
+                  <Crown className="w-5 h-5" style={{ color: "#a855f7" }} />
                 )}
               </div>
               <div>
-                <h3 className="text-sm font-bold dark:text-white text-slate-900">Xác nhận thay đổi</h3>
-                <p className="text-[12px] dark:text-neutral-500 text-slate-400">Hành động không thể hoàn tác tự động</p>
+                <h3 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>Xác nhận thay đổi</h3>
+                <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>Hành động không thể hoàn tác tự động</p>
               </div>
             </div>
-            <div className="dark:bg-white/[0.04] bg-slate-50 rounded-xl p-3 space-y-1.5 text-xs">
-              <p className="dark:text-neutral-400 text-slate-500">
-                User: <span className="dark:text-white text-slate-900 font-mono">{confirmAction.email}</span>
+            <div className="rounded-xl p-3 space-y-1.5 text-xs" style={{ background: "var(--surface-2)" }}>
+              <p style={{ color: "var(--text-muted)" }}>
+                User: <span className="font-mono" style={{ color: "var(--text-primary)" }}>{confirmAction.email}</span>
               </p>
-              <p className="text-neutral-400">
+              <p style={{ color: "var(--text-muted)" }}>
                 Thao tác:{" "}
-                <span className={`font-bold ${
-                  confirmAction.role === "FREE" || confirmAction.systemRole === "USER" ? "text-red-400" : confirmAction.systemRole === "ADMIN" ? "text-emerald-400" : "text-purple-400"
-                }`}>
+                <span className="font-bold" style={{
+                  color: confirmAction.role === "FREE" || confirmAction.systemRole === "USER" ? "var(--danger)" : confirmAction.systemRole === "ADMIN" ? "#16a34a" : "#a855f7"
+                }}>
                   {confirmAction.label}
                 </span>
               </p>
               {confirmAction.days && (
-                <p className="text-neutral-400">
+                <p style={{ color: "var(--text-muted)" }}>
                   VIP đến:{" "}
-                  <span className="text-emerald-400 font-semibold">
+                  <span className="font-semibold" style={{ color: "#16a34a" }}>
                     {new Date(Date.now() + confirmAction.days * 86400000).toLocaleDateString("vi-VN")}
                   </span>
                 </p>
@@ -687,7 +708,8 @@ function UsersTab() {
             <div className="flex gap-2">
               <button
                 onClick={() => setConfirmAction(null)}
-                className="flex-1 px-4 py-2.5 rounded-xl border dark:border-white/[0.1] border-slate-200 text-xs font-bold dark:text-neutral-400 text-slate-500 dark:hover:text-white hover:text-slate-900 dark:hover:border-white/20 hover:border-slate-300 transition-all cursor-pointer"
+                className="flex-1 px-4 py-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer"
+                style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
               >
                 Hủy
               </button>
@@ -696,13 +718,13 @@ function UsersTab() {
                   handleSetRole(confirmAction.userId, confirmAction.role, confirmAction.days, confirmAction.systemRole);
                   setConfirmAction(null);
                 }}
-                className={`flex-1 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  confirmAction.role === "FREE" || confirmAction.systemRole === "USER"
-                    ? "bg-red-500 hover:bg-red-400 text-white"
-                    : confirmAction.systemRole === "ADMIN"
-                    ? "bg-emerald-500 hover:bg-emerald-400 text-white"
-                    : "bg-purple-500 hover:bg-purple-400 text-white"
-                }`}
+                className="flex-1 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                style={{
+                  background: confirmAction.role === "FREE" || confirmAction.systemRole === "USER"
+                    ? "var(--danger)" : confirmAction.systemRole === "ADMIN"
+                    ? "#16a34a" : "#a855f7",
+                  color: "#fff",
+                }}
               >
                 Xác nhận
               </button>
@@ -793,134 +815,141 @@ function RegistrationsTab() {
     (r) => r.name.toLowerCase().includes(search.toLowerCase()) || r.zalo.includes(search)
   );
 
-  const statusBadge = (s: string) =>
-    s === "DA_MO_TK"
-      ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-      : "bg-yellow-500/10 text-yellow-400 border-yellow-500/20";
+  const statusBadge = (s: string) => {
+    if (s === "DA_MO_TK") return { background: "rgba(22,163,74,0.10)", color: "#16a34a", borderColor: "rgba(22,163,74,0.20)" };
+    return { background: "rgba(245,158,11,0.10)", color: "#f59e0b", borderColor: "rgba(245,158,11,0.20)" };
+  };
   const vipBadge = (v: string) => {
-    if (v === "ACTIVE") return "bg-purple-500/10 text-purple-400 border-purple-500/20";
-    if (v === "EXPIRED") return "bg-red-500/10 text-red-400 border-red-500/20";
-    return "bg-neutral-500/10 text-neutral-400 border-neutral-500/20";
+    if (v === "ACTIVE") return { background: "rgba(168,85,247,0.10)", color: "#a855f7", borderColor: "rgba(168,85,247,0.20)" };
+    if (v === "EXPIRED") return { background: "rgba(192,57,43,0.10)", color: "var(--danger)", borderColor: "rgba(192,57,43,0.20)" };
+    return { background: "rgba(100,116,139,0.10)", color: "var(--text-muted)", borderColor: "rgba(100,116,139,0.20)" };
   };
 
   return (
     <>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-purple-500/10 rounded-lg border border-purple-500/20">
-            <CreditCard className="w-5 h-5 text-purple-400" />
+          <div
+            className="p-2 rounded-lg border"
+            style={{ background: "rgba(168,85,247,0.10)", borderColor: "rgba(168,85,247,0.20)" }}
+          >
+            <CreditCard className="w-5 h-5" style={{ color: "#a855f7" }} />
           </div>
           <div>
-            <h1 className="text-xl font-black dark:text-white text-slate-900">Quản Lý Đăng Ký Khóa Học</h1>
-            <p className="text-xs dark:text-neutral-500 text-slate-500">{rows.length} bản ghi</p>
+            <h1 className="text-xl font-black" style={{ color: "var(--text-primary)" }}>Quản Lý Đăng Ký Khóa Học</h1>
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>{rows.length} bản ghi</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-500" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: "var(--text-muted)" }} />
             <input
               type="text"
               placeholder="Tìm tên / Zalo..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 pr-3 py-1.5 rounded-lg dark:bg-white/[0.06] bg-white dark:border-white/[0.1] border-slate-200 text-xs dark:text-white text-slate-900 dark:placeholder-neutral-500 placeholder-slate-400 focus:outline-none focus:border-emerald-500/50 w-48"
+              className="pl-8 pr-3 py-1.5 rounded-lg text-xs outline-none w-48"
+              style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
             />
           </div>
-          <button onClick={fetchData} className="p-2 rounded-lg border dark:border-white/[0.1] border-slate-200 dark:hover:border-white/20 hover:border-slate-300 dark:text-neutral-400 text-slate-500 dark:hover:text-white hover:text-slate-900 transition-colors cursor-pointer">
+          <button onClick={fetchData} className="p-2 rounded-lg border transition-colors cursor-pointer" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
       {error && (
-        <div className="flex items-center gap-3 bg-red-500/10 border border-red-500/20 rounded-xl p-4">
-          <ShieldAlert className="w-5 h-5 text-red-400 shrink-0" />
-          <p className="text-sm text-red-400">{error}</p>
+        <div
+          className="flex items-center gap-3 rounded-xl p-4 border"
+          style={{ background: "rgba(192,57,43,0.08)", borderColor: "rgba(192,57,43,0.20)" }}
+        >
+          <ShieldAlert className="w-5 h-5 shrink-0" style={{ color: "var(--danger)" }} />
+          <p className="text-sm" style={{ color: "var(--danger)" }}>{error}</p>
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-xl dark:border-white/[0.08] border-white/50 dark:bg-white/[0.03] bg-white/60 backdrop-blur-xl border">
+      <div className="overflow-x-auto rounded-xl border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
         <table className="w-full text-left">
           <thead>
-            <tr className="border-b dark:border-white/[0.06] border-slate-200 text-[12px] uppercase tracking-wider dark:text-neutral-500 text-slate-500">
-              <th className="px-4 py-3 font-bold">#</th>
-              <th className="px-4 py-3 font-bold">Tên</th>
-              <th className="px-4 py-3 font-bold">Zalo</th>
-              <th className="px-4 py-3 font-bold">Trạng Thái</th>
-              <th className="px-4 py-3 font-bold">VIP</th>
-              <th className="px-4 py-3 font-bold">Ngày ĐK</th>
-              <th className="px-4 py-3 font-bold text-right">Thao Tác</th>
+            <tr className="border-b text-[12px] uppercase tracking-wider" style={{ borderColor: "var(--border)" }}>
+              <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>#</th>
+              <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>Tên</th>
+              <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>Zalo</th>
+              <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>Trạng Thái</th>
+              <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>VIP</th>
+              <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>Ngày ĐK</th>
+              <th className="px-4 py-3 font-bold text-right" style={{ color: "var(--text-muted)" }}>Thao Tác</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
                 <td colSpan={7} className="px-4 py-12 text-center">
-                  <RefreshCw className="w-5 h-5 text-neutral-600 animate-spin mx-auto" />
+                  <RefreshCw className="w-5 h-5 animate-spin mx-auto" style={{ color: "var(--text-muted)" }} />
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-12 text-center text-xs text-neutral-600">
+                <td colSpan={7} className="px-4 py-12 text-center text-xs" style={{ color: "var(--text-muted)" }}>
                   Không có bản ghi nào.
                 </td>
               </tr>
             ) : (
               filtered.map((row, i) => (
-                <tr key={row.id} className="border-b dark:border-white/[0.04] border-slate-100 dark:hover:bg-white/[0.03] hover:bg-slate-50/50 transition-colors">
-                  <td className="px-4 py-3 text-xs text-neutral-600 font-mono">{i + 1}</td>
+                <tr key={row.id} className="border-b transition-colors" style={{ borderColor: "var(--border)" }}>
+                  <td className="px-4 py-3 text-xs font-mono" style={{ color: "var(--text-muted)" }}>{i + 1}</td>
                   <td className="px-4 py-3">
                     {editId === row.id ? (
-                      <input value={editData.name ?? ""} onChange={(e) => setEditData({ ...editData, name: e.target.value })} className="px-2 py-1 rounded dark:bg-white/[0.06] bg-white dark:border-white/[0.1] border-slate-200 text-xs dark:text-white text-slate-900 w-32" />
+                      <input value={editData.name ?? ""} onChange={(e) => setEditData({ ...editData, name: e.target.value })} className="px-2 py-1 rounded text-xs w-32" style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-primary)" }} />
                     ) : (
-                      <span className="text-sm dark:text-white text-slate-900 font-medium">{row.name}</span>
+                      <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{row.name}</span>
                     )}
                   </td>
                   <td className="px-4 py-3">
                     {editId === row.id ? (
-                      <input value={editData.zalo ?? ""} onChange={(e) => setEditData({ ...editData, zalo: e.target.value })} className="px-2 py-1 rounded dark:bg-white/[0.06] bg-white dark:border-white/[0.1] border-slate-200 text-xs dark:text-white text-slate-900 w-28" />
+                      <input value={editData.zalo ?? ""} onChange={(e) => setEditData({ ...editData, zalo: e.target.value })} className="px-2 py-1 rounded text-xs w-28" style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-primary)" }} />
                     ) : (
-                      <span className="text-xs dark:text-neutral-300 text-slate-600 font-mono">{row.zalo}</span>
+                      <span className="text-xs font-mono" style={{ color: "var(--text-secondary)" }}>{row.zalo}</span>
                     )}
                   </td>
                   <td className="px-4 py-3">
                     {editId === row.id ? (
-                      <select value={editData.status ?? ""} onChange={(e) => setEditData({ ...editData, status: e.target.value })} className="px-2 py-1 rounded dark:bg-white/[0.06] bg-white dark:border-white/[0.1] border-slate-200 text-xs dark:text-white text-slate-900">
+                      <select value={editData.status ?? ""} onChange={(e) => setEditData({ ...editData, status: e.target.value })} className="px-2 py-1 rounded text-xs" style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-primary)" }}>
                         <option value="CHUA_MO_TK">Chưa mở TK</option>
                         <option value="DA_MO_TK">Đã mở TK</option>
                       </select>
                     ) : (
-                      <span className={`inline-block px-2 py-0.5 rounded-full border text-[12px] font-bold ${statusBadge(row.status)}`}>
+                      <span className="inline-block px-2 py-0.5 rounded-full border text-[12px] font-bold" style={statusBadge(row.status)}>
                         {row.status === "DA_MO_TK" ? "Đã mở TK" : "Chưa mở TK"}
                       </span>
                     )}
                   </td>
                   <td className="px-4 py-3">
                     {editId === row.id ? (
-                      <select value={editData.vipStatus ?? ""} onChange={(e) => setEditData({ ...editData, vipStatus: e.target.value })} className="px-2 py-1 rounded dark:bg-white/[0.06] bg-white dark:border-white/[0.1] border-slate-200 text-xs dark:text-white text-slate-900">
+                      <select value={editData.vipStatus ?? ""} onChange={(e) => setEditData({ ...editData, vipStatus: e.target.value })} className="px-2 py-1 rounded text-xs" style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-primary)" }}>
                         <option value="NONE">NONE</option>
                         <option value="ACTIVE">ACTIVE</option>
                         <option value="EXPIRED">EXPIRED</option>
                       </select>
                     ) : (
-                      <span className={`inline-block px-2 py-0.5 rounded-full border text-[12px] font-bold ${vipBadge(row.vipStatus)}`}>{row.vipStatus}</span>
+                      <span className="inline-block px-2 py-0.5 rounded-full border text-[12px] font-bold" style={vipBadge(row.vipStatus)}>{row.vipStatus}</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-xs dark:text-neutral-500 text-slate-500">{new Date(row.createdAt).toLocaleDateString("vi-VN")}</td>
+                  <td className="px-4 py-3 text-xs" style={{ color: "var(--text-muted)" }}>{new Date(row.createdAt).toLocaleDateString("vi-VN")}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
                       {editId === row.id ? (
                         <>
-                          <button onClick={saveEdit} className="p-1.5 rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 transition-colors cursor-pointer" title="Lưu"><Save className="w-3.5 h-3.5" /></button>
-                          <button onClick={cancelEdit} className="p-1.5 rounded-md bg-neutral-500/10 hover:bg-neutral-500/20 text-neutral-400 transition-colors cursor-pointer" title="Hủy"><X className="w-3.5 h-3.5" /></button>
+                          <button onClick={saveEdit} className="p-1.5 rounded-md transition-colors cursor-pointer" style={{ background: "rgba(22,163,74,0.10)", color: "#16a34a" }} title="Lưu"><Save className="w-3.5 h-3.5" /></button>
+                          <button onClick={cancelEdit} className="p-1.5 rounded-md transition-colors cursor-pointer" style={{ background: "rgba(100,116,139,0.10)", color: "var(--text-muted)" }} title="Hủy"><X className="w-3.5 h-3.5" /></button>
                         </>
                       ) : (
                         <>
-                          <button onClick={() => startEdit(row)} className="p-1.5 rounded-md dark:hover:bg-white/[0.06] hover:bg-slate-100 dark:text-neutral-500 text-slate-400 dark:hover:text-white hover:text-slate-900 transition-colors cursor-pointer" title="Sửa"><Edit3 className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => startEdit(row)} className="p-1.5 rounded-md transition-colors cursor-pointer" style={{ color: "var(--text-muted)" }} title="Sửa"><Edit3 className="w-3.5 h-3.5" /></button>
                           {row.status !== "DA_MO_TK" && (
-                            <button onClick={() => handleApprove(row.id)} className="p-1.5 rounded-md hover:bg-emerald-500/10 dark:text-neutral-500 text-slate-400 hover:text-emerald-400 transition-colors cursor-pointer" title="Duyệt"><CheckCircle2 className="w-3.5 h-3.5" /></button>
+                            <button onClick={() => handleApprove(row.id)} className="p-1.5 rounded-md transition-colors cursor-pointer" style={{ color: "var(--text-muted)" }} title="Duyệt"><CheckCircle2 className="w-3.5 h-3.5" /></button>
                           )}
-                          <button onClick={() => handleDelete(row.id)} className="p-1.5 rounded-md hover:bg-red-500/10 dark:text-neutral-500 text-slate-400 hover:text-red-400 transition-colors cursor-pointer" title="Xóa"><Trash2 className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => handleDelete(row.id)} className="p-1.5 rounded-md transition-colors cursor-pointer" style={{ color: "var(--text-muted)" }} title="Xóa"><Trash2 className="w-3.5 h-3.5" /></button>
                         </>
                       )}
                     </div>
@@ -978,56 +1007,60 @@ function MarginTab() {
   };
 
   const statusColor = (s: string) =>
-    s === "NEW" ? "text-amber-400 bg-amber-500/10 border-amber-500/20"
-    : s === "CONTACTED" ? "text-blue-400 bg-blue-500/10 border-blue-500/20"
-    : "text-emerald-400 bg-emerald-500/10 border-emerald-500/20";
+    s === "NEW" ? { color: "#f59e0b", background: "rgba(245,158,11,0.10)", borderColor: "rgba(245,158,11,0.20)" }
+    : s === "CONTACTED" ? { color: "#3b82f6", background: "rgba(59,130,246,0.10)", borderColor: "rgba(59,130,246,0.20)" }
+    : { color: "#16a34a", background: "rgba(22,163,74,0.10)", borderColor: "rgba(22,163,74,0.20)" };
 
   const statusLabel = (s: string) =>
     s === "NEW" ? "Mới" : s === "CONTACTED" ? "Đã liên hệ" : "Hoàn thành";
 
   if (loading) return (
     <div className="flex items-center justify-center py-16">
-      <RefreshCw className="w-6 h-6 text-neutral-600 animate-spin" />
+      <RefreshCw className="w-6 h-6 animate-spin" style={{ color: "var(--text-muted)" }} />
     </div>
   );
-  if (error) return <p className="text-sm text-red-400 py-8 text-center">{error}</p>;
+  if (error) return <p className="text-sm py-8 text-center" style={{ color: "var(--danger)" }}>{error}</p>;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-black dark:text-white text-slate-900">Tư Vấn Margin</h2>
-          <p className="text-xs dark:text-neutral-500 text-slate-500">{rows.length} yêu cầu</p>
+          <h2 className="text-lg font-black" style={{ color: "var(--text-primary)" }}>Tư Vấn Margin</h2>
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>{rows.length} yêu cầu</p>
         </div>
         <button
           onClick={fetchRows}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg dark:bg-white/[0.06] bg-white dark:border-white/[0.1] border-slate-200 border dark:hover:border-white/20 hover:border-slate-300 text-xs dark:text-neutral-300 text-slate-600 transition-all cursor-pointer"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs transition-all cursor-pointer"
+          style={{ background: "var(--surface-2)", borderColor: "var(--border)", color: "var(--text-secondary)" }}
         >
           <RefreshCw className="w-3 h-3" /> Làm mới
         </button>
       </div>
 
       {rows.length === 0 ? (
-        <div className="text-center py-16 dark:text-neutral-600 text-slate-400 text-sm">Chưa có yêu cầu nào.</div>
+        <div className="text-center py-16 text-sm" style={{ color: "var(--text-muted)" }}>Chưa có yêu cầu nào.</div>
       ) : (
         <div className="space-y-3">
           {rows.map((row) => (
-            <div key={row.id} className="dark:bg-white/[0.03] bg-white/60 backdrop-blur-xl border dark:border-white/[0.08] border-white/50 rounded-2xl p-4 sm:p-5 space-y-3">
+            <div key={row.id} className="border rounded-2xl p-4 sm:p-5 space-y-3" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
               {/* Header row */}
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-black dark:text-white text-slate-900">{row.name}</p>
-                  <div className="flex items-center gap-3 mt-0.5 text-xs dark:text-neutral-500 text-slate-500">
+                  <p className="text-sm font-black" style={{ color: "var(--text-primary)" }}>{row.name}</p>
+                  <div className="flex items-center gap-3 mt-0.5 text-xs" style={{ color: "var(--text-muted)" }}>
                     <span>{row.phone}</span>
                     {row.email && <span>{row.email}</span>}
                     {row.company && <span>· {row.company}</span>}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`text-[12px] font-bold px-2 py-0.5 rounded-full border ${statusColor(row.status)}`}>
+                  <span
+                    className="text-[12px] font-bold px-2 py-0.5 rounded-full border"
+                    style={statusColor(row.status)}
+                  >
                     {statusLabel(row.status)}
                   </span>
-                  <span className="text-[12px] dark:text-neutral-600 text-slate-400">
+                  <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>
                     {new Date(row.createdAt).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}
                   </span>
                 </div>
@@ -1036,27 +1069,28 @@ function MarginTab() {
               {/* Details */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                 <div>
-                  <p className="dark:text-neutral-600 text-slate-400 mb-0.5">Mã CK</p>
-                  <p className="dark:text-neutral-200 text-slate-700 font-mono font-medium">{row.tickers}</p>
+                  <p className="mb-0.5" style={{ color: "var(--text-muted)" }}>Mã CK</p>
+                  <p className="font-mono font-medium" style={{ color: "var(--text-secondary)" }}>{row.tickers}</p>
                 </div>
                 <div>
-                  <p className="dark:text-neutral-600 text-slate-400 mb-0.5">Tỉ lệ ký quỹ</p>
-                  <p className="dark:text-neutral-200 text-slate-700">{row.marginRatio}</p>
+                  <p className="mb-0.5" style={{ color: "var(--text-muted)" }}>Tỉ lệ ký quỹ</p>
+                  <p style={{ color: "var(--text-secondary)" }}>{row.marginRatio}</p>
                 </div>
                 <div>
-                  <p className="dark:text-neutral-600 text-slate-400 mb-0.5">Hạn mức vay</p>
-                  <p className="dark:text-neutral-200 text-slate-700">{row.loanAmount}</p>
+                  <p className="mb-0.5" style={{ color: "var(--text-muted)" }}>Hạn mức vay</p>
+                  <p style={{ color: "var(--text-secondary)" }}>{row.loanAmount}</p>
                 </div>
               </div>
 
               {/* Actions */}
-              <div className="flex flex-wrap items-center gap-2 pt-1 border-t dark:border-white/[0.06] border-slate-200">
+              <div className="flex flex-wrap items-center gap-2 pt-1 border-t" style={{ borderColor: "var(--border)" }}>
                 {/* Status selector */}
                 <select
                   value={row.status}
                   onChange={(e) => updateRow(row.id, { status: e.target.value })}
                   disabled={saving === row.id}
-                  className="px-2.5 py-1.5 rounded-lg dark:bg-white/[0.06] bg-white dark:border-white/[0.1] border-slate-200 border text-xs dark:text-white text-slate-900 focus:outline-none cursor-pointer disabled:opacity-50"
+                  className="px-2.5 py-1.5 rounded-lg text-xs focus:outline-none cursor-pointer disabled:opacity-50"
+                  style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
                 >
                   <option value="NEW">Mới</option>
                   <option value="CONTACTED">Đã liên hệ</option>
@@ -1069,7 +1103,8 @@ function MarginTab() {
                   placeholder="Ghi chú..."
                   value={editNote[row.id] ?? row.note ?? ""}
                   onChange={(e) => setEditNote((prev) => ({ ...prev, [row.id]: e.target.value }))}
-                  className="flex-1 min-w-[160px] px-2.5 py-1.5 rounded-lg dark:bg-white/[0.06] bg-white dark:border-white/[0.1] border-slate-200 border text-xs dark:text-white text-slate-900 dark:placeholder-neutral-600 placeholder-slate-400 focus:outline-none"
+                  className="flex-1 min-w-[160px] px-2.5 py-1.5 rounded-lg text-xs focus:outline-none"
+                  style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
                 />
                 <button
                   onClick={() => {
@@ -1077,7 +1112,8 @@ function MarginTab() {
                     updateRow(row.id, { note });
                   }}
                   disabled={saving === row.id}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold hover:bg-emerald-500/20 transition-all cursor-pointer disabled:opacity-50"
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+                  style={{ background: "rgba(22,163,74,0.10)", borderColor: "rgba(22,163,74,0.20)", color: "#16a34a" }}
                 >
                   {saving === row.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
                   Lưu
@@ -1122,8 +1158,6 @@ function JournalsTab() {
   const [filterUser, setFilterUser] = useState("");
   const [filterTicker, setFilterTicker] = useState("");
   const [users, setUsers] = useState<{ id: string; name: string | null; email: string }[]>([]);
-  const { theme } = useTheme();
-  const isDark = theme === "dark";
 
   const fetchJournals = useCallback(async () => {
     setLoading(true);
@@ -1160,10 +1194,10 @@ function JournalsTab() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className={`text-lg font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
+        <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>
           Nhật ký giao dịch khách hàng
         </h2>
-        <span className={`text-xs ${isDark ? "text-neutral-500" : "text-slate-400"}`}>
+        <span className="text-xs" style={{ color: "var(--text-muted)" }}>
           {total} bản ghi
         </span>
       </div>
@@ -1173,9 +1207,8 @@ function JournalsTab() {
         <select
           value={filterUser}
           onChange={(e) => { setFilterUser(e.target.value); setPage(1); }}
-          className={`px-3 py-1.5 rounded-lg border text-xs ${
-            isDark ? "bg-white/[0.06] border-white/[0.1] text-white" : "bg-white border-slate-200 text-slate-900"
-          }`}
+          className="px-3 py-1.5 rounded-lg border text-xs outline-none"
+          style={{ background: "var(--surface-2)", borderColor: "var(--border)", color: "var(--text-primary)" }}
         >
           <option value="">Tất cả khách hàng</option>
           {users.map((u) => (
@@ -1183,20 +1216,20 @@ function JournalsTab() {
           ))}
         </select>
         <div className="flex items-center gap-2">
-          <Search className={`w-3.5 h-3.5 ${isDark ? "text-neutral-500" : "text-slate-400"}`} />
+          <Search className="w-3.5 h-3.5" style={{ color: "var(--text-muted)" }} />
           <input
             type="text"
             placeholder="Lọc mã CK..."
             value={filterTicker}
             onChange={(e) => { setFilterTicker(e.target.value.toUpperCase()); setPage(1); }}
-            className={`px-3 py-1.5 rounded-lg border text-xs w-32 ${
-              isDark ? "bg-white/[0.06] border-white/[0.1] text-white placeholder-neutral-600" : "bg-white border-slate-200 text-slate-900 placeholder-slate-400"
-            }`}
+            className="px-3 py-1.5 rounded-lg border text-xs w-32 outline-none"
+            style={{ background: "var(--surface-2)", borderColor: "var(--border)", color: "var(--text-primary)" }}
           />
         </div>
         <button
           onClick={fetchJournals}
-          className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold hover:bg-blue-500/20 transition-all cursor-pointer"
+          className="flex items-center gap-1 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all cursor-pointer"
+          style={{ background: "rgba(59,130,246,0.10)", borderColor: "rgba(59,130,246,0.20)", color: "#3b82f6" }}
         >
           <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
           Làm mới
@@ -1206,61 +1239,60 @@ function JournalsTab() {
       {/* Table */}
       {loading ? (
         <div className="flex items-center justify-center py-12">
-          <RefreshCw className="w-5 h-5 text-neutral-500 animate-spin" />
+          <RefreshCw className="w-5 h-5 animate-spin" style={{ color: "var(--text-muted)" }} />
         </div>
       ) : entries.length === 0 ? (
-        <p className={`text-sm text-center py-12 ${isDark ? "text-neutral-500" : "text-slate-400"}`}>
+        <p className="text-sm text-center py-12" style={{ color: "var(--text-muted)" }}>
           Không có nhật ký nào.
         </p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className={`border-b ${isDark ? "border-white/[0.06]" : "border-slate-200"}`}>
-                <th className={`text-left py-2 px-3 font-bold ${isDark ? "text-neutral-400" : "text-slate-500"}`}>Ngày</th>
-                <th className={`text-left py-2 px-3 font-bold ${isDark ? "text-neutral-400" : "text-slate-500"}`}>Khách hàng</th>
-                <th className={`text-left py-2 px-3 font-bold ${isDark ? "text-neutral-400" : "text-slate-500"}`}>Mã CK</th>
-                <th className={`text-center py-2 px-3 font-bold ${isDark ? "text-neutral-400" : "text-slate-500"}`}>Lệnh</th>
-                <th className={`text-right py-2 px-3 font-bold ${isDark ? "text-neutral-400" : "text-slate-500"}`}>Giá</th>
-                <th className={`text-right py-2 px-3 font-bold ${isDark ? "text-neutral-400" : "text-slate-500"}`}>KL</th>
-                <th className={`text-right py-2 px-3 font-bold ${isDark ? "text-neutral-400" : "text-slate-500"}`}>Giá trị</th>
-                <th className={`text-left py-2 px-3 font-bold ${isDark ? "text-neutral-400" : "text-slate-500"}`}>Tâm lý</th>
-                <th className={`text-left py-2 px-3 font-bold ${isDark ? "text-neutral-400" : "text-slate-500"}`}>Lý do</th>
+              <tr className="border-b" style={{ borderColor: "var(--border)" }}>
+                <th className="text-left py-2 px-3 font-bold" style={{ color: "var(--text-muted)" }}>Ngày</th>
+                <th className="text-left py-2 px-3 font-bold" style={{ color: "var(--text-muted)" }}>Khách hàng</th>
+                <th className="text-left py-2 px-3 font-bold" style={{ color: "var(--text-muted)" }}>Mã CK</th>
+                <th className="text-center py-2 px-3 font-bold" style={{ color: "var(--text-muted)" }}>Lệnh</th>
+                <th className="text-right py-2 px-3 font-bold" style={{ color: "var(--text-muted)" }}>Giá</th>
+                <th className="text-right py-2 px-3 font-bold" style={{ color: "var(--text-muted)" }}>KL</th>
+                <th className="text-right py-2 px-3 font-bold" style={{ color: "var(--text-muted)" }}>Giá trị</th>
+                <th className="text-left py-2 px-3 font-bold" style={{ color: "var(--text-muted)" }}>Tâm lý</th>
+                <th className="text-left py-2 px-3 font-bold" style={{ color: "var(--text-muted)" }}>Lý do</th>
               </tr>
             </thead>
             <tbody>
               {entries.map((e) => (
-                <tr key={e.id} className={`border-b ${isDark ? "border-white/[0.04] hover:bg-white/[0.02]" : "border-slate-100 hover:bg-slate-50"}`}>
-                  <td className={`py-2 px-3 ${isDark ? "text-neutral-300" : "text-slate-700"}`}>{fmtDate(e.tradeDate || e.createdAt)}</td>
+                <tr key={e.id} className="border-b transition-colors" style={{ borderColor: "var(--border)" }}>
+                  <td className="py-2 px-3" style={{ color: "var(--text-secondary)" }}>{fmtDate(e.tradeDate || e.createdAt)}</td>
                   <td className="py-2 px-3">
                     <div>
-                      <span className={`font-medium ${isDark ? "text-white" : "text-slate-900"}`}>{e.user.name || "—"}</span>
-                      <span className={`block text-[11px] ${isDark ? "text-neutral-500" : "text-slate-400"}`}>{e.user.email}</span>
+                      <span className="font-medium" style={{ color: "var(--text-primary)" }}>{e.user.name || "—"}</span>
+                      <span className="block text-[11px]" style={{ color: "var(--text-muted)" }}>{e.user.email}</span>
                     </div>
                   </td>
-                  <td className={`py-2 px-3 font-bold ${isDark ? "text-white" : "text-slate-900"}`}>{e.ticker}</td>
+                  <td className="py-2 px-3 font-bold" style={{ color: "var(--text-primary)" }}>{e.ticker}</td>
                   <td className="py-2 px-3 text-center">
-                    <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-bold ${
-                      e.action === "BUY"
-                        ? "bg-emerald-500/15 text-emerald-400"
-                        : "bg-red-500/15 text-red-400"
-                    }`}>
+                    <span className="inline-block px-2 py-0.5 rounded text-[11px] font-bold" style={{
+                      background: e.action === "BUY" ? "rgba(22,163,74,0.15)" : "rgba(192,57,43,0.15)",
+                      color: e.action === "BUY" ? "#16a34a" : "var(--danger)",
+                    }}>
                       {e.action === "BUY" ? "MUA" : "BÁN"}
                     </span>
                   </td>
-                  <td className={`py-2 px-3 text-right ${isDark ? "text-neutral-300" : "text-slate-700"}`}>{fmtPrice(e.price)}</td>
-                  <td className={`py-2 px-3 text-right ${isDark ? "text-neutral-300" : "text-slate-700"}`}>{fmtPrice(e.quantity)}</td>
-                  <td className={`py-2 px-3 text-right font-medium ${isDark ? "text-neutral-200" : "text-slate-800"}`}>
+                  <td className="py-2 px-3 text-right" style={{ color: "var(--text-secondary)" }}>{fmtPrice(e.price)}</td>
+                  <td className="py-2 px-3 text-right" style={{ color: "var(--text-secondary)" }}>{fmtPrice(e.quantity)}</td>
+                  <td className="py-2 px-3 text-right font-medium" style={{ color: "var(--text-primary)" }}>
                     {fmtPrice(e.price * e.quantity)}
                   </td>
                   <td className="py-2 px-3">
                     {e.psychologyTag && (
-                      <span className={`inline-block px-1.5 py-0.5 rounded text-[11px] ${isDark ? "bg-white/[0.06] text-neutral-300" : "bg-slate-100 text-slate-600"}`}>
+                      <span className="inline-block px-1.5 py-0.5 rounded text-[11px]" style={{ background: "var(--surface-2)", color: "var(--text-secondary)" }}>
                         {e.psychologyTag}
                       </span>
                     )}
                   </td>
-                  <td className={`py-2 px-3 max-w-[200px] truncate ${isDark ? "text-neutral-400" : "text-slate-500"}`}>
+                  <td className="py-2 px-3 max-w-[200px] truncate" style={{ color: "var(--text-muted)" }}>
                     {e.tradeReason || "—"}
                   </td>
                 </tr>
@@ -1276,21 +1308,19 @@ function JournalsTab() {
           <button
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page <= 1}
-            className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer disabled:opacity-30 ${
-              isDark ? "bg-white/[0.06] text-white hover:bg-white/[0.1]" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-            }`}
+            className="px-3 py-1 rounded-lg text-xs font-bold cursor-pointer disabled:opacity-30 transition-colors"
+            style={{ background: "var(--surface-2)", color: "var(--text-primary)" }}
           >
             ← Trước
           </button>
-          <span className={`text-xs ${isDark ? "text-neutral-400" : "text-slate-500"}`}>
+          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
             {page} / {totalPages}
           </span>
           <button
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page >= totalPages}
-            className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer disabled:opacity-30 ${
-              isDark ? "bg-white/[0.06] text-white hover:bg-white/[0.1]" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-            }`}
+            className="px-3 py-1 rounded-lg text-xs font-bold cursor-pointer disabled:opacity-30 transition-colors"
+            style={{ background: "var(--surface-2)", color: "var(--text-primary)" }}
           >
             Tiếp →
           </button>

@@ -31,7 +31,7 @@ export function useSubscription() {
   // Nhật ký: VIP hoặc ADMIN
   const isJournalLocked = !hasFullAccess;
   // TEI chi tiết (/tei page): chỉ PREMIUM hoặc ADMIN
-  const isTeiPageLocked = !isPremium;
+  const isArtPageLocked = !isPremium;
 
   return {
     role,
@@ -46,6 +46,6 @@ export function useSubscription() {
     isRsRatingLocked,
     isPsychologyLocked,
     isJournalLocked,
-    isTeiPageLocked,
+    isArtPageLocked,
   };
 }

@@ -267,13 +267,13 @@ export const RPILightChart = memo(function RPILightChart() {
   /* Loading skeleton */
   if (isLoading && !data) {
     return (
-      <div className="bg-white rounded-2xl border border-gray-200 p-8 animate-pulse">
-        <div className="h-8 w-64 bg-gray-200 rounded mb-4" />
+      <div className="rounded-2xl border p-8 animate-pulse" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+        <div className="h-8 w-64 rounded mb-4" style={{ background: "var(--surface-2)" }} />
         <div className="grid md:grid-cols-2 gap-8">
-          <div className="h-48 bg-gray-100 rounded-xl" />
-          <div className="h-48 bg-gray-100 rounded-xl" />
+          <div className="h-48 rounded-xl" style={{ background: "var(--surface-2)" }} />
+          <div className="h-48 rounded-xl" style={{ background: "var(--surface-2)" }} />
         </div>
-        <div className="h-64 bg-gray-100 rounded-xl mt-6" />
+        <div className="h-64 rounded-xl mt-6" style={{ background: "var(--surface-2)" }} />
       </div>
     );
   }
@@ -281,16 +281,17 @@ export const RPILightChart = memo(function RPILightChart() {
   /* Error state */
   if (error && !data) {
     return (
-      <div className="bg-white rounded-2xl border border-gray-200 p-8 text-center">
-        <div className="text-red-500 text-lg font-bold mb-2">
+      <div className="rounded-2xl border p-8 text-center" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+        <div className="text-lg font-bold mb-2" style={{ color: "var(--danger)" }}>
           Không tải được dữ liệu RPI
         </div>
-        <p className="text-gray-500 text-sm mb-4">
+        <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
           Kiểm tra FiinQuant Bridge đang chạy
         </p>
         <button
           onClick={handleRefresh}
-          className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
+          className="px-4 py-2 border rounded-lg text-sm transition-all"
+          style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
         >
           Thử lại
         </button>
@@ -564,17 +565,17 @@ export const RPILightChart = memo(function RPILightChart() {
 /* ── Skeleton loader ───────────────────────────────────────────────────── */
 export function RPILightSkeleton() {
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 p-8 animate-pulse">
-      <div className="h-6 w-72 bg-gray-200 rounded mb-6" />
+    <div className="rounded-2xl border p-8 animate-pulse" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+      <div className="h-6 w-72 rounded mb-6" style={{ background: "var(--surface-2)" }} />
       <div className="grid md:grid-cols-2 gap-8">
-        <div className="h-52 bg-gray-100 rounded-xl" />
-        <div className="space-y-4">
-          <div className="h-10 bg-gray-100 rounded-lg" />
-          <div className="h-10 bg-gray-100 rounded-lg" />
-          <div className="h-10 bg-gray-100 rounded-lg" />
-        </div>
+          <div className="h-52 rounded-xl" style={{ background: "var(--surface-2)" }} />
+          <div className="space-y-4">
+            <div className="h-10 rounded-lg" style={{ background: "var(--surface-2)" }} />
+            <div className="h-10 rounded-lg" style={{ background: "var(--surface-2)" }} />
+            <div className="h-10 rounded-lg" style={{ background: "var(--surface-2)" }} />
+          </div>
       </div>
-      <div className="h-64 bg-gray-100 rounded-xl mt-6" />
+      <div className="h-64 rounded-xl mt-6" style={{ background: "var(--surface-2)" }} />
     </div>
   );
 }

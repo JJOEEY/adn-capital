@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -9,7 +9,7 @@ import { Loader2, Mail, Lock, User } from "lucide-react";
 
 function AuthPageShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-4">
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: "var(--page-surface)" }}>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -23,18 +23,21 @@ function AuthPageShell({ children }: { children: React.ReactNode }) {
             height={64}
             className="rounded-2xl mb-4"
           />
-          <h1 className="text-2xl font-black text-white">ADN Capital</h1>
-          <p className="text-sm text-neutral-500 mt-1">
+          <h1 className="text-2xl font-black" style={{ color: "var(--text-primary)" }}>ADN Capital</h1>
+          <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
             Khổng Minh của VNINDEX
           </p>
         </div>
 
-        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
+        <div
+          className="rounded-2xl p-6"
+          style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
+        >
           {children}
         </div>
 
-        <p className="text-[12px] text-neutral-600 text-center mt-6">
-          Powered by <span className="text-emerald-500/70 font-bold">ADN CAPITAL</span>
+        <p className="text-[12px] text-center mt-6" style={{ color: "var(--text-muted)" }}>
+          Powered by <span style={{ color: "var(--primary)", fontWeight: "bold" }}>ADN CAPITAL</span>
         </p>
       </motion.div>
     </div>
@@ -44,18 +47,18 @@ function AuthPageShell({ children }: { children: React.ReactNode }) {
 function AuthPageSkeleton() {
   return (
     <AuthPageShell>
-      <div className="flex bg-neutral-800/80 border border-neutral-700 p-1 rounded-xl mb-6">
-        <div className="flex-1 h-9 rounded-lg bg-neutral-700" />
+      <div
+        className="flex p-1 rounded-xl mb-6"
+        style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}
+      >
+        <div className="flex-1 h-9 rounded-lg" style={{ background: "var(--bg-hover)" }} />
         <div className="flex-1 h-9 rounded-lg" />
       </div>
-      <div className="h-[420px] rounded-xl bg-neutral-800/50 animate-pulse" />
+      <div className="h-[420px] rounded-xl animate-pulse" style={{ background: "var(--surface-2)" }} />
     </AuthPageShell>
   );
 }
 
-/**
- * Trang đăng nhập / đăng ký – NextAuth (local + Google).
- */
 function AuthPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -74,14 +77,12 @@ function AuthPageContent() {
     setMode(searchParams.get("mode") === "register" ? "register" : "login");
   }, [searchParams]);
 
-  // Đã đăng nhập → chuyển về dashboard
   useEffect(() => {
     if (status === "authenticated") {
       router.replace("/dashboard");
     }
   }, [status, router]);
 
-  // ── Đăng nhập bằng email/password ────────────────────────────────────
   const handleCredentialLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -101,7 +102,6 @@ function AuthPageContent() {
     }
   };
 
-  // ── Đăng ký tài khoản mới ────────────────────────────────────────────
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -122,7 +122,6 @@ function AuthPageContent() {
         return;
       }
 
-      // Đăng ký thành công → tự động đăng nhập
       const loginResult = await signIn("credentials", {
         email,
         password,
@@ -142,25 +141,37 @@ function AuthPageContent() {
     }
   };
 
-  // ── Đăng nhập bằng Google ────────────────────────────────────────────
   const handleGoogleLogin = () => {
     signIn("google", { callbackUrl: "/dashboard" });
+  };
+
+  const inputCls = "w-full pl-10 pr-4 py-2.5 rounded-xl text-sm outline-none transition-all";
+  const inputStyle = {
+    background: "var(--surface-2)",
+    border: "1px solid var(--border)",
+    color: "var(--text-primary)",
   };
 
   return (
     <AuthPageShell>
       {/* Tab Đăng nhập / Đăng ký */}
-      <div className="flex bg-neutral-800/80 border border-neutral-700 p-1 rounded-xl mb-6">
+      <div
+        className="flex p-1 rounded-xl mb-6"
+        style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}
+      >
         {(["login", "register"] as const).map((item) => (
           <button
             key={item}
             type="button"
             onClick={() => { setMode(item); setError(null); }}
             className={`flex-1 text-sm py-2 rounded-lg font-medium transition-all ${
-              mode === item
-                ? "bg-neutral-700 text-white shadow-sm"
-                : "text-neutral-500 hover:text-neutral-300"
+              mode === item ? "shadow-sm" : ""
             }`}
+            style={
+              mode === item
+                ? { background: "var(--bg-hover)", color: "var(--text-primary)" }
+                : { color: "var(--text-muted)" }
+            }
           >
             {item === "login" ? "Đăng nhập" : "Đăng ký"}
           </button>
@@ -172,110 +183,90 @@ function AuthPageContent() {
         type="button"
         onClick={handleGoogleLogin}
         disabled={loading}
-        className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-neutral-800/80 border border-neutral-700 hover:bg-neutral-800 text-neutral-200 rounded-xl text-sm font-medium transition-all disabled:opacity-50 mb-4"
+        className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-medium transition-all disabled:opacity-50 mb-4 cursor-pointer"
+        style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}
       >
         <svg className="w-4 h-4" viewBox="0 0 24 24">
-          <path
-            fill="#4285F4"
-            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
-          />
-          <path
-            fill="#34A853"
-            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-          />
-          <path
-            fill="#FBBC05"
-            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-          />
-          <path
-            fill="#EA4335"
-            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-          />
+          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />
+          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
         </svg>
         Tiếp tục với Google
       </button>
 
       {/* Divider */}
       <div className="flex items-center gap-3 my-4">
-        <div className="flex-1 h-px bg-neutral-800" />
-        <span className="text-[12px] text-neutral-600 uppercase tracking-wide">hoặc</span>
-        <div className="flex-1 h-px bg-neutral-800" />
+        <div className="flex-1 h-px" style={{ background: "var(--border)" }} />
+        <span className="text-[12px] uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>hoặc</span>
+        <div className="flex-1 h-px" style={{ background: "var(--border)" }} />
       </div>
 
       {/* Form */}
       <form onSubmit={mode === "login" ? handleCredentialLogin : handleRegister}>
         {mode === "register" && (
           <div className="mb-3">
-            <label className="block text-xs text-neutral-400 mb-1.5">Họ và tên</label>
+            <label className="block text-xs mb-1.5" style={{ color: "var(--text-muted)" }}>Họ và tên</label>
             <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-600" />
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "var(--text-muted)" }} />
               <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Nguyễn Văn A"
-                className="w-full pl-10 pr-4 py-2.5 bg-neutral-800/80 border border-neutral-700 text-neutral-100 rounded-xl text-sm outline-none focus:border-emerald-500/50 transition-all"
+                type="text" value={name} onChange={(e) => setName(e.target.value)}
+                placeholder="Nguyễn Văn A" className={inputCls} style={inputStyle}
               />
             </div>
           </div>
         )}
 
         <div className="mb-3">
-          <label className="block text-xs text-neutral-400 mb-1.5">Email</label>
+          <label className="block text-xs mb-1.5" style={{ color: "var(--text-muted)" }}>Email</label>
           <div className="relative">
-            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-600" />
+            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "var(--text-muted)" }} />
             <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="email@example.com"
-              required
-              className="w-full pl-10 pr-4 py-2.5 bg-neutral-800/80 border border-neutral-700 text-neutral-100 rounded-xl text-sm outline-none focus:border-emerald-500/50 transition-all"
+              type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+              placeholder="email@example.com" required className={inputCls} style={inputStyle}
             />
           </div>
         </div>
 
         <div className="mb-4">
-          <label className="block text-xs text-neutral-400 mb-1.5">Mật khẩu</label>
+          <label className="block text-xs mb-1.5" style={{ color: "var(--text-muted)" }}>Mật khẩu</label>
           <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-600" />
+            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "var(--text-muted)" }} />
             <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              type="password" value={password} onChange={(e) => setPassword(e.target.value)}
               placeholder={mode === "register" ? "Tối thiểu 6 ký tự" : "••••••••"}
-              required
-              minLength={mode === "register" ? 6 : undefined}
-              className="w-full pl-10 pr-4 py-2.5 bg-neutral-800/80 border border-neutral-700 text-neutral-100 rounded-xl text-sm outline-none focus:border-emerald-500/50 transition-all"
+              required minLength={mode === "register" ? 6 : undefined} className={inputCls} style={inputStyle}
             />
           </div>
         </div>
 
         {/* Lỗi */}
         {error && (
-          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs">
+          <div
+            className="mb-4 p-3 rounded-xl text-xs"
+            style={{ background: "rgba(192,57,43,0.08)", border: "1px solid rgba(192,57,43,0.20)", color: "var(--danger)" }}
+          >
             {error}
           </div>
         )}
 
         <button
-          type="submit"
-          disabled={loading}
-          className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-400 text-black font-bold rounded-xl text-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+          type="submit" disabled={loading}
+          className="w-full py-2.5 font-bold rounded-xl text-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+          style={{ background: "var(--primary)", color: "#EBE2CF" }}
         >
           {loading && <Loader2 className="w-4 h-4 animate-spin" />}
           {mode === "login" ? "Đăng nhập" : "Tạo tài khoản"}
         </button>
       </form>
 
-      <p className="text-[11px] text-neutral-600 text-center mt-4">
+      <p className="text-[11px] text-center mt-4" style={{ color: "var(--text-muted)" }}>
         {mode === "login" ? (
           <>
             Chưa có tài khoản?{" "}
             <button
-              type="button"
-              onClick={() => { setMode("register"); setError(null); }}
-              className="text-emerald-400 hover:text-emerald-300"
+              type="button" onClick={() => { setMode("register"); setError(null); }}
+              className="hover:underline" style={{ color: "var(--primary)" }}
             >
               Đăng ký ngay
             </button>
@@ -284,9 +275,8 @@ function AuthPageContent() {
           <>
             Đã có tài khoản?{" "}
             <button
-              type="button"
-              onClick={() => { setMode("login"); setError(null); }}
-              className="text-emerald-400 hover:text-emerald-300"
+              type="button" onClick={() => { setMode("login"); setError(null); }}
+              className="hover:underline" style={{ color: "var(--primary)" }}
             >
               Đăng nhập
             </button>

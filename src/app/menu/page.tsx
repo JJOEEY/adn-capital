@@ -87,7 +87,7 @@ export default function MenuPage() {
       <div className="p-4 pb-24 space-y-4 max-w-lg mx-auto">
         {/* Profile card */}
         {isLoading ? (
-          <div className="rounded-2xl border border-white/[0.06] bg-neutral-900/80 p-5">
+          <div className="rounded-2xl border border-white/[0.06] bg-[var(--surface)] p-5">
             <div className="flex items-center gap-3">
               <div className="w-14 h-14 rounded-full bg-neutral-800 animate-pulse" />
               <div className="space-y-2 flex-1">
@@ -98,7 +98,7 @@ export default function MenuPage() {
           </div>
         ) : isAuthenticated ? (
           <Link href="/profile">
-            <div className="rounded-2xl border border-white/[0.06] bg-neutral-900/80 p-5 hover:bg-neutral-900 transition-all">
+            <div className="rounded-2xl border border-white/[0.06] bg-[var(--surface)] p-5 hover:bg-[var(--surface)] transition-all">
               <div className="flex items-center gap-3">
                 {userImage ? (
                   <img src={userImage} alt="" className="w-14 h-14 rounded-full ring-2 ring-emerald-500/20" />
@@ -143,7 +143,7 @@ export default function MenuPage() {
 
         {/* Menu groups */}
         {menuGroups.map((group) => (
-          <div key={group.title} className="rounded-2xl border border-white/[0.06] bg-neutral-900/80 overflow-hidden">
+          <div key={group.title} className="rounded-2xl border border-white/[0.06] bg-[var(--surface)] overflow-hidden">
             <p className="px-4 pt-3 pb-1 text-[11px] font-bold text-neutral-500 uppercase tracking-[0.15em]">
               {group.title}
             </p>

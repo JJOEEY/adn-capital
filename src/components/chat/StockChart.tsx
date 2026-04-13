@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useRef, useState } from "react";
 
@@ -194,7 +194,7 @@ export function StockChart({ symbol, exchange = "HOSE" }: StockChartProps) {
 
   return (
     <div className="mt-3 rounded-xl overflow-hidden border border-emerald-500/20 bg-neutral-950">
-      <div className="flex items-center justify-between px-3 py-2 bg-neutral-900 border-b border-neutral-800">
+      <div className="flex items-center justify-between px-3 py-2 bg-[var(--surface)] border-b border-[var(--border)]">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
           <span className="text-[11px] font-bold font-mono text-emerald-400">

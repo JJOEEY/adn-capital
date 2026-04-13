@@ -32,6 +32,7 @@ export interface Signal {
   closedAt?: Date | string | null;
   createdAt: Date | string;
   updatedAt?: Date | string;
+  daysInSignal?: number;
 }
 
 export interface ChatMessage {

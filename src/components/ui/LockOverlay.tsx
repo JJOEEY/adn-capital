@@ -44,7 +44,7 @@ export function LockOverlay({
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="absolute inset-0 z-20 flex items-center justify-center bg-neutral-950/60 backdrop-blur-[2px] rounded-2xl"
+        className="absolute inset-0 z-20 flex items-center justify-center rounded-2xl" style={{ background: "rgba(0,0,0,0.60)" }}
       >
         <div className="flex flex-col items-center text-center px-6 py-8">
           {/* Icon ổ khóa */}
@@ -52,9 +52,10 @@ export function LockOverlay({
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.1, type: "spring", stiffness: 200 }}
-            className="w-16 h-16 rounded-2xl bg-neutral-800 border border-neutral-700 flex items-center justify-center mb-4 shadow-lg"
+            className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 shadow-lg"
+            style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}
           >
-            <Lock className="w-7 h-7 text-neutral-400" />
+            <Lock className="w-7 h-7" style={{ color: "var(--text-muted)" }} />
           </motion.div>
 
           {/* Thông báo */}
@@ -62,7 +63,7 @@ export function LockOverlay({
             initial={{ y: 8, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.2 }}
-            className="text-base font-bold text-white mb-2"
+            className="text-base font-bold mb-2" style={{ color: "var(--text-primary)" }}
           >
             🔒 Tính năng VIP
           </motion.p>
@@ -70,7 +71,7 @@ export function LockOverlay({
             initial={{ y: 8, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.3 }}
-            className="text-sm text-neutral-400 mb-5 max-w-xs"
+            className="text-sm mb-5 max-w-xs" style={{ color: "var(--text-muted)" }}
           >
             {message}
           </motion.p>
@@ -83,7 +84,8 @@ export function LockOverlay({
           >
             <Link
               href="/pricing"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-sm transition-all shadow-lg shadow-emerald-500/25"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all shadow-lg"
+              style={{ background: "#16a34a", color: "#000", boxShadow: "0 10px 25px rgba(22,163,74,0.25)" }}
             >
               <Crown className="w-4 h-4" />
               Nâng cấp VIP

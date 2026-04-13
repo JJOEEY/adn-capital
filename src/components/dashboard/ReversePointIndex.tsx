@@ -44,31 +44,29 @@ function classifyART(v: number) {
   return         { label: "HƯNG PHẤN CỰC ĐỘ - NGUY HIỂM", sublabel: "Nguy hiểm cao nhất",  color: "#EF4444" };
 }
 
-
-
 function getColorConfig(color: string) {
   if (color === "#16A34A" || color === "#22C55E")
     return {
-      border: "border-emerald-500/40",
+      border: "rgba(34,197,94,0.40)",
       shadow: "shadow-[0_0_30px_-8px_rgba(16,185,129,0.4)]",
-      glow: "bg-emerald-500/20",
-      text: "text-emerald-400",
-      badge: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
+      glow: "rgba(34,197,94,0.20)",
+      text: "#22c55e",
+      badge: { background: "rgba(34,197,94,0.10)", color: "#22c55e", borderColor: "rgba(34,197,94,0.30)" },
     };
   if (color === "#EAB308")
     return {
-      border: "border-amber-500/30",
+      border: "rgba(234,179,8,0.30)",
       shadow: "shadow-[0_0_30px_-8px_rgba(245,158,11,0.3)]",
-      glow: "bg-amber-500/15",
-      text: "text-amber-400",
-      badge: "bg-amber-500/10 text-amber-400 border-amber-500/30",
+      glow: "rgba(234,179,8,0.15)",
+      text: "#eab308",
+      badge: { background: "rgba(234,179,8,0.10)", color: "#eab308", borderColor: "rgba(234,179,8,0.30)" },
     };
   return {
-    border: "border-red-500/40",
+    border: "rgba(239,68,68,0.40)",
     shadow: "shadow-[0_0_30px_-8px_rgba(239,68,68,0.4)]",
-    glow: "bg-red-500/20",
-    text: "text-red-400",
-    badge: "bg-red-500/10 text-red-400 border-red-500/30",
+    glow: "rgba(239,68,68,0.20)",
+    text: "var(--danger)",
+    badge: { background: "rgba(192,57,43,0.10)", color: "var(--danger)", borderColor: "rgba(192,57,43,0.30)" },
   };
 }
 
@@ -147,7 +145,7 @@ function GaugeSVG({ value }: { value: number }) {
         const ly = cy - (r + 20) * Math.sin(a);
         return (
           <text key={t} x={lx} y={ly} textAnchor="middle" dominantBaseline="central"
-            fill="#9CA3AF" fontSize="13" fontWeight="700" fontFamily="Inter, system-ui, sans-serif">
+            fill="var(--text-muted)" fontSize="13" fontWeight="700" fontFamily="Inter, system-ui, sans-serif">
             {t}
           </text>
         );
@@ -172,8 +170,8 @@ function CustomTooltip({
 }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-neutral-800 text-white px-4 py-3 rounded-lg shadow-xl border border-neutral-600 text-sm">
-      <p className="font-bold mb-1.5 text-yellow-300">{label}</p>
+    <div className="px-4 py-3 rounded-lg shadow-xl border text-sm" style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
+      <p className="font-bold mb-1.5" style={{ color: "#f59e0b" }}>{label}</p>
       {payload.map((p, i) => (
         <div key={i} className="flex items-center gap-2 mt-0.5">
           <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: p.color }} />
@@ -268,20 +266,21 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
 
   return (
     <div
-      className={`relative overflow-hidden rounded-2xl bg-neutral-900/90 border transition-all duration-500 ${cfg.border} ${cfg.shadow}`}
+      className={`relative overflow-hidden rounded-2xl border transition-all duration-500 ${cfg.shadow}`}
+      style={{ background: "var(--surface)", borderColor: cfg.border }}
     >
-      <div className={`absolute -top-12 -left-12 w-48 h-48 rounded-full blur-3xl opacity-25 ${cfg.glow}`} />
+      <div className="absolute -top-12 -left-12 w-48 h-48 rounded-full opacity-25" style={{ background: cfg.glow }} />
 
       <div className="relative z-10 p-4 sm:p-5">
         {/* Header */}
         <div className="flex items-center justify-between mb-1">
           <div className="flex flex-col gap-0.5">
-            <span className="text-[12px] font-bold text-neutral-300 uppercase tracking-wider">
+            <span className="text-[12px] font-bold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
               ART — Analytical Reversal Tracker
             </span>
-            <span className="text-[10px] text-neutral-500">Bộ theo dõi đảo chiều xu hướng · VN30</span>
+            <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>Bộ theo dõi đảo chiều xu hướng · VN30</span>
           </div>
-          <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${cfg.badge}`}>
+          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full border" style={cfg.badge}>
             {classification.label}
           </span>
         </div>
@@ -294,14 +293,14 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
             <div className="text-center -mt-2">
               {isLoading && !latest ? (
                 <div className="flex flex-col items-center gap-1">
-                  <div className="h-8 w-24 bg-neutral-800 rounded animate-pulse" />
-                  <div className="h-4 w-32 bg-neutral-800 rounded animate-pulse" />
+                  <div className="h-8 w-24 rounded animate-pulse" style={{ background: "var(--surface-2)" }} />
+                  <div className="h-4 w-32 rounded animate-pulse" style={{ background: "var(--surface-2)" }} />
                 </div>
               ) : (
                 <>
-                  <p className="text-2xl font-black text-white tabular-nums">
+                  <p className="text-2xl font-black tabular-nums" style={{ color: "var(--text-primary)" }}>
                     {artValue.toFixed(2)}{" "}
-                    <span className="text-sm font-bold text-neutral-500">ĐIỂM</span>
+                    <span className="text-sm font-bold" style={{ color: "var(--text-muted)" }}>ĐIỂM</span>
                   </p>
                   <p className="text-sm font-black mt-0.5" style={{ color: classification.color }}>
                     {classification.label}
@@ -310,7 +309,7 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
                     {classification.sublabel}
                   </p>
                   {updatedDate && (
-                    <p className="text-[11px] text-neutral-500 mt-0.5">Cập nhật: {updatedDate}</p>
+                    <p className="text-[11px] mt-0.5" style={{ color: "var(--text-muted)" }}>Cập nhật: {updatedDate}</p>
                   )}
                 </>
               )}
@@ -319,7 +318,7 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
 
           {/* Phân vùng ART */}
           <div className="flex-1 w-full">
-            <div className="border border-neutral-800 rounded-xl p-3 bg-neutral-900/50">
+            <div className="border rounded-xl p-3" style={{ background: "var(--surface-2)", borderColor: "var(--border)" }}>
               {[
                 { text: "Hứng phán cục độ (> 4.8)",          value: "4.8+", bg: "#EF4444" },
                 { text: "Hứng phán - Nguy hiẻm (4–4.8)",  value: "4.0",  bg: "#F97316" },
@@ -328,20 +327,21 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
                 { text: "Hoảng loạn cục độ (< 1)",            value: "<1",   bg: "#16A34A" },
               ].map((item, i) => (
                 <div key={item.value}
-                  className={`flex items-center justify-between py-2 ${i < 4 ? "border-b border-neutral-800/60" : ""}`}>
-                  <span className="text-[11px] text-neutral-300 font-medium">{item.text}</span>
-                  <span className="inline-flex items-center justify-center w-8 h-8 rounded-full text-white text-[10px] font-bold shadow-sm shrink-0"
-                    style={{ backgroundColor: item.bg }}>
+                  className={`flex items-center justify-between py-2 ${i < 4 ? "border-b" : ""}`}
+                  style={{ borderColor: "var(--border)" }}>
+                  <span className="text-[11px] font-medium" style={{ color: "var(--text-secondary)" }}>{item.text}</span>
+                  <span className="inline-flex items-center justify-center w-8 h-8 rounded-full text-[10px] font-bold shadow-sm shrink-0"
+                    style={{ backgroundColor: item.bg, color: "#ffffff" }}>
                     {item.value}
                   </span>
                 </div>
               ))}
 
               {/* MA7 */}
-              <div className="pt-2 border-t border-neutral-800 mt-1">
+              <div className="pt-2 border-t mt-1" style={{ borderColor: "var(--border)" }}>
                 <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-neutral-500">Trung bình MA7:</span>
-                  <span className={`font-bold tabular-nums ${cfg.text}`}>{artMA7.toFixed(2)}</span>
+                  <span style={{ color: "var(--text-muted)" }}>Trung bình MA7:</span>
+                  <span className="font-bold tabular-nums" style={{ color: cfg.text }}>{artMA7.toFixed(2)}</span>
                 </div>
               </div>
             </div>
@@ -352,19 +352,19 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
         {chartData.length > 2 ? (
           <div>
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[12px] font-bold text-neutral-400 uppercase tracking-wider">Dữ liệu lịch sử</p>
+              <p className="text-[12px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Dữ liệu lịch sử</p>
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1.5">
-                  <span className="inline-block w-3 h-3 bg-white rounded-sm" />
-                  <span className="text-[11px] text-neutral-500">ART</span>
+                  <span className="inline-block w-3 h-3 rounded-sm" style={{ background: "var(--text-primary)" }} />
+                  <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>ART</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="inline-block w-3 h-3 bg-[#F59E0B] rounded-sm" />
-                  <span className="text-[11px] text-neutral-500">MA7</span>
+                  <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>MA7</span>
                 </div>
               </div>
             </div>
-            <div className="bg-neutral-800/30 rounded-lg p-1">
+            <div className="rounded-lg p-1" style={{ background: "rgba(0,0,0,0.1)" }}>
               <div className="h-[220px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={chartData} margin={{ top: 8, right: 8, left: -5, bottom: 50 }}>
@@ -381,25 +381,25 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
                     <ReferenceArea y1={1.0} y2={2.0} fill="rgba(34, 197, 94, 0.08)" strokeOpacity={0} />
                     <ReferenceArea y1={0} y2={1.0} fill="rgba(22, 163, 74, 0.12)" strokeOpacity={0} />
 
-                    <CartesianGrid stroke="#262626" strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="displayDate" tick={{ fontSize: 9, fill: "#6B7280" }}
+                    <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="displayDate" tick={{ fontSize: 9, fill: "var(--text-muted)" }}
                       angle={-45} textAnchor="end" height={50} interval={0}
-                      tickLine={{ stroke: "#404040" }} axisLine={{ stroke: "#404040" }} />
+                      tickLine={{ stroke: "var(--border)" }} axisLine={{ stroke: "var(--border)" }} />
                     <YAxis domain={[0, 5]} ticks={[0, 1.0, 2.0, 3.0, 4.0, 5.0]}
-                      tick={{ fontSize: 10, fill: "#6B7280" }} tickFormatter={(v: number) => v.toFixed(1)}
-                      axisLine={{ stroke: "#404040" }} tickLine={{ stroke: "#404040" }} width={30} />
+                      tick={{ fontSize: 10, fill: "var(--text-muted)" }} tickFormatter={(v: number) => v.toFixed(1)}
+                      axisLine={{ stroke: "var(--border)" }} tickLine={{ stroke: "var(--border)" }} width={30} />
 
                     <ReferenceLine y={4.8} stroke="#DC2626" strokeDasharray="4 4" strokeOpacity={0.5} />
                     <ReferenceLine y={3.5} stroke="#EF4444" strokeDasharray="6 3" strokeOpacity={0.4} />
                     <ReferenceLine y={2.0} stroke="#EAB308" strokeDasharray="6 3" strokeOpacity={0.3} />
                     <ReferenceLine y={1.0} stroke="#22C55E" strokeDasharray="6 3" strokeOpacity={0.4} />
 
-                    <Tooltip content={<CustomTooltip />} cursor={{ stroke: "#525252", strokeDasharray: "4 4" }} />
+                    <Tooltip content={<CustomTooltip />} cursor={{ stroke: "var(--border)", strokeDasharray: "4 4" }} />
                     <Area type="monotone" dataKey="ma7" name="Trung Bình (MA7)"
                       fill="url(#artMa7Fill)" stroke="#F59E0B" strokeWidth={2}
                       dot={false} connectNulls={false} isAnimationActive={false} />
                     <Line type="monotone" dataKey="rpi" name="ART"
-                      stroke="#ffffff" strokeWidth={2}
+                      stroke="var(--text-primary)" strokeWidth={2}
                       dot={<ARTDot />} activeDot={{ r: 5, fill: "#fff", stroke: "#fff" }}
                       isAnimationActive={false} />
                   </ComposedChart>
@@ -408,17 +408,17 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
             </div>
           </div>
         ) : isLoading ? (
-          <div className="h-[220px] bg-neutral-800/40 rounded-lg animate-pulse mt-2 flex items-center justify-center">
-            <span className="text-[11px] text-neutral-600">Đang tải dữ liệu lịch sử...</span>
+          <div className="h-[220px] rounded-lg animate-pulse mt-2 flex items-center justify-center" style={{ background: "var(--surface-2)" }}>
+            <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>Đang tải dữ liệu lịch sử...</span>
           </div>
         ) : null}
 
         {/* Footer */}
-        <div className="flex items-center justify-between mt-3 pt-2 border-t border-neutral-800">
-          <span className="text-[12px] text-neutral-500">
-            ART MA7: <span className={`font-bold ${cfg.text}`}>{artMA7.toFixed(2)}</span>
+        <div className="flex items-center justify-between mt-3 pt-2 border-t" style={{ borderColor: "var(--border)" }}>
+          <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>
+            ART MA7: <span className="font-bold" style={{ color: cfg.text }}>{artMA7.toFixed(2)}</span>
           </span>
-          <span className="text-[10px] text-neutral-600 italic">
+          <span className="text-[10px] italic" style={{ color: "var(--text-muted)", opacity: 0.8 }}>
             RSI(7)×5% + Stoch(5)×70% + ROC(5)×25%
           </span>
         </div>
@@ -430,19 +430,19 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
 /* ── Skeleton (chỉ dùng khi chưa mount) ───────────────────────────────── */
 function RPISkeleton() {
   return (
-    <div className="rounded-2xl bg-neutral-900/90 border border-neutral-700/30 p-5 animate-pulse">
-      <div className="h-4 bg-neutral-800 rounded w-52 mb-1" />
-      <div className="h-3 bg-neutral-800/60 rounded w-36 mb-4" />
+    <div className="rounded-2xl bg-[var(--surface)] border p-5 animate-pulse" style={{ borderColor: "var(--border)" }}>
+      <div className="h-4 rounded w-52 mb-1" style={{ background: "var(--surface-2)" }} />
+      <div className="h-3 rounded w-36 mb-4" style={{ background: "var(--surface-2)", opacity: 0.6 }} />
       <div className="flex gap-4">
-        <div className="w-[260px] h-[170px] bg-neutral-800 rounded-lg" />
+        <div className="w-[260px] h-[170px] rounded-lg" style={{ background: "var(--surface-2)" }} />
         <div className="flex-1 space-y-3">
-          <div className="h-8 bg-neutral-800 rounded-lg" />
-          <div className="h-8 bg-neutral-800 rounded-lg" />
-          <div className="h-8 bg-neutral-800 rounded-lg" />
-          <div className="h-8 bg-neutral-800 rounded-lg" />
+          <div className="h-8 rounded-lg" style={{ background: "var(--surface-2)" }} />
+          <div className="h-8 rounded-lg" style={{ background: "var(--surface-2)" }} />
+          <div className="h-8 rounded-lg" style={{ background: "var(--surface-2)" }} />
+          <div className="h-8 rounded-lg" style={{ background: "var(--surface-2)" }} />
         </div>
       </div>
-      <div className="h-[220px] bg-neutral-800 rounded-lg mt-4" />
+      <div className="h-[220px] rounded-lg mt-4" style={{ background: "var(--surface-2)" }} />
     </div>
   );
 }

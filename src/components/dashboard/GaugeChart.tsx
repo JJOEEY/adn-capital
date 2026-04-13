@@ -124,7 +124,7 @@ export function GaugeChart({ score, maxScore = 10 }: GaugeChartProps) {
           >
             {safeScore}
           </span>
-          <span className="text-[11px] font-bold text-neutral-400 mt-1">
+          <span className="text-[11px] font-bold mt-1" style={{ color: "var(--text-muted)" }}>
             / {maxScore} Điểm
           </span>
         </div>
@@ -148,8 +148,8 @@ export function GaugeChart({ score, maxScore = 10 }: GaugeChartProps) {
 export function GaugeChartSkeleton() {
   return (
     <div className="flex flex-col items-center">
-      <div className="w-[300px] h-[175px] rounded-xl bg-neutral-800/50 animate-pulse" />
-      <div className="mt-1 w-24 h-7 rounded-full bg-neutral-800 animate-pulse" />
+      <div className="w-[300px] h-[175px] rounded-xl animate-pulse" style={{ background: "var(--surface-2)" }} />
+      <div className="mt-1 w-24 h-7 rounded-full animate-pulse" style={{ background: "var(--surface-2)" }} />
     </div>
   );
 }

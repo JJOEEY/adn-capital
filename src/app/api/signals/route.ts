@@ -4,26 +4,22 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/signals?days=1&status=RADAR
- * days=1 (mặc định) → tín hiệu hôm nay
+ * GET /api/signals?days=7&status=RADAR
+ * days=7 (mặc định) → tín hiệu 7 ngày gần nhất
  * days=30        → lịch sử 30 ngày gần nhất
  * status=RADAR|ACTIVE|CLOSED (optional filter)
  */
 export async function GET(request: NextRequest) {
   try {
     const days = Math.min(
-      Math.max(parseInt(request.nextUrl.searchParams.get("days") ?? "1", 10) || 1, 1),
+      Math.max(parseInt(request.nextUrl.searchParams.get("days") ?? "7", 10) || 7, 1),
       90,
     );
     const statusFilter = request.nextUrl.searchParams.get("status");
 
     const since = new Date();
-    if (days <= 1) {
-      since.setHours(0, 0, 0, 0);
-    } else {
-      since.setDate(since.getDate() - days);
-      since.setHours(0, 0, 0, 0);
-    }
+    since.setDate(since.getDate() - days);
+    since.setHours(0, 0, 0, 0);
 
     const where: Record<string, unknown> = { createdAt: { gte: since } };
     if (statusFilter && ["RADAR", "ACTIVE", "CLOSED"].includes(statusFilter)) {
@@ -34,6 +30,8 @@ export async function GET(request: NextRequest) {
       where,
       orderBy: { createdAt: "desc" },
     });
+
+    const now = Date.now();
 
     return NextResponse.json({
       signals: signals.map((s) => ({
@@ -59,6 +57,7 @@ export async function GET(request: NextRequest) {
         closedAt: s.closedAt?.toISOString() ?? null,
         createdAt: s.createdAt.toISOString(),
         updatedAt: s.updatedAt.toISOString(),
+        daysInSignal: Math.floor((now - s.createdAt.getTime()) / 86_400_000),
       })),
     });
   } catch (error) {

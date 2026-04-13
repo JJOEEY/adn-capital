@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -183,7 +183,7 @@ export default function ProfilePage() {
     return (
       <MainLayout>
         <div className="flex items-center justify-center min-h-[60vh]">
-          <Loader2 className="w-6 h-6 text-neutral-600 animate-spin" />
+          <Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--text-muted)" }} />
         </div>
       </MainLayout>
     );
@@ -221,20 +221,20 @@ export default function ProfilePage() {
         : "VIP"
       : "FREE";
 
-  const roleColor =
+  const roleStyle: React.CSSProperties =
     isAdmin
-      ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
+      ? { color: "#10b981", background: "rgba(16,185,129,0.10)", borderColor: "rgba(16,185,129,0.20)" }
       : role === "VIP"
       ? vipTier === "PREMIUM"
-        ? "text-amber-400 bg-amber-500/10 border-amber-500/20"
-        : "text-purple-400 bg-purple-500/10 border-purple-500/20"
-      : "text-neutral-400 bg-neutral-500/10 border-neutral-500/20";
+        ? { color: "#f59e0b", background: "rgba(245,158,11,0.10)", borderColor: "rgba(245,158,11,0.20)" }
+        : { color: "#a855f7", background: "rgba(168,85,247,0.10)", borderColor: "rgba(168,85,247,0.20)" }
+      : { color: "var(--text-muted)", background: "rgba(115,115,115,0.10)", borderColor: "rgba(115,115,115,0.20)" };
 
   return (
     <MainLayout>
       <div className="p-3 md:p-6 max-w-2xl mx-auto space-y-6">
         {/* ── Header Card ── */}
-        <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-6">
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6">
           <div className="flex flex-col sm:flex-row items-center gap-5">
             {/* Avatar */}
             <div className="relative group">
@@ -242,21 +242,22 @@ export default function ProfilePage() {
                 <img
                   src={dbUser.image}
                   alt="Avatar"
-                  className="w-20 h-20 rounded-2xl border-2 border-neutral-700 object-cover"
+                  className="w-20 h-20 rounded-2xl border-2 object-cover" style={{ borderColor: "var(--border)" }}
                 />
               ) : (
-                <div className="w-20 h-20 rounded-2xl bg-emerald-500/15 border-2 border-emerald-500/30 flex items-center justify-center">
-                  <span className="text-xl font-black text-emerald-400">
+                <div className="w-20 h-20 rounded-2xl border-2 flex items-center justify-center" style={{ background: "rgba(16,185,129,0.15)", borderColor: "rgba(16,185,129,0.30)" }}>
+                  <span className="text-xl font-black" style={{ color: "#10b981" }}>
                     {initials}
                   </span>
                 </div>
               )}
               <button
                 onClick={() => setEditingAvatar(true)}
-                className="absolute -bottom-1 -right-1 w-7 h-7 rounded-lg bg-neutral-800 border border-neutral-700 flex items-center justify-center hover:bg-neutral-700 transition-colors cursor-pointer"
+                className="absolute -bottom-1 -right-1 w-7 h-7 rounded-lg border flex items-center justify-center transition-colors cursor-pointer"
+                style={{ background: "var(--surface-2)", borderColor: "var(--border)" }}
                 title="Đổi avatar"
               >
-                <Camera className="w-3.5 h-3.5 text-neutral-400" />
+                <Camera className="w-3.5 h-3.5" style={{ color: "var(--text-muted)" }} />
               </button>
             </div>
 
@@ -270,13 +271,15 @@ export default function ProfilePage() {
                       value={nameValue}
                       onChange={(e) => setNameValue(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && handleSaveName()}
-                      className="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-emerald-500/50 w-48"
+                      className="border rounded-lg px-3 py-1.5 text-sm focus:outline-none w-48"
+                      style={{ background: "var(--surface-2)", borderColor: "var(--border)", color: "var(--text-primary)" }}
                       maxLength={100}
                     />
                     <button
                       onClick={handleSaveName}
                       disabled={saving}
-                      className="p-1.5 rounded-lg bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 transition-colors cursor-pointer"
+                      className="p-1.5 rounded-lg transition-colors cursor-pointer"
+                      style={{ background: "rgba(16,185,129,0.15)", color: "#10b981" }}
                     >
                       <Save className="w-3.5 h-3.5" />
                     </button>
@@ -285,17 +288,19 @@ export default function ProfilePage() {
                         setEditingName(false);
                         setNameValue(dbUser.name ?? "");
                       }}
-                      className="p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-500 transition-colors cursor-pointer"
+                      className="p-1.5 rounded-lg transition-colors cursor-pointer"
+                      style={{ color: "var(--text-muted)" }}
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 ) : (
                   <>
-                    <h1 className="text-lg font-bold text-white">{displayName}</h1>
+                    <h1 className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>{displayName}</h1>
                     <button
                       onClick={() => setEditingName(true)}
-                      className="p-1 rounded-md hover:bg-neutral-800 text-neutral-500 hover:text-neutral-300 transition-colors cursor-pointer"
+                      className="p-1 rounded-md transition-colors cursor-pointer"
+                      style={{ color: "var(--text-muted)" }}
                       title="Đổi tên hiển thị"
                     >
                       <Edit3 className="w-3.5 h-3.5" />
@@ -303,10 +308,11 @@ export default function ProfilePage() {
                   </>
                 )}
               </div>
-              <p className="text-sm text-neutral-500 mt-0.5">{dbUser.email}</p>
+              <p className="text-sm mt-0.5" style={{ color: "var(--text-muted)" }}>{dbUser.email}</p>
               <div className="flex items-center gap-2 mt-2 justify-center sm:justify-start">
                 <span
-                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[12px] font-bold ${roleColor}`}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[12px] font-bold"
+                  style={roleStyle}
                 >
                   {isAdmin ? (
                     <ShieldCheck className="w-2.5 h-2.5" />
@@ -323,27 +329,21 @@ export default function ProfilePage() {
 
           {/* Avatar edit panel */}
           {editingAvatar && (
-            <div className="mt-4 p-4 bg-neutral-800/60 rounded-xl border border-neutral-700 space-y-4">
+            <div className="mt-4 p-4 rounded-xl border space-y-4" style={{ background: "var(--surface-2)", borderColor: "var(--border)" }}>
               {/* Tabs: Upload / URL */}
-              <div className="flex gap-1 bg-neutral-900 rounded-lg p-0.5">
+              <div className="flex gap-1 bg-[var(--surface)] rounded-lg p-0.5">
                 <button
                   onClick={() => setAvatarMode("upload")}
-                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-colors cursor-pointer ${
-                    avatarMode === "upload"
-                      ? "bg-emerald-500/15 text-emerald-400"
-                      : "text-neutral-500 hover:text-neutral-300"
-                  }`}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-colors cursor-pointer"
+                  style={avatarMode === "upload" ? { background: "rgba(16,185,129,0.15)", color: "#10b981" } : { color: "var(--text-muted)" }}
                 >
                   <Upload className="w-3 h-3" />
                   Tải lên
                 </button>
                 <button
                   onClick={() => setAvatarMode("url")}
-                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-colors cursor-pointer ${
-                    avatarMode === "url"
-                      ? "bg-emerald-500/15 text-emerald-400"
-                      : "text-neutral-500 hover:text-neutral-300"
-                  }`}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-colors cursor-pointer"
+                  style={avatarMode === "url" ? { background: "rgba(16,185,129,0.15)", color: "#10b981" } : { color: "var(--text-muted)" }}
                 >
                   <LinkIcon className="w-3 h-3" />
                   Nhập URL
@@ -364,21 +364,21 @@ export default function ProfilePage() {
                       <img
                         src={previewFile}
                         alt="Preview"
-                        className="w-16 h-16 rounded-xl border border-neutral-700 object-cover"
+                        className="w-16 h-16 rounded-xl border object-cover" style={{ borderColor: "var(--border)" }}
                       />
                       <div className="flex-1">
-                        <p className="text-xs text-neutral-400 truncate">{selectedFile?.name}</p>
-                        <p className="text-[12px] text-neutral-600">{selectedFile ? (selectedFile.size / 1024).toFixed(0) + " KB" : ""}</p>
+                        <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>{selectedFile?.name}</p>
+                        <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>{selectedFile ? (selectedFile.size / 1024).toFixed(0) + " KB" : ""}</p>
                       </div>
                     </div>
                   ) : (
                     <button
                       onClick={() => fileRef.current?.click()}
-                      className="w-full py-6 rounded-xl border-2 border-dashed border-neutral-700 hover:border-emerald-500/30 flex flex-col items-center gap-2 transition-colors cursor-pointer"
+                      className="w-full py-6 rounded-xl border-2 border-dashed flex flex-col items-center gap-2 transition-colors cursor-pointer" style={{ borderColor: "var(--border)" }}
                     >
-                      <Upload className="w-6 h-6 text-neutral-600" />
-                      <span className="text-xs text-neutral-500">Chọn ảnh từ máy tính</span>
-                      <span className="text-[12px] text-neutral-600">JPG, PNG, WebP, GIF — tối đa 2MB</span>
+                      <Upload className="w-6 h-6" style={{ color: "var(--text-muted)" }} />
+                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>Chọn ảnh từ máy tính</span>
+                      <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>JPG, PNG, WebP, GIF — tối đa 2MB</span>
                     </button>
                   )}
                   <div className="flex gap-2">
@@ -387,7 +387,7 @@ export default function ProfilePage() {
                         <button
                           onClick={handleUploadAvatar}
                           disabled={uploading}
-                          className="px-4 py-2 rounded-lg bg-emerald-500/15 text-emerald-400 text-xs font-bold hover:bg-emerald-500/25 transition-colors cursor-pointer"
+                          className="px-4 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer" style={{ background: "rgba(16,185,129,0.15)", color: "#10b981" }}
                         >
                           {uploading ? "Đang tải..." : "Lưu Avatar"}
                         </button>
@@ -396,7 +396,7 @@ export default function ProfilePage() {
                             setSelectedFile(null);
                             setPreviewFile(null);
                           }}
-                          className="px-4 py-2 rounded-lg border border-neutral-700 text-neutral-400 text-xs font-bold hover:border-neutral-600 transition-colors cursor-pointer"
+                          className="px-4 py-2 rounded-lg border text-xs font-bold transition-colors cursor-pointer" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
                         >
                           Chọn lại
                         </button>
@@ -434,7 +434,8 @@ export default function ProfilePage() {
                     value={avatarUrl}
                     onChange={(e) => setAvatarUrl(e.target.value)}
                     placeholder="https://example.com/avatar.jpg"
-                    className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500/50 placeholder-neutral-600"
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none"
+                    style={{ background: "var(--surface-2)", borderColor: "var(--border)", color: "var(--text-primary)" }}
                   />
                   <div className="flex gap-2">
                     <button
@@ -475,14 +476,14 @@ export default function ProfilePage() {
         {/* ── Info Cards ── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {/* Ngày hết hạn */}
-          <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-5">
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5">
             <div className="flex items-center gap-2 mb-3">
-              <Calendar className="w-4 h-4 text-neutral-500" />
-              <span className="text-xs font-bold text-neutral-500">
+              <Calendar className="w-4 h-4" style={{ color: "var(--text-muted)" }} />
+              <span className="text-xs font-bold" style={{ color: "var(--text-muted)" }}>
                 Ngày hết hạn
               </span>
             </div>
-            <p className="text-lg font-bold text-white">
+            <p className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>
               {isAdmin
                 ? "Không giới hạn"
                 : vipUntilDate
@@ -496,40 +497,40 @@ export default function ProfilePage() {
           </div>
 
           {/* Trạng thái */}
-          <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-5">
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5">
             <div className="flex items-center gap-2 mb-3">
-              <Clock className="w-4 h-4 text-neutral-500" />
-              <span className="text-xs font-bold text-neutral-500">
+              <Clock className="w-4 h-4" style={{ color: "var(--text-muted)" }} />
+              <span className="text-xs font-bold" style={{ color: "var(--text-muted)" }}>
                 Trạng thái
               </span>
             </div>
             {isAdmin ? (
-              <p className="text-lg font-bold text-emerald-400">ADMIN</p>
+              <p className="text-lg font-bold" style={{ color: "#10b981" }}>ADMIN</p>
             ) : isVip ? (
               <div>
-                <p className="text-lg font-bold text-purple-400">
+                <p className="text-lg font-bold" style={{ color: "#a855f7" }}>
                   {vipTier === "PREMIUM" ? "PREMIUM" : "VIP"}
                 </p>
                 {daysLeft !== null && daysLeft > 0 && (
-                  <p className="text-xs text-neutral-500 mt-1">
+                  <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
                     Còn {daysLeft} ngày
                   </p>
                 )}
               </div>
             ) : (
-              <p className="text-lg font-bold text-neutral-400">FREE</p>
+              <p className="text-lg font-bold" style={{ color: "var(--text-muted)" }}>FREE</p>
             )}
           </div>
 
           {/* Gói dịch vụ */}
-          <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-5 sm:col-span-2">
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 sm:col-span-2">
             <div className="flex items-center gap-2 mb-3">
-              <CheckCircle2 className="w-4 h-4 text-neutral-500" />
-              <span className="text-xs font-bold text-neutral-500">
+              <CheckCircle2 className="w-4 h-4" style={{ color: "var(--text-muted)" }} />
+              <span className="text-xs font-bold" style={{ color: "var(--text-muted)" }}>
                 Gói dịch vụ
               </span>
             </div>
-            <p className="text-lg font-bold text-white">
+            <p className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>
               {isAdmin
                 ? "Admin – Toàn quyền"
                 : isVip
@@ -541,10 +542,10 @@ export default function ProfilePage() {
 
         {/* ── Cài đặt Nhật Ký & AI Review ── */}
         {(isVip || isAdmin) && (
-          <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-5">
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5">
             <div className="flex items-center gap-2 mb-4">
-              <Brain className="w-4 h-4 text-purple-400" />
-              <span className="text-xs font-bold text-neutral-400">
+              <Brain className="w-4 h-4" style={{ color: "#a855f7" }} />
+              <span className="text-xs font-bold" style={{ color: "var(--text-secondary)" }}>
                 Cài đặt Nhật Ký & AI
               </span>
             </div>
@@ -552,10 +553,10 @@ export default function ProfilePage() {
             {/* Toggle AI Review */}
             <div className="flex items-center justify-between p-3 bg-neutral-800/50 rounded-xl border border-neutral-700/50">
               <div>
-                <p className="text-sm font-medium text-white">
+                <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
                   Nhận đánh giá tâm lý hàng tuần từ ADN AI
                 </p>
-                <p className="text-[12px] text-neutral-500 mt-0.5">
+                <p className="text-[12px] mt-0.5" style={{ color: "var(--text-muted)" }}>
                   AI sẽ phân tích giao dịch tuần và gửi nhận xét riêng tư vào 17h Thứ 6
                 </p>
               </div>
@@ -605,9 +606,13 @@ export default function ProfilePage() {
           <div
             className={`rounded-xl p-3 text-xs font-medium flex items-center gap-2 ${
               msg.type === "ok"
-                ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                : "bg-red-500/10 text-red-400 border border-red-500/20"
+                ? "border"
+                : "border"
             }`}
+            style={msg.type === "ok"
+              ? { background: "rgba(16,185,129,0.10)", color: "#10b981", borderColor: "rgba(16,185,129,0.20)" }
+              : { background: "rgba(239,68,68,0.10)", color: "var(--danger)", borderColor: "rgba(239,68,68,0.20)" }
+            }
           >
             {msg.type === "ok" ? (
               <CheckCircle2 className="w-3.5 h-3.5" />

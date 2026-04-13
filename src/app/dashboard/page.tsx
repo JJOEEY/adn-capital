@@ -96,8 +96,8 @@ class SafeSection extends Component<
     if (this.state.hasError) {
       return (
         this.props.fallback ?? (
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-900/80 p-6 text-center">
-            <p className="text-xs text-neutral-500">Không thể tải phần này</p>
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 text-center">
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>Không thể tải phần này</p>
           </div>
         )
       );
@@ -202,17 +202,27 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-baseline gap-2">
-              <h1 className="text-xl sm:text-2xl font-black text-white dark:text-white text-slate-800">Dashboard</h1>
-              <span className="text-[12px] font-bold text-emerald-400/50 uppercase tracking-widest hidden sm:inline">
+              <h1 className="text-xl sm:text-2xl font-black" style={{ color: "var(--text-primary)" }}>Dashboard</h1>
+              <span
+                className="text-[12px] font-bold uppercase tracking-widest hidden sm:inline"
+                style={{ color: "var(--text-muted)" }}
+              >
                 OVERVIEW
               </span>
             </div>
-            <p className="text-xs text-neutral-500 mt-0.5">
+            <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
               Tổng quan thị trường · {data?.date ?? "..."}
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <div className="hidden sm:flex items-center gap-2 text-xs text-emerald-400/70 border border-emerald-500/20 px-3 py-1.5 rounded-lg bg-emerald-500/5">
+            <div
+              className="hidden sm:flex items-center gap-2 text-xs px-3 py-1.5 rounded-lg"
+              style={{
+                color: "var(--text-secondary)",
+                border: "1px solid var(--border)",
+                background: "var(--primary-light)",
+              }}
+            >
               <Bot className="w-3 h-3" />
               ADN AI SYSTEM
             </div>
@@ -282,23 +292,23 @@ export default function DashboardPage() {
 
         {/* ═══ AI SUMMARY ═══ */}
         {data?.aiSummary ? (
-          <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-4 min-h-[80px]">
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 min-h-[80px]">
             <div className="flex items-center gap-2 mb-2">
-              <Bot className="w-4 h-4 text-emerald-400" />
-              <span className="text-[12px] font-bold text-emerald-400 uppercase tracking-wider">
+              <Bot className="w-4 h-4" style={{ color: "#16a34a" }} />
+              <span className="text-[12px] font-bold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
                 AI Nhận Định
               </span>
             </div>
-            <p className="text-sm text-neutral-300 leading-relaxed italic whitespace-normal break-words">
+            <p className="text-sm leading-relaxed italic whitespace-normal break-words" style={{ color: "var(--text-primary)" }}>
               &ldquo;{data.aiSummary}&rdquo;
             </p>
           </div>
         ) : !data ? (
-          <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-4 min-h-[80px] animate-pulse">
-            <div className="h-3 w-24 bg-neutral-800 rounded mb-3" />
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 min-h-[80px] animate-pulse">
+            <div className="h-3 w-24 rounded mb-3" style={{ background: "var(--bg-hover)" }} />
             <div className="space-y-2">
-              <div className="h-3 w-full bg-neutral-800 rounded" />
-              <div className="h-3 w-3/4 bg-neutral-800 rounded" />
+              <div className="h-3 w-full rounded" style={{ background: "var(--bg-hover)" }} />
+              <div className="h-3 w-3/4 rounded" style={{ background: "var(--bg-hover)" }} />
             </div>
           </div>
         ) : null}
@@ -445,7 +455,6 @@ function GaugeSVG({ score, maxScore }: { score: number; maxScore: number }) {
 }
 
 const GaugeCard = memo(function GaugeCard({ overview, marketData }: { overview: MarketOverview | null; marketData: MarketData | null }) {
-  // Fallback score từ MarketData.status nếu overview chưa có
   const fallbackScore = !overview && marketData ? (marketData.status === "GOOD" ? 11 : marketData.status === "BAD" ? 2 : 6) : 0;
   const score = overview?.score ?? fallbackScore;
   const maxScore = overview?.max_score ?? 14;
@@ -456,13 +465,20 @@ const GaugeCard = memo(function GaugeCard({ overview, marketData }: { overview: 
   const valScore = overview?.valuation_score;
 
   return (
-    <div className="rounded-2xl border border-neutral-800 bg-neutral-900/90 p-4 sm:p-5 flex flex-col items-center transform-gpu will-change-transform hover:border-neutral-700 hover:shadow-lg hover:shadow-neutral-900/50 transition-all duration-300">
-      {/* Header */}
-      <p className="text-[12px] font-bold text-neutral-500 uppercase tracking-wider mb-2 self-start">
+    <div
+      className="rounded-2xl p-4 sm:p-5 flex flex-col items-center transition-all duration-300"
+      style={{
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
+      }}
+    >
+      <p
+        className="text-[12px] font-bold uppercase tracking-wider mb-2 self-start"
+        style={{ color: "var(--text-muted)" }}
+      >
         ADN Composite Score (W/M + Định giá)
       </p>
 
-      {/* Đồng hồ SVG */}
       {overview ? (
         <>
           <GaugeSVG score={score} maxScore={maxScore} />
@@ -471,7 +487,7 @@ const GaugeCard = memo(function GaugeCard({ overview, marketData }: { overview: 
               <span className="text-3xl font-black" style={{ color, textShadow: `0 0 16px ${color}40` }}>
                 {score}
               </span>
-              <span className="text-[11px] font-bold text-neutral-400">/ {maxScore}</span>
+              <span className="text-[11px] font-bold" style={{ color: "var(--text-muted)" }}>/ {maxScore}</span>
             </div>
             <div
               className="px-3 py-1 rounded-full text-[12px] font-bold uppercase tracking-wider"
@@ -479,23 +495,24 @@ const GaugeCard = memo(function GaugeCard({ overview, marketData }: { overview: 
             >
               {label}
             </div>
-            {/* Score breakdown */}
             {(taScore != null || valScore != null) && (
-              <div className="flex gap-3 text-[12px] text-neutral-500 mt-1">
-                {taScore != null && <span>TA: <span className="text-neutral-300 font-bold">{taScore}/10</span></span>}
-                {valScore != null && <span>Định giá: <span className="text-neutral-300 font-bold">{valScore}/4</span></span>}
+              <div className="flex gap-3 text-[12px] mt-1" style={{ color: "var(--text-secondary)" }}>
+                {taScore != null && <span>TA: <span className="font-bold" style={{ color: "var(--text-primary)" }}>{taScore}/10</span></span>}
+                {valScore != null && <span>Định giá: <span className="font-bold" style={{ color: "var(--text-primary)" }}>{valScore}/4</span></span>}
               </div>
             )}
           </div>
         </>
       ) : (
-        <div className="h-[180px] w-full rounded-xl bg-neutral-800/50 animate-pulse" />
+        <div
+          className="h-[180px] w-full rounded-xl animate-pulse"
+          style={{ background: "var(--bg-hover)" }}
+        />
       )}
 
-      {/* Thanh khoản */}
       {overview && (
-        <p className="text-xs text-neutral-400 mt-3">
-          Thanh khoản: <span className="font-bold text-neutral-200">{fmtLiquidity(liquidity)} Tỷ VNĐ</span>
+        <p className="text-xs mt-3" style={{ color: "var(--text-secondary)" }}>
+          Thanh khoản: <span className="font-bold" style={{ color: "var(--text-primary)" }}>{fmtLiquidity(liquidity)} Tỷ VNĐ</span>
         </p>
       )}
     </div>
@@ -504,10 +521,13 @@ const GaugeCard = memo(function GaugeCard({ overview, marketData }: { overview: 
 
 function GaugeCardSkeleton() {
   return (
-    <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4 sm:p-5 flex flex-col items-center">
-      <div className="h-3 w-32 bg-neutral-800 rounded animate-pulse mb-3 self-start" />
-      <div className="h-[140px] w-full rounded-xl bg-neutral-800/50 animate-pulse" />
-      <div className="mt-3 w-20 h-6 rounded-full bg-neutral-800 animate-pulse" />
+    <div
+      className="rounded-2xl p-4 sm:p-5 flex flex-col items-center"
+      style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
+    >
+      <div className="h-3 w-32 rounded animate-pulse mb-3 self-start" style={{ background: "var(--bg-hover)" }} />
+      <div className="h-[140px] w-full rounded-xl animate-pulse" style={{ background: "var(--bg-hover)" }} />
+      <div className="mt-3 w-20 h-6 rounded-full animate-pulse" style={{ background: "var(--bg-hover)" }} />
     </div>
   );
 }
@@ -518,30 +538,27 @@ function GaugeCardSkeleton() {
  *  Bọc React.memo để tránh re-render gây lag
  * ═══════════════════════════════════════════════════════════════════════════ */
 
-/** Cấu hình màu + icon theo Level */
+// Level color config using raw hex — no Tailwind color classes
 const LEVEL_CONFIG = {
   1: {
-    border: "border-red-900 hover:border-red-500/50",
-    shadow: "hover:shadow-[0_0_40px_-10px_rgba(239,68,68,0.7)]",
-    text: "text-red-500",
-    bg: "bg-red-500/5",
-    glow: "bg-red-500/20",
+    color: "#ef4444",
+    bgRgba: "rgba(239,68,68,0.06)",
+    borderRgba: "rgba(239,68,68,0.20)",
+    shadowRgba: "rgba(239,68,68,0.40)",
     Icon: ShieldAlert,
   },
   2: {
-    border: "border-orange-900 hover:border-orange-500/50",
-    shadow: "hover:shadow-[0_0_40px_-10px_rgba(245,158,11,0.7)]",
-    text: "text-orange-500",
-    bg: "bg-orange-500/5",
-    glow: "bg-orange-500/20",
+    color: "#f59e0b",
+    bgRgba: "rgba(245,158,11,0.06)",
+    borderRgba: "rgba(245,158,11,0.20)",
+    shadowRgba: "rgba(245,158,11,0.40)",
     Icon: Zap,
   },
   3: {
-    border: "border-purple-900 hover:border-purple-500/50",
-    shadow: "hover:shadow-[0_0_40px_-10px_rgba(168,85,247,0.7)]",
-    text: "text-purple-500",
-    bg: "bg-purple-500/5",
-    glow: "bg-purple-500/20",
+    color: "#a855f7",
+    bgRgba: "rgba(168,85,247,0.06)",
+    borderRgba: "rgba(168,85,247,0.20)",
+    shadowRgba: "rgba(168,85,247,0.40)",
     Icon: Flame,
   },
 } as const;
@@ -553,7 +570,6 @@ const MarketStatusCard = memo(function MarketStatusCard({
   overview: MarketOverview | null;
   marketData: MarketData | null;
 }) {
-  // Fallback từ marketData nếu overview chưa có
   const fallbackScore = !overview && marketData ? (marketData.status === "GOOD" ? 11 : marketData.status === "BAD" ? 2 : 6) : 0;
   const fallbackLevel = !overview && marketData ? (marketData.status === "GOOD" ? 3 : marketData.status === "BAD" ? 1 : 2) : 1;
   const level = (overview?.level ?? fallbackLevel) as 1 | 2 | 3;
@@ -562,9 +578,6 @@ const MarketStatusCard = memo(function MarketStatusCard({
   const statusBadge = overview?.status_badge ?? (marketData?.status === "GOOD" ? "🟢 THIÊN THỜI" : marketData?.status === "BAD" ? "🔴 NGỦ ĐÔNG" : "🟡 THĂM DÒ");
   const breadth = overview?.market_breadth ?? (marketData ? `Tăng: ${marketData.updown?.up ?? 0} | Giảm: ${marketData.updown?.down ?? 0} | Không đổi: ${marketData.updown?.unchanged ?? 0}` : "Không có dữ liệu");
   const highlights = overview?.technical_highlights;
-  const monthlySummary = overview?.monthly_summary ?? highlights?.monthly ?? "";
-  const weeklySummary = overview?.weekly_summary ?? highlights?.weekly ?? "";
-  const valuationSummary = overview?.valuation_summary ?? highlights?.valuation ?? "";
   const actionMessage = overview?.action_message ?? marketData?.aiSummary ?? "Đang phân tích thị trường...";
   const disclaimer = overview?.disclaimer ?? "";
   const navAllocation = overview?.nav_allocation;
@@ -575,37 +588,39 @@ const MarketStatusCard = memo(function MarketStatusCard({
 
   return (
     <div
-      className={`
-        relative overflow-hidden rounded-2xl bg-gray-900 border
-        transition-all duration-300 ease-out cursor-pointer
-        transform-gpu will-change-transform
-        hover:-translate-y-2 hover:scale-[1.02]
-        ${cfg.border} ${cfg.shadow}
-      `}
+      className="relative overflow-hidden rounded-2xl transition-all duration-300 ease-out cursor-pointer hover:-translate-y-1"
+      style={{
+        background: "var(--surface)",
+        border: `1px solid ${cfg.borderRgba}`,
+      }}
     >
-      {/* Backlight glow */}
+      {/* Subtle glow overlay (no blur/backdrop-filter) */}
       <div
-        className={`absolute -top-10 -right-10 w-40 h-40 rounded-full blur-3xl opacity-30 ${cfg.glow}`}
+        className="absolute -top-10 -right-10 w-40 h-40 rounded-full pointer-events-none"
+        style={{ background: cfg.bgRgba }}
       />
 
       <div className="relative z-10 p-4 sm:p-5">
         {/* Header: Icon + Badge */}
         <div className="flex items-center justify-between mb-3">
-          <div className={`p-2 rounded-xl ${cfg.bg}`}>
-            <Icon className={`w-5 h-5 ${cfg.text}`} />
+          <div className="p-2 rounded-xl" style={{ background: cfg.bgRgba }}>
+            <Icon className="w-5 h-5" style={{ color: cfg.color }} />
           </div>
-          <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${cfg.bg} ${cfg.text}`}>
+          <span
+            className="text-xs font-bold px-2.5 py-1 rounded-full"
+            style={{ background: cfg.bgRgba, color: cfg.color, border: `1px solid ${cfg.borderRgba}` }}
+          >
             {statusBadge.replace(/🟢|🟡|🔴/g, "").trim()}
           </span>
         </div>
 
         {/* Score */}
         <div className="flex items-baseline gap-2 mb-2">
-          <span className={`text-3xl sm:text-4xl font-black ${cfg.text}`}>
+          <span className="text-3xl sm:text-4xl font-black" style={{ color: cfg.color }}>
             {score}
           </span>
-          <span className="text-sm text-gray-500 font-bold">/ {maxScore}</span>
-          <span className={`text-[12px] font-bold uppercase tracking-wider ${cfg.text}`}>
+          <span className="text-sm font-bold" style={{ color: "var(--text-secondary)" }}>/ {maxScore}</span>
+          <span className="text-[12px] font-bold uppercase tracking-wider" style={{ color: cfg.color }}>
             Level {level}
           </span>
         </div>
@@ -613,10 +628,13 @@ const MarketStatusCard = memo(function MarketStatusCard({
         {/* NAV Allocation */}
         {navAllocation && (
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-[11px] text-gray-500">NAV:</span>
-            <span className={`text-[11px] font-bold ${cfg.text}`}>{navAllocation}</span>
+            <span className="text-[11px]" style={{ color: "var(--text-secondary)" }}>NAV:</span>
+            <span className="text-[11px] font-bold" style={{ color: cfg.color }}>{navAllocation}</span>
             {marginAllowed && (
-              <span className="text-[12px] font-bold px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">
+              <span
+                className="text-[12px] font-bold px-1.5 py-0.5 rounded"
+                style={{ background: "rgba(168,85,247,0.15)", color: "#a855f7" }}
+              >
                 MARGIN OK
               </span>
             )}
@@ -624,18 +642,18 @@ const MarketStatusCard = memo(function MarketStatusCard({
         )}
 
         {/* Market Breadth */}
-        <p className="text-[11px] text-gray-500 mb-3">
+        <p className="text-[11px] mb-3" style={{ color: "var(--text-secondary)" }}>
           📊 {breadth}
         </p>
 
         {/* Action Message */}
-        <p className="text-sm text-gray-400 leading-relaxed italic">
+        <p className="text-sm leading-relaxed italic" style={{ color: "var(--text-primary)" }}>
           &ldquo;{actionMessage}&rdquo;
         </p>
 
         {/* Disclaimer */}
         {disclaimer && (
-          <p className="text-[11px] text-gray-600 mt-2">
+          <p className="text-[11px] mt-2" style={{ color: "var(--text-muted)" }}>
             {disclaimer}
           </p>
         )}

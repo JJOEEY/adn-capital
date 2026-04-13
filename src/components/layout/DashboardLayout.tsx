@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
@@ -46,7 +46,7 @@ const navItems: NavItem[] = [
     children: [
       { href: "/terminal", label: "Chat AI", icon: MessageSquare, badge: "HOT" },
       { href: "/dashboard/signal-map", label: "ADN AI Broker", icon: Zap },
-      { href: "/tei", label: "TEI", icon: Activity, badge: "MỚI" },
+      { href: "/tei", label: "ART", icon: Activity, badge: "MỚI" },
       { href: "/margin", label: "Ký Quỹ Margin", icon: Banknote },
     ],
   },
@@ -101,9 +101,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     <div className="flex flex-col h-full">
       {/* Logo */}
       <div
-        className={`flex items-center h-20 px-5 border-b shrink-0 ${
-          isDark ? "border-white/5" : "border-slate-200/60"
-        }`}
+        className="flex items-center h-20 px-5 border-b shrink-0"
+        style={{ borderColor: "var(--border)" }}
       >
         <div className={`flex items-center gap-3 ${collapsed ? "justify-center w-full" : ""}`}>
           <Image
@@ -115,11 +114,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           />
           {!collapsed && (
             <div className="overflow-hidden">
-              <p className="text-sm font-bold leading-tight">
-                <span className="text-emerald-400">ADN</span>{" "}
-                <span className={isDark ? "text-white" : "text-slate-900"}>Capital</span>
+              <p className="text-sm font-bold leading-tight" style={{ color: "var(--text-primary)" }}>
+                <span style={{ color: "var(--primary)" }}>ADN</span>{" "}
+                Capital
               </p>
-              <p className={`text-[12px] leading-tight ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+              <p className="text-[12px] leading-tight" style={{ color: "var(--text-muted)" }}>
                 Investment System
               </p>
             </div>
@@ -149,21 +148,32 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                     }
                   }}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 relative group ${
-                    hasActiveChild
-                      ? isDark
-                        ? "bg-white/5 text-emerald-400"
-                        : "bg-emerald-50 text-emerald-600"
-                      : isDark
-                      ? "text-slate-400 hover:text-white hover:bg-white/5"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-                  } ${collapsed ? "justify-center" : ""}`}
+                    collapsed ? "justify-center" : ""
+                  }`}
+                  style={{
+                    color: hasActiveChild ? "var(--primary)" : "var(--text-secondary)",
+                    background: hasActiveChild ? "var(--primary-light)" : "transparent",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!hasActiveChild) {
+                      (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-hover)";
+                      (e.currentTarget as HTMLButtonElement).style.color = "var(--text-primary)";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!hasActiveChild) {
+                      (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                      (e.currentTarget as HTMLButtonElement).style.color = "var(--text-secondary)";
+                    }
+                  }}
                 >
                   {hasActiveChild && (
                     <span
-                      className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-emerald-500 rounded-r-full shadow-[0_0_15px_rgba(16,185,129,0.5)]"
+                      className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full"
+                      style={{ background: "var(--primary)" }}
                     />
                   )}
-                  <Icon className={`w-5 h-5 shrink-0 ${hasActiveChild ? "text-emerald-400" : ""}`} />
+                  <Icon className="w-5 h-5 shrink-0" />
                   {!collapsed && (
                     <>
                       <span className="flex-1 text-left">{item.label}</span>
@@ -179,24 +189,39 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 <Link href={item.href}>
                   <div
                     className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 relative group ${
-                      active
-                        ? isDark
-                          ? "bg-white/5 text-emerald-400"
-                          : "bg-emerald-50 text-emerald-600"
-                        : isDark
-                        ? "text-slate-400 hover:text-white hover:bg-white/5"
-                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-                    } ${collapsed ? "justify-center" : ""}`}
+                      collapsed ? "justify-center" : ""
+                    }`}
+                    style={{
+                      color: active ? "var(--primary)" : "var(--text-secondary)",
+                      background: active ? "var(--primary-light)" : "transparent",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!active) {
+                        (e.currentTarget as HTMLDivElement).style.background = "var(--bg-hover)";
+                        (e.currentTarget as HTMLDivElement).style.color = "var(--text-primary)";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!active) {
+                        (e.currentTarget as HTMLDivElement).style.background = "transparent";
+                        (e.currentTarget as HTMLDivElement).style.color = "var(--text-secondary)";
+                      }
+                    }}
                   >
                     {active && (
                       <span
-                        className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-emerald-500 rounded-r-full shadow-[0_0_15px_rgba(16,185,129,0.5)]"
+                        className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full"
+                        style={{ background: "var(--primary)" }}
                       />
                     )}
-                    <Icon className={`w-5 h-5 shrink-0 ${active ? "text-emerald-400" : ""}`} />
+                    <Icon className="w-5 h-5 shrink-0" />
                     {!collapsed && <span>{item.label}</span>}
                     {!collapsed && item.badge && (
-                      <span className="text-[12px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0 rounded ml-auto">
+                      <span className="text-[12px] font-bold px-1.5 py-0 rounded ml-auto" style={{
+                        background: "var(--primary-light)",
+                        color: "var(--primary)",
+                        border: "1px solid var(--border)",
+                      }}>
                         {item.badge}
                       </span>
                     )}
@@ -215,32 +240,41 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                       transition={{ duration: 0.3, ease: "easeInOut" }}
                       className="overflow-hidden"
                     >
-                      <div className={`ml-5 mt-1 space-y-0.5 pl-3 border-l ${isDark ? "border-white/5" : "border-slate-200"}`}>
+                      <div className="ml-5 mt-1 space-y-0.5 pl-3 border-l" style={{ borderColor: "var(--border)" }}>
                         {item.children!.map((child) => {
                           const ChildIcon = child.icon;
                           const childActive = isActive(child.href);
                           return (
                             <Link key={child.href} href={child.href}>
                               <div
-                                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-300 ${
-                                  childActive
-                                    ? isDark
-                                      ? "bg-white/5 text-emerald-400"
-                                      : "bg-emerald-50 text-emerald-600"
-                                    : isDark
-                                    ? "text-slate-500 hover:text-white hover:bg-white/5"
-                                    : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"
-                                }`}
+                                className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-300"
+                                style={{
+                                  color: childActive ? "var(--primary)" : "var(--text-secondary)",
+                                  background: childActive ? "var(--primary-light)" : "transparent",
+                                }}
+                                onMouseEnter={(e) => {
+                                  if (!childActive) {
+                                    (e.currentTarget as HTMLDivElement).style.background = "var(--bg-hover)";
+                                    (e.currentTarget as HTMLDivElement).style.color = "var(--text-primary)";
+                                  }
+                                }}
+                                onMouseLeave={(e) => {
+                                  if (!childActive) {
+                                    (e.currentTarget as HTMLDivElement).style.background = "transparent";
+                                    (e.currentTarget as HTMLDivElement).style.color = "var(--text-secondary)";
+                                  }
+                                }}
                               >
                                 <ChildIcon className={`w-3.5 h-3.5 ${childActive ? "text-emerald-400" : ""}`} />
                                 <span>{child.label}</span>
                                 {child.badge && (
                                   <span
-                                    className={`text-[12px] font-black px-1.5 py-0 rounded ml-auto ${
-                                      child.badge === "HOT"
-                                        ? "bg-orange-500/20 text-orange-400 border border-orange-500/30"
-                                        : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                                    }`}
+                                    className="text-[12px] font-black px-1.5 py-0 rounded ml-auto"
+                                    style={{
+                                      background: child.badge === "HOT" ? "rgba(192,57,43,0.10)" : "var(--primary-light)",
+                                      color: child.badge === "HOT" ? "var(--danger)" : "var(--primary)",
+                                      border: `1px solid ${child.badge === "HOT" ? "rgba(192,57,43,0.25)" : "var(--border)"}`,
+                                    }}
                                   >
                                     {child.badge}
                                   </span>
@@ -261,18 +295,22 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
       {/* Bottom: Theme toggle + Collapse toggle */}
       <div
-        className={`shrink-0 border-t px-3 py-3 space-y-2 ${
-          isDark ? "border-white/5" : "border-slate-200/60"
-        }`}
+        className="shrink-0 border-t px-3 py-3 space-y-2"
+        style={{ borderColor: "var(--border)" }}
       >
         {/* Theme toggle */}
         <button
           onClick={toggleTheme}
-          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${
-            isDark
-              ? "text-slate-400 hover:text-white hover:bg-white/5"
-              : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-          } ${collapsed ? "justify-center" : ""}`}
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${collapsed ? "justify-center" : ""}`}
+          style={{ color: "var(--text-secondary)" }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-hover)";
+            (e.currentTarget as HTMLButtonElement).style.color = "var(--text-primary)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+            (e.currentTarget as HTMLButtonElement).style.color = "var(--text-secondary)";
+          }}
         >
           {isDark ? <Sun className="w-5 h-5 shrink-0" /> : <Moon className="w-5 h-5 shrink-0" />}
           {!collapsed && <span>{isDark ? "Light Mode" : "Dark Mode"}</span>}
@@ -281,11 +319,16 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         {/* Collapse toggle (desktop only) */}
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className={`hidden md:flex w-full items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${
-            isDark
-              ? "text-slate-400 hover:text-white hover:bg-white/5"
-              : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-          } ${collapsed ? "justify-center" : ""}`}
+          className={`hidden md:flex w-full items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${collapsed ? "justify-center" : ""}`}
+          style={{ color: "var(--text-muted)" }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-hover)";
+            (e.currentTarget as HTMLButtonElement).style.color = "var(--text-secondary)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+            (e.currentTarget as HTMLButtonElement).style.color = "var(--text-muted)";
+          }}
         >
           {collapsed ? (
             <ChevronRight className="w-5 h-5 shrink-0" />
@@ -302,15 +345,17 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   return (
     <div
-      className={`min-h-screen transition-colors duration-300 ${
-        isDark ? "bg-[#000000] text-slate-200" : "bg-slate-50 text-slate-800"
-      }`}
+      className="min-h-screen transition-colors duration-300"
+      style={{
+        background: "var(--bg-page)",
+        color: "var(--text-primary)",
+      }}
     >
       {/* ── Background glow blobs ── */}
       {isDark && (
         <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-          <div className="absolute top-[-200px] left-[-100px] w-[500px] h-[500px] bg-emerald-500/5 rounded-full blur-[120px]" />
-          <div className="absolute bottom-[-200px] right-[-100px] w-[400px] h-[400px] bg-purple-500/5 rounded-full blur-[120px]" />
+          <div className="absolute top-[-200px] left-[-100px] w-[500px] h-[500px] rounded-full blur-[120px]" style={{ background: "rgba(23,54,39,0.05)" }} />
+          <div className="absolute bottom-[-200px] right-[-100px] w-[400px] h-[400px] rounded-full blur-[120px]" style={{ background: "rgba(73,38,40,0.05)" }} />
         </div>
       )}
 
@@ -318,11 +363,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       <aside
         className={`hidden md:flex flex-col fixed left-0 top-0 h-screen z-40 transition-all duration-300 ease-in-out ${
           sidebarOpen ? "w-64" : "w-20"
-        } ${
-          isDark
-            ? "bg-slate-900/60 backdrop-blur-xl border-r border-white/10"
-            : "bg-white/80 backdrop-blur-xl border-r border-slate-200/60"
         }`}
+        style={{
+          background: "var(--surface)",
+          borderRight: "1px solid var(--border)",
+        }}
       >
         {renderSidebarContent(!sidebarOpen)}
       </aside>
@@ -335,7 +380,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 md:hidden"
+            className="fixed inset-0 z-40 md:hidden"
+            style={{ background: "rgba(0,0,0,0.50)" }}
             onClick={() => setMobileOpen(false)}
           />
         )}
@@ -345,18 +391,25 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       <aside
         className={`fixed inset-y-0 left-0 z-50 w-64 md:hidden transition-transform duration-300 ease-in-out ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
-        } ${
-          isDark
-            ? "bg-slate-900/95 backdrop-blur-2xl border-r border-white/10"
-            : "bg-white/95 backdrop-blur-2xl border-r border-slate-200"
         }`}
+        style={{
+          background: "var(--surface)",
+          borderRight: "1px solid var(--border)",
+        }}
       >
         {/* Close button */}
         <button
           onClick={() => setMobileOpen(false)}
-          className={`absolute top-6 right-4 p-1.5 rounded-lg transition-all ${
-            isDark ? "text-slate-400 hover:text-white hover:bg-white/10" : "text-slate-400 hover:text-slate-900 hover:bg-slate-100"
-          }`}
+          className="absolute top-6 right-4 p-1.5 rounded-lg transition-all"
+          style={{ color: "var(--text-muted)" }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-hover)";
+            (e.currentTarget as HTMLButtonElement).style.color = "var(--text-primary)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+            (e.currentTarget as HTMLButtonElement).style.color = "var(--text-muted)";
+          }}
         >
           <X className="w-5 h-5" />
         </button>
@@ -365,25 +418,32 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
       {/* ── Mobile Topbar ── */}
       <div
-        className={`md:hidden fixed top-0 left-0 right-0 z-30 h-16 flex items-center px-4 gap-3 border-b ${
-          isDark
-            ? "bg-[#0a0a0a]/85 backdrop-blur-2xl border-white/10"
-            : "bg-white/80 backdrop-blur-md border-slate-200/60"
-        }`}
+        className="md:hidden fixed top-0 left-0 right-0 z-30 h-16 flex items-center px-4 gap-3 border-b"
+        style={{
+          background: "var(--surface)",
+          borderBottom: "1px solid var(--border)",
+        }}
       >
         <button
           onClick={() => setMobileOpen(true)}
-          className={`p-2 rounded-xl transition-all ${
-            isDark ? "text-slate-400 hover:text-white hover:bg-white/5" : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"
-          }`}
+          className="p-2 rounded-xl transition-all"
+          style={{ color: "var(--text-secondary)" }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-hover)";
+            (e.currentTarget as HTMLButtonElement).style.color = "var(--text-primary)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+            (e.currentTarget as HTMLButtonElement).style.color = "var(--text-secondary)";
+          }}
         >
           <Menu className="w-5 h-5" />
         </button>
         <div className="flex items-center gap-2">
           <Image src="/logo.jpg" alt="ADN Capital" width={28} height={28} className="rounded-lg" />
-          <span className="text-sm font-bold">
-            <span className="text-emerald-400">ADN</span>{" "}
-            <span className={isDark ? "text-white" : "text-slate-900"}>Capital</span>
+          <span className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>
+            <span style={{ color: "var(--primary)" }}>ADN</span>{" "}
+            Capital
           </span>
         </div>
       </div>

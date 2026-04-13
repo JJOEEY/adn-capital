@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
@@ -157,15 +157,15 @@ const accentTokens: Record<
     priceText: "text-blue-400",
   },
   emerald: {
-    border: "border-emerald-500/30",
-    borderHover: "hover:border-emerald-500/60",
-    shadow: "hover:shadow-[0_0_50px_-12px_rgba(16,185,129,0.5)]",
-    badge: "bg-emerald-500/10 text-emerald-400 border-emerald-500/25",
-    btn: "bg-emerald-500 hover:bg-emerald-400 text-black",
-    iconBg: "bg-emerald-500/10",
-    iconText: "text-emerald-400",
-    ribbon: "bg-emerald-500",
-    priceText: "text-emerald-400",
+    border: "border-[var(--primary)]/30",
+    borderHover: "hover:border-[var(--primary)]/60",
+    shadow: "hover:shadow-[0_0_50px_-12px_rgba(46,77,61,0.5)]",
+    badge: "bg-[var(--primary-light)] text-[var(--primary)] border-[var(--primary)]/25",
+    btn: "bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-[var(--bg-page)]",
+    iconBg: "bg-[var(--primary-light)]",
+    iconText: "text-[var(--primary)]",
+    ribbon: "bg-[var(--primary)]",
+    priceText: "text-[var(--primary)]",
   },
   purple: {
     border: "border-purple-500/30",
@@ -262,9 +262,9 @@ export default function Pricing() {
   };
 
   return (
-    <section className={`relative py-20 sm:py-28 px-4 border-t ${isDark ? "border-white/[0.06]" : "border-slate-200/60"}`}>
+    <section className="relative py-20 sm:py-28 px-4" style={{ borderTop: "1px solid var(--border, #E8E4DB)" }}>
       {/* Background glow */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[600px] bg-emerald-500/[0.03] rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[600px] bg-[var(--primary-light)] rounded-full blur-3xl pointer-events-none" />
 
       <div className="relative z-10 max-w-6xl mx-auto">
         {/* ── Heading ──────────────────────────────────────────────── */}
@@ -275,16 +275,17 @@ export default function Pricing() {
           transition={{ duration: 0.5 }}
           className="text-center mb-12"
         >
-          <span className={`inline-block text-[12px] font-bold uppercase tracking-[0.3em] mb-4 px-3 py-1 rounded-full border ${
-            isDark ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" : "text-emerald-600 bg-emerald-50 border-emerald-200"
-          }`}>
+          <span className="inline-block text-[12px] font-bold uppercase tracking-[0.3em] mb-4 px-3 py-1 rounded-full border"
+            style={{
+              color: "var(--primary, #2E4D3D)",
+              background: "var(--primary-light, rgba(46,77,61,0.08))",
+              borderColor: "var(--border, #E8E4DB)",
+            }}>
             Bảng giá đầu tư
           </span>
-          <h2 className={`text-3xl sm:text-4xl lg:text-5xl font-black ${isDark ? "text-white" : "text-slate-900"}`}>
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black" style={{ color: "var(--text-primary, #1C2B22)" }}>
             Chọn Gói Phù Hợp Với{" "}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">
-              Đại Ca
-            </span>
+            <span style={{ color: "var(--primary, #2E4D3D)" }}>Đại Ca</span>
           </h2>
           <p className={`mt-4 max-w-xl mx-auto text-sm sm:text-base ${isDark ? "text-white/40" : "text-slate-500"}`}>
             Mở khoá toàn bộ sức mạnh của ADN System — Giao dịch thông minh hơn,
@@ -300,30 +301,35 @@ export default function Pricing() {
           transition={{ duration: 0.5, delay: 0.05 }}
           className="max-w-2xl mx-auto mb-8"
         >
-          <div className={`relative overflow-hidden rounded-2xl border p-5 ${
-            isDark ? "border-emerald-500/20 bg-emerald-500/[0.04]" : "border-emerald-200 bg-emerald-50/60"
-          }`}>
+          <div className="relative overflow-hidden rounded-2xl border p-5"
+            style={{
+              borderColor: "var(--border, #E8E4DB)",
+              background: "var(--primary-light, rgba(46,77,61,0.08))",
+            }}>
             <div className="absolute top-0 right-0 w-40 h-40 bg-emerald-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
             <div className="relative flex flex-col sm:flex-row items-start sm:items-center gap-4">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                isDark ? "bg-emerald-500/15" : "bg-emerald-100"
-              }`}>
-                <Gift className="w-5 h-5 text-emerald-400" />
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                style={{ background: "var(--surface, #FFFFFF)" }}>
+                <Gift className="w-5 h-5" style={{ color: "var(--primary, #2E4D3D)" }} />
               </div>
               <div className="flex-1">
-                <p className={`text-sm font-bold mb-1 ${isDark ? "text-white" : "text-slate-900"}`}>
+                <p className="text-sm font-bold mb-1" style={{ color: "var(--text-primary, #1C2B22)" }}>
                   🎁 Mở tài khoản DNSE — Trải nghiệm miễn phí 2 tuần!
                 </p>
-                <p className={`text-xs leading-relaxed ${isDark ? "text-white/40" : "text-slate-500"}`}>
+                <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary, #7D8471)" }}>
                   Mở tài khoản chứng khoán DNSE qua link giới thiệu, sau khi tài khoản được duyệt (~1 tiếng),
-                  nhập ID DNSE vào ô bên dưới để kích hoạt <span className="text-emerald-400 font-semibold">VIP miễn phí 2 tuần</span> + giá ưu đãi DNSE cho các gói tiếp theo.
+                  nhập ID DNSE vào ô bên dưới để kích hoạt <span style={{ color: "var(--primary, #2E4D3D)", fontWeight: 600 }}>VIP miễn phí 2 tuần</span> + giá ưu đãi DNSE cho các gói tiếp theo.
                 </p>
               </div>
               <a
                 href="https://s.dnse.vn/HVxkDz"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold transition-all hover:scale-105 active:scale-95"
+                className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all hover:scale-105 active:scale-95"
+                style={{
+                  background: "var(--primary, #2E4D3D)",
+                  color: "var(--bg-page, #F8F7F2)",
+                }}
               >
                 Mở TK DNSE
                 <ExternalLink className="w-3 h-3" />
@@ -340,11 +346,13 @@ export default function Pricing() {
           transition={{ duration: 0.5, delay: 0.1 }}
           className="max-w-md mx-auto mb-14"
         >
-          <div className={`rounded-2xl p-5 backdrop-blur-sm ${
-            isDark ? "bg-white/[0.04] border border-white/[0.1]" : "bg-white/60 border border-white/50"
-          }`}>
+          <div className="rounded-2xl p-5"
+            style={{
+              background: "var(--surface, #FFFFFF)",
+              border: "1px solid var(--border, #E8E4DB)",
+            }}>
             <div className="flex items-center gap-2 mb-2">
-              <Shield className="w-4 h-4 text-emerald-400" />
+              <Shield className="w-4 h-4" style={{ color: "var(--primary, #2E4D3D)" }} />
               <span className={`text-sm font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
                 Nhập ID tài khoản DNSE
               </span>
@@ -354,19 +362,19 @@ export default function Pricing() {
             </p>
 
             {applied ? (
-              <div className={`flex items-center justify-between rounded-xl px-4 py-3 ${
-                pending
-                  ? "bg-amber-500/10 border border-amber-500/25"
-                  : "bg-emerald-500/10 border border-emerald-500/25"
-              }`}>
+              <div className="flex items-center justify-between rounded-xl px-4 py-3"
+                style={{
+                  background: "var(--primary-light, rgba(46,77,61,0.08))",
+                  border: "1px solid var(--border, #E8E4DB)",
+                }}>
                 <div className="flex items-center gap-2">
                   {pending ? (
                     <Clock className="w-4 h-4 text-amber-400" />
                   ) : (
-                    <Shield className="w-4 h-4 text-emerald-400" />
+                    <Shield className="w-4 h-4" style={{ color: "var(--primary, #2E4D3D)" }} />
                   )}
                   <div>
-                    <span className={`text-sm font-bold ${pending ? "text-amber-400" : "text-emerald-400"}`}>
+                    <span className="text-sm font-bold" style={{ color: pending ? "var(--danger, #C0392B)" : "var(--primary, #2E4D3D)" }}>
                       DNSE: {dnseId}
                     </span>
                     {pending && (
@@ -393,14 +401,18 @@ export default function Pricing() {
                   placeholder="Nhập ID tài khoản DNSE..."
                   className={`flex-1 text-sm rounded-xl px-4 py-2.5 focus:outline-none transition-colors ${
                     isDark
-                      ? "bg-white/[0.06] border border-white/[0.1] text-white placeholder:text-white/30 focus:border-emerald-500/50"
-                      : "bg-white border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-emerald-500/50"
+                      ? "bg-white/[0.06] border border-white/[0.1] text-white placeholder:text-white/30 focus:border-[var(--primary)]/50"
+                      : "bg-white border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--primary)]/50"
                   }`}
                 />
                 <button
                   onClick={handleApply}
                   disabled={submitting}
-                  className="px-5 py-2.5 text-sm font-bold rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-5 py-2.5 text-sm font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{
+                    background: "var(--primary, #2E4D3D)",
+                    color: "var(--bg-page, #F8F7F2)",
+                  }}
                 >
                   {submitting ? "..." : "Áp dụng"}
                 </button>
@@ -497,15 +509,15 @@ function PricingCard({
       }}
       whileHover={{ scale: 1.06, y: -8 }}
       className={`
-        glow-card relative flex flex-col rounded-2xl border backdrop-blur-xl
+        glow-card relative flex flex-col rounded-2xl border
         p-6 cursor-pointer transition-all duration-300
-        ${isDark
-          ? "bg-white/[0.04] border-white/[0.08] hover:border-white/[0.15] hover:bg-white/[0.06]"
-          : "bg-white/60 border-white/50 hover:border-slate-300 hover:bg-white/80"
-        }
         ${t.shadow}
         ${plan.ribbon ? "overflow-hidden" : ""}
       `}
+      style={{
+        background: "var(--surface)",
+        borderColor: "var(--border)",
+      }}
     >
       {/* ── Ribbon ────────────────────────────────────────────────── */}
       {plan.ribbon && (
@@ -550,7 +562,14 @@ function PricingCard({
             <p className={`text-3xl font-black ${t.priceText}`}>
               {formatVND(displayPrice)}
             </p>
-            <span className="inline-block mt-2 text-[12px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+            <span className="inline-block mt-2 text-[12px] font-bold uppercase tracking-wider"
+              style={{
+                background: "var(--primary-light, rgba(46,77,61,0.08))",
+                color: "var(--primary, #2E4D3D)",
+                border: "1px solid var(--border, #E8E4DB)",
+                borderRadius: "999px",
+                padding: "2px 8px",
+              }}>
               Tiết kiệm {formatVND(plan.price - plan.dnsePrice)}
             </span>
           </>
@@ -560,8 +579,8 @@ function PricingCard({
               {formatVND(displayPrice)}
             </p>
             <p className={`mt-1.5 text-[12px] ${isDark ? "text-white/30" : "text-slate-400"}`}>
-              Chỉ <span className="text-emerald-400 font-semibold">{formatVND(plan.dnsePrice)}</span> với DNSE{" "}
-              <span className="text-red-400">(-{plan.discountPct}%)</span>
+              Chỉ <span style={{ color: "var(--primary, #2E4D3D)", fontWeight: 600 }}>{formatVND(plan.dnsePrice)}</span> với DNSE{" "}
+              <span style={{ color: "var(--danger, #C0392B)" }}>(-{plan.discountPct}%)</span>
             </p>
           </>
         )}

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { memo, useMemo, useState, useCallback } from "react";
 import useSWR from "swr";
@@ -201,8 +201,8 @@ function CustomTooltip({
 }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-neutral-800 text-white px-4 py-3 rounded-lg shadow-xl border border-neutral-600 text-sm">
-      <p className="font-bold mb-1.5 text-yellow-300">{label}</p>
+    <div className="px-4 py-3 rounded-lg shadow-xl border text-sm" style={{ background: "var(--surface-2)", color: "var(--text-primary)", borderColor: "var(--border)" }}>
+      <p className="font-bold mb-1.5" style={{ color: "#eab308" }}>{label}</p>
       {payload.map((p, i) => (
         <div key={i} className="flex items-center gap-2 mt-0.5">
           <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: p.color }} />
@@ -316,11 +316,12 @@ export const RPIDashboard = memo(function RPIDashboard() {
   /* ── Error state ─────────────────────────────────────────────────────── */
   if (error && !rawData) {
     return (
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/80 p-8 text-center">
-        <div className="text-red-400 text-lg font-bold mb-2">Không tải được dữ liệu OHLCV</div>
-        <p className="text-neutral-500 text-sm mb-4">Mã: {ticker} — Kiểm tra FiinQuant Bridge</p>
+      <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-8 text-center">
+        <div className="text-lg font-bold mb-2" style={{ color: "var(--danger)" }}>Không tải được dữ liệu OHLCV</div>
+        <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>Mã: {ticker} — Kiểm tra FiinQuant Bridge</p>
         <button onClick={handleRefresh}
-          className="px-4 py-2 border border-neutral-700 rounded-lg text-sm text-neutral-400 hover:bg-neutral-800">
+          className="px-4 py-2 border rounded-lg text-sm transition-all"
+          style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
           Thử lại
         </button>
       </div>
@@ -330,26 +331,26 @@ export const RPIDashboard = memo(function RPIDashboard() {
   /* ── Not enough data (single-ticker only; VN30 validated server-side) ── */
   if (ohlcvData.length > 0 && ohlcvData.length < 30) {
     return (
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/80 p-8 text-center">
-        <div className="text-amber-400 text-lg font-bold mb-2">Không đủ dữ liệu</div>
-        <p className="text-neutral-500 text-sm">
-          {ticker} chỉ có {ohlcvData.length} phiên, cần ít nhất 30 phiên để tính TEI.
+      <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-8 text-center">
+        <div className="text-lg font-bold mb-2" style={{ color: "#eab308" }}>Không đủ dữ liệu</div>
+        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+          {ticker} chỉ có {ohlcvData.length} phiên, cần ít nhất 30 phiên để tính ART.
         </p>
       </div>
     );
   }
 
   return (
-    <div className="rounded-2xl border border-neutral-800 bg-neutral-900/80 overflow-hidden">
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden">
       {/* ═══ HEADER ═══ */}
-      <div className="px-6 py-5 border-b border-neutral-800">
+      <div className="px-6 py-5 border-b border-[var(--border)]">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h2 className="text-xl font-black text-white tracking-tight">
+            <h2 className="text-xl font-black tracking-tight" style={{ color: "var(--text-primary)" }}>
               CHỈ BÁO CẠN KIỆT XU HƯỚNG{" "}
-              <span className="text-neutral-500 font-normal text-base">(Trend Exhaustion Index – TEI)</span>
+              <span className="font-normal text-base" style={{ color: "var(--text-muted)" }}>(Analytical Reversal Tracker – ART)</span>
             </h2>
-            <p className="text-sm text-neutral-500 mt-1">
+            <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
               Đo lường mức độ cạn kiệt xu hướng theo diễn biến thị trường (*)
             </p>
           </div>
@@ -362,7 +363,7 @@ export const RPIDashboard = memo(function RPIDashboard() {
       </div>
 
       {/* ═══ TICKER SELECTOR ═══ */}
-      <div className="px-6 py-4 border-b border-neutral-800 bg-neutral-900/50">
+      <div className="px-6 py-4 border-b border-[var(--border)] bg-[var(--surface-2)]">
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
           {/* Preset tabs */}
           <div className="flex flex-wrap gap-1.5">
@@ -371,7 +372,8 @@ export const RPIDashboard = memo(function RPIDashboard() {
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all
                   ${ticker === t.value
                     ? "bg-white text-neutral-900 shadow-sm"
-                    : "bg-neutral-800 text-neutral-400 border border-neutral-700 hover:bg-neutral-700 hover:text-neutral-200"}`}>
+                    : "text-xs font-bold border transition-all"}`}
+                style={ticker === t.value ? {} : { background: "var(--surface-2)", color: "var(--text-muted)", borderColor: "var(--border)" }}>
                 {t.value}
               </button>
             ))}
@@ -380,7 +382,7 @@ export const RPIDashboard = memo(function RPIDashboard() {
           {/* Custom input */}
           <div className="flex items-center gap-2">
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-500" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: "var(--text-muted)" }} />
               <input
                 type="text"
                 value={inputTicker}
@@ -388,20 +390,21 @@ export const RPIDashboard = memo(function RPIDashboard() {
                 onKeyDown={(e) => e.key === "Enter" && handleCustomTicker()}
                 placeholder="Nhập mã..."
                 maxLength={10}
-                className="pl-8 pr-3 py-1.5 w-28 rounded-lg border border-neutral-700 text-xs text-white bg-neutral-800
-                  focus:outline-none focus:ring-2 focus:ring-neutral-600 placeholder:text-neutral-600"
+                className="pl-8 pr-3 py-1.5 w-28 rounded-lg border text-xs outline-none transition-all"
+                style={{ background: "var(--surface-2)", borderColor: "var(--border)", color: "var(--text-primary)" }}
               />
             </div>
             <button onClick={handleCustomTicker}
-              className="px-3 py-1.5 rounded-lg bg-neutral-700 text-neutral-300 text-xs font-bold hover:bg-neutral-600 transition-colors">
+              className="px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+              style={{ background: "var(--surface-2)", color: "var(--text-secondary)" }}>
               Xem
             </button>
           </div>
 
           {/* Current ticker badge */}
-          <span className="ml-auto text-xs text-neutral-500">
-            Đang xem: <span className="font-bold text-white">{ticker}</span>
-            {rawData && <span className="ml-1">({rawData.count} phiên)</span>}
+          <span className="ml-auto text-xs" style={{ color: "var(--text-muted)" }}>
+            Đang xem: <span className="font-bold" style={{ color: "var(--text-primary)" }}>{ticker}</span>
+            {rawData && <span className="ml-1" style={{ color: "var(--text-muted)" }}>({rawData.count} phiên)</span>}
           </span>
         </div>
       </div>
@@ -413,15 +416,15 @@ export const RPIDashboard = memo(function RPIDashboard() {
           <div className="flex flex-col items-center">
             <GaugeSVG value={currentRPI} />
             <div className="text-center -mt-2">
-              <p className="text-4xl font-black text-white tabular-nums">
+              <p className="text-4xl font-black tabular-nums" style={{ color: "var(--text-primary)" }}>
                 {currentRPI.toFixed(2)}{" "}
-                <span className="text-lg font-bold text-neutral-500">ĐIỂM</span>
+                <span className="text-lg font-bold" style={{ color: "var(--text-muted)" }}>ĐIỂM</span>
               </p>
               <p className="text-xl font-black mt-1" style={{ color: classification.color }}>
                 {classification.label}
               </p>
-              <p className="text-xs text-neutral-500 mt-2">Cập nhật: {updatedDate}</p>
-              <p className="text-[11px] text-neutral-600 italic mt-0.5">
+              <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>Cập nhật: {updatedDate}</p>
+              <p className="text-[11px] italic mt-0.5" style={{ color: "var(--text-muted)" }}>
                 (*) Dữ liệu cập nhật từ {ticker}
               </p>
             </div>
@@ -429,15 +432,15 @@ export const RPIDashboard = memo(function RPIDashboard() {
 
           {/* Right: Classification + Info */}
           <div className="space-y-5">
-            <div className="border border-neutral-800 rounded-xl p-5 bg-neutral-900/50">
+            <div className="border border-[var(--border)] rounded-xl p-5 bg-[var(--surface-2)]">
               {[
                 { text: "Cạn kiệt xu hướng tăng (trên 4)", value: "4.0", bg: "#EF4444" },
                 { text: "Trung tính", value: "2.5", bg: "#EAB308" },
                 { text: "Cạn kiệt xu hướng giảm (dưới 1)", value: "1.0", bg: "#22C55E" },
               ].map((item, i) => (
                 <div key={item.value}
-                  className={`flex items-center justify-between py-3 ${i < 2 ? "border-b border-neutral-800" : ""}`}>
-                  <span className="text-sm text-neutral-300 font-medium">{item.text}</span>
+                  className={`flex items-center justify-between py-3 ${i < 2 ? "border-b border-[var(--border)]" : ""}`}>
+                  <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>{item.text}</span>
                   <span className="inline-flex items-center justify-center w-9 h-9 rounded-full text-white text-sm font-bold shadow-sm"
                     style={{ backgroundColor: item.bg }}>
                     {item.value}
@@ -446,33 +449,33 @@ export const RPIDashboard = memo(function RPIDashboard() {
               ))}
 
               {/* MA7 */}
-              <div className="pt-3 border-t border-neutral-800 mt-1">
+              <div className="pt-3 border-t border-[var(--border)] mt-1">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-neutral-500">Trung bình MA7:</span>
-                  <span className="font-bold text-white tabular-nums">{currentMA7.toFixed(2)}</span>
+                  <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>Trung bình MA7:</span>
+                  <span className="font-bold tabular-nums" style={{ color: "var(--text-primary)" }}>{currentMA7.toFixed(2)}</span>
                 </div>
               </div>
 
               {/* Component scores */}
               {latest?.details && (
-                <div className="pt-3 border-t border-neutral-800 mt-3">
-                  <p className="text-[12px] font-bold text-neutral-600 uppercase tracking-wider mb-2">Chi tiết thành phần</p>
+                <div className="pt-3 border-t border-[var(--border)] mt-3">
+                  <p className="text-[12px] font-bold uppercase tracking-wider mb-2" style={{ color: "var(--text-muted)" }}>Chi tiết thành phần</p>
                   {[
                     { name: "Stochastic %K(5) — 70%", score: latest.details.stochScore },
                     { name: "ROC(5) — 25%", score: latest.details.rocScore },
                     { name: "RSI(7) — 5%", score: latest.details.rsiScore },
                   ].map((c) => (
                     <div key={c.name} className="flex items-center justify-between text-xs py-0.5">
-                      <span className="text-neutral-500">{c.name}</span>
+                      <span style={{ color: "var(--text-muted)" }}>{c.name}</span>
                       <div className="flex items-center gap-2">
-                        <div className="w-16 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+                        <div className="w-16 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--surface)" }}>
                           <div className="h-full rounded-full transition-all"
                             style={{
                               width: `${(c.score / 5) * 100}%`,
                               backgroundColor: c.score >= 4 ? "#EF4444" : c.score >= 2.5 ? "#EAB308" : "#22C55E",
                             }} />
                         </div>
-                        <span className="font-bold text-neutral-300 tabular-nums w-8 text-right">{c.score.toFixed(2)}</span>
+                        <span className="font-bold tabular-nums w-8 text-right" style={{ color: "var(--text-secondary)" }}>{c.score.toFixed(2)}</span>
                       </div>
                     </div>
                   ))}
@@ -480,7 +483,8 @@ export const RPIDashboard = memo(function RPIDashboard() {
               )}
 
               {/* Info button */}
-              <button className="mt-4 flex items-center gap-2 px-4 py-2 border border-neutral-700 rounded-lg text-sm text-neutral-500 hover:bg-neutral-800 hover:text-neutral-300 transition-colors w-full justify-center">
+              <button className="mt-4 flex items-center gap-2 px-4 py-2 border rounded-lg text-sm transition-colors w-full justify-center"
+                style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
                 <Info className="w-4 h-4" />
                 Tìm hiểu thêm
               </button>
@@ -491,24 +495,24 @@ export const RPIDashboard = memo(function RPIDashboard() {
 
       {/* ═══ CHART SECTION ═══ */}
       <div className="px-6 pb-6">
-        <div className="border-t border-neutral-800 pt-6">
+        <div className="border-t border-[var(--border)] pt-6">
           {/* Chart header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
             <div>
-              <h3 className="text-lg font-black text-white">DỮ LIỆU LỊCH SỬ</h3>
+              <h3 className="text-lg font-black" style={{ color: "var(--text-primary)" }}>DỮ LIỆU LỊCH SỬ</h3>
               <div className="flex items-center gap-4 mt-1.5">
                 <div className="flex items-center gap-1.5">
-                  <span className="inline-block w-3 h-3 bg-white rounded-sm" />
-                  <span className="text-xs text-neutral-400">TEI</span>
+                  <span className="inline-block w-3 h-3 rounded-sm" style={{ background: "var(--text-primary)" }} />
+                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>ART</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="inline-block w-3 h-3 bg-[#F59E0B] rounded-sm" />
-                  <span className="text-xs text-neutral-400">Trung Bình MA7</span>
+                  <span className="inline-block w-3 h-3 rounded-sm" style={{ background: "#F59E0B" }} />
+                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>Trung Bình MA7</span>
                 </div>
               </div>
             </div>
             {dateRange && (
-              <div className="flex items-center gap-1.5 text-xs text-neutral-500">
+              <div className="flex items-center gap-1.5 text-xs" style={{ color: "var(--text-muted)" }}>
                 <Calendar className="w-3.5 h-3.5" />
                 {dateRange}
               </div>
@@ -578,7 +582,7 @@ export const RPIDashboard = memo(function RPIDashboard() {
                   <Line
                     type="monotone"
                     dataKey="rpi"
-                    name="TEI"
+                    name="ART"
                     stroke="#ffffff"
                     strokeWidth={2}
                     dot={<RPIDot />}
@@ -598,14 +602,14 @@ export const RPIDashboard = memo(function RPIDashboard() {
 
       {/* ═══ FORMULA INFO ═══ */}
       <div className="px-6 pb-6">
-        <div className="border border-neutral-800 rounded-xl p-4 bg-neutral-900/50">
-          <p className="text-[12px] font-bold text-neutral-600 uppercase tracking-wider mb-2">
-            Công thức tính TEI
+        <div className="border border-[var(--border)] rounded-xl p-4 bg-[var(--surface-2)]">
+          <p className="text-[12px] font-bold uppercase tracking-wider mb-2" style={{ color: "var(--text-muted)" }}>
+            Công thức tính ART
           </p>
-          <p className="text-xs text-neutral-400 leading-relaxed">
-            TEI = Stochastic %K(5)×70% + ROC(5)×25% + RSI(7)×5%
+          <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+            ART = Stochastic %K(5)×70% + ROC(5)×25% + RSI(7)×5%
           </p>
-          <p className="text-xs text-neutral-500 mt-1">
+          <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
             Biên độ hẹp: Stoch(5) chiếm ưu thế · Thang 0–5 · Trên 4.0 = Cạn kiệt xu hướng tăng · Dưới 1.0 = Cạn kiệt xu hướng giảm
           </p>
         </div>
@@ -619,19 +623,19 @@ export const RPIDashboard = memo(function RPIDashboard() {
  * ══════════════════════════════════════════════════════════════════════════ */
 export function RPIDashboardSkeleton() {
   return (
-    <div className="rounded-2xl border border-neutral-800 bg-neutral-900/80 p-8 animate-pulse">
-      <div className="h-8 w-64 bg-neutral-800 rounded mb-4" />
-      <div className="h-10 w-full bg-neutral-800/50 rounded-lg mb-6" />
+    <div className="rounded-2xl border p-8 animate-pulse" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+      <div className="h-8 w-64 rounded mb-4" style={{ background: "var(--surface-2)" }} />
+      <div className="h-10 w-full rounded-lg mb-6" style={{ background: "var(--surface-2)" }} />
       <div className="grid md:grid-cols-2 gap-8">
-        <div className="h-52 bg-neutral-800/50 rounded-xl" />
+        <div className="h-52 rounded-xl" style={{ background: "var(--surface-2)" }} />
         <div className="space-y-4">
-          <div className="h-10 bg-neutral-800/50 rounded-lg" />
-          <div className="h-10 bg-neutral-800/50 rounded-lg" />
-          <div className="h-10 bg-neutral-800/50 rounded-lg" />
-          <div className="h-10 bg-neutral-800/50 rounded-lg" />
+          <div className="h-10 rounded-lg" style={{ background: "var(--surface-2)" }} />
+          <div className="h-10 rounded-lg" style={{ background: "var(--surface-2)" }} />
+          <div className="h-10 rounded-lg" style={{ background: "var(--surface-2)" }} />
+          <div className="h-10 rounded-lg" style={{ background: "var(--surface-2)" }} />
         </div>
       </div>
-      <div className="h-64 bg-neutral-800/50 rounded-xl mt-6" />
+      <div className="h-64 rounded-xl mt-6" style={{ background: "var(--surface-2)" }} />
     </div>
   );
 }

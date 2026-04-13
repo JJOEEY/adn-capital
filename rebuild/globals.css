@@ -1,0 +1,311 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* PWA safe area for iPhone notch */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* ── Base variables ── */
+:root {
+  --bg: #0D1410;
+  --fg: #EBE2CF;
+}
+
+.light {
+  --bg: #F8F7F2;
+  --fg: #1C2B22;
+}
+
+.dark {
+  --bg: #0D1410;
+  --fg: #EBE2CF;
+}
+
+/* ── Base ── */
+* { box-sizing: border-box; }
+
+html, body {
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  color: var(--fg);
+  background: var(--bg);
+  font-family: var(--font-manrope), -apple-system, BlinkMacSystemFont,
+    "SF Pro Display", "SF Pro Text", Inter, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+input, textarea, select, button {
+  font-size: 16px;
+}
+input::placeholder, textarea::placeholder {
+  font-size: inherit;
+}
+
+/* ══════════════════════════════════════════
+   DARK THEME
+══════════════════════════════════════════ */
+
+.dark body {
+  background: #0D1410;
+  color: #EBE2CF;
+}
+
+.bg-city-dark {
+  background:
+    linear-gradient(180deg,
+      rgba(0,0,0,0.90) 0%,
+      rgba(0,0,0,0.93) 50%,
+      rgba(0,0,0,0.97) 100%),
+    url('/bg-city.jpg') center/cover no-repeat fixed;
+}
+
+/* liquid-glass đã bị xóa — dùng màu solid */
+
+/* glow-card dark */
+.dark .glow-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(245,158,11,0.4) !important;
+  box-shadow:
+    0 0 20px -4px rgba(245,158,11,0.25),
+    0 0 50px -8px rgba(245,158,11,0.12),
+    0 12px 40px -10px rgba(0,0,0,0.35);
+  z-index: 10;
+}
+
+/* glow effects dark */
+.dark .glow-emerald { box-shadow: 0 0 20px rgba(16,185,129,0.25); }
+.dark .glow-purple  { box-shadow: 0 0 20px rgba(168,85,247,0.25); }
+
+/* selection dark */
+.dark ::selection {
+  background: rgba(16,185,129,0.25);
+  color: #fff;
+}
+
+/* scrollbar dark */
+.dark ::-webkit-scrollbar { width: 4px; height: 4px; }
+.dark ::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); }
+.dark ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 2px; }
+.dark ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.20); }
+
+/* typing dot dark */
+.dark .typing-dot { background: #10b981; }
+
+/* tiptap dark */
+.dark .tiptap h2,
+.dark .tiptap h3 { color: #e2e8f0; }
+.dark .tiptap blockquote {
+  border-left: 3px solid rgba(34,211,238,0.4);
+  color: #94a3b8;
+}
+.dark .tiptap hr { border-top: 1px solid rgba(255,255,255,0.1); }
+.dark .tiptap a { color: #22d3ee; }
+.dark .tiptap strong { color: #f1f5f9; }
+.dark .tiptap p.is-editor-empty:first-child::before { color: #475569; }
+
+
+/* ══════════════════════════════════════════
+   LIGHT THEME
+══════════════════════════════════════════ */
+
+.light body {
+  background: #F8F7F2;
+  color: #1C2B22;
+}
+
+.bg-city-light {
+  background:
+    linear-gradient(180deg,
+      rgba(248,247,242,0.88) 0%,
+      rgba(248,247,242,0.93) 60%,
+      rgba(248,247,242,0.98) 100%),
+    url('/bg-city.jpg') center/cover no-repeat fixed;
+}
+
+/* liquid-glass light đã bị xóa — dùng màu solid */
+
+/* glow-card light */
+.light .glow-card {
+  position: relative;
+  transition:
+    transform 0.35s cubic-bezier(0.23,1,0.32,1),
+    box-shadow 0.35s cubic-bezier(0.23,1,0.32,1),
+    border-color 0.35s ease;
+}
+.light .glow-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(46,77,61,0.35) !important;
+  box-shadow:
+    0 4px 20px -6px rgba(46,77,61,0.12),
+    0 12px 40px -10px rgba(46,77,61,0.06);
+  z-index: 10;
+}
+
+/* glow effects light */
+.light .glow-emerald { box-shadow: 0 0 16px rgba(46,77,61,0.18); }
+.light .glow-purple  { box-shadow: 0 0 16px rgba(125,132,113,0.18); }
+
+/* selection light */
+.light ::selection {
+  background: rgba(46,77,61,0.15);
+  color: #1C2B22;
+}
+
+/* scrollbar light */
+.light ::-webkit-scrollbar { width: 4px; height: 4px; }
+.light ::-webkit-scrollbar-track { background: transparent; }
+.light ::-webkit-scrollbar-thumb { background: #D6CDBB; border-radius: 2px; }
+.light ::-webkit-scrollbar-thumb:hover { background: #7D8471; }
+
+/* typing dot light */
+.light .typing-dot { background: #2E4D3D; }
+
+/* tiptap light */
+.light .tiptap h2,
+.light .tiptap h3 { color: #1C2B22; }
+.light .tiptap blockquote {
+  border-left: 3px solid rgba(46,77,61,0.4);
+  color: #7D8471;
+  font-style: italic;
+}
+.light .tiptap hr { border-top: 1px solid #E8E4DB; }
+.light .tiptap a { color: #2E4D3D; }
+.light .tiptap strong { color: #1C2B22; }
+.light .tiptap p.is-editor-empty:first-child::before { color: #B0ADA4; }
+
+
+
+/* ── Solid surface dark (thay liquid-glass) ── */
+.dark .card-surface {
+  background: #111a14;
+  border: 1px solid rgba(235,226,207,0.10);
+}
+.dark .page-surface {
+  background: #0D1410;
+}
+
+/* ── Solid surface light (thay liquid-glass) ── */
+.light .card-surface {
+  background: #FFFFFF;
+  border: 1px solid #E8E4DB;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+.light .page-surface {
+  background: #F8F7F2;
+}
+
+/* ══════════════════════════════════════════
+   EFFECTS — KHÔNG ĐỔI THEO THEME
+   (animation, keyframe, clip-path, hexagon)
+══════════════════════════════════════════ */
+
+/* glow-card base (không thuộc theme) */
+.glow-card {
+  position: relative;
+  transition:
+    transform 0.35s cubic-bezier(0.23,1,0.32,1),
+    box-shadow 0.35s cubic-bezier(0.23,1,0.32,1),
+    border-color 0.35s ease;
+}
+
+/* hexagon */
+.hexagon {
+  clip-path: polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
+}
+
+/* smooth scroll */
+html { scroll-behavior: smooth; }
+
+/* scrollbar none utility */
+.scrollbar-none::-webkit-scrollbar { display: none; }
+.scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* line clamp */
+.line-clamp-2 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.line-clamp-3 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+/* typing dot base */
+.typing-dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  animation: blink 1.2s ease-in-out infinite;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+/* marquee */
+.animate-marquee { animation: marquee 30s linear infinite; }
+.animate-marquee:hover { animation-play-state: paused; }
+
+/* keyframes */
+@keyframes blink {
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 1; }
+}
+
+@keyframes pulseGlow {
+  0%   { box-shadow: 0 0 5px #10b981, 0 0 10px #10b981; }
+  100% { box-shadow: 0 0 15px #10b981, 0 0 30px #10b981, 0 0 50px rgba(16,185,129,0.25); }
+}
+
+@keyframes pulseGlowLight {
+  0%   { box-shadow: 0 0 5px #2E4D3D, 0 0 10px #2E4D3D; }
+  100% { box-shadow: 0 0 15px #2E4D3D, 0 0 30px rgba(46,77,61,0.25); }
+}
+
+.light .animate-pulse-glow {
+  animation: pulseGlowLight 2s ease-in-out infinite alternate;
+}
+
+@keyframes fadeIn {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes slideUp {
+  0%   { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInRight {
+  0%   { opacity: 0; transform: translateX(8px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  33%       { transform: translateY(-12px) rotate(1deg); }
+  66%       { transform: translateY(8px) rotate(-1deg); }
+}
+
+@keyframes float-delayed {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  33%       { transform: translateY(10px) rotate(-1.5deg); }
+  66%       { transform: translateY(-14px) rotate(1.5deg); }
+}
+
+@keyframes marquee {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-33.333%); }
+}
+
+/* perspective */
+.perspective-\[800px\] { perspective: 800px; }

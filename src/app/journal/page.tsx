@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
@@ -76,7 +76,7 @@ export default function JournalPage() {
       <MainLayout>
         <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-5">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-64 rounded-2xl bg-neutral-900 animate-pulse" />
+            <div key={i} className="h-64 rounded-2xl bg-[var(--surface)] animate-pulse" />
           ))}
         </div>
       </MainLayout>
@@ -88,18 +88,22 @@ export default function JournalPage() {
       <MainLayout>
         <div className="p-6 flex items-center justify-center min-h-[60vh]">
           <Card className="p-10 text-center max-w-sm">
-            <div className="w-14 h-14 rounded-2xl bg-neutral-800 border border-neutral-700 flex items-center justify-center mx-auto mb-4">
-              <Lock className="w-6 h-6 text-neutral-400" />
+            <div
+              className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+              style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}
+            >
+              <Lock className="w-6 h-6" style={{ color: "var(--text-muted)" }} />
             </div>
-            <h2 className="text-lg font-bold text-white mb-2">
+            <h2 className="text-lg font-bold mb-2" style={{ color: "var(--text-primary)" }}>
               Đăng nhập để dùng nhật ký
             </h2>
-            <p className="text-sm text-neutral-500 mb-5">
+            <p className="text-sm mb-5" style={{ color: "var(--text-muted)" }}>
               Nhật ký giao dịch lưu trữ cá nhân, cần đăng nhập để AI học hành vi của đại ca.
             </p>
             <button
               onClick={() => router.push("/auth")}
-              className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-sm transition-all"
+              className="w-full py-3 rounded-xl font-bold text-sm transition-all"
+              style={{ background: "var(--primary)", color: "#EBE2CF" }}
             >
               Đăng nhập
             </button>
@@ -114,18 +118,22 @@ export default function JournalPage() {
       <MainLayout>
         <div className="p-6 flex items-center justify-center min-h-[60vh]">
           <Card className="p-10 text-center max-w-sm">
-            <div className="w-14 h-14 rounded-2xl bg-neutral-800 border border-neutral-700 flex items-center justify-center mx-auto mb-4">
-              <Lock className="w-6 h-6 text-neutral-400" />
+            <div
+              className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+              style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}
+            >
+              <Lock className="w-6 h-6" style={{ color: "var(--text-muted)" }} />
             </div>
-            <h2 className="text-lg font-bold text-white mb-2">
+            <h2 className="text-lg font-bold mb-2" style={{ color: "var(--text-primary)" }}>
               Tính năng VIP
             </h2>
-            <p className="text-sm text-neutral-500 mb-5">
+            <p className="text-sm mb-5" style={{ color: "var(--text-muted)" }}>
               Nâng cấp VIP để sử dụng Nhật Ký Giao Dịch và phân tích tâm lý AI.
             </p>
             <button
               onClick={() => router.push("/pricing")}
-              className="w-full py-3 rounded-xl bg-purple-500 hover:bg-purple-400 text-white font-bold text-sm transition-all"
+              className="w-full py-3 rounded-xl font-bold text-sm transition-all"
+              style={{ background: "var(--primary-light)", color: "var(--primary)", border: "1px solid var(--border)" }}
             >
               Nâng Cấp VIP
             </button>
@@ -157,12 +165,15 @@ export default function JournalPage() {
       <div className="p-3 md:p-6 space-y-4 md:space-y-5 max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/25">
-            <BookOpen className="w-5 h-5 text-emerald-400" />
+          <div
+            className="p-2 rounded-xl"
+            style={{ background: "var(--primary-light)", border: "1px solid var(--border)" }}
+          >
+            <BookOpen className="w-5 h-5" style={{ color: "var(--primary)" }} />
           </div>
           <div>
-            <h1 className="text-xl sm:text-2xl font-black text-white">Nhật Ký Giao Dịch</h1>
-            <p className="text-sm text-neutral-500">
+            <h1 className="text-xl sm:text-2xl font-black" style={{ color: "var(--text-primary)" }}>Nhật Ký Giao Dịch</h1>
+            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
               AI học hành vi · Phân tích tâm lý · Kỷ luật T+2.5
             </p>
           </div>
@@ -180,33 +191,34 @@ export default function JournalPage() {
                 icon: <Target className="w-4 h-4" />,
                 label: "Tổng lệnh",
                 value: String(entries.length),
-                color: "text-neutral-300",
-                bg: "bg-neutral-800/80",
+                color: "var(--text-secondary)",
+                bg: "var(--surface-2)",
               },
               {
                 icon: <TrendingUp className="w-4 h-4" />,
                 label: "Mua",
                 value: String(buyCount),
-                color: "text-emerald-400",
-                bg: "bg-emerald-500/8 border-emerald-500/15",
+                color: "#16a34a",
+                bg: "rgba(22,163,74,0.08)",
               },
               {
                 icon: <TrendingDown className="w-4 h-4" />,
                 label: "Bán",
                 value: String(sellCount),
-                color: "text-red-400",
-                bg: "bg-red-500/8 border-red-500/15",
+                color: "var(--danger)",
+                bg: "rgba(192,57,43,0.08)",
               },
             ].map((s) => (
               <div
                 key={s.label}
-                className={`${s.bg} border border-neutral-800 rounded-xl p-3 flex flex-col`}
+                className="border border-[var(--border)] rounded-xl p-3 flex flex-col"
+                style={{ background: s.bg }}
               >
-                <div className={`${s.color} flex items-center gap-1.5 mb-1`}>
+                <div className="flex items-center gap-1.5 mb-1" style={{ color: s.color }}>
                   {s.icon}
-                  <span className="text-[12px] text-neutral-500 font-medium">{s.label}</span>
+                  <span className="text-[12px] font-medium" style={{ color: "var(--text-muted)" }}>{s.label}</span>
                 </div>
-                <p className={`text-xl font-black ${s.color} font-mono`}>{s.value}</p>
+                <p className="text-xl font-black font-mono" style={{ color: s.color }}>{s.value}</p>
               </div>
             ))}
           </motion.div>
@@ -221,26 +233,32 @@ export default function JournalPage() {
           {/* Right column */}
           <div className="xl:col-span-2 space-y-4">
             {/* Tabs */}
-            <div className="flex gap-1 bg-neutral-900 border border-neutral-800 p-1 rounded-xl overflow-x-auto">
+            <div className="flex gap-1 bg-[var(--surface)] border border-[var(--border)] p-1 rounded-xl overflow-x-auto">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={`flex-1 text-sm py-2 px-3 rounded-lg font-medium transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${
                     activeTab === tab.id
-                      ? "bg-neutral-800 text-white shadow-sm"
-                      : "text-neutral-500 hover:text-neutral-300"
+                      ? "shadow-sm"
+                      : ""
                   }`}
+                  style={
+                    activeTab === tab.id
+                      ? { background: "var(--bg-hover)", color: "var(--text-primary)" }
+                      : { color: "var(--text-muted)" }
+                  }
                 >
                   {tab.icon}
                   {tab.label}
                   {tab.count !== null && (
                     <span
-                      className={`text-[12px] rounded-md px-1.5 py-0.5 font-bold ${
+                      className="text-[12px] rounded-md px-1.5 py-0.5 font-bold"
+                      style={
                         activeTab === tab.id
-                          ? "bg-neutral-700 text-neutral-300"
-                          : "bg-neutral-800/80 text-neutral-600"
-                      }`}
+                          ? { background: "var(--surface-2)", color: "var(--text-secondary)" }
+                          : { background: "var(--bg-hover)", color: "var(--text-muted)" }
+                      }
                     >
                       {tab.count}
                     </span>
@@ -262,7 +280,7 @@ export default function JournalPage() {
                 (loading ? (
                   <div className="space-y-3">
                     {[1, 2, 3].map((i) => (
-                      <div key={i} className="h-28 rounded-2xl bg-neutral-900 animate-pulse" />
+                      <div key={i} className="h-28 rounded-2xl bg-[var(--surface)] animate-pulse" />
                     ))}
                   </div>
                 ) : (

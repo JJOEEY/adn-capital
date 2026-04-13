@@ -38,8 +38,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
       <div
         {...swipeHandlers}
-        className="min-h-screen bg-[#050505] text-white pb-20"
-        style={{ paddingBottom: "env(safe-area-inset-bottom, 80px)" }}
+        className="min-h-screen pb-20"
+        style={{ background: "#050505", color: "var(--text-primary)", paddingBottom: "env(safe-area-inset-bottom, 80px)" }}
       >
         {children}
       </div>

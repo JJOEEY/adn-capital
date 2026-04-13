@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { MainLayout } from "@/components/layout/MainLayout";
 import Link from "next/link";
@@ -19,10 +19,11 @@ const services = [
   {
     href: "/terminal",
     icon: MessageSquare,
-    iconBg: "bg-emerald-500/10 border-emerald-500/20",
-    iconColor: "text-emerald-400",
-    gradientFrom: "from-emerald-500/10",
+    iconStyle: { background: "rgba(16,185,129,0.10)", borderColor: "rgba(16,185,129,0.20)", color: "#10b981" },
     badge: "HOT",
+    badgeStyle: { background: "rgba(16,185,129,0.15)", color: "#10b981", borderColor: "rgba(16,185,129,0.25)" },
+    bulletColor: "#10b981",
+    ctaColor: "#10b981",
     title: "Chat AI",
     subtitle: "Trợ lý đầu tư thông minh",
     desc: "Hỏi đáp phân tích kỹ thuật, cơ bản, vĩ mô với AI chuyên sâu về thị trường chứng khoán Việt Nam. Phân tích cổ phiếu, đọc báo cáo tài chính nhanh chóng.",
@@ -36,10 +37,11 @@ const services = [
   {
     href: "/dashboard/signal-map",
     icon: Zap,
-    iconBg: "bg-yellow-500/10 border-yellow-500/20",
-    iconColor: "text-yellow-400",
-    gradientFrom: "from-yellow-500/10",
+    iconStyle: { background: "rgba(234,179,8,0.10)", borderColor: "rgba(234,179,8,0.20)", color: "#eab308" },
     badge: null,
+    badgeStyle: null,
+    bulletColor: "#eab308",
+    ctaColor: "#eab308",
     title: "ADN AI Broker",
     subtitle: "Trợ lý đồng hành khuyến nghị đầu tư",
     desc: "Nhận tín hiệu mua/bán theo hệ thống Quant Trading của ADN Capital — bộ lọc đa chiều, tối ưu cho thị trường Việt Nam với tỷ lệ thắng thực chiến cao.",
@@ -62,7 +64,7 @@ export default function SanPhamPage() {
       <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-8">
 
         {/* ── Header ──────────────────────────────────────────── */}
-        <div className="rounded-2xl overflow-hidden border border-neutral-800 bg-gradient-to-br from-neutral-900 via-neutral-900 to-blue-950/20 p-6 sm:p-8">
+        <div className="rounded-2xl overflow-hidden border border-[var(--border)] bg-gradient-to-br from-neutral-900 via-neutral-900 to-blue-950/20 p-6 sm:p-8">
           <span className="inline-block text-[12px] font-bold text-blue-400 uppercase tracking-[0.3em] mb-3 bg-blue-500/10 border border-blue-500/20 px-3 py-1 rounded-full">
             ADN Capital Platform
           </span>
@@ -83,38 +85,38 @@ export default function SanPhamPage() {
             const Icon = svc.icon;
             return (
               <Link key={svc.href} href={svc.href}>
-                <div className={`group relative h-full bg-gradient-to-b ${svc.gradientFrom} to-transparent bg-neutral-900/60 border border-neutral-800 hover:border-neutral-700 rounded-2xl p-5 transition-all duration-200 hover:-translate-y-1 hover:shadow-xl cursor-pointer`}>
+                <div className="group relative h-full border rounded-2xl p-5 transition-all duration-200 hover:-translate-y-1 hover:shadow-xl cursor-pointer" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
                   {/* Badge */}
                   {svc.badge && (
-                    <span className="absolute top-4 right-4 text-[11px] font-black text-emerald-400 bg-emerald-500/15 border border-emerald-500/25 px-2 py-0.5 rounded-full tracking-widest">
+                    <span className="absolute top-4 right-4 text-[11px] font-black px-2 py-0.5 rounded-full tracking-widest border" style={svc.badgeStyle ?? {}}>
                       {svc.badge}
                     </span>
                   )}
 
                   {/* Icon */}
-                  <div className={`w-12 h-12 rounded-2xl border flex items-center justify-center mb-4 ${svc.iconBg} ${svc.iconColor} transition-transform group-hover:scale-110 duration-200`}>
+                  <div className="w-12 h-12 rounded-2xl border flex items-center justify-center mb-4 transition-transform group-hover:scale-110 duration-200" style={svc.iconStyle}>
                     <Icon className="w-6 h-6" />
                   </div>
 
                   {/* Title */}
-                  <h2 className="text-lg font-black text-white mb-0.5">{svc.title}</h2>
-                  <p className="text-xs text-neutral-500 mb-3">{svc.subtitle}</p>
+                  <h2 className="text-lg font-black mb-0.5" style={{ color: "var(--text-primary)" }}>{svc.title}</h2>
+                  <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>{svc.subtitle}</p>
 
                   {/* Desc */}
-                  <p className="text-sm text-neutral-400 leading-relaxed mb-5">{svc.desc}</p>
+                  <p className="text-sm leading-relaxed mb-5" style={{ color: "var(--text-secondary)" }}>{svc.desc}</p>
 
                   {/* Feature list */}
                   <ul className="space-y-2 mb-5">
                     {svc.features.map((f) => (
-                      <li key={f} className="flex items-center gap-2 text-xs text-neutral-400">
-                        <span className={`w-1 h-1 rounded-full flex-shrink-0 ${svc.iconColor.replace("text-", "bg-")}`} />
+                      <li key={f} className="flex items-center gap-2 text-xs" style={{ color: "var(--text-muted)" }}>
+                        <span className="w-1 h-1 rounded-full flex-shrink-0" style={{ background: svc.bulletColor }} />
                         {f}
                       </li>
                     ))}
                   </ul>
 
                   {/* CTA */}
-                  <div className={`flex items-center gap-1 text-xs font-bold ${svc.iconColor} group-hover:gap-2 transition-all`}>
+                  <div className="flex items-center gap-1 text-xs font-bold group-hover:gap-2 transition-all" style={{ color: svc.ctaColor }}>
                     Xem ngay <ArrowRight className="w-3 h-3" />
                   </div>
                 </div>
@@ -125,32 +127,32 @@ export default function SanPhamPage() {
           {/* ── Tin Tức Tài Chính (ADMIN / WRITER only) ── */}
           {isAdminOrWriter && (
             <Link href="/khac/tin-tuc">
-              <div className="group relative h-full bg-gradient-to-b from-blue-500/10 to-transparent bg-neutral-900/60 border border-neutral-800 hover:border-neutral-700 rounded-2xl p-5 transition-all duration-200 hover:-translate-y-1 hover:shadow-xl cursor-pointer">
-                <span className="absolute top-4 right-4 text-[11px] font-black text-amber-400 bg-amber-500/15 border border-amber-500/25 px-2 py-0.5 rounded-full tracking-widest">
+              <div className="group relative h-full border rounded-2xl p-5 transition-all duration-200 hover:-translate-y-1 hover:shadow-xl cursor-pointer" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+                <span className="absolute top-4 right-4 text-[11px] font-black px-2 py-0.5 rounded-full tracking-widest border" style={{ background: "rgba(245,158,11,0.15)", color: "#f59e0b", borderColor: "rgba(245,158,11,0.25)" }}>
                   BETA
                 </span>
 
-                <div className="w-12 h-12 rounded-2xl border flex items-center justify-center mb-4 bg-blue-500/10 border-blue-500/20 text-blue-400 transition-transform group-hover:scale-110 duration-200">
+                <div className="w-12 h-12 rounded-2xl border flex items-center justify-center mb-4 transition-transform group-hover:scale-110 duration-200" style={{ background: "rgba(59,130,246,0.10)", borderColor: "rgba(59,130,246,0.20)", color: "#3b82f6" }}>
                   <Newspaper className="w-6 h-6" />
                 </div>
 
-                <h2 className="text-lg font-black text-white mb-0.5">Tin Tức Tài Chính</h2>
-                <p className="text-xs text-neutral-500 mb-3">CMS — Quản trị nội dung AI</p>
+                <h2 className="text-lg font-black mb-0.5" style={{ color: "var(--text-primary)" }}>Tin Tức Tài Chính</h2>
+                <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>CMS — Quản trị nội dung AI</p>
 
-                <p className="text-sm text-neutral-400 leading-relaxed mb-5">
+                <p className="text-sm leading-relaxed mb-5" style={{ color: "var(--text-secondary)" }}>
                   Hệ thống tin tức tài chính tích hợp AI tóm tắt. Đọc tin theo chuyên mục, phân tích sentiment tự động, luồng duyệt bài chuyên nghiệp.
                 </p>
 
                 <ul className="space-y-2 mb-5">
                   {["AI tóm tắt bài viết", "Phân tích Tích cực / Tiêu cực", "Luồng duyệt bài WRITER → ADMIN", "Giao diện CafeF / VNExpress"].map((f) => (
-                    <li key={f} className="flex items-center gap-2 text-xs text-neutral-400">
-                      <span className="w-1 h-1 rounded-full flex-shrink-0 bg-blue-400" />
+                    <li key={f} className="flex items-center gap-2 text-xs" style={{ color: "var(--text-muted)" }}>
+                      <span className="w-1 h-1 rounded-full flex-shrink-0" style={{ background: "#3b82f6" }} />
                       {f}
                     </li>
                   ))}
                 </ul>
 
-                <div className="flex items-center gap-1 text-xs font-bold text-blue-400 group-hover:gap-2 transition-all">
+                <div className="flex items-center gap-1 text-xs font-bold group-hover:gap-2 transition-all" style={{ color: "#3b82f6" }}>
                   Xem ngay <ArrowRight className="w-3 h-3" />
                 </div>
               </div>
@@ -159,16 +161,16 @@ export default function SanPhamPage() {
         </div>
 
         {/* ── Margin CTA ───────────────────────────────────────── */}
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-          <div className="w-10 h-10 flex-shrink-0 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-            <TrendingUp className="w-5 h-5 text-emerald-400" />
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <div className="w-10 h-10 flex-shrink-0 rounded-xl border flex items-center justify-center" style={{ background: "rgba(16,185,129,0.10)", borderColor: "rgba(16,185,129,0.20)", color: "#10b981" }}>
+            <TrendingUp className="w-5 h-5" />
           </div>
           <div className="flex-1">
-            <h3 className="text-sm font-black text-white mb-0.5">Ký Quỹ Margin</h3>
-            <p className="text-xs text-neutral-500">Lãi suất từ 5,99%/năm — Tư vấn miễn phí, phản hồi trong 2 giờ.</p>
+            <h3 className="text-sm font-black mb-0.5" style={{ color: "var(--text-primary)" }}>Ký Quỹ Margin</h3>
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>Lãi suất từ 5,99%/năm — Tư vấn miễn phí, phản hồi trong 2 giờ.</p>
           </div>
           <Link href="/margin">
-            <button className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-black transition-all cursor-pointer">
+            <button className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer" style={{ background: "#10b981", color: "#000" }}>
               Đăng ký tư vấn <ArrowRight className="w-3 h-3" />
             </button>
           </Link>

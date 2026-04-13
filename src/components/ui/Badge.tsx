@@ -1,4 +1,4 @@
-﻿import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 type BadgeVariant = "emerald" | "purple" | "yellow" | "red" | "blue" | "gray";
 
@@ -8,13 +8,13 @@ interface BadgeProps {
   children: React.ReactNode;
 }
 
-const variantClasses: Record<BadgeVariant, string> = {
-  emerald: "bg-emerald-500/10 text-emerald-400 border-emerald-500/25",
-  purple: "bg-purple-500/10 text-purple-400 border-purple-500/25",
-  yellow: "bg-yellow-500/10 text-yellow-400 border-yellow-500/25",
-  red: "bg-red-500/10 text-red-400 border-red-500/25",
-  blue: "bg-blue-500/10 text-blue-400 border-blue-500/25",
-  gray: "bg-neutral-800 text-neutral-400 border-neutral-700",
+const variantStyles: Record<BadgeVariant, React.CSSProperties> = {
+  emerald: { background: "rgba(22,163,74,0.10)", color: "#16a34a", borderColor: "rgba(22,163,74,0.25)" },
+  purple: { background: "rgba(168,85,247,0.10)", color: "#a855f7", borderColor: "rgba(168,85,247,0.25)" },
+  yellow: { background: "rgba(234,179,8,0.10)", color: "#eab308", borderColor: "rgba(234,179,8,0.25)" },
+  red: { background: "rgba(192,57,43,0.10)", color: "var(--danger)", borderColor: "rgba(192,57,43,0.25)" },
+  blue: { background: "rgba(59,130,246,0.10)", color: "#3b82f6", borderColor: "rgba(59,130,246,0.25)" },
+  gray: { background: "var(--surface-2)", color: "var(--text-muted)", borderColor: "var(--border)" },
 };
 
 export function Badge({ variant = "gray", className, children }: BadgeProps) {
@@ -22,9 +22,9 @@ export function Badge({ variant = "gray", className, children }: BadgeProps) {
     <span
       className={cn(
         "inline-flex items-center gap-1 text-[12px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-md border",
-        variantClasses[variant],
-        className
+        className,
       )}
+      style={variantStyles[variant]}
     >
       {children}
     </span>

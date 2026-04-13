@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { motion } from "framer-motion";
 import { Trophy, Target, TrendingUp, TrendingDown, BarChart2 } from "lucide-react";
@@ -68,8 +68,8 @@ export function GamificationCard({ entries }: GamificationCardProps) {
 
   return (
     <Card className="p-5">
-      <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
-        <Trophy className="w-4 h-4 text-yellow-400" />
+      <h3 className="text-sm font-bold mb-4 flex items-center gap-2" style={{ color: "var(--text-primary)" }}>
+        <Trophy className="w-4 h-4" style={{ color: "#eab308" }} />
         Thống Kê & Huy Hiệu
       </h3>
 
@@ -80,46 +80,46 @@ export function GamificationCard({ entries }: GamificationCardProps) {
             icon: <Target className="w-3.5 h-3.5" />,
             label: "Tổng lệnh",
             value: String(entries.length),
-            color: "text-neutral-200",
-            bg: "bg-neutral-800/80",
+            color: "var(--text-secondary)",
+            bg: "var(--surface-2)",
           },
           {
             icon: <BarChart2 className="w-3.5 h-3.5" />,
             label: "Có kế hoạch",
             value: `${planRatio.toFixed(0)}%`,
-            color: planRatio >= 70 ? "text-emerald-400" : "text-yellow-400",
-            bg: planRatio >= 70 ? "bg-emerald-500/8" : "bg-yellow-500/8",
+            color: planRatio >= 70 ? "#16a34a" : "#eab308",
+            bg: planRatio >= 70 ? "rgba(22,163,74,0.08)" : "rgba(234,179,8,0.08)",
           },
           {
             icon: <TrendingUp className="w-3.5 h-3.5" />,
             label: "Lệnh Mua",
             value: String(buyCount),
-            color: "text-emerald-400",
-            bg: "bg-emerald-500/8",
+            color: "#16a34a",
+            bg: "rgba(22,163,74,0.08)",
           },
           {
             icon: <TrendingDown className="w-3.5 h-3.5" />,
             label: "Lệnh Bán",
             value: String(sellCount),
-            color: "text-red-400",
-            bg: "bg-red-500/8",
+            color: "var(--danger)",
+            bg: "rgba(192,57,43,0.08)",
           },
         ].map((s) => (
-          <div key={s.label} className={`${s.bg} border border-neutral-800 rounded-xl p-3`}>
-            <div className={`${s.color} flex items-center gap-1.5 mb-1`}>
+          <div key={s.label} className="border rounded-xl p-3" style={{ background: s.bg, borderColor: "var(--border)" }}>
+            <div className="flex items-center gap-1.5 mb-1" style={{ color: s.color }}>
               {s.icon}
-              <span className="text-[12px] text-neutral-500">{s.label}</span>
+              <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>{s.label}</span>
             </div>
-            <p className={`text-lg font-black ${s.color} font-mono`}>{s.value}</p>
+            <p className="text-lg font-black font-mono" style={{ color: s.color }}>{s.value}</p>
           </div>
         ))}
       </div>
 
       {/* Badges */}
       <div>
-        <p className="text-[12px] font-semibold text-neutral-500 uppercase tracking-wider mb-2.5 flex items-center justify-between">
+        <p className="text-[12px] font-semibold uppercase tracking-wider mb-2.5 flex items-center justify-between" style={{ color: "var(--text-muted)" }}>
           Huy Hiệu
-          <span className="text-neutral-600">{earnedIds.size}/{BADGES.length}</span>
+          <span style={{ color: "var(--text-muted)" }}>{earnedIds.size}/{BADGES.length}</span>
         </p>
         <div className="grid grid-cols-2 gap-1.5">
           {BADGES.map((badge) => {
@@ -129,17 +129,16 @@ export function GamificationCard({ entries }: GamificationCardProps) {
                 key={badge.id}
                 whileHover={{ scale: 1.02 }}
                 className={`flex items-center gap-2 px-2.5 py-2 rounded-xl border transition-all ${
-                  earned
-                    ? "bg-yellow-500/10 border-yellow-500/25"
-                    : "bg-neutral-800/40 border-neutral-800 opacity-35"
+                  earned ? "" : "opacity-35"
                 }`}
+                style={earned ? { background: "rgba(234,179,8,0.10)", borderColor: "rgba(234,179,8,0.25)" } : { background: "var(--surface-2)", borderColor: "var(--border)" }}
               >
                 <span className="text-lg">{badge.icon}</span>
                 <div className="min-w-0">
-                  <p className={`text-[12px] font-bold truncate ${earned ? "text-yellow-400" : "text-neutral-600"}`}>
+                  <p className="text-[12px] font-bold truncate" style={{ color: earned ? "#eab308" : "var(--text-muted)" }}>
                     {badge.name}
                   </p>
-                  <p className="text-[11px] text-neutral-700 leading-tight truncate">
+                  <p className="text-[11px] leading-tight truncate" style={{ color: "var(--text-muted)" }}>
                     {badge.description}
                   </p>
                 </div>

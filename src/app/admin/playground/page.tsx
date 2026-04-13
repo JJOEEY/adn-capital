@@ -20,8 +20,9 @@ function ToggleSwitch({ enabled, onChange, loading }: {
       className={`relative w-16 h-8 rounded-full flex items-center px-1 transition-all duration-500 focus:outline-none ${
         enabled
           ? "bg-gradient-to-r from-yellow-500 to-orange-500 shadow-[0_0_20px_rgba(251,191,36,0.4)]"
-          : "bg-neutral-800 border border-neutral-700"
+          : "border"
       }`}
+      style={!enabled ? { background: "var(--surface-2)", borderColor: "var(--border)" } : {}}
     >
       <motion.div
         animate={{ x: enabled ? 32 : 0 }}
@@ -29,11 +30,11 @@ function ToggleSwitch({ enabled, onChange, loading }: {
         className="w-6 h-6 rounded-full bg-white shadow-lg flex items-center justify-center"
       >
         {loading ? (
-          <Loader2 className="w-3 h-3 text-neutral-600 animate-spin" />
+          <Loader2 className="w-3 h-3 animate-spin" style={{ color: "var(--text-muted)" }} />
         ) : enabled ? (
-          <Zap className="w-3 h-3 text-yellow-500" />
+          <Zap className="w-3 h-3" style={{ color: "#eab308" }} />
         ) : (
-          <Database className="w-3 h-3 text-neutral-400" />
+          <Database className="w-3 h-3" style={{ color: "var(--text-muted)" }} />
         )}
       </motion.div>
     </button>
@@ -47,11 +48,12 @@ function Toast({ type, message }: { type: "success" | "error"; message: string }
       initial={{ opacity: 0, y: 10, scale: 0.95 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -6, scale: 0.95 }}
-      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-bold ${
+      className="flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-bold"
+      style={
         type === "success"
-          ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-          : "bg-red-500/10 border-red-500/30 text-red-400"
-      }`}
+          ? { background: "rgba(16,185,129,0.10)", borderColor: "rgba(16,185,129,0.30)", color: "#10b981" }
+          : { background: "rgba(239,68,68,0.10)", borderColor: "rgba(239,68,68,0.30)", color: "var(--danger)" }
+      }
     >
       {type === "success" ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
       {message}
@@ -291,9 +293,9 @@ export default function AdminPlaygroundPage() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3 }}
-          className="text-center text-[10px] text-neutral-700"
+          className="text-center text-[10px]" style={{ color: "var(--text-muted)" }}
         >
-          Khi deploy production, IS_MOCK_MODE mặc định = <span className="text-neutral-500 font-mono">false</span> (Real Data)
+          Khi deploy production, IS_MOCK_MODE mặc định = <span className="font-mono" style={{ color: "var(--text-muted)" }}>false</span> (Real Data)
         </motion.p>
       </div>
     </div>

@@ -40,18 +40,21 @@ export function formatIndex(value: number): string {
   }).format(value);
 }
 
+/** Returns a hex color for an RS score badge text */
 export function getRsColor(rs: number): string {
-  if (rs > 90) return "text-purple-400";
-  if (rs >= 80) return "text-emerald-400";
-  if (rs >= 60) return "text-yellow-400";
-  return "text-neutral-400";
+  if (rs > 90) return "#a855f7"; // purple
+  if (rs >= 80) return "#16a34a"; // emerald
+  if (rs >= 60) return "#eab308"; // yellow
+  return "var(--text-muted)";
 }
 
-export function getRsBgColor(rs: number): string {
-  if (rs > 90) return "bg-purple-500/10 border-purple-500/30";
-  if (rs >= 80) return "bg-emerald-500/10 border-emerald-500/30";
-  if (rs >= 60) return "bg-yellow-500/10 border-yellow-500/30";
-  return "bg-neutral-800/50 border-neutral-700";
+
+/** Returns inline style object { background, borderColor } for RS chip */
+export function getRsBgStyle(rs: number): React.CSSProperties {
+  if (rs > 90) return { background: "rgba(168,85,247,0.10)", borderColor: "rgba(168,85,247,0.30)" };
+  if (rs >= 80) return { background: "rgba(22,163,74,0.10)", borderColor: "rgba(22,163,74,0.30)" };
+  if (rs >= 60) return { background: "rgba(234,179,8,0.10)", borderColor: "rgba(234,179,8,0.30)" };
+  return { background: "var(--surface-2)", borderColor: "var(--border)" };
 }
 
 export function getRsLabel(rs: number): string {
@@ -61,16 +64,17 @@ export function getRsLabel(rs: number): string {
   return "Farmer";
 }
 
-export function getSignalColor(type: string): string {
+/** Returns inline style object { color, background, borderColor } for signal type badge */
+export function getSignalStyle(type: string): React.CSSProperties {
   switch (type) {
     case "SIEU_CO_PHIEU":
-      return "text-purple-400 border-purple-500/40 bg-purple-500/10";
+      return { color: "#a855f7", background: "rgba(168,85,247,0.10)", borderColor: "rgba(168,85,247,0.40)" };
     case "TRUNG_HAN":
-      return "text-emerald-400 border-emerald-500/40 bg-emerald-500/10";
+      return { color: "#16a34a", background: "rgba(22,163,74,0.10)", borderColor: "rgba(22,163,74,0.40)" };
     case "DAU_CO":
-      return "text-yellow-400 border-yellow-500/40 bg-yellow-500/10";
+      return { color: "#eab308", background: "rgba(234,179,8,0.10)", borderColor: "rgba(234,179,8,0.40)" };
     default:
-      return "text-neutral-400 border-neutral-700 bg-neutral-800";
+      return { color: "var(--text-muted)", background: "var(--surface-2)", borderColor: "var(--border)" };
   }
 }
 

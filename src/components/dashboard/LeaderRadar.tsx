@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { memo } from "react";
 import useSWR from "swr";
@@ -53,29 +53,29 @@ interface LeaderRadarData {
 
 const STATE_CONFIG = {
   "BÌNH THƯỜNG": {
-    border: "border-emerald-500/30",
+    border: "rgba(34,197,94,0.30)",
     shadow: "shadow-[0_0_30px_-8px_rgba(16,185,129,0.4)]",
-    glow: "bg-emerald-500/20",
-    text: "text-emerald-400",
-    badge: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
+    glow: "rgba(34,197,94,0.20)",
+    text: "#22c55e",
+    badge: { background: "rgba(34,197,94,0.10)", color: "#22c55e", borderColor: "rgba(34,197,94,0.30)" },
     Icon: ShieldCheck,
     pulse: false,
   },
   "CẢNH BÁO": {
-    border: "border-yellow-500/40",
+    border: "rgba(234,179,8,0.40)",
     shadow: "shadow-[0_0_40px_-8px_rgba(234,179,8,0.5)]",
-    glow: "bg-yellow-500/20",
-    text: "text-yellow-400",
-    badge: "bg-yellow-500/10 text-yellow-400 border-yellow-500/30",
+    glow: "rgba(234,179,8,0.20)",
+    text: "#eab308",
+    badge: { background: "rgba(234,179,8,0.10)", color: "#eab308", borderColor: "rgba(234,179,8,0.30)" },
     Icon: AlertTriangle,
     pulse: true,
   },
   "THOÁT HÀNG": {
-    border: "border-red-500/50",
+    border: "rgba(239,68,68,0.50)",
     shadow: "shadow-[0_0_50px_-8px_rgba(239,68,68,0.6)]",
-    glow: "bg-red-500/25",
-    text: "text-red-400",
-    badge: "bg-red-500/10 text-red-400 border-red-500/30",
+    glow: "rgba(239,68,68,0.25)",
+    text: "var(--danger)",
+    badge: { background: "rgba(192,57,43,0.10)", color: "var(--danger)", borderColor: "rgba(192,57,43,0.30)" },
     Icon: XOctagon,
     pulse: true,
   },
@@ -106,39 +106,37 @@ export const LeaderRadar = memo(function LeaderRadar() {
   const cfg = STATE_CONFIG[state] ?? STATE_CONFIG["BÌNH THƯỜNG"];
   const { Icon } = cfg;
 
+  const cashBarColor = data.cash_ratio >= 100 ? "var(--danger)" : data.cash_ratio >= 50 ? "#eab308" : "#22c55e";
+
   return (
     <div
-      className={`
-        relative overflow-hidden rounded-2xl bg-neutral-900/90 border
-        transition-all duration-500 ease-out
-        ${cfg.border} ${cfg.shadow}
-      `}
+      className={`relative overflow-hidden rounded-2xl border transition-all duration-500 ease-out ${cfg.shadow}`}
+      style={{ background: "var(--surface)", borderColor: cfg.border }}
     >
       {/* Glow background */}
       <div
-        className={`absolute -top-12 -left-12 w-48 h-48 rounded-full blur-3xl opacity-30 ${cfg.glow} ${
-          cfg.pulse ? "animate-pulse" : ""
-        }`}
+        className={`absolute -top-12 -left-12 w-48 h-48 rounded-full opacity-30 ${cfg.pulse ? "animate-pulse" : ""}`}
+        style={{ background: cfg.glow }}
       />
       <div
-        className={`absolute -bottom-8 -right-8 w-32 h-32 rounded-full blur-2xl opacity-20 ${cfg.glow} ${
-          cfg.pulse ? "animate-pulse" : ""
-        }`}
+        className={`absolute -bottom-8 -right-8 w-32 h-32 rounded-full opacity-20 ${cfg.pulse ? "animate-pulse" : ""}`}
+        style={{ background: cfg.glow }}
       />
 
       <div className="relative z-10 p-4 sm:p-5">
         {/* Header */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <div className={`p-1.5 rounded-lg ${cfg.glow}`}>
-              <Icon className={`w-4 h-4 ${cfg.text}`} />
+            <div className="p-1.5 rounded-lg" style={{ background: cfg.glow }}>
+              <Icon className="w-4 h-4" style={{ color: cfg.text }} />
             </div>
-            <span className="text-[12px] font-bold text-neutral-400 uppercase tracking-wider">
+            <span className="text-[12px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
               Radar Leader Alert
             </span>
           </div>
           <span
-            className={`text-[12px] font-bold px-2 py-0.5 rounded-full border ${cfg.badge}`}
+            className="text-[12px] font-bold px-2 py-0.5 rounded-full border"
+            style={cfg.badge}
           >
             {state}
           </span>
@@ -147,30 +145,24 @@ export const LeaderRadar = memo(function LeaderRadar() {
         {/* Cash Ratio Bar */}
         <div className="mb-3">
           <div className="flex items-baseline justify-between mb-1">
-            <span className="text-[12px] text-neutral-500 uppercase tracking-wider">
+            <span className="text-[12px] uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
               Tỷ lệ tiền mặt
             </span>
-            <span className={`text-lg font-black ${cfg.text}`}>
+            <span className="text-lg font-black" style={{ color: cfg.text }}>
               {data.cash_ratio}%
             </span>
           </div>
-          <div className="w-full h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+          <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: "var(--surface-2)" }}>
             <div
-              className={`h-full rounded-full transition-all duration-1000 ${
-                data.cash_ratio >= 100
-                  ? "bg-red-500"
-                  : data.cash_ratio >= 50
-                    ? "bg-yellow-500"
-                    : "bg-emerald-500"
-              }`}
-              style={{ width: `${data.cash_ratio}%` }}
+              className="h-full rounded-full transition-all duration-1000"
+              style={{ width: `${data.cash_ratio}%`, background: cashBarColor }}
             />
           </div>
         </div>
 
         {/* Message */}
         {data.message && (
-          <p className="text-xs text-neutral-300 leading-relaxed mb-3">
+          <p className="text-xs leading-relaxed mb-3" style={{ color: "var(--text-secondary)" }}>
             {data.message}
           </p>
         )}
@@ -180,8 +172,8 @@ export const LeaderRadar = memo(function LeaderRadar() {
           {data.leading_sector && data.leaders?.length > 0 ? (
             <>
               <div className="flex items-center gap-1.5 mb-2">
-                <TrendingUp className="w-3 h-3 text-emerald-400" />
-                <span className="text-[12px] font-bold text-emerald-400 uppercase">
+                <TrendingUp className="w-3 h-3" style={{ color: "#22c55e" }} />
+                <span className="text-[12px] font-bold uppercase" style={{ color: "#22c55e" }}>
                   Ngành dẫn dắt: {data.leading_sector}
                 </span>
               </div>
@@ -189,13 +181,14 @@ export const LeaderRadar = memo(function LeaderRadar() {
                 {data.leaders.map((l) => (
                   <div
                     key={l.ticker}
-                    className="bg-neutral-800/60 rounded-lg p-2 text-center border border-neutral-700/50"
+                    className="rounded-lg p-2 text-center border"
+                    style={{ background: "var(--surface-2)", borderColor: "var(--border)" }}
                   >
-                    <p className="text-xs font-bold text-white">{l.ticker}</p>
-                    <p className="text-[12px] text-neutral-400">
+                    <p className="text-xs font-bold" style={{ color: "var(--text-primary)" }}>{l.ticker}</p>
+                    <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>
                       RS {l.rs_rating}
                     </p>
-                    <p className="text-[12px] text-neutral-500">
+                    <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>
                       {l.close.toLocaleString("vi-VN")}
                     </p>
                   </div>
@@ -203,8 +196,8 @@ export const LeaderRadar = memo(function LeaderRadar() {
               </div>
             </>
           ) : (
-            <div className="flex items-center gap-2 bg-neutral-800/40 rounded-lg p-3">
-              <span className="text-[12px] text-neutral-500">
+            <div className="flex items-center gap-2 rounded-lg p-3" style={{ background: "var(--surface-2)" }}>
+              <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>
                 Chưa có cổ phiếu leader — Không có ngành nào đủ mạnh để dẫn dắt.
               </span>
             </div>
@@ -213,12 +206,12 @@ export const LeaderRadar = memo(function LeaderRadar() {
 
         {/* Floor Leaders (nếu có) */}
         {data.floor_leaders?.length > 0 && (
-          <div className="mb-3 bg-red-500/5 border border-red-500/20 rounded-lg p-2">
-            <p className="text-[12px] font-bold text-red-400 uppercase mb-1">
+          <div className="mb-3 rounded-lg p-2 border" style={{ background: "rgba(192,57,43,0.05)", borderColor: "rgba(192,57,43,0.20)" }}>
+            <p className="text-[12px] font-bold uppercase mb-1" style={{ color: "var(--danger)" }}>
               ⚠ Leader chạm sàn
             </p>
             {data.floor_leaders.map((f) => (
-              <p key={f.ticker} className="text-[11px] text-red-300">
+              <p key={f.ticker} className="text-[11px]" style={{ color: "#f87171" }}>
                 {f.ticker}: {f.close.toLocaleString("vi-VN")} ({f.pct_change.toFixed(1)}%)
               </p>
             ))}
@@ -227,18 +220,18 @@ export const LeaderRadar = memo(function LeaderRadar() {
 
         {/* Action */}
         {data.action && (
-          <p className="text-[11px] text-neutral-400 italic">
+          <p className="text-[11px] italic" style={{ color: "var(--text-muted)" }}>
             &ldquo;{data.action}&rdquo;
           </p>
         )}
 
         {/* Macro Score */}
-        <div className="flex items-center justify-between mt-2 pt-2 border-t border-neutral-800">
-          <span className="text-[12px] text-neutral-500">
+        <div className="flex items-center justify-between mt-2 pt-2 border-t" style={{ borderColor: "var(--border)" }}>
+          <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>
             Macro Score: {data.macro_score ?? 0}/10
           </span>
           {data.updated_at && (
-            <span className="text-[12px] text-neutral-600">
+            <span className="text-[12px]" style={{ color: "var(--text-muted)", opacity: 0.8 }}>
               {data.updated_at}
             </span>
           )}
@@ -248,7 +241,7 @@ export const LeaderRadar = memo(function LeaderRadar() {
         {data.history.length > 0 && (
           <div className="mt-2 space-y-1">
             {data.history.slice(-2).map((h, i) => (
-              <p key={i} className="text-[11px] text-neutral-600">
+              <p key={i} className="text-[11px]" style={{ color: "var(--text-muted)", opacity: 0.8 }}>
                 [{h.date}] {h.event}: {h.detail}
               </p>
             ))}
@@ -261,19 +254,19 @@ export const LeaderRadar = memo(function LeaderRadar() {
 
 function LeaderRadarSkeleton() {
   return (
-    <div className="rounded-2xl border border-neutral-800 bg-neutral-900/90 p-4 sm:p-5">
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
       <div className="flex items-center justify-between mb-3">
-        <div className="h-4 w-32 bg-neutral-800 rounded animate-pulse" />
-        <div className="h-4 w-20 bg-neutral-800 rounded-full animate-pulse" />
+        <div className="h-4 w-32 rounded animate-pulse" style={{ background: "var(--surface-2)" }} />
+        <div className="h-4 w-20 rounded-full animate-pulse" style={{ background: "var(--surface-2)" }} />
       </div>
-      <div className="h-1.5 w-full bg-neutral-800 rounded-full animate-pulse mb-3" />
+      <div className="h-1.5 w-full rounded-full animate-pulse mb-3" style={{ background: "var(--surface-2)" }} />
       <div className="space-y-2">
-        <div className="h-3 w-full bg-neutral-800 rounded animate-pulse" />
-        <div className="h-3 w-3/4 bg-neutral-800 rounded animate-pulse" />
+        <div className="h-3 w-full rounded animate-pulse" style={{ background: "var(--surface-2)" }} />
+        <div className="h-3 w-3/4 rounded animate-pulse" style={{ background: "var(--surface-2)" }} />
       </div>
       <div className="grid grid-cols-3 gap-2 mt-3">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="h-14 bg-neutral-800/60 rounded-lg animate-pulse" />
+          <div key={i} className="h-14 rounded-lg animate-pulse" style={{ background: "var(--surface-2)" }} />
         ))}
       </div>
     </div>

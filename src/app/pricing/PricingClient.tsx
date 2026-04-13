@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useRef, useCallback } from "react";
 import { Check, Crown, Zap, Star, Gift, Shield, Lock, Sparkles } from "lucide-react";
@@ -117,44 +117,44 @@ const plans: Plan[] = [
 ];
 
 const colorMap: Record<string, {
-  border: string; badge: string; btn: string; icon: string;
-  hoverBorder: string; hoverShadow: string; blob: string;
+  border: string; badge: React.CSSProperties; btn: React.CSSProperties; icon: React.CSSProperties;
+  hoverBorder: string; hoverShadow: string; blob: React.CSSProperties;
 }> = {
   emerald: {
-    border: "border-emerald-900",
+    border: "rgba(16,185,129,0.30)",
     hoverBorder: "hover:border-emerald-500/50",
     hoverShadow: "hover:shadow-[0_0_40px_-10px_rgba(16,185,129,0.7)]",
-    blob: "bg-emerald-500/20",
-    badge: "bg-emerald-500/15 text-emerald-400 border-emerald-500/25",
-    btn: "bg-emerald-500 hover:bg-emerald-400 text-black",
-    icon: "text-emerald-400 bg-emerald-500/15",
+    blob: { background: "rgba(16,185,129,0.20)" },
+    badge: { background: "rgba(16,185,129,0.15)", color: "#10b981", borderColor: "rgba(16,185,129,0.25)" },
+    btn: { background: "#10b981", color: "#000" },
+    icon: { color: "#10b981", background: "rgba(16,185,129,0.15)" },
   },
   purple: {
-    border: "border-purple-900",
+    border: "rgba(168,85,247,0.30)",
     hoverBorder: "hover:border-purple-500/50",
     hoverShadow: "hover:shadow-[0_0_40px_-10px_rgba(168,85,247,0.7)]",
-    blob: "bg-purple-500/20",
-    badge: "bg-purple-500/15 text-purple-400 border-purple-500/25",
-    btn: "bg-purple-500 hover:bg-purple-400 text-white",
-    icon: "text-purple-400 bg-purple-500/15",
+    blob: { background: "rgba(168,85,247,0.20)" },
+    badge: { background: "rgba(168,85,247,0.15)", color: "#a855f7", borderColor: "rgba(168,85,247,0.25)" },
+    btn: { background: "#a855f7", color: "#fff" },
+    icon: { color: "#a855f7", background: "rgba(168,85,247,0.15)" },
   },
   yellow: {
-    border: "border-yellow-900",
+    border: "rgba(234,179,8,0.30)",
     hoverBorder: "hover:border-yellow-500/50",
     hoverShadow: "hover:shadow-[0_0_40px_-10px_rgba(234,179,8,0.7)]",
-    blob: "bg-yellow-500/20",
-    badge: "bg-yellow-500/15 text-yellow-400 border-yellow-500/25",
-    btn: "bg-yellow-500 hover:bg-yellow-400 text-black",
-    icon: "text-yellow-400 bg-yellow-500/15",
+    blob: { background: "rgba(234,179,8,0.20)" },
+    badge: { background: "rgba(234,179,8,0.15)", color: "#eab308", borderColor: "rgba(234,179,8,0.25)" },
+    btn: { background: "#eab308", color: "#000" },
+    icon: { color: "#eab308", background: "rgba(234,179,8,0.15)" },
   },
   orange: {
-    border: "border-orange-900",
+    border: "rgba(249,115,22,0.30)",
     hoverBorder: "hover:border-orange-500/50",
     hoverShadow: "hover:shadow-[0_0_40px_-10px_rgba(249,115,22,0.7)]",
-    blob: "bg-orange-500/20",
-    badge: "bg-orange-500/15 text-orange-400 border-orange-500/25",
-    btn: "bg-orange-500 hover:bg-orange-400 text-black",
-    icon: "text-orange-400 bg-orange-500/15",
+    blob: { background: "rgba(249,115,22,0.20)" },
+    badge: { background: "rgba(249,115,22,0.15)", color: "#f97316", borderColor: "rgba(249,115,22,0.25)" },
+    btn: { background: "#f97316", color: "#000" },
+    icon: { color: "#f97316", background: "rgba(249,115,22,0.15)" },
   },
 };
 
@@ -266,25 +266,25 @@ export function PricingClient() {
     <>
       {/* Promocode DNSE */}
       <div className="max-w-md mx-auto mb-8">
-        <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-5">
+        <div className="border rounded-2xl p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
           <div className="flex items-center gap-2 mb-3">
-            <Gift className="w-4 h-4 text-emerald-400" />
-            <span className="text-sm font-bold text-white">Khách hàng DNSE?</span>
+            <Gift className="w-4 h-4" style={{ color: "var(--primary)" }} />
+            <span className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>Khách hàng DNSE?</span>
           </div>
-          <p className="text-xs text-neutral-500 mb-3">
+          <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>
             Nhập ID khách hàng DNSE để nhận ưu đãi đặc biệt
           </p>
           {promoApplied ? (
-            <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/25 rounded-xl px-4 py-3">
+            <div className="flex items-center justify-between border rounded-xl px-4 py-3" style={{ background: "rgba(16,185,129,0.10)", borderColor: "rgba(16,185,129,0.25)" }}>
               <div className="flex items-center gap-2">
-                <Shield className="w-4 h-4 text-emerald-400" />
-                <span className="text-sm text-emerald-400 font-bold">
+                <Shield className="w-4 h-4" style={{ color: "#10b981" }} />
+                <span className="text-sm font-bold" style={{ color: "#10b981" }}>
                   DNSE: {promoCode}
                 </span>
               </div>
               <button
                 onClick={handleRemovePromo}
-                className="text-xs text-neutral-500 hover:text-red-400 transition-colors"
+                className="text-xs transition-colors" style={{ color: "var(--text-muted)" }}
               >
                 Xóa
               </button>
@@ -296,12 +296,17 @@ export function PricingClient() {
                 value={promoCode}
                 onChange={(e) => setPromoCode(e.target.value)}
                 placeholder="Nhập ID khách hàng DNSE..."
-                className="flex-1 bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                className="flex-1 border rounded-xl px-4 py-2.5 text-sm focus:outline-none transition-colors"
+                style={{
+                  background: "var(--surface-2)",
+                  borderColor: "var(--border)",
+                  color: "var(--text-primary)",
+                }}
               />
               <button
                 onClick={handleApplyPromo}
                 disabled={promoCode.trim().length < 3}
-                className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 disabled:bg-neutral-700 disabled:text-neutral-500 text-black font-bold text-sm rounded-xl transition-all"
+                className="px-5 py-2.5 font-bold text-sm rounded-xl transition-all" style={{ background: "#10b981", color: "#000" }}
               >
                 Áp dụng
               </button>
@@ -320,16 +325,14 @@ export function PricingClient() {
           return (
             <Card3D key={plan.id} color={plan.color} highlight={plan.highlight}>
               <div
-                className={`relative overflow-hidden flex flex-col rounded-2xl border
-                  ${colors.border} ${colors.hoverBorder} ${colors.hoverShadow}
-                  bg-gray-900 backdrop-blur-md p-6
-                  transition-all duration-300 ease-out`}
+                className="relative overflow-hidden flex flex-col rounded-2xl border p-6 transition-all duration-300 ease-out"
+                style={{ background: "var(--surface)", borderColor: colors.border }}
               >
               {/* Backlight glow blob */}
-              <div className={`absolute -top-10 -right-10 w-40 h-40 rounded-full blur-3xl opacity-30 ${colors.blob}`} />
+              <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full opacity-30" style={colors.blob} />
               {plan.highlight && (
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                  <span className="bg-purple-500 text-white text-[12px] font-bold px-3 py-1 rounded-full uppercase tracking-wide">
+                  <span className="text-[12px] font-bold px-3 py-1 rounded-full uppercase tracking-wide" style={{ background: "#a855f7", color: "#fff" }}>
                     Phổ biến nhất
                   </span>
                 </div>
@@ -338,32 +341,32 @@ export function PricingClient() {
               {/* Plan header */}
               <div className="mb-5">
                 <div className="flex items-center gap-2 mb-3">
-                  <div className={`w-10 h-10 rounded-xl ${colors.icon} flex items-center justify-center`}>
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={colors.icon}>
                     {iconMap[plan.color]}
                   </div>
                   {plan.badge && (
-                    <span className={`text-[12px] font-bold px-2 py-0.5 rounded-md border ${colors.badge}`}>
+                    <span className="text-[12px] font-bold px-2 py-0.5 rounded-md border" style={colors.badge}>
                       {plan.badge}
                     </span>
                   )}
                 </div>
-                <h3 className="text-base font-bold text-white mb-1">{plan.name}</h3>
-                <p className="text-xs text-neutral-500">{plan.description}</p>
+                <h3 className="text-base font-bold mb-1" style={{ color: "var(--text-primary)" }}>{plan.name}</h3>
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>{plan.description}</p>
               </div>
 
               {/* Price */}
               <div className="mb-5">
                 {showDnsePrice && (
-                  <p className="text-sm text-neutral-600 line-through mb-0.5">
+                  <p className="text-sm line-through mb-0.5" style={{ color: "var(--text-muted)" }}>
                     {plan.price}
                   </p>
                 )}
                 <div className="flex items-baseline gap-1">
-                  <span className="text-2xl font-black text-white">{displayPrice}</span>
-                  <span className="text-xs text-neutral-500">{plan.period}</span>
+                  <span className="text-2xl font-black" style={{ color: "var(--text-primary)" }}>{displayPrice}</span>
+                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>{plan.period}</span>
                 </div>
                 {showDnsePrice && (
-                  <div className="inline-flex items-center gap-1 text-[12px] font-bold mt-1 px-2 py-0.5 rounded-md border bg-emerald-500/15 text-emerald-400 border-emerald-500/25">
+                  <div className="inline-flex items-center gap-1 text-[12px] font-bold mt-1 px-2 py-0.5 rounded-md border" style={{ background: "rgba(16,185,129,0.15)", color: "#10b981", borderColor: "rgba(16,185,129,0.25)" }}>
                     <Gift className="w-3 h-3" />
                     Ưu đãi DNSE
                   </div>
@@ -375,20 +378,18 @@ export function PricingClient() {
                 {plan.features.map((feat) => (
                   <li key={feat.text} className={`flex items-start gap-2 text-xs ${feat.locked ? "opacity-50" : ""}`}>
                     {feat.locked ? (
-                      <Lock className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-slate-500" />
+                      <Lock className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" style={{ color: "var(--text-muted)" }} />
                     ) : (
-                      <Check className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0 mt-0.5" />
+                      <Check className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" style={{ color: "#10b981" }} />
                     )}
-                    <span className={feat.locked ? "text-slate-500" : "text-neutral-300"}>{feat.text}</span>
+                    <span style={{ color: feat.locked ? "var(--text-muted)" : "var(--text-secondary)" }}>{feat.text}</span>
                   </li>
                 ))}
               </ul>
 
               {/* CTA */}
               <button
-                className={`w-full py-3 rounded-xl text-sm font-bold transition-all ${colors.btn} ${
-                  plan.highlight ? "shadow-lg shadow-purple-500/25" : ""
-                }`}
+                className="w-full py-3 rounded-xl text-sm font-bold transition-all" style={{ ...colors.btn, ...(plan.highlight ? { boxShadow: "0 10px 15px -3px rgba(168,85,247,0.25)" } : {}) }}
               >
                 {plan.cta}
               </button>

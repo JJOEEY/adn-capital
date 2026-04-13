@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import useSWR from "swr";
 import {
@@ -52,6 +52,17 @@ interface EodData {
   top_breakout?: string[];
 }
 
+type Tone = "emerald" | "red" | "blue" | "amber" | "purple" | "indigo";
+
+const TONE = {
+  emerald: { text: "#16a34a", border: "rgba(22,163,74,0.30)", bg: "rgba(22,163,74,0.08)" },
+  red: { text: "var(--danger)", border: "rgba(192,57,43,0.30)", bg: "rgba(192,57,43,0.08)" },
+  blue: { text: "#3b82f6", border: "rgba(59,130,246,0.30)", bg: "rgba(59,130,246,0.08)" },
+  amber: { text: "#f59e0b", border: "rgba(245,158,11,0.30)", bg: "rgba(245,158,11,0.08)" },
+  purple: { text: "#a855f7", border: "rgba(168,85,247,0.30)", bg: "rgba(168,85,247,0.08)" },
+  indigo: { text: "#6366f1", border: "rgba(99,102,241,0.30)", bg: "rgba(99,102,241,0.08)" },
+} as const;
+
 export function EveningNews() {
   const { data, isLoading } = useSWR<EodData>(
     "/api/market-news?type=eod",
@@ -69,36 +80,32 @@ export function EveningNews() {
   const up = data.change_pct >= 0;
 
   return (
-    <div className="relative rounded-2xl border border-indigo-500/15 bg-gray-900/90 shadow-[0_4px_40px_-12px_rgba(99,102,241,0.12)] overflow-hidden transform-gpu">
+    <div className="relative rounded-2xl border shadow-[0_4px_24px_-12px_rgba(46,77,61,0.12)] overflow-hidden transform-gpu" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
       {/* ─── Ambient glow ─── */}
-      <div className="absolute -top-20 -right-20 w-56 h-56 rounded-full bg-indigo-500/8 blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-16 -left-16 w-40 h-40 rounded-full bg-indigo-500/5 blur-3xl pointer-events-none" />
+      <div className="absolute -top-20 -right-20 w-56 h-56 rounded-full pointer-events-none" style={{ background: "rgba(100,112,96,0.05)" }} />
+      <div className="absolute -bottom-16 -left-16 w-40 h-40 rounded-full pointer-events-none" style={{ background: "rgba(100,112,96,0.04)" }} />
 
       {/* ─── Header ─── */}
-      <div className="relative z-10 border-b border-gray-800/60 px-5 py-4 flex items-center justify-between">
+      <div className="relative z-10 border-b px-5 py-4 flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
         <div className="flex items-center gap-2.5">
-          <div className="p-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
-            <Moon className="w-4 h-4 text-indigo-400" />
+          <div className="p-1.5 rounded-lg border" style={{ background: "var(--surface-2)", borderColor: "var(--border)" }}>
+            <Moon className="w-4 h-4" style={{ color: "var(--text-muted)" }} />
           </div>
           <div>
-            <h3 className="text-xs font-black text-indigo-400 uppercase tracking-wider">
+            <h3 className="text-xs font-black uppercase tracking-wider" style={{ color: "var(--text-primary)" }}>
               Bản Tin Tổng Hợp ({data.date})
             </h3>
-            <p className="text-[12px] text-gray-500 mt-0.5">
+            <p className="text-[12px] mt-0.5" style={{ color: "var(--text-muted)" }}>
               END-OF-DAY BRIEF
             </p>
           </div>
         </div>
         <div className="text-right">
-          <span className="text-[12px] text-gray-600 font-mono block">
+          <span className="text-[12px] font-mono block" style={{ color: "var(--text-muted)" }}>
             {data.date}
           </span>
           {data.vnindex > 0 && (
-            <span
-              className={`text-xs font-bold ${
-                up ? "text-emerald-400" : "text-red-400"
-              }`}
-            >
+            <span className="text-xs font-bold" style={{ color: up ? "#16a34a" : "var(--danger)" }}>
               VNI {data.vnindex.toLocaleString("en-US", { maximumFractionDigits: 1 })} (
               {up && "+"}
               {data.change_pct}%)
@@ -109,8 +116,8 @@ export function EveningNews() {
 
       <div className="relative z-10 p-5 space-y-5">
         {/* ═══ KHU VỰC 1: ADN Capital Flashnote (Text Summary) ═══ */}
-        <div className="bg-gray-800/40 border border-gray-700/40 rounded-xl p-4 space-y-3">
-          <h4 className="text-[11px] font-extrabold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+        <div className="border rounded-xl p-4 space-y-3" style={{ background: "var(--surface-2)", borderColor: "var(--border)" }}>
+          <h4 className="text-[11px] font-extrabold uppercase tracking-wider flex items-center gap-1.5" style={{ color: TONE.indigo.text }}>
             <Sparkles className="w-3.5 h-3.5" />
             ADN Capital Flashnote
           </h4>
@@ -119,8 +126,8 @@ export function EveningNews() {
             {/* Thanh khoản */}
             {data.liquidity_detail && (
               <FlashBullet
-                icon={<Banknote className="w-3.5 h-3.5 text-blue-400" />}
-                color="border-blue-500/30"
+                icon={<Banknote className="w-3.5 h-3.5" style={{ color: TONE.blue.text }} />}
+                tone="blue"
               >
                 <BoldKeywords text={data.liquidity_detail} />
               </FlashBullet>
@@ -129,8 +136,8 @@ export function EveningNews() {
             {/* Khối ngoại */}
             {data.foreign_flow && (
               <FlashBullet
-                icon={<Users className="w-3.5 h-3.5 text-amber-400" />}
-                color="border-amber-500/30"
+                icon={<Users className="w-3.5 h-3.5" style={{ color: TONE.amber.text }} />}
+                tone="amber"
               >
                 <BoldKeywords text={data.foreign_flow} />
               </FlashBullet>
@@ -139,8 +146,8 @@ export function EveningNews() {
             {/* Tổ chức / Tự doanh */}
             {data.notable_trades && (
               <FlashBullet
-                icon={<BarChart3 className="w-3.5 h-3.5 text-purple-400" />}
-                color="border-purple-500/30"
+                icon={<BarChart3 className="w-3.5 h-3.5" style={{ color: TONE.purple.text }} />}
+                tone="purple"
               >
                 <BoldKeywords text={data.notable_trades} />
               </FlashBullet>
@@ -149,33 +156,37 @@ export function EveningNews() {
         </div>
 
         {/* ═══ KHU VỰC 2: Bảng Dòng Tiền (CSS Grid dark mode) ═══ */}
-        <div className="border border-gray-700/40 rounded-xl overflow-hidden">
-          <div className="bg-indigo-500/5 border-b border-gray-700/40 px-4 py-2.5">
-            <h4 className="text-[11px] font-extrabold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+        <div className="border rounded-xl overflow-hidden" style={{ borderColor: "var(--border)" }}>
+          <div className="border-b px-4 py-2.5" style={{ background: TONE.indigo.bg, borderColor: "var(--border)" }}>
+            <h4 className="text-[11px] font-extrabold uppercase tracking-wider flex items-center gap-1.5" style={{ color: TONE.indigo.text }}>
               <BarChart3 className="w-3.5 h-3.5" />
               Bảng Dòng Tiền Chi Tiết
             </h4>
           </div>
 
-          <div className="divide-y divide-gray-700/30">
+          <div className="divide-y divide-[var(--border)]">
             {/* Row: Chỉ số phụ */}
             {data.sub_indices && data.sub_indices.length > 0 && (
               <GridRow label="Chỉ số">
                 <div className="flex flex-wrap gap-2">
-                  {data.sub_indices.map((idx) => (
-                    <span
-                      key={idx.name}
-                      className={`text-[11px] px-2 py-0.5 rounded-md border ${
-                        idx.change_pct >= 0
-                          ? "text-emerald-400 border-emerald-500/20 bg-emerald-500/5"
-                          : "text-red-400 border-red-500/20 bg-red-500/5"
-                      }`}
-                    >
-                      {idx.name}: {idx.change_pct >= 0 ? "+" : ""}
-                      {idx.change_pts} ({idx.change_pct >= 0 ? "+" : ""}
-                      {idx.change_pct}%)
-                    </span>
-                  ))}
+                  {data.sub_indices.map((idx) => {
+                    const positive = idx.change_pct >= 0;
+                    return (
+                      <span
+                        key={idx.name}
+                        className="text-[11px] px-2 py-0.5 rounded-md border"
+                        style={{
+                          color: positive ? TONE.emerald.text : TONE.red.text,
+                          borderColor: positive ? TONE.emerald.border : TONE.red.border,
+                          background: positive ? TONE.emerald.bg : TONE.red.bg,
+                        }}
+                      >
+                        {idx.name}: {idx.change_pct >= 0 ? "+" : ""}
+                        {idx.change_pts} ({idx.change_pct >= 0 ? "+" : ""}
+                        {idx.change_pct}%)
+                      </span>
+                    );
+                  })}
                 </div>
               </GridRow>
             )}
@@ -186,18 +197,18 @@ export function EveningNews() {
                 <div className="space-y-1.5">
                   {data.foreign_top_buy && data.foreign_top_buy.length > 0 && (
                     <TagLine
-                      icon={<ArrowUpCircle className="w-3 h-3 text-emerald-400" />}
+                      icon={<ArrowUpCircle className="w-3 h-3" style={{ color: TONE.emerald.text }} />}
                       label="Top mua ròng:"
                       items={data.foreign_top_buy}
-                      color="text-emerald-400"
+                      tone="emerald"
                     />
                   )}
                   {data.foreign_top_sell && data.foreign_top_sell.length > 0 && (
                     <TagLine
-                      icon={<ArrowDownCircle className="w-3 h-3 text-red-400" />}
+                      icon={<ArrowDownCircle className="w-3 h-3" style={{ color: TONE.red.text }} />}
                       label="Top bán ròng:"
                       items={data.foreign_top_sell}
-                      color="text-red-400"
+                      tone="red"
                     />
                   )}
                 </div>
@@ -210,18 +221,18 @@ export function EveningNews() {
                 <div className="space-y-1.5">
                   {data.prop_trading_top_buy && data.prop_trading_top_buy.length > 0 && (
                     <TagLine
-                      icon={<ArrowUpCircle className="w-3 h-3 text-emerald-400" />}
+                      icon={<ArrowUpCircle className="w-3 h-3" style={{ color: TONE.emerald.text }} />}
                       label="Top mua ròng:"
                       items={data.prop_trading_top_buy}
-                      color="text-emerald-400"
+                      tone="emerald"
                     />
                   )}
                   {data.prop_trading_top_sell && data.prop_trading_top_sell.length > 0 && (
                     <TagLine
-                      icon={<ArrowDownCircle className="w-3 h-3 text-red-400" />}
+                      icon={<ArrowDownCircle className="w-3 h-3" style={{ color: TONE.red.text }} />}
                       label="Top bán ròng:"
                       items={data.prop_trading_top_sell}
-                      color="text-red-400"
+                      tone="red"
                     />
                   )}
                 </div>
@@ -234,18 +245,18 @@ export function EveningNews() {
                 <div className="space-y-1.5">
                   {data.sector_gainers && data.sector_gainers.length > 0 && (
                     <TagLine
-                      icon={<TrendingUp className="w-3 h-3 text-emerald-400" />}
+                      icon={<TrendingUp className="w-3 h-3" style={{ color: TONE.emerald.text }} />}
                       label="Tăng giá:"
                       items={data.sector_gainers}
-                      color="text-emerald-400"
+                      tone="emerald"
                     />
                   )}
                   {data.sector_losers && data.sector_losers.length > 0 && (
                     <TagLine
-                      icon={<TrendingDown className="w-3 h-3 text-red-400" />}
+                      icon={<TrendingDown className="w-3 h-3" style={{ color: TONE.red.text }} />}
                       label="Giảm giá:"
                       items={data.sector_losers}
-                      color="text-red-400"
+                      tone="red"
                     />
                   )}
                 </div>
@@ -258,18 +269,18 @@ export function EveningNews() {
                 <div className="space-y-1.5">
                   {data.buy_signals && data.buy_signals.length > 0 && (
                     <TagLine
-                      icon={<Zap className="w-3 h-3 text-emerald-400" />}
+                      icon={<Zap className="w-3 h-3" style={{ color: TONE.emerald.text }} />}
                       label="BU (KLGD lớn):"
                       items={data.buy_signals}
-                      color="text-emerald-400"
+                      tone="emerald"
                     />
                   )}
                   {data.sell_signals && data.sell_signals.length > 0 && (
                     <TagLine
-                      icon={<Zap className="w-3 h-3 text-red-400" />}
+                      icon={<Zap className="w-3 h-3" style={{ color: TONE.red.text }} />}
                       label="SD (KLGD lớn):"
                       items={data.sell_signals}
-                      color="text-red-400"
+                      tone="red"
                     />
                   )}
                 </div>
@@ -280,10 +291,10 @@ export function EveningNews() {
             {data.top_breakout && data.top_breakout.length > 0 && (
               <GridRow label="Top đột phá">
                 <TagLine
-                  icon={<Rocket className="w-3 h-3 text-purple-400" />}
+                  icon={<Rocket className="w-3 h-3" style={{ color: TONE.purple.text }} />}
                   label=""
                   items={data.top_breakout}
-                  color="text-purple-400"
+                  tone="purple"
                 />
               </GridRow>
             )}
@@ -292,14 +303,14 @@ export function EveningNews() {
 
         {/* ═══ Khối 3: Kết luận / Nhận định phiên tới ═══ */}
         {data.outlook && (
-          <div className="bg-indigo-500/5 border border-indigo-500/20 rounded-xl p-4">
+          <div className="border rounded-xl p-4" style={{ background: TONE.indigo.bg, borderColor: TONE.indigo.border }}>
             <div className="flex items-center gap-1.5 mb-2">
-              <Lightbulb className="w-4 h-4 text-indigo-400" />
-              <h4 className="text-[11px] font-extrabold text-indigo-400 uppercase tracking-wider">
+              <Lightbulb className="w-4 h-4" style={{ color: TONE.indigo.text }} />
+              <h4 className="text-[11px] font-extrabold uppercase tracking-wider" style={{ color: TONE.indigo.text }}>
                 Nhận Định Phiên Tới
               </h4>
             </div>
-            <p className="text-[15px] text-gray-300 leading-relaxed italic">
+            <p className="text-[15px] leading-relaxed italic" style={{ color: "var(--text-secondary)" }}>
               &ldquo;{data.outlook}&rdquo;
             </p>
           </div>
@@ -307,10 +318,10 @@ export function EveningNews() {
 
         {/* Footer */}
         <div className="flex flex-col items-center gap-0.5 pt-2">
-          <p className="text-[11px] text-gray-500 font-medium">
+          <p className="text-[11px] font-medium" style={{ color: "var(--text-muted)" }}>
             Thông tin nội bộ - ADN Capital
           </p>
-          <p className="text-[11px] text-indigo-400/60 font-bold tracking-wider">
+          <p className="text-[11px] font-bold tracking-wider" style={{ color: "var(--primary)" }}>
             ADNCAPITAL.COM.VN
           </p>
         </div>
@@ -324,17 +335,17 @@ export function EveningNews() {
 /** Flashnote bullet with left border accent */
 function FlashBullet({
   icon,
-  color,
+  tone,
   children,
 }: {
   icon: React.ReactNode;
-  color: string;
+  tone: Tone;
   children: React.ReactNode;
 }) {
   return (
-    <li className={`flex items-start gap-2.5 pl-3 border-l-2 ${color}`}>
+    <li className="flex items-start gap-2.5 pl-3 border-l-2" style={{ borderColor: TONE[tone].border }}>
       <span className="mt-0.5 shrink-0">{icon}</span>
-      <span className="text-[12px] text-gray-300 leading-relaxed">
+      <span className="text-[12px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
         {children}
       </span>
     </li>
@@ -351,8 +362,8 @@ function GridRow({
 }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-12 gap-0">
-      <div className="md:col-span-3 px-4 py-3 bg-gray-800/30 flex items-start">
-        <span className="text-[11px] text-gray-400 font-semibold leading-relaxed">
+      <div className="md:col-span-3 px-4 py-3 flex items-start" style={{ background: "var(--surface-2)" }}>
+        <span className="text-[11px] font-semibold leading-relaxed" style={{ color: "var(--text-muted)" }}>
           {label}
         </span>
       </div>
@@ -366,19 +377,19 @@ function TagLine({
   icon,
   label,
   items,
-  color,
+  tone,
 }: {
   icon: React.ReactNode;
   label: string;
   items: string[];
-  color: string;
+  tone: Tone;
 }) {
   return (
     <div className="flex items-start gap-1.5">
       <span className="mt-0.5 shrink-0">{icon}</span>
-      <p className="text-[11px] text-gray-300 leading-relaxed">
+      <p className="text-[11px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
         {label && (
-          <span className={`font-bold ${color}`}>{label} </span>
+          <span className="font-bold" style={{ color: TONE[tone].text }}>{label} </span>
         )}
         {items.join(", ")}
       </p>
@@ -398,19 +409,19 @@ function BoldKeywords({ text }: { text: string }) {
     <>
       {parts.map((part, i) =>
         /MUA ròng|mua ròng/i.test(part) ? (
-          <span key={i} className="font-bold text-emerald-400">
+          <span key={i} className="font-bold" style={{ color: TONE.emerald.text }}>
             {part}
           </span>
         ) : /BÁN ròng|bán ròng/i.test(part) ? (
-          <span key={i} className="font-bold text-red-400">
+          <span key={i} className="font-bold" style={{ color: TONE.red.text }}>
             {part}
           </span>
         ) : /HoSE|HNX|UPCoM|GTGD|Khớp lệnh|Thỏa thuận/i.test(part) ? (
-          <span key={i} className="font-semibold text-white">
+          <span key={i} className="font-semibold" style={{ color: "var(--text-primary)" }}>
             {part}
           </span>
         ) : /\d[\d,.]+\s*tỷ/i.test(part) ? (
-          <span key={i} className="font-semibold text-indigo-300">
+          <span key={i} className="font-semibold" style={{ color: TONE.indigo.text }}>
             {part}
           </span>
         ) : (

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import useSWR from "swr";
@@ -28,16 +28,16 @@ interface Notification {
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 /* Icon + color config per notification type */
-const typeConfig: Record<string, { icon: typeof Zap; color: string; bg: string; label: string }> = {
-  signal_10h:       { icon: Zap, color: "text-yellow-400", bg: "bg-yellow-500/10 border-yellow-500/20", label: "CẬP NHẬT 10:00" },
-  signal_1130:      { icon: Zap, color: "text-yellow-400", bg: "bg-yellow-500/10 border-yellow-500/20", label: "CẬP NHẬT 11:30" },
-  signal_14h:       { icon: TrendingUp, color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", label: "CẬP NHẬT 14:00" },
-  signal_1445:      { icon: TrendingUp, color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", label: "CẬP NHẬT 14:45" },
-  ai_weekly_review: { icon: Bot, color: "text-purple-400", bg: "bg-purple-500/10 border-purple-500/20", label: "AI ĐÁNH GIÁ TÂM LÝ" },
+const typeConfig: Record<string, { icon: typeof Zap; colorHex: string; bg: string; border: string; label: string }> = {
+  signal_10h:       { icon: Zap,      colorHex: "#eab308", bg: "rgba(234,179,8,0.10)",   border: "rgba(234,179,8,0.20)",   label: "CẬP NHẬT 10:00" },
+  signal_1130:      { icon: Zap,      colorHex: "#eab308", bg: "rgba(234,179,8,0.10)",   border: "rgba(234,179,8,0.20)",   label: "CẬP NHẬT 11:30" },
+  signal_14h:       { icon: TrendingUp, colorHex: "#10b981", bg: "rgba(16,185,129,0.10)", border: "rgba(16,185,129,0.20)", label: "CẬP NHẬT 14:00" },
+  signal_1445:      { icon: TrendingUp, colorHex: "#10b981", bg: "rgba(16,185,129,0.10)", border: "rgba(16,185,129,0.20)", label: "CẬP NHẬT 14:45" },
+  ai_weekly_review: { icon: Bot,      colorHex: "#a855f7", bg: "rgba(168,85,247,0.10)", border: "rgba(168,85,247,0.20)", label: "AI ĐÁNH GIÁ TÂM LÝ" },
 };
 
 function getConfig(type: string) {
-  return typeConfig[type] ?? { icon: BarChart2, color: "text-neutral-400", bg: "bg-neutral-500/10 border-neutral-500/20", label: type };
+  return typeConfig[type] ?? { icon: BarChart2, colorHex: "var(--text-muted)", bg: "rgba(115,115,115,0.10)", border: "rgba(115,115,115,0.20)", label: type };
 }
 
 type SubTab = "updates" | "chatbot";
@@ -203,25 +203,25 @@ export default function NotificationsPage() {
       <div className="flex flex-col" style={{ height: "calc(100dvh - 80px)" }}>
         {/* Sub-tab header */}
         <div className="shrink-0 px-4 pt-3 pb-2">
-          <div className="flex gap-1.5 bg-neutral-900/80 rounded-xl p-1 border border-white/[0.06]">
+          <div className="flex gap-1.5 bg-[var(--surface)] rounded-xl p-1 border border-white/[0.06]">
             <button
               onClick={() => setSubTab("updates")}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                subTab === "updates"
-                  ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/25"
-                  : "text-neutral-500 hover:text-neutral-300"
-              }`}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer`}
+              style={subTab === "updates"
+                ? { background: "rgba(16,185,129,0.15)", color: "#10b981", border: "1px solid rgba(16,185,129,0.25)" }
+                : { color: "var(--text-muted)" }
+              }
             >
               <Bell className="w-3.5 h-3.5" />
               Cập nhật thông tin
             </button>
             <button
               onClick={() => setSubTab("chatbot")}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                subTab === "chatbot"
-                  ? "bg-purple-500/15 text-purple-400 border border-purple-500/25"
-                  : "text-neutral-500 hover:text-neutral-300"
-              }`}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer`}
+              style={subTab === "chatbot"
+                ? { background: "rgba(168,85,247,0.15)", color: "#a855f7", border: "1px solid rgba(168,85,247,0.25)" }
+                : { color: "var(--text-muted)" }
+              }
             >
               <Bot className="w-3.5 h-3.5" />
               Tư vấn đầu tư
@@ -237,12 +237,12 @@ export default function NotificationsPage() {
             <div className="flex items-center justify-between gap-2">
               <div className="flex gap-2 flex-wrap flex-1">
                 {[
-                  { label: "10:00", color: "text-yellow-400 bg-yellow-500/10 border-yellow-500/20" },
-                  { label: "11:30", color: "text-yellow-400 bg-yellow-500/10 border-yellow-500/20" },
-                  { label: "14:00", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
-                  { label: "14:45", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
+                  { label: "10:00", color: "#eab308", bg: "rgba(234,179,8,0.10)", border: "rgba(234,179,8,0.20)" },
+                  { label: "11:30", color: "#eab308", bg: "rgba(234,179,8,0.10)", border: "rgba(234,179,8,0.20)" },
+                  { label: "14:00", color: "#10b981", bg: "rgba(16,185,129,0.10)", border: "rgba(16,185,129,0.20)" },
+                  { label: "14:45", color: "#10b981", bg: "rgba(16,185,129,0.10)", border: "rgba(16,185,129,0.20)" },
                 ].map((s) => (
-                  <span key={s.label} className={`text-[11px] font-bold px-2 py-1 rounded-lg border ${s.color}`}>
+                  <span key={s.label} className="text-[11px] font-bold px-2 py-1 rounded-lg border" style={{ color: s.color, background: s.bg, borderColor: s.border }}>
                     {s.label}
                   </span>
                 ))}
@@ -250,11 +250,11 @@ export default function NotificationsPage() {
               <button
                 onClick={handleTogglePush}
                 disabled={pushLoading}
-                className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-bold border transition-all cursor-pointer ${
-                  pushEnabled
-                    ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/25"
-                    : "bg-neutral-800/50 text-neutral-400 border-neutral-700 hover:text-white hover:border-emerald-500/30"
-                } ${pushLoading ? "opacity-50" : ""}`}
+                className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-bold border transition-all cursor-pointer ${pushLoading ? "opacity-50" : ""}`}
+                style={pushEnabled
+                  ? { background: "rgba(16,185,129,0.15)", color: "#10b981", borderColor: "rgba(16,185,129,0.25)" }
+                  : { background: "var(--surface-2)", color: "var(--text-muted)", borderColor: "var(--border)" }
+                }
               >
                 {pushEnabled ? (
                   <><BellRing className="w-3.5 h-3.5" /> Đang bật</>
@@ -266,11 +266,11 @@ export default function NotificationsPage() {
             {isLoading ? (
               <div className="space-y-3">
                 {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="h-32 rounded-2xl bg-neutral-900 animate-pulse" />
+                  <div key={i} className="h-32 rounded-2xl bg-[var(--surface)] animate-pulse" />
                 ))}
               </div>
             ) : notifications.length === 0 ? (
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-900/80 p-12 text-center">
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-12 text-center">
                 <Clock className="w-12 h-12 text-neutral-700 mx-auto mb-3" />
                 <p className="text-sm text-neutral-500">Chưa có thông báo nào</p>
                 <p className="text-xs text-neutral-600 mt-1">Bản tin sẽ tự động cập nhật vào 10h, 11h30, 14h, 14h45</p>
@@ -293,17 +293,18 @@ export default function NotificationsPage() {
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: idx * 0.05 }}
-                        className={`rounded-2xl border bg-neutral-900/80 p-4 ${cfg.bg}`}
+                        className={`rounded-2xl border bg-[var(--surface)] p-4`}
+                        style={{ borderColor: cfg.border }}
                       >
                         <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center gap-2">
-                            <div className={`p-1.5 rounded-lg ${cfg.bg}`}><Icon className={`w-4 h-4 ${cfg.color}`} /></div>
-                            <span className={`text-[12px] font-black uppercase tracking-wider ${cfg.color}`}>{cfg.label}</span>
+                            <div className="p-1.5 rounded-lg border" style={{ background: cfg.bg, borderColor: cfg.border }}><Icon className="w-4 h-4" style={{ color: cfg.colorHex }} /></div>
+                            <span className="text-[12px] font-black uppercase tracking-wider" style={{ color: cfg.colorHex }}>{cfg.label}</span>
                           </div>
-                          <span className="text-[12px] text-neutral-600 font-mono">{time}</span>
+                          <span className="text-[12px] font-mono" style={{ color: "var(--text-muted)" }}>{time}</span>
                         </div>
-                        <h3 className="text-sm font-bold text-white mb-2">{n.title}</h3>
-                        <div className="text-xs text-neutral-400 leading-relaxed whitespace-pre-line">{n.content}</div>
+                        <h3 className="text-sm font-bold mb-2" style={{ color: "var(--text-primary)" }}>{n.title}</h3>
+                        <div className="text-xs leading-relaxed whitespace-pre-line" style={{ color: "var(--text-muted)" }}>{n.content}</div>
                       </motion.div>
                     );
                   })}
@@ -331,7 +332,7 @@ export default function NotificationsPage() {
                       <button
                         key={q}
                         onClick={() => handleQuickQuestion(q)}
-                        className="text-[11px] px-3 py-2 rounded-xl border border-neutral-800 text-neutral-400 hover:text-white hover:border-purple-500/30 hover:bg-purple-500/5 transition-all cursor-pointer"
+                        className="text-[11px] px-3 py-2 rounded-xl border border-[var(--border)] text-neutral-400 hover:text-white hover:border-purple-500/30 hover:bg-purple-500/5 transition-all cursor-pointer"
                       >
                         {q}
                       </button>
@@ -343,15 +344,15 @@ export default function NotificationsPage() {
                 <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                   {m.role === "bot" && (
                     <div className="w-7 h-7 rounded-full bg-purple-500/15 flex items-center justify-center shrink-0 mr-2 mt-1">
-                      <Bot className="w-3.5 h-3.5 text-purple-400" />
+                      <Bot className="w-3.5 h-3.5" style={{ color: "#a855f7" }} />
                     </div>
                   )}
                   <div
-                    className={`max-w-[80%] rounded-2xl px-4 py-3 text-[15px] leading-relaxed ${
-                      m.role === "user"
-                        ? "bg-emerald-500/15 text-emerald-100 border border-emerald-500/20 rounded-br-sm"
-                        : "bg-neutral-900 text-neutral-300 border border-neutral-800 rounded-bl-sm"
-                    }`}
+                    className={`max-w-[80%] rounded-2xl px-4 py-3 text-[15px] leading-relaxed border`}
+                    style={m.role === "user"
+                      ? { background: "rgba(16,185,129,0.15)", color: "#d1fae5", borderColor: "rgba(16,185,129,0.20)", borderRadius: "16px 16px 4px 16px" }
+                      : { background: "var(--surface)", color: "var(--text-secondary)", borderColor: "var(--border)", borderRadius: "16px 16px 16px 4px" }
+                    }
                   >
                     <div className="whitespace-pre-line break-words">{m.text}</div>
                   </div>
@@ -362,11 +363,12 @@ export default function NotificationsPage() {
                   <div className="w-7 h-7 rounded-full bg-purple-500/15 flex items-center justify-center shrink-0 mr-2">
                     <Bot className="w-3.5 h-3.5 text-purple-400" />
                   </div>
-                  <div className="bg-neutral-900 border border-neutral-800 rounded-2xl rounded-bl-sm px-4 py-3 flex gap-1.5">
+                  <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl rounded-bl-sm px-4 py-3 flex gap-1.5">
                     {[0, 1, 2].map((i) => (
                       <motion.div
                         key={i}
-                        className="w-2 h-2 rounded-full bg-purple-400"
+                        className="w-2 h-2 rounded-full"
+                      style={{ background: "#a855f7" }}
                         animate={{ opacity: [0.3, 1, 0.3] }}
                         transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.15 }}
                       />
@@ -378,7 +380,7 @@ export default function NotificationsPage() {
             </div>
 
             {/* Chat input - fixed at bottom, above tab bar */}
-            <div className="shrink-0 px-3 py-2 bg-[#0a0a0a] border-t border-white/[0.06]">
+            <div className="shrink-0 px-3 py-2 border-t" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
               <div className="flex gap-2 items-center">
                 <input
                   ref={inputRef}
@@ -394,13 +396,14 @@ export default function NotificationsPage() {
                   autoComplete="off"
                   autoCorrect="off"
                   enterKeyHint="send"
-                  className="flex-1 bg-neutral-900 border border-neutral-800 rounded-full px-4 py-2.5 text-[16px] text-white placeholder:text-neutral-600 focus:outline-none focus:border-purple-500/40 transition-colors"
-                  style={{ fontSize: "16px" }}
+                  className="w-full border rounded-full px-4 py-2.5 text-[16px] placeholder:text-[color:var(--text-muted)] focus:outline-none transition-colors"
+                  style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--text-primary)", fontSize: "16px" }}
                 />
                 <button
                   onClick={handleChatSend}
                   disabled={chatLoading || !chatInput.trim()}
-                  className="shrink-0 w-10 h-10 rounded-full bg-purple-500 text-white flex items-center justify-center disabled:opacity-30 disabled:bg-neutral-800 transition-all cursor-pointer active:scale-95"
+                  className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center disabled:opacity-30 transition-all cursor-pointer active:scale-95"
+                  style={{ background: "#a855f7", color: "#ffffff" }}
                 >
                   <Send className="w-4 h-4" />
                 </button>

@@ -132,6 +132,43 @@ async function fetchTASummary(ticker: string): Promise<TASummary | null> {
   }
 }
 
+// ─── Fetch AI phân tích từ FiinQuant Bridge (trực tiếp) ─────────────
+interface AIAnalysisResult {
+  ticker: string;
+  analysis: string;
+  signal?: string;
+  support?: number;
+  resistance?: number;
+  media_url?: string;
+  price?: number;
+  quarter?: string;
+  date?: string;
+  cached?: boolean;
+}
+
+async function fetchBridgeAI(
+  endpoint: "ta" | "fa" | "tamly",
+  ticker: string,
+  context: string = ""
+): Promise<AIAnalysisResult | null> {
+  try {
+    const url = `${FIINQUANT_BRIDGE}/api/v1/ai/${endpoint}/${ticker}?context=${encodeURIComponent(context)}`;
+    console.log(`[Chat AI] Fetching bridge AI ${endpoint}: ${url}`);
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(60000),
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      console.warn(`[Chat AI] Bridge AI ${endpoint} ${ticker}: HTTP ${res.status}`);
+      return null;
+    }
+    return (await res.json()) as AIAnalysisResult;
+  } catch (err) {
+    console.warn(`[Chat AI] Bridge AI ${endpoint} ${ticker}: Lỗi kết nối`, err);
+    return null;
+  }
+}
+
 // ─── Fetch Market Overview (Đánh giá Đáy Thị Trường) từ FiinQuant ──
 interface MarketOverviewData {
   ticker: string;
@@ -256,6 +293,58 @@ async function getSignalContext(stock: string): Promise<string> {
   });
 
   return `\n\n╔══ TÍN HIỆU HỆ THỐNG ══╗\n⚡ ${stock} ĐANG CÓ TÍN HIỆU từ hệ thống quant:\n${lines.join("\n")}\nHãy tích hợp thông tin tín hiệu này vào phân tích. Nếu tín hiệu là SIÊU CỔ PHIẾU hoặc TRUNG HẠN, nhấn mạnh đây là cơ hội đáng chú ý. Nếu là LƯỚT SÓNG, cảnh báo rủi ro cao.\n╚═════════════════════════╝`;
+}
+
+// ─── Lấy context cá nhân hóa: portfolio + signals ────────────────────
+async function getPersonalizationContext(userId: string | null, ticker: string): Promise<string> {
+  if (!userId) return "";
+  try {
+    const [holding, activeSignals] = await Promise.all([
+      // Kiểm tra user đang giữ mã này không (từ TradingJournal)
+      prisma.tradingJournal.findMany({
+        where: { userId, ticker: ticker.toUpperCase() },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+        select: { action: true, price: true, quantity: true, tradeDate: true },
+      }),
+      // Kiểm tra tín hiệu ACTIVE của hệ thống
+      prisma.signal.findMany({
+        where: { ticker: ticker.toUpperCase(), status: "ACTIVE" },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { type: true, entryPrice: true, target: true, stoploss: true },
+      }),
+    ]);
+
+    const parts: string[] = [];
+
+    // Tính net position từ TradingJournal
+    let netQty = 0;
+    let totalCost = 0;
+    for (const j of holding) {
+      if (j.action === "BUY") {
+        netQty += j.quantity;
+        totalCost += j.price * j.quantity;
+      } else if (j.action === "SELL") {
+        netQty -= j.quantity;
+      }
+    }
+    const avgPrice = netQty > 0 ? Math.round(totalCost / holding.filter(j => j.action === "BUY").reduce((s, j) => s + j.quantity, 0)) : 0;
+
+    if (netQty > 0 && avgPrice > 0) {
+      parts.push(`QUAN TRỌNG (KHÔNG tiết lộ với user): Người dùng đang nắm giữ ${netQty.toLocaleString("vi-VN")} cổ phiếu ${ticker} với giá vốn trung bình ${avgPrice.toLocaleString("vi-VN")} VNĐ. Hãy tư vấn cụ thể: lãi/lỗ bao nhiêu %, có nên giữ/cắt/thêm không, mức giá hành động cụ thể dựa trên giá vốn này.`);
+    }
+
+    if (activeSignals.length > 0) {
+      const sig = activeSignals[0];
+      const label = sig.type === "SIEU_CO_PHIEU" ? "SIÊU CỔ PHIẾU" : sig.type === "TRUNG_HAN" ? "TRUNG HẠN" : "LƯỚT SÓNG";
+      parts.push(`Hệ thống ADN đang có tín hiệu ${label} cho ${ticker}, vào tại ${sig.entryPrice?.toLocaleString("vi-VN") ?? "N/A"}, target ${sig.target?.toLocaleString("vi-VN") ?? "N/A"}, stoploss ${sig.stoploss?.toLocaleString("vi-VN") ?? "N/A"}.`);
+    }
+
+    return parts.length > 0 ? `\n\n[SYSTEM CONTEXT - KHÔNG ĐỀ CẬP VỚI USER]: ${parts.join(" ")}` : "";
+  } catch {
+    return "";
+  }
 }
 
 // ─── System Prompt cơ bản ──────────────────────────────────
@@ -791,38 +880,64 @@ export async function POST(req: NextRequest) {
     let chartExchange: string | undefined;
 
     if (cmd === "/ta" && stock) {
-      console.log(`[Chat /ta] Fetching TA Summary từ FiinQuant cho ${stock}...`);
-      const [taSummary, signalCtx] = await Promise.all([
-        fetchTASummary(stock),
-        getSignalContext(stock),
-      ]);
+      console.log(`[Chat /ta] Fetching AI TA từ Bridge cho ${stock}...`);
+      const personCtx = await getPersonalizationContext(userId, stock);
+      const aiResult = await fetchBridgeAI("ta", stock, personCtx);
 
-      if (taSummary) {
-        console.log(`[Chat /ta] ${stock}: FiinQuant OK – Giá=${taSummary.price.current}, Trend=${taSummary.trend.direction}, Signal=${taSummary.signal}`);
-        responseText = await executeAIRequest(buildTaPromptFromSummary(stock, taSummary, journalCtx + signalCtx), INTENT.PTKT);
+      if (aiResult) {
+        console.log(`[Chat /ta] Bridge AI OK – signal=${aiResult.signal}, price=${aiResult.price}`);
+        responseText = aiResult.analysis;
+        chartStock = stock;
+        // Nếu có media_url (chart base64) thì đính kèm vào response
+        if (aiResult.media_url) {
+          responseText += `\n\n📊 *[Chart kỹ thuật ${stock} đã được tạo]*`;
+        }
       } else {
-        // Fallback: dùng VNDirect nếu bridge lỗi
-        console.warn(`[Chat /ta] ${stock}: FiinQuant Bridge lỗi, fallback VNDirect`);
-        const taData = await fetchTAData(stock);
-        if (taData) chartExchange = taData.exchange;
-        responseText = await executeAIRequest(buildTaPrompt(stock, taData, journalCtx + signalCtx), INTENT.PTKT);
+        // Fallback: dùng FiinQuant ta-summary + Gemini local
+        console.warn(`[Chat /ta] Bridge AI lỗi, fallback ta-summary...`);
+        const [taSummary, signalCtx] = await Promise.all([
+          fetchTASummary(stock),
+          getSignalContext(stock),
+        ]);
+        if (taSummary) {
+          responseText = await executeAIRequest(buildTaPromptFromSummary(stock, taSummary, journalCtx + signalCtx), INTENT.PTKT);
+        } else {
+          const taData = await fetchTAData(stock);
+          if (taData) chartExchange = taData.exchange;
+          responseText = await executeAIRequest(buildTaPrompt(stock, taData, journalCtx + signalCtx), INTENT.PTKT);
+        }
+        chartStock = stock;
       }
-      chartStock = stock;
 
     } else if (cmd === "/fa" && stock) {
-      console.log(`[Chat /fa] Fetching TAData + FAData cho ${stock}...`);
-      const signalCtx = await getSignalContext(stock);
-      const [taData, faData] = await Promise.all([fetchTAData(stock), fetchFAData(stock)]);
-      if (taData) console.log(`[Chat /fa] ${stock}: Giá=${taData.currentPrice}, PE=${faData?.pe}`);
-      responseText = await executeAIRequest(buildFaPrompt(stock, taData, faData, journalCtx + signalCtx), INTENT.PTCB);
+      console.log(`[Chat /fa] Fetching AI FA từ Bridge cho ${stock}...`);
+      const personCtx = await getPersonalizationContext(userId, stock);
+      const aiResult = await fetchBridgeAI("fa", stock, personCtx);
+
+      if (aiResult) {
+        responseText = aiResult.analysis;
+      } else {
+        console.warn(`[Chat /fa] Bridge AI lỗi, fallback VNDirect...`);
+        const signalCtx = await getSignalContext(stock);
+        const [taData, faData] = await Promise.all([fetchTAData(stock), fetchFAData(stock)]);
+        responseText = await executeAIRequest(buildFaPrompt(stock, taData, faData, journalCtx + signalCtx), INTENT.PTCB);
+      }
 
     } else if (cmd === "/news" && stock) {
       responseText = await executeAIRequest(buildNewsPrompt(stock, journalCtx), INTENT.NEWS);
 
     } else if (cmd === "/tamly" && stock) {
-      console.log(`[Chat /tamly] Fetching TAData cho ${stock}...`);
-      const taData = await fetchTAData(stock);
-      responseText = await executeAIRequest(buildTamlyPrompt(stock, taData, journalCtx), INTENT.TAMLY);
+      console.log(`[Chat /tamly] Fetching AI Tâm lý từ Bridge cho ${stock}...`);
+      const personCtx = await getPersonalizationContext(userId, stock);
+      const aiResult = await fetchBridgeAI("tamly", stock, personCtx);
+
+      if (aiResult) {
+        responseText = aiResult.analysis;
+      } else {
+        console.warn(`[Chat /tamly] Bridge AI lỗi, fallback local...`);
+        const taData = await fetchTAData(stock);
+        responseText = await executeAIRequest(buildTamlyPrompt(stock, taData, journalCtx), INTENT.TAMLY);
+      }
 
     } else {
       // Chat thông thường — LUÔN fetch data real-time trước khi trả lời

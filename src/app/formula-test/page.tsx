@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -26,7 +26,6 @@ import {
 import type { Signal } from "@/types";
 import { RPIDashboard } from "@/components/formula-test/RPIDashboard";
 
-/* ── Mô tả 3 công thức ────────────────────────────────────────────────── */
 const FORMULAS = [
   {
     id: "SIEU_CO_PHIEU",
@@ -34,11 +33,8 @@ const FORMULAS = [
     subtitle: "CANSLIM / VCP Breakout",
     icon: Rocket,
     color: "purple",
-    gradient: "from-purple-500/10 to-purple-500/5",
-    borderColor: "border-purple-500/20 hover:border-purple-500/40",
-    iconBg: "bg-purple-500/15",
-    iconColor: "text-purple-400",
-    badgeColor: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+    iconBg: { background: "rgba(168,85,247,0.15)" },
+    iconColor: "#a855f7",
     description:
       "Cổ phiếu mạnh nhất thị trường, tích lũy nền dài cạn kiệt thanh khoản, đột phá Vol khổng lồ xác nhận vào siêu sóng.",
     conditions: [
@@ -57,11 +53,8 @@ const FORMULAS = [
     subtitle: "Trend Following",
     icon: TrendingUp,
     color: "emerald",
-    gradient: "from-emerald-500/10 to-emerald-500/5",
-    borderColor: "border-emerald-500/20 hover:border-emerald-500/40",
-    iconBg: "bg-emerald-500/15",
-    iconColor: "text-emerald-400",
-    badgeColor: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+    iconBg: { background: "rgba(16,185,129,0.15)" },
+    iconColor: "#10b981",
     description:
       "Cổ phiếu trong xu hướng tăng rõ ràng, pullback cạn Vol rồi bật tăng trở lại — đi theo dòng tiền lớn.",
     conditions: [
@@ -79,11 +72,8 @@ const FORMULAS = [
     subtitle: "Mean Reversion / Bounce",
     icon: Zap,
     color: "yellow",
-    gradient: "from-yellow-500/10 to-yellow-500/5",
-    borderColor: "border-yellow-500/20 hover:border-yellow-500/40",
-    iconBg: "bg-yellow-500/15",
-    iconColor: "text-yellow-400",
-    badgeColor: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+    iconBg: { background: "rgba(234,179,8,0.15)" },
+    iconColor: "#eab308",
     description:
       "Cổ phiếu bị bán quá đà, RSI dưới 30 hoặc chạm Bollinger dưới — nảy lại nhanh để lướt sóng ngắn.",
     conditions: [
@@ -101,6 +91,8 @@ export default function FormulaTestPage() {
   const { isSignalLocked } = useSubscription();
   const { theme } = useTheme();
   const isDark = theme === "dark";
+  // NOTE: components use CSS variables directly — isDark only needed for conditional className fallbacks
+  void isDark; // suppress unused warning
   const [scanning, setScanning] = useState(false);
 
   // Chỉ ADMIN mới truy cập được
@@ -108,7 +100,7 @@ export default function FormulaTestPage() {
     return (
       <MainLayout>
         <div className="flex items-center justify-center min-h-[60vh]">
-          <p className={`${isDark ? "text-neutral-500" : "text-slate-500"}`}>Trang này chỉ dành cho Admin.</p>
+          <p style={{ color: "var(--text-muted)" }}>Trang này chỉ dành cho Admin.</p>
         </div>
       </MainLayout>
     );
@@ -159,28 +151,26 @@ export default function FormulaTestPage() {
     <MainLayout>
       <div className="p-3 md:p-6 space-y-5 max-w-7xl mx-auto">
         {/* ═══ HEADER ═══ */}
-        <div className={`relative overflow-hidden rounded-2xl border p-5 sm:p-8 backdrop-blur-xl ${
-          isDark ? "border-white/[0.08] bg-white/[0.03]" : "border-white/50 bg-white/60"
-        }`}>
-          <div className="absolute -top-20 -right-20 w-60 h-60 bg-purple-500/5 rounded-full blur-3xl" />
-          <div className="absolute -bottom-16 -left-16 w-40 h-40 bg-emerald-500/5 rounded-full blur-3xl" />
+        <div className="relative overflow-hidden rounded-2xl border p-5 sm:p-8" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+          <div className="absolute -top-20 -right-20 w-60 h-60 rounded-full" style={{ background: "rgba(168,85,247,0.04)" }} />
+          <div className="absolute -bottom-16 -left-16 w-40 h-40 rounded-full" style={{ background: "rgba(16,185,129,0.04)" }} />
 
           <div className="relative z-10">
             <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 rounded-xl bg-purple-500/10 border border-purple-500/20">
-                <Zap className="w-5 h-5 text-purple-400" />
+              <div className="p-2 rounded-xl border" style={{ background: "rgba(168,85,247,0.10)", borderColor: "rgba(168,85,247,0.20)" }}>
+                <Zap className="w-5 h-5" style={{ color: "#a855f7" }} />
               </div>
-              <span className="text-[12px] font-bold text-purple-400 uppercase tracking-[0.2em]">
+              <span className="text-[12px] font-bold uppercase tracking-[0.2em]" style={{ color: "#a855f7" }}>
                 Formula Testing Lab
               </span>
             </div>
-            <h1 className={`text-2xl sm:text-3xl font-black leading-tight ${isDark ? "text-white" : "text-slate-900"}`}>
+            <h1 className="text-2xl sm:text-3xl font-black leading-tight" style={{ color: "var(--text-primary)" }}>
               TEST{" "}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-emerald-400">
                 CÔNG CỤ
               </span>
             </h1>
-            <p className={`text-sm mt-2 max-w-2xl leading-relaxed ${isDark ? "text-white/40" : "text-slate-500"}`}>
+            <p className="text-sm mt-2 max-w-2xl leading-relaxed" style={{ color: "var(--text-muted)" }}>
               Chạy 3 bộ lọc công thức chọn cổ phiếu trên 200 mã thanh khoản cao nhất thị trường.
               Kết quả hiển thị dạng thẻ tín hiệu real-time.
             </p>
@@ -198,34 +188,36 @@ export default function FormulaTestPage() {
             return (
               <div
                 key={f.id}
-                className={`glow-card bg-gradient-to-br ${f.gradient} border ${f.borderColor} rounded-2xl p-5 transition-all cursor-pointer backdrop-blur-xl`}
+                className="glow-card border rounded-2xl p-5 transition-all cursor-pointer"
+              style={{ background: "var(--surface)", borderColor: "var(--border)" }}
                 onClick={() => setExpandedFormula(isExpanded ? null : f.id)}
               >
                 <div className="flex items-center gap-3 mb-3">
-                  <div className={`p-2 rounded-xl ${f.iconBg}`}>
-                    <Icon className={`w-5 h-5 ${f.iconColor}`} />
+                  <div className="p-2 rounded-xl" style={f.iconBg}>
+                    <Icon className="w-5 h-5" style={{ color: f.iconColor }} />
                   </div>
                   <div>
-                    <h3 className={`text-sm font-black ${isDark ? "text-white" : "text-slate-900"}`}>{f.name}</h3>
-                    <p className={`text-[12px] ${isDark ? "text-white/35" : "text-slate-400"}`}>{f.subtitle}</p>
+                    <h3 className="text-sm font-black" style={{ color: "var(--text-primary)" }}>{f.name}</h3>
+                    <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>{f.subtitle}</p>
                   </div>
                   {signals && (
                     <span
-                      className={`ml-auto text-lg font-black ${f.iconColor}`}
+                      className="ml-auto text-lg font-black"
+                      style={{ color: f.iconColor }}
                     >
                       {countByType(f.id)}
                     </span>
                   )}
                 </div>
 
-                <p className={`text-xs leading-relaxed ${isDark ? "text-white/40" : "text-slate-500"}`}>
+                <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
                   {f.description}
                 </p>
 
                 {/* Expanded: show conditions */}
                 {isExpanded && (
-                  <div className={`mt-4 space-y-2 border-t pt-3 ${isDark ? "border-white/[0.06]" : "border-slate-200"}`}>
-                    <p className={`text-[12px] font-bold uppercase tracking-wider ${isDark ? "text-neutral-500" : "text-slate-400"}`}>
+                  <div className="mt-4 space-y-2 border-t pt-3" style={{ borderColor: "var(--border)" }}>
+                    <p className="text-[12px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
                       Điều kiện kích hoạt
                     </p>
                     {f.conditions.map((cond, i) => {
@@ -233,9 +225,10 @@ export default function FormulaTestPage() {
                       return (
                         <div
                           key={i}
-                          className={`flex items-start gap-2 text-xs ${isDark ? "text-neutral-300" : "text-slate-600"}`}
+                          className="flex items-start gap-2 text-xs"
+                          style={{ color: "var(--text-secondary)" }}
                         >
-                          <CondIcon className={`w-3.5 h-3.5 ${f.iconColor} flex-shrink-0 mt-0.5`} />
+                          <CondIcon className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" style={{ color: f.iconColor }} />
                           <span>{cond.text}</span>
                         </div>
                       );
@@ -257,21 +250,20 @@ export default function FormulaTestPage() {
           isLocked={isSignalLocked}
           message="Nâng cấp VIP để chạy test công thức real-time"
         >
-          <div className={`flex flex-col sm:flex-row items-center gap-4 border rounded-2xl p-5 backdrop-blur-xl ${
-            isDark ? "bg-white/[0.03] border-white/[0.08]" : "bg-white/60 border-white/50"
-          }`}>
+          <div className="flex flex-col sm:flex-row items-center gap-4 border rounded-2xl p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
             <div className="flex-1">
-              <h3 className={`text-sm font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
+              <h3 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>
                 Chạy quét toàn thị trường
               </h3>
-              <p className={`text-xs mt-1 ${isDark ? "text-white/35" : "text-slate-500"}`}>
+              <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
                 Quét 200 mã cổ phiếu theo 3 công thức — mất khoảng 30-60 giây
               </p>
             </div>
             <button
               onClick={runScan}
               disabled={scanning}
-              className="flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-purple-500/20 to-emerald-500/20 border border-purple-500/30 text-white font-bold text-sm hover:from-purple-500/30 hover:to-emerald-500/30 transition-all disabled:opacity-50 cursor-pointer"
+              className="flex items-center gap-2 px-6 py-3 rounded-xl border font-bold text-sm transition-all disabled:opacity-50 cursor-pointer"
+              style={{ background: "rgba(168,85,247,0.15)", borderColor: "rgba(168,85,247,0.30)", color: "var(--text-primary)" }}
             >
               {scanning ? (
                 <>
@@ -303,16 +295,14 @@ export default function FormulaTestPage() {
         {signals !== null && (
           <div className="space-y-4">
             {/* Summary bar */}
-            <div className={`flex items-center justify-between border rounded-2xl p-4 backdrop-blur-xl ${
-              isDark ? "bg-white/[0.03] border-white/[0.08]" : "bg-white/60 border-white/50"
-            }`}>
+            <div className="flex items-center justify-between border rounded-2xl p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
                 <div className="flex items-center gap-3">
                 <CheckCircle2 className="w-5 h-5 text-emerald-400" />
                 <div>
                   <p className={`text-sm font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
                     Phát hiện {signals.length} tín hiệu
                   </p>
-                  <p className={`text-[12px] ${isDark ? "text-white/35" : "text-slate-400"}`}>
+                  <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>
                     {countByType("SIEU_CO_PHIEU")} Siêu CP ·{" "}
                     {countByType("TRUNG_HAN")} Trung Hạn ·{" "}
                     {countByType("DAU_CO")} Lướt Sóng
@@ -354,11 +344,9 @@ export default function FormulaTestPage() {
                 ))}
               </div>
             ) : (
-              <div className={`text-center py-12 border rounded-2xl backdrop-blur-xl ${
-                isDark ? "bg-white/[0.03] border-white/[0.08]" : "bg-white/60 border-white/50"
-              }`}>
-                <Zap className={`w-10 h-10 mx-auto mb-3 ${isDark ? "text-neutral-700" : "text-slate-300"}`} />
-                <p className={`text-sm ${isDark ? "text-neutral-500" : "text-slate-500"}`}>
+              <div className="text-center py-12 border rounded-2xl" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+                <Zap className="w-10 h-10 mx-auto mb-3" style={{ color: "var(--text-muted)" }} />
+                <p className="text-sm" style={{ color: "var(--text-muted)" }}>
                   {selectedFormula !== "all"
                     ? "Không có tín hiệu cho công thức này"
                     : "Không phát hiện tín hiệu nào hôm nay"}
@@ -370,12 +358,10 @@ export default function FormulaTestPage() {
 
         {/* ═══ Scanning progress ═══ */}
         {scanning && (
-          <div className={`text-center py-12 border rounded-2xl backdrop-blur-xl ${
-            isDark ? "bg-white/[0.03] border-white/[0.08]" : "bg-white/60 border-white/50"
-          }`}>
-            <Loader2 className="w-8 h-8 text-purple-400 animate-spin mx-auto mb-4" />
-            <p className={`text-sm font-bold ${isDark ? "text-white" : "text-slate-900"}`}>Đang quét 200 mã cổ phiếu...</p>
-            <p className={`text-xs mt-1 ${isDark ? "text-white/35" : "text-slate-500"}`}>
+          <div className="text-center py-12 border rounded-2xl" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" style={{ color: "#a855f7" }} />
+            <p className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>Đang quét 200 mã cổ phiếu...</p>
+            <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
               Tính chỉ báo kỹ thuật + chạy 3 bộ lọc công thức. Vui lòng đợi 30-60 giây.
             </p>
           </div>

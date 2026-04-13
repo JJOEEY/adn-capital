@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useMemo, useCallback, useEffect } from "react";
 import Link from "next/link";
@@ -84,14 +84,14 @@ function timeAgo(dateStr: string): string {
 
 function SentimentBadge({ sentiment }: { sentiment: string }) {
   const map: Record<string, { bg: string; text: string; dot: string }> = {
-    "Tích cực": { bg: "bg-emerald-500/15", text: "text-emerald-400", dot: "bg-emerald-400" },
-    "Tiêu cực": { bg: "bg-red-500/15", text: "text-red-400", dot: "bg-red-400" },
-    "Trung tính": { bg: "bg-amber-500/15", text: "text-amber-400", dot: "bg-amber-400" },
+    "Tích cực": { bg: "rgba(16,185,129,0.15)", text: "#10b981", dot: "#10b981" },
+    "Tiêu cực": { bg: "rgba(239,68,68,0.15)", text: "#ef4444", dot: "#ef4444" },
+    "Trung tính": { bg: "rgba(245,158,11,0.15)", text: "#f59e0b", dot: "#f59e0b" },
   };
   const s = map[sentiment] ?? map["Trung tính"];
   return (
-    <span className={`inline-flex items-center gap-1 text-[12px] font-semibold px-1.5 py-0.5 rounded-full ${s.bg} ${s.text}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
+    <span className="inline-flex items-center gap-1 text-[12px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: s.bg, color: s.text }}>
+      <span className="w-1.5 h-1.5 rounded-full" style={{ background: s.dot }} />
       {sentiment}
     </span>
   );
@@ -117,21 +117,21 @@ function HeroCard({ article }: { article: Article }) {
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
         <div className="absolute bottom-0 left-0 right-0 p-5 md:p-6">
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-[12px] font-bold text-white/90 bg-blue-500/80 px-2 py-0.5 rounded uppercase tracking-wider">
+            <span className="text-[12px] font-bold px-2 py-0.5 rounded uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.90)", background: "rgba(59,130,246,0.80)" }}>
               {categoryName}
             </span>
             {article.sentiment && <SentimentBadge sentiment={article.sentiment} />}
-            <span className="text-[12px] font-bold text-emerald-400 bg-emerald-500/20 px-1.5 py-0.5 rounded">AI</span>
+            <span className="text-[12px] font-bold px-1.5 py-0.5 rounded" style={{ color: "#10b981", background: "rgba(16,185,129,0.20)" }}>AI</span>
           </div>
-          <h2 className="text-xl md:text-2xl font-extrabold text-white leading-tight mb-2 group-hover:text-blue-300 transition-colors line-clamp-3 drop-shadow-lg">
+          <h2 className="text-xl md:text-2xl font-extrabold leading-tight mb-2 group-hover:text-blue-300 transition-colors line-clamp-3 drop-shadow-lg" style={{ color: "#fff" }}>
             {article.title}
           </h2>
           {article.aiSummary && (
-            <p className="text-sm text-white/70 leading-relaxed line-clamp-2 mb-2 hidden md:block">
+            <p className="text-sm leading-relaxed line-clamp-2 mb-2 hidden md:block" style={{ color: "rgba(255,255,255,0.70)" }}>
               {article.aiSummary}
             </p>
           )}
-          <div className="flex items-center gap-3 text-[11px] text-white/50">
+          <div className="flex items-center gap-3 text-[11px]" style={{ color: "rgba(255,255,255,0.50)" }}>
             <span>{authorName}</span>
             <span>·</span>
             <span>{article.publishedAt ? timeAgo(article.publishedAt) : ""}</span>
@@ -163,7 +163,7 @@ function ArticleRow({ article }: { article: Article }) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-[11px] font-bold text-blue-400 uppercase tracking-wider">{categoryName}</span>
+          <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "#60a5fa" }}>{categoryName}</span>
           {article.sentiment && <SentimentBadge sentiment={article.sentiment} />}
         </div>
         <h3 className="text-[15px] md:text-sm font-bold text-slate-200 leading-snug group-hover:text-blue-400 transition-colors line-clamp-2">
@@ -178,7 +178,7 @@ function ArticleRow({ article }: { article: Article }) {
           )}
           <span>{article.publishedAt ? timeAgo(article.publishedAt) : ""}</span>
           {article.tags.slice(0, 2).map((tag) => (
-            <span key={tag} className="text-blue-400/50">#{tag}</span>
+            <span key={tag} style={{ color: "rgba(96,165,250,0.50)" }}>#{tag}</span>
           ))}
         </div>
       </div>
@@ -193,8 +193,8 @@ function ResearchPdfCard({ article }: { article: Article }) {
   const authorName = article.author?.name ?? "ADN Capital";
   return (
     <div className="flex gap-3 py-3 border-b border-white/[0.06] last:border-b-0">
-      <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-red-500/15 flex items-center justify-center">
-        <FileText className="w-5 h-5 text-red-400" />
+      <div className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: "rgba(239,68,68,0.15)" }}>
+        <FileText className="w-5 h-5" style={{ color: "#ef4444" }} />
       </div>
       <div className="flex-1 min-w-0">
         <Link
@@ -213,7 +213,8 @@ function ResearchPdfCard({ article }: { article: Article }) {
             href={article.pdfUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 mt-1.5 text-[12px] font-bold text-red-400 hover:text-red-300 transition-colors"
+            className="inline-flex items-center gap-1 mt-1.5 text-[12px] font-bold hover:text-red-300 transition-colors"
+            style={{ color: "#ef4444" }}
             onClick={(e) => e.stopPropagation()}
           >
             <FileText className="w-3 h-3" />
@@ -274,7 +275,7 @@ export function NewsListClient() {
       {/* ── Header ── */}
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
+          <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight" style={{ color: "var(--text-primary)" }}>
             Tin tức Tài chính
           </h1>
           <p className="text-sm text-slate-500 mt-1">Cập nhật liên tục · AI tổng hợp &amp; phân tích</p>
@@ -283,7 +284,8 @@ export function NewsListClient() {
           {isWriter && (
             <Link
               href="/khac/tin-tuc/admin"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/15 text-blue-400 border border-blue-500/25 hover:bg-blue-500/25 transition-colors text-xs font-medium"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors text-xs font-medium"
+              style={{ background: "rgba(59,130,246,0.15)", color: "#60a5fa", borderColor: "rgba(59,130,246,0.25)" }}
             >
               <Settings className="w-3.5 h-3.5" />
               Quản lý bài viết
@@ -308,7 +310,7 @@ export function NewsListClient() {
       {/* ── Loading ── */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
+          <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#60a5fa" }} />
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-20 text-slate-500">
@@ -329,10 +331,10 @@ export function NewsListClient() {
           {/* Cột Sidebar (30%) */}
           <div className="lg:col-span-3">
             {researchArticles.length > 0 && (
-              <div className="bg-white/[0.03] rounded-2xl border border-white/[0.06] p-4 mb-5">
+              <div className="rounded-2xl border p-4 mb-5" style={{ background: "var(--surface-2)", borderColor: "var(--border)" }}>
                 <div className="flex items-center gap-2 mb-3">
-                  <FileText className="w-4 h-4 text-red-400" />
-                  <h3 className="text-sm font-bold text-white">Báo cáo Phân Tích Mới Nhất</h3>
+                  <FileText className="w-4 h-4" style={{ color: "#ef4444" }} />
+                  <h3 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>Báo cáo Phân Tích Mới Nhất</h3>
                 </div>
                 <div>
                   {researchArticles.slice(0, 5).map((article) => (
@@ -342,14 +344,14 @@ export function NewsListClient() {
               </div>
             )}
 
-            <div className="bg-white/[0.03] rounded-2xl border border-white/[0.06] p-4">
-              <h3 className="text-sm font-bold text-white mb-3">📈 Đọc nhiều nhất</h3>
+            <div className="rounded-2xl border p-4" style={{ background: "var(--surface-2)", borderColor: "var(--border)" }}>
+              <h3 className="text-sm font-bold mb-3" style={{ color: "var(--text-primary)" }}>📈 Đọc nhiều nhất</h3>
               <div className="space-y-3">
                 {articles.slice(0, 5).map((article, idx) => (
                   <Link key={article.id} href={`/khac/tin-tuc/${article.slug}`} className="flex gap-3 group">
-                    <span className={`text-2xl font-black w-8 text-center flex-shrink-0 ${
-                      idx === 0 ? "text-red-400" : idx === 1 ? "text-orange-400" : idx === 2 ? "text-amber-400" : "text-slate-600"
-                    }`}>
+                    <span className="text-2xl font-black w-8 text-center flex-shrink-0" style={{
+                      color: idx === 0 ? "#ef4444" : idx === 1 ? "#f97316" : idx === 2 ? "#f59e0b" : "var(--text-muted)"
+                    }}>
                       {idx + 1}
                     </span>
                     <div className="min-w-0">
@@ -387,10 +389,11 @@ function TabButton({
         whitespace-nowrap px-3.5 py-1.5 rounded-full text-[15px] font-semibold transition-all duration-200
         ${
           active
-            ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
-            : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
+            ? ""
+            : "hover:bg-white/5 border border-transparent"
         }
       `}
+      style={active ? { background: "rgba(59,130,246,0.20)", color: "#60a5fa", borderColor: "rgba(59,130,246,0.30)" } : { color: "var(--text-muted)" }}
     >
       {children}
     </button>

@@ -10,19 +10,13 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: React.ReactNode;
 }
 
-const variantClasses: Record<ButtonVariant, string> = {
-  primary:
-    "bg-emerald-500 hover:bg-emerald-400 text-black font-semibold border-transparent shadow-emerald-500/20 shadow-md",
-  secondary:
-    "bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border-neutral-700",
-  danger:
-    "bg-red-500/10 hover:bg-red-500/20 text-red-400 border-red-500/30",
-  ghost:
-    "bg-transparent hover:bg-neutral-800 text-neutral-400 hover:text-neutral-200 border-neutral-800",
-  purple:
-    "bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border-purple-500/30",
-  yellow:
-    "bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+const variantStyles: Record<ButtonVariant, React.CSSProperties> = {
+  primary: { background: "#10b981", color: "#000", borderColor: "transparent", boxShadow: "0 4px 12px rgba(16,185,129,0.20)" },
+  secondary: { background: "var(--surface-2)", color: "var(--text-secondary)", borderColor: "var(--border)" },
+  danger: { background: "rgba(192,57,43,0.10)", color: "var(--danger)", borderColor: "rgba(192,57,43,0.30)" },
+  ghost: { background: "transparent", color: "var(--text-muted)", borderColor: "var(--border)" },
+  purple: { background: "rgba(168,85,247,0.10)", color: "#a855f7", borderColor: "rgba(168,85,247,0.30)" },
+  yellow: { background: "rgba(234,179,8,0.10)", color: "#eab308", borderColor: "rgba(234,179,8,0.30)" },
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
@@ -46,10 +40,10 @@ export function Button({
       className={cn(
         "inline-flex items-center justify-center gap-2 border transition-all duration-200",
         "disabled:opacity-50 disabled:cursor-not-allowed",
-        variantClasses[variant],
         sizeClasses[size],
         className
       )}
+      style={variantStyles[variant]}
       {...props}
     >
       {loading && (

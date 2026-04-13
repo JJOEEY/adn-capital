@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
@@ -24,28 +24,27 @@ export function Topbar() {
   const showSkeleton = !mounted || isLoading;
 
   return (
-    <header className="fixed top-0 left-0 md:left-64 right-0 z-40 h-14 border-b border-neutral-800/60 bg-neutral-950/90 backdrop-blur-md">
+    <header className="fixed top-0 left-0 md:left-64 right-0 z-40 h-14 border-b" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
       <div className="flex items-center justify-between h-full px-4 md:px-6 pl-14 md:pl-6">
         <div className="flex items-center gap-3">
           {!showSkeleton && isAuthenticated && limit !== Infinity && (
             <div className="flex items-center gap-2">
-              <Zap className="w-3 h-3 text-neutral-500" />
-              <div className="w-24 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+              <Zap className="w-3 h-3" style={{ color: "var(--text-muted)" }} />
+              <div className="w-24 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--surface-2)" }}>
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: `${usagePercent}%` }}
-                  className={`h-full rounded-full transition-colors ${
-                    usagePercent >= 80 ? "bg-red-500" : "bg-emerald-500"
-                  }`}
+                  className="h-full rounded-full transition-colors"
+                  style={{ background: usagePercent >= 80 ? "var(--danger)" : "#10b981" }}
                 />
               </div>
-              <span className="text-xs text-neutral-500">
+              <span className="text-xs" style={{ color: "var(--text-muted)" }}>
                 {usage}/{limit}
               </span>
             </div>
           )}
           {!showSkeleton && isAuthenticated && limit === Infinity && (
-            <div className={`flex items-center gap-1.5 text-xs ${vipTier === "PREMIUM" ? "text-amber-400" : "text-purple-400"}`}>
+            <div className="flex items-center gap-1.5 text-xs" style={{ color: vipTier === "PREMIUM" ? "#f59e0b" : "#a855f7" }}>
               <Crown className="w-3 h-3" />
               <span>Không giới hạn</span>
             </div>
@@ -54,21 +53,22 @@ export function Topbar() {
 
         <div className="flex items-center gap-3">
           {showSkeleton ? (
-            <div className="w-8 h-8 rounded-full bg-neutral-800 animate-pulse" />
+            <div className="w-8 h-8 rounded-full animate-pulse" style={{ background: "var(--surface-2)" }} />
           ) : isAuthenticated ? (
             <>
               {role === "VIP" && (
-                <div className={`flex items-center gap-1.5 text-[12px] font-bold border px-2 py-1 rounded-lg uppercase ${
-                  vipTier === "PREMIUM"
-                    ? "bg-amber-500/10 text-amber-400 border-amber-500/25"
-                    : "bg-purple-500/10 text-purple-400 border-purple-500/25"
-                }`}>
+                <div
+                  className="flex items-center gap-1.5 text-[12px] font-bold border px-2 py-1 rounded-lg uppercase"
+                  style={vipTier === "PREMIUM"
+                    ? { background: "rgba(245,158,11,0.10)", color: "#f59e0b", borderColor: "rgba(245,158,11,0.25)" }
+                    : { background: "rgba(168,85,247,0.10)", color: "#a855f7", borderColor: "rgba(168,85,247,0.25)" }
+                  }>
                   <Crown className="w-2.5 h-2.5" />
                   {vipTier === "PREMIUM" ? "PREMIUM" : "VIP"}
                 </div>
               )}
 
-              <span className="text-xs text-neutral-300 font-medium">
+              <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
                 {session?.user?.name?.split(" ").slice(-1)[0] ?? session?.user?.email?.split("@")[0]}
               </span>
 
@@ -76,15 +76,15 @@ export function Topbar() {
                 <img
                   src={session.user.image}
                   alt="Avatar"
-                  className="w-8 h-8 rounded-full border border-neutral-700"
+                  className="w-8 h-8 rounded-full border" style={{ borderColor: "var(--border)" }}
                 />
               ) : (
-                <UserCircle className="w-8 h-8 text-neutral-600" />
+                <UserCircle className="w-8 h-8" style={{ color: "var(--text-muted)" }} />
               )}
 
               <button
                 onClick={() => signOut({ callbackUrl: "/" })}
-                className="text-neutral-500 hover:text-red-400 transition-colors p-1"
+                className="p-1 transition-colors" style={{ color: "var(--text-muted)" }}
                 title="Đăng xuất"
               >
                 <LogOut className="w-4 h-4" />
@@ -95,7 +95,8 @@ export function Topbar() {
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="flex items-center gap-2 text-xs text-emerald-400 border border-emerald-500/35 px-3 py-1.5 rounded-lg bg-emerald-500/8 hover:bg-emerald-500/15 transition-all font-medium"
+                className="flex items-center gap-2 text-xs border px-3 py-1.5 rounded-lg transition-all font-medium"
+                style={{ color: "#16a34a", borderColor: "rgba(22,163,74,0.35)", background: "rgba(22,163,74,0.08)" }}
               >
                 <LogIn className="w-3.5 h-3.5" />
                 Đăng nhập

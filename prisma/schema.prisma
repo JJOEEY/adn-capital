@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
@@ -369,3 +370,47 @@ model SystemSetting {
   value     String         // stored as string; "true" | "false" | numeric etc.
   updatedAt DateTime @updatedAt
 }
+
+// ═══════════════════════════════════════════════════════════════════
+//  AI ANALYSIS CACHE — 4 Lõi Tư Vấn Đầu Tư
+// ═══════════════════════════════════════════════════════════════════
+
+// Cache phân tích kỹ thuật — hợp lệ khi giá chưa vỡ support/resistance
+model AiTaCache {
+  id         String   @id @default(cuid())
+  ticker     String
+  analysis   String   @db.Text
+  mediaUrl   String?  @db.Text  // base64 chart từ mplfinance
+  support    Float?
+  resistance Float?
+  signal     String?            // Bullish | Bearish | Neutral
+  entryPrice Float?             // Giá hiện tại lúc generate
+  createdAt  DateTime @default(now())
+
+  @@index([ticker])
+  @@index([ticker, createdAt])
+}
+
+// Cache phân tích cơ bản — hợp lệ cả ngày (FA ít thay đổi)
+model AiFaCache {
+  id        String   @id @default(cuid())
+  ticker    String
+  analysis  String   @db.Text
+  quarter   String?            // VD: "Q1 2026"
+  createdAt DateTime @default(now())
+
+  @@index([ticker])
+  @@index([ticker, createdAt])
+}
+
+// Cache phân tích tâm lý ATC — hợp lệ 1 ngày
+model AiTamlyCache {
+  id        String   @id @default(cuid())
+  ticker    String
+  date      String             // YYYY-MM-DD
+  analysis  String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([ticker, date])
+}
+

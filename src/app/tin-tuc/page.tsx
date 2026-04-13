@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback, useEffect, memo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import useSWR from "swr";
-import { FileText, Loader2, Settings, TrendingUp, ChevronDown, RefreshCw, Bot } from "lucide-react";
+import { FileText, Loader2, Settings } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 import { ReversePointIndex, RPISkeleton } from "@/components/dashboard/ReversePointIndex";
@@ -62,15 +62,21 @@ function timeAgo(dateStr: string): string {
 }
 
 function SentimentBadge({ sentiment }: { sentiment: string }) {
-  const map: Record<string, { bg: string; text: string; dot: string }> = {
-    "Tích cực": { bg: "bg-emerald-500/15", text: "text-emerald-400", dot: "bg-emerald-400" },
-    "Tiêu cực": { bg: "bg-red-500/15", text: "text-red-400", dot: "bg-red-400" },
-    "Trung tính": { bg: "bg-amber-500/15", text: "text-amber-400", dot: "bg-amber-400" },
-  };
-  const s = map[sentiment] ?? map["Trung tính"];
+  const isPositive = sentiment === "Tích cực";
+  const isNegative = sentiment === "Tiêu cực";
+  const color = isPositive ? "#16a34a" : isNegative ? "var(--danger)" : "#f59e0b";
+  const bgColor = isPositive ? "rgba(22,163,74,0.10)" : isNegative ? "rgba(192,57,43,0.10)" : "rgba(245,158,11,0.10)";
+  const dotColor = isPositive ? "#16a34a" : isNegative ? "var(--danger)" : "#f59e0b";
+
   return (
-    <span className={`inline-flex items-center gap-1 text-[12px] font-semibold px-1.5 py-0.5 rounded-full ${s.bg} ${s.text}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
+    <span
+      className="inline-flex items-center gap-1 text-[12px] font-semibold px-1.5 py-0.5 rounded-full"
+      style={{ background: bgColor, color }}
+    >
+      <span
+        className="w-1.5 h-1.5 rounded-full inline-block"
+        style={{ background: dotColor }}
+      />
       {sentiment}
     </span>
   );
@@ -83,8 +89,13 @@ function ImgWithFallback({ src, alt, fill, className, sizes, priority }: {
   const handleError = useCallback(() => setHasError(true), []);
   if (hasError || !src) {
     return (
-      <div className={`${fill ? "absolute inset-0" : ""} bg-gradient-to-br from-slate-800 via-slate-700 to-slate-900 flex items-center justify-center`}>
-        <span className="text-xs font-bold text-slate-500 tracking-wider uppercase">ADN Capital</span>
+      <div
+        className={`${fill ? "absolute inset-0" : ""} flex items-center justify-center`}
+        style={{ background: "var(--bg-hover)" }}
+      >
+        <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+          ADN Capital
+        </span>
       </div>
     );
   }
@@ -110,13 +121,13 @@ function getScoreLabel(score: number, maxScore: number = 14): string {
 
 function getScoreColor(score: number, maxScore: number = 14): string {
   if (maxScore <= 10) {
-    if (score < 4) return "#ef4444";
-    if (score <= 7) return "#f97316";
-    return "#a855f7";
+    if (score < 4) return "var(--danger)";
+    if (score <= 7) return "#f59e0b";
+    return "#16a34a";
   }
-  if (score < 6) return "#ef4444";
-  if (score < 11) return "#f97316";
-  return "#a855f7";
+  if (score < 6) return "var(--danger)";
+  if (score < 11) return "#f59e0b";
+  return "#16a34a";
 }
 
 const swrFetcher = (url: string) =>
@@ -129,9 +140,12 @@ const swrFetcher = (url: string) =>
 const MarketScoreMini = memo(function MarketScoreMini({ overview }: { overview: MarketOverview | null }) {
   if (!overview) {
     return (
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/90 p-4 animate-pulse">
-        <div className="h-3 w-32 bg-neutral-800 rounded mb-3" />
-        <div className="h-16 w-full bg-neutral-800/50 rounded-xl" />
+      <div
+        className="rounded-2xl p-4 animate-pulse"
+        style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
+      >
+        <div className="h-3 w-32 rounded mb-3" style={{ background: "var(--bg-hover)" }} />
+        <div className="h-16 w-full rounded-xl" style={{ background: "var(--bg-hover)" }} />
       </div>
     );
   }
@@ -142,8 +156,14 @@ const MarketScoreMini = memo(function MarketScoreMini({ overview }: { overview: 
   const liquidity = overview.liquidity;
 
   return (
-    <div className="rounded-2xl border border-neutral-800 bg-neutral-900/90 p-4 hover:border-neutral-700 transition-all">
-      <p className="text-[12px] font-bold text-neutral-500 uppercase tracking-wider mb-3">
+    <div
+      className="rounded-2xl p-4 transition-all"
+      style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
+    >
+      <p
+        className="text-[12px] font-bold uppercase tracking-wider mb-3"
+        style={{ color: "var(--text-muted)" }}
+      >
         ADN Composite Score
       </p>
       <div className="flex items-center gap-4">
@@ -151,7 +171,7 @@ const MarketScoreMini = memo(function MarketScoreMini({ overview }: { overview: 
           <span className="text-3xl font-black" style={{ color, textShadow: `0 0 16px ${color}40` }}>
             {score}
           </span>
-          <span className="text-[11px] font-bold text-neutral-400">/ {maxScore}</span>
+          <span className="text-[11px] font-bold" style={{ color: "var(--text-muted)" }}>/ {maxScore}</span>
         </div>
         <div
           className="px-3 py-1 rounded-full text-[12px] font-bold uppercase tracking-wider"
@@ -160,12 +180,24 @@ const MarketScoreMini = memo(function MarketScoreMini({ overview }: { overview: 
           {label}
         </div>
       </div>
-      <div className="flex gap-4 mt-3 text-[12px] text-neutral-500">
-        {overview.ta_score != null && <span>TA: <span className="text-neutral-300 font-bold">{overview.ta_score}/10</span></span>}
-        {overview.valuation_score != null && <span>Định giá: <span className="text-neutral-300 font-bold">{overview.valuation_score}/4</span></span>}
-        <span>Thanh khoản: <span className="text-neutral-300 font-bold">{fmtLiquidity(liquidity)} Tỷ</span></span>
+      <div className="flex gap-4 mt-3 text-[12px]" style={{ color: "var(--text-secondary)" }}>
+        {overview.ta_score != null && (
+          <span>
+            TA: <span className="font-bold" style={{ color: "var(--text-primary)" }}>{overview.ta_score}/10</span>
+          </span>
+        )}
+        {overview.valuation_score != null && (
+          <span>
+            Định giá: <span className="font-bold" style={{ color: "var(--text-primary)" }}>{overview.valuation_score}/4</span>
+          </span>
+        )}
+        <span>
+          Thanh khoản: <span className="font-bold" style={{ color: "var(--text-primary)" }}>{fmtLiquidity(liquidity)} Tỷ</span>
+        </span>
       </div>
-      <p className="text-xs text-neutral-400 mt-2 leading-relaxed">{overview.action_message}</p>
+      <p className="text-xs mt-2 leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+        {overview.action_message}
+      </p>
     </div>
   );
 });
@@ -176,7 +208,8 @@ function ArticleRow({ article }: { article: Article }) {
   return (
     <Link
       href={`/khac/tin-tuc/${article.slug}`}
-      className="group flex gap-3.5 py-3.5 border-b border-white/[0.06] last:border-b-0 hover:bg-white/[0.02] transition-colors rounded-lg -mx-1 px-1"
+      className="group flex gap-3.5 py-3.5 last:border-b-0 rounded-lg -mx-1 px-1 transition-colors"
+      style={{ borderBottom: "1px solid var(--border)" }}
     >
       <div className="relative w-[100px] h-[72px] md:w-[120px] md:h-[80px] flex-shrink-0 rounded-xl overflow-hidden">
         <ImgWithFallback
@@ -189,13 +222,21 @@ function ArticleRow({ article }: { article: Article }) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-[11px] font-bold text-blue-400 uppercase tracking-wider">{categoryName}</span>
+          <span
+            className="text-[11px] font-bold uppercase tracking-wider"
+            style={{ color: "var(--accent-fa)" }}
+          >
+            {categoryName}
+          </span>
           {article.sentiment && <SentimentBadge sentiment={article.sentiment} />}
         </div>
-        <h3 className="text-[15px] md:text-sm font-bold text-slate-200 leading-snug group-hover:text-blue-400 transition-colors line-clamp-2">
+        <h3
+          className="text-[15px] md:text-sm font-bold leading-snug line-clamp-2 transition-colors"
+          style={{ color: "var(--text-primary)" }}
+        >
           {article.title}
         </h3>
-        <div className="flex items-center gap-2 mt-1.5 text-[12px] text-slate-500">
+        <div className="flex items-center gap-2 mt-1.5 text-[12px]" style={{ color: "var(--text-muted)" }}>
           {article.sourceUrl && (() => {
             try {
               const host = new URL(article.sourceUrl!).hostname.replace("www.", "");
@@ -221,24 +262,32 @@ function HeroCard({ article }: { article: Article }) {
           className="object-cover transition-transform duration-500 group-hover:scale-105"
           sizes="(max-width: 768px) 100vw, 65vw" priority
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+        <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.25) 55%, transparent 100%)" }} />
         <div className="absolute bottom-0 left-0 right-0 p-5">
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-[12px] font-bold text-white/90 bg-blue-500/80 px-2 py-0.5 rounded uppercase tracking-wider">
+            <span
+              className="text-[12px] font-bold px-2 py-0.5 rounded uppercase tracking-wider"
+              style={{ background: "var(--primary)", color: "#EBE2CF" }}
+            >
               {categoryName}
             </span>
             {article.sentiment && <SentimentBadge sentiment={article.sentiment} />}
-            <span className="text-[12px] font-bold text-emerald-400 bg-emerald-500/20 px-1.5 py-0.5 rounded">AI</span>
           </div>
-          <h2 className="text-xl md:text-2xl font-extrabold text-white leading-tight mb-2 group-hover:text-blue-300 transition-colors line-clamp-3 drop-shadow-lg">
+          <h2
+            className="text-xl md:text-2xl font-extrabold leading-tight mb-2 line-clamp-3"
+            style={{ color: "#EBE2CF", textShadow: "0 2px 8px rgba(0,0,0,0.40)" }}
+          >
             {article.title}
           </h2>
           {article.aiSummary && (
-            <p className="text-sm text-white/70 leading-relaxed line-clamp-2 mb-2 hidden md:block">
+            <p
+              className="text-sm leading-relaxed line-clamp-2 mb-2 hidden md:block"
+              style={{ color: "rgba(235,226,207,0.70)" }}
+            >
               {article.aiSummary}
             </p>
           )}
-          <div className="flex items-center gap-3 text-[11px] text-white/50">
+          <div className="flex items-center gap-3 text-[11px]" style={{ color: "rgba(235,226,207,0.50)" }}>
             <span>{authorName}</span>
             <span>·</span>
             <span>{article.publishedAt ? timeAgo(article.publishedAt) : ""}</span>
@@ -254,11 +303,12 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
   return (
     <button
       onClick={onClick}
-      className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
+      className="flex-shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer"
+      style={
         active
-          ? "bg-blue-500/15 text-blue-400 border border-blue-500/25"
-          : "text-slate-500 hover:text-slate-300 hover:bg-white/[0.04]"
-      }`}
+          ? { background: "var(--primary-light)", color: "var(--primary)", border: "1px solid var(--border-strong)" }
+          : { color: "var(--text-muted)", background: "transparent", border: "1px solid transparent" }
+      }
     >
       {children}
     </button>
@@ -267,7 +317,6 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
 
 /* ══════════════════════════════════════════════════════════════════════
  *  MAIN PAGE — TIN TỨC
- *  Left: TEI + Market Score | Right: News
  * ══════════════════════════════════════════════════════════════════════ */
 export default function TinTucPage() {
   const { isWriter } = useCurrentDbUser();
@@ -315,16 +364,26 @@ export default function TinTucPage() {
         {/* ── Header ── */}
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
+            <h1
+              className="text-2xl md:text-3xl font-extrabold tracking-tight"
+              style={{ color: "var(--text-primary)" }}
+            >
               Tin Tức
             </h1>
-            <p className="text-sm text-slate-500 mt-1">Chỉ báo thị trường · Tin tức AI tổng hợp</p>
+            <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
+              Chỉ báo thị trường · Tin tức AI tổng hợp
+            </p>
           </div>
           <div className="flex items-center gap-3">
             {isWriter && (
               <Link
                 href="/khac/tin-tuc/admin"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/15 text-blue-400 border border-blue-500/25 hover:bg-blue-500/25 transition-colors text-xs font-medium"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                style={{
+                  background: "var(--primary-light)",
+                  color: "var(--primary)",
+                  border: "1px solid var(--border)",
+                }}
               >
                 <Settings className="w-3.5 h-3.5" />
                 Quản lý bài viết
@@ -338,12 +397,10 @@ export default function TinTucPage() {
 
           {/* LEFT COLUMN — TEI + Market Score */}
           <div className="lg:col-span-3 flex flex-col gap-4 order-2 lg:order-1">
-            {/* TEI */}
             <LockOverlay isLocked={!isVip} message="Nâng cấp VIP để xem Chỉ báo TEI">
               {!mounted ? <RPISkeleton /> : <ReversePointIndex />}
             </LockOverlay>
 
-            {/* Market Score Mini */}
             <LockOverlay isLocked={!isVip} message="Nâng cấp VIP để xem Market Score">
               <MarketScoreMini overview={overview ?? null} />
             </LockOverlay>
@@ -352,7 +409,10 @@ export default function TinTucPage() {
           {/* RIGHT COLUMN — News */}
           <div className="lg:col-span-7 order-1 lg:order-2">
             {/* Category Tabs */}
-            <div className="flex items-center gap-1 overflow-x-auto pb-3 mb-4 scrollbar-hide border-b border-white/[0.06]">
+            <div
+              className="flex items-center gap-1 overflow-x-auto pb-3 mb-4"
+              style={{ borderBottom: "1px solid var(--border)" }}
+            >
               <TabButton active={activeCategory === "tat-ca"} onClick={() => setActiveCategory("tat-ca")}>
                 Tất cả
               </TabButton>
@@ -370,17 +430,22 @@ export default function TinTucPage() {
             {/* Loading */}
             {loading && (
               <div className="flex items-center justify-center py-20">
-                <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
+                <Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--primary)" }} />
               </div>
             )}
 
-            {/* Content */}
+            {/* Empty state */}
             {!loading && filtered.length === 0 && (
-              <div className="text-center py-16 text-slate-500">
+              <div
+                className="text-center py-16 rounded-2xl"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                <FileText className="w-10 h-10 mx-auto mb-3 opacity-30" />
                 <p className="text-sm">Chưa có bài viết nào.</p>
               </div>
             )}
 
+            {/* Content */}
             {!loading && hero && (
               <>
                 <HeroCard article={hero} />

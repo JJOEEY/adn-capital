@@ -63,7 +63,13 @@ export function Sidebar() {
   const sidebarContent = (
     <>
       {/* Logo */}
-      <div className="flex items-center justify-between px-5 py-5 border-b border-neutral-800/60">
+      <div
+        className="flex items-center justify-between border-b"
+        style={{
+          padding: "24px 16px",
+          borderColor: "var(--border, #E8E4DB)",
+        }}
+      >
         <div className="flex items-center gap-3">
           <Image
             src="/logo.jpg"
@@ -73,42 +79,100 @@ export function Sidebar() {
             className="rounded-xl"
           />
           <div>
-            <p className="text-sm font-bold text-white leading-tight">ADN Capital</p>
-            <p className="text-[12px] text-neutral-500 leading-tight">Investment System</p>
+            <p
+              className="text-sm font-bold leading-tight"
+              style={{ color: "var(--text-primary, #EBE2CF)" }}
+            >
+              ADN Capital
+            </p>
+            <p
+              className="text-[12px] leading-tight"
+              style={{ color: "var(--text-secondary, #9aab9e)" }}
+            >
+              Investment System
+            </p>
           </div>
         </div>
         {/* Nút đóng trên mobile */}
         <button
           onClick={() => setMobileOpen(false)}
-          className="md:hidden p-1.5 rounded-lg text-neutral-500 hover:text-white hover:bg-neutral-800 transition-all"
+          className="md:hidden p-1.5 rounded-lg transition-all"
+          style={{
+            color: "var(--text-secondary, #9aab9e)",
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background =
+              "var(--primary-light, rgba(23,54,39,0.40))";
+            (e.currentTarget as HTMLButtonElement).style.color =
+              "var(--text-primary, #EBE2CF)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+            (e.currentTarget as HTMLButtonElement).style.color =
+              "var(--text-secondary, #9aab9e)";
+          }}
         >
           <X className="w-5 h-5" />
         </button>
       </div>
 
       {/* Market mini ticker */}
-      <div className="px-5 py-3 border-b border-neutral-800/60">
+      <div
+        className="border-b"
+        style={{
+          padding: "12px 16px",
+          borderColor: "var(--border, #E8E4DB)",
+        }}
+      >
         <div className="flex items-center gap-2 text-xs">
-          <TrendingUp className="w-3 h-3 text-emerald-400" />
-          <span className="text-neutral-500">VN-Index</span>
+          <TrendingUp className="w-3 h-3" style={{ color: "var(--primary, #2E4D3D)" }} />
+          <span style={{ color: "var(--text-secondary, #9aab9e)" }}>VN-Index</span>
           {vnindex ? (
             <>
-              <span className={`font-mono font-medium ml-auto ${vnindex.changePercent >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                {vnindex.value.toLocaleString("vi-VN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              <span
+                className="font-mono font-medium ml-auto"
+                style={{
+                  color: vnindex.changePercent >= 0 ? "#10b981" : "#c0614a",
+                }}
+              >
+                {vnindex.value.toLocaleString("vi-VN", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
               </span>
-              <span className={`text-[12px] ${vnindex.changePercent >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                {vnindex.changePercent >= 0 ? "+" : ""}{vnindex.changePercent.toFixed(2)}%
+              <span
+                className="text-[12px]"
+                style={{
+                  color: vnindex.changePercent >= 0 ? "#10b981" : "#c0614a",
+                }}
+              >
+                {vnindex.changePercent >= 0 ? "+" : ""}
+                {vnindex.changePercent.toFixed(2)}%
               </span>
             </>
           ) : (
-            <span className="text-neutral-600 font-mono font-medium ml-auto animate-pulse">--</span>
+            <span
+              className="text-neutral-600 font-mono font-medium ml-auto animate-pulse"
+              style={{ color: "var(--text-muted, #5a6b5e)" }}
+            >
+              --
+            </span>
           )}
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        <p className="px-3 text-[12px] font-semibold text-neutral-600 uppercase tracking-widest mb-2">
+      <nav className="flex-1 overflow-y-auto" style={{ padding: "24px 16px" }}>
+        <p
+          className="px-0 mb-2"
+          style={{
+            fontSize: "11px",
+            fontWeight: 500,
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            color: "var(--text-muted, #B0ADA4)",
+          }}
+        >
           Menu
         </p>
         {navItems.map((item) => {
@@ -119,25 +183,60 @@ export function Sidebar() {
           return (
             <Link key={item.href} href={item.href}>
               <div
-                className={`relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm cursor-pointer group transition-all duration-150 hover:translate-x-0.5 active:scale-[0.98] ${
-                  isActive
-                    ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/25"
-                    : "text-neutral-500 hover:text-neutral-200 hover:bg-neutral-800/50"
-                }`}
+                className="relative flex items-center gap-3 rounded-lg text-sm cursor-pointer group transition-all duration-150 active:scale-[0.98]"
+                style={{
+                  padding: "10px 12px",
+                  borderRadius: "10px",
+                  fontWeight: isActive ? 600 : 500,
+                  color: isActive
+                    ? "var(--primary, #2E4D3D)"
+                    : "var(--text-secondary, #7D8471)",
+                  background: isActive
+                    ? "var(--primary-light, rgba(46,77,61,0.10))"
+                    : "transparent",
+                }}
+                onMouseEnter={(e) => {
+                  if (!isActive) {
+                    (e.currentTarget as HTMLDivElement).style.background =
+                      "var(--bg-hover, #F3F1EB)";
+                    (e.currentTarget as HTMLDivElement).style.color =
+                      "var(--primary, #2E4D3D)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive) {
+                    (e.currentTarget as HTMLDivElement).style.background =
+                      "transparent";
+                    (e.currentTarget as HTMLDivElement).style.color =
+                      "var(--text-secondary, #7D8471)";
+                  }
+                }}
               >
                 <Icon
-                  className={`w-4 h-4 flex-shrink-0 transition-colors ${
-                    isActive ? "text-emerald-400" : "group-hover:text-neutral-300"
-                  }`}
+                  className="w-4 h-4 flex-shrink-0 transition-colors"
+                  style={{
+                    color: isActive
+                      ? "var(--primary, #2E4D3D)"
+                      : "var(--text-secondary, #7D8471)",
+                  }}
                 />
                 <span className="flex-1 font-medium">{item.label}</span>
                 {item.badge && (
-                  <span className="text-[11px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded-md">
+                  <span
+                    className="text-[11px] font-bold px-1.5 py-0.5 rounded-md"
+                    style={{
+                      background: "var(--primary, #2E4D3D)",
+                      color: "var(--bg-page, #F8F7F2)",
+                    }}
+                  >
                     {item.badge}
                   </span>
                 )}
                 {isActive && (
-                  <div className="absolute right-0 top-2 bottom-2 w-0.5 bg-emerald-400 rounded-l-full" />
+                  <div
+                    className="absolute right-0 top-2 bottom-2 w-0.5 rounded-l-full"
+                    style={{ background: "var(--primary, #2E4D3D)" }}
+                  />
                 )}
               </div>
             </Link>
@@ -146,9 +245,24 @@ export function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="px-5 py-4 border-t border-neutral-800/60">
-        <p className="text-[12px] text-neutral-600 text-center font-medium tracking-wide">
-          Powered by <span className="text-emerald-500/70 font-bold">ADN CAPITAL</span>
+      <div
+        className="border-t"
+        style={{
+          padding: "16px",
+          borderColor: "var(--border, #E8E4DB)",
+        }}
+      >
+        <p
+          className="text-[12px] text-center font-medium tracking-wide"
+          style={{ color: "var(--text-muted, #B0ADA4)" }}
+        >
+          Powered by{" "}
+          <span
+            className="font-bold"
+            style={{ color: "var(--text-secondary, #7D8471)" }}
+          >
+            ADN CAPITAL
+          </span>
         </p>
       </div>
     </>
@@ -159,7 +273,20 @@ export function Sidebar() {
       {/* Nút hamburger trên mobile */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="md:hidden fixed top-3 left-3 z-50 p-2 rounded-xl bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-white transition-all"
+        className="md:hidden fixed top-3 left-3 z-50 p-2 rounded-xl transition-all"
+        style={{
+          background: "var(--bg-surface, #FFFFFF)",
+          border: "1px solid var(--border, #E8E4DB)",
+          color: "var(--text-secondary, #7D8471)",
+        }}
+        onMouseEnter={(e) => {
+          (e.currentTarget as HTMLButtonElement).style.color =
+            "var(--primary, #2E4D3D)";
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLButtonElement).style.color =
+            "var(--text-secondary, #7D8471)";
+        }}
       >
         <Menu className="w-5 h-5" />
       </button>
@@ -167,16 +294,29 @@ export function Sidebar() {
       {/* Overlay khi mở sidebar trên mobile */}
       {mobileOpen && (
         <div
-          className="md:hidden fixed inset-0 bg-black/60 z-[55] backdrop-blur-sm"
+          className="md:hidden fixed inset-0 z-[55]"
+          style={{ background: "rgba(0,0,0,0.60)" }}
           onClick={() => setMobileOpen(false)}
         />
       )}
 
       {/* Sidebar desktop: luôn hiện; Mobile: slide in/out */}
       <aside
-        className={`flex flex-col w-64 h-screen bg-neutral-950 border-r border-neutral-800/60 fixed left-0 top-0 z-[60] transition-transform duration-300 ease-in-out
-          ${mobileOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}
+        className="flex flex-col h-screen fixed left-0 top-0 z-[60] transition-transform duration-300 ease-in-out"
+        style={{
+          width: "240px",
+          background: "var(--bg-surface, #FFFFFF)",
+          borderRight: "1px solid var(--border, #E8E4DB)",
+          transform: mobileOpen ? "translateX(0)" : "translateX(-100%)",
+        }}
       >
+        <style jsx global>{`
+          @media (min-width: 768px) {
+            aside {
+              transform: translateX(0) !important;
+            }
+          }
+        `}</style>
         {sidebarContent}
       </aside>
     </>

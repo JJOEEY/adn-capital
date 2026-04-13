@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { memo, useEffect, useState } from "react";
 import {
@@ -42,8 +42,11 @@ interface Snapshot {
 function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number; dataKey: string; color: string }>; label?: string }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-neutral-900/95 border border-neutral-700 rounded-xl px-4 py-3 shadow-xl backdrop-blur-sm">
-      <p className="text-[12px] font-bold text-neutral-400 uppercase tracking-wider mb-2">
+    <div className="rounded-xl px-4 py-3 shadow-xl" style={{
+      background: "var(--surface)",
+      border: "1px solid var(--border)",
+    }}>
+      <p className="text-[12px] font-bold uppercase tracking-wider mb-2" style={{ color: "var(--text-muted)" }}>
         {label}
       </p>
       {payload.map((p) => (
@@ -53,7 +56,7 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
               className="w-2 h-2 rounded-full"
               style={{ backgroundColor: p.color }}
             />
-            <span className="text-xs text-neutral-300">
+            <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
               {p.dataKey === "adn" ? "ADN CAPITAL" : "VN-INDEX"}
             </span>
           </div>
@@ -75,12 +78,12 @@ function ChartLegend() {
   return (
     <div className="flex items-center justify-center gap-6 mt-2">
       <div className="flex items-center gap-2">
-        <span className="w-3 h-0.5 rounded-full bg-emerald-400" />
-        <span className="text-[11px] font-bold text-emerald-400">ADN CAPITAL</span>
+        <span className="w-3 h-0.5 rounded-full" style={{ background: "#16a34a" }} />
+        <span className="text-[11px] font-bold" style={{ color: "#16a34a" }}>ADN CAPITAL</span>
       </div>
       <div className="flex items-center gap-2">
-        <span className="w-3 h-0.5 rounded-full bg-neutral-500" />
-        <span className="text-[11px] font-medium text-neutral-500">VN-INDEX</span>
+        <span className="w-3 h-0.5 rounded-full" style={{ background: "var(--text-muted)" }} />
+        <span className="text-[11px] font-medium" style={{ color: "var(--text-muted)" }}>VN-INDEX</span>
       </div>
     </div>
   );
@@ -98,9 +101,9 @@ export const DynamicBacktestChart = memo(function DynamicBacktestChart() {
 
   if (!snapshot) {
     return (
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/80 p-4 sm:p-6">
-        <div className="h-3 w-40 bg-neutral-800 rounded animate-pulse mb-4" />
-        <div className="h-[360px] sm:h-[420px] bg-neutral-800/40 rounded-xl animate-pulse" />
+      <div className="rounded-2xl border p-4 sm:p-6" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+        <div className="h-3 w-40 rounded animate-pulse mb-4" style={{ background: "var(--bg-hover)" }} />
+        <div className="h-[360px] sm:h-[420px] rounded-xl animate-pulse" style={{ background: "var(--surface-2)" }} />
       </div>
     );
   }
@@ -123,31 +126,39 @@ export const DynamicBacktestChart = memo(function DynamicBacktestChart() {
   const periodLabel = `${snapshot.start_year} – ${snapshot.end_year}`;
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-900/80 p-4 sm:p-6">
+    <div className="relative overflow-hidden rounded-2xl border p-4 sm:p-6" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
       {/* Glow */}
-      <div className="absolute -top-16 -right-16 w-56 h-56 bg-emerald-500/5 rounded-full blur-3xl" />
+      {/* Decorative glow removed per ADN Design System */}
 
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-            <TrendingUp className="w-4 h-4 text-emerald-400" />
+          <div className="p-1.5 rounded-lg border" style={{ background: "var(--primary-light)", borderColor: "var(--border)" }}>
+            <TrendingUp className="w-4 h-4" style={{ color: "var(--primary)" }} />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-white">
+            <h3 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>
               So sánh hiệu suất tích lũy
             </h3>
-            <p className="text-[12px] text-neutral-500">
+            <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>
               {periodLabel} · Vốn ban đầu = 100%
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-[12px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
+          <span className="text-[12px] px-2 py-0.5 rounded-full border font-bold" style={{
+            background: "var(--primary-light)",
+            color: "var(--primary)",
+            borderColor: "var(--border)",
+          }}>
             {adnReturn}
           </span>
           {vniReturn && (
-            <span className="text-[12px] px-2 py-0.5 rounded-full bg-neutral-800 text-neutral-400 border border-neutral-700 font-bold">
+            <span className="text-[12px] px-2 py-0.5 rounded-full border font-bold" style={{
+              background: "var(--surface-2)",
+              color: "var(--text-muted)",
+              borderColor: "var(--border)",
+            }}>
               {vniReturn}
             </span>
           )}
@@ -170,20 +181,20 @@ export const DynamicBacktestChart = memo(function DynamicBacktestChart() {
 
             <CartesianGrid
               strokeDasharray="3 3"
-              stroke="#262626"
+              stroke="var(--border)"
               vertical={false}
             />
 
             <XAxis
               dataKey="date"
-              tick={{ fill: "#525252", fontSize: 10 }}
+              tick={{ fill: "var(--text-muted)", fontSize: 10 }}
               tickLine={false}
-              axisLine={{ stroke: "#262626" }}
+              axisLine={{ stroke: "var(--border)" }}
               interval="preserveStartEnd"
             />
 
             <YAxis
-              tick={{ fill: "#525252", fontSize: 10 }}
+              tick={{ fill: "var(--text-muted)", fontSize: 10 }}
               tickLine={false}
               axisLine={false}
               tickFormatter={(v: number) => `${v > 100 ? "+" : ""}${v - 100}%`}
@@ -231,7 +242,7 @@ export const DynamicBacktestChart = memo(function DynamicBacktestChart() {
       <ChartLegend />
 
       {/* Footnote */}
-      <p className="text-[11px] text-neutral-600 text-center mt-3">
+      <p className="text-[11px] text-center mt-3" style={{ color: "var(--text-muted)" }}>
         * Dữ liệu backtest thực tế. Hiệu suất quá khứ không đảm bảo lợi nhuận tương lai.
         {snapshot.generated_at && ` Cập nhật: ${snapshot.generated_at}.`}
       </p>

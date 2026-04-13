@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState, useMemo } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -45,8 +45,8 @@ interface ThongTinMauRS {
 function layThongTinRS(rs: number): ThongTinMauRS {
   if (rs >= 90) {
     return {
-      bg: "bg-purple-600",
-      text: "text-white",
+      bg: "#9333ea",
+      text: "#ffffff",
       label: "Siêu Cổ Phiếu",
       loai: "sieu_co_phieu",
       icon: <Crown className="w-3 h-3" />,
@@ -54,8 +54,8 @@ function layThongTinRS(rs: number): ThongTinMauRS {
   }
   if (rs >= 80) {
     return {
-      bg: "bg-emerald-600",
-      text: "text-white",
+      bg: "#059669",
+      text: "#ffffff",
       label: "Dẫn Dắt",
       loai: "dan_dat",
       icon: <Flame className="w-3 h-3" />,
@@ -63,16 +63,16 @@ function layThongTinRS(rs: number): ThongTinMauRS {
   }
   if (rs >= 50) {
     return {
-      bg: "bg-yellow-500",
-      text: "text-black",
+      bg: "#eab308",
+      text: "#000000",
       label: "Trung Bình",
       loai: "trung_binh",
       icon: <Minus className="w-3 h-3" />,
     };
   }
   return {
-    bg: "bg-red-600",
-    text: "text-white",
+    bg: "#dc2626",
+    text: "#ffffff",
     label: "Yếu/Bỏ qua",
     loai: "yeu",
     icon: <AlertTriangle className="w-3 h-3" />,
@@ -157,12 +157,11 @@ export default function RSRatingDashboardPage() {
   }), [data]);
 
   // ── Nút lọc nhóm ─────────────────────────────────────────────────────
-  const nutLoc = (label: string, val: typeof filter, soLuong: number, mau: string) => (
+  const nutLoc = (label: string, val: typeof filter, soLuong: number, style: React.CSSProperties) => (
     <button
       onClick={() => setFilter(filter === val ? "all" : val)}
-      className={`text-xs px-3 py-1.5 rounded-lg border transition-all font-medium ${
-        filter === val ? mau : "text-neutral-500 border-neutral-800 hover:border-neutral-600 bg-neutral-900"
-      }`}
+      className="text-xs px-3 py-1.5 rounded-lg border transition-all font-medium"
+      style={filter === val ? style : { color: "var(--text-muted)", borderColor: "var(--border)", background: "var(--surface)" }}
     >
       {label}
       <span className="ml-1.5 text-[12px] opacity-70">({soLuong})</span>
@@ -175,28 +174,29 @@ export default function RSRatingDashboardPage() {
         {/* ═══ HEADER ═══ */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <div className="p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/25 flex-shrink-0">
-              <BarChart2 className="w-5 h-5 text-purple-400" />
+            <div className="p-2.5 rounded-xl border flex-shrink-0" style={{ background: "rgba(168,85,247,0.10)", borderColor: "rgba(168,85,247,0.25)" }}>
+              <BarChart2 className="w-5 h-5" style={{ color: "#a855f7" }} />
             </div>
             <div className="min-w-0">
-              <h1 className="text-xl sm:text-2xl font-black text-white">
-                RS Rating <span className="text-purple-400">CANSLIM</span>
+              <h1 className="text-xl sm:text-2xl font-black" style={{ color: "var(--text-primary)" }}>
+                RS Rating <span style={{ color: "#a855f7" }}>CANSLIM</span>
               </h1>
-              <p className="text-xs sm:text-sm text-neutral-500 truncate">
+              <p className="text-xs sm:text-sm truncate" style={{ color: "var(--text-muted)" }}>
                 Bảng xếp hạng Sức mạnh Tương đối — {data.length} mã cổ phiếu
               </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             {updatedAt && (
-              <span className="text-[12px] text-neutral-600 hidden sm:inline">
+              <span className="text-[12px] hidden sm:inline" style={{ color: "var(--text-muted)" }}>
                 Dữ liệu: {updatedAt}
               </span>
             )}
             <button
               onClick={fetchData}
               disabled={loading}
-              className="p-2 rounded-lg border border-neutral-800 hover:border-neutral-700 text-neutral-400 hover:text-white transition-all disabled:opacity-50"
+              className="p-2 rounded-lg border transition-all disabled:opacity-50"
+              style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
               title="Làm mới dữ liệu"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
@@ -207,23 +207,24 @@ export default function RSRatingDashboardPage() {
         {/* ═══ CHÚ THÍCH MÀU SẮC RS ═══ */}
         <div className="flex flex-wrap gap-2">
           {nutLoc("Siêu Cổ Phiếu (≥ 90)", "sieu_co_phieu", thongKe.sieu_co_phieu,
-            "bg-purple-600/20 text-purple-400 border-purple-500/40")}
+            { background: "rgba(147,51,234,0.20)", color: "#a855f7", borderColor: "rgba(168,85,247,0.40)" })}
           {nutLoc("Dẫn Dắt (80–89)", "dan_dat", thongKe.dan_dat,
-            "bg-emerald-600/20 text-emerald-400 border-emerald-500/40")}
+            { background: "rgba(5,150,105,0.20)", color: "#10b981", borderColor: "rgba(16,185,129,0.40)" })}
           {nutLoc("Trung Bình (50–79)", "trung_binh", thongKe.trung_binh,
-            "bg-yellow-500/20 text-yellow-400 border-yellow-500/40")}
+            { background: "rgba(234,179,8,0.20)", color: "#eab308", borderColor: "rgba(234,179,8,0.40)" })}
           {nutLoc("Yếu/Bỏ qua (< 50)", "yeu", thongKe.yeu,
-            "bg-red-600/20 text-red-400 border-red-500/40")}
+            { background: "rgba(220,38,38,0.20)", color: "#ef4444", borderColor: "rgba(239,68,68,0.40)" })}
         </div>
 
         {/* ═══ Ô TÌM KIẾM ═══ */}
         <div className="relative max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-600" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "var(--text-muted)" }} />
           <input
             value={timKiem}
             onChange={(e) => setTimKiem(e.target.value)}
             placeholder="Tìm mã CK hoặc ngành... (VD: FPT, Ngân hàng)"
-            className="w-full pl-9 pr-4 py-2.5 bg-neutral-900 border border-neutral-800 focus:border-purple-500/50 text-neutral-100 placeholder-neutral-600 text-sm rounded-xl outline-none transition-all"
+            className="w-full pl-9 pr-4 py-2.5 border focus:border-[var(--primary)] text-sm rounded-xl outline-none transition-all"
+            style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--text-primary)" }}
           />
         </div>
 
@@ -233,53 +234,53 @@ export default function RSRatingDashboardPage() {
             {Array.from({ length: 10 }).map((_, i) => (
               <div
                 key={i}
-                className="h-12 bg-neutral-900 rounded-xl animate-pulse border border-neutral-800/50"
+                className="h-12 bg-[var(--surface)] rounded-xl animate-pulse border border-[var(--border)]"
               />
             ))}
-            <p className="text-center text-xs text-neutral-600 mt-4">
+            <p className="text-center text-xs mt-4" style={{ color: "var(--text-muted)" }}>
               ⏳ Đang tính toán RS Rating từ dữ liệu FiinQuantX (có thể mất 10–30 giây lần đầu)...
             </p>
           </div>
         ) : error ? (
           /* ═══ ERROR STATE ═══ */
           <div className="text-center py-16 space-y-3">
-            <div className="inline-flex p-3 rounded-2xl bg-red-500/10 border border-red-500/20">
-              <AlertTriangle className="w-6 h-6 text-red-400" />
+            <div className="inline-flex p-3 rounded-2xl border" style={{ background: "rgba(239,68,68,0.10)", borderColor: "rgba(239,68,68,0.20)" }}>
+              <AlertTriangle className="w-6 h-6" style={{ color: "var(--danger)" }} />
             </div>
-            <p className="text-red-400 text-sm font-medium">{error}</p>
-            <p className="text-neutral-600 text-xs">
+            <p className="text-sm font-medium" style={{ color: "var(--danger)" }}>{error}</p>
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
               Kiểm tra FiinQuant Bridge đang chạy tại localhost:8000
             </p>
             <button
               onClick={fetchData}
-              className="text-xs text-purple-400 hover:underline"
+              className="text-xs hover:underline" style={{ color: "#a855f7" }}
             >
               Thử lại
             </button>
           </div>
         ) : (
           /* ═══ DATA TABLE ═══ */
-          <div className="bg-neutral-900/50 rounded-2xl border border-neutral-800/60 overflow-hidden">
+          <div className="bg-[var(--surface-2)] rounded-2xl border border-[var(--border)] overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-neutral-800">
-                    <th className="text-left text-[11px] text-neutral-500 font-semibold uppercase tracking-wider px-4 py-3 w-12">
+                  <tr className="border-b border-[var(--border)]">
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider px-4 py-3 w-12" style={{ color: "var(--text-muted)" }}>
                       #
                     </th>
-                    <th className="text-left text-[11px] text-neutral-500 font-semibold uppercase tracking-wider px-4 py-3">
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider px-4 py-3" style={{ color: "var(--text-muted)" }}>
                       Mã CK
                     </th>
-                    <th className="text-left text-[11px] text-neutral-500 font-semibold uppercase tracking-wider px-4 py-3 hidden sm:table-cell">
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider px-4 py-3 hidden sm:table-cell" style={{ color: "var(--text-muted)" }}>
                       Ngành
                     </th>
-                    <th className="text-right text-[11px] text-neutral-500 font-semibold uppercase tracking-wider px-4 py-3">
+                    <th className="text-right text-[11px] font-semibold uppercase tracking-wider px-4 py-3" style={{ color: "var(--text-muted)" }}>
                       Giá (₫)
                     </th>
-                    <th className="text-center text-[11px] text-neutral-500 font-semibold uppercase tracking-wider px-4 py-3">
+                    <th className="text-center text-[11px] font-semibold uppercase tracking-wider px-4 py-3" style={{ color: "var(--text-muted)" }}>
                       RS Rating
                     </th>
-                    <th className="text-center text-[11px] text-neutral-500 font-semibold uppercase tracking-wider px-4 py-3 hidden md:table-cell">
+                    <th className="text-center text-[11px] font-semibold uppercase tracking-wider px-4 py-3 hidden md:table-cell" style={{ color: "var(--text-muted)" }}>
                       Nhãn
                     </th>
                   </tr>
@@ -290,28 +291,29 @@ export default function RSRatingDashboardPage() {
                     return (
                       <tr
                         key={stock.ticker}
-                        className="border-b border-neutral-800/40 hover:bg-neutral-800/30 transition-colors"
+                        className="border-b border-[var(--border)] transition-colors"
+                        style={{ background: "transparent" }}
                       >
                         {/* Số thứ tự */}
-                        <td className="px-4 py-3 text-xs text-neutral-600 font-mono">
+                        <td className="px-4 py-3 font-mono" style={{ color: "var(--text-muted)" }}>
                           {i + 1}
                         </td>
 
                         {/* Mã cổ phiếu */}
                         <td className="px-4 py-3">
-                          <span className="font-bold text-white text-sm font-mono tracking-wide">
+                          <span className="font-bold text-sm font-mono tracking-wide" style={{ color: "var(--text-primary)" }}>
                             {stock.ticker}
                           </span>
                         </td>
 
                         {/* Ngành */}
                         <td className="px-4 py-3 hidden sm:table-cell">
-                          <span className="text-xs text-neutral-400">{stock.sector}</span>
+                          <span className="text-xs" style={{ color: "var(--text-muted)" }}>{stock.sector}</span>
                         </td>
 
                         {/* Giá đóng cửa */}
                         <td className="px-4 py-3 text-right">
-                          <span className="text-sm font-mono font-semibold text-neutral-100">
+                          <span className="text-sm font-mono font-semibold" style={{ color: "var(--text-secondary)" }}>
                             {formatGia(stock.close)}
                           </span>
                         </td>
@@ -320,28 +322,20 @@ export default function RSRatingDashboardPage() {
                         <td className="px-4 py-3">
                           <div className="flex flex-col items-center gap-1">
                             <div
-                              className={`
-                                inline-flex items-center gap-1 px-3 py-1 rounded-lg
-                                text-xs font-bold font-mono
-                                ${info.bg} ${info.text}
-                              `}
+                              className="inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold font-mono"
+                              style={{ background: info.bg, color: info.text }}
                             >
                               {info.icon}
                               {stock.rs_rating}
                             </div>
                             {/* Thanh tiến trình nhỏ */}
-                            <div className="w-16 h-1 bg-neutral-800 rounded-full overflow-hidden">
+                            <div className="w-16 h-1 rounded-full overflow-hidden" style={{ background: "var(--surface-2)" }}>
                               <div
-                                className={`h-full rounded-full transition-all ${
-                                  stock.rs_rating >= 90
-                                    ? "bg-purple-500"
-                                    : stock.rs_rating >= 80
-                                    ? "bg-emerald-500"
-                                    : stock.rs_rating >= 50
-                                    ? "bg-yellow-500"
-                                    : "bg-red-500"
-                                }`}
-                                style={{ width: `${stock.rs_rating}%` }}
+                                className="h-full rounded-full transition-all"
+                                style={{
+                                  width: `${stock.rs_rating}%`,
+                                  background: stock.rs_rating >= 90 ? "#a855f7" : stock.rs_rating >= 80 ? "#10b981" : stock.rs_rating >= 50 ? "#eab308" : "#ef4444"
+                                }}
                               />
                             </div>
                           </div>
@@ -351,18 +345,15 @@ export default function RSRatingDashboardPage() {
                         <td className="px-4 py-3 hidden md:table-cell">
                           <div className="flex justify-center">
                             <span
-                              className={`
-                                inline-flex items-center gap-1 text-[11px] font-semibold
-                                px-2.5 py-1 rounded-lg border
-                                ${stock.rs_rating >= 90
-                                  ? "bg-purple-500/15 text-purple-400 border-purple-500/25"
-                                  : stock.rs_rating >= 80
-                                  ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/25"
-                                  : stock.rs_rating >= 50
-                                  ? "bg-yellow-500/15 text-yellow-400 border-yellow-500/25"
-                                  : "bg-red-500/15 text-red-400 border-red-500/25"
-                                }
-                              `}
+                              className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg border"
+                              style={stock.rs_rating >= 90
+                                ? { background: "rgba(168,85,247,0.15)", color: "#a855f7", borderColor: "rgba(168,85,247,0.25)" }
+                                : stock.rs_rating >= 80
+                                ? { background: "rgba(16,185,129,0.15)", color: "#10b981", borderColor: "rgba(16,185,129,0.25)" }
+                                : stock.rs_rating >= 50
+                                ? { background: "rgba(234,179,8,0.15)", color: "#eab308", borderColor: "rgba(234,179,8,0.25)" }
+                                : { background: "rgba(239,68,68,0.15)", color: "#ef4444", borderColor: "rgba(239,68,68,0.25)" }
+                              }
                             >
                               {info.icon}
                               {info.label}
@@ -377,7 +368,7 @@ export default function RSRatingDashboardPage() {
 
               {/* Không có kết quả */}
               {duLieuDaLoc.length === 0 && !loading && (
-                <div className="text-center py-16 text-neutral-500 text-sm">
+                <div className="text-center py-16 text-sm" style={{ color: "var(--text-muted)" }}>
                   Không tìm thấy cổ phiếu phù hợp
                 </div>
               )}
@@ -387,7 +378,7 @@ export default function RSRatingDashboardPage() {
 
         {/* ═══ CÔNG THỨC ═══ */}
         {data.length > 0 && (
-          <div className="text-[11px] text-neutral-600 space-y-1 px-1">
+          <div className="text-[11px] space-y-1 px-1" style={{ color: "var(--text-muted)" }}>
             <p>
               <span className="text-neutral-500 font-medium">Công thức:</span>{" "}
               Raw_RS = 0.4 × (C/C63) + 0.2 × (C/C126) + 0.2 × (C/C189) + 0.2 × (C/C252)

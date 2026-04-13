@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -74,7 +74,7 @@ export function JournalList({ entries, onDeleted, onDateFilter }: JournalListPro
   return (
     <div className="space-y-3">
       {/* Date Range Filter */}
-      <div className="flex items-end gap-2 flex-wrap bg-neutral-900/50 border border-neutral-800 rounded-xl p-3">
+      <div className="flex items-end gap-2 flex-wrap bg-[var(--surface-2)] border border-[var(--border)] rounded-xl p-3">
         <div className="flex-1 min-w-[120px]">
           <label className="text-[12px] text-neutral-500 block mb-1">Từ ngày</label>
           <input

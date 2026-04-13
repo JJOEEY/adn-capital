@@ -32,7 +32,7 @@ export function BottomTabBar() {
       : pathname === href || pathname.startsWith(href + "/");
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-[#0a0a0a]/95 backdrop-blur-xl border-t border-white/[0.06] safe-area-bottom">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t safe-area-bottom" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
       <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-1">
         {tabs.map((tab) => {
           const Icon = tab.icon;
@@ -44,19 +44,18 @@ export function BottomTabBar() {
                 {active && (
                   <motion.div
                     layoutId="bottomTabIndicator"
-                    className="absolute -top-1.5 w-5 h-0.5 bg-emerald-400 rounded-full"
+                    className="absolute -top-1.5 w-5 h-0.5 rounded-full"
+                    style={{ background: "#16a34a" }}
                     transition={{ type: "spring", stiffness: 500, damping: 30 }}
                   />
                 )}
                 <Icon
-                  className={`w-5 h-5 transition-colors duration-200 ${
-                    active ? "text-emerald-400" : "text-white/35"
-                  }`}
+                  className="w-5 h-5 transition-colors duration-200"
+                  style={{ color: active ? "#16a34a" : "rgba(255,255,255,0.35)" }}
                 />
                 <span
-                  className={`text-[11px] font-medium transition-colors duration-200 ${
-                    active ? "text-emerald-400" : "text-white/35"
-                  }`}
+                  className="text-[11px] font-medium transition-colors duration-200"
+                  style={{ color: active ? "#16a34a" : "rgba(255,255,255,0.35)" }}
                 >
                   {tab.label}
                 </span>

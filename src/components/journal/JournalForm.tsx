@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
@@ -232,7 +232,7 @@ export function JournalForm({ onSaved }: JournalFormProps) {
         </div>
 
         {/* Psychology Selector */}
-        <div className="border-t border-neutral-800 pt-4">
+        <div className="border-t border-[var(--border)] pt-4">
           <label className={labelCls}>Tâm lý khi vào lệnh *</label>
           <div className="flex flex-wrap gap-2">
             {PSYCHOLOGIES.map((p) => {

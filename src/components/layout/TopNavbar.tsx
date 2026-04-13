@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
@@ -42,7 +42,7 @@ const navItems = [
 const serviceItems: { href: string; label: string; icon: typeof BarChart2; badge: string | null; desc: string; adminOnly?: boolean }[] = [
   { href: "/terminal",             label: "Chat AI",       icon: MessageSquare, badge: "HOT", desc: "Trợ lý đầu tư AI" },
   { href: "/dashboard/signal-map", label: "ADN AI Broker", icon: Zap,         badge: null,    desc: "Trợ lý đồng hành khuyến nghị đầu tư" },
-  { href: "/tei",                  label: "TEI",          icon: Activity,     badge: "MỚI",  desc: "Chỉ báo cạn kiệt xu hướng" },
+  { href: "/tei",                  label: "ART",          icon: Activity,     badge: "MỚI",  desc: "Analytical Reversal Tracker" },
   { href: "/formula-test",         label: "Test Công Thức", icon: FlaskConical, badge: "MỚI",  desc: "Test 3 công thức chọn cổ phiếu", adminOnly: true },
   { href: "/margin",               label: "Ký Quỹ Margin", icon: Banknote,    badge: null,    desc: "Tư vấn ký quỹ margin" },
 ];
@@ -84,7 +84,7 @@ export function TopNavbar() {
   const isServiceActive = serviceItems.some((s) => isActive(s.href));
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 h-14 border-b border-neutral-800/60 bg-neutral-950/95 backdrop-blur-md">
+    <header className="fixed top-0 left-0 right-0 z-50 h-14 border-b" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
       <div className="flex items-center justify-between h-full px-4 max-w-[1600px] mx-auto">
         {/* ── Left: Logo ── */}
         <Link href="/" className="flex items-center gap-2.5 shrink-0">
@@ -95,7 +95,7 @@ export function TopNavbar() {
             height={32}
             className="rounded-lg"
           />
-          <span className="text-sm font-bold text-white hidden sm:inline">ADN Capital</span>
+          <span className="text-sm font-bold hidden sm:inline" style={{ color: "var(--text-primary)" }}>ADN Capital</span>
         </Link>
 
         {/* ── Center: Nav items (desktop) ── */}
@@ -111,16 +111,33 @@ export function TopNavbar() {
               <>
                 <Link key={item.href} href={item.href}>
                   <div
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 whitespace-nowrap ${
-                      active
-                        ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/25"
-                        : "text-neutral-500 hover:text-neutral-200 hover:bg-neutral-800/50"
-                    }`}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 whitespace-nowrap`}
+                    style={{
+                      color: active ? "var(--primary)" : "var(--text-muted)",
+                      background: active ? "var(--primary-light)" : "transparent",
+                      border: active ? "1px solid var(--border)" : "1px solid transparent",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!active) {
+                        (e.currentTarget as HTMLDivElement).style.background = "var(--bg-hover)";
+                        (e.currentTarget as HTMLDivElement).style.color = "var(--text-primary)";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!active) {
+                        (e.currentTarget as HTMLDivElement).style.background = "transparent";
+                        (e.currentTarget as HTMLDivElement).style.color = "var(--text-muted)";
+                      }
+                    }}
                   >
-                    <Icon className={`w-3.5 h-3.5 ${active ? "text-emerald-400" : ""}`} />
+                    <Icon className="w-3.5 h-3.5" style={{ color: active ? "var(--primary)" : "var(--text-muted)" }} />
                     {item.label}
                     {item.badge && (
-                      <span className="text-[12px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1 py-0 rounded">
+                      <span className="text-[12px] font-bold px-1 py-0 rounded" style={{
+                        background: "var(--primary-light)",
+                        color: "var(--primary)",
+                        border: "1px solid var(--border)",
+                      }}>
                         {item.badge}
                       </span>
                     )}
@@ -131,11 +148,24 @@ export function TopNavbar() {
                   <div key="services-dropdown" ref={dropdownRef} className="relative">
                     <button
                       onClick={() => setDropdownOpen((v) => !v)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 whitespace-nowrap cursor-pointer ${
-                        isServiceActive || dropdownOpen
-                          ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/25"
-                          : "text-neutral-500 hover:text-neutral-200 hover:bg-neutral-800/50"
-                      }`}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 whitespace-nowrap cursor-pointer`}
+                      style={{
+                        color: isServiceActive || dropdownOpen ? "var(--primary)" : "var(--text-muted)",
+                        background: isServiceActive || dropdownOpen ? "var(--primary-light)" : "transparent",
+                        border: isServiceActive || dropdownOpen ? "1px solid var(--border)" : "1px solid transparent",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isServiceActive && !dropdownOpen) {
+                          (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-hover)";
+                          (e.currentTarget as HTMLButtonElement).style.color = "var(--text-primary)";
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isServiceActive && !dropdownOpen) {
+                          (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                          (e.currentTarget as HTMLButtonElement).style.color = "var(--text-muted)";
+                        }
+                      }}
                     >
                       Sản Phẩm Dịch Vụ
                       <ChevronDown
@@ -150,7 +180,12 @@ export function TopNavbar() {
                           animate={{ opacity: 1, y: 0, scale: 1 }}
                           exit={{ opacity: 0, y: -8, scale: 0.97 }}
                           transition={{ duration: 0.15 }}
-                          className="absolute top-full left-0 mt-2 w-64 bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden z-50"
+                          className="absolute top-full left-0 mt-2 w-64 rounded-2xl shadow-2xl overflow-hidden z-50"
+                          style={{
+                            background: "var(--surface)",
+                            border: "1px solid var(--border)",
+                            boxShadow: "0 8px 32px -8px rgba(0,0,0,0.20)",
+                          }}
                         >
                           <div className="p-1.5 space-y-0.5">
                             {serviceItems.filter((s) => !s.adminOnly || isAdmin).map((svc) => {
@@ -159,38 +194,51 @@ export function TopNavbar() {
                               return (
                                 <Link key={svc.href} href={svc.href}>
                                   <div
-                                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group ${
-                                      svcActive
-                                        ? "bg-emerald-500/10 border border-emerald-500/20"
-                                        : "hover:bg-neutral-800/70"
-                                    }`}
+                                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group"
+                                  style={{
+                                    background: svcActive ? "var(--primary-light)" : "transparent",
+                                    border: svcActive ? "1px solid var(--border)" : "1px solid transparent",
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    if (!svcActive) (e.currentTarget as HTMLDivElement).style.background = "var(--bg-hover)";
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    if (!svcActive) (e.currentTarget as HTMLDivElement).style.background = "transparent";
+                                  }}
                                   >
-                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                                      svcActive ? "bg-emerald-500/15" : "bg-neutral-800 group-hover:bg-neutral-700"
-                                    }`}>
-                                      <SvcIcon className={`w-4 h-4 ${svcActive ? "text-emerald-400" : "text-neutral-400 group-hover:text-neutral-200"}`} />
+                                    <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                                      style={{
+                                        background: svcActive ? "var(--primary-light)" : "var(--bg-hover)",
+                                      }}>
+                                      <SvcIcon className="w-4 h-4" style={{ color: svcActive ? "var(--primary)" : "var(--text-secondary)" }} />
                                     </div>
                                     <div className="flex-1 min-w-0">
                                       <div className="flex items-center gap-2">
-                                        <span className={`text-xs font-semibold ${svcActive ? "text-emerald-400" : "text-neutral-200"}`}>
+                                        <span className="text-xs font-semibold" style={{ color: svcActive ? "var(--primary)" : "var(--text-primary)" }}>
                                           {svc.label}
                                         </span>
                                         {svc.badge && (
-                                          <span className="text-[12px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0 rounded">
+                                          <span className="text-[12px] font-black px-1.5 py-0 rounded" style={{
+                                            background: "var(--primary-light)",
+                                            color: "var(--primary)",
+                                            border: "1px solid var(--border)",
+                                          }}>
                                             {svc.badge}
                                           </span>
                                         )}
                                       </div>
-                                      <p className="text-[12px] text-neutral-600 truncate">{svc.desc}</p>
+                                      <p className="text-[12px] truncate" style={{ color: "var(--text-muted)" }}>{svc.desc}</p>
                                     </div>
                                   </div>
                                 </Link>
                               );
                             })}
                           </div>
-                          <div className="border-t border-neutral-800 px-3 py-2">
+                          <div className="border-t px-3 py-2" style={{ borderColor: "var(--border)" }}>
                             <Link href="/san-pham">
-                              <span className="text-[12px] text-neutral-600 hover:text-emerald-400 transition-colors cursor-pointer">
+                              <span className="text-[12px] transition-colors cursor-pointer" style={{ color: "var(--text-muted)" }}
+                                onMouseEnter={(e) => { (e.target as HTMLSpanElement).style.color = "var(--primary)"; }}
+                                onMouseLeave={(e) => { (e.target as HTMLSpanElement).style.color = "var(--text-muted)"; }}>
                                 Xem tất cả sản phẩm →
                               </span>
                             </Link>
@@ -210,19 +258,20 @@ export function TopNavbar() {
           {/* Usage bar */}
           {!showSkeleton && isAuthenticated && limit !== Infinity && (
             <div className="hidden sm:flex items-center gap-2">
-              <ZapIcon className="w-3 h-3 text-neutral-500" />
-              <div className="w-16 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+              <ZapIcon className="w-3 h-3" style={{ color: "var(--text-muted)" }} />
+              <div className="w-16 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--surface-2)" }}>
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: `${usagePercent}%` }}
-                  className={`h-full rounded-full ${usagePercent >= 80 ? "bg-red-500" : "bg-emerald-500"}`}
+                  className="h-full rounded-full"
+                  style={{ background: usagePercent >= 80 ? "var(--danger)" : "#10b981" }}
                 />
               </div>
-              <span className="text-[12px] text-neutral-500">{usage}/{limit}</span>
+              <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>{usage}/{limit}</span>
             </div>
           )}
           {!showSkeleton && isAuthenticated && limit === Infinity && (
-            <div className={`hidden sm:flex items-center gap-1 text-[12px] ${vipTier === "PREMIUM" ? "text-amber-400" : "text-purple-400"}`}>
+            <div className="hidden sm:flex items-center gap-1 text-[12px]" style={{ color: vipTier === "PREMIUM" ? "#f59e0b" : "#a855f7" }}>
               <Crown className="w-3 h-3" />
               {vipTier === "PREMIUM" ? "PREMIUM" : "VIP"}
             </div>
@@ -230,35 +279,37 @@ export function TopNavbar() {
 
           {/* Auth area */}
           {showSkeleton ? (
-            <div className="w-7 h-7 rounded-full bg-neutral-800 animate-pulse" />
+            <div className="w-7 h-7 rounded-full animate-pulse" style={{ background: "var(--surface-2)" }} />
           ) : isAuthenticated ? (
             <div className="flex items-center gap-2">
               {role === "VIP" && (
-                <span className={`hidden sm:flex items-center gap-1 text-[11px] font-bold border px-1.5 py-0.5 rounded-md ${
-                  vipTier === "PREMIUM"
-                    ? "bg-amber-500/10 text-amber-400 border-amber-500/25"
-                    : "bg-purple-500/10 text-purple-400 border-purple-500/25"
-                }`}>
+                <span
+                  className="hidden sm:flex items-center gap-1 text-[11px] font-bold border px-1.5 py-0.5 rounded-md"
+                  style={vipTier === "PREMIUM"
+                    ? { background: "rgba(245,158,11,0.10)", color: "#f59e0b", borderColor: "rgba(245,158,11,0.25)" }
+                    : { background: "rgba(168,85,247,0.10)", color: "#a855f7", borderColor: "rgba(168,85,247,0.25)" }
+                  }>
                   <Crown className="w-2.5 h-2.5" /> {vipTier === "PREMIUM" ? "PREMIUM" : "VIP"}
                 </span>
               )}
               <Link href="/profile" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-                <span className="hidden md:inline text-xs text-neutral-300 font-medium max-w-[80px] truncate">
+                <span className="hidden md:inline text-xs font-medium max-w-[80px] truncate" style={{ color: "var(--text-secondary)" }}>
                   {session?.user?.name?.split(" ").slice(-1)[0] ?? session?.user?.email?.split("@")[0]}
                 </span>
                 {session?.user?.image ? (
-                  <img src={session.user.image} alt="" className="w-7 h-7 rounded-full border border-neutral-700" />
+                  <img src={session.user.image} alt="" className="w-7 h-7 rounded-full border" style={{ borderColor: "var(--border)" }} />
                 ) : (
-                  <UserCircle className="w-7 h-7 text-neutral-600" />
+                  <UserCircle className="w-7 h-7" style={{ color: "var(--text-muted)" }} />
                 )}
               </Link>
-              <button onClick={() => signOut({ callbackUrl: "/" })} className="text-neutral-500 hover:text-red-400 transition-colors p-1" title="Đăng xuất">
+              <button onClick={() => signOut({ callbackUrl: "/" })} className="transition-colors p-1" style={{ color: "var(--text-muted)" }} title="Đăng xuất">
                 <LogOut className="w-3.5 h-3.5" />
               </button>
             </div>
           ) : (
             <Link href="/auth">
-              <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="flex items-center gap-1.5 text-xs text-emerald-400 border border-emerald-500/35 px-2.5 py-1 rounded-lg bg-emerald-500/8 hover:bg-emerald-500/15 transition-all font-medium">
+              <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="flex items-center gap-1.5 text-xs border px-2.5 py-1 rounded-lg transition-all font-medium"
+                style={{ color: "#16a34a", borderColor: "rgba(22,163,74,0.35)", background: "rgba(22,163,74,0.08)" }}>
                 <LogIn className="w-3 h-3" />
                 Đăng nhập
               </motion.button>
@@ -266,7 +317,7 @@ export function TopNavbar() {
           )}
 
           {/* Mobile hamburger */}
-          <button onClick={() => setMobileOpen(!mobileOpen)} className="lg:hidden p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 transition-all">
+          <button onClick={() => setMobileOpen(!mobileOpen)} className="lg:hidden p-1.5 rounded-lg transition-all" style={{ color: "var(--text-muted)" }}>
             {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
         </div>
@@ -275,24 +326,29 @@ export function TopNavbar() {
       {/* ── Mobile dropdown menu ── */}
       {mobileOpen && (
         <>
-          <div className="fixed inset-0 top-14 bg-black/50 backdrop-blur-sm z-40 lg:hidden" onClick={() => setMobileOpen(false)} />
-          <nav className="absolute top-14 left-0 right-0 bg-neutral-950 border-b border-neutral-800/60 z-50 lg:hidden p-3 space-y-0.5">
+          <div className="fixed inset-0 top-14 z-40 lg:hidden" style={{ background: "rgba(0,0,0,0.50)" }} onClick={() => setMobileOpen(false)} />
+          <nav className="absolute top-14 left-0 right-0 border-b z-50 lg:hidden p-3 space-y-0.5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
             {navItems.filter((item) => item.href !== "/admin" || isAdmin).map((item) => {
               const Icon = item.icon;
               const active = isActive(item.href);
               return (
                 <Link key={item.href} href={item.href}>
                   <div
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                      active
-                        ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/25"
-                        : "text-neutral-500 hover:text-neutral-200 hover:bg-neutral-800/50"
-                    }`}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
+                    style={{
+                      color: active ? "var(--primary)" : "var(--text-secondary)",
+                      background: active ? "var(--primary-light)" : "transparent",
+                      border: active ? "1px solid var(--border)" : "1px solid transparent",
+                    }}
                   >
-                    <Icon className={`w-4 h-4 ${active ? "text-emerald-400" : ""}`} />
+                    <Icon className="w-4 h-4" style={{ color: active ? "var(--primary)" : "var(--text-secondary)" }} />
                     {item.label}
                     {item.badge && (
-                      <span className="text-[11px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded-md ml-auto">
+                      <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-md ml-auto" style={{
+                        background: "var(--primary-light)",
+                        color: "var(--primary)",
+                        border: "1px solid var(--border)",
+                      }}>
                         {item.badge}
                       </span>
                     )}
@@ -301,24 +357,29 @@ export function TopNavbar() {
               );
             })}
             {/* Sản Phẩm Dịch Vụ group trên mobile */}
-            <div className="pt-1 mt-1 border-t border-neutral-800/60">
-              <p className="px-3 text-[11px] font-bold text-neutral-600 uppercase tracking-widest mb-1">Sản Phẩm Dịch Vụ</p>
+            <div className="pt-1 mt-1 border-t" style={{ borderColor: "var(--border)" }}>
+              <p className="px-3 text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: "var(--text-muted)" }}>Sản Phẩm Dịch Vụ</p>
               {serviceItems.filter((s) => !s.adminOnly || isAdmin).map((svc) => {
                 const SvcIcon = svc.icon;
                 const active = isActive(svc.href);
                 return (
                   <Link key={svc.href} href={svc.href}>
                     <div
-                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                        active
-                          ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/25"
-                          : "text-neutral-500 hover:text-neutral-200 hover:bg-neutral-800/50"
-                      }`}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
+                      style={{
+                        color: active ? "var(--primary)" : "var(--text-secondary)",
+                        background: active ? "var(--primary-light)" : "transparent",
+                        border: active ? "1px solid var(--border)" : "1px solid transparent",
+                      }}
                     >
-                      <SvcIcon className={`w-4 h-4 ${active ? "text-emerald-400" : ""}`} />
+                      <SvcIcon className="w-4 h-4" style={{ color: active ? "var(--primary)" : "var(--text-secondary)" }} />
                       {svc.label}
                       {svc.badge && (
-                        <span className="text-[11px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded-md ml-auto">
+                        <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-md ml-auto" style={{
+                          background: "var(--primary-light)",
+                          color: "var(--primary)",
+                          border: "1px solid var(--border)",
+                        }}>
                           {svc.badge}
                         </span>
                       )}

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import useSWR from "swr";
 import {
@@ -70,33 +70,36 @@ export function MorningNews() {
   });
 
   return (
-    <div className="relative rounded-2xl border border-amber-500/15 bg-gray-900/90 shadow-[0_4px_40px_-12px_rgba(245,158,11,0.12)] overflow-hidden transform-gpu">
-      {/* ─── Ambient glow ─── */}
-      <div className="absolute -top-20 -right-20 w-56 h-56 rounded-full bg-amber-500/8 blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-16 -left-16 w-40 h-40 rounded-full bg-amber-500/5 blur-3xl pointer-events-none" />
+    <div className="relative rounded-2xl border shadow-[0_4px_24px_-12px_rgba(46,77,61,0.12)] overflow-hidden transform-gpu" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+      {/* ─── Ambient glow (no blur/backdrop-filter) ─── */}
+      <div className="absolute -top-20 -right-20 w-56 h-56 rounded-full pointer-events-none" style={{ background: "rgba(160,132,92,0.06)" }} />
+      <div className="absolute -bottom-16 -left-16 w-40 h-40 rounded-full pointer-events-none" style={{ background: "rgba(160,132,92,0.04)" }} />
 
       {/* ─── Header ─── */}
-      <div className="relative z-10 border-b border-gray-800/60 px-5 py-4 flex items-center justify-between">
+      <div className="relative z-10 border-b px-5 py-4 flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
         <div className="flex items-center gap-2.5">
-          <div className="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
-            <Zap className="w-4 h-4 text-amber-400" />
+          <div className="p-1.5 rounded-lg border" style={{ background: "var(--primary-light)", borderColor: "var(--border)" }}>
+            <Zap className="w-4 h-4" style={{ color: "var(--primary)" }} />
           </div>
           <div>
-            <h3 className="text-xs font-black text-amber-400 uppercase tracking-wider">
+            <h3 className="text-xs font-black uppercase tracking-wider" style={{ color: "var(--primary)" }}>
               Bản Tin Sáng ADN Capital
             </h3>
-            <p className="text-[12px] text-gray-500 mt-0.5">
+            <p className="text-[12px] mt-0.5" style={{ color: "var(--text-muted)" }}>
               MORNING BRIEF
             </p>
           </div>
         </div>
-        <span className="text-[12px] text-gray-600 font-mono">{data.date}</span>
+        <span className="text-[12px] font-mono" style={{ color: "var(--text-muted)" }}>{data.date}</span>
       </div>
 
       <div className="relative z-10 p-5 space-y-5">
         {/* ═══ PHẦN TOP: 5 Chỉ số Tham chiếu ═══ */}
         <div>
-          <p className="text-[12px] font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+          <p
+            className="text-[12px] font-bold uppercase tracking-wider mb-3 flex items-center gap-1.5"
+            style={{ color: "var(--text-secondary)" }}
+          >
             <BarChart3 className="w-3.5 h-3.5" />
             Chỉ số Tham chiếu (so phiên trước)
           </p>
@@ -107,17 +110,18 @@ export function MorningNews() {
               return (
                 <div
                   key={idx.name}
-                  className="relative bg-gray-800/50 border border-gray-700/40 rounded-xl px-3 py-3 hover:border-gray-600/50 transition-colors"
+                  className="relative border rounded-xl px-3 py-3 transition-colors"
+                  style={{ background: "var(--surface-2)", borderColor: "var(--border)" }}
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-[12px] text-gray-400 font-medium truncate">
+                    <span className="text-[12px] font-medium truncate" style={{ color: "var(--text-secondary)" }}>
                       {idx.name}
                     </span>
                     <span className="text-sm">
                       {INDEX_ICONS[idx.name] ?? "📊"}
                     </span>
                   </div>
-                  <p className="text-lg font-bold text-white leading-tight">
+                  <p className="text-lg font-bold leading-tight" style={{ color: "var(--text-primary)" }}>
                     {typeof idx.value === "number"
                       ? idx.value.toLocaleString("en-US", {
                           maximumFractionDigits: 2,
@@ -125,13 +129,10 @@ export function MorningNews() {
                       : idx.value}
                   </p>
                   <p
-                    className={`text-xs font-semibold mt-0.5 ${
-                      up
-                        ? "text-emerald-500"
-                        : down
-                          ? "text-red-500"
-                          : "text-gray-500"
-                    }`}
+                    className="text-xs font-semibold mt-0.5"
+                    style={{
+                      color: up ? "#16a34a" : down ? "var(--danger)" : "var(--text-muted)",
+                    }}
                   >
                     {up && "+"}
                     {typeof idx.change_pct === "number"
@@ -151,43 +152,34 @@ export function MorningNews() {
 
         {/* Box 1: Thị trường Việt Nam */}
         <ContentBox
-          icon={<BarChart3 className="w-4 h-4 text-amber-400" />}
+          icon={<BarChart3 className="w-4 h-4" style={{ color: "var(--accent-news)" }} />}
           title="Thị trường Việt Nam"
-          titleColor="text-amber-400"
-          borderColor="border-amber-500/20"
-          glowColor="bg-amber-500/5"
           items={data.vn_market}
-          bulletColor="text-amber-500"
+          bulletColor="var(--accent-news)"
         />
 
         {/* Box 2: Vĩ mô Trong nước & Quốc tế */}
         <ContentBox
-          icon={<Globe className="w-4 h-4 text-blue-400" />}
+          icon={<Globe className="w-4 h-4" style={{ color: "var(--accent-fa)" }} />}
           title="Vĩ mô Trong Nước & Quốc Tế"
-          titleColor="text-blue-400"
-          borderColor="border-blue-500/20"
-          glowColor="bg-blue-500/5"
           items={data.macro}
-          bulletColor="text-blue-500"
+          bulletColor="var(--accent-fa)"
         />
 
         {/* Box 3: Rủi ro / Cơ hội */}
         <ContentBox
-          icon={<AlertTriangle className="w-4 h-4 text-rose-400" />}
+          icon={<AlertTriangle className="w-4 h-4" style={{ color: "var(--danger)" }} />}
           title="Rủi Ro / Cơ Hội"
-          titleColor="text-rose-400"
-          borderColor="border-rose-500/20"
-          glowColor="bg-rose-500/5"
           items={data.risk_opportunity}
-          bulletColor="text-rose-500"
+          bulletColor="var(--danger)"
         />
 
         {/* ─── Footer ─── */}
         <div className="flex flex-col items-center gap-0.5 pt-2">
-          <p className="text-[11px] text-gray-500 font-medium">
+          <p className="text-[11px] font-medium" style={{ color: "var(--text-muted)" }}>
             Powered by ADN Capital
           </p>
-          <p className="text-[11px] text-amber-500/60 font-bold tracking-wider">
+          <p className="text-[11px] font-bold tracking-wider" style={{ color: "var(--primary)" }}>
             ADNCAPITAL.COM.VN
           </p>
         </div>
@@ -200,30 +192,26 @@ export function MorningNews() {
 function ContentBox({
   icon,
   title,
-  titleColor,
-  borderColor,
-  glowColor,
   items,
   bulletColor,
 }: {
   icon: React.ReactNode;
   title: string;
-  titleColor: string;
-  borderColor: string;
-  glowColor: string;
   items?: string[];
   bulletColor: string;
 }) {
   if (!items || items.length === 0) return null;
   return (
     <div
-      className={`relative ${glowColor} border ${borderColor} rounded-xl p-4 overflow-hidden`}
+      className="relative rounded-xl p-4 overflow-hidden"
+      style={{ background: "var(--bg-hover)", border: "1px solid var(--border)" }}
     >
       {/* Section header */}
       <div className="flex items-center gap-2 mb-3">
         {icon}
         <h4
-          className={`text-[11px] font-extrabold uppercase tracking-wider ${titleColor}`}
+          className="text-[11px] font-extrabold uppercase tracking-wider"
+          style={{ color: bulletColor }}
         >
           {title}
         </h4>
@@ -233,9 +221,10 @@ function ContentBox({
         {items.map((item, i) => (
           <li
             key={i}
-            className="flex items-start gap-2.5 text-[12px] text-gray-300 leading-relaxed"
+            className="flex items-start gap-2.5 text-[12px] leading-relaxed"
+            style={{ color: "var(--text-secondary)" }}
           >
-            <span className={`${bulletColor} mt-1 text-sm leading-none`}>
+            <span className="mt-1 text-sm leading-none" style={{ color: bulletColor }}>
               •
             </span>
             <span>{item}</span>

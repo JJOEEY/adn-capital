@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { motion } from "framer-motion";
 import { TrendingUp, TrendingDown, Minus, Newspaper } from "lucide-react";
@@ -10,16 +10,22 @@ interface NewsCardProps {
 }
 
 const SentimentIcon = ({ sentiment }: { sentiment: NewsItem["sentiment"] }) => {
-  if (sentiment === "positive") return <TrendingUp className="w-3 h-3 text-emerald-400" />;
-  if (sentiment === "negative") return <TrendingDown className="w-3 h-3 text-red-400" />;
-  return <Minus className="w-3 h-3 text-neutral-400" />;
+  if (sentiment === "positive") return <TrendingUp className="w-3 h-3" style={{ color: "#16a34a" }} />;
+  if (sentiment === "negative") return <TrendingDown className="w-3 h-3" style={{ color: "var(--danger)" }} />;
+  return <Minus className="w-3 h-3" style={{ color: "var(--text-muted)" }} />;
 };
 
-const sentimentBg: Record<NewsItem["sentiment"], string> = {
-  positive: "border-l-emerald-500/50",
-  negative: "border-l-red-500/50",
-  neutral: "border-l-neutral-600",
-};
+function sentimentBorderStyle(sentiment: NewsItem["sentiment"]) {
+  if (sentiment === "positive") return "rgba(22,163,74,0.50)";
+  if (sentiment === "negative") return "rgba(192,57,43,0.50)";
+  return "var(--border)";
+}
+
+function sentimentIconBg(sentiment: NewsItem["sentiment"]) {
+  if (sentiment === "positive") return "rgba(22,163,74,0.10)";
+  if (sentiment === "negative") return "rgba(192,57,43,0.10)";
+  return "var(--surface-2)";
+}
 
 export function NewsGrid({ news }: NewsCardProps) {
   return (
@@ -31,37 +37,32 @@ export function NewsGrid({ news }: NewsCardProps) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: i * 0.05 }}
         >
-          <Card
-            className={`p-4 hover:border-neutral-700 transition-all cursor-pointer border-l-2 ${sentimentBg[item.sentiment]}`}
-          >
+          <div style={{ borderLeft: `2px solid ${sentimentBorderStyle(item.sentiment)}` }}>
+          <Card className="p-4 transition-all cursor-pointer">
             <div className="flex items-start gap-2 mb-2">
               <div
-                className={`mt-0.5 p-1 rounded-md flex-shrink-0 ${
-                  item.sentiment === "positive"
-                    ? "bg-emerald-500/10"
-                    : item.sentiment === "negative"
-                    ? "bg-red-500/10"
-                    : "bg-neutral-800"
-                }`}
+                className="mt-0.5 p-1 rounded-md flex-shrink-0"
+                style={{ background: sentimentIconBg(item.sentiment) }}
               >
                 <SentimentIcon sentiment={item.sentiment} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-neutral-100 leading-snug line-clamp-2">
+                <p className="text-sm font-semibold leading-snug line-clamp-2" style={{ color: "var(--text-primary)" }}>
                   {item.title}
                 </p>
               </div>
             </div>
-            <p className="text-xs text-neutral-500 leading-relaxed line-clamp-2 pl-7">
+            <p className="text-xs leading-relaxed line-clamp-2 pl-7" style={{ color: "var(--text-muted)" }}>
               {item.summary}
             </p>
             <div className="flex items-center gap-2 mt-2.5 pl-7">
-              <span className="text-[12px] text-neutral-600 bg-neutral-800 px-2 py-0.5 rounded-md">
+              <span className="text-[12px] px-2 py-0.5 rounded-md" style={{ background: "var(--surface-2)", color: "var(--text-muted)" }}>
                 {item.category}
               </span>
-              <span className="text-[12px] text-neutral-600">{item.time}</span>
+              <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>{item.time}</span>
             </div>
           </Card>
+          </div>
         </motion.div>
       ))}
     </div>
@@ -71,8 +72,8 @@ export function NewsGrid({ news }: NewsCardProps) {
 export function NewsCardEmpty() {
   return (
     <Card className="p-8 text-center">
-      <Newspaper className="w-8 h-8 text-neutral-700 mx-auto mb-2" />
-      <p className="text-sm text-neutral-500">Chưa có tin tức</p>
+      <Newspaper className="w-8 h-8 mx-auto mb-2" style={{ color: "var(--border)" }} />
+      <p className="text-sm" style={{ color: "var(--text-muted)" }}>Chưa có tin tức</p>
     </Card>
   );
 }

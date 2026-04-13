@@ -1,7 +1,15 @@
 import type { Metadata } from "next";
 import { AuthProvider } from "@/components/providers/AuthProvider";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
+import { Manrope } from 'next/font/google'
 import "./globals.css";
+
+const manrope = Manrope({
+  subsets: ['latin', 'vietnamese'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-manrope',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
   title: "ADN Capital - Trợ lý Chứng khoán Việt Nam",
@@ -56,7 +64,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }
         `}} />
       </head>
-      <body className="antialiased min-h-screen overflow-x-hidden text-base leading-relaxed" suppressHydrationWarning>
+      <body className={`${manrope.variable} antialiased min-h-screen overflow-x-hidden text-base leading-relaxed dark`} suppressHydrationWarning>
         <AuthProvider>
           <ThemeProvider>
             {children}

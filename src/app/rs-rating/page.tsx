@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -52,26 +52,26 @@ export default function RSRatingPage() {
       <div className="p-3 md:p-6 space-y-4 md:space-y-5 max-w-7xl mx-auto">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex-shrink-0">
-              <BarChart2 className="w-5 h-5 text-emerald-400" />
+            <div className="p-2 rounded-xl border flex-shrink-0" style={{ background: "rgba(16,185,129,0.10)", borderColor: "rgba(16,185,129,0.25)" }}>
+              <BarChart2 className="w-5 h-5" style={{ color: "#10b981" }} />
             </div>
             <div className="min-w-0">
-              <h1 className="text-xl sm:text-2xl font-black text-white">RS Rating</h1>
-              <p className="text-xs sm:text-sm text-neutral-500 truncate">
+              <h1 className="text-xl sm:text-2xl font-black" style={{ color: "var(--text-primary)" }}>RS Rating</h1>
+              <p className="text-xs sm:text-sm truncate" style={{ color: "var(--text-muted)" }}>
                 Xếp hạng sức mạnh tương đối — dữ liệu real-time
               </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             {updatedAt && (
-              <span className="text-[12px] text-neutral-600 hidden sm:inline">
+              <span className="text-[12px] hidden sm:inline" style={{ color: "var(--text-muted)" }}>
                 Cập nhật: {new Date(updatedAt).toLocaleTimeString("vi-VN")}
               </span>
             )}
             <button
               onClick={fetchRsRating}
               disabled={loading}
-              className="p-2 rounded-lg border border-neutral-800 hover:border-neutral-700 text-neutral-400 hover:text-white transition-all disabled:opacity-50"
+              className="p-2 rounded-lg border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-all disabled:opacity-50"
               title="Làm mới"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
@@ -82,14 +82,14 @@ export default function RSRatingPage() {
         {/* Chú thích màu sắc RS */}
         <div className="flex flex-wrap gap-3">
           {[
-            { label: "Super Star (RS > 90)", color: "bg-purple-500/15 text-purple-400 border-purple-500/25" },
-            { label: "Star (80-90)", color: "bg-emerald-500/15 text-emerald-400 border-emerald-500/25" },
-            { label: "Watch (60-80)", color: "bg-yellow-500/15 text-yellow-400 border-yellow-500/25" },
-            { label: "Farmer (< 60)", color: "bg-neutral-800 text-neutral-400 border-neutral-700" },
+            { label: "Super Star (RS > 90)", style: { background: "rgba(168,85,247,0.15)", color: "#a855f7", borderColor: "rgba(168,85,247,0.25)" } },
+            { label: "Star (80-90)", style: { background: "rgba(16,185,129,0.15)", color: "#10b981", borderColor: "rgba(16,185,129,0.25)" } },
+            { label: "Watch (60-80)", style: { background: "rgba(234,179,8,0.15)", color: "#eab308", borderColor: "rgba(234,179,8,0.25)" } },
+            { label: "Farmer (< 60)", style: { background: "var(--surface-2)", color: "var(--text-muted)", borderColor: "var(--border)" } },
           ].map((item) => (
             <div
               key={item.label}
-              className={`text-xs px-3 py-1.5 rounded-lg border font-medium ${item.color}`}
+              className="text-xs px-3 py-1.5 rounded-lg border font-medium" style={item.style}
             >
               {item.label}
             </div>
@@ -102,19 +102,19 @@ export default function RSRatingPage() {
             {Array.from({ length: 8 }).map((_, i) => (
               <div
                 key={i}
-                className="h-12 bg-neutral-900 rounded-xl animate-pulse border border-neutral-800/50"
+                className="h-12 bg-[var(--surface)] rounded-xl animate-pulse border border-[var(--border)]"
               />
             ))}
-            <p className="text-center text-xs text-neutral-600 mt-4">
+            <p className="text-center text-xs mt-4" style={{ color: "var(--text-muted)" }}>
               Đang tính toán RS Rating từ dữ liệu giá thực...
             </p>
           </div>
         ) : error ? (
           <div className="text-center py-12">
-            <p className="text-red-400 text-sm">{error}</p>
+            <p className="text-sm" style={{ color: "var(--danger)" }}>{error}</p>
             <button
               onClick={fetchRsRating}
-              className="mt-3 text-xs text-emerald-400 hover:underline"
+              className="mt-3 text-xs hover:underline" style={{ color: "#10b981" }}
             >
               Thử lại
             </button>
