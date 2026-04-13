@@ -12,7 +12,7 @@ set -e
 
 TARGET=${1:-all}
 VPS_USER="adncapital"
-VPS_HOST="your-vps-ip"   # ← đổi thành IP VPS của bạn
+VPS_HOST="14.225.204.117"   # ← đổi thành IP VPS của bạn
 APP_DIR="/home/adncapital/app/fiinquant-bridge"
 
 echo "🚀 Bắt đầu deploy: $TARGET"
@@ -39,15 +39,19 @@ deploy_bridge() {
 # ─────────────────────────────────────────
 deploy_frontend() {
   echo ""
-  echo "▶ [1/3] Push code lên VPS..."
-  ssh $VPS_USER@$VPS_HOST "cd /home/adncapital/app/nextjs && git pull"
+  echo "▶ [1/4] Pull code mới nhất..."
+  ssh $VPS_USER@$VPS_HOST "cd /home/adncapital/app/adn-capital && git pull"
 
-  echo "▶ [2/3] Build Next.js..."
-  ssh $VPS_USER@$VPS_HOST "cd /home/adncapital/app/nextjs && npm run build"
+  echo "▶ [2/4] Build Docker image mới..."
+  ssh $VPS_USER@$VPS_HOST "cd /home/adncapital/app/adn-capital && docker build -t adn-capital-web ."
 
-  echo "▶ [3/3] Restart service..."
-  ssh $VPS_USER@$VPS_HOST "systemctl restart adn-nextjs"
-  echo "✅ Frontend deploy xong!"
+  echo "▶ [3/4] Restart Docker container (adn-web)..."
+  ssh $VPS_USER@$VPS_HOST "docker stop adn-web || true && docker rm adn-web || true"
+  ssh $VPS_USER@$VPS_HOST "docker run -d --name adn-web --network adn-capital_adn-net --env-file /home/adncapital/app/adn-capital/.env -p 3000:3000 adn-capital-web"
+
+  echo "▶ [4/4] Kiểm tra trạng thái..."
+  ssh $VPS_USER@$VPS_HOST "docker ps | grep adn-web"
+  echo "✅ Frontend deploy & kết nối DB thành công!"
 }
 
 # ─────────────────────────────────────────
