@@ -29,6 +29,23 @@ const navItems = [
   { href: "/pricing", label: "Bảng Giá", icon: DollarSign, badge: null },
 ];
 
+function getBadgeStyle(badge: string | null): React.CSSProperties {
+  if (!badge) return {};
+  if (badge === "HOT") {
+    return {
+      background: "rgba(192,57,43,0.10)",
+      color: "#C0392B",
+      border: "1px solid rgba(192,57,43,0.25)",
+    };
+  }
+  // MỚI or default
+  return {
+    background: "var(--primary-light)",
+    color: "var(--primary)",
+    border: "1px solid var(--border)",
+  };
+}
+
 interface MarketData {
   value: number;
   changePercent: number;
@@ -224,10 +241,7 @@ export function Sidebar() {
                 {item.badge && (
                   <span
                     className="text-[11px] font-bold px-1.5 py-0.5 rounded-md"
-                    style={{
-                      background: "var(--primary, #2E4D3D)",
-                      color: "var(--bg-page, #F8F7F2)",
-                    }}
+                    style={getBadgeStyle(item.badge)}
                   >
                     {item.badge}
                   </span>

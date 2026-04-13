@@ -94,12 +94,7 @@ input::placeholder, textarea::placeholder {
 }
 
 .bg-city-dark {
-  background:
-    linear-gradient(180deg,
-      rgba(0,0,0,0.90) 0%,
-      rgba(0,0,0,0.93) 50%,
-      rgba(0,0,0,0.97) 100%),
-    url('/bg-city.jpg') center/cover no-repeat fixed;
+  background: #0D1410;
 }
 
 /* liquid-glass đã bị xóa — dùng màu solid */
@@ -157,12 +152,7 @@ input::placeholder, textarea::placeholder {
 }
 
 .bg-city-light {
-  background:
-    linear-gradient(180deg,
-      rgba(248,247,242,0.88) 0%,
-      rgba(248,247,242,0.93) 60%,
-      rgba(248,247,242,0.98) 100%),
-    url('/bg-city.jpg') center/cover no-repeat fixed;
+  background: #F8F7F2;
 }
 
 /* liquid-glass light đã bị xóa — dùng màu solid */

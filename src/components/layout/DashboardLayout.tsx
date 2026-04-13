@@ -55,6 +55,23 @@ const navItems: NavItem[] = [
   { href: "/admin", label: "Quản Lý", icon: Users },
 ];
 
+function getBadgeStyle(badge: string | null): React.CSSProperties {
+  if (!badge) return {};
+  if (badge === "HOT") {
+    return {
+      background: "rgba(192,57,43,0.10)",
+      color: "#C0392B",
+      border: "1px solid rgba(192,57,43,0.25)",
+    };
+  }
+  // MỚI or default
+  return {
+    background: "var(--primary-light)",
+    color: "var(--primary)",
+    border: "1px solid var(--border)",
+  };
+}
+
 interface DashboardLayoutProps {
   children: React.ReactNode;
 }
@@ -217,11 +234,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                     <Icon className="w-5 h-5 shrink-0" />
                     {!collapsed && <span>{item.label}</span>}
                     {!collapsed && item.badge && (
-                      <span className="text-[12px] font-bold px-1.5 py-0 rounded ml-auto" style={{
-                        background: "var(--primary-light)",
-                        color: "var(--primary)",
-                        border: "1px solid var(--border)",
-                      }}>
+                      <span className="text-[12px] font-bold px-1.5 py-0 rounded ml-auto" style={getBadgeStyle(item.badge)}>
                         {item.badge}
                       </span>
                     )}
@@ -270,11 +283,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                                 {child.badge && (
                                   <span
                                     className="text-[12px] font-black px-1.5 py-0 rounded ml-auto"
-                                    style={{
-                                      background: child.badge === "HOT" ? "rgba(192,57,43,0.10)" : "var(--primary-light)",
-                                      color: child.badge === "HOT" ? "var(--danger)" : "var(--primary)",
-                                      border: `1px solid ${child.badge === "HOT" ? "rgba(192,57,43,0.25)" : "var(--border)"}`,
-                                    }}
+                                    style={getBadgeStyle(child.badge)}
                                   >
                                     {child.badge}
                                   </span>

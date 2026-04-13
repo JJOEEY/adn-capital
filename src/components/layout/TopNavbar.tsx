@@ -47,6 +47,23 @@ const serviceItems: { href: string; label: string; icon: typeof BarChart2; badge
   { href: "/margin",               label: "Ký Quỹ Margin", icon: Banknote,    badge: null,    desc: "Tư vấn ký quỹ margin" },
 ];
 
+function getBadgeStyle(badge: string | null): React.CSSProperties {
+  if (!badge) return {};
+  if (badge === "HOT") {
+    return {
+      background: "rgba(192,57,43,0.10)",
+      color: "#C0392B",
+      border: "1px solid rgba(192,57,43,0.25)",
+    };
+  }
+  // MỚI or default
+  return {
+    background: "var(--primary-light)",
+    color: "var(--primary)",
+    border: "1px solid var(--border)",
+  };
+}
+
 export function TopNavbar() {
   const pathname = usePathname();
   const { dbUser, role, vipTier, isAuthenticated, isAdmin, isLoading } = useCurrentDbUser();
@@ -133,11 +150,7 @@ export function TopNavbar() {
                     <Icon className="w-3.5 h-3.5" style={{ color: active ? "var(--primary)" : "var(--text-muted)" }} />
                     {item.label}
                     {item.badge && (
-                      <span className="text-[12px] font-bold px-1 py-0 rounded" style={{
-                        background: "var(--primary-light)",
-                        color: "var(--primary)",
-                        border: "1px solid var(--border)",
-                      }}>
+                      <span className="text-[12px] font-bold px-1 py-0 rounded" style={getBadgeStyle(item.badge)}>
                         {item.badge}
                       </span>
                     )}
@@ -218,11 +231,7 @@ export function TopNavbar() {
                                           {svc.label}
                                         </span>
                                         {svc.badge && (
-                                          <span className="text-[12px] font-black px-1.5 py-0 rounded" style={{
-                                            background: "var(--primary-light)",
-                                            color: "var(--primary)",
-                                            border: "1px solid var(--border)",
-                                          }}>
+                                          <span className="text-[12px] font-black px-1.5 py-0 rounded" style={getBadgeStyle(svc.badge)}>
                                             {svc.badge}
                                           </span>
                                         )}
@@ -344,11 +353,7 @@ export function TopNavbar() {
                     <Icon className="w-4 h-4" style={{ color: active ? "var(--primary)" : "var(--text-secondary)" }} />
                     {item.label}
                     {item.badge && (
-                      <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-md ml-auto" style={{
-                        background: "var(--primary-light)",
-                        color: "var(--primary)",
-                        border: "1px solid var(--border)",
-                      }}>
+                      <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-md ml-auto" style={getBadgeStyle(item.badge)}>
                         {item.badge}
                       </span>
                     )}
@@ -375,11 +380,7 @@ export function TopNavbar() {
                       <SvcIcon className="w-4 h-4" style={{ color: active ? "var(--primary)" : "var(--text-secondary)" }} />
                       {svc.label}
                       {svc.badge && (
-                        <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-md ml-auto" style={{
-                          background: "var(--primary-light)",
-                          color: "var(--primary)",
-                          border: "1px solid var(--border)",
-                        }}>
+                        <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-md ml-auto" style={getBadgeStyle(svc.badge)}>
                           {svc.badge}
                         </span>
                       )}
