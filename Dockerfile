@@ -41,5 +41,5 @@ COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 
 EXPOSE 3000
 
-# Run DB migrations then start (dùng binary local, không download qua npx)
-CMD ["sh", "-c", "./node_modules/.bin/prisma migrate deploy || true; node server.js"]
+# Just start server - no migrate needed (DB already has schema)
+CMD ["node", "server.js"]
