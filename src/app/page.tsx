@@ -212,11 +212,12 @@ function HeroSection() {
       className="relative px-5 md:px-12 pt-28 pb-20 md:pt-36 md:pb-28 text-center overflow-hidden"
       style={{ background: "var(--bg-page)" }}
     >
-      {/* Subtle background gradient orb */}
+      {/* Subtle background orb */}
       <div
         className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[500px] rounded-full pointer-events-none"
         style={{
-          background: "radial-gradient(ellipse at center, var(--primary-light), transparent 70%)",
+          background: "var(--primary-light)",
+          opacity: 0.55,
         }}
       />
 

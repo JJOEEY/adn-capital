@@ -93,11 +93,7 @@ input::placeholder, textarea::placeholder {
   color: #EBE2CF;
 }
 
-.bg-city-dark {
-  background: #0D1410;
-}
-
-/* liquid-glass đã bị xóa — dùng màu solid */
+/* Solid dark page background handled by theme tokens */
 
 /* glow-card dark */
 .dark .glow-card:hover {
@@ -151,11 +147,7 @@ input::placeholder, textarea::placeholder {
   color: #1C2B22;
 }
 
-.bg-city-light {
-  background: #F8F7F2;
-}
-
-/* liquid-glass light đã bị xóa — dùng màu solid */
+/* Solid light page background handled by theme tokens */
 
 /* glow-card light */
 .light .glow-card {
@@ -208,7 +200,7 @@ input::placeholder, textarea::placeholder {
 
 
 
-/* ── Solid surface dark (thay liquid-glass) ── */
+/* ── Solid surface dark ── */
 .dark .card-surface {
   background: #111a14;
   border: 1px solid rgba(235,226,207,0.10);
@@ -217,7 +209,7 @@ input::placeholder, textarea::placeholder {
   background: #0D1410;
 }
 
-/* ── Solid surface light (thay liquid-glass) ── */
+/* ── Solid surface light ── */
 .light .card-surface {
   background: #FFFFFF;
   border: 1px solid #E8E4DB;
