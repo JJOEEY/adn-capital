@@ -197,7 +197,7 @@ export default function DashboardPage() {
       {/* ═══ TICKER TAPE ═══ */}
       {loading || !data ? <TickerTapeSkeleton /> : <TickerTape items={tickerItems} />}
 
-      <div className="p-3 md:p-5 space-y-4 w-full">
+      <div className="p-3 md:p-5 space-y-4 w-full max-w-[1920px] mx-auto min-w-0">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
