@@ -371,7 +371,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* ── Desktop Sidebar ── */}
       <aside
         className={`hidden md:flex flex-col fixed left-0 top-0 h-screen z-40 transition-all duration-300 ease-in-out ${
-          sidebarOpen ? "w-64" : "w-20"
+          sidebarOpen ? "w-[240px]" : "w-[68px]"
         }`}
         style={{
           background: "var(--surface)",
@@ -459,11 +459,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
       {/* ── Main Content ── */}
       <main
-        className={`relative z-10 transition-all duration-300 ease-in-out pt-16 md:pt-0 ${
-          sidebarOpen ? "md:ml-64" : "md:ml-20"
+        className={`relative z-10 flex-1 min-w-0 transition-all duration-300 ease-in-out pt-16 md:pt-0 ${
+          sidebarOpen ? "md:ml-[240px]" : "md:ml-[68px]"
         }`}
       >
-        <div className="p-4 md:p-6 lg:p-8">
+        <div className="p-4 md:p-6 lg:p-8 min-w-0 overflow-x-hidden">
           {children}
         </div>
       </main>

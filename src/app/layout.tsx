@@ -76,7 +76,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }
         `}} />
       </head>
-      <body className={`${manrope.variable} antialiased min-h-screen overflow-x-hidden text-base leading-relaxed`} suppressHydrationWarning>
+      <body className={`${manrope.variable} antialiased min-h-screen text-base leading-relaxed`} suppressHydrationWarning>
         <AuthProvider>
           <ThemeProvider>
             {children}

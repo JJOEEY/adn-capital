@@ -197,7 +197,7 @@ export default function DashboardPage() {
       {/* ═══ TICKER TAPE ═══ */}
       {loading || !data ? <TickerTapeSkeleton /> : <TickerTape items={tickerItems} />}
 
-      <div className="p-3 md:p-5 space-y-4 w-full max-w-[1920px] mx-auto min-w-0">
+      <div className="p-3 md:p-5 space-y-4 w-full max-w-[1440px] mx-auto min-w-0 overflow-x-hidden">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -239,9 +239,9 @@ export default function DashboardPage() {
         </div>
 
         {/* ═══ HERO: Chart + Gauge (7:3) ═══ */}
-        <div className="grid grid-cols-1 lg:grid-cols-10 gap-4">
+        <div className="grid w-full min-w-0 grid-cols-1 lg:grid-cols-10 gap-4">
           {/* Cột Trái: Chart + Breadth */}
-          <div className="lg:col-span-6 flex flex-col gap-3">
+          <div className="lg:col-span-6 w-full min-w-0 flex flex-col gap-3">
             {!data ? (
               <>
                 <VNIndexChartSkeleton />
@@ -265,7 +265,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Cột Phải: Gauge + Market Status Card */}
-          <div className="lg:col-span-4 flex flex-col gap-3">
+          <div className="lg:col-span-4 w-full min-w-0 flex flex-col gap-3">
             <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem Đánh giá Vĩ mô">
               <SafeSection fallback={<GaugeCardSkeleton />}>
                 {/* Đồng hồ Gauge */}
@@ -314,9 +314,9 @@ export default function DashboardPage() {
         ) : null}
 
         {/* ═══ BOTTOM: News (left 2-col) | TEI + Leaders (right) ═══ */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="grid w-full min-w-0 grid-cols-1 lg:grid-cols-3 lg:[grid-template-columns:repeat(3,minmax(0,1fr))] gap-4">
           {/* Left: Morning + EOD stacked */}
-          <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="lg:col-span-2 w-full min-w-0 grid grid-cols-1 md:grid-cols-2 lg:[grid-template-columns:repeat(2,minmax(0,1fr))] gap-4">
             <SafeSection fallback={<MorningNewsSkeleton />}>
               <Suspense fallback={<MorningNewsSkeleton />}>
                 <MorningNews />
@@ -330,7 +330,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Right: TEI + Top Leaders stacked */}
-          <div className="flex flex-col gap-4">
+          <div className="w-full min-w-0 flex flex-col gap-4">
             <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem Chỉ báo Cạn Kiệt Xu Hướng">
               <SafeSection fallback={<RPISkeleton />}>
                 {!mounted ? <RPISkeleton /> : <ReversePointIndex />}
@@ -466,7 +466,7 @@ const GaugeCard = memo(function GaugeCard({ overview, marketData }: { overview: 
 
   return (
     <div
-      className="rounded-2xl p-4 sm:p-5 flex flex-col items-center transition-all duration-300"
+      className="w-full min-w-0 rounded-2xl p-4 sm:p-5 flex flex-col items-center transition-all duration-300"
       style={{
         background: "var(--surface)",
         border: "1px solid var(--border)",
@@ -522,7 +522,7 @@ const GaugeCard = memo(function GaugeCard({ overview, marketData }: { overview: 
 function GaugeCardSkeleton() {
   return (
     <div
-      className="rounded-2xl p-4 sm:p-5 flex flex-col items-center"
+      className="w-full min-w-0 rounded-2xl p-4 sm:p-5 flex flex-col items-center"
       style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
     >
       <div className="h-3 w-32 rounded animate-pulse mb-3 self-start" style={{ background: "var(--bg-hover)" }} />
@@ -588,7 +588,7 @@ const MarketStatusCard = memo(function MarketStatusCard({
 
   return (
     <div
-      className="relative overflow-hidden rounded-2xl transition-all duration-300 ease-out cursor-pointer hover:-translate-y-1"
+      className="relative w-full min-w-0 overflow-hidden rounded-2xl transition-all duration-300 ease-out cursor-pointer hover:-translate-y-1"
       style={{
         background: "var(--surface)",
         border: `1px solid ${cfg.borderRgba}`,

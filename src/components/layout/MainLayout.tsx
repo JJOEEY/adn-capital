@@ -56,7 +56,7 @@ export function MainLayout({ children, disableSwipe = false }: MainLayoutProps) 
 
       <div
         {...touchProps}
-        className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ${
+        className={`flex-1 min-w-0 flex flex-col min-h-screen transition-all duration-300 ${
           isMobile
             ? "pt-14 pb-20"
             : collapsed
@@ -68,7 +68,7 @@ export function MainLayout({ children, disableSwipe = false }: MainLayoutProps) 
         {/* In-app Header strip */}
         {!isMobile && <AppHeader />}
 
-        <main className="flex-1 overflow-x-hidden overflow-y-auto">
+        <main className="flex-1 min-w-0 overflow-y-auto">
           {children}
         </main>
         
@@ -77,4 +77,3 @@ export function MainLayout({ children, disableSwipe = false }: MainLayoutProps) 
     </div>
   );
 }
-
