@@ -11,7 +11,7 @@ export const revalidate = 300;
 let cache: { data: unknown; ts: number } | null = null;
 const TTL = 300_000; // 5 phút
 
-const BACKEND = process.env.FIINQUANT_URL ?? "http://localhost:8000";
+const BACKEND = process.env.FIINQUANT_URL ?? process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000";
 
 export async function GET() {
   if (cache && Date.now() - cache.ts < TTL) {

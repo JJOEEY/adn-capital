@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
  * Cache 15 phút.
  */
 
-const BACKEND = process.env.FIINQUANT_URL ?? "http://localhost:8000";
+const BACKEND = process.env.FIINQUANT_URL ?? process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000";
 
 let cache: { data: unknown; ts: number } | null = null;
 const CACHE_TTL = 15 * 60 * 1000; // 15 phút

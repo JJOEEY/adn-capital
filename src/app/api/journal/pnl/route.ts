@@ -113,7 +113,7 @@ export async function GET(req: NextRequest) {
 
     // Holdings hiện tại (mã đang giữ)
     // Fetch giá thị trường thực từ FiinQuant bridge
-    const BACKEND = process.env.FIINQUANT_URL ?? "http://localhost:8000";
+    const BACKEND = process.env.FIINQUANT_URL ?? process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000";
     const holdingTickers = Object.entries(holdings)
       .filter(([, v]) => v.qty > 0)
       .map(([ticker]) => ticker);

@@ -10,7 +10,7 @@ import fs from "fs";
 import path from "path";
 
 const CACHE_FILE = path.join(process.cwd(), "market_cache.json");
-const BACKEND = process.env.FIINQUANT_URL ?? "http://localhost:8000";
+const BACKEND = process.env.FIINQUANT_URL ?? process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000";
 const TTL = 86_400_000; // 24h
 
 let cache: { data: any; ts: number } | null = null;

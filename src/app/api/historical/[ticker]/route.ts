@@ -6,7 +6,7 @@
 
 import { NextResponse } from "next/server";
 
-const BACKEND = process.env.FIINQUANT_URL ?? "http://localhost:8000";
+const BACKEND = process.env.FIINQUANT_URL ?? process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000";
 
 const cache = new Map<string, { data: unknown; ts: number }>();
 const TTL = 300_000; // 5 min

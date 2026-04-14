@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic"; // Luôn server-render để đọc data mới
 
-const BACKEND = process.env.FIINQUANT_URL ?? "http://localhost:8000";
+const BACKEND = process.env.FIINQUANT_URL ?? process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000";
 
 /* In-memory cache theo type */
 const cache: Record<string, { data: unknown; ts: number }> = {};

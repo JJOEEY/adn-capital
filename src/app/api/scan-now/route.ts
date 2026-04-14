@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-const BACKEND = process.env.FIINQUANT_URL ?? "http://localhost:8000";
+const BACKEND = process.env.FIINQUANT_URL ?? process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000";
 
 /**
  * POST /api/scan-now — Proxy tới Python backend để chạy quét tín hiệu

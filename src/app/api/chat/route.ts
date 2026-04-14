@@ -18,7 +18,7 @@ import { isMockMode } from "@/lib/settings";
 import { MockFactory } from "@/lib/mock-factory";
 import { getFullWidgetData } from "@/lib/widget-service";
 
-const FIINQUANT_BRIDGE = process.env.FIINQUANT_URL ?? "http://localhost:8000";
+const FIINQUANT_BRIDGE = process.env.FIINQUANT_URL ?? process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000";
 
 // ─── Knowledge Base Cache ─────────────────────────────────────
 let knowledgeCache: { content: string; ts: number } | null = null;
