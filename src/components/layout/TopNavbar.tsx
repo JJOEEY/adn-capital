@@ -42,7 +42,7 @@ const navItems = [
 const serviceItems: { href: string; label: string; icon: typeof BarChart2; badge: string | null; desc: string; adminOnly?: boolean }[] = [
   { href: "/terminal",             label: "Chat AI",       icon: MessageSquare, badge: "HOT", desc: "Trợ lý đầu tư AI" },
   { href: "/dashboard/signal-map", label: "ADN AI Broker", icon: Zap,         badge: null,    desc: "Trợ lý đồng hành khuyến nghị đầu tư" },
-  { href: "/tei",                  label: "ART",          icon: Activity,     badge: "MỚI",  desc: "Analytical Reversal Tracker" },
+  { href: "/art",                  label: "ART",          icon: Activity,     badge: "MỚI",  desc: "Analytical Reversal Tracker" },
   { href: "/formula-test",         label: "Test Công Thức", icon: FlaskConical, badge: "MỚI",  desc: "Test 3 công thức chọn cổ phiếu", adminOnly: true },
   { href: "/margin",               label: "Ký Quỹ Margin", icon: Banknote,    badge: null,    desc: "Tư vấn ký quỹ margin" },
 ];

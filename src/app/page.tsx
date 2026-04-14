@@ -429,7 +429,7 @@ function StatsSection() {
 ───────────────────────────────────────────────────────────────────────────── */
 const FEATURES = [
   {
-    href: "/tei",
+    href: "/art",
     icon: Activity,
     badge: "MỚI",
     badgeStyle: "new" as const,

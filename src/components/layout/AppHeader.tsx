@@ -14,7 +14,7 @@ export function AppHeader() {
   // Map pathname to title/breadcrumb
   const getBreadcrumb = () => {
     if (pathname === "/dashboard") return "Dashboard · Tổng quan thị trường";
-    if (pathname === "/tei") return "Sản phẩm · Chỉ báo ART";
+    if (pathname === "/art") return "Sản phẩm · Chỉ báo ART";
     if (pathname === "/terminal") return "Sản phẩm · Tư vấn đầu tư";
     if (pathname === "/dashboard/signal-map") return "Sản phẩm · ADN AI Broker";
     if (pathname === "/margin") return "Dịch vụ · Ký quỹ";
@@ -29,7 +29,7 @@ export function AppHeader() {
 
   const getPageTitle = () => {
     if (pathname === "/dashboard") return "Dashboard";
-    if (pathname === "/tei") return "Chỉ báo ART";
+    if (pathname === "/art") return "Chỉ báo ART";
     if (pathname === "/terminal") return "Tư vấn đầu tư";
     if (pathname === "/dashboard/signal-map") return "ADN AI Broker";
     if (pathname === "/margin") return "Ký quỹ Margin";

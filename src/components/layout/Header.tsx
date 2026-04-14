@@ -58,7 +58,7 @@ const menuSections: MenuSection[] = [
   {
     title: "Sản Phẩm Đầu Tư",
     items: [
-      { href: "/tei", label: "Chỉ báo ART", icon: Activity, badge: "MỚI" },
+      { href: "/art", label: "Chỉ báo ART", icon: Activity, badge: "MỚI" },
       { href: "/terminal", label: "Tư vấn đầu tư", icon: MessageSquare },
       { href: "/dashboard/signal-map", label: "ADN AI Broker", icon: Zap },
       { href: "/khac/tin-tuc", label: "Tin Tức", icon: Newspaper, badge: "BETA", roles: ["ADMIN", "WRITER"] },

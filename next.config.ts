@@ -25,6 +25,15 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async redirects() {
+    return [
+      {
+        source: "/tei",
+        destination: "/art",
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

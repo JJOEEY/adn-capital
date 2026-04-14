@@ -30,7 +30,7 @@ export function useSubscription() {
   const isPsychologyLocked = !hasFullAccess;
   // Nhật ký: VIP hoặc ADMIN
   const isJournalLocked = !hasFullAccess;
-  // TEI chi tiết (/tei page): chỉ PREMIUM hoặc ADMIN
+  // ART chi tiết (/art page): chỉ PREMIUM hoặc ADMIN
   const isArtPageLocked = !isPremium;
 
   return {
