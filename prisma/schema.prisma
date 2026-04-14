@@ -288,6 +288,18 @@ model AvatarUpload {
   @@index([userId, createdAt])
 }
 
+// Lịch sử gửi tín hiệu Telegram — tránh spam duplicate
+model SignalHistory {
+  id         String   @id @default(cuid())
+  ticker     String
+  signalType String   // SIEU_CO_PHIEU | TRUNG_HAN | DAU_CO
+  sentDate   String   // YYYY-MM-DD
+  createdAt  DateTime @default(now())
+
+  @@unique([ticker, signalType, sentDate])
+  @@index([sentDate])
+}
+
 // ═══════════════════════════════════════════════════════════════════
 //  CHANGELOG — Lịch sử chỉnh sửa hệ thống
 // ═══════════════════════════════════════════════════════════════════
