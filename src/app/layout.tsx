@@ -38,6 +38,17 @@ const hydrationFixScript = `
 })();
 `;
 
+// Đọc theme từ localStorage và apply ngay lập tức (trước khi React hydrate)
+const themeScript = `
+(function(){
+  try{
+    var theme=localStorage.getItem('adn-theme')||'dark';
+    document.documentElement.classList.remove('dark','light');
+    document.documentElement.classList.add(theme);
+  }catch(e){}
+})();
+`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="vi" suppressHydrationWarning>
@@ -50,6 +61,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="apple-mobile-web-app-title" content="ADN Capital" />
         <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <script dangerouslySetInnerHTML={{ __html: hydrationFixScript }} />
         {/* Service Worker Registration */}
         <script dangerouslySetInnerHTML={{ __html: `
@@ -64,7 +76,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }
         `}} />
       </head>
-      <body className={`${manrope.variable} antialiased min-h-screen overflow-x-hidden text-base leading-relaxed dark`} suppressHydrationWarning>
+      <body className={`${manrope.variable} antialiased min-h-screen overflow-x-hidden text-base leading-relaxed`} suppressHydrationWarning>
         <AuthProvider>
           <ThemeProvider>
             {children}

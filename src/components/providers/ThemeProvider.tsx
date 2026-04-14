@@ -20,15 +20,20 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const stored = localStorage.getItem("adn-theme") as Theme | null;
     const initial = stored === "light" ? "light" : "dark";
     setThemeState(initial);
-    document.documentElement.classList.toggle("dark", initial === "dark");
-    document.documentElement.classList.toggle("light", initial === "light");
+    applyTheme(initial);
   }, []);
+
+  const applyTheme = (t: Theme) => {
+    // Remove cả 2 class trước
+    document.documentElement.classList.remove("dark", "light");
+    // Thêm class tương ứng
+    document.documentElement.classList.add(t);
+  };
 
   const setTheme = useCallback((t: Theme) => {
     setThemeState(t);
     localStorage.setItem("adn-theme", t);
-    document.documentElement.classList.toggle("dark", t === "dark");
-    document.documentElement.classList.toggle("light", t === "light");
+    applyTheme(t);
   }, []);
 
   const toggleTheme = useCallback(() => {

@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { useState, useEffect } from "react";
+import { useTheme } from "@/components/providers/ThemeProvider";
 import {
   LayoutDashboard,
   BarChart2,
@@ -16,6 +17,8 @@ import {
   X,
   Layers,
   Banknote,
+  Sun,
+  Moon,
 } from "lucide-react";
 
 const navItems = [
@@ -53,6 +56,8 @@ interface MarketData {
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { theme, toggleTheme } = useTheme();
+  const isDark = theme === "dark";
   const [vnindex, setVnindex] = useState<MarketData | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -257,6 +262,46 @@ export function Sidebar() {
           );
         })}
       </nav>
+
+      {/* Theme Toggle */}
+      <div
+        className="border-t"
+        style={{
+          padding: "12px 16px",
+          borderColor: "var(--border, #E8E4DB)",
+        }}
+      >
+        <button
+          onClick={toggleTheme}
+          className="w-full flex items-center justify-between rounded-lg transition-all"
+          style={{
+            padding: "10px 12px",
+            color: "var(--text-secondary, #7D8471)",
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background =
+              "var(--bg-hover, #F3F1EB)";
+            (e.currentTarget as HTMLButtonElement).style.color =
+              "var(--primary, #2E4D3D)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+            (e.currentTarget as HTMLButtonElement).style.color =
+              "var(--text-secondary, #7D8471)";
+          }}
+        >
+          <div className="flex items-center gap-3">
+            {isDark ? (
+              <Sun className="w-4 h-4" />
+            ) : (
+              <Moon className="w-4 h-4" />
+            )}
+            <span className="text-[14px] font-medium">
+              {isDark ? "Light Mode" : "Dark Mode"}
+            </span>
+          </div>
+        </button>
+      </div>
 
       {/* Footer */}
       <div
