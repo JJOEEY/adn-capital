@@ -4,6 +4,8 @@ import { getCurrentDbUser } from "@/lib/current-user";
 
 export const dynamic = "force-dynamic";
 
+type BrokerBadge = "MUA" | "GIỮ" | "BÁN";
+
 type HistoryMessage = {
   id: string;
   role: "user" | "assistant";
@@ -13,23 +15,36 @@ type HistoryMessage = {
   widgetMeta?: {
     complete: boolean;
     ticker?: string;
-    badge?: "MUA" | "GIỮ" | "BÁN";
+    badge?: BrokerBadge;
   };
 };
 
-function normalizeBadge(input?: string): "MUA" | "GIỮ" | "BÁN" {
+function normalizeBadge(input?: string): BrokerBadge {
   if (!input) return "GIỮ";
-  const value = input.toUpperCase();
-  if (value === "MUA") return "MUA";
-  if (value === "BAN" || value === "BÁN") return "BÁN";
+
+  const normalized = input
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/Đ/g, "D")
+    .replace(/đ/g, "d")
+    .toUpperCase()
+    .trim();
+
+  if (normalized === "MUA" || normalized === "BUY" || normalized === "BULL") return "MUA";
+  if (normalized === "BAN" || normalized === "SELL" || normalized === "BEAR") return "BÁN";
   return "GIỮ";
 }
 
-function parseWidgetMessage(raw: string): { ticker?: string; badge: "MUA" | "GIỮ" | "BÁN"; text?: string } | null {
-  const match = raw.match(/^\[WIDGET(?::MOCK)?:([A-Z]{2,5})(?::([A-ZÁ]+))?\]\s*([\s\S]*)$/u);
+function parseWidgetMessage(raw: string): { ticker?: string; badge: BrokerBadge; text?: string } | null {
+  const match = raw.match(/^\[WIDGET(?::MOCK)?:([A-Z]{2,5})(?::([^\]]+))?\]\s*([\s\S]*)$/u);
   if (!match) return null;
+
   const text = match[3]?.trim();
-  return { ticker: match[1], badge: normalizeBadge(match[2]), text: text || undefined };
+  return {
+    ticker: match[1],
+    badge: normalizeBadge(match[2]),
+    text: text || undefined,
+  };
 }
 
 export async function GET(request: NextRequest) {

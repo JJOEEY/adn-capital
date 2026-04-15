@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSignalWindowInfo } from "@/lib/cronHelpers";
 
 export async function POST(req: NextRequest) {
   // Xác thực bằng CRON_SECRET
@@ -14,7 +15,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const body = await req.json() as { type: string; content: unknown };
+    const body = await req.json() as { type: string; content: unknown; title?: string };
     const { type, content } = body;
 
     if (!type || !content) {
@@ -24,20 +25,46 @@ export async function POST(req: NextRequest) {
     // Lưu vào Notification (model đã có sẵn trong schema.prisma)
     // Map type sang title
     const normalizedType = type === "morning" ? "morning_brief" : type === "eod" ? "eod_brief" : type;
+    const finalType =
+      normalizedType === "signal" || normalizedType === "signal_scan"
+        ? getSignalWindowInfo().type
+        : normalizedType;
     const safeContent = typeof content === "string" ? content.trim() : JSON.stringify(content);
 
     const typeLabels: Record<string, string> = {
       morning_brief: "Bản tin sáng 08:00",
       eod_brief: "Bản tin EOD 15:00",
       signal: "Tín hiệu",
+      signal_scan: "Tín hiệu",
+      signal_10h: "Cập nhật tín hiệu 10:00",
+      signal_1130: "Cập nhật tín hiệu 11:30",
+      signal_14h: "Cập nhật tín hiệu 14:00",
+      signal_1445: "Cập nhật tín hiệu 14:45",
       foreign: "Dòng tiền ngoại",
       art: "ART Alert",
     };
-    const title = typeLabels[normalizedType] ?? normalizedType;
+    const fallbackTitle = typeLabels[finalType] ?? finalType;
+    const title = (body.title?.trim() || fallbackTitle).slice(0, 255);
+
+    // Dedupe trong cùng time window để web feed không bị trùng khi source retry.
+    const dedupeCutoff = new Date(Date.now() - 15 * 60 * 1000);
+    const existing = await prisma.notification.findFirst({
+      where: {
+        type: finalType,
+        title,
+        createdAt: { gte: dedupeCutoff },
+      },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    });
+
+    if (existing) {
+      return NextResponse.json({ ok: true, id: existing.id, deduped: true });
+    }
 
     const notification = await prisma.notification.create({
       data: {
-        type: normalizedType,
+        type: finalType,
         title,
         content: safeContent.length > 0 ? safeContent : "Dữ liệu đang cập nhật.",
         userId: null, // global notification

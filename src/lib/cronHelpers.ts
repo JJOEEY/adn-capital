@@ -6,6 +6,8 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+export type SignalWindowType = "signal_10h" | "signal_1130" | "signal_14h" | "signal_1445" | "signal_scan";
+
 /** Validate cron secret header */
 export function validateCronSecret(req: NextRequest): boolean {
   const secret = req.headers.get("x-cron-secret");
@@ -53,6 +55,33 @@ export async function pushNotification(
   } catch (err) {
     console.error(`[Notification] Lỗi tạo ${type}:`, err);
   }
+}
+
+/** Map giờ VN hiện tại sang window type cho tín hiệu */
+export function getSignalWindowInfo(at?: Date): { type: SignalWindowType; label: string } {
+  const vnNow = at
+    ? new Date(at.toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }))
+    : new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
+
+  const hh = vnNow.getHours();
+  const mm = vnNow.getMinutes();
+  const totalMinutes = hh * 60 + mm;
+
+  // 10:00 / 10:30 gom chung window 10h
+  if (totalMinutes >= 10 * 60 && totalMinutes < 11 * 60 + 30) {
+    return { type: "signal_10h", label: "10:00" };
+  }
+  if (totalMinutes >= 11 * 60 + 30 && totalMinutes < 14 * 60) {
+    return { type: "signal_1130", label: "11:30" };
+  }
+  if (totalMinutes >= 14 * 60 && totalMinutes < 14 * 60 + 45) {
+    return { type: "signal_14h", label: "14:00" };
+  }
+  if (totalMinutes >= 14 * 60 + 45 && totalMinutes <= 15 * 60 + 30) {
+    return { type: "signal_1445", label: "14:45" };
+  }
+
+  return { type: "signal_scan", label: `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}` };
 }
 
 /** Gửi Web Push notification cho tất cả subscribers */

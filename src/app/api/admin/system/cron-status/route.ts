@@ -27,7 +27,12 @@ export async function GET() {
     }
 
     const cronNameFilter = {
-      OR: [{ cronName: "signal_scan" }, { cronName: "scan-signals" }, { cronName: "scan_signals" }],
+      OR: [
+        { cronName: "signal_scan" },
+        { cronName: "signal_scan_5m" },
+        { cronName: "scan-signals" },
+        { cronName: "scan_signals" },
+      ],
     };
 
     const [lastRun, lastSuccess, lastError, lastSignal] = await Promise.all([

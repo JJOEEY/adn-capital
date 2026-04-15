@@ -15,6 +15,7 @@ import {
   pushNotification,
   isTradingDay,
   getVNDateISO,
+  getSignalWindowInfo,
 } from "@/lib/cronHelpers";
 
 const PYTHON_BRIDGE = process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000";
@@ -133,11 +134,12 @@ export async function GET(req: NextRequest) {
         return `• ${s.ticker}: ${s.entryPrice.toLocaleString("vi-VN")} VNĐ${reason ? ` — ${reason}` : ""}`;
       })
       .join("\n");
+    const windowInfo = getSignalWindowInfo();
 
     await pushNotification(
-      "signal_5m",
-      `📡 ${savedSignals.length} tín hiệu đầu cơ mới`,
-      `## TÍN HIỆU MỚI\n\n${signalText}`
+      windowInfo.type,
+      `📡 ${windowInfo.label} — ${savedSignals.length} tín hiệu đầu cơ mới`,
+      `## TÍN HIỆU MỚI (${windowInfo.label})\n\n${signalText}`
     );
 
     const duration = Date.now() - startTime;

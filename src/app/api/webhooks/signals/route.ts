@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { processSignals } from "@/lib/UltimateSignalEngine";
-import { getVNDateISO, pushNotification } from "@/lib/cronHelpers";
+import { getSignalWindowInfo, getVNDateISO, pushNotification } from "@/lib/cronHelpers";
 import {
   getAiBrokerRuntimeConfig,
   shouldAutoActivateSignal,
@@ -169,6 +169,7 @@ export async function POST(req: NextRequest) {
     );
 
     if (newSignalsForNotification.length > 0) {
+      const windowInfo = getSignalWindowInfo();
       await prisma.signalHistory.createMany({
         data: newSignalsForNotification.map((s) => ({
           ticker: s.ticker,
@@ -183,9 +184,9 @@ export async function POST(req: NextRequest) {
         .join("\n");
 
       await pushNotification(
-        "signal_scan",
-        `⚡ ${newSignalsForNotification.length} tín hiệu mới`,
-        `## TÍN HIỆU MỚI\n\n${signalText}`
+        windowInfo.type,
+        `⚡ ${windowInfo.label} — ${newSignalsForNotification.length} tín hiệu mới`,
+        `## TÍN HIỆU MỚI (${windowInfo.label})\n\n${signalText}`
       );
     }
 

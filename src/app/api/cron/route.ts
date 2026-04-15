@@ -25,6 +25,7 @@ import {
   isTradingDay,
   getVNDateString,
   getVNDateISO,
+  getSignalWindowInfo,
 } from "@/lib/cronHelpers";
 import {
   getMarketSnapshot,
@@ -331,6 +332,16 @@ async function handleSignalScan5m(): Promise<NextResponse> {
           )
         );
       });
+
+      const signalText = newSignals
+        .map((s) => `• ${s.ticker.toUpperCase().trim()}: ${s.entryPrice.toLocaleString("vi-VN")} VNĐ${s.reason ? ` — ${s.reason}` : ""}`)
+        .join("\n");
+      const windowInfo = getSignalWindowInfo(vnNow);
+      await pushNotification(
+        windowInfo.type,
+        `⚡ ${windowInfo.label} — ${newSignals.length} tín hiệu mới`,
+        `## TÍN HIỆU MỚI (${windowInfo.label})\n\n${signalText}`
+      );
     }
 
     const duration = Date.now() - startTime;

@@ -19,6 +19,7 @@ import { StockChart } from "@/components/chat/StockChart";
 // ── Types ──────────────────────────────────────────────────────────────────
 
 type CardId = "ta" | "fa" | "tamly" | "news";
+type BrokerBadge = "MUA" | "GIỮ" | "BÁN";
 
 interface Message {
   id: string;
@@ -29,6 +30,7 @@ interface Message {
   isCards?: boolean;
   mediaUrl?: string | null;
   showDynamicChart?: boolean;
+  brokerBadge?: BrokerBadge;
 }
 
 interface HistoryMessage {
@@ -39,6 +41,7 @@ interface HistoryMessage {
   widgetMeta?: {
     complete: boolean;
     ticker?: string;
+    badge?: BrokerBadge;
   };
 }
 
@@ -121,11 +124,20 @@ interface AIResponse {
   cached?: boolean;
 }
 
-function mapSignalToBadge(signal?: string | null): "MUA" | "GIỮ" | "BÁN" {
+function mapSignalToBadge(signal?: string | null): BrokerBadge {
   const normalized = (signal ?? "").toUpperCase();
   if (normalized.includes("BUY") || normalized.includes("MUA") || normalized.includes("BULL")) return "MUA";
   if (normalized.includes("SELL") || normalized.includes("BAN") || normalized.includes("BÁN") || normalized.includes("BEAR")) return "BÁN";
   return "GIỮ";
+}
+
+function badgeStyle(badge: BrokerBadge): { color: string; borderColor: string; background: string } {
+  const color = badge === "MUA" ? "#16a34a" : badge === "BÁN" ? "#ef4444" : "#f59e0b";
+  return {
+    color,
+    borderColor: `${color}55`,
+    background: `${color}1A`,
+  };
 }
 
 function renderResponseText(cardId: CardId, ticker: string, data: AIResponse): string {
@@ -266,6 +278,9 @@ interface BotBubbleProps {
 }
 
 function BotBubble({ message, onCardClick, cardLoading }: BotBubbleProps) {
+  const brokerBadge = message.brokerBadge ?? "GIỮ";
+  const brokerBadgeStyle = badgeStyle(brokerBadge);
+
   return (
     <div className="flex items-start gap-2.5 animate-fade-in">
       <BotAvatar />
@@ -287,7 +302,26 @@ function BotBubble({ message, onCardClick, cardLoading }: BotBubbleProps) {
 
         {/* Chart image (chỉ TA) */}
         {message.showDynamicChart && message.ticker && (
-          <StockChart symbol={message.ticker} />
+          <div
+            className="rounded-2xl border p-2"
+            style={{
+              background: "var(--surface, #FFFFFF)",
+              borderColor: "var(--border, #E8E4DB)",
+            }}
+          >
+            <div className="flex items-center justify-between px-2 pt-1 pb-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted, #6B7280)" }}>
+                Khu vực AI nhận định
+              </span>
+              <span
+                className="text-[11px] font-black px-2 py-0.5 rounded-full border"
+                style={brokerBadgeStyle}
+              >
+                AI BROKER: {brokerBadge}
+              </span>
+            </div>
+            <StockChart symbol={message.ticker} />
+          </div>
         )}
 
         {message.mediaUrl && (
@@ -360,6 +394,7 @@ export function InvestmentChat({
           createdAt: new Date(item.createdAt).getTime(),
           ticker: item.widgetMeta?.ticker,
           showDynamicChart: item.widgetMeta?.complete === true && !!item.widgetMeta?.ticker,
+          brokerBadge: item.widgetMeta?.badge,
         }));
 
         setMessages(mapped);
@@ -419,6 +454,7 @@ export function InvestmentChat({
           cardId === "ta"
             ? (data.analysis ?? "Không có dữ liệu phân tích.")
             : renderResponseText(cardId, ticker, data);
+        const taBadge = cardId === "ta" ? mapSignalToBadge(data.signal) : undefined;
         addMessage({
           role: "bot",
           text,
@@ -426,11 +462,12 @@ export function InvestmentChat({
           ticker,
           mediaUrl: cardId === "ta" ? (data.media_url ?? null) : null,
           showDynamicChart: cardId === "ta",
+          brokerBadge: taBadge,
         });
         if (userId) {
           const persistText =
             cardId === "ta"
-              ? `[WIDGET:${ticker}:${mapSignalToBadge(data.signal)}] ${text}`
+              ? `[WIDGET:${ticker}:${taBadge ?? "GIỮ"}] ${text}`
               : text;
           await saveChatHistory("assistant", persistText).catch(() => undefined);
         }
