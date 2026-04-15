@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     const categoryId = String(body.categoryId ?? "").trim();
     const title = String(body.title ?? "").trim();
     const content = String(body.content ?? "").trim();
-    const sortOrder = Number.isFinite(Number(body.sortOrder)) ? Number(body.sortOrder) : 0;
+    const incomingSortOrder = Number(body.sortOrder);
     const published = body.published === undefined ? true : Boolean(body.published);
 
     if (!categoryId || !title) {
@@ -57,6 +57,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Slug không hợp lệ" }, { status: 400 });
     }
 
+    const maxOrderRow = await prisma.guideSection.findFirst({
+      where: { categoryId },
+      orderBy: { sortOrder: "desc" },
+      select: { sortOrder: true },
+    });
+    const nextSortOrder = (maxOrderRow?.sortOrder ?? 0) + 1;
+    const sortOrder =
+      Number.isFinite(incomingSortOrder) &&
+      incomingSortOrder >= 0 &&
+      incomingSortOrder <= 2_147_483_647
+        ? incomingSortOrder
+        : nextSortOrder;
+
     const slug = await getUniqueSectionSlug(categoryId, baseSlug);
     const section = await prisma.guideSection.create({
       data: {
@@ -75,4 +88,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Lỗi tạo mục hướng dẫn" }, { status: 500 });
   }
 }
-

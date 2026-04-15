@@ -236,7 +236,6 @@ export default function HDSDPage() {
           title: newSectionTitle.trim(),
           categoryId: newSectionCategoryId,
           content: `## ${newSectionTitle.trim()}\n\nĐang cập nhật nội dung...`,
-          sortOrder: Date.now(),
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
