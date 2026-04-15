@@ -282,7 +282,7 @@ export async function fetchScanNow(): Promise<unknown> {
 
 /** Độ rộng thị trường (MarketBreadth) — số mã tăng/giảm/trần/sàn */
 export async function fetchMarketBreadth(
-  tickers = "VNINDEX,VN30,HNXIndex"
+  tickers = "VNINDEX,VN30,HNXINDEX,UPCOMINDEX"
 ): Promise<FiinMarketBreadthResponse | null> {
   return fiinFetch<FiinMarketBreadthResponse>(
     `/api/v1/market-breadth?tickers=${encodeURIComponent(tickers)}`

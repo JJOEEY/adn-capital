@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
 
     // Lưu vào Notification (model đã có sẵn trong schema.prisma)
     // Map type sang title
-    const normalizedType = type === "morning" ? "morning_brief" : type === "eod" ? "eod_brief" : type;
+    const normalizedType = type === "morning" ? "morning_brief" : type === "eod" ? "close_brief_15h" : type;
     const finalType =
       normalizedType === "signal" || normalizedType === "signal_scan"
         ? getSignalWindowInfo().type
@@ -33,7 +33,9 @@ export async function POST(req: NextRequest) {
 
     const typeLabels: Record<string, string> = {
       morning_brief: "Bản tin sáng 08:00",
-      eod_brief: "Bản tin EOD 15:00",
+      eod_brief: "Bản tin kết phiên 15:00",
+      close_brief_15h: "Bản tin kết phiên 15:00",
+      eod_full_19h: "Bản tin tổng hợp 19:00",
       signal: "Tín hiệu",
       signal_scan: "Tín hiệu",
       signal_10h: "Cập nhật tín hiệu 10:00",

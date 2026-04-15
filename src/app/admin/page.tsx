@@ -221,6 +221,15 @@ function UsersTab() {
   const [customBadge, setCustomBadge] = useState<"VIP" | "PREMIUM">("VIP");
   const [cronStatus, setCronStatus] = useState<CronStatusPayload | null>(null);
   const [cronLoading, setCronLoading] = useState(true);
+  const [brokerSettingsLoading, setBrokerSettingsLoading] = useState(true);
+  const [brokerSaving, setBrokerSaving] = useState(false);
+  const [brokerActivating, setBrokerActivating] = useState(false);
+  const [brokerMinWinrate, setBrokerMinWinrate] = useState("60");
+  const [brokerMinRr, setBrokerMinRr] = useState("1");
+  const [brokerAutoPick, setBrokerAutoPick] = useState(true);
+  const [brokerTicker, setBrokerTicker] = useState("");
+  const [brokerNav, setBrokerNav] = useState("5");
+  const [brokerMessage, setBrokerMessage] = useState("");
   const [confirmAction, setConfirmAction] = useState<{
     userId: string;
     email: string;
@@ -257,6 +266,22 @@ function UsersTab() {
     }
   }, []);
 
+  const fetchBrokerSettings = useCallback(async () => {
+    setBrokerSettingsLoading(true);
+    try {
+      const res = await fetch("/api/admin/settings");
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setBrokerMinWinrate(String(data.AI_BROKER_MIN_WINRATE ?? "60"));
+      setBrokerMinRr(String(data.AI_BROKER_MIN_RR ?? "1"));
+      setBrokerAutoPick(Boolean(data.AI_BROKER_AUTO_PICK ?? true));
+    } catch {
+      setBrokerMessage("Không tải được cấu hình AI Broker.");
+    } finally {
+      setBrokerSettingsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
@@ -264,6 +289,10 @@ function UsersTab() {
   useEffect(() => {
     fetchCronStatus();
   }, [fetchCronStatus]);
+
+  useEffect(() => {
+    fetchBrokerSettings();
+  }, [fetchBrokerSettings]);
 
   /* ── Actions ────────────────────────────────────────────────── */
   const handleVerifyDNSE = async (userId: string) => {
@@ -315,6 +344,58 @@ function UsersTab() {
     });
     if (res.ok) {
       await fetchUsers();
+    }
+  };
+
+  const saveBrokerSettings = async () => {
+    setBrokerSaving(true);
+    setBrokerMessage("");
+    try {
+      const payloads = [
+        { key: "AI_BROKER_MIN_WINRATE", value: String(Number(brokerMinWinrate) || 60) },
+        { key: "AI_BROKER_MIN_RR", value: String(Number(brokerMinRr) || 1) },
+        { key: "AI_BROKER_AUTO_PICK", value: brokerAutoPick ? "true" : "false" },
+      ];
+      for (const payload of payloads) {
+        const res = await fetch("/api/admin/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error();
+      }
+      setBrokerMessage("Đã lưu cấu hình AI Broker.");
+    } catch {
+      setBrokerMessage("Lưu cấu hình AI Broker thất bại.");
+    } finally {
+      setBrokerSaving(false);
+    }
+  };
+
+  const forceActivateTicker = async () => {
+    const ticker = brokerTicker.trim().toUpperCase();
+    if (!ticker) return;
+    setBrokerActivating(true);
+    setBrokerMessage("");
+    try {
+      const res = await fetch("/api/admin/ai-broker/activate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ticker,
+          navAllocation: Number(brokerNav) || 5,
+          note: "Admin override từ Users tab",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Không thể kích hoạt mã");
+      setBrokerMessage(`Đã đưa ${ticker} vào ACTIVE.`);
+      setBrokerTicker("");
+      await fetchUsers();
+    } catch (err) {
+      setBrokerMessage(err instanceof Error ? err.message : "Kích hoạt mã thất bại.");
+    } finally {
+      setBrokerActivating(false);
     }
   };
 
@@ -453,6 +534,93 @@ function UsersTab() {
           ) : (
             <p className="text-xs" style={{ color: "var(--text-muted)" }}>Chưa có dữ liệu</p>
           )}
+        </div>
+      </div>
+
+      <div className="rounded-xl border p-4 space-y-3" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] uppercase tracking-wider font-bold" style={{ color: "var(--text-muted)" }}>
+              ADN AI Broker Admin
+            </p>
+            <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
+              Chỉnh ngưỡng auto-pick (Winrate/RR) và can thiệp mã vào giỏ ACTIVE.
+            </p>
+          </div>
+          {brokerSettingsLoading && (
+            <RefreshCw className="w-4 h-4 animate-spin" style={{ color: "var(--text-muted)" }} />
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+          <label className="text-xs" style={{ color: "var(--text-muted)" }}>
+            Min Winrate (%)
+            <input
+              value={brokerMinWinrate}
+              onChange={(e) => setBrokerMinWinrate(e.target.value)}
+              className="mt-1 w-full px-2 py-1.5 rounded-lg text-xs outline-none"
+              style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+            />
+          </label>
+          <label className="text-xs" style={{ color: "var(--text-muted)" }}>
+            Min RR
+            <input
+              value={brokerMinRr}
+              onChange={(e) => setBrokerMinRr(e.target.value)}
+              className="mt-1 w-full px-2 py-1.5 rounded-lg text-xs outline-none"
+              style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+            />
+          </label>
+          <label className="text-xs flex items-center gap-2 mt-6" style={{ color: "var(--text-muted)" }}>
+            <input
+              type="checkbox"
+              checked={brokerAutoPick}
+              onChange={(e) => setBrokerAutoPick(e.target.checked)}
+              className="w-4 h-4"
+            />
+            Bật Auto-pick
+          </label>
+          <button
+            onClick={saveBrokerSettings}
+            disabled={brokerSaving}
+            className="px-3 py-2 rounded-lg text-xs font-bold border cursor-pointer disabled:opacity-60 mt-5"
+            style={{ background: "rgba(22,163,74,0.12)", borderColor: "rgba(22,163,74,0.25)", color: "#16a34a" }}
+          >
+            {brokerSaving ? "Đang lưu..." : "Lưu cấu hình"}
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-2 items-end">
+          <label className="text-xs" style={{ color: "var(--text-muted)" }}>
+            Ticker tầm ngắm
+            <input
+              value={brokerTicker}
+              onChange={(e) => setBrokerTicker(e.target.value.toUpperCase())}
+              placeholder="VD: FPT"
+              className="mt-1 w-full px-2 py-1.5 rounded-lg text-xs outline-none"
+              style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+            />
+          </label>
+          <label className="text-xs" style={{ color: "var(--text-muted)" }}>
+            NAV dự kiến (%)
+            <input
+              value={brokerNav}
+              onChange={(e) => setBrokerNav(e.target.value)}
+              className="mt-1 w-full px-2 py-1.5 rounded-lg text-xs outline-none"
+              style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+            />
+          </label>
+          <button
+            onClick={forceActivateTicker}
+            disabled={brokerActivating || !brokerTicker.trim()}
+            className="px-3 py-2 rounded-lg text-xs font-bold border cursor-pointer disabled:opacity-60"
+            style={{ background: "rgba(245,158,11,0.12)", borderColor: "rgba(245,158,11,0.25)", color: "#f59e0b" }}
+          >
+            {brokerActivating ? "Đang xử lý..." : "Đưa vào ACTIVE"}
+          </button>
+          <div className="text-xs" style={{ color: brokerMessage.includes("thất bại") || brokerMessage.includes("Không") ? "var(--danger)" : "#16a34a" }}>
+            {brokerMessage || " "}
+          </div>
         </div>
       </div>
 

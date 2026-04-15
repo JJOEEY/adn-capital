@@ -18,6 +18,8 @@ import {
   type FiinInvestorTradingResponse,
 } from "./fiinquantClient";
 
+type JsonRecord = Record<string, unknown>;
+
 // ═══════════════════════════════════════════════
 //  VNDirect Public API — Index Data (no auth)
 // ═══════════════════════════════════════════════
@@ -216,9 +218,93 @@ function parseLiquidity(raw: unknown): number | null {
   if (typeof raw === "number") return raw;
   if (typeof raw === "object" && raw !== null) {
     const obj = raw as Record<string, unknown>;
-    return Number(obj.total) || null;
+    const candidates = [
+      obj.total,
+      obj.totalValue,
+      obj.matchValue,
+      obj.value,
+      obj.liquidity,
+    ];
+    for (const item of candidates) {
+      const num = Number(item);
+      if (Number.isFinite(num) && num > 0) return num;
+    }
   }
   return null;
+}
+
+function toNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const cleaned = value.replace(/[^\d.-]/g, "");
+    if (!cleaned) return null;
+    const num = Number(cleaned);
+    if (Number.isFinite(num)) return num;
+  }
+  return null;
+}
+
+function pickNumber(obj: JsonRecord, keys: string[]): number | null {
+  for (const key of keys) {
+    if (!(key in obj)) continue;
+    const num = toNumber(obj[key]);
+    if (num !== null) return num;
+  }
+  return null;
+}
+
+function inferGroup(raw: string): "foreign" | "proprietary" | "retail" | null {
+  const value = raw.toLowerCase();
+  if (/(ngo[aạ]i|foreign|nn\b)/i.test(value)) return "foreign";
+  if (/(t[ựu]\s*doanh|proprietary|tu_doanh)/i.test(value)) return "proprietary";
+  if (/(c[aá]\s*nh[aâ]n|retail|individual)/i.test(value)) return "retail";
+  return null;
+}
+
+function extractGroupLabel(row: JsonRecord): string {
+  const keys = ["investor_type", "investorType", "group", "name", "label", "nha_dau_tu"];
+  for (const key of keys) {
+    if (typeof row[key] === "string" && row[key]) return String(row[key]);
+  }
+  return "";
+}
+
+function parseExchange(raw: string): "HOSE" | "HNX" | "UPCOM" | null {
+  const value = raw.toUpperCase();
+  if (value.includes("HOSE") || value.includes("VNINDEX") || value.includes("VN30")) return "HOSE";
+  if (value.includes("HNX")) return "HNX";
+  if (value.includes("UPCOM")) return "UPCOM";
+  return null;
+}
+
+function extractExchange(row: JsonRecord): "HOSE" | "HNX" | "UPCOM" | null {
+  const keys = ["exchange", "market", "index", "ticker", "symbol"];
+  for (const key of keys) {
+    if (typeof row[key] !== "string") continue;
+    const ex = parseExchange(String(row[key]));
+    if (ex) return ex;
+  }
+  return null;
+}
+
+function readLiquidityValue(row: JsonRecord): number | null {
+  return pickNumber(row, [
+    "totalValue",
+    "total_value",
+    "matchValue",
+    "match_value",
+    "trading_value",
+    "value",
+    "gtgd",
+    "gtgd_ty",
+  ]);
+}
+
+function readBuySellNet(row: JsonRecord): { buy: number | null; sell: number | null; net: number | null } {
+  const buy = pickNumber(row, ["buy", "buy_value", "buyValue", "buy_bn", "mua", "mua_rong"]);
+  const sell = pickNumber(row, ["sell", "sell_value", "sellValue", "sell_bn", "ban", "ban_rong"]);
+  const net = pickNumber(row, ["net", "net_value", "netValue", "net_bn", "rong", "gia_tri_rong"]);
+  return { buy, sell, net: net ?? (buy != null && sell != null ? buy - sell : null) };
 }
 
 // ═══════════════════════════════════════════════
@@ -230,32 +316,131 @@ export interface MarketSnapshot {
   indices: IndexData[];
   breadth: { up: number; down: number; unchanged: number } | null;
   liquidity: number | null;
+  liquidityByExchange: {
+    HOSE: number | null;
+    HNX: number | null;
+    UPCOM: number | null;
+    total: number | null;
+  };
+  investorTrading: {
+    foreign: { buy: number | null; sell: number | null; net: number | null };
+    proprietary: { buy: number | null; sell: number | null; net: number | null };
+    retail: { buy: number | null; sell: number | null; net: number | null };
+    availability: { foreign: boolean; proprietary: boolean; retail: boolean };
+  };
   marketOverview: FiinMarketOverview | null;
   topGainers: Array<{ ticker: string; changePct: number }>;
   topLosers: Array<{ ticker: string; changePct: number }>;
 }
 
+function emptyGroup() {
+  return { buy: null as number | null, sell: null as number | null, net: null as number | null };
+}
+
+function parseInvestorTradingData(raw: FiinInvestorTradingResponse | null) {
+  const foreign = emptyGroup();
+  const proprietary = emptyGroup();
+  const retail = emptyGroup();
+
+  const liquidityByExchange: MarketSnapshot["liquidityByExchange"] = {
+    HOSE: null,
+    HNX: null,
+    UPCOM: null,
+    total: null,
+  };
+
+  if (raw?.summary?.proprietary) {
+    proprietary.buy = toNumber(raw.summary.proprietary.total_buy_bn);
+    proprietary.sell = toNumber(raw.summary.proprietary.total_sell_bn);
+    proprietary.net = toNumber(raw.summary.proprietary.total_net_bn);
+  }
+
+  const addToGroup = (group: "foreign" | "proprietary" | "retail", buy: number | null, sell: number | null, net: number | null) => {
+    const target = group === "foreign" ? foreign : group === "proprietary" ? proprietary : retail;
+    const nextBuy = (target.buy ?? 0) + (buy ?? 0);
+    const nextSell = (target.sell ?? 0) + (sell ?? 0);
+    const nextNet = (target.net ?? 0) + (net ?? ((buy ?? 0) - (sell ?? 0)));
+    target.buy = Number.isFinite(nextBuy) ? nextBuy : target.buy;
+    target.sell = Number.isFinite(nextSell) ? nextSell : target.sell;
+    target.net = Number.isFinite(nextNet) ? nextNet : target.net;
+  };
+
+  for (const item of raw?.data ?? []) {
+    if (typeof item !== "object" || item === null) continue;
+    const row = item as JsonRecord;
+    const label = extractGroupLabel(row);
+    const group = inferGroup(label);
+    const { buy, sell, net } = readBuySellNet(row);
+    if (group) addToGroup(group, buy, sell, net);
+
+    const exchange = extractExchange(row);
+    const liquidityValue = readLiquidityValue(row);
+    if (exchange && liquidityValue != null && liquidityValue > 0) {
+      liquidityByExchange[exchange] = (liquidityByExchange[exchange] ?? 0) + liquidityValue;
+    }
+  }
+
+  const sumLiquidity = (liquidityByExchange.HOSE ?? 0) + (liquidityByExchange.HNX ?? 0) + (liquidityByExchange.UPCOM ?? 0);
+  liquidityByExchange.total = sumLiquidity > 0 ? sumLiquidity : null;
+
+  return {
+    investorTrading: {
+      foreign,
+      proprietary,
+      retail,
+      availability: {
+        foreign: foreign.net != null || foreign.buy != null || foreign.sell != null,
+        proprietary: proprietary.net != null || proprietary.buy != null || proprietary.sell != null,
+        retail: retail.net != null || retail.buy != null || retail.sell != null,
+      },
+    },
+    liquidityByExchange,
+  };
+}
+
 /** Snapshot thị trường (dùng cho intraday notifications + briefs) */
 export async function getMarketSnapshot(): Promise<MarketSnapshot> {
   // Fetch song song: FiinQuant overview + VNDirect indices + top movers
-  const [overview, vnindex, hnx, vn30, movers] = await Promise.all([
+  const vnDate = new Date(
+    new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" })
+  ).toISOString().slice(0, 10);
+
+  const [overview, investorRaw, vnindex, hnxindex, upcomindex, vn30, movers] = await Promise.all([
     fetchMarketOverview(),
+    fetchInvestorTrading({
+      tickers: "VNINDEX,HNXINDEX,UPCOMINDEX",
+      fromDate: vnDate,
+      toDate: vnDate,
+    }),
     fetchIndexFromDchart("VNINDEX"),
-    fetchIndexFromDchart("HNX"),
+    fetchIndexFromDchart("HNXINDEX"),
+    fetchIndexFromDchart("UPCOMINDEX"),
     fetchIndexFromDchart("VN30"),
     fetchTopMovers(),
   ]);
 
+  const parsedInvestor = parseInvestorTradingData(investorRaw);
+  const overviewLiquidity = overview ? parseLiquidity(overview.liquidity) : null;
+  const totalLiquidity = overviewLiquidity ?? parsedInvestor.liquidityByExchange.total;
+
   const indices: IndexData[] = [];
   if (vnindex) indices.push(vnindex);
-  if (hnx) indices.push(hnx);
+  if (hnxindex) indices.push(hnxindex);
+  if (upcomindex) indices.push(upcomindex);
   if (vn30) indices.push(vn30);
 
   return {
     timestamp: new Date().toISOString(),
     indices,
     breadth: overview ? parseBreadth(overview.market_breadth) : null,
-    liquidity: overview ? parseLiquidity(overview.liquidity) : null,
+    liquidity: totalLiquidity,
+    liquidityByExchange: {
+      HOSE: parsedInvestor.liquidityByExchange.HOSE,
+      HNX: parsedInvestor.liquidityByExchange.HNX,
+      UPCOM: parsedInvestor.liquidityByExchange.UPCOM,
+      total: totalLiquidity,
+    },
+    investorTrading: parsedInvestor.investorTrading,
     marketOverview: overview,
     topGainers: movers.gainers,
     topLosers: movers.losers,
@@ -318,7 +503,7 @@ export async function getPropTradingData(): Promise<FiinPropTrading | null> {
 
 /** Fetch Market Breadth (Độ rộng thị trường) */
 export async function getMarketBreadthData(
-  indices = "VNINDEX,VN30,HNXIndex"
+  indices = "VNINDEX,VN30,HNXINDEX,UPCOMINDEX"
 ): Promise<FiinMarketBreadthResponse | null> {
   return fetchMarketBreadth(indices);
 }
@@ -337,7 +522,46 @@ export async function getInvestorTradingData(options?: {
 // ═══════════════════════════════════════════════
 
 /** Format market snapshot thành text context cho Gemini */
-export function formatSnapshotForAI(snap: MarketSnapshot): string {
+type InvestorMode = "intraday" | "close15" | "full19";
+
+function formatInvestorValue(v: number | null): string {
+  if (v == null || !Number.isFinite(v)) return "chưa cập nhật";
+  return `${v >= 0 ? "+" : ""}${Math.abs(v).toFixed(1)} tỷ`;
+}
+
+export function getInvestorTradingText(snap: MarketSnapshot, mode: InvestorMode): string[] {
+  const lines: string[] = [];
+  const { foreign, proprietary, retail, availability } = snap.investorTrading;
+
+  if (availability.foreign) {
+    lines.push(`Khối ngoại: ${formatInvestorValue(foreign.net)}`);
+  }
+
+  if (mode === "intraday") {
+    return lines;
+  }
+
+  if (mode === "close15") {
+    if (availability.foreign && availability.retail) {
+      lines.push(`Cá nhân: ${formatInvestorValue(retail.net)}`);
+    }
+    return lines;
+  }
+
+  if (availability.proprietary) {
+    lines.push(`Tự doanh: ${formatInvestorValue(proprietary.net)}`);
+  }
+  if (availability.retail) {
+    lines.push(`Cá nhân: ${formatInvestorValue(retail.net)}`);
+  }
+  return lines;
+}
+
+export function formatSnapshotForAI(
+  snap: MarketSnapshot,
+  options?: { investorMode?: InvestorMode }
+): string {
+  const investorMode = options?.investorMode ?? "intraday";
   const lines: string[] = [];
   lines.push("## DỮ LIỆU THỊ TRƯỜNG REAL-TIME");
   lines.push(`Thời gian: ${new Date(snap.timestamp).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}`);
@@ -353,9 +577,22 @@ export function formatSnapshotForAI(snap: MarketSnapshot): string {
   }
 
   if (snap.liquidity) {
-    // liquidity có thể là tỷ VNĐ (< 100,000) hoặc VNĐ (> 1,000,000,000)
     const liqInTy = snap.liquidity > 1_000_000 ? snap.liquidity / 1_000_000_000 : snap.liquidity;
-    lines.push(`Thanh khoản: ${liqInTy.toFixed(0)} tỷ VNĐ`);
+    lines.push(`Thanh khoản tổng: ${liqInTy.toFixed(0)} tỷ VNĐ`);
+  }
+
+  const byExchange = snap.liquidityByExchange;
+  if (byExchange.HOSE != null || byExchange.HNX != null || byExchange.UPCOM != null) {
+    const fmt = (v: number | null) => (v == null ? "?" : `${(v > 1_000_000 ? v / 1_000_000_000 : v).toFixed(0)} tỷ`);
+    lines.push(`Thanh khoản sàn: HoSE ${fmt(byExchange.HOSE)} | HNX ${fmt(byExchange.HNX)} | UPCoM ${fmt(byExchange.UPCOM)}`);
+  }
+
+  const investorLines = getInvestorTradingText(snap, investorMode);
+  if (investorLines.length > 0) {
+    lines.push(`\nDòng tiền NĐT:`);
+    for (const line of investorLines) {
+      lines.push(`- ${line}`);
+    }
   }
 
   if (snap.marketOverview) {

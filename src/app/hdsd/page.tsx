@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { BookOpen, ChevronDown, GripVertical, Plus, Save, Pencil, ArrowUpDown } from "lucide-react";
+import { BookOpen, ChevronDown, GripVertical, Plus, Save, Pencil, ArrowUpDown, ImagePlus } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 
@@ -92,6 +92,15 @@ const markdownComponents = {
       {...props}
     />
   ),
+  img: (props: React.ImgHTMLAttributes<HTMLImageElement>) => (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      {...props}
+      alt={props.alt ?? "Guide image"}
+      className="rounded-xl border my-3 w-full h-auto object-contain"
+      style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+    />
+  ),
 };
 
 export default function HDSDPage() {
@@ -111,6 +120,7 @@ export default function HDSDPage() {
   const [newSectionCategoryId, setNewSectionCategoryId] = useState("");
   const [reorderMode, setReorderMode] = useState(false);
   const [dragItem, setDragItem] = useState<DragItem | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   const fetchGuides = useCallback(async () => {
     setLoading(true);
@@ -190,6 +200,30 @@ export default function HDSDPage() {
       setSaving(false);
     }
   }, [activeSection, editorValue, fetchGuides]);
+
+  const handleUploadImage = useCallback(
+    async (file: File) => {
+      if (!isAdmin) return;
+      setUploadingImage(true);
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch("/api/guide/upload-image", {
+          method: "POST",
+          body: formData,
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || "Upload thất bại");
+        const markdown = `\n![${file.name}](${data.url})\n`;
+        setEditorValue((prev) => `${prev}${markdown}`);
+      } catch {
+        setError("Upload ảnh thất bại. Chỉ hỗ trợ jpg/png/webp <= 5MB.");
+      } finally {
+        setUploadingImage(false);
+      }
+    },
+    [isAdmin]
+  );
 
   const handleCreateSection = useCallback(async () => {
     if (!newSectionTitle.trim() || !newSectionCategoryId) return;
@@ -514,6 +548,24 @@ export default function HDSDPage() {
                                       }}
                                     />
                                     <div className="mt-2 flex items-center gap-2">
+                                      <label
+                                        className="h-9 px-3 rounded-xl text-sm font-bold flex items-center gap-1.5 cursor-pointer"
+                                        style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+                                      >
+                                        <ImagePlus className="w-3.5 h-3.5" />
+                                        {uploadingImage ? "Đang upload..." : "Chèn ảnh"}
+                                        <input
+                                          type="file"
+                                          accept="image/jpeg,image/png,image/webp"
+                                          className="hidden"
+                                          onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) void handleUploadImage(file);
+                                            e.currentTarget.value = "";
+                                          }}
+                                          disabled={uploadingImage}
+                                        />
+                                      </label>
                                       <button
                                         onClick={() => void handleSaveSection()}
                                         disabled={saving}
@@ -579,4 +631,3 @@ export default function HDSDPage() {
     </MainLayout>
   );
 }
-

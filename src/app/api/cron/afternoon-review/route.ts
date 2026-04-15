@@ -11,7 +11,7 @@ import {
   isTradingDay,
   getVNDateString,
 } from "@/lib/cronHelpers";
-import { getMarketSnapshot, formatSnapshotForAI } from "@/lib/marketDataFetcher";
+import { getMarketSnapshot, formatSnapshotForAI, getInvestorTradingText } from "@/lib/marketDataFetcher";
 import { fetchAllCafefNews, buildCafefContext } from "@/lib/cafefScraper";
 
 export const maxDuration = 60;
@@ -21,7 +21,7 @@ function buildEodFallback(today: string, vnidx?: { value: number; changePct: num
     ? `${vnidx.value} | ${vnidx.changePct >= 0 ? "+" : ""}${vnidx.changePct}%`
     : "chưa cập nhật";
 
-  return `🌆 *BẢN TIN CUỐI PHIÊN — ${today}*
+  return `🌆 *BẢN TIN KẾT PHIÊN — ${today}*
 
 📊 *KẾT QUẢ CHỈ SỐ:*
 🇻🇳 VN-INDEX: ${idxText}
@@ -51,7 +51,6 @@ export async function GET(req: NextRequest) {
       fetchAllCafefNews(),
     ]);
 
-    const marketContext = formatSnapshotForAI(snapshot);
     const newsContext = buildCafefContext(cafefNews);
 
     const vnidx = snapshot.indices.find((i) => i.ticker === "VNINDEX");
@@ -59,10 +58,10 @@ export async function GET(req: NextRequest) {
     const breadth = snapshot.breadth;
 
     const prompt = `Bạn là ADN AI Bot — trợ lý giao dịch chuyên nghiệp.
-Hôm nay: ${today}. Phiên giao dịch đã kết thúc. Hãy viết BÁO CÁO CUỐI PHIÊN 15:00.
+Hôm nay: ${today}. Phiên giao dịch đã kết thúc. Hãy viết BẢN TIN KẾT PHIÊN 15:00.
 
 DỮ LIỆU THỊ TRƯỜNG (THỰC):
-${marketContext}
+${formatSnapshotForAI(snapshot, { investorMode: "close15" })}
 
 TIN TỨC CAFEF (RSS):
 ${newsContext}
@@ -74,7 +73,7 @@ QUY TẮC TUYỆT ĐỐI:
 
 Viết theo đúng template dưới đây (giữ nguyên icon và cấu trúc):
 
-🌆 *BÁO CÁO CUỐI PHIÊN — ${today}*
+🌆 *BẢN TIN KẾT PHIÊN — ${today}*
 
 📊 *KẾT QUẢ CHỈ SỐ:*
 🇻🇳 VN\\-INDEX: ${vnidx?.value ?? "N/A"} \\| ${vnidx ? (vnidx.changePct >= 0 ? "+" : "") + vnidx.changePct + "%" : "N/A"}
@@ -83,7 +82,12 @@ Viết theo đúng template dưới đây (giữ nguyên icon và cấu trúc):
 📈 *DIỄN BIẾN THỊ TRƯỜNG:*
 • Độ rộng: ${breadth?.up ?? "?"} Tăng \\| ${breadth?.down ?? "?"} Giảm \\| ${breadth?.unchanged ?? "?"} Đứng
 • Thanh khoản: ${snapshot.liquidity ?? "?"} tỷ VNĐ
-• Khối ngoại: [Lấy từ data nếu có]
+• Dòng tiền NĐT:
+${(() => {
+      const lines = getInvestorTradingText(snapshot, "close15");
+      if (lines.length === 0) return "  - Khối ngoại: chưa cập nhật";
+      return lines.map((line) => `  - ${line}`).join("\n");
+    })()}
 
 🌐 *TIN TỨC PHIÊN CHIỀU:*
 [3 tin quan trọng nhất từ CafeF, tóm tắt 1 dòng/tin]
@@ -105,8 +109,8 @@ _Powered by ADN Capital AI_`;
     const isGood = safeReport.toLowerCase().includes("đạt - tìm cơ hội");
 
     await saveMarketReport(
-      "eod_brief",
-      `Báo cáo cuối phiên ${today}`,
+      "close_brief_15h",
+      `Bản tin kết phiên ${today}`,
       safeReport,
       {
         snapshot: { indices: snapshot.indices, breadth: snapshot.breadth, liquidity: snapshot.liquidity },
@@ -114,21 +118,21 @@ _Powered by ADN Capital AI_`;
       { verdict: isGood ? "GOOD" : "BAD", indices: snapshot.indices, marketScore: snapshot.marketOverview?.score }
     );
 
-    await pushNotification("eod_brief", `🌆 Bản tin cuối phiên ${today}`, safeReport);
+    await pushNotification("close_brief_15h", `🌆 Bản tin kết phiên ${today}`, safeReport);
 
     const duration = Date.now() - startTime;
-    await logCron("eod_brief", "success", `Verdict: ${isGood ? "GOOD" : "BAD"}`, duration);
+    await logCron("close_brief_15h", "success", `Verdict: ${isGood ? "GOOD" : "BAD"}`, duration);
 
     return NextResponse.json({
-      type: "eod_brief",
+      type: "close_brief_15h",
       timestamp: new Date().toISOString(),
       verdict: isGood ? "GOOD" : "BAD",
       report: safeReport,
     });
   } catch (error) {
     const duration = Date.now() - startTime;
-    await logCron("eod_brief", "error", String(error), duration);
+    await logCron("close_brief_15h", "error", String(error), duration);
     console.error("[CRON eod-brief]", error);
-    return NextResponse.json({ error: "Lỗi tạo báo cáo cuối phiên" }, { status: 500 });
+    return NextResponse.json({ error: "Lỗi tạo bản tin kết phiên" }, { status: 500 });
   }
 }

@@ -4,14 +4,16 @@ import { getSetting } from "@/lib/settings";
 export interface AiBrokerRuntimeConfig {
   minPrice: number;
   minWinRate: number;
-  maxRr: number;
+  minRr: number;
+  autoPickEnabled: boolean;
   maxTotalNav: number;
 }
 
 const DEFAULT_CONFIG: AiBrokerRuntimeConfig = {
   minPrice: 10,
   minWinRate: 60,
-  maxRr: 2,
+  minRr: 1,
+  autoPickEnabled: true,
   maxTotalNav: 90,
 };
 
@@ -25,19 +27,21 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 export async function getAiBrokerRuntimeConfig(): Promise<AiBrokerRuntimeConfig> {
-  const [minPriceRaw, minWinRateRaw, maxRrRaw, maxTotalNavRaw] = await Promise.all([
+  const [minPriceRaw, minWinRateRaw, minRrRaw, autoPickRaw, maxTotalNavRaw] = await Promise.all([
     getSetting("AI_BROKER_MIN_PRICE", String(DEFAULT_CONFIG.minPrice)),
     getSetting("AI_BROKER_MIN_WINRATE", String(DEFAULT_CONFIG.minWinRate)),
-    getSetting("AI_BROKER_MAX_RR", String(DEFAULT_CONFIG.maxRr)),
+    getSetting("AI_BROKER_MIN_RR", String(DEFAULT_CONFIG.minRr)),
+    getSetting("AI_BROKER_AUTO_PICK", DEFAULT_CONFIG.autoPickEnabled ? "true" : "false"),
     getSetting("AI_BROKER_MAX_TOTAL_NAV", String(DEFAULT_CONFIG.maxTotalNav)),
   ]);
 
   const minPrice = clamp(toFiniteNumber(minPriceRaw, DEFAULT_CONFIG.minPrice), 1, 1_000_000);
   const minWinRate = clamp(toFiniteNumber(minWinRateRaw, DEFAULT_CONFIG.minWinRate), 0, 100);
-  const maxRr = clamp(toFiniteNumber(maxRrRaw, DEFAULT_CONFIG.maxRr), 0.1, 10);
+  const minRr = clamp(toFiniteNumber(minRrRaw, DEFAULT_CONFIG.minRr), 0.1, 10);
+  const autoPickEnabled = autoPickRaw === "true";
   const maxTotalNav = clamp(toFiniteNumber(maxTotalNavRaw, DEFAULT_CONFIG.maxTotalNav), 1, 99);
 
-  return { minPrice, minWinRate, maxRr, maxTotalNav };
+  return { minPrice, minWinRate, minRr, autoPickEnabled, maxTotalNav };
 }
 
 export function parseRrRatio(rrRatio: string | null | undefined): number | null {
@@ -62,6 +66,7 @@ export function shouldAutoActivateSignal(
   },
   config: AiBrokerRuntimeConfig
 ): boolean {
+  if (!config.autoPickEnabled) return false;
   const priceNow = params.currentPrice ?? params.entryPrice;
   const rr = parseRrRatio(params.rrRatio);
   const winRate = params.winRate ?? 0;
@@ -69,7 +74,7 @@ export function shouldAutoActivateSignal(
   if (!Number.isFinite(priceNow) || !Number.isFinite(params.entryPrice)) return false;
   if (priceNow <= config.minPrice) return false;
   if (winRate < config.minWinRate) return false;
-  if (rr == null || rr > config.maxRr) return false;
+  if (rr == null || rr < config.minRr) return false;
   if (params.entryPrice > priceNow) return false;
 
   return true;
@@ -114,4 +119,3 @@ export async function rebalanceActiveBasketNav(maxTotalNav: number): Promise<voi
     await prisma.$transaction(updates);
   }
 }
-
