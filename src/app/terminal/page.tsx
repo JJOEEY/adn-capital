@@ -77,8 +77,14 @@ export default function TerminalPage() {
   );
 
   return (
-    <MainLayout>
-      <div className="flex flex-col h-[calc(100vh-3.5rem)]">
+    <MainLayout disableSwipe>
+      <div
+        className="flex flex-col"
+        style={{
+          height: "calc(100dvh - 3.5rem)",
+          minHeight: "calc(100svh - 3.5rem)",
+        }}
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-4 md:px-6 py-3 border-b" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
           <div className="flex items-center gap-3">

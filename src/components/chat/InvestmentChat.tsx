@@ -375,7 +375,44 @@ export function InvestmentChat({
   const [input, setInput] = useState("");
   const [cardLoading, setCardLoading] = useState<CardId | null>(null);
   const [botLoading, setBotLoading] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [viewportHeight, setViewportHeight] = useState<number | null>(null);
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const updateDevice = () => setIsMobile(window.innerWidth < 1024);
+    updateDevice();
+    window.addEventListener("resize", updateDevice);
+    return () => window.removeEventListener("resize", updateDevice);
+  }, []);
+
+  useEffect(() => {
+    if (!isMobile) {
+      setViewportHeight(null);
+      setKeyboardOpen(false);
+      return;
+    }
+
+    const vv = window.visualViewport;
+    const updateViewport = () => {
+      const height = Math.round(vv?.height ?? window.innerHeight);
+      setViewportHeight(height);
+      const keyboardHeight = Math.max(0, window.innerHeight - height - (vv?.offsetTop ?? 0));
+      setKeyboardOpen(keyboardHeight > 120);
+    };
+
+    updateViewport();
+    vv?.addEventListener("resize", updateViewport);
+    vv?.addEventListener("scroll", updateViewport);
+    window.addEventListener("orientationchange", updateViewport);
+    return () => {
+      vv?.removeEventListener("resize", updateViewport);
+      vv?.removeEventListener("scroll", updateViewport);
+      window.removeEventListener("orientationchange", updateViewport);
+    };
+  }, [isMobile]);
 
   useEffect(() => {
     if (!userId) return;
@@ -526,6 +563,16 @@ export function InvestmentChat({
   }, [extraMessages]);
 
   const isLoading = cardLoading !== null || botLoading || freeTextLoading;
+  const chatShellHeight = isMobile
+    ? viewportHeight
+      ? `${Math.max(380, viewportHeight - 110)}px`
+      : "calc(100dvh - 110px)"
+    : undefined;
+  const messageAreaMaxHeight = isMobile
+    ? viewportHeight
+      ? `${Math.max(220, viewportHeight - 245)}px`
+      : "calc(100dvh - 245px)"
+    : "calc(100vh - 200px)";
 
   return (
     <div
@@ -534,6 +581,7 @@ export function InvestmentChat({
         borderRadius: "16px",
         padding: "16px",
         minHeight: "540px",
+        height: chatShellHeight,
         background: "var(--bg-page)",
         border: "1px solid var(--border)",
       }}
@@ -541,7 +589,7 @@ export function InvestmentChat({
       {/* Messages area */}
       <div
         className="flex-1 flex flex-col gap-3 overflow-y-auto"
-        style={{ minHeight: 0, maxHeight: "calc(100vh - 200px)" }}
+        style={{ minHeight: 0, maxHeight: messageAreaMaxHeight }}
       >
         {allMessages.length === 0 && (
           <div className="flex flex-col items-center justify-center flex-1 text-center py-8">
@@ -619,11 +667,27 @@ export function InvestmentChat({
       </div>
 
       {/* Input */}
-      <div className="flex gap-2 items-center">
+      <div
+        className="flex gap-2 items-center"
+        style={{
+          paddingBottom: isMobile
+            ? keyboardOpen
+              ? "6px"
+              : "calc(env(safe-area-inset-bottom, 0px) + 6px)"
+            : 0,
+        }}
+      >
         <input
+          ref={inputRef}
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          onFocus={() => {
+            setTimeout(() => {
+              bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+              inputRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            }, 80);
+          }}
           onKeyDown={(e) => e.key === "Enter" && !isLoading && handleSubmit()}
           disabled={isLoading}
           placeholder="Nhập mã CP (HPG) hoặc câu hỏi tự do..."

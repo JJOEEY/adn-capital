@@ -133,11 +133,16 @@ async function sendWebPushToAll(title: string, body: string) {
       )
     );
 
-    // Xóa subscription hết hạn (410 Gone)
+    // Xóa subscription hết hạn (410 Gone) ngay trong lần gửi
     const expiredEndpoints: string[] = [];
     results.forEach((r, i) => {
-      if (r.status === "rejected" && (r.reason as { statusCode?: number })?.statusCode === 410) {
-        expiredEndpoints.push(subscriptions[i].endpoint);
+      if (r.status === "rejected") {
+        const reason = r.reason as { statusCode?: number; status?: number; body?: string };
+        const statusCode = reason?.statusCode ?? reason?.status;
+        const isGone = statusCode === 410 || /\b410\b/.test(String(reason?.body ?? ""));
+        if (isGone) {
+          expiredEndpoints.push(subscriptions[i].endpoint);
+        }
       }
     });
 

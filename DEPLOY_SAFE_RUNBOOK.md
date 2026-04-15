@@ -2,21 +2,18 @@
 
 ## Golden command
 ```bash
-ssh root@14.225.204.117 "cd /home/adncapital/app/adn-capital && git pull origin master && docker compose build --no-cache web && docker compose up -d pgbouncer web"
+ssh root@14.225.204.117 "cd /home/adncapital/app/adn-capital && bash deploy/safe-web-deploy.sh"
 ```
 
 ## Hard rules
 1. Never run `docker-compose down`.
-2. Only rebuild/restart `web` service.
-3. Keep PostgreSQL volume in `docker-compose.yml`:
+2. Only rebuild/restart `web` service (no full stack restart).
+3. Keep persistent PostgreSQL storage in `docker-compose.yml` (bind mount hoặc named volume đều hợp lệ):
 ```yaml
 services:
   db:
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-volumes:
-  postgres_data:
+      - /var/lib/9router/data/postgres:/var/lib/postgresql/data
 ```
 4. `DATABASE_URL` must point to `pgbouncer`, and `DIRECT_DATABASE_URL` must point to `db`:
 ```env
@@ -29,6 +26,8 @@ DIRECT_DATABASE_URL=postgresql://adnuser:adn_pass_99@db:5432/adncapital
 ssh root@14.225.204.117 "cd /home/adncapital/app/adn-capital && docker compose exec -T web env | grep -E 'DATABASE_URL|DIRECT_DATABASE_URL'"
 ```
 Expected: `DATABASE_URL` has `@pgbouncer:5432`, `DIRECT_DATABASE_URL` has `@db:5432`.
+
+> Nếu VPS không có plugin `docker compose`, dùng `docker-compose` thay thế.
 
 ```bash
 ssh root@14.225.204.117 "cd /home/adncapital/app/adn-capital && docker compose exec -T db psql -U adnuser -d adncapital -c 'SELECT COUNT(*) FROM \"User\"'"
