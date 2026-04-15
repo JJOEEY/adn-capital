@@ -2,6 +2,7 @@
 
 import { useRef, useState, useCallback, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useSession } from "next-auth/react";
 import {
   TrendingUp,
@@ -12,6 +13,7 @@ import {
   Zap,
   Bot,
 } from "lucide-react";
+import { StockChart } from "@/components/chat/StockChart";
 
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -25,6 +27,7 @@ interface Message {
   ticker?: string;
   isCards?: boolean;
   mediaUrl?: string | null;
+  showDynamicChart?: boolean;
 }
 
 // ── Ticker detection ────────────────────────────────────────────────────────
@@ -251,11 +254,15 @@ function BotBubble({ message, onCardClick, cardLoading }: BotBubbleProps) {
               border: "1px solid var(--border, #E8E4DB)",
             }}
           >
-            <ReactMarkdown>{message.text}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown>
           </div>
         )}
 
         {/* Chart image (chỉ TA) */}
+        {message.showDynamicChart && message.ticker && (
+          <StockChart symbol={message.ticker} />
+        )}
+
         {message.mediaUrl && (
           <img
             src={message.mediaUrl}
@@ -351,6 +358,7 @@ export function InvestmentChat({
           text,
           ticker,
           mediaUrl: cardId === "ta" ? (data.media_url ?? null) : null,
+          showDynamicChart: cardId === "ta",
         });
       } catch {
         addMessage({

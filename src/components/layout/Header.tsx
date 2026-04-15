@@ -76,7 +76,7 @@ const menuSections: MenuSection[] = [
     items: [
       { href: "https://t.me/+fryvX_B-6Y9kODg1", label: "Group Telegram", icon: Send, external: true },
       { href: "/backtest", label: "Backtest", icon: FlaskConical },
-      { href: "/hdsd", label: "Hướng dẫn sử dụng", icon: BookOpen, badge: "UPDATING" },
+      { href: "/hdsd", label: "Hướng dẫn sử dụng", icon: BookOpen },
     ],
   },
   {

@@ -32,6 +32,11 @@ const nextConfig: NextConfig = {
         destination: "/art",
         permanent: true,
       },
+      {
+        source: "/tei/:path*",
+        destination: "/art/:path*",
+        permanent: true,
+      },
     ];
   },
 };

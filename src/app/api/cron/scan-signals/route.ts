@@ -14,6 +14,7 @@ import {
   logCron,
   pushNotification,
   isTradingDay,
+  getVNDateISO,
 } from "@/lib/cronHelpers";
 
 const PYTHON_BRIDGE = process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000";
@@ -22,15 +23,16 @@ const PYTHON_BRIDGE = process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000";
 //  Bảo mật & Anti-duplicate
 // ═══════════════════════════════════════════════
 
-async function getSignaledTodayStocks(): Promise<string[]> {
-  const startOfDay = new Date();
-  startOfDay.setHours(0, 0, 0, 0);
+function toSignalKey(ticker: string, type: string): string {
+  return `${ticker.toUpperCase().trim()}|${type}`;
+}
 
-  const todaySignals = await prisma.signal.findMany({
-    where: { createdAt: { gte: startOfDay } },
-    select: { ticker: true },
+async function getSentTodayMap(sentDate: string): Promise<Set<string>> {
+  const rows = await prisma.signalHistory.findMany({
+    where: { sentDate },
+    select: { ticker: true, signalType: true },
   });
-  return todaySignals.map((s: { ticker: string }) => s.ticker);
+  return new Set(rows.map((r) => toSignalKey(r.ticker, r.signalType)));
 }
 
 // ═══════════════════════════════════════════════
@@ -76,16 +78,18 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const alreadySignaled = await getSignaledTodayStocks();
+    const todayISO = getVNDateISO();
+    const sentToday = await getSentTodayMap(todayISO);
 
     // 1 API call → Python scanner (batches 200 tickers in 4 FiinQuantX calls)
     const scanResult = await scanViaPython();
     console.log(`[scan-signals] Python scanner: ${scanResult.detected} tín hiệu phát hiện`);
 
-    // Filter out already-signaled tickers
-    const newSignals = scanResult.signals.filter(
-      (s) => !alreadySignaled.includes(s.ticker)
+    // Defensive dedupe in payload, then filter already-sent keys.
+    const uniqueSignals = Array.from(
+      new Map(scanResult.signals.map((s) => [toSignalKey(s.ticker, s.type), s])).values()
     );
+    const newSignals = uniqueSignals.filter((s) => !sentToday.has(toSignalKey(s.ticker, s.type)));
 
     if (newSignals.length === 0) {
       const duration = Date.now() - startTime;
@@ -95,21 +99,31 @@ export async function GET(req: NextRequest) {
         timestamp: new Date().toISOString(),
         message: "Không có tín hiệu mới",
         newSignals: [],
-        totalSignaledToday: alreadySignaled.length,
+        totalSignaledToday: sentToday.size,
       });
     }
 
-    const savedSignals = await prisma.$transaction(
-      newSignals.map((signal) =>
-        prisma.signal.create({
-          data: {
-            ticker: signal.ticker,
-            type: signal.type,
-            entryPrice: signal.entryPrice,
-          },
-        })
-      )
-    );
+    const savedSignals = await prisma.$transaction(async (tx) => {
+      await tx.signalHistory.createMany({
+        data: newSignals.map((s) => ({
+          ticker: s.ticker.toUpperCase().trim(),
+          signalType: s.type,
+          sentDate: todayISO,
+        })),
+        skipDuplicates: true,
+      });
+      return Promise.all(
+        newSignals.map((signal) =>
+          tx.signal.create({
+            data: {
+              ticker: signal.ticker.toUpperCase().trim(),
+              type: signal.type,
+              entryPrice: signal.entryPrice,
+            },
+          })
+        )
+      );
+    });
 
     // Đẩy Notification — include reason from Python scan
     const reasonMap = new Map(newSignals.map((s) => [s.ticker, s.reason ?? ""]));
@@ -136,7 +150,7 @@ export async function GET(req: NextRequest) {
       timestamp: new Date().toISOString(),
       message: `Phát hiện ${savedSignals.length} tín hiệu đầu cơ mới`,
       newSignals: savedSignals,
-      totalSignaledToday: alreadySignaled.length + savedSignals.length,
+      totalSignaledToday: sentToday.size + savedSignals.length,
     });
   } catch (error) {
     const duration = Date.now() - startTime;

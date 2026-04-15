@@ -300,6 +300,34 @@ model SignalHistory {
   @@index([sentDate])
 }
 
+model GuideCategory {
+  id        String         @id @default(cuid())
+  title     String
+  slug      String         @unique
+  sortOrder Int            @default(0)
+  sections  GuideSection[]
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@index([sortOrder])
+}
+
+model GuideSection {
+  id         String        @id @default(cuid())
+  title      String
+  slug       String
+  content    String        @db.Text
+  sortOrder  Int           @default(0)
+  published  Boolean       @default(true)
+  categoryId String
+  category   GuideCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@unique([categoryId, slug])
+  @@index([categoryId, sortOrder])
+}
+
 // ═══════════════════════════════════════════════════════════════════
 //  CHANGELOG — Lịch sử chỉnh sửa hệ thống
 // ═══════════════════════════════════════════════════════════════════

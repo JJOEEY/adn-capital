@@ -42,7 +42,6 @@ next-env.d.ts
 # database
 *.db
 *.db-journal
-prisma/migrations/
 market_cache.json
 
 

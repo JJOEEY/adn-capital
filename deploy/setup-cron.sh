@@ -38,7 +38,7 @@ CURL_CMD="curl -s -o /dev/null -w '%{http_code}' -H 'x-cron-secret: $CRON_SECRET
 # 11:30 VN = 04:30 UTC — Intraday update
 # 14:00 VN = 07:00 UTC — Intraday update
 # 14:45 VN = 07:45 UTC — Intraday update
-# Mỗi 5 phút (9-15h VN = 2-8h UTC) — Signal scan
+# Signal scan fixed checkpoints: 10:00, 10:30, 11:30, 14:00, 14:45 VN
 
 CRON_FILE="/tmp/adn-crontab"
 
@@ -69,11 +69,14 @@ cat > $CRON_FILE << EOF
 # Intraday 14:45 VN (07:45 UTC)
 45 7 * * 1-5 $CURL_CMD "$APP_URL/api/cron?type=intraday" >> $LOG_DIR/intraday.log 2>&1
 
-# Signal Scan — mỗi 5 phút (9-15h VN = 2-8h UTC), T2-T6
-*/5 2-8 * * 1-5 $CURL_CMD "$APP_URL/api/cron?type=signal_scan_5m" >> $LOG_DIR/signal.log 2>&1
 
-# Legacy Signal Scan (backup)
-*/5 2-8 * * 1-5 $CURL_CMD "$APP_URL/api/cron/scan-signals" >> $LOG_DIR/signal-legacy.log 2>&1
+# Signal Scan fixed checkpoints (VN): 10:00, 10:30, 11:30, 14:00, 14:45
+0 3 * * 1-5 $CURL_CMD "$APP_URL/api/cron?type=signal_scan_5m" >> $LOG_DIR/signal.log 2>&1
+30 3 * * 1-5 $CURL_CMD "$APP_URL/api/cron?type=signal_scan_5m" >> $LOG_DIR/signal.log 2>&1
+30 4 * * 1-5 $CURL_CMD "$APP_URL/api/cron?type=signal_scan_5m" >> $LOG_DIR/signal.log 2>&1
+0 7 * * 1-5 $CURL_CMD "$APP_URL/api/cron?type=signal_scan_5m" >> $LOG_DIR/signal.log 2>&1
+45 7 * * 1-5 $CURL_CMD "$APP_URL/api/cron?type=signal_scan_5m" >> $LOG_DIR/signal.log 2>&1
+
 
 # Log rotation — weekly
 0 0 * * 0 find $LOG_DIR -name "*.log" -mtime +30 -delete

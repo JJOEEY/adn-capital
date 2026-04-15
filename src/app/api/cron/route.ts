@@ -218,6 +218,12 @@ interface PythonScanSignal {
   reason?: string;
 }
 
+const FIXED_SCAN_SLOTS = new Set(["10:00", "10:30", "11:30", "14:00", "14:45"]);
+
+function toSignalKey(ticker: string, type: string): string {
+  return `${ticker.toUpperCase().trim()}|${type}`;
+}
+
 async function handleSignalScan5m(): Promise<NextResponse> {
   const startTime = Date.now();
   if (!isTradingDay()) {
@@ -228,6 +234,7 @@ async function handleSignalScan5m(): Promise<NextResponse> {
   const vnNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
   const hour = vnNow.getHours();
   const min  = vnNow.getMinutes();
+  const timeKey = `${hour}:${min.toString().padStart(2, "0")}`;
 
   // ── Smart Gate ─────────────────────────────────────────────────────
   //  09:00–11:00 → quét 15m (min chia hết cho 15)
@@ -238,35 +245,52 @@ async function handleSignalScan5m(): Promise<NextResponse> {
   //  13:30–14:00 → quét 15m
   //  14:00–14:45 → quét 5m (Giờ Vàng — pass through)
   // ──────────────────────────────────────────────────────────────────
-  let shouldRun = false;
-  if      (hour === 9  || (hour === 10))                    shouldRun = (min % 15 === 0);
-  else if (hour === 11 && min === 30)                       shouldRun = true;
-  else if (hour === 13 && min >= 30)                        shouldRun = (min % 15 === 0);
-  else if (hour === 14 && min <= 45)                        shouldRun = true; // Giờ Vàng
-
-  if (!shouldRun) {
-    return NextResponse.json({ message: `Smart Gate: skip ${hour}:${min.toString().padStart(2, "0")}` });
+  if (!FIXED_SCAN_SLOTS.has(timeKey)) {
+    return NextResponse.json({ message: `Fixed Gate: skip ${timeKey}` });
   }
 
   try {
     // Lấy mã đã báo hôm nay
-    const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
-    const todaySignals = await prisma.signal.findMany({ where: { createdAt: { gte: startOfDay } }, select: { ticker: true } });
-    const alreadySignaled = todaySignals.map((s: { ticker: string }) => s.ticker);
+    const todayISO = getVNDateISO();
+    const sentTodayRows = await prisma.signalHistory.findMany({
+      where: { sentDate: todayISO },
+      select: { ticker: true, signalType: true },
+    });
+    const alreadySent = new Set(sentTodayRows.map((r) => toSignalKey(r.ticker, r.signalType)));
 
     // 1 API call → Python scanner
     const res = await fetch(`${PYTHON_BRIDGE}/api/v1/scan-now`, { method: "POST", signal: AbortSignal.timeout(90_000) });
     if (!res.ok) throw new Error(`Python scanner HTTP ${res.status}`);
     const scanResult: { detected: number; signals: PythonScanSignal[] } = await res.json();
 
-    const newSignals = scanResult.signals.filter(s => !alreadySignaled.includes(s.ticker));
+    const uniqueSignals = Array.from(
+      new Map(scanResult.signals.map((s) => [toSignalKey(s.ticker, s.type), s])).values()
+    );
+    const newSignals = uniqueSignals.filter((s) => !alreadySent.has(toSignalKey(s.ticker, s.type)));
 
     if (newSignals.length > 0) {
-      await prisma.$transaction(
-        newSignals.map(sig => prisma.signal.create({
-          data: { ticker: sig.ticker, type: sig.type, entryPrice: sig.entryPrice, reason: sig.reason },
-        }))
-      );
+      await prisma.$transaction(async (tx) => {
+        await tx.signalHistory.createMany({
+          data: newSignals.map((s) => ({
+            ticker: s.ticker.toUpperCase().trim(),
+            signalType: s.type,
+            sentDate: todayISO,
+          })),
+          skipDuplicates: true,
+        });
+        await Promise.all(
+          newSignals.map((sig) =>
+            tx.signal.create({
+              data: {
+                ticker: sig.ticker.toUpperCase().trim(),
+                type: sig.type,
+                entryPrice: sig.entryPrice,
+                reason: sig.reason,
+              },
+            })
+          )
+        );
+      });
     }
 
     const duration = Date.now() - startTime;
@@ -280,7 +304,7 @@ async function handleSignalScan5m(): Promise<NextResponse> {
       timestamp: new Date().toISOString(),
       message: newSignals.length > 0 ? `Phát hiện ${newSignals.length} tín hiệu mới` : "Không có tín hiệu mới",
       newSignals,
-      totalSignaledToday: alreadySignaled.length + newSignals.length,
+      totalSignaledToday: alreadySent.size + newSignals.length,
     });
   } catch (error) {
     await logCron("signal_scan_5m", "error", String(error), Date.now() - startTime);

@@ -38,6 +38,7 @@
     "react-markdown": "^10.1.0",
     "react-ts-tradingview-widgets": "^1.2.8",
     "recharts": "^3.8.1",
+    "remark-gfm": "^4.0.1",
     "swr": "^2.4.1",
     "web-push": "^3.6.7",
     "zustand": "^5.0.2"
