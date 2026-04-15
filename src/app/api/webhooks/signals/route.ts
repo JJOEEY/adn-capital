@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { processSignals } from "@/lib/UltimateSignalEngine";
+import { getVNDateISO, pushNotification } from "@/lib/cronHelpers";
 
 // Secret chia sẻ giữa Python scanner và Next.js
 const WEBHOOK_SECRET = process.env.SCANNER_SECRET ?? "adn-scanner-secret-key";
@@ -63,9 +64,17 @@ export async function POST(req: NextRequest) {
       existingMap.set(`${s.ticker}|${s.type}`, s.id);
     }
 
+    const todayISO = getVNDateISO();
+    const sentHistory = await prisma.signalHistory.findMany({
+      where: { sentDate: todayISO },
+      select: { ticker: true, signalType: true },
+    });
+    const sentSet = new Set(sentHistory.map((s) => `${s.ticker}|${s.signalType}`));
+
     // ── 4. Upsert: update nếu đã có, create nếu chưa ───────────────────
     let created = 0;
     let updated = 0;
+    const createdSignalsForNotify: IncomingSignal[] = [];
 
     const operations = processed.map((s) => {
       const key = `${s.ticker.toUpperCase().trim()}|${s.type}`;
@@ -90,6 +99,12 @@ export async function POST(req: NextRequest) {
         });
       } else {
         created++;
+        createdSignalsForNotify.push({
+          ticker: s.ticker.toUpperCase().trim(),
+          type: s.type,
+          entryPrice: s.entryPrice,
+          reason: s.reason,
+        });
         return prisma.signal.create({
           data: {
             ticker: s.ticker.toUpperCase().trim(),
@@ -111,6 +126,31 @@ export async function POST(req: NextRequest) {
     });
 
     await prisma.$transaction(operations);
+
+    const newSignalsForNotification = createdSignalsForNotify.filter(
+      (s) => !sentSet.has(`${s.ticker}|${s.type}`)
+    );
+
+    if (newSignalsForNotification.length > 0) {
+      await prisma.signalHistory.createMany({
+        data: newSignalsForNotification.map((s) => ({
+          ticker: s.ticker,
+          signalType: s.type,
+          sentDate: todayISO,
+        })),
+        skipDuplicates: true,
+      });
+
+      const signalText = newSignalsForNotification
+        .map((s) => `• ${s.ticker}: ${s.entryPrice.toLocaleString("vi-VN")} VNĐ${s.reason ? ` — ${s.reason}` : ""}`)
+        .join("\n");
+
+      await pushNotification(
+        "signal_scan",
+        `⚡ ${newSignalsForNotification.length} tín hiệu mới`,
+        `## TÍN HIỆU MỚI\n\n${signalText}`
+      );
+    }
 
     console.log(
       `[Webhook] ${created} tín hiệu mới, ${updated} cập nhật giá, tổng ${processed.length} xử lý (UltimateEngine)`

@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { isAdmin } from "@/lib/admin-check";
 
 /**
- * PATCH /api/admin/users/[id] — Cập nhật user (role, systemRole, vipUntil, dnseVerified...)
+ * PATCH /api/admin/users/[id] — Cập nhật user (systemRole, dnseVerified...)
+ * Lưu ý: role/vipUntil được quản lý qua entitlements append-only.
  */
 export async function PATCH(
   req: NextRequest,
@@ -18,9 +19,7 @@ export async function PATCH(
 
   // Chỉ cho phép cập nhật các trường an toàn
   const allowed: Record<string, unknown> = {};
-  if (body.role !== undefined) allowed.role = body.role;
   if (body.systemRole !== undefined) allowed.systemRole = body.systemRole;
-  if (body.vipUntil !== undefined) allowed.vipUntil = body.vipUntil ? new Date(body.vipUntil) : null;
   if (body.dnseVerified !== undefined) allowed.dnseVerified = body.dnseVerified;
   if (body.dnseId !== undefined) allowed.dnseId = body.dnseId || null;
 

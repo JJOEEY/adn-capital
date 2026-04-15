@@ -11,7 +11,7 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import authConfig from "@/lib/auth.config";
-import { resolveEffectiveEntitlement } from "@/lib/entitlements";
+import { reconcileUserEntitlementState } from "@/lib/entitlements";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...authConfig,
@@ -70,46 +70,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (token.id) {
         const dbUser = await prisma.user.findUnique({
           where: { id: token.id as string },
-          select: { role: true, systemRole: true, vipUntil: true, createdAt: true },
+          select: { role: true, systemRole: true, vipUntil: true },
         });
         if (dbUser) {
-          // Luôn truyền systemRole
           token.systemRole = dbUser.systemRole ?? "USER";
-
-          // ── VIP 7-day trial campaign: user đăng ký hôm nay chưa có vipUntil → tặng 7 ngày ──
-          const now = new Date();
-          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          const createdDate = new Date(dbUser.createdAt);
-          const createdDay = new Date(createdDate.getFullYear(), createdDate.getMonth(), createdDate.getDate());
-
-          if (createdDay >= today && !dbUser.vipUntil && dbUser.role === "FREE") {
-            const trialEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-            await prisma.user.update({
-              where: { id: token.id as string },
-              data: { role: "VIP", vipUntil: trialEnd },
-            });
-            const entitlement = await resolveEffectiveEntitlement(token.id as string, "VIP", trialEnd);
-            token.role = entitlement.badge === "FREE" ? "FREE" : "VIP";
-            token.vipUntil = entitlement.vipUntil?.toISOString() ?? null;
-          }
-          // ── Auto-downgrade: VIP đã hết hạn → trả về FREE ──
-          else if (dbUser.role === "VIP" && dbUser.vipUntil && dbUser.vipUntil < now) {
-            await prisma.user.update({
-              where: { id: token.id as string },
-              data: { role: "FREE", vipUntil: null },
-            });
-            const entitlement = await resolveEffectiveEntitlement(token.id as string, "FREE", null);
-            token.role = entitlement.badge === "FREE" ? "FREE" : "VIP";
-            token.vipUntil = entitlement.vipUntil?.toISOString() ?? null;
-          } else {
-            const entitlement = await resolveEffectiveEntitlement(
-              token.id as string,
-              dbUser.role,
-              dbUser.vipUntil ?? null
-            );
-            token.role = entitlement.badge === "FREE" ? "FREE" : "VIP";
-            token.vipUntil = entitlement.vipUntil?.toISOString() ?? null;
-          }
+          const entitlement = await reconcileUserEntitlementState(
+            token.id as string,
+            dbUser.role,
+            dbUser.vipUntil ?? null
+          );
+          token.role = entitlement.badge === "FREE" ? "FREE" : "VIP";
+          token.vipUntil = entitlement.vipUntil?.toISOString() ?? null;
         }
       }
 

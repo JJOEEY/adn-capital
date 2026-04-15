@@ -733,6 +733,17 @@ function generateId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
+function mapSignalToBadge(signal?: string | null): "MUA" | "GIỮ" | "BÁN" {
+  const normalized = (signal ?? "").toUpperCase();
+  if (normalized.includes("BUY") || normalized.includes("MUA") || normalized.includes("BULL")) {
+    return "MUA";
+  }
+  if (normalized.includes("SELL") || normalized.includes("BAN") || normalized.includes("BÁN") || normalized.includes("BEAR")) {
+    return "BÁN";
+  }
+  return "GIỮ";
+}
+
 /** Extract a 2-4 letter uppercase ticker from a sentence, returns null if not found */
 function extractTicker(text: string): string | null {
   const upper = text.toUpperCase();
@@ -826,6 +837,12 @@ export async function POST(req: NextRequest) {
           ticker,
           content: "",
           data: mockData,
+          streamState: "done",
+          widgetMeta: {
+            complete: true,
+            ticker,
+            badge: "GIỮ",
+          },
         });
       }
 
@@ -850,6 +867,12 @@ export async function POST(req: NextRequest) {
         content: "",
         data: widgetPayload.data,   // forward only the .data object (tabs)
         newUsage: currentUsage + 1,
+        streamState: "done",
+        widgetMeta: {
+          complete: true,
+          ticker,
+          badge: mapSignalToBadge(widgetPayload.data?.technical?.data?.signal ?? null),
+        },
       });
     }
     // ══════════════════════════════════════════════════════════
@@ -1037,6 +1060,10 @@ ${hasData ? `\n⚠️ QUAN TRỌNG: Phân tích thị trường PHẢI dựa tr�
       message: responseText,
       newUsage: currentUsage + 1,
       ...(chartStock ? { chartStock, chartExchange: chartExchange ?? "HOSE" } : {}),
+      streamState: "done",
+      widgetMeta: {
+        complete: false,
+      },
     });
 
   } catch (error) {

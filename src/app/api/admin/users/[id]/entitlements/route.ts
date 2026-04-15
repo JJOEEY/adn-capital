@@ -37,6 +37,17 @@ export async function GET(
 
   const { id } = await params;
 
+  await prisma.adminEntitlementGrant.updateMany({
+    where: {
+      targetUserId: id,
+      status: "ACTIVE",
+      expiresAt: { lte: new Date() },
+    },
+    data: {
+      status: "EXPIRED",
+    },
+  });
+
   const grants = await prisma.adminEntitlementGrant.findMany({
     where: { targetUserId: id },
     orderBy: [{ grantedAt: "desc" }, { createdAt: "desc" }],
@@ -143,4 +154,3 @@ export async function POST(
 
   return NextResponse.json({ grant: result });
 }
-

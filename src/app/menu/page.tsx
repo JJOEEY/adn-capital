@@ -17,14 +17,12 @@ import {
   LogIn,
   Crown,
   ChevronRight,
-  User,
-  Settings,
-  Shield,
   Users,
   Newspaper,
   Bell,
   Sun,
   Moon,
+  Shield,
 } from "lucide-react";
 
 interface MenuGroup {
@@ -51,8 +49,7 @@ export default function MenuPage() {
   const userEmail = dbUser?.email || session?.user?.email || "";
   const isDark = theme === "dark";
   const sessionUser = session?.user as { role?: string; systemRole?: string } | undefined;
-  const isAdminBySession =
-    sessionUser?.role === "ADMIN" || sessionUser?.systemRole === "ADMIN";
+  const isAdminBySession = sessionUser?.role === "ADMIN" || sessionUser?.systemRole === "ADMIN";
   const canManageSystem = isAdmin || isAdminBySession;
   const canManageContent = canManageSystem || isWriter;
   const userInitial = useMemo(
@@ -72,9 +69,7 @@ export default function MenuPage() {
     },
     {
       title: "Dịch vụ",
-      items: [
-        { href: "/margin", label: "Ký quỹ · Mua nhanh", icon: Banknote, badge: "HOT" },
-      ],
+      items: [{ href: "/margin", label: "Ký quỹ · Mua nhanh", icon: Banknote, badge: "HOT" }],
     },
     {
       title: "Khác",
@@ -107,7 +102,6 @@ export default function MenuPage() {
   return (
     <MainLayout>
       <div className="p-4 pb-24 space-y-4 max-w-lg mx-auto">
-        {/* Profile card */}
         {isLoading ? (
           <div className="rounded-2xl border border-white/[0.06] bg-[var(--surface)] p-5">
             <div className="flex items-center gap-3">
@@ -184,18 +178,17 @@ export default function MenuPage() {
           </Link>
         )}
 
-        {/* Menu groups */}
         {menuGroups.map((group) => (
           <div key={group.title} className="rounded-2xl border border-white/[0.06] bg-[var(--surface)] overflow-hidden">
-            <p className="px-4 pt-3 pb-1 text-[11px] font-bold text-neutral-500 uppercase tracking-[0.15em]">
-              {group.title}
-            </p>
+            <p className="px-4 pt-3 pb-1 text-[11px] font-bold text-neutral-500 uppercase tracking-[0.15em]">{group.title}</p>
             {group.items.map((item, idx) => {
               const Icon = item.icon;
               const content = (
-                <div className={`flex items-center gap-3 px-4 py-3 transition-all hover:bg-white/[0.03] ${
-                  idx < group.items.length - 1 ? "border-b border-white/[0.04]" : ""
-                }`}>
+                <div
+                  className={`flex items-center gap-3 px-4 py-3 transition-all hover:bg-white/[0.03] ${
+                    idx < group.items.length - 1 ? "border-b border-white/[0.04]" : ""
+                  }`}
+                >
                   <Icon className="w-5 h-5 text-neutral-400 shrink-0" />
                   <span className="flex-1 text-sm text-white/80 font-medium">{item.label}</span>
                   {item.badge && (
@@ -230,7 +223,6 @@ export default function MenuPage() {
           </div>
         ))}
 
-        {/* Logout */}
         {isAuthenticated && (
           <button
             onClick={() => signOut({ callbackUrl: "/" })}
@@ -241,7 +233,6 @@ export default function MenuPage() {
           </button>
         )}
 
-        {/* Footer */}
         <p className="text-center text-[12px] text-neutral-700 pt-2">
           Powered by <span className="text-emerald-500/50 font-bold">ADN CAPITAL</span> · v2.0
         </p>

@@ -1,19 +1,20 @@
 import type { Metadata } from "next";
 import { AuthProvider } from "@/components/providers/AuthProvider";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
-import { Manrope } from 'next/font/google'
+import { Manrope } from "next/font/google";
 import "./globals.css";
 
 const manrope = Manrope({
-  subsets: ['latin', 'vietnamese'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-manrope',
-  display: 'swap',
-})
+  subsets: ["latin", "vietnamese"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-manrope",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "ADN Capital - Trợ lý Chứng khoán Việt Nam",
-  description: "Hệ thống AI phân tích chứng khoán Việt Nam chuyên nghiệp. Phân tích kỹ thuật, cơ bản, tín hiệu giao dịch.",
+  description:
+    "Hệ thống AI phân tích chứng khoán Việt Nam chuyên nghiệp. Phân tích kỹ thuật, cơ bản, tín hiệu giao dịch.",
   keywords: ["chứng khoán", "AI", "phân tích kỹ thuật", "Vietnam stock", "ADN AI"],
   icons: {
     icon: "/logo.jpg",
@@ -21,7 +22,6 @@ export const metadata: Metadata = {
   },
 };
 
-// Patch removeChild/insertBefore để tránh crash do browser extension chèn DOM
 const hydrationFixScript = `
 (function(){
   if(typeof Node==='undefined')return;
@@ -38,7 +38,6 @@ const hydrationFixScript = `
 })();
 `;
 
-// Đọc theme từ localStorage và apply ngay lập tức (trước khi React hydrate)
 const themeScript = `
 (function(){
   try{
@@ -53,8 +52,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="vi" suppressHydrationWarning>
       <head>
+        <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-        {/* PWA Meta Tags */}
         <meta name="theme-color" content="#121212" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -63,8 +62,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <script dangerouslySetInnerHTML={{ __html: hydrationFixScript }} />
-        {/* Service Worker Registration */}
-        <script dangerouslySetInnerHTML={{ __html: `
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
           if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {
               navigator.serviceWorker.register('/sw.js').then(function(reg) {
@@ -74,13 +74,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               });
             });
           }
-        `}} />
+        `,
+          }}
+        />
       </head>
       <body className={`${manrope.variable} antialiased min-h-screen text-base leading-relaxed`} suppressHydrationWarning>
         <AuthProvider>
-          <ThemeProvider>
-            {children}
-          </ThemeProvider>
+          <ThemeProvider>{children}</ThemeProvider>
         </AuthProvider>
       </body>
     </html>

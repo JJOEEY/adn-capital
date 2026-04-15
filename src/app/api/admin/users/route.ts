@@ -12,6 +12,15 @@ export async function GET() {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  const now = new Date();
+  await prisma.adminEntitlementGrant.updateMany({
+    where: {
+      status: "ACTIVE",
+      expiresAt: { lte: now },
+    },
+    data: { status: "EXPIRED" },
+  });
+
   const users = await prisma.user.findMany({
     select: {
       id: true,
@@ -28,6 +37,7 @@ export async function GET() {
       receivedEntitlements: {
         where: {
           status: "ACTIVE",
+          expiresAt: { gt: now },
         },
         orderBy: [{ grantedAt: "desc" }, { createdAt: "desc" }],
         take: 1,

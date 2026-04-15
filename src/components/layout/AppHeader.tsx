@@ -11,7 +11,6 @@ export function AppHeader() {
 
   useEffect(() => setMounted(true), []);
 
-  // Map pathname to title/breadcrumb
   const getBreadcrumb = () => {
     if (pathname === "/dashboard") return "Dashboard · Tổng quan thị trường";
     if (pathname === "/art") return "Sản phẩm · Chỉ báo ART";
@@ -52,7 +51,6 @@ export function AppHeader() {
         borderBottom: "1px solid var(--border)",
       }}
     >
-      {/* Left: Title + Breadcrumb */}
       <div className="flex flex-col">
         <h1 className="text-[17px] font-bold leading-tight" style={{ color: "var(--text-primary)" }}>
           {getPageTitle()}
@@ -62,7 +60,6 @@ export function AppHeader() {
         </p>
       </div>
 
-      {/* Right: Actions */}
       <div className="flex items-center gap-2">
         <div
           className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full text-[12px] font-medium"

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentDbUser } from "@/lib/current-user";
-import { resolveEffectiveEntitlement } from "@/lib/entitlements";
+import { reconcileUserEntitlementState } from "@/lib/entitlements";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +22,7 @@ export async function GET() {
   const systemRole = (dbUser as Record<string, unknown>).systemRole as string ?? "USER";
   const isAdmin = systemRole === "ADMIN";
 
-  const entitlement = await resolveEffectiveEntitlement(
+  const entitlement = await reconcileUserEntitlementState(
     dbUser.id,
     dbUser.role,
     dbUser.vipUntil ?? null

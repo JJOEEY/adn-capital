@@ -15,21 +15,51 @@ function normalizeBadge(value: string | null | undefined): EntitlementBadge {
   return "FREE";
 }
 
+function normalizeDate(value: Date | null): Date | null {
+  if (!value) return null;
+  return Number.isFinite(value.getTime()) ? value : null;
+}
+
 function legacyEntitlement(role: string, vipUntil: Date | null): EffectiveEntitlement {
-  if (!vipUntil || vipUntil.getTime() <= Date.now()) {
+  const safeUntil = normalizeDate(vipUntil);
+  if (!safeUntil || safeUntil.getTime() <= Date.now()) {
     return { badge: "FREE", vipUntil: null, vipTier: null, source: "legacy" };
   }
   const tier = role === "VIP" ? "VIP" : null;
   return {
     badge: tier ? "VIP" : "FREE",
-    vipUntil: tier ? vipUntil : null,
+    vipUntil: tier ? safeUntil : null,
     vipTier: tier,
     source: "legacy",
   };
 }
 
-export async function resolveEffectiveEntitlement(userId: string, role: string, vipUntil: Date | null): Promise<EffectiveEntitlement> {
+async function markExpiredGrants(userId: string, now: Date) {
+  await prisma.adminEntitlementGrant.updateMany({
+    where: {
+      targetUserId: userId,
+      status: "ACTIVE",
+      expiresAt: { lte: now },
+    },
+    data: {
+      status: "EXPIRED",
+    },
+  });
+}
+
+function isSameDate(a: Date | null, b: Date | null) {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  return a.getTime() === b.getTime();
+}
+
+export async function resolveEffectiveEntitlement(
+  userId: string,
+  role: string,
+  vipUntil: Date | null
+): Promise<EffectiveEntitlement> {
   const now = new Date();
+  await markExpiredGrants(userId, now);
 
   const latestGrant = await prisma.adminEntitlementGrant.findFirst({
     where: {
@@ -61,3 +91,24 @@ export async function resolveEffectiveEntitlement(userId: string, role: string, 
   };
 }
 
+export async function reconcileUserEntitlementState(
+  userId: string,
+  role: string,
+  vipUntil: Date | null
+): Promise<EffectiveEntitlement> {
+  const entitlement = await resolveEffectiveEntitlement(userId, role, vipUntil);
+  const targetRole = entitlement.badge === "FREE" ? "FREE" : "VIP";
+  const targetVipUntil = entitlement.vipUntil;
+
+  if (role !== targetRole || !isSameDate(normalizeDate(vipUntil), targetVipUntil)) {
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        role: targetRole,
+        vipUntil: targetVipUntil,
+      },
+    });
+  }
+
+  return entitlement;
+}

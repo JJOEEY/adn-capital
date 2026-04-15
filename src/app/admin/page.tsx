@@ -23,9 +23,9 @@ import {
   BookOpen,
 } from "lucide-react";
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
- *  ADMIN CRM â€” Quáº£n lÃ½ Ä‘Äƒng kÃ½ + Quáº£n lÃ½ Users/DNSE
- * â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ═══════════════════════════════════════════════════════════════════════════
+ *  ADMIN CRM — Quản lý đăng ký + Quản lý Users/DNSE
+ * ═══════════════════════════════════════════════════════════════════════════ */
 
 interface Registration {
   id: string;
@@ -80,6 +80,18 @@ interface MarginRow {
   createdAt: string;
 }
 
+interface CronStatusPayload {
+  isStale: boolean;
+  staleThresholdMinutes: number;
+  scanner: {
+    lastRun: { at: string; status: string; message: string | null } | null;
+    lastSuccess: { at: string; message: string | null } | null;
+    lastError: { at: string; message: string | null } | null;
+    minutesSinceLastRun: number | null;
+  };
+  lastSignal: { ticker: string; type: string; createdAt: string } | null;
+}
+
 export default function AdminPage() {
   return (
     <Suspense fallback={
@@ -128,8 +140,8 @@ function AdminPageInner() {
           >
             <ShieldX className="w-8 h-8" style={{ color: "var(--danger)" }} />
           </div>
-          <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>KhÃ´ng cÃ³ quyá»n truy cáº­p</h2>
-          <p className="text-sm" style={{ color: "var(--text-muted)" }}>Trang nÃ y chá»‰ dÃ nh cho Admin.</p>
+          <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>Không có quyền truy cập</h2>
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>Trang này chỉ dành cho Admin.</p>
         </div>
       </MainLayout>
     );
@@ -138,7 +150,7 @@ function AdminPageInner() {
   return (
     <MainLayout>
       <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
-        {/* â”€â”€ Tab Navigation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* ── Tab Navigation ──────────────────────────────────────── */}
         <div className="flex items-center gap-1 p-1 rounded-xl border w-fit flex-wrap" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
           <button
             onClick={() => setTab("users")}
@@ -160,7 +172,7 @@ function AdminPageInner() {
             }
           >
             <CreditCard className="w-3.5 h-3.5" />
-            ÄÄƒng KÃ½ KhÃ³a Há»c
+            Đăng Ký Khóa Học
           </button>
           <button
             onClick={() => setTab("margin")}
@@ -171,7 +183,7 @@ function AdminPageInner() {
             }
           >
             <Crown className="w-3.5 h-3.5" />
-            TÆ° Váº¥n Margin
+            Tư Vấn Margin
           </button>
           <button
             onClick={() => setTab("journals")}
@@ -182,7 +194,7 @@ function AdminPageInner() {
             }
           >
             <BookOpen className="w-3.5 h-3.5" />
-            Nháº­t KÃ½ KH
+            Nhật Ký KH
           </button>
         </div>
 
@@ -195,9 +207,9 @@ function AdminPageInner() {
   );
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ═══════════════════════════════════════════════════════════════════════════
  *  TAB 1: USERS & DNSE MANAGEMENT
- * â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+ * ═══════════════════════════════════════════════════════════════════════════ */
 function UsersTab() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -207,6 +219,8 @@ function UsersTab() {
   const [vipMenuUser, setVipMenuUser] = useState<string | null>(null);
   const [customDays, setCustomDays] = useState("");
   const [customBadge, setCustomBadge] = useState<"VIP" | "PREMIUM">("VIP");
+  const [cronStatus, setCronStatus] = useState<CronStatusPayload | null>(null);
+  const [cronLoading, setCronLoading] = useState(true);
   const [confirmAction, setConfirmAction] = useState<{
     userId: string;
     email: string;
@@ -224,9 +238,22 @@ function UsersTab() {
       if (!res.ok) throw new Error();
       setUsers(await res.json());
     } catch {
-      setError("KhÃ´ng thá»ƒ táº£i danh sÃ¡ch users.");
+      setError("Không thể tải danh sách users.");
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  const fetchCronStatus = useCallback(async () => {
+    setCronLoading(true);
+    try {
+      const res = await fetch("/api/admin/system/cron-status");
+      if (!res.ok) throw new Error();
+      setCronStatus(await res.json());
+    } catch {
+      setCronStatus(null);
+    } finally {
+      setCronLoading(false);
     }
   }, []);
 
@@ -234,7 +261,11 @@ function UsersTab() {
     fetchUsers();
   }, [fetchUsers]);
 
-  /* â”€â”€ Actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  useEffect(() => {
+    fetchCronStatus();
+  }, [fetchCronStatus]);
+
+  /* ── Actions ────────────────────────────────────────────────── */
   const handleVerifyDNSE = async (userId: string) => {
     const res = await fetch(`/api/admin/users/${userId}`, {
       method: "PATCH",
@@ -248,7 +279,7 @@ function UsersTab() {
   };
 
   const handleRejectDNSE = async (userId: string) => {
-    if (!confirm("XÃ¡c nháº­n tá»« chá»‘i vÃ  xÃ³a ID DNSE nÃ y?")) return;
+    if (!confirm("Xác nhận từ chối và xóa ID DNSE này?")) return;
     const res = await fetch(`/api/admin/users/${userId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -287,7 +318,7 @@ function UsersTab() {
     }
   };
 
-  /* â”€â”€ Filter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── Filter ─────────────────────────────────────────────────── */
   const filtered = users.filter((u) => {
     const matchSearch =
       (u.email?.toLowerCase() ?? "").includes(search.toLowerCase()) ||
@@ -313,10 +344,10 @@ function UsersTab() {
             <Users className="w-5 h-5" style={{ color: "#16a34a" }} />
           </div>
           <div>
-            <h1 className="text-xl font-black" style={{ color: "var(--text-primary)" }}>Quáº£n LÃ½ Users & DNSE</h1>
+            <h1 className="text-xl font-black" style={{ color: "var(--text-primary)" }}>Quản Lý Users & DNSE</h1>
             <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-              {users.length} users Â· {pendingCount > 0 && (
-                <span style={{ color: "#f59e0b" }}>{pendingCount} chá» duyá»‡t DNSE</span>
+              {users.length} users · {pendingCount > 0 && (
+                <span style={{ color: "#f59e0b" }}>{pendingCount} chờ duyệt DNSE</span>
               )}
             </p>
           </div>
@@ -342,7 +373,7 @@ function UsersTab() {
                   : { color: "var(--text-muted)" }
                 }
               >
-                {f === "all" ? "Táº¥t cáº£" : f === "pending" ? `Chá» duyá»‡t (${pendingCount})` : "ÄÃ£ xÃ¡c minh"}
+                {f === "all" ? "Tất cả" : f === "pending" ? `Chờ duyệt (${pendingCount})` : "Đã xác minh"}
               </button>
             ))}
           </div>
@@ -351,7 +382,7 @@ function UsersTab() {
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: "var(--text-muted)" }} />
             <input
               type="text"
-              placeholder="TÃ¬m email / tÃªn / DNSE ID..."
+              placeholder="Tìm email / tên / DNSE ID..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-8 pr-3 py-1.5 rounded-lg text-xs outline-none w-56"
@@ -359,12 +390,69 @@ function UsersTab() {
             />
           </div>
           <button
-            onClick={fetchUsers}
+            onClick={() => {
+              fetchUsers();
+              fetchCronStatus();
+            }}
             className="p-2 rounded-lg transition-colors cursor-pointer border"
             style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
           >
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="rounded-xl border p-3" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+          <p className="text-[11px] uppercase tracking-wider font-bold mb-1" style={{ color: "var(--text-muted)" }}>
+            Trạng thái Scanner
+          </p>
+          {cronLoading ? (
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>Đang tải...</p>
+          ) : cronStatus ? (
+            <p
+              className="text-sm font-bold"
+              style={{ color: cronStatus.isStale ? "var(--danger)" : "#16a34a" }}
+            >
+              {cronStatus.isStale ? "STALE" : "RUNNING"}
+            </p>
+          ) : (
+            <p className="text-xs" style={{ color: "var(--danger)" }}>Không lấy được trạng thái</p>
+          )}
+        </div>
+
+        <div className="rounded-xl border p-3" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+          <p className="text-[11px] uppercase tracking-wider font-bold mb-1" style={{ color: "var(--text-muted)" }}>
+            Lần quét gần nhất
+          </p>
+          <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+            {cronStatus?.scanner.lastRun?.at
+              ? new Date(cronStatus.scanner.lastRun.at).toLocaleString("vi-VN")
+              : "—"}
+          </p>
+          {cronStatus?.scanner.minutesSinceLastRun != null && (
+            <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
+              {cronStatus.scanner.minutesSinceLastRun} phút trước
+            </p>
+          )}
+        </div>
+
+        <div className="rounded-xl border p-3" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+          <p className="text-[11px] uppercase tracking-wider font-bold mb-1" style={{ color: "var(--text-muted)" }}>
+            Tín hiệu mới nhất
+          </p>
+          {cronStatus?.lastSignal ? (
+            <>
+              <p className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>
+                {cronStatus.lastSignal.ticker} · {cronStatus.lastSignal.type}
+              </p>
+              <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
+                {new Date(cronStatus.lastSignal.createdAt).toLocaleString("vi-VN")}
+              </p>
+            </>
+          ) : (
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>Chưa có dữ liệu</p>
+          )}
         </div>
       </div>
 
@@ -385,16 +473,16 @@ function UsersTab() {
             <tr className="border-b text-[12px] uppercase tracking-wider" style={{ borderColor: "var(--border)" }}>
               <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>#</th>
               <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>Email</th>
-              <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>TÃªn</th>
+              <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>Tên</th>
               <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>Role</th>
-              <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>Quyá»n</th>
-              <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>Cáº¥p quyá»n</th>
-              <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>Thá»i gian</th>
-              <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>Cáº¥p bá»Ÿi</th>
+              <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>Quyền</th>
+              <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>Cấp quyền</th>
+              <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>Thời gian</th>
+              <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>Cấp bởi</th>
               <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>DNSE ID</th>
               <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>DNSE Status</th>
-              <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>NgÃ y ÄK</th>
-              <th className="px-4 py-3 font-bold text-right" style={{ color: "var(--text-muted)" }}>Thao tÃ¡c</th>
+              <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>Ngày ĐK</th>
+              <th className="px-4 py-3 font-bold text-right" style={{ color: "var(--text-muted)" }}>Thao tác</th>
             </tr>
           </thead>
           <tbody>
@@ -407,7 +495,7 @@ function UsersTab() {
             ) : filtered.length === 0 ? (
               <tr>
                 <td colSpan={12} className="px-4 py-12 text-center text-xs" style={{ color: "var(--text-muted)" }}>
-                  KhÃ´ng cÃ³ user nÃ o.
+                  Không có user nào.
                 </td>
               </tr>
             ) : (
@@ -427,7 +515,7 @@ function UsersTab() {
                   </td>
 
                   <td className="px-4 py-3">
-                    <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{user.name ?? "â€”"}</span>
+                    <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{user.name ?? "—"}</span>
                   </td>
 
                   <td className="px-4 py-3">
@@ -481,22 +569,22 @@ function UsersTab() {
                         {user.dnseId}
                       </span>
                     ) : (
-                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>â€”</span>
+                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>—</span>
                     )}
                   </td>
 
                   <td className="px-4 py-3">
                     {!user.dnseId ? (
-                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>â€”</span>
+                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>—</span>
                     ) : user.dnseVerified ? (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[12px] font-bold" style={{ background: "rgba(22,163,74,0.10)", color: "#16a34a", borderColor: "rgba(22,163,74,0.20)" }}>
                         <ShieldCheck className="w-3 h-3" />
-                        XÃ¡c minh
+                        Xác minh
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[12px] font-bold animate-pulse" style={{ background: "rgba(245,158,11,0.10)", color: "#f59e0b", borderColor: "rgba(245,158,11,0.20)" }}>
                         <Clock className="w-3 h-3" />
-                        Chá» duyá»‡t
+                        Chờ duyệt
                       </span>
                     )}
                   </td>
@@ -507,14 +595,14 @@ function UsersTab() {
 
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
-                      {/* Duyá»‡t DNSE */}
+                      {/* Duyệt DNSE */}
                       {user.dnseId && !user.dnseVerified && (
                         <>
                           <button
                             onClick={() => handleVerifyDNSE(user.id)}
                             className="p-1.5 rounded-md transition-colors cursor-pointer"
                             style={{ background: "rgba(22,163,74,0.10)", color: "#16a34a" }}
-                            title="Duyá»‡t DNSE"
+                            title="Duyệt DNSE"
                           >
                             <CheckCircle2 className="w-3.5 h-3.5" />
                           </button>
@@ -522,14 +610,14 @@ function UsersTab() {
                             onClick={() => handleRejectDNSE(user.id)}
                             className="p-1.5 rounded-md transition-colors cursor-pointer"
                             style={{ background: "rgba(192,57,43,0.10)", color: "var(--danger)" }}
-                            title="Tá»« chá»‘i DNSE"
+                            title="Từ chối DNSE"
                           >
                             <X className="w-3.5 h-3.5" />
                           </button>
                         </>
                       )}
 
-                      {/* Cáº¥p VIP / Premium */}
+                      {/* Cấp VIP / Premium */}
                       <div className="relative">
                         <button
                           onClick={() => setVipMenuUser(vipMenuUser === user.id ? null : user.id)}
@@ -538,7 +626,7 @@ function UsersTab() {
                             ? { background: "rgba(168,85,247,0.10)", color: "#a855f7" }
                             : { color: "var(--text-muted)" }
                           }
-                          title="Cáº¥p VIP / Premium"
+                          title="Cấp VIP / Premium"
                         >
                           <Crown className="w-3.5 h-3.5" />
                         </button>
@@ -574,7 +662,7 @@ function UsersTab() {
                                   type="number"
                                   value={customDays}
                                   onChange={(e) => setCustomDays(e.target.value)}
-                                  placeholder="Sá»‘ ngÃ y..."
+                                  placeholder="Số ngày..."
                                   min={1}
                                   max={3650}
                                   className="flex-1 px-2 py-1 rounded-md text-xs outline-none w-20"
@@ -619,7 +707,7 @@ function UsersTab() {
                                     style={{ color: "var(--danger)" }}
                                   >
                                     <ShieldX className="w-3 h-3" />
-                                    Háº¡ vá» FREE
+                                    Hạ về FREE
                                   </button>
                                 </div>
                               </>
@@ -628,13 +716,13 @@ function UsersTab() {
                         )}
                       </div>
 
-                      {/* Cáº¥p ADMIN (systemRole) */}
+                      {/* Cấp ADMIN (systemRole) */}
                       <button
                         onClick={() =>
                           setConfirmAction(
                             user.systemRole === "ADMIN"
-                              ? { userId: user.id, email: user.email, systemRole: "USER", label: "Thu há»“i quyá»n ADMIN â†’ USER" }
-                              : { userId: user.id, email: user.email, systemRole: "ADMIN", label: "Cáº¥p quyá»n ADMIN" }
+                              ? { userId: user.id, email: user.email, systemRole: "USER", label: "Thu hồi quyền ADMIN → USER" }
+                              : { userId: user.id, email: user.email, systemRole: "ADMIN", label: "Cấp quyền ADMIN" }
                           )
                         }
                         className="p-1.5 rounded-md transition-colors cursor-pointer"
@@ -642,7 +730,7 @@ function UsersTab() {
                           ? { background: "rgba(22,163,74,0.10)", color: "#16a34a" }
                           : { color: "var(--text-muted)" }
                         }
-                        title={user.systemRole === "ADMIN" ? "Thu há»“i ADMIN" : "Cáº¥p quyá»n ADMIN"}
+                        title={user.systemRole === "ADMIN" ? "Thu hồi ADMIN" : "Cấp quyền ADMIN"}
                       >
                         <ShieldCheck className="w-3.5 h-3.5" />
                       </button>
@@ -655,7 +743,7 @@ function UsersTab() {
         </table>
       </div>
 
-      {/* â”€â”€ Confirmation Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Confirmation Modal ──────────────────────────────────── */}
       {confirmAction && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center" style={{ background: "rgba(0,0,0,0.60)" }}>
           <div className="border rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4 space-y-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
@@ -680,8 +768,8 @@ function UsersTab() {
                 )}
               </div>
               <div>
-                <h3 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>XÃ¡c nháº­n thay Ä‘á»•i</h3>
-                <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>HÃ nh Ä‘á»™ng khÃ´ng thá»ƒ hoÃ n tÃ¡c tá»± Ä‘á»™ng</p>
+                <h3 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>Xác nhận thay đổi</h3>
+                <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>Hành động không thể hoàn tác tự động</p>
               </div>
             </div>
             <div className="rounded-xl p-3 space-y-1.5 text-xs" style={{ background: "var(--surface-2)" }}>
@@ -689,7 +777,7 @@ function UsersTab() {
                 User: <span className="font-mono" style={{ color: "var(--text-primary)" }}>{confirmAction.email}</span>
               </p>
               <p style={{ color: "var(--text-muted)" }}>
-                Thao tÃ¡c:{" "}
+                Thao tác:{" "}
                 <span className="font-bold" style={{
                   color: confirmAction.badge === "FREE" || confirmAction.systemRole === "USER" ? "var(--danger)" : confirmAction.systemRole === "ADMIN" ? "#16a34a" : "#a855f7"
                 }}>
@@ -711,7 +799,7 @@ function UsersTab() {
                 className="flex-1 px-4 py-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer"
                 style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
               >
-                Há»§y
+                Hủy
               </button>
               <button
                 onClick={() => {
@@ -734,7 +822,7 @@ function UsersTab() {
                   color: "#fff",
                 }}
               >
-                XÃ¡c nháº­n
+                Xác nhận
               </button>
             </div>
           </div>
@@ -744,9 +832,9 @@ function UsersTab() {
   );
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
- *  TAB 2: REGISTRATIONS (KhÃ³a há»c) â€” giá»¯ nguyÃªn logic cÅ©
- * â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ═══════════════════════════════════════════════════════════════════════════
+ *  TAB 2: REGISTRATIONS (Khóa học) — giữ nguyên logic cũ
+ * ═══════════════════════════════════════════════════════════════════════════ */
 function RegistrationsTab() {
   const { isAdmin } = useCurrentDbUser();
   const { status } = useSession();
@@ -764,14 +852,14 @@ function RegistrationsTab() {
     try {
       const res = await fetch("/api/admin/registrations");
       if (res.status === 403) {
-        setError("Báº¡n khÃ´ng cÃ³ quyá»n truy cáº­p.");
+        setError("Bạn không có quyền truy cập.");
         setRows([]);
         return;
       }
       if (!res.ok) throw new Error();
       setRows(await res.json());
     } catch {
-      setError("KhÃ´ng thá»ƒ táº£i dá»¯ liá»‡u.");
+      setError("Không thể tải dữ liệu.");
     } finally {
       setLoading(false);
     }
@@ -783,7 +871,7 @@ function RegistrationsTab() {
   }, [status, isAdmin, fetchData]);
 
   const handleDelete = async (id: string) => {
-    if (!confirm("XÃ¡c nháº­n xÃ³a Ä‘Äƒng kÃ½ nÃ y?")) return;
+    if (!confirm("Xác nhận xóa đăng ký này?")) return;
     const res = await fetch(`/api/admin/registrations/${id}`, { method: "DELETE" });
     if (res.ok) setRows((r) => r.filter((x) => x.id !== id));
   };
@@ -844,8 +932,8 @@ function RegistrationsTab() {
             <CreditCard className="w-5 h-5" style={{ color: "#a855f7" }} />
           </div>
           <div>
-            <h1 className="text-xl font-black" style={{ color: "var(--text-primary)" }}>Quáº£n LÃ½ ÄÄƒng KÃ½ KhÃ³a Há»c</h1>
-            <p className="text-xs" style={{ color: "var(--text-muted)" }}>{rows.length} báº£n ghi</p>
+            <h1 className="text-xl font-black" style={{ color: "var(--text-primary)" }}>Quản Lý Đăng Ký Khóa Học</h1>
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>{rows.length} bản ghi</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -853,7 +941,7 @@ function RegistrationsTab() {
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: "var(--text-muted)" }} />
             <input
               type="text"
-              placeholder="TÃ¬m tÃªn / Zalo..."
+              placeholder="Tìm tên / Zalo..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-8 pr-3 py-1.5 rounded-lg text-xs outline-none w-48"
@@ -881,12 +969,12 @@ function RegistrationsTab() {
           <thead>
             <tr className="border-b text-[12px] uppercase tracking-wider" style={{ borderColor: "var(--border)" }}>
               <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>#</th>
-              <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>TÃªn</th>
+              <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>Tên</th>
               <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>Zalo</th>
-              <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>Tráº¡ng ThÃ¡i</th>
+              <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>Trạng Thái</th>
               <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>VIP</th>
-              <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>NgÃ y ÄK</th>
-              <th className="px-4 py-3 font-bold text-right" style={{ color: "var(--text-muted)" }}>Thao TÃ¡c</th>
+              <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>Ngày ĐK</th>
+              <th className="px-4 py-3 font-bold text-right" style={{ color: "var(--text-muted)" }}>Thao Tác</th>
             </tr>
           </thead>
           <tbody>
@@ -899,7 +987,7 @@ function RegistrationsTab() {
             ) : filtered.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-4 py-12 text-center text-xs" style={{ color: "var(--text-muted)" }}>
-                  KhÃ´ng cÃ³ báº£n ghi nÃ o.
+                  Không có bản ghi nào.
                 </td>
               </tr>
             ) : (
@@ -923,12 +1011,12 @@ function RegistrationsTab() {
                   <td className="px-4 py-3">
                     {editId === row.id ? (
                       <select value={editData.status ?? ""} onChange={(e) => setEditData({ ...editData, status: e.target.value })} className="px-2 py-1 rounded text-xs" style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-primary)" }}>
-                        <option value="CHUA_MO_TK">ChÆ°a má»Ÿ TK</option>
-                        <option value="DA_MO_TK">ÄÃ£ má»Ÿ TK</option>
+                        <option value="CHUA_MO_TK">Chưa mở TK</option>
+                        <option value="DA_MO_TK">Đã mở TK</option>
                       </select>
                     ) : (
                       <span className="inline-block px-2 py-0.5 rounded-full border text-[12px] font-bold" style={statusBadge(row.status)}>
-                        {row.status === "DA_MO_TK" ? "ÄÃ£ má»Ÿ TK" : "ChÆ°a má»Ÿ TK"}
+                        {row.status === "DA_MO_TK" ? "Đã mở TK" : "Chưa mở TK"}
                       </span>
                     )}
                   </td>
@@ -948,16 +1036,16 @@ function RegistrationsTab() {
                     <div className="flex items-center justify-end gap-1">
                       {editId === row.id ? (
                         <>
-                          <button onClick={saveEdit} className="p-1.5 rounded-md transition-colors cursor-pointer" style={{ background: "rgba(22,163,74,0.10)", color: "#16a34a" }} title="LÆ°u"><Save className="w-3.5 h-3.5" /></button>
-                          <button onClick={cancelEdit} className="p-1.5 rounded-md transition-colors cursor-pointer" style={{ background: "rgba(100,116,139,0.10)", color: "var(--text-muted)" }} title="Há»§y"><X className="w-3.5 h-3.5" /></button>
+                          <button onClick={saveEdit} className="p-1.5 rounded-md transition-colors cursor-pointer" style={{ background: "rgba(22,163,74,0.10)", color: "#16a34a" }} title="Lưu"><Save className="w-3.5 h-3.5" /></button>
+                          <button onClick={cancelEdit} className="p-1.5 rounded-md transition-colors cursor-pointer" style={{ background: "rgba(100,116,139,0.10)", color: "var(--text-muted)" }} title="Hủy"><X className="w-3.5 h-3.5" /></button>
                         </>
                       ) : (
                         <>
-                          <button onClick={() => startEdit(row)} className="p-1.5 rounded-md transition-colors cursor-pointer" style={{ color: "var(--text-muted)" }} title="Sá»­a"><Edit3 className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => startEdit(row)} className="p-1.5 rounded-md transition-colors cursor-pointer" style={{ color: "var(--text-muted)" }} title="Sửa"><Edit3 className="w-3.5 h-3.5" /></button>
                           {row.status !== "DA_MO_TK" && (
-                            <button onClick={() => handleApprove(row.id)} className="p-1.5 rounded-md transition-colors cursor-pointer" style={{ color: "var(--text-muted)" }} title="Duyá»‡t"><CheckCircle2 className="w-3.5 h-3.5" /></button>
+                            <button onClick={() => handleApprove(row.id)} className="p-1.5 rounded-md transition-colors cursor-pointer" style={{ color: "var(--text-muted)" }} title="Duyệt"><CheckCircle2 className="w-3.5 h-3.5" /></button>
                           )}
-                          <button onClick={() => handleDelete(row.id)} className="p-1.5 rounded-md transition-colors cursor-pointer" style={{ color: "var(--text-muted)" }} title="XÃ³a"><Trash2 className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => handleDelete(row.id)} className="p-1.5 rounded-md transition-colors cursor-pointer" style={{ color: "var(--text-muted)" }} title="Xóa"><Trash2 className="w-3.5 h-3.5" /></button>
                         </>
                       )}
                     </div>
@@ -972,9 +1060,9 @@ function RegistrationsTab() {
   );
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
- *  TAB 3: TÆ¯ Váº¤N MARGIN
- * â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ═══════════════════════════════════════════════════════════════════════════
+ *  TAB 3: TƯ VẤN MARGIN
+ * ═══════════════════════════════════════════════════════════════════════════ */
 function MarginTab() {
   const [rows, setRows] = useState<MarginRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -990,7 +1078,7 @@ function MarginTab() {
       if (!res.ok) throw new Error();
       setRows(await res.json());
     } catch {
-      setError("KhÃ´ng thá»ƒ táº£i danh sÃ¡ch tÆ° váº¥n margin.");
+      setError("Không thể tải danh sách tư vấn margin.");
     } finally {
       setLoading(false);
     }
@@ -1020,7 +1108,7 @@ function MarginTab() {
     : { color: "#16a34a", background: "rgba(22,163,74,0.10)", borderColor: "rgba(22,163,74,0.20)" };
 
   const statusLabel = (s: string) =>
-    s === "NEW" ? "Má»›i" : s === "CONTACTED" ? "ÄÃ£ liÃªn há»‡" : "HoÃ n thÃ nh";
+    s === "NEW" ? "Mới" : s === "CONTACTED" ? "Đã liên hệ" : "Hoàn thành";
 
   if (loading) return (
     <div className="flex items-center justify-center py-16">
@@ -1033,20 +1121,20 @@ function MarginTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-black" style={{ color: "var(--text-primary)" }}>TÆ° Váº¥n Margin</h2>
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>{rows.length} yÃªu cáº§u</p>
+          <h2 className="text-lg font-black" style={{ color: "var(--text-primary)" }}>Tư Vấn Margin</h2>
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>{rows.length} yêu cầu</p>
         </div>
         <button
           onClick={fetchRows}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs transition-all cursor-pointer"
           style={{ background: "var(--surface-2)", borderColor: "var(--border)", color: "var(--text-secondary)" }}
         >
-          <RefreshCw className="w-3 h-3" /> LÃ m má»›i
+          <RefreshCw className="w-3 h-3" /> Làm mới
         </button>
       </div>
 
       {rows.length === 0 ? (
-        <div className="text-center py-16 text-sm" style={{ color: "var(--text-muted)" }}>ChÆ°a cÃ³ yÃªu cáº§u nÃ o.</div>
+        <div className="text-center py-16 text-sm" style={{ color: "var(--text-muted)" }}>Chưa có yêu cầu nào.</div>
       ) : (
         <div className="space-y-3">
           {rows.map((row) => (
@@ -1058,7 +1146,7 @@ function MarginTab() {
                   <div className="flex items-center gap-3 mt-0.5 text-xs" style={{ color: "var(--text-muted)" }}>
                     <span>{row.phone}</span>
                     {row.email && <span>{row.email}</span>}
-                    {row.company && <span>Â· {row.company}</span>}
+                    {row.company && <span>· {row.company}</span>}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1077,15 +1165,15 @@ function MarginTab() {
               {/* Details */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                 <div>
-                  <p className="mb-0.5" style={{ color: "var(--text-muted)" }}>MÃ£ CK</p>
+                  <p className="mb-0.5" style={{ color: "var(--text-muted)" }}>Mã CK</p>
                   <p className="font-mono font-medium" style={{ color: "var(--text-secondary)" }}>{row.tickers}</p>
                 </div>
                 <div>
-                  <p className="mb-0.5" style={{ color: "var(--text-muted)" }}>Tá»‰ lá»‡ kÃ½ quá»¹</p>
+                  <p className="mb-0.5" style={{ color: "var(--text-muted)" }}>Tỉ lệ ký quỹ</p>
                   <p style={{ color: "var(--text-secondary)" }}>{row.marginRatio}</p>
                 </div>
                 <div>
-                  <p className="mb-0.5" style={{ color: "var(--text-muted)" }}>Háº¡n má»©c vay</p>
+                  <p className="mb-0.5" style={{ color: "var(--text-muted)" }}>Hạn mức vay</p>
                   <p style={{ color: "var(--text-secondary)" }}>{row.loanAmount}</p>
                 </div>
               </div>
@@ -1100,15 +1188,15 @@ function MarginTab() {
                   className="px-2.5 py-1.5 rounded-lg text-xs focus:outline-none cursor-pointer disabled:opacity-50"
                   style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
                 >
-                  <option value="NEW">Má»›i</option>
-                  <option value="CONTACTED">ÄÃ£ liÃªn há»‡</option>
-                  <option value="DONE">HoÃ n thÃ nh</option>
+                  <option value="NEW">Mới</option>
+                  <option value="CONTACTED">Đã liên hệ</option>
+                  <option value="DONE">Hoàn thành</option>
                 </select>
 
                 {/* Note */}
                 <input
                   type="text"
-                  placeholder="Ghi chÃº..."
+                  placeholder="Ghi chú..."
                   value={editNote[row.id] ?? row.note ?? ""}
                   onChange={(e) => setEditNote((prev) => ({ ...prev, [row.id]: e.target.value }))}
                   className="flex-1 min-w-[160px] px-2.5 py-1.5 rounded-lg text-xs focus:outline-none"
@@ -1124,7 +1212,7 @@ function MarginTab() {
                   style={{ background: "rgba(22,163,74,0.10)", borderColor: "rgba(22,163,74,0.20)", color: "#16a34a" }}
                 >
                   {saving === row.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-                  LÆ°u
+                  Lưu
                 </button>
               </div>
             </div>
@@ -1136,9 +1224,9 @@ function MarginTab() {
 }
 
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
- *  TAB 4: NHáº¬T KÃ GIAO Dá»ŠCH KHÃCH HÃ€NG
- * â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ═══════════════════════════════════════════════════════════════════════════
+ *  TAB 4: NHẬT KÝ GIAO DỊCH KHÁCH HÀNG
+ * ═══════════════════════════════════════════════════════════════════════════ */
 
 interface JournalEntry {
   id: string;
@@ -1192,7 +1280,7 @@ function JournalsTab() {
   const totalPages = Math.ceil(total / 30);
 
   const fmtDate = (d: string | null) => {
-    if (!d) return "â€”";
+    if (!d) return "—";
     return new Date(d).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
   };
 
@@ -1203,10 +1291,10 @@ function JournalsTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>
-          Nháº­t kÃ½ giao dá»‹ch khÃ¡ch hÃ ng
+          Nhật ký giao dịch khách hàng
         </h2>
         <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-          {total} báº£n ghi
+          {total} bản ghi
         </span>
       </div>
 
@@ -1218,7 +1306,7 @@ function JournalsTab() {
           className="px-3 py-1.5 rounded-lg border text-xs outline-none"
           style={{ background: "var(--surface-2)", borderColor: "var(--border)", color: "var(--text-primary)" }}
         >
-          <option value="">Táº¥t cáº£ khÃ¡ch hÃ ng</option>
+          <option value="">Tất cả khách hàng</option>
           {users.map((u) => (
             <option key={u.id} value={u.id}>{u.name || u.email}</option>
           ))}
@@ -1227,7 +1315,7 @@ function JournalsTab() {
           <Search className="w-3.5 h-3.5" style={{ color: "var(--text-muted)" }} />
           <input
             type="text"
-            placeholder="Lá»c mÃ£ CK..."
+            placeholder="Lọc mã CK..."
             value={filterTicker}
             onChange={(e) => { setFilterTicker(e.target.value.toUpperCase()); setPage(1); }}
             className="px-3 py-1.5 rounded-lg border text-xs w-32 outline-none"
@@ -1240,7 +1328,7 @@ function JournalsTab() {
           style={{ background: "rgba(59,130,246,0.10)", borderColor: "rgba(59,130,246,0.20)", color: "#3b82f6" }}
         >
           <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
-          LÃ m má»›i
+          Làm mới
         </button>
       </div>
 
@@ -1251,22 +1339,22 @@ function JournalsTab() {
         </div>
       ) : entries.length === 0 ? (
         <p className="text-sm text-center py-12" style={{ color: "var(--text-muted)" }}>
-          KhÃ´ng cÃ³ nháº­t kÃ½ nÃ o.
+          Không có nhật ký nào.
         </p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b" style={{ borderColor: "var(--border)" }}>
-                <th className="text-left py-2 px-3 font-bold" style={{ color: "var(--text-muted)" }}>NgÃ y</th>
-                <th className="text-left py-2 px-3 font-bold" style={{ color: "var(--text-muted)" }}>KhÃ¡ch hÃ ng</th>
-                <th className="text-left py-2 px-3 font-bold" style={{ color: "var(--text-muted)" }}>MÃ£ CK</th>
-                <th className="text-center py-2 px-3 font-bold" style={{ color: "var(--text-muted)" }}>Lá»‡nh</th>
-                <th className="text-right py-2 px-3 font-bold" style={{ color: "var(--text-muted)" }}>GiÃ¡</th>
+                <th className="text-left py-2 px-3 font-bold" style={{ color: "var(--text-muted)" }}>Ngày</th>
+                <th className="text-left py-2 px-3 font-bold" style={{ color: "var(--text-muted)" }}>Khách hàng</th>
+                <th className="text-left py-2 px-3 font-bold" style={{ color: "var(--text-muted)" }}>Mã CK</th>
+                <th className="text-center py-2 px-3 font-bold" style={{ color: "var(--text-muted)" }}>Lệnh</th>
+                <th className="text-right py-2 px-3 font-bold" style={{ color: "var(--text-muted)" }}>Giá</th>
                 <th className="text-right py-2 px-3 font-bold" style={{ color: "var(--text-muted)" }}>KL</th>
-                <th className="text-right py-2 px-3 font-bold" style={{ color: "var(--text-muted)" }}>GiÃ¡ trá»‹</th>
-                <th className="text-left py-2 px-3 font-bold" style={{ color: "var(--text-muted)" }}>TÃ¢m lÃ½</th>
-                <th className="text-left py-2 px-3 font-bold" style={{ color: "var(--text-muted)" }}>LÃ½ do</th>
+                <th className="text-right py-2 px-3 font-bold" style={{ color: "var(--text-muted)" }}>Giá trị</th>
+                <th className="text-left py-2 px-3 font-bold" style={{ color: "var(--text-muted)" }}>Tâm lý</th>
+                <th className="text-left py-2 px-3 font-bold" style={{ color: "var(--text-muted)" }}>Lý do</th>
               </tr>
             </thead>
             <tbody>
@@ -1275,7 +1363,7 @@ function JournalsTab() {
                   <td className="py-2 px-3" style={{ color: "var(--text-secondary)" }}>{fmtDate(e.tradeDate || e.createdAt)}</td>
                   <td className="py-2 px-3">
                     <div>
-                      <span className="font-medium" style={{ color: "var(--text-primary)" }}>{e.user.name || "â€”"}</span>
+                      <span className="font-medium" style={{ color: "var(--text-primary)" }}>{e.user.name || "—"}</span>
                       <span className="block text-[11px]" style={{ color: "var(--text-muted)" }}>{e.user.email}</span>
                     </div>
                   </td>
@@ -1285,7 +1373,7 @@ function JournalsTab() {
                       background: e.action === "BUY" ? "rgba(22,163,74,0.15)" : "rgba(192,57,43,0.15)",
                       color: e.action === "BUY" ? "#16a34a" : "var(--danger)",
                     }}>
-                      {e.action === "BUY" ? "MUA" : "BÃN"}
+                      {e.action === "BUY" ? "MUA" : "BÁN"}
                     </span>
                   </td>
                   <td className="py-2 px-3 text-right" style={{ color: "var(--text-secondary)" }}>{fmtPrice(e.price)}</td>
@@ -1301,7 +1389,7 @@ function JournalsTab() {
                     )}
                   </td>
                   <td className="py-2 px-3 max-w-[200px] truncate" style={{ color: "var(--text-muted)" }}>
-                    {e.tradeReason || "â€”"}
+                    {e.tradeReason || "—"}
                   </td>
                 </tr>
               ))}
@@ -1319,7 +1407,7 @@ function JournalsTab() {
             className="px-3 py-1 rounded-lg text-xs font-bold cursor-pointer disabled:opacity-30 transition-colors"
             style={{ background: "var(--surface-2)", color: "var(--text-primary)" }}
           >
-            â† TrÆ°á»›c
+            ← Trước
           </button>
           <span className="text-xs" style={{ color: "var(--text-muted)" }}>
             {page} / {totalPages}
@@ -1330,12 +1418,10 @@ function JournalsTab() {
             className="px-3 py-1 rounded-lg text-xs font-bold cursor-pointer disabled:opacity-30 transition-colors"
             style={{ background: "var(--surface-2)", color: "var(--text-primary)" }}
           >
-            Tiáº¿p â†’
+            Tiếp →
           </button>
         </div>
       )}
     </div>
   );
 }
-
-

@@ -1,5 +1,4 @@
 services:
-  # ── PostgreSQL Database ───────────────────────────────────────
   db:
     image: postgres:16-alpine
     container_name: adn-postgres
@@ -9,7 +8,6 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-adnuser}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      # Persistence: dữ liệu lưu tại /var/lib/9router/data trên VPS
       - /var/lib/9router/data/postgres:/var/lib/postgresql/data
     networks:
       - adn-net
@@ -19,7 +17,28 @@ services:
       timeout: 5s
       retries: 5
 
-  # ── Next.js Web App ───────────────────────────────────────────
+  pgbouncer:
+    image: edoburu/pgbouncer:1.24.1-p1
+    container_name: adn-pgbouncer
+    restart: unless-stopped
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER:-adnuser}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB:-adncapital}
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 500
+      DEFAULT_POOL_SIZE: 25
+      RESERVE_POOL_SIZE: 5
+      SERVER_RESET_QUERY: DISCARD ALL
+      IGNORE_STARTUP_PARAMETERS: extra_float_digits
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - adn-net
+
   web:
     build:
       context: .
@@ -31,17 +50,20 @@ services:
       - NODE_ENV=production
       - HOSTNAME=0.0.0.0
       - PYTHON_BRIDGE_URL=http://fiinquant:8000
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-adnuser}:${POSTGRES_PASSWORD}@pgbouncer:6432/${POSTGRES_DB:-adncapital}?schema=public&pgbouncer=true
+      - DIRECT_DATABASE_URL=postgresql://${POSTGRES_USER:-adnuser}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-adncapital}?schema=public
     ports:
       - "3000:3000"
     depends_on:
       db:
         condition: service_healthy
+      pgbouncer:
+        condition: service_started
       fiinquant:
         condition: service_started
     networks:
       - adn-net
 
-  # ── FiinQuant Python Bridge ───────────────────────────────────
   fiinquant:
     build:
       context: ../fiinquant-bridge
@@ -54,8 +76,6 @@ services:
     networks:
       - adn-net
 
-
-  # ── Nginx Reverse Proxy ───────────────────────────────────────
   nginx:
     image: nginx:alpine
     container_name: adn-nginx

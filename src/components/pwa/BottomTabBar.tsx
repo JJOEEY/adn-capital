@@ -6,11 +6,11 @@ import { motion } from "framer-motion";
 import { Home, LineChart, BookOpen, Zap, User } from "lucide-react";
 
 const tabs = [
-  { href: "/dashboard", label: "Tong quan", icon: Home },
-  { href: "/tin-tuc", label: "Thi truong", icon: LineChart },
-  { href: "/journal", label: "Nhat ky", icon: BookOpen },
-  { href: "/dashboard/signal-map", label: "Tin hieu", icon: Zap },
-  { href: "/menu", label: "Ca nhan", icon: User },
+  { href: "/dashboard", label: "Tổng quan", icon: Home },
+  { href: "/tin-tuc", label: "Thị trường", icon: LineChart },
+  { href: "/journal", label: "Nhật ký", icon: BookOpen },
+  { href: "/notifications", label: "Tín hiệu", icon: Zap },
+  { href: "/menu", label: "Cá nhân", icon: User },
 ];
 
 export function BottomTabBar() {
@@ -70,4 +70,3 @@ export function BottomTabBar() {
     </nav>
   );
 }
-
