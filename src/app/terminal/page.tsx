@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { useRouter } from "next/navigation";
+import { useState, useCallback } from "react";
+import { motion } from "framer-motion";
 import { Trash2, Lock, Crown } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { InvestmentChat } from "@/components/chat/InvestmentChat";
@@ -15,12 +14,12 @@ interface ExtMessage {
   id: string;
   role: "user" | "bot";
   text: string;
+  createdAt: number;
 }
 
 export default function TerminalPage() {
-  const router = useRouter();
   const { isAuthenticated } = useCurrentDbUser();
-  const { isLoading, chatCount, limit, isLimitReached } = useChat();
+  const { chatCount, limit, isLimitReached } = useChat();
   const { clearMessages, setChatCount } = useChatStore();
 
   const [extraMessages, setExtraMessages] = useState<ExtMessage[]>([]);
@@ -63,12 +62,12 @@ export default function TerminalPage() {
 
         setExtraMessages((prev) => [
           ...prev,
-          { id: crypto.randomUUID(), role: "bot", text: reply },
+          { id: crypto.randomUUID(), role: "bot", text: reply, createdAt: Date.now() },
         ]);
       } catch {
         setExtraMessages((prev) => [
           ...prev,
-          { id: crypto.randomUUID(), role: "bot", text: "Mất kết nối server. Vui lòng thử lại." },
+          { id: crypto.randomUUID(), role: "bot", text: "Mất kết nối server. Vui lòng thử lại.", createdAt: Date.now() },
         ]);
       } finally {
         setFreeTextPending(false);

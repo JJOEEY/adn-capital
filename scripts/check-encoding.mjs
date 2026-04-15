@@ -7,16 +7,21 @@ const files = [
   "src/app/admin/page.tsx",
   "src/app/menu/page.tsx",
   "src/app/notifications/page.tsx",
+  "src/app/terminal/page.tsx",
   "src/components/layout/Header.tsx",
   "src/components/layout/AppHeader.tsx",
   "src/components/pwa/BottomTabBar.tsx",
+  "src/components/chat/InvestmentChat.tsx",
 ];
 
 const patterns = [
   /Tá»/g,
   /LÃ/g,
   /thá»‹ trÆ°/g,
+  /Ã¢|Ãª|Ã´|Ã¡|Ã©|Ã³|Ãº|Ã­|Ã¹|Ã¬|Ã£|Ã²|Ã¨|Ãµ/g,
+  /â€”|â€“|â€¢|â€œ|â€\x9D|â€\x99/g,
   /ï¿½/g,
+  /�/g,
 ];
 
 const issues = [];

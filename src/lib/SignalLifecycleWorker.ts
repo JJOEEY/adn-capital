@@ -19,12 +19,16 @@ import {
   getBatchPrices,
   getBatchExitScan,
 } from "@/lib/PriceCache";
+import {
+  getAiBrokerRuntimeConfig,
+  shouldAutoActivateSignal,
+  rebalanceActiveBasketNav,
+} from "@/lib/aiBroker";
 
 // ═══════════════════════════════════════════════════════════════════
 //  Constants
 // ═══════════════════════════════════════════════════════════════════
 
-const VOLUME_BREAKOUT_RATIO = 1.5;
 const HOLD_TO_DIE_THRESHOLD = 20;   // % PnL để vào HOLD_TO_DIE
 const TEI_EXIT_THRESHOLD    = 4.5;  // TEI hưng phấn → chốt lời
 const PYTHON_BRIDGE = process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000";
@@ -135,26 +139,50 @@ export async function updateSignalLifecycle(): Promise<{
   // ── 4. TEI batch — chỉ HOLD_TO_DIE (1 API call) ─────────────────
   const holdTickers = [...new Set(signals.filter(s => s.status === "HOLD_TO_DIE").map(s => s.ticker))];
   const teiMap = holdTickers.length > 0 ? await fetchTEIBatch(holdTickers) : {};
+  const aiBrokerConfig = await getAiBrokerRuntimeConfig();
 
   // ── 5. Xử lý từng tín hiệu ───────────────────────────────────────
   for (const signal of signals) {
     const priceData = prices[signal.ticker];
     if (!priceData) continue;
-    const { close: currentPrice, volume: currentVolume, ma20Volume } = priceData;
+    const { close: currentPrice } = priceData;
 
     // ═══════════════════════════════════════════════════════════
     //  RADAR → ACTIVE
     // ═══════════════════════════════════════════════════════════
     if (signal.status === "RADAR") {
-      const priceOk  = currentPrice >= signal.entryPrice;
-      const volumeOk = ma20Volume > 0 ? currentVolume > VOLUME_BREAKOUT_RATIO * ma20Volume : true;
-      if (priceOk && volumeOk) {
+      const hasAiMetrics =
+        typeof signal.winRate === "number" &&
+        signal.winRate > 0 &&
+        typeof signal.rrRatio === "string" &&
+        signal.rrRatio.length > 0;
+
+      const autoActivate = shouldAutoActivateSignal(
+        {
+          entryPrice: signal.entryPrice,
+          currentPrice,
+          winRate: signal.winRate,
+          rrRatio: signal.rrRatio,
+        },
+        aiBrokerConfig
+      );
+
+      const fallbackActivate = !hasAiMetrics && currentPrice >= signal.entryPrice;
+      if (autoActivate || fallbackActivate) {
         await prisma.signal.update({
           where: { id: signal.id },
           data: { status: "ACTIVE", entryPrice: currentPrice, currentPrice, currentPnl: 0 },
         });
         activated++;
-        logs.push({ ticker: signal.ticker, from: "RADAR", to: "ACTIVE", reason: `Breakout ${currentPrice.toLocaleString()}`, price: currentPrice });
+        logs.push({
+          ticker: signal.ticker,
+          from: "RADAR",
+          to: "ACTIVE",
+          reason: autoActivate
+            ? `AI Broker Active (${currentPrice.toLocaleString()})`
+            : `Breakout Active (${currentPrice.toLocaleString()})`,
+          price: currentPrice,
+        });
       }
       continue;
     }
@@ -287,6 +315,7 @@ export async function updateSignalLifecycle(): Promise<{
     }
   }
 
+  await rebalanceActiveBasketNav(aiBrokerConfig.maxTotalNav);
   console.log(`[Lifecycle] Xong — Activated:${activated} | HOLD:${holdToDie} | Trailing↑:${trailingUpdated} | Closed:${closed} | Alert:${alerted} | PnL:${pnlUpdated}`);
   return { processed: signals.length, activated, closed, holdToDie, trailingUpdated, alerted, pnlUpdated, logs };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback, useEffect } from "react";
+import { useRef, useState, useCallback, useEffect, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useSession } from "next-auth/react";
@@ -24,10 +24,22 @@ interface Message {
   id: string;
   role: "user" | "bot";
   text: string;
+  createdAt: number;
   ticker?: string;
   isCards?: boolean;
   mediaUrl?: string | null;
   showDynamicChart?: boolean;
+}
+
+interface HistoryMessage {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  createdAt: string;
+  widgetMeta?: {
+    complete: boolean;
+    ticker?: string;
+  };
 }
 
 // ── Ticker detection ────────────────────────────────────────────────────────
@@ -38,6 +50,14 @@ function detectTicker(input: string): string | null {
   const t = input.trim().toUpperCase();
   if (TICKER_PATTERN.test(t)) return t;
   return null;
+}
+
+async function saveChatHistory(role: "user" | "assistant", message: string) {
+  await fetch("/api/chat/history", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ role, message }),
+  });
 }
 
 // ── 4 Card Config (ADN Design System colors) ────────────────────────────────
@@ -99,6 +119,13 @@ interface AIResponse {
   vn_market?: string[];
   quarter?: string;
   cached?: boolean;
+}
+
+function mapSignalToBadge(signal?: string | null): "MUA" | "GIỮ" | "BÁN" {
+  const normalized = (signal ?? "").toUpperCase();
+  if (normalized.includes("BUY") || normalized.includes("MUA") || normalized.includes("BULL")) return "MUA";
+  if (normalized.includes("SELL") || normalized.includes("BAN") || normalized.includes("BÁN") || normalized.includes("BEAR")) return "BÁN";
+  return "GIỮ";
 }
 
 function renderResponseText(cardId: CardId, ticker: string, data: AIResponse): string {
@@ -316,8 +343,47 @@ export function InvestmentChat({
   const [botLoading, setBotLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Merge extra messages từ parent (free text response)
-  const allMessages = [...messages, ...extraMessages];
+  useEffect(() => {
+    if (!userId) return;
+    let isActive = true;
+
+    const hydrate = async () => {
+      try {
+        const res = await fetch("/api/chat/history?limit=80", { cache: "no-store" });
+        const payload = (await res.json()) as { messages?: HistoryMessage[] };
+        if (!isActive || !Array.isArray(payload.messages)) return;
+
+        const mapped: Message[] = payload.messages.map((item) => ({
+          id: item.id,
+          role: item.role === "assistant" ? "bot" : "user",
+          text: item.text,
+          createdAt: new Date(item.createdAt).getTime(),
+          ticker: item.widgetMeta?.ticker,
+          showDynamicChart: item.widgetMeta?.complete === true && !!item.widgetMeta?.ticker,
+        }));
+
+        setMessages(mapped);
+      } catch {
+        // no-op
+      }
+    };
+
+    hydrate();
+    return () => {
+      isActive = false;
+    };
+  }, [userId]);
+
+  // Merge + stable sort để tránh lỗi gom nhóm user/bot sai thứ tự
+  const allMessages = useMemo(
+    () =>
+      [...messages, ...extraMessages].sort((a, b) => {
+        if (a.createdAt !== b.createdAt) return a.createdAt - b.createdAt;
+        if (a.id === b.id) return 0;
+        return a.id.localeCompare(b.id);
+      }),
+    [messages, extraMessages]
+  );
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -356,15 +422,27 @@ export function InvestmentChat({
         addMessage({
           role: "bot",
           text,
+          createdAt: Date.now(),
           ticker,
           mediaUrl: cardId === "ta" ? (data.media_url ?? null) : null,
           showDynamicChart: cardId === "ta",
         });
+        if (userId) {
+          const persistText =
+            cardId === "ta"
+              ? `[WIDGET:${ticker}:${mapSignalToBadge(data.signal)}] ${text}`
+              : text;
+          await saveChatHistory("assistant", persistText).catch(() => undefined);
+        }
       } catch {
         addMessage({
           role: "bot",
           text: "Không thể tải dữ liệu, vui lòng thử lại.",
+          createdAt: Date.now(),
         });
+        if (userId) {
+          await saveChatHistory("assistant", "Không thể tải dữ liệu, vui lòng thử lại.").catch(() => undefined);
+        }
       } finally {
         setCardLoading(null);
       }
@@ -381,22 +459,29 @@ export function InvestmentChat({
 
     const ticker = detectTicker(trimmed);
 
-    addMessage({ role: "user", text: trimmed });
+    addMessage({ role: "user", text: trimmed, createdAt: Date.now() });
 
     if (ticker) {
-      addMessage({
-        role: "bot",
-        text: `Đại ca muốn phân tích ${ticker}? Chọn loại phân tích:`,
-        ticker,
-        isCards: true,
-      });
+        addMessage({
+          role: "bot",
+          text: `Đại ca muốn phân tích ${ticker}? Chọn loại phân tích:`,
+          createdAt: Date.now(),
+          ticker,
+          isCards: true,
+        });
+        if (userId) {
+          Promise.all([
+            saveChatHistory("user", trimmed),
+            saveChatHistory("assistant", `Đại ca muốn phân tích ${ticker}? Chọn loại phân tích:`),
+          ]).catch(() => undefined);
+        }
     } else {
       if (onSendFreeText) {
         setBotLoading(true);
         onSendFreeText(trimmed);
       }
     }
-  }, [input, addMessage, onSendFreeText]);
+  }, [input, addMessage, onSendFreeText, userId]);
 
   // Tắt loading khi extraMessages thay đổi
   useEffect(() => {

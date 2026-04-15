@@ -8,6 +8,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { processSignals } from "@/lib/UltimateSignalEngine";
 import { getVNDateISO, pushNotification } from "@/lib/cronHelpers";
+import {
+  getAiBrokerRuntimeConfig,
+  shouldAutoActivateSignal,
+  rebalanceActiveBasketNav,
+} from "@/lib/aiBroker";
 
 // Secret chia sẻ giữa Python scanner và Next.js
 const WEBHOOK_SECRET = process.env.SCANNER_SECRET ?? "adn-scanner-secret-key";
@@ -56,12 +61,12 @@ export async function POST(req: NextRequest) {
 
     const todaySignals = await prisma.signal.findMany({
       where: { createdAt: { gte: startOfDay } },
-      select: { id: true, ticker: true, type: true },
+      select: { id: true, ticker: true, type: true, status: true },
     });
 
-    const existingMap = new Map<string, string>();
+    const existingMap = new Map<string, { id: string; status: string }>();
     for (const s of todaySignals) {
-      existingMap.set(`${s.ticker}|${s.type}`, s.id);
+      existingMap.set(`${s.ticker}|${s.type}`, { id: s.id, status: s.status });
     }
 
     const todayISO = getVNDateISO();
@@ -75,16 +80,38 @@ export async function POST(req: NextRequest) {
     let created = 0;
     let updated = 0;
     const createdSignalsForNotify: IncomingSignal[] = [];
+    const aiBrokerConfig = await getAiBrokerRuntimeConfig();
 
     const operations = processed.map((s) => {
       const key = `${s.ticker.toUpperCase().trim()}|${s.type}`;
-      const existingId = existingMap.get(key);
+      const existing = existingMap.get(key);
+      const autoActivate = shouldAutoActivateSignal(
+        {
+          entryPrice: s.entryPrice,
+          currentPrice: s.entryPrice,
+          winRate: s.winRate,
+          rrRatio: s.rrRatio,
+        },
+        aiBrokerConfig
+      );
+      const nextStatus =
+        existing?.status === "CLOSED"
+          ? "CLOSED"
+          : autoActivate
+          ? "ACTIVE"
+          : s.status;
 
-      if (existingId) {
+      if (existing) {
         updated++;
+        const activePayload =
+          existing.status !== "ACTIVE" && nextStatus === "ACTIVE"
+            ? { currentPrice: s.entryPrice, currentPnl: 0 }
+            : {};
+
         return prisma.signal.update({
-          where: { id: existingId },
+          where: { id: existing.id },
           data: {
+            status: nextStatus,
             entryPrice: s.entryPrice,
             tier: s.tier,
             navAllocation: s.navAllocation,
@@ -95,6 +122,8 @@ export async function POST(req: NextRequest) {
             reason: s.reason ?? null,
             winRate: s.winRate,
             sharpeRatio: s.sharpeRatio,
+            rrRatio: s.rrRatio,
+            ...activePayload,
           },
         });
       } else {
@@ -109,7 +138,7 @@ export async function POST(req: NextRequest) {
           data: {
             ticker: s.ticker.toUpperCase().trim(),
             type: s.type,
-            status: s.status,
+            status: nextStatus,
             tier: s.tier,
             entryPrice: s.entryPrice,
             target: s.target,
@@ -120,12 +149,20 @@ export async function POST(req: NextRequest) {
             reason: s.reason ?? null,
             winRate: s.winRate,
             sharpeRatio: s.sharpeRatio,
+            rrRatio: s.rrRatio,
+            ...(nextStatus === "ACTIVE"
+              ? {
+                  currentPrice: s.entryPrice,
+                  currentPnl: 0,
+                }
+              : {}),
           },
         });
       }
     });
 
     await prisma.$transaction(operations);
+    await rebalanceActiveBasketNav(aiBrokerConfig.maxTotalNav);
 
     const newSignalsForNotification = createdSignalsForNotify.filter(
       (s) => !sentSet.has(`${s.ticker}|${s.type}`)

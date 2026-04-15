@@ -3,13 +3,14 @@
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Home, LineChart, BookOpen, Zap, User } from "lucide-react";
+import { Home, LineChart, BookOpen, Zap, Bot, User } from "lucide-react";
 
 const tabs = [
   { href: "/dashboard", label: "Tổng quan", icon: Home },
   { href: "/tin-tuc", label: "Thị trường", icon: LineChart },
   { href: "/journal", label: "Nhật ký", icon: BookOpen },
   { href: "/notifications", label: "Tín hiệu", icon: Zap },
+  { href: "/dashboard/signal-map", label: "AI Broker", icon: Bot },
   { href: "/menu", label: "Cá nhân", icon: User },
 ];
 

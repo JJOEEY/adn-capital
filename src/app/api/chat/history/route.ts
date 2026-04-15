@@ -17,10 +17,19 @@ type HistoryMessage = {
   };
 };
 
-function parseWidgetMessage(raw: string): { ticker?: string; badge: "MUA" | "GIỮ" | "BÁN" } | null {
-  const match = raw.match(/\[WIDGET(?::MOCK)?:([A-Z]{2,5})\]/);
+function normalizeBadge(input?: string): "MUA" | "GIỮ" | "BÁN" {
+  if (!input) return "GIỮ";
+  const value = input.toUpperCase();
+  if (value === "MUA") return "MUA";
+  if (value === "BAN" || value === "BÁN") return "BÁN";
+  return "GIỮ";
+}
+
+function parseWidgetMessage(raw: string): { ticker?: string; badge: "MUA" | "GIỮ" | "BÁN"; text?: string } | null {
+  const match = raw.match(/^\[WIDGET(?::MOCK)?:([A-Z]{2,5})(?::([A-ZÁ]+))?\]\s*([\s\S]*)$/u);
   if (!match) return null;
-  return { ticker: match[1], badge: "GIỮ" };
+  const text = match[3]?.trim();
+  return { ticker: match[1], badge: normalizeBadge(match[2]), text: text || undefined };
 }
 
 export async function GET(request: NextRequest) {
@@ -58,7 +67,7 @@ export async function GET(request: NextRequest) {
           return {
             id: row.id,
             role: "assistant" as const,
-            text: `Phân tích nhanh mã ${widget.ticker}.`,
+            text: widget.text ?? `Phân tích nhanh mã ${widget.ticker}.`,
             createdAt: row.createdAt.toISOString(),
             streamState: "done" as const,
             widgetMeta: {
@@ -83,5 +92,34 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("[/api/chat/history] Error:", error);
     return NextResponse.json({ error: "Không thể tải lịch sử chat" }, { status: 500 });
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const dbUser = await getCurrentDbUser();
+    if (!dbUser?.id) {
+      return NextResponse.json({ ok: true, skipped: true });
+    }
+
+    const body = (await request.json()) as { role?: string; message?: string };
+    const message = (body.message ?? "").trim();
+    if (!message) {
+      return NextResponse.json({ error: "Missing message" }, { status: 400 });
+    }
+
+    const normalizedRole = body.role === "user" ? "user" : "assistant";
+    await prisma.chat.create({
+      data: {
+        userId: dbUser.id,
+        role: normalizedRole,
+        message: message.slice(0, 12000),
+      },
+    });
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error("[/api/chat/history POST] Error:", error);
+    return NextResponse.json({ error: "Không thể lưu lịch sử chat" }, { status: 500 });
   }
 }

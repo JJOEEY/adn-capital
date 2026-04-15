@@ -6,9 +6,12 @@ import useSWR from "swr";
 import { motion } from "framer-motion";
 import {
   Zap,
+  BarChart3,
   BarChart2,
   Clock,
   TrendingUp,
+  Heart,
+  Newspaper,
   Sun,
   Bell,
   BellRing,
@@ -29,12 +32,15 @@ interface NotificationItem {
 
 type BrokerBadge = "MUA" | "GIỮ" | "BÁN";
 type SubTab = "updates" | "chatbot";
+type CardId = "ta" | "fa" | "tamly" | "news";
 
 interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   text: string;
   createdAt: string;
+  ticker?: string;
+  isCards?: boolean;
   streamState?: "done";
   widgetMeta?: {
     complete: boolean;
@@ -45,6 +51,19 @@ interface ChatMessage {
 
 const GUEST_CHAT_STORAGE_KEY = "adn-notifications-chat-v2";
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
+const TICKER_PATTERN = /^[A-Z]{2,5}$/;
+
+const CARD_OPTIONS: Array<{
+  id: CardId;
+  title: string;
+  sub: string;
+  icon: typeof TrendingUp;
+}> = [
+  { id: "ta", title: "Phân tích kỹ thuật", sub: "Chart, RSI, MACD, hỗ trợ/kháng cự", icon: TrendingUp },
+  { id: "fa", title: "Phân tích cơ bản", sub: "P/E, P/B, ROE, tăng trưởng lợi nhuận", icon: BarChart3 },
+  { id: "tamly", title: "Tâm lý & hành vi", sub: "Mua/bán chủ động, khối ngoại, dòng tiền", icon: Heart },
+  { id: "news", title: "Tin tức & sự kiện", sub: "Tin nhanh doanh nghiệp, bối cảnh vĩ mô", icon: Newspaper },
+];
 
 const typeConfig: Record<
   string,
@@ -191,6 +210,28 @@ function mapSignalToBadge(signal?: string | null): BrokerBadge {
   return "GIỮ";
 }
 
+function detectTicker(input: string): string | null {
+  const value = input.trim().toUpperCase();
+  if (!value) return null;
+  return TICKER_PATTERN.test(value) ? value : null;
+}
+
+async function saveChatHistory(role: "user" | "assistant", message: string) {
+  await fetch("/api/chat/history", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ role, message }),
+  });
+}
+
+interface BridgeAiResponse {
+  analysis?: string;
+  signal?: string;
+  media_url?: string | null;
+  session_summary?: string;
+  vn_market?: string[];
+}
+
 async function subscribePush(): Promise<boolean> {
   try {
     const blockedReason = getPushBlockedReason();
@@ -257,6 +298,7 @@ export default function NotificationsPage() {
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
+  const [cardLoading, setCardLoading] = useState<CardId | null>(null);
   const [chatHydrated, setChatHydrated] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushLoading, setPushLoading] = useState(false);
@@ -346,7 +388,7 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [chatMessages, chatLoading, keyboardOpen]);
+  }, [cardLoading, chatMessages, chatLoading, keyboardOpen]);
 
   const grouped = useMemo(
     () =>
@@ -385,9 +427,78 @@ export default function NotificationsPage() {
     }
   };
 
+  const handleCardAction = useCallback(
+    async (cardId: CardId, ticker: string) => {
+      if (chatLoading || cardLoading) return;
+
+      setCardLoading(cardId);
+      const hour = new Date().getHours();
+      const newsType = hour >= 15 ? "eod" : "morning";
+      const endpointMap: Record<CardId, string> = {
+        ta: `/api/bridge/api/v1/ai/ta/${ticker}`,
+        fa: `/api/bridge/api/v1/ai/fa/${ticker}`,
+        tamly: `/api/bridge/api/v1/ai/tamly/${ticker}`,
+        news: `/api/bridge/api/v1/news/${newsType}`,
+      };
+
+      try {
+        const res = await fetch(endpointMap[cardId], { signal: AbortSignal.timeout(60_000) });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        const data = (await res.json()) as BridgeAiResponse;
+        const isTa = cardId === "ta";
+        const badge = mapSignalToBadge(data.signal);
+        const text =
+          cardId === "news"
+            ? data.session_summary || (data.vn_market ?? []).join("\n") || "Không có dữ liệu tin tức."
+            : data.analysis || "Không có dữ liệu phân tích.";
+
+        const assistantMessage: ChatMessage = {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          text,
+          createdAt: new Date().toISOString(),
+          streamState: "done",
+          widgetMeta: isTa
+            ? {
+                complete: true,
+                ticker,
+                badge,
+              }
+            : undefined,
+        };
+
+        setChatMessages((prev) => [...prev, assistantMessage]);
+
+        if (status === "authenticated") {
+          const persistText = isTa ? `[WIDGET:${ticker}:${badge}] ${text}` : text;
+          await saveChatHistory("assistant", persistText);
+        }
+      } catch {
+        setChatMessages((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            text: "Không thể tải dữ liệu, vui lòng thử lại.",
+            createdAt: new Date().toISOString(),
+            streamState: "done",
+          },
+        ]);
+      } finally {
+        setCardLoading(null);
+        setTimeout(() => {
+          inputRef.current?.focus();
+          chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+        }, 80);
+      }
+    },
+    [cardLoading, chatLoading, status]
+  );
+
   const handleChatSend = useCallback(async () => {
     const raw = chatInput.trim();
-    if (!raw || chatLoading) return;
+    if (!raw || chatLoading || cardLoading) return;
 
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
@@ -398,6 +509,29 @@ export default function NotificationsPage() {
     };
     setChatMessages((prev) => [...prev, userMessage]);
     setChatInput("");
+
+    const directTicker = detectTicker(raw);
+    if (directTicker) {
+      const cardsMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        text: `Đại ca muốn phân tích ${directTicker}? Chọn loại phân tích:`,
+        ticker: directTicker,
+        isCards: true,
+        createdAt: new Date().toISOString(),
+        streamState: "done",
+      };
+      setChatMessages((prev) => [...prev, cardsMessage]);
+
+      if (status === "authenticated") {
+        await Promise.all([
+          saveChatHistory("user", raw),
+          saveChatHistory("assistant", cardsMessage.text),
+        ]).catch(() => undefined);
+      }
+      return;
+    }
+
     setChatLoading(true);
 
     try {
@@ -474,7 +608,7 @@ export default function NotificationsPage() {
         chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
       }, 80);
     }
-  }, [chatInput, chatLoading, chatMessages, status]);
+  }, [cardLoading, chatInput, chatLoading, chatMessages, status]);
 
   const chatPanelHeight = viewportHeight ? `calc(${viewportHeight}px - 80px)` : "calc(100dvh - 80px)";
 
@@ -631,7 +765,7 @@ export default function NotificationsPage() {
                   </div>
                   <h3 className="text-lg font-black text-white mb-1">ADN AI Advisor</h3>
                   <p className="text-xs text-neutral-500 max-w-xs mb-4">
-                    Hỏi bất kỳ điều gì về thị trường chứng khoán, hoặc dùng lệnh:
+                    Nhập trực tiếp mã cổ phiếu (ví dụ: HPG) để mở 4 thẻ phân tích, hoặc dùng lệnh:
                     <br />
                     <span className="text-purple-400 font-mono">/ta Mã</span> · <span className="text-purple-400 font-mono">/fa Mã</span> ·{" "}
                     <span className="text-purple-400 font-mono">/news Mã</span>
@@ -672,6 +806,51 @@ export default function NotificationsPage() {
                       >
                         <div className="whitespace-pre-line break-words">{m.text}</div>
                       </div>
+
+                      {!isUser && m.isCards && m.ticker && (
+                        <div className="mt-2 grid grid-cols-2 gap-2">
+                          {CARD_OPTIONS.map((card) => {
+                            const Icon = card.icon;
+                            const isLoadingCard = cardLoading === card.id;
+                            return (
+                              <button
+                                key={`${m.id}-${card.id}`}
+                                onClick={() => handleCardAction(card.id, m.ticker!)}
+                                disabled={chatLoading || cardLoading !== null}
+                                className="text-left rounded-xl border px-3 py-2.5 transition-all disabled:opacity-50 cursor-pointer"
+                                style={{
+                                  background: "var(--surface)",
+                                  borderColor: "var(--border)",
+                                }}
+                              >
+                                <div className="flex items-start gap-2.5">
+                                  <div
+                                    className="w-7 h-7 rounded-lg flex items-center justify-center"
+                                    style={{
+                                      background: "rgba(16,185,129,0.12)",
+                                      border: "1px solid rgba(16,185,129,0.25)",
+                                    }}
+                                  >
+                                    {isLoadingCard ? (
+                                      <div className="w-3.5 h-3.5 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
+                                    ) : (
+                                      <Icon className="w-3.5 h-3.5" style={{ color: "#16a34a" }} />
+                                    )}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-bold leading-snug" style={{ color: "var(--text-primary)" }}>
+                                      {card.title}
+                                    </p>
+                                    <p className="text-[11px] leading-snug mt-0.5" style={{ color: "var(--text-muted)" }}>
+                                      {card.sub}
+                                    </p>
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
 
                       {!isUser && m.widgetMeta?.complete === true && m.widgetMeta.ticker && (
                         <div className="mt-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-2">
@@ -753,7 +932,7 @@ export default function NotificationsPage() {
                 />
                 <button
                   onClick={handleChatSend}
-                  disabled={chatLoading || !chatInput.trim()}
+                  disabled={chatLoading || cardLoading !== null || !chatInput.trim()}
                   className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center disabled:opacity-30 transition-all cursor-pointer active:scale-95"
                   style={{ background: "#a855f7", color: "#ffffff" }}
                 >

@@ -114,7 +114,7 @@ export default function MenuPage() {
           </div>
         ) : isAuthenticated ? (
           <Link href="/profile">
-            <div className="rounded-2xl border border-white/[0.06] bg-[var(--surface)] p-5 hover:bg-[var(--surface)] transition-all">
+            <div className="rounded-2xl border bg-[var(--surface)] p-5 transition-all" style={{ borderColor: "var(--border)" }}>
               <div className="flex items-center gap-3">
                 {userImage && !avatarError ? (
                   <img
@@ -129,8 +129,8 @@ export default function MenuPage() {
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="text-base font-bold text-white truncate">{userName}</p>
-                  <p className="text-xs text-neutral-500 truncate">{userEmail}</p>
+                  <p className="text-base font-bold truncate" style={{ color: "var(--text-primary)" }}>{userName}</p>
+                  <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>{userEmail}</p>
                   {role === "VIP" && (
                     <span
                       className={`inline-flex items-center gap-1 text-[11px] font-bold border px-2 py-0.5 rounded-lg mt-1.5 ${
@@ -160,7 +160,7 @@ export default function MenuPage() {
                 >
                   {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
                 </button>
-                <ChevronRight className="w-4 h-4 text-neutral-600" />
+                <ChevronRight className="w-4 h-4" style={{ color: "var(--text-muted)" }} />
               </div>
             </div>
           </Link>
@@ -179,18 +179,22 @@ export default function MenuPage() {
         )}
 
         {menuGroups.map((group) => (
-          <div key={group.title} className="rounded-2xl border border-white/[0.06] bg-[var(--surface)] overflow-hidden">
-            <p className="px-4 pt-3 pb-1 text-[11px] font-bold text-neutral-500 uppercase tracking-[0.15em]">{group.title}</p>
+          <div key={group.title} className="rounded-2xl border bg-[var(--surface)] overflow-hidden" style={{ borderColor: "var(--border)" }}>
+            <p className="px-4 pt-3 pb-1 text-[11px] font-bold uppercase tracking-[0.15em]" style={{ color: "var(--text-muted)" }}>{group.title}</p>
             {group.items.map((item, idx) => {
               const Icon = item.icon;
               const content = (
                 <div
-                  className={`flex items-center gap-3 px-4 py-3 transition-all hover:bg-white/[0.03] ${
-                    idx < group.items.length - 1 ? "border-b border-white/[0.04]" : ""
+                  className={`flex items-center gap-3 px-4 py-3 transition-all ${
+                    idx < group.items.length - 1 ? "border-b" : ""
                   }`}
+                  style={{
+                    background: "transparent",
+                    borderColor: "var(--border)",
+                  }}
                 >
-                  <Icon className="w-5 h-5 text-neutral-400 shrink-0" />
-                  <span className="flex-1 text-sm text-white/80 font-medium">{item.label}</span>
+                  <Icon className="w-5 h-5 shrink-0" style={{ color: "var(--text-secondary)" }} />
+                  <span className="flex-1 text-sm font-medium" style={{ color: "var(--text-primary)" }}>{item.label}</span>
                   {item.badge && (
                     <span
                       className={`text-[12px] font-black px-1.5 py-0.5 rounded ${
@@ -202,7 +206,7 @@ export default function MenuPage() {
                       {item.badge}
                     </span>
                   )}
-                  <ChevronRight className="w-4 h-4 text-neutral-700" />
+                  <ChevronRight className="w-4 h-4" style={{ color: "var(--text-muted)" }} />
                 </div>
               );
 
@@ -233,8 +237,8 @@ export default function MenuPage() {
           </button>
         )}
 
-        <p className="text-center text-[12px] text-neutral-700 pt-2">
-          Powered by <span className="text-emerald-500/50 font-bold">ADN CAPITAL</span> · v2.0
+        <p className="text-center text-[12px] pt-2" style={{ color: "var(--text-muted)" }}>
+          Powered by <span className="font-bold" style={{ color: "var(--primary)" }}>ADN CAPITAL</span> · v2.0
         </p>
       </div>
     </MainLayout>
