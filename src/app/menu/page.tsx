@@ -1,9 +1,11 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
 import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { useTheme } from "@/components/providers/ThemeProvider";
 import {
   FlaskConical,
   Activity,
@@ -21,6 +23,8 @@ import {
   Users,
   Newspaper,
   Bell,
+  Sun,
+  Moon,
 } from "lucide-react";
 
 interface MenuGroup {
@@ -38,11 +42,23 @@ interface MenuGroup {
 
 export default function MenuPage() {
   const { data: session } = useSession();
+  const { theme, toggleTheme } = useTheme();
   const { dbUser, role, vipTier, isAuthenticated, isLoading, isAdmin, isWriter } = useCurrentDbUser();
+  const [avatarError, setAvatarError] = useState(false);
 
   const userName = dbUser?.name || session?.user?.name || "User";
   const userImage = dbUser?.image || session?.user?.image || null;
   const userEmail = dbUser?.email || session?.user?.email || "";
+  const isDark = theme === "dark";
+  const sessionUser = session?.user as { role?: string; systemRole?: string } | undefined;
+  const isAdminBySession =
+    sessionUser?.role === "ADMIN" || sessionUser?.systemRole === "ADMIN";
+  const canManageSystem = isAdmin || isAdminBySession;
+  const canManageContent = canManageSystem || isWriter;
+  const userInitial = useMemo(
+    () => (userName || userEmail || "User").trim().charAt(0).toUpperCase(),
+    [userEmail, userName]
+  );
 
   const menuGroups: MenuGroup[] = [
     {
@@ -67,13 +83,19 @@ export default function MenuPage() {
         { href: "#", label: "About Us (cập nhật sau)", icon: Info },
       ],
     },
-    // Admin group — only shown to admin/writer
-    ...(isAdmin || isWriter
+    ...(canManageSystem
       ? [
           {
             title: "Quản lý hệ thống",
+            items: [{ href: "/admin", label: "Quản Lý Hệ Thống", icon: Shield, badge: "ADMIN" as const }],
+          },
+        ]
+      : []),
+    ...(canManageContent
+      ? [
+          {
+            title: "Quản trị nội dung",
             items: [
-              { href: "/admin", label: "Admin CRM", icon: Shield, badge: "ADMIN" as const },
               { href: "/khac/tin-tuc/admin", label: "Quản lý bài viết", icon: Newspaper },
               { href: "/admin?tab=journals", label: "Nhật ký khách hàng", icon: Users },
             ],
@@ -100,11 +122,16 @@ export default function MenuPage() {
           <Link href="/profile">
             <div className="rounded-2xl border border-white/[0.06] bg-[var(--surface)] p-5 hover:bg-[var(--surface)] transition-all">
               <div className="flex items-center gap-3">
-                {userImage ? (
-                  <img src={userImage} alt="" className="w-14 h-14 rounded-full ring-2 ring-emerald-500/20" />
+                {userImage && !avatarError ? (
+                  <img
+                    src={userImage}
+                    alt=""
+                    className="w-14 h-14 rounded-full ring-2 ring-emerald-500/20"
+                    onError={() => setAvatarError(true)}
+                  />
                 ) : (
                   <div className="w-14 h-14 rounded-full bg-emerald-500/15 flex items-center justify-center">
-                    <span className="text-xl font-bold text-emerald-400">{userName.charAt(0).toUpperCase()}</span>
+                    <span className="text-xl font-bold text-emerald-400">{userInitial}</span>
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
@@ -123,6 +150,22 @@ export default function MenuPage() {
                     </span>
                   )}
                 </div>
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    toggleTheme();
+                  }}
+                  className="w-9 h-9 rounded-full flex items-center justify-center border transition-all cursor-pointer"
+                  style={{
+                    borderColor: "var(--border)",
+                    color: "var(--text-secondary)",
+                    background: "var(--surface-2)",
+                  }}
+                  title={isDark ? "Light mode" : "Dark mode"}
+                >
+                  {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                </button>
                 <ChevronRight className="w-4 h-4 text-neutral-600" />
               </div>
             </div>

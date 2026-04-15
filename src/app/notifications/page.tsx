@@ -29,15 +29,26 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 /* Icon + color config per notification type */
 const typeConfig: Record<string, { icon: typeof Zap; colorHex: string; bg: string; border: string; label: string }> = {
+  morning_brief:   { icon: Sun,      colorHex: "#22c55e", bg: "rgba(34,197,94,0.10)",  border: "rgba(34,197,94,0.20)",  label: "MORNING BRIEF 08:00" },
+  morning:         { icon: Sun,      colorHex: "#22c55e", bg: "rgba(34,197,94,0.10)",  border: "rgba(34,197,94,0.20)",  label: "MORNING BRIEF 08:00" },
   signal_10h:       { icon: Zap,      colorHex: "#eab308", bg: "rgba(234,179,8,0.10)",   border: "rgba(234,179,8,0.20)",   label: "CẬP NHẬT 10:00" },
   signal_1130:      { icon: Zap,      colorHex: "#eab308", bg: "rgba(234,179,8,0.10)",   border: "rgba(234,179,8,0.20)",   label: "CẬP NHẬT 11:30" },
   signal_14h:       { icon: TrendingUp, colorHex: "#10b981", bg: "rgba(16,185,129,0.10)", border: "rgba(16,185,129,0.20)", label: "CẬP NHẬT 14:00" },
   signal_1445:      { icon: TrendingUp, colorHex: "#10b981", bg: "rgba(16,185,129,0.10)", border: "rgba(16,185,129,0.20)", label: "CẬP NHẬT 14:45" },
+  intraday_update:  { icon: TrendingUp, colorHex: "#10b981", bg: "rgba(16,185,129,0.10)", border: "rgba(16,185,129,0.20)", label: "INTRADAY UPDATE" },
+  eod_brief:        { icon: Clock,    colorHex: "#06b6d4", bg: "rgba(6,182,212,0.10)",  border: "rgba(6,182,212,0.20)",  label: "EOD BRIEF 15:00" },
+  eod:              { icon: Clock,    colorHex: "#06b6d4", bg: "rgba(6,182,212,0.10)",  border: "rgba(6,182,212,0.20)",  label: "EOD BRIEF 15:00" },
   ai_weekly_review: { icon: Bot,      colorHex: "#a855f7", bg: "rgba(168,85,247,0.10)", border: "rgba(168,85,247,0.20)", label: "AI ĐÁNH GIÁ TÂM LÝ" },
 };
 
 function getConfig(type: string) {
-  return typeConfig[type] ?? { icon: BarChart2, colorHex: "var(--text-muted)", bg: "rgba(115,115,115,0.10)", border: "rgba(115,115,115,0.20)", label: type };
+  return typeConfig[type] ?? {
+    icon: BarChart2,
+    colorHex: "var(--text-muted)",
+    bg: "rgba(115,115,115,0.10)",
+    border: "rgba(115,115,115,0.20)",
+    label: String(type ?? "UPDATE").replace(/_/g, " ").toUpperCase(),
+  };
 }
 
 type SubTab = "updates" | "chatbot";
@@ -237,10 +248,12 @@ export default function NotificationsPage() {
             <div className="flex items-center justify-between gap-2">
               <div className="flex gap-2 flex-wrap flex-1">
                 {[
+                  { label: "08:00", color: "#22c55e", bg: "rgba(34,197,94,0.10)", border: "rgba(34,197,94,0.20)" },
                   { label: "10:00", color: "#eab308", bg: "rgba(234,179,8,0.10)", border: "rgba(234,179,8,0.20)" },
                   { label: "11:30", color: "#eab308", bg: "rgba(234,179,8,0.10)", border: "rgba(234,179,8,0.20)" },
                   { label: "14:00", color: "#10b981", bg: "rgba(16,185,129,0.10)", border: "rgba(16,185,129,0.20)" },
                   { label: "14:45", color: "#10b981", bg: "rgba(16,185,129,0.10)", border: "rgba(16,185,129,0.20)" },
+                  { label: "15:00", color: "#06b6d4", bg: "rgba(6,182,212,0.10)", border: "rgba(6,182,212,0.20)" },
                 ].map((s) => (
                   <span key={s.label} className="text-[11px] font-bold px-2 py-1 rounded-lg border" style={{ color: s.color, background: s.bg, borderColor: s.border }}>
                     {s.label}
@@ -273,7 +286,7 @@ export default function NotificationsPage() {
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-12 text-center">
                 <Clock className="w-12 h-12 text-neutral-700 mx-auto mb-3" />
                 <p className="text-sm text-neutral-500">Chưa có thông báo nào</p>
-                <p className="text-xs text-neutral-600 mt-1">Bản tin sẽ tự động cập nhật vào 10h, 11h30, 14h, 14h45</p>
+                <p className="text-xs text-neutral-600 mt-1">Bản tin sẽ tự động cập nhật 08:00, 10:00, 11:30, 14:00, 14:45, 15:00</p>
               </div>
             ) : (
               Object.entries(grouped).map(([dateStr, items]) => (
@@ -287,6 +300,8 @@ export default function NotificationsPage() {
                     const cfg = getConfig(n.type);
                     const Icon = cfg.icon;
                     const time = new Date(n.createdAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+                    const safeTitle = n.title?.trim() ? n.title : "Bản tin thị trường";
+                    const safeContent = n.content?.trim() ? n.content : "Dữ liệu đang cập nhật. Vui lòng kiểm tra lại sau ít phút.";
                     return (
                       <motion.div
                         key={n.id}
@@ -303,8 +318,8 @@ export default function NotificationsPage() {
                           </div>
                           <span className="text-[12px] font-mono" style={{ color: "var(--text-muted)" }}>{time}</span>
                         </div>
-                        <h3 className="text-sm font-bold mb-2" style={{ color: "var(--text-primary)" }}>{n.title}</h3>
-                        <div className="text-xs leading-relaxed whitespace-pre-line" style={{ color: "var(--text-muted)" }}>{n.content}</div>
+                        <h3 className="text-sm font-bold mb-2" style={{ color: "var(--text-primary)" }}>{safeTitle}</h3>
+                        <div className="text-xs leading-relaxed whitespace-pre-line" style={{ color: "var(--text-muted)" }}>{safeContent}</div>
                       </motion.div>
                     );
                   })}

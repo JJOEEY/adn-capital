@@ -23,20 +23,23 @@ export async function POST(req: NextRequest) {
 
     // Lưu vào Notification (model đã có sẵn trong schema.prisma)
     // Map type sang title
+    const normalizedType = type === "morning" ? "morning_brief" : type === "eod" ? "eod_brief" : type;
+    const safeContent = typeof content === "string" ? content.trim() : JSON.stringify(content);
+
     const typeLabels: Record<string, string> = {
-      morning: "Bản tin sáng",
-      eod: "Bản tin EOD",
+      morning_brief: "Bản tin sáng 08:00",
+      eod_brief: "Bản tin EOD 15:00",
       signal: "Tín hiệu",
       foreign: "Dòng tiền ngoại",
       art: "ART Alert",
     };
-    const title = typeLabels[type] ?? type;
+    const title = typeLabels[normalizedType] ?? normalizedType;
 
     const notification = await prisma.notification.create({
       data: {
-        type,
+        type: normalizedType,
         title,
-        content: typeof content === "string" ? content : JSON.stringify(content),
+        content: safeContent.length > 0 ? safeContent : "Dữ liệu đang cập nhật.",
         userId: null, // global notification
       },
     });

@@ -7,6 +7,7 @@ import {
   Home,
   BookOpen,
   Newspaper,
+  Zap,
   MessageSquare,
   Menu,
 } from "lucide-react";
@@ -15,6 +16,7 @@ const tabs = [
   { href: "/dashboard", label: "Trang chủ", icon: Home },
   { href: "/journal", label: "Nhật Ký", icon: BookOpen },
   { href: "/tin-tuc", label: "Tin Tức", icon: Newspaper },
+  { href: "/dashboard/signal-map", label: "AI Broker", icon: Zap },
   { href: "/notifications", label: "Tin nhắn", icon: MessageSquare },
   { href: "/menu", label: "Menu", icon: Menu },
 ];
@@ -51,11 +53,11 @@ export function BottomTabBar() {
                 )}
                 <Icon
                   className="w-5 h-5 transition-colors duration-200"
-                  style={{ color: active ? "#16a34a" : "rgba(255,255,255,0.35)" }}
+                  style={{ color: active ? "#16a34a" : "var(--text-muted)" }}
                 />
                 <span
                   className="text-[11px] font-medium transition-colors duration-200"
-                  style={{ color: active ? "#16a34a" : "rgba(255,255,255,0.35)" }}
+                  style={{ color: active ? "#16a34a" : "var(--text-muted)" }}
                 >
                   {tab.label}
                 </span>

@@ -39,6 +39,34 @@ export const dynamic = "force-dynamic";
 
 const PYTHON_BRIDGE = process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000";
 
+function buildIntradayFallback(today: string, timeLabel: string, vnidx?: { value: number; changePct: number }) {
+  const idx = vnidx ? `${vnidx.value} | ${vnidx.changePct >= 0 ? "+" : ""}${vnidx.changePct}%` : "chưa cập nhật";
+  return `⚡ *BẢN TIN INTRADAY — ${timeLabel} ${today}*
+
+📊 *CHỈ SỐ:*
+🇻🇳 VN-INDEX: ${idx}
+
+⚠️ *GHI CHÚ DỮ LIỆU:*
+• Một số dữ liệu intraday đang cập nhật.
+• Hệ thống sẽ tự đồng bộ ngay khi nguồn dữ liệu đầy đủ.
+
+_Powered by ADN Capital AI_`;
+}
+
+function buildPropTradingFallback(today: string, netValue?: number) {
+  const net = netValue == null ? "chưa cập nhật" : `${netValue >= 0 ? "+" : ""}${netValue.toFixed(1)} tỷ`;
+  return `🏦 *BÁO CÁO TỰ DOANH CTCK — ${today}*
+
+📊 *TỔNG QUAN:*
+• Ròng: ${net}
+
+⚠️ *GHI CHÚ DỮ LIỆU:*
+• Dữ liệu chi tiết đang cập nhật.
+• Hệ thống sẽ tự bổ sung khi nguồn đồng bộ xong.
+
+_Powered by ADN Capital AI_`;
+}
+
 // ═══════════════════════════════════════════════════════════════
 //  Router
 // ═══════════════════════════════════════════════════════════════
@@ -115,13 +143,19 @@ KHÔNG thêm các section không có trong format. CHỈ dùng số liệu từ 
 
 _Powered by ADN Capital AI_`;
 
-    const report = await generateText(prompt);
-    await saveMarketReport("prop_trading", `Tự Doanh ${today}`, report, propData, { netValue: propData.netValue });
-    await pushNotification("prop_trading", `🏦 Tự Doanh ${today}: ${propData.netValue >= 0 ? "+" : ""}${propData.netValue?.toFixed(1)} tỷ`, report);
+    let report = "";
+    try {
+      report = await generateText(prompt);
+    } catch (err) {
+      console.warn("[prop_trading] Gemini fallback:", err);
+    }
+    const safeReport = report?.trim() ? report : buildPropTradingFallback(today, propData.netValue);
+    await saveMarketReport("prop_trading", `Tự Doanh ${today}`, safeReport, propData, { netValue: propData.netValue });
+    await pushNotification("prop_trading", `🏦 Tự Doanh ${today}: ${propData.netValue >= 0 ? "+" : ""}${propData.netValue?.toFixed(1)} tỷ`, safeReport);
 
     const duration = Date.now() - startTime;
     await logCron("prop_trading", "success", `Net: ${propData.netValue} tỷ`, duration);
-    return NextResponse.json({ type: "prop_trading", timestamp: new Date().toISOString(), report });
+    return NextResponse.json({ type: "prop_trading", timestamp: new Date().toISOString(), report: safeReport });
   } catch (error) {
     await logCron("prop_trading", "error", String(error), Date.now() - startTime);
     return NextResponse.json({ error: "Lỗi Tự Doanh" }, { status: 500 });
@@ -188,17 +222,23 @@ TUYỆT ĐỐI CHỈ dùng số liệu từ Data thực được cung cấp:
 
 _Powered by ADN Capital AI_`;
 
-    const report = await generateText(prompt);
-    await saveMarketReport("intraday_update", `Market Update ${timeLabel}`, report, {
+    let report = "";
+    try {
+      report = await generateText(prompt);
+    } catch (err) {
+      console.warn("[intraday] Gemini fallback:", err);
+    }
+    const safeReport = report?.trim() ? report : buildIntradayFallback(today, timeLabel, vnidx);
+    await saveMarketReport("intraday_update", `Market Update ${timeLabel}`, safeReport, {
       indices: snapshot.indices, breadth: snapshot.breadth, liquidity: snapshot.liquidity,
     });
 
     const idxInfo = vnidx ? ` | VN-Index: ${vnidx.value} (${vnidx.changePct >= 0 ? "+" : ""}${vnidx.changePct}%)` : "";
-    await pushNotification(notifType, `⚡ Market Update ${timeLabel}${idxInfo}`, report);
+    await pushNotification(notifType, `⚡ Market Update ${timeLabel}${idxInfo}`, safeReport);
 
     const duration = Date.now() - startTime;
     await logCron("intraday", "success", `${notifType}, ${duration}ms`, duration);
-    return NextResponse.json({ type: "intraday", notifType, timeLabel, report, timestamp: new Date().toISOString() });
+    return NextResponse.json({ type: "intraday", notifType, timeLabel, report: safeReport, timestamp: new Date().toISOString() });
   } catch (error) {
     await logCron("intraday", "error", String(error), Date.now() - startTime);
     return NextResponse.json({ error: "Lỗi intraday" }, { status: 500 });

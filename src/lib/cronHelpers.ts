@@ -42,13 +42,14 @@ export async function pushNotification(
   content: string
 ) {
   try {
+    const safeContent = content?.trim() ? content : "Dữ liệu đang cập nhật. Vui lòng kiểm tra lại sau.";
     await prisma.notification.create({
-      data: { type, title, content },
+      data: { type, title, content: safeContent },
     });
     console.log(`[Notification] Đã tạo: ${type} — ${title}`);
 
     // Gửi Web Push cho tất cả subscribers
-    await sendWebPushToAll(title, content.substring(0, 200));
+    await sendWebPushToAll(title, safeContent.substring(0, 200));
   } catch (err) {
     console.error(`[Notification] Lỗi tạo ${type}:`, err);
   }

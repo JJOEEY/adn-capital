@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useCallback, memo, Suspense, Component, type ReactNode } from "react";
+import dynamic from "next/dynamic";
 import useSWR from "swr";
 import { RefreshCw, Bot, Zap, ShieldAlert, Flame, AlertTriangle, TrendingUp } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -113,6 +114,18 @@ const swrFetcher = (url: string) =>
     return r.json();
   });
 
+const TopBacktestChart = dynamic(
+  () => import("@/components/dashboard/DynamicBacktestChart").then((m) => m.DynamicBacktestChart),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="rounded-2xl border p-4 sm:p-6" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+        <div className="h-[300px] sm:h-[360px] rounded-xl animate-pulse" style={{ background: "var(--surface-2)" }} />
+      </div>
+    ),
+  },
+);
+
 export default function DashboardPage() {
   const { isVip } = useSubscription();
   const isDashboardLocked = !isVip;
@@ -215,17 +228,6 @@ export default function DashboardPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <div
-              className="hidden sm:flex items-center gap-2 text-xs px-3 py-1.5 rounded-lg"
-              style={{
-                color: "var(--text-secondary)",
-                border: "1px solid var(--border)",
-                background: "var(--primary-light)",
-              }}
-            >
-              <Bot className="w-3 h-3" />
-              ADN AI SYSTEM
-            </div>
             <Button
               variant="ghost"
               size="sm"
@@ -237,6 +239,17 @@ export default function DashboardPage() {
             </Button>
           </div>
         </div>
+
+        {/* ═══ TOP: Dynamic Backtest Chart ═══ */}
+        <SafeSection
+          fallback={
+            <div className="rounded-2xl border p-4 sm:p-6" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+              <div className="h-[300px] sm:h-[360px] rounded-xl animate-pulse" style={{ background: "var(--surface-2)" }} />
+            </div>
+          }
+        >
+          <TopBacktestChart />
+        </SafeSection>
 
         {/* ═══ HERO: Chart + Gauge (7:3) ═══ */}
         <div className="grid w-full min-w-0 grid-cols-1 lg:grid-cols-10 gap-4">

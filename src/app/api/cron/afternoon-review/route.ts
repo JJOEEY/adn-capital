@@ -1,9 +1,5 @@
 /**
  * API Cron: EOD Brief — 15:00 T2-T6
- *
- * Format: Dashboard Telegram chuyên nghiệp ADN Capital
- * Data: FiinQuant (market snapshot) + CafeF RSS (news)
- * AI: Gemini tổng hợp và format output theo chuẩn Telegram Markdown
  */
 import { NextRequest, NextResponse } from "next/server";
 import { generateText } from "@/lib/gemini";
@@ -19,6 +15,23 @@ import { getMarketSnapshot, formatSnapshotForAI } from "@/lib/marketDataFetcher"
 import { fetchAllCafefNews, buildCafefContext } from "@/lib/cafefScraper";
 
 export const maxDuration = 60;
+
+function buildEodFallback(today: string, vnidx?: { value: number; changePct: number }) {
+  const idxText = vnidx
+    ? `${vnidx.value} | ${vnidx.changePct >= 0 ? "+" : ""}${vnidx.changePct}%`
+    : "chưa cập nhật";
+
+  return `🌆 *BẢN TIN CUỐI PHIÊN — ${today}*
+
+📊 *KẾT QUẢ CHỈ SỐ:*
+🇻🇳 VN-INDEX: ${idxText}
+
+⚠️ *GHI CHÚ DỮ LIỆU:*
+• Một số dữ liệu cuối phiên đang cập nhật.
+• Hệ thống sẽ tự bổ sung khi nguồn dữ liệu đồng bộ xong.
+
+_Powered by ADN Capital AI_`;
+}
 
 export async function GET(req: NextRequest) {
   if (!validateCronSecret(req)) {
@@ -41,8 +54,8 @@ export async function GET(req: NextRequest) {
     const marketContext = formatSnapshotForAI(snapshot);
     const newsContext = buildCafefContext(cafefNews);
 
-    const vnidx = snapshot.indices.find(i => i.ticker === "VNINDEX");
-    const vn30  = snapshot.indices.find(i => i.ticker === "VN30");
+    const vnidx = snapshot.indices.find((i) => i.ticker === "VNINDEX");
+    const vn30 = snapshot.indices.find((i) => i.ticker === "VN30");
     const breadth = snapshot.breadth;
 
     const prompt = `Bạn là ADN AI Bot — trợ lý giao dịch chuyên nghiệp.
@@ -61,7 +74,7 @@ QUY TẮC TUYỆT ĐỐI:
 
 Viết theo đúng template dưới đây (giữ nguyên icon và cấu trúc):
 
-🌅 *BÁO CÁO CUỐI PHIÊN — ${today}*
+🌆 *BÁO CÁO CUỐI PHIÊN — ${today}*
 
 📊 *KẾT QUẢ CHỈ SỐ:*
 🇻🇳 VN\\-INDEX: ${vnidx?.value ?? "N/A"} \\| ${vnidx ? (vnidx.changePct >= 0 ? "+" : "") + vnidx.changePct + "%" : "N/A"}
@@ -81,21 +94,37 @@ Viết theo đúng template dưới đây (giữ nguyên icon và cấu trúc):
 
 _Powered by ADN Capital AI_`;
 
-    const report = await generateText(prompt);
+    let report = "";
+    try {
+      report = await generateText(prompt);
+    } catch (err) {
+      console.warn("[CRON eod-brief] Gemini fallback:", err);
+    }
+    const safeReport = report?.trim() ? report : buildEodFallback(today, vnidx);
 
-    // Phân tích verdict
-    const isGood = report.toLowerCase().includes("đạt - tìm cơ hội");
+    const isGood = safeReport.toLowerCase().includes("đạt - tìm cơ hội");
 
-    await saveMarketReport("eod_brief", `Báo cáo cuối phiên ${today}`, report, {
-      snapshot: { indices: snapshot.indices, breadth: snapshot.breadth, liquidity: snapshot.liquidity },
-    }, { verdict: isGood ? "GOOD" : "BAD", indices: snapshot.indices, marketScore: snapshot.marketOverview?.score });
+    await saveMarketReport(
+      "eod_brief",
+      `Báo cáo cuối phiên ${today}`,
+      safeReport,
+      {
+        snapshot: { indices: snapshot.indices, breadth: snapshot.breadth, liquidity: snapshot.liquidity },
+      },
+      { verdict: isGood ? "GOOD" : "BAD", indices: snapshot.indices, marketScore: snapshot.marketOverview?.score }
+    );
 
-    await pushNotification("eod_brief", `🌅 Bản tin cuối phiên ${today}`, report);
+    await pushNotification("eod_brief", `🌆 Bản tin cuối phiên ${today}`, safeReport);
 
     const duration = Date.now() - startTime;
     await logCron("eod_brief", "success", `Verdict: ${isGood ? "GOOD" : "BAD"}`, duration);
 
-    return NextResponse.json({ type: "eod_brief", timestamp: new Date().toISOString(), verdict: isGood ? "GOOD" : "BAD", report });
+    return NextResponse.json({
+      type: "eod_brief",
+      timestamp: new Date().toISOString(),
+      verdict: isGood ? "GOOD" : "BAD",
+      report: safeReport,
+    });
   } catch (error) {
     const duration = Date.now() - startTime;
     await logCron("eod_brief", "error", String(error), duration);

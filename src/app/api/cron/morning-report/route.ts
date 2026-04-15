@@ -20,6 +20,23 @@ import { fetchAllCafefNews, buildCafefContext } from "@/lib/cafefScraper";
 
 export const maxDuration = 60;
 
+function buildMorningFallback(today: string, vnidx?: { value: number; changePct: number }) {
+  const idxText = vnidx
+    ? `${vnidx.value} | ${vnidx.changePct >= 0 ? "+" : ""}${vnidx.changePct}%`
+    : "chưa cập nhật";
+
+  return `☀️ *BẢN TIN SÁNG ADN CAPITAL — ${today}*
+
+📊 *CHỈ SỐ THAM CHIẾU:*
+🇻🇳 VN-INDEX: ${idxText}
+
+⚠️ *GHI CHÚ DỮ LIỆU:*
+• Một số dữ liệu đang cập nhật.
+• Hệ thống sẽ tự bổ sung ngay khi nguồn dữ liệu đầy đủ.
+
+_Powered by ADN Capital AI_`;
+}
+
 export async function GET(req: NextRequest) {
   if (!validateCronSecret(req)) {
     return NextResponse.json({ error: "Không có quyền truy cập" }, { status: 401 });
@@ -85,16 +102,22 @@ Viết theo đúng template dưới đây (giữ nguyên icon và cấu trúc):
 
 _Powered by ADN Capital AI_`;
 
-    const report = await generateText(prompt);
+    let report = "";
+    try {
+      report = await generateText(prompt);
+    } catch (err) {
+      console.warn("[CRON morning-brief] Gemini fallback:", err);
+    }
+    const safeReport = report?.trim() ? report : buildMorningFallback(today, vnidx);
 
     // ── 3. Lưu DB ────────────────────────────────────────────────────
-    await saveMarketReport("morning_brief", `Báo cáo sáng ${today}`, report, {
+    await saveMarketReport("morning_brief", `Báo cáo sáng ${today}`, safeReport, {
       snapshot: { indices: snapshot.indices, breadth: snapshot.breadth, liquidity: snapshot.liquidity },
       cafefArticles: { stockMarket: cafefNews.stockMarket.articles.length, macro: cafefNews.macro.articles.length, global: cafefNews.global.articles.length },
     }, { indices: snapshot.indices, marketScore: snapshot.marketOverview?.score });
 
     // ── 4. Push Notification ──────────────────────────────────────────
-    await pushNotification("morning_brief", `☀️ Bản tin sáng ${today}`, report);
+    await pushNotification("morning_brief", `☀️ Bản tin sáng ${today}`, safeReport);
 
     const duration = Date.now() - startTime;
     await logCron("morning_brief", "success", `Created in ${duration}ms`, duration, {
@@ -105,7 +128,7 @@ _Powered by ADN Capital AI_`;
     return NextResponse.json({
       type: "morning_brief",
       timestamp: new Date().toISOString(),
-      report,
+      report: safeReport,
       dataSources: {
         fiinquant: !!snapshot.marketOverview,
         vndirect: snapshot.indices.length > 0,

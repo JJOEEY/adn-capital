@@ -5,8 +5,8 @@ import { useRouter, usePathname } from "next/navigation";
 
 const TAB_ORDER = [
   "/dashboard",
-  "/dashboard/rs-rating",
   "/journal",
+  "/tin-tuc",
   "/dashboard/signal-map",
   "/notifications",
   "/menu",
