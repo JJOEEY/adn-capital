@@ -20,7 +20,7 @@ volumes:
 ```
 4. `DATABASE_URL` must point to `pgbouncer`, and `DIRECT_DATABASE_URL` must point to `db`:
 ```env
-DATABASE_URL=postgresql://adnuser:adn_pass_99@pgbouncer:6432/adncapital?pgbouncer=true
+DATABASE_URL=postgresql://adnuser:adn_pass_99@pgbouncer:5432/adncapital?pgbouncer=true
 DIRECT_DATABASE_URL=postgresql://adnuser:adn_pass_99@db:5432/adncapital
 ```
 
@@ -28,7 +28,7 @@ DIRECT_DATABASE_URL=postgresql://adnuser:adn_pass_99@db:5432/adncapital
 ```bash
 ssh root@14.225.204.117 "cd /home/adncapital/app/adn-capital && docker compose exec -T web env | grep -E 'DATABASE_URL|DIRECT_DATABASE_URL'"
 ```
-Expected: `DATABASE_URL` has `@pgbouncer:6432`, `DIRECT_DATABASE_URL` has `@db:5432`.
+Expected: `DATABASE_URL` has `@pgbouncer:5432`, `DIRECT_DATABASE_URL` has `@db:5432`.
 
 ```bash
 ssh root@14.225.204.117 "cd /home/adncapital/app/adn-capital && docker compose exec -T db psql -U adnuser -d adncapital -c 'SELECT COUNT(*) FROM \"User\"'"
