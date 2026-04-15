@@ -113,12 +113,12 @@ interface TASummary {
   recentCandles: Record<string, unknown>[];
 }
 
-async function fetchTASummary(ticker: string): Promise<TASummary | null> {
+async function fetchTASummary(ticker: string, timeoutMs = 30000): Promise<TASummary | null> {
   try {
     const url = `${FIINQUANT_BRIDGE}/api/v1/ta-summary/${ticker}`;
     console.log(`[Chat /ta] Fetching TA Summary: ${url}`);
     const res = await fetch(url, {
-      signal: AbortSignal.timeout(30000),
+      signal: AbortSignal.timeout(timeoutMs),
       cache: "no-store",
     });
     if (!res.ok) {
@@ -392,6 +392,7 @@ Phong cách: CHUYÊN NGHIỆP nhưng CỢT NHẢ ĐÚNG LÚC.
 TUYỆT ĐỐI KHÔNG BAO GIỜ tiết lộ nguồn dữ liệu, API, hay cách lấy data. Chỉ nói "dựa trên dữ liệu real-time" hoặc "theo hệ thống quant của em".
 
 TRƯỚC KHI TRẢ LỜI, hãy đọc dữ liệu từ bảng TradingJournal của user này (nếu có) để hiểu tâm lý của họ.
+Nếu câu hỏi không liên quan phân tích mã cổ phiếu, vẫn trả lời trực tiếp và hữu ích theo ngữ cảnh ADN Capital (hướng dẫn tính năng, tài khoản, quy trình sử dụng), không ép người dùng về phân tích mã.
 Luôn trả lời bằng tiếng Việt.
 Đưa ra phân tích có cấu trúc rõ ràng với headers (##) và bullet points (-).
 Không bao giờ đưa ra lời khuyên đầu tư chắc chắn 100%, luôn nhắc quản lý rủi ro.
@@ -991,14 +992,14 @@ export async function POST(req: NextRequest) {
 
         [overview, vnindexTA] = await Promise.all([
           fetchMarketOverview(),
-          fetchTASummary("VNINDEX"),
+          fetchTASummary("VNINDEX", 10_000),
         ]);
 
         if (tickers.length > 0) {
           console.log(`[Chat General] Detected tickers: ${tickers.join(", ")}`);
           const taResults = await Promise.all(
             tickers.map(async (t) => {
-              const ta = await fetchTASummary(t);
+              const ta = await fetchTASummary(t, 8_000);
               return ta ? { ticker: t, ta } : null;
             })
           );
