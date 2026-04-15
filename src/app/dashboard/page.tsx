@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useMemo, useCallback, memo, Suspense, Component, type ReactNode } from "react";
-import dynamic from "next/dynamic";
 import useSWR from "swr";
 import { RefreshCw, Bot, Zap, ShieldAlert, Flame, AlertTriangle, TrendingUp } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -113,18 +112,6 @@ const swrFetcher = (url: string) =>
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return r.json();
   });
-
-const TopBacktestChart = dynamic(
-  () => import("@/components/dashboard/DynamicBacktestChart").then((m) => m.DynamicBacktestChart),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="rounded-2xl border p-4 sm:p-6" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-        <div className="h-[300px] sm:h-[360px] rounded-xl animate-pulse" style={{ background: "var(--surface-2)" }} />
-      </div>
-    ),
-  },
-);
 
 export default function DashboardPage() {
   const { isVip } = useSubscription();
@@ -239,17 +226,6 @@ export default function DashboardPage() {
             </Button>
           </div>
         </div>
-
-        {/* ═══ TOP: Dynamic Backtest Chart ═══ */}
-        <SafeSection
-          fallback={
-            <div className="rounded-2xl border p-4 sm:p-6" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-              <div className="h-[300px] sm:h-[360px] rounded-xl animate-pulse" style={{ background: "var(--surface-2)" }} />
-            </div>
-          }
-        >
-          <TopBacktestChart />
-        </SafeSection>
 
         {/* ═══ HERO: Chart + Gauge (7:3) ═══ */}
         <div className="grid w-full min-w-0 grid-cols-1 lg:grid-cols-10 gap-4">

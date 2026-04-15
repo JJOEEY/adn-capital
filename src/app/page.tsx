@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import Pricing from "@/components/landing/Pricing";
 import { Footer } from "@/components/layout/Footer";
 import { motion, useInView, AnimatePresence } from "framer-motion";
@@ -94,6 +95,18 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
     </span>
   );
 }
+
+const LandingBacktestChart = dynamic(
+  () => import("@/components/dashboard/DynamicBacktestChart").then((m) => m.DynamicBacktestChart),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="rounded-2xl border p-4 sm:p-6" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+        <div className="h-[360px] sm:h-[420px] rounded-xl animate-pulse" style={{ background: "var(--surface-2)" }} />
+      </div>
+    ),
+  },
+);
 
 /* ─────────────────────────────────────────────────────────────────────────────
    LANDING PAGE HEADER (Phase 1 spec)
@@ -313,7 +326,7 @@ function HeroSection() {
           </div>
         </FadeIn>
 
-        {/* Hero dashboard image */}
+        {/* Hero backtest chart */}
         <FadeIn delay={0.6}>
           <div
             className="mt-16 rounded-2xl overflow-hidden mx-auto max-w-4xl"
@@ -322,14 +335,7 @@ function HeroSection() {
               boxShadow: "0 24px 48px rgba(0,0,0,0.08)",
             }}
           >
-            <Image
-              src="/logo.jpg"
-              alt="ADN Capital Dashboard"
-              width={1200}
-              height={675}
-              className="w-full h-auto object-cover"
-              priority
-            />
+            <LandingBacktestChart />
           </div>
         </FadeIn>
       </div>
