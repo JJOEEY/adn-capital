@@ -25,6 +25,28 @@ export async function GET() {
       dnseAppliedAt: true,
       chatCount: true,
       createdAt: true,
+      receivedEntitlements: {
+        where: {
+          status: "ACTIVE",
+        },
+        orderBy: [{ grantedAt: "desc" }, { createdAt: "desc" }],
+        take: 1,
+        select: {
+          id: true,
+          badge: true,
+          durationDays: true,
+          grantedAt: true,
+          expiresAt: true,
+          status: true,
+          grantedByAdmin: {
+            select: {
+              id: true,
+              email: true,
+              name: true,
+            },
+          },
+        },
+      },
     },
     orderBy: { createdAt: "desc" },
   });

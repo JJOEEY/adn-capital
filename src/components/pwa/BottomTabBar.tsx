@@ -3,28 +3,16 @@
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import {
-  Home,
-  BookOpen,
-  Newspaper,
-  Zap,
-  MessageSquare,
-  Menu,
-} from "lucide-react";
+import { Home, LineChart, BookOpen, Zap, User } from "lucide-react";
 
 const tabs = [
-  { href: "/dashboard", label: "Trang chủ", icon: Home },
-  { href: "/journal", label: "Nhật Ký", icon: BookOpen },
-  { href: "/tin-tuc", label: "Tin Tức", icon: Newspaper },
-  { href: "/dashboard/signal-map", label: "AI Broker", icon: Zap },
-  { href: "/notifications", label: "Tin nhắn", icon: MessageSquare },
-  { href: "/menu", label: "Menu", icon: Menu },
+  { href: "/dashboard", label: "Tong quan", icon: Home },
+  { href: "/tin-tuc", label: "Thi truong", icon: LineChart },
+  { href: "/journal", label: "Nhat ky", icon: BookOpen },
+  { href: "/dashboard/signal-map", label: "Tin hieu", icon: Zap },
+  { href: "/menu", label: "Ca nhan", icon: User },
 ];
 
-/**
- * BottomTabBar — thanh điều hướng dưới cùng giống DNSE app.
- * Hiển thị trên mobile / PWA standalone mode.
- */
 export function BottomTabBar() {
   const pathname = usePathname();
 
@@ -33,15 +21,28 @@ export function BottomTabBar() {
       ? pathname === "/dashboard"
       : pathname === href || pathname.startsWith(href + "/");
 
+  const hapticTap = () => {
+    if (typeof window !== "undefined" && "vibrate" in navigator) {
+      navigator.vibrate(50);
+    }
+  };
+
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t safe-area-bottom" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+    <nav
+      className="fixed bottom-0 left-0 right-0 z-50 border-t safe-area-bottom"
+      style={{
+        background: "#1E1E1E",
+        borderColor: "rgba(235,226,207,0.12)",
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
+      }}
+    >
       <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-1">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const active = isActive(tab.href);
 
           return (
-            <Link key={tab.href} href={tab.href} className="flex-1">
+            <Link key={tab.href} href={tab.href} className="flex-1" onClick={hapticTap}>
               <div className="flex flex-col items-center gap-0.5 py-1.5 relative">
                 {active && (
                   <motion.div
@@ -69,3 +70,4 @@ export function BottomTabBar() {
     </nav>
   );
 }
+

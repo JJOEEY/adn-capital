@@ -32,6 +32,7 @@ type CacheEntry = {
 };
 
 const chartCache = new Map<string, CacheEntry>();
+const inFlightRequests = new Map<string, Promise<ChartPayload>>();
 const CHART_CACHE_TTL_MS = 5 * 60 * 1000;
 
 function getCache(symbol: string): ChartPayload | null {
@@ -122,10 +123,28 @@ async function fetchFromFiinQuant(symbol: string): Promise<Candle[] | null> {
     .filter((c: Candle, i: number, arr: Candle[]) => i === 0 || c.time !== arr[i - 1].time);
 }
 
-/**
- * Ưu tiên data miễn phí VNDirect để tiết kiệm quota FiinQuant.
- * Chỉ fallback sang FiinQuant Bridge khi VNDirect lỗi hoặc không có dữ liệu.
- */
+async function loadChartData(symbol: string): Promise<ChartPayload> {
+  try {
+    const vnCandles = await fetchFromVnDirect(symbol);
+    if (vnCandles?.length) {
+      const payload: ChartPayload = { symbol, candles: vnCandles, source: "vndirect" };
+      setCache(payload);
+      return payload;
+    }
+  } catch (error) {
+    console.warn(`[Chart] ${symbol}: VNDirect error`, error);
+  }
+
+  const fiinCandles = await fetchFromFiinQuant(symbol);
+  if (fiinCandles?.length) {
+    const payload: ChartPayload = { symbol, candles: fiinCandles, source: "fiinquant" };
+    setCache(payload);
+    return payload;
+  }
+
+  throw new Error("CHART_DATA_UNAVAILABLE");
+}
+
 export async function GET(req: NextRequest) {
   const symbol = req.nextUrl.searchParams.get("symbol")?.toUpperCase();
   if (!symbol || !/^[A-Z0-9]{2,10}$/.test(symbol)) {
@@ -135,30 +154,29 @@ export async function GET(req: NextRequest) {
   const cached = getCache(symbol);
   if (cached) return NextResponse.json(cached);
 
-  try {
-    const vnCandles = await fetchFromVnDirect(symbol);
-    if (vnCandles?.length) {
-      const payload: ChartPayload = { symbol, candles: vnCandles, source: "vndirect" };
-      setCache(payload);
-      return NextResponse.json(payload);
+  const inflight = inFlightRequests.get(symbol);
+  if (inflight) {
+    try {
+      const payload = await inflight;
+      return NextResponse.json({ ...payload, cached: true });
+    } catch {
+      // Continue to normal flow
     }
-  } catch (error) {
-    console.warn(`[Chart] ${symbol}: VNDirect error, fallback FiinQuant`, error);
   }
 
-  try {
-    const fiinCandles = await fetchFromFiinQuant(symbol);
-    if (fiinCandles?.length) {
-      const payload: ChartPayload = { symbol, candles: fiinCandles, source: "fiinquant" };
-      setCache(payload);
-      return NextResponse.json(payload);
-    }
-  } catch (error) {
-    console.warn(`[Chart] ${symbol}: FiinQuant error`, error);
-  }
+  const requestPromise = loadChartData(symbol);
+  inFlightRequests.set(symbol, requestPromise);
 
-  return NextResponse.json(
-    { error: "Hệ thống dữ liệu đang bảo trì, vui lòng thử lại sau" },
-    { status: 503 }
-  );
+  try {
+    const payload = await requestPromise;
+    return NextResponse.json(payload);
+  } catch {
+    return NextResponse.json(
+      { error: "He thong du lieu dang bao tri, vui long thu lai sau" },
+      { status: 503 }
+    );
+  } finally {
+    inFlightRequests.delete(symbol);
+  }
 }
+

@@ -11,6 +11,7 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import authConfig from "@/lib/auth.config";
+import { resolveEffectiveEntitlement } from "@/lib/entitlements";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...authConfig,
@@ -87,8 +88,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               where: { id: token.id as string },
               data: { role: "VIP", vipUntil: trialEnd },
             });
-            token.role = "VIP";
-            token.vipUntil = trialEnd.toISOString();
+            const entitlement = await resolveEffectiveEntitlement(token.id as string, "VIP", trialEnd);
+            token.role = entitlement.badge === "FREE" ? "FREE" : "VIP";
+            token.vipUntil = entitlement.vipUntil?.toISOString() ?? null;
           }
           // ── Auto-downgrade: VIP đã hết hạn → trả về FREE ──
           else if (dbUser.role === "VIP" && dbUser.vipUntil && dbUser.vipUntil < now) {
@@ -96,11 +98,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               where: { id: token.id as string },
               data: { role: "FREE", vipUntil: null },
             });
-            token.role = "FREE";
-            token.vipUntil = null;
+            const entitlement = await resolveEffectiveEntitlement(token.id as string, "FREE", null);
+            token.role = entitlement.badge === "FREE" ? "FREE" : "VIP";
+            token.vipUntil = entitlement.vipUntil?.toISOString() ?? null;
           } else {
-            token.role = dbUser.role;
-            token.vipUntil = dbUser.vipUntil?.toISOString() ?? null;
+            const entitlement = await resolveEffectiveEntitlement(
+              token.id as string,
+              dbUser.role,
+              dbUser.vipUntil ?? null
+            );
+            token.role = entitlement.badge === "FREE" ? "FREE" : "VIP";
+            token.vipUntil = entitlement.vipUntil?.toISOString() ?? null;
           }
         }
       }

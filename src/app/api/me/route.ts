@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentDbUser } from "@/lib/current-user";
+import { resolveEffectiveEntitlement } from "@/lib/entitlements";
 
 export const dynamic = "force-dynamic";
 
@@ -21,16 +22,13 @@ export async function GET() {
   const systemRole = (dbUser as Record<string, unknown>).systemRole as string ?? "USER";
   const isAdmin = systemRole === "ADMIN";
 
-  // Tính vipTier: PREMIUM nếu vipUntil > 90 ngày, VIP nếu ≤ 90 ngày
-  let vipTier: "VIP" | "PREMIUM" | null = null;
-  if (dbUser.vipUntil) {
-    const daysLeft = Math.ceil(
-      (new Date(dbUser.vipUntil).getTime() - Date.now()) / 86400000
-    );
-    if (daysLeft > 0) {
-      vipTier = daysLeft > 90 ? "PREMIUM" : "VIP";
-    }
-  }
+  const entitlement = await resolveEffectiveEntitlement(
+    dbUser.id,
+    dbUser.role,
+    dbUser.vipUntil ?? null
+  );
+  const vipTier = entitlement.vipTier;
+  const effectiveRole = entitlement.badge === "FREE" ? "FREE" : "VIP";
 
   return NextResponse.json({
     isAuthenticated: true,
@@ -39,10 +37,10 @@ export async function GET() {
       email: dbUser.email,
       name: dbUser.name ?? null,
       image: dbUser.image ?? null,
-      role: dbUser.role,
+      role: effectiveRole,
       systemRole,
       chatCount: dbUser.chatCount,
-      vipUntil: dbUser.vipUntil?.toISOString() ?? null,
+      vipUntil: entitlement.vipUntil?.toISOString() ?? null,
       vipTier,
       dnseId: dbUser.dnseId ?? null,
       dnseVerified: dbUser.dnseVerified ?? false,

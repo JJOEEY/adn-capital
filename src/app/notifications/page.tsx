@@ -53,9 +53,47 @@ function getConfig(type: string) {
 
 type SubTab = "updates" | "chatbot";
 
+function isStandalonePwa() {
+  if (typeof window === "undefined") return false;
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    (window.navigator as Navigator & { standalone?: boolean }).standalone === true
+  );
+}
+
+function getIosVersion() {
+  if (typeof navigator === "undefined") return null;
+  const match = navigator.userAgent.match(/OS (\d+)[._](\d+)/i);
+  if (!match) return null;
+  return { major: Number(match[1]), minor: Number(match[2]) };
+}
+
+function getPushBlockedReason() {
+  if (typeof window === "undefined") return "";
+  const ua = navigator.userAgent || "";
+  const isIOS = /iPhone|iPad|iPod/i.test(ua);
+  if (!isIOS) return "";
+
+  const version = getIosVersion();
+  const supportsWebPush = !!version && (version.major > 16 || (version.major === 16 && version.minor >= 4));
+  if (!supportsWebPush) {
+    return "Push tren iOS yeu cau iOS 16.4 tro len.";
+  }
+  if (!isStandalonePwa()) {
+    return "Voi iPhone, hay bam Share -> Add to Home Screen truoc khi bat thong bao.";
+  }
+  return "";
+}
+
 /** Helper: Đăng ký web push subscription */
 async function subscribePush(): Promise<boolean> {
   try {
+    const blockedReason = getPushBlockedReason();
+    if (blockedReason) {
+      console.warn("[Push] Blocked:", blockedReason);
+      return false;
+    }
+
     const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
     if (!vapidKey) {
       console.warn("[Push] VAPID public key chưa cấu hình");
@@ -125,6 +163,7 @@ export default function NotificationsPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushLoading, setPushLoading] = useState(false);
+  const [pushBlockedReason, setPushBlockedReason] = useState("");
 
   const { data, isLoading } = useSWR<{ notifications: Notification[] }>(
     "/api/notifications?limit=50",
@@ -136,6 +175,7 @@ export default function NotificationsPage() {
 
   // Check push subscription status on mount
   useEffect(() => {
+    setPushBlockedReason(getPushBlockedReason());
     if ("serviceWorker" in navigator && "PushManager" in window) {
       navigator.serviceWorker.ready.then((reg) => {
         reg.pushManager.getSubscription().then((sub) => {
@@ -146,6 +186,12 @@ export default function NotificationsPage() {
   }, []);
 
   const handleTogglePush = async () => {
+    const blockedReason = getPushBlockedReason();
+    if (blockedReason) {
+      setPushBlockedReason(blockedReason);
+      return;
+    }
+
     setPushLoading(true);
     try {
       if (pushEnabled) {
@@ -244,6 +290,18 @@ export default function NotificationsPage() {
         {subTab === "updates" ? (
           /* ── Cập nhật thông tin ── */
           <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-4">
+            {pushBlockedReason && (
+              <div
+                className="rounded-xl border p-3 text-xs"
+                style={{
+                  background: "rgba(245,158,11,0.10)",
+                  borderColor: "rgba(245,158,11,0.25)",
+                  color: "#f59e0b",
+                }}
+              >
+                {pushBlockedReason}
+              </div>
+            )}
             {/* Push toggle + filter tags */}
             <div className="flex items-center justify-between gap-2">
               <div className="flex gap-2 flex-wrap flex-1">
@@ -262,7 +320,7 @@ export default function NotificationsPage() {
               </div>
               <button
                 onClick={handleTogglePush}
-                disabled={pushLoading}
+                disabled={pushLoading || !!pushBlockedReason}
                 className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-bold border transition-all cursor-pointer ${pushLoading ? "opacity-50" : ""}`}
                 style={pushEnabled
                   ? { background: "rgba(16,185,129,0.15)", color: "#10b981", borderColor: "rgba(16,185,129,0.25)" }

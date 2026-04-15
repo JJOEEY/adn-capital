@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useMemo, useCallback, memo, Suspense, Component, type ReactNode } from "react";
 import useSWR from "swr";
@@ -37,7 +37,7 @@ interface MarketData {
   chartData: Array<{ date: string; close: number }>;
 }
 
-/** Dữ liệu "Đánh giá Đáy Thị Trường" từ Python API */
+/** Dá»¯ liá»‡u "ÄÃ¡nh giÃ¡ ÄÃ¡y Thá»‹ TrÆ°á»ng" tá»« Python API */
 interface MarketOverview {
   ticker: string;
   score: number;
@@ -73,14 +73,14 @@ interface MarketOverview {
   price: number;
 }
 
-/** Format số tiền tệ đẹp: 10542.3 → "10,542" */
+/** Format sá»‘ tiá»n tá»‡ Ä‘áº¹p: 10542.3 â†’ "10,542" */
 function fmtLiquidity(tyVnd: number): string {
   return new Intl.NumberFormat("vi-VN", {
     maximumFractionDigits: 0,
   }).format(Math.round(tyVnd));
 }
 
-/** Component-level error boundary — hiện skeleton thay vì crash toàn trang */
+/** Component-level error boundary â€” hiá»‡n skeleton thay vÃ¬ crash toÃ n trang */
 class SafeSection extends Component<
   { children: ReactNode; fallback?: ReactNode },
   { hasError: boolean }
@@ -97,7 +97,7 @@ class SafeSection extends Component<
       return (
         this.props.fallback ?? (
           <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 text-center">
-            <p className="text-xs" style={{ color: "var(--text-muted)" }}>Không thể tải phần này</p>
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>KhÃ´ng thá»ƒ táº£i pháº§n nÃ y</p>
           </div>
         )
       );
@@ -106,7 +106,7 @@ class SafeSection extends Component<
   }
 }
 
-/** SWR fetcher — throw on HTTP error để SWR retry */
+/** SWR fetcher â€” throw on HTTP error Ä‘á»ƒ SWR retry */
 const swrFetcher = (url: string) =>
   fetch(url, { signal: AbortSignal.timeout(30_000) }).then((r) => {
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -117,11 +117,11 @@ export default function DashboardPage() {
   const { isVip } = useSubscription();
   const isDashboardLocked = !isVip;
 
-  /* ── Hydration guard: chỉ render data-dependent content sau khi mount ── */
+  /* â”€â”€ Hydration guard: chá»‰ render data-dependent content sau khi mount â”€â”€ */
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  /* ── SWR config chung: giữ data cũ, không gọi lại khi chuyển tab ── */
+  /* â”€â”€ SWR config chung: giá»¯ data cÅ©, khÃ´ng gá»i láº¡i khi chuyá»ƒn tab â”€â”€ */
   const swrOpts = {
     keepPreviousData: true,
     revalidateOnFocus: false,
@@ -129,7 +129,7 @@ export default function DashboardPage() {
     refreshInterval: 60_000,
   };
 
-  /* ── 3 SWR hooks song song ── */
+  /* â”€â”€ 3 SWR hooks song song â”€â”€ */
   const {
     data,
     isLoading: loadingMarket,
@@ -137,7 +137,7 @@ export default function DashboardPage() {
     mutate: mutateMarket,
   } = useSWR<MarketData>("/api/market", swrFetcher, swrOpts);
 
-  // Primary: market-status (từ file cache, load tức thì ~20ms)
+  // Primary: market-status (tá»« file cache, load tá»©c thÃ¬ ~20ms)
   const {
     data: marketStatus,
   } = useSWR<MarketOverview>("/api/market-status", swrFetcher, {
@@ -146,7 +146,7 @@ export default function DashboardPage() {
     shouldRetryOnError: false,
   });
 
-  // Secondary: market-overview (từ Python bridge, đầy đủ hơn nhưng chậm)
+  // Secondary: market-overview (tá»« Python bridge, Ä‘áº§y Ä‘á»§ hÆ¡n nhÆ°ng cháº­m)
   const {
     data: overview,
     isLoading: loadingOverview,
@@ -158,11 +158,11 @@ export default function DashboardPage() {
     errorRetryInterval: 5000,
   });
 
-  // Dùng overview nếu có (đầy đủ), fallback về marketStatus (từ cache)
+  // DÃ¹ng overview náº¿u cÃ³ (Ä‘áº§y Ä‘á»§), fallback vá» marketStatus (tá»« cache)
   const effectiveOverview = overview ?? marketStatus ?? null;
 
 
-  /* ── Derived state ── */
+  /* â”€â”€ Derived state â”€â”€ */
   const loading = !mounted || (!data && loadingMarket);
   const refreshing = mounted && !!data && validatingMarket;
 
@@ -187,14 +187,14 @@ export default function DashboardPage() {
     ];
   }, [data]);
 
-  // Thanh khoản: ưu tiên từ Python backend (đã fix)
+  // Thanh khoáº£n: Æ°u tiÃªn tá»« Python backend (Ä‘Ã£ fix)
   const liquidityDisplay = overview
-    ? `${fmtLiquidity(overview.liquidity)} Tỷ VNĐ`
+    ? `${fmtLiquidity(overview.liquidity)} Tá»· VNÄ`
     : data?.totalVolume ?? "N/A";
 
   return (
     <MainLayout>
-      {/* ═══ TICKER TAPE ═══ */}
+      {/* â•â•â• TICKER TAPE â•â•â• */}
       {loading || !data ? <TickerTapeSkeleton /> : <TickerTape items={tickerItems} />}
 
       <div className="p-3 md:p-5 space-y-4 w-full max-w-[1440px] mx-auto min-w-0 overflow-x-hidden">
@@ -211,7 +211,7 @@ export default function DashboardPage() {
               </span>
             </div>
             <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
-              Tổng quan thị trường · {data?.date ?? "..."}
+              Tá»•ng quan thá»‹ trÆ°á»ng Â· {data?.date ?? "..."}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -222,14 +222,14 @@ export default function DashboardPage() {
               loading={refreshing}
             >
               <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />
-              Làm mới
+              LÃ m má»›i
             </Button>
           </div>
         </div>
 
-        {/* ═══ HERO: Chart + Gauge (7:3) ═══ */}
+        {/* â•â•â• HERO: Chart + Gauge (7:3) â•â•â• */}
         <div className="grid w-full min-w-0 grid-cols-1 lg:grid-cols-10 gap-4">
-          {/* Cột Trái: Chart + Breadth */}
+          {/* Cá»™t TrÃ¡i: Chart + Breadth */}
           <div className="lg:col-span-6 w-full min-w-0 flex flex-col gap-3">
             {!data ? (
               <>
@@ -253,11 +253,11 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Cột Phải: Gauge + Market Status Card */}
+          {/* Cá»™t Pháº£i: Gauge + Market Status Card */}
           <div className="lg:col-span-4 w-full min-w-0 flex flex-col gap-3">
-            <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem Đánh giá Vĩ mô">
+            <LockOverlay isLocked={isDashboardLocked} message="NÃ¢ng cáº¥p VIP Ä‘á»ƒ xem ÄÃ¡nh giÃ¡ VÄ© mÃ´">
               <SafeSection fallback={<GaugeCardSkeleton />}>
-                {/* Đồng hồ Gauge */}
+                {/* Äá»“ng há»“ Gauge */}
                 {!mounted ? (
                   <GaugeCardSkeleton />
                 ) : (
@@ -267,7 +267,7 @@ export default function DashboardPage() {
                   />
                 )}
 
-                {/* Thẻ Trạng Thái 3D */}
+                {/* Tháº» Tráº¡ng ThÃ¡i 3D */}
                 {mounted && (effectiveOverview || data) && (
                   <MarketStatusCard 
                     overview={effectiveOverview} 
@@ -279,30 +279,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* ═══ AI SUMMARY ═══ */}
-        {data?.aiSummary ? (
-          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 min-h-[80px]">
-            <div className="flex items-center gap-2 mb-2">
-              <Bot className="w-4 h-4" style={{ color: "#16a34a" }} />
-              <span className="text-[12px] font-bold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
-                AI Nhận Định
-              </span>
-            </div>
-            <p className="text-sm leading-relaxed italic whitespace-normal break-words" style={{ color: "var(--text-primary)" }}>
-              &ldquo;{data.aiSummary}&rdquo;
-            </p>
-          </div>
-        ) : !data ? (
-          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 min-h-[80px] animate-pulse">
-            <div className="h-3 w-24 rounded mb-3" style={{ background: "var(--bg-hover)" }} />
-            <div className="space-y-2">
-              <div className="h-3 w-full rounded" style={{ background: "var(--bg-hover)" }} />
-              <div className="h-3 w-3/4 rounded" style={{ background: "var(--bg-hover)" }} />
-            </div>
-          </div>
-        ) : null}
-
-        {/* ═══ BOTTOM: News (left 2-col) | TEI + Leaders (right) ═══ */}
+        {/* â•â•â• BOTTOM: News (left 2-col) | AI + ART (right) â•â•â• */}
         <div className="grid w-full min-w-0 grid-cols-1 lg:grid-cols-3 lg:[grid-template-columns:repeat(3,minmax(0,1fr))] gap-4">
           {/* Left: Morning + EOD stacked */}
           <div className="lg:col-span-2 w-full min-w-0 grid grid-cols-1 md:grid-cols-2 lg:[grid-template-columns:repeat(2,minmax(0,1fr))] gap-4">
@@ -318,9 +295,15 @@ export default function DashboardPage() {
             </SafeSection>
           </div>
 
-          {/* Right: TEI + Top Leaders stacked */}
+          {/* Right: AI decision + ART */}
           <div className="w-full min-w-0 flex flex-col gap-4">
-            <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem Chỉ báo Cạn Kiệt Xu Hướng">
+            <LockOverlay isLocked={isDashboardLocked} message="Nang cap VIP de mo Khu vuc AI Nhan dinh">
+              <AIBrokerDecisionCard
+                summary={data?.aiSummary ?? null}
+                signalLabel={effectiveOverview?.action_message ?? null}
+              />
+            </LockOverlay>
+            <LockOverlay isLocked={isDashboardLocked} message="NÃ¢ng cáº¥p VIP Ä‘á»ƒ xem Chá»‰ bÃ¡o Cáº¡n Kiá»‡t Xu HÆ°á»›ng">
               <SafeSection fallback={<RPISkeleton />}>
                 {!mounted ? <RPISkeleton /> : <ReversePointIndex />}
               </SafeSection>
@@ -331,23 +314,21 @@ export default function DashboardPage() {
     </MainLayout>
   );
 }
-
-
-/* ═══════════════════════════════════════════════════════════════════════════
- *  GaugeCard – SVG bán nguyệt nhẹ (0-10 điểm, không dùng Recharts)
- * ═══════════════════════════════════════════════════════════════════════════ */
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+ *  GaugeCard â€“ SVG bÃ¡n nguyá»‡t nháº¹ (0-10 Ä‘iá»ƒm, khÃ´ng dÃ¹ng Recharts)
+ * â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 function getScoreLabel(score: number, maxScore: number = 14): string {
   if (maxScore <= 10) {
     // Legacy 10-point scale
-    if (score < 4) return "NGỦ ĐÔNG";
-    if (score <= 7) return "THĂM DÒ";
-    return "THIÊN THỜI";
+    if (score < 4) return "NGá»¦ ÄÃ”NG";
+    if (score <= 7) return "THÄ‚M DÃ’";
+    return "THIÃŠN THá»œI";
   }
   // 14-point ADN Composite
-  if (score < 6) return "NGỦ ĐÔNG";
-  if (score < 11) return "THĂM DÒ";
-  return "THIÊN THỜI";
+  if (score < 6) return "NGá»¦ ÄÃ”NG";
+  if (score < 11) return "THÄ‚M DÃ’";
+  return "THIÃŠN THá»œI";
 }
 
 function getScoreColor(score: number, maxScore: number = 14): string {
@@ -367,7 +348,7 @@ function GaugeSVG({ score, maxScore }: { score: number; maxScore: number }) {
   const cx = 150, cy = 125, r = 90;
   const SEGS = 60;
 
-  // Color stops: red(0) → orange → yellow → purple(maxScore)
+  // Color stops: red(0) â†’ orange â†’ yellow â†’ purple(maxScore)
   const STOPS: [number, [number, number, number]][] = [
     [0.0, [239, 68, 68]],   // #ef4444
     [0.30, [249, 115, 22]], // #f97316
@@ -407,7 +388,7 @@ function GaugeSVG({ score, maxScore }: { score: number; maxScore: number }) {
     });
   }
 
-  // Needle — use maxScore instead of hardcoded 10
+  // Needle â€” use maxScore instead of hardcoded 10
   const needleAngle = Math.PI - (safe / maxScore) * Math.PI;
   const needleLen = r * 0.75;
   const nx = cx + needleLen * Math.cos(needleAngle);
@@ -465,7 +446,7 @@ const GaugeCard = memo(function GaugeCard({ overview, marketData }: { overview: 
         className="text-[12px] font-bold uppercase tracking-wider mb-2 self-start"
         style={{ color: "var(--text-muted)" }}
       >
-        ADN Composite Score (W/M + Định giá)
+        ADN Composite Score (W/M + Äá»‹nh giÃ¡)
       </p>
 
       {overview ? (
@@ -487,7 +468,7 @@ const GaugeCard = memo(function GaugeCard({ overview, marketData }: { overview: 
             {(taScore != null || valScore != null) && (
               <div className="flex gap-3 text-[12px] mt-1" style={{ color: "var(--text-secondary)" }}>
                 {taScore != null && <span>TA: <span className="font-bold" style={{ color: "var(--text-primary)" }}>{taScore}/10</span></span>}
-                {valScore != null && <span>Định giá: <span className="font-bold" style={{ color: "var(--text-primary)" }}>{valScore}/4</span></span>}
+                {valScore != null && <span>Äá»‹nh giÃ¡: <span className="font-bold" style={{ color: "var(--text-primary)" }}>{valScore}/4</span></span>}
               </div>
             )}
           </div>
@@ -501,7 +482,7 @@ const GaugeCard = memo(function GaugeCard({ overview, marketData }: { overview: 
 
       {overview && (
         <p className="text-xs mt-3" style={{ color: "var(--text-secondary)" }}>
-          Thanh khoản: <span className="font-bold" style={{ color: "var(--text-primary)" }}>{fmtLiquidity(liquidity)} Tỷ VNĐ</span>
+          Thanh khoáº£n: <span className="font-bold" style={{ color: "var(--text-primary)" }}>{fmtLiquidity(liquidity)} Tá»· VNÄ</span>
         </p>
       )}
     </div>
@@ -522,12 +503,45 @@ function GaugeCardSkeleton() {
 }
 
 
-/* ═══════════════════════════════════════════════════════════════════════════
- *  MarketStatusCard – Thẻ trạng thái 3D nổi khối + Backlight Glow
- *  Bọc React.memo để tránh re-render gây lag
- * ═══════════════════════════════════════════════════════════════════════════ */
+const AIBrokerDecisionCard = memo(function AIBrokerDecisionCard({
+  summary,
+  signalLabel,
+}: {
+  summary: string | null;
+  signalLabel: string | null;
+}) {
+  const decision = (signalLabel || summary || "GIU").toUpperCase();
+  const isBuy = decision.includes("MUA");
+  const isSell = decision.includes("BAN") || decision.includes("BÁN");
 
-// Level color config using raw hex — no Tailwind color classes
+  const badgeColor = isBuy ? "#16a34a" : isSell ? "#ef4444" : "#f59e0b";
+  const badgeLabel = isBuy ? "AI BROKER: MUA" : isSell ? "AI BROKER: BAN" : "AI BROKER: GIU";
+
+  return (
+    <div className="rounded-2xl border p-4 sm:p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <div className="flex items-center gap-2">
+          <Bot className="w-4 h-4" style={{ color: "#16a34a" }} />
+          <span className="text-[12px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+            Khu vuc AI Nhan dinh
+          </span>
+        </div>
+        <span className="text-[11px] font-black px-2 py-1 rounded-full border" style={{ color: badgeColor, borderColor: `${badgeColor}55`, background: `${badgeColor}1A` }}>
+          {badgeLabel}
+        </span>
+      </div>
+      <p className="text-sm leading-relaxed" style={{ color: "var(--text-primary)" }}>
+        {summary || "AI Broker dang phan tich du lieu thi truong, uu tien giu ty trong an toan."}
+      </p>
+    </div>
+  );
+});
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+ *  MarketStatusCard â€“ Tháº» tráº¡ng thÃ¡i 3D ná»•i khá»‘i + Backlight Glow
+ *  Bá»c React.memo Ä‘á»ƒ trÃ¡nh re-render gÃ¢y lag
+ * â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+
+// Level color config using raw hex â€” no Tailwind color classes
 const LEVEL_CONFIG = {
   1: {
     color: "#ef4444",
@@ -564,10 +578,10 @@ const MarketStatusCard = memo(function MarketStatusCard({
   const level = (overview?.level ?? fallbackLevel) as 1 | 2 | 3;
   const score = overview?.score ?? fallbackScore;
   const maxScore = overview?.max_score ?? 14;
-  const statusBadge = overview?.status_badge ?? (marketData?.status === "GOOD" ? "🟢 THIÊN THỜI" : marketData?.status === "BAD" ? "🔴 NGỦ ĐÔNG" : "🟡 THĂM DÒ");
-  const breadth = overview?.market_breadth ?? (marketData ? `Tăng: ${marketData.updown?.up ?? 0} | Giảm: ${marketData.updown?.down ?? 0} | Không đổi: ${marketData.updown?.unchanged ?? 0}` : "Không có dữ liệu");
+  const statusBadge = overview?.status_badge ?? (marketData?.status === "GOOD" ? "ðŸŸ¢ THIÃŠN THá»œI" : marketData?.status === "BAD" ? "ðŸ”´ NGá»¦ ÄÃ”NG" : "ðŸŸ¡ THÄ‚M DÃ’");
+  const breadth = overview?.market_breadth ?? (marketData ? `TÄƒng: ${marketData.updown?.up ?? 0} | Giáº£m: ${marketData.updown?.down ?? 0} | KhÃ´ng Ä‘á»•i: ${marketData.updown?.unchanged ?? 0}` : "KhÃ´ng cÃ³ dá»¯ liá»‡u");
   const highlights = overview?.technical_highlights;
-  const actionMessage = overview?.action_message ?? marketData?.aiSummary ?? "Đang phân tích thị trường...";
+  const actionMessage = overview?.action_message ?? marketData?.aiSummary ?? "Äang phÃ¢n tÃ­ch thá»‹ trÆ°á»ng...";
   const disclaimer = overview?.disclaimer ?? "";
   const navAllocation = overview?.nav_allocation;
   const marginAllowed = overview?.margin_allowed;
@@ -599,7 +613,7 @@ const MarketStatusCard = memo(function MarketStatusCard({
             className="text-xs font-bold px-2.5 py-1 rounded-full"
             style={{ background: cfg.bgRgba, color: cfg.color, border: `1px solid ${cfg.borderRgba}` }}
           >
-            {statusBadge.replace(/🟢|🟡|🔴/g, "").trim()}
+            {statusBadge.replace(/ðŸŸ¢|ðŸŸ¡|ðŸ”´/g, "").trim()}
           </span>
         </div>
 
@@ -632,7 +646,7 @@ const MarketStatusCard = memo(function MarketStatusCard({
 
         {/* Market Breadth */}
         <p className="text-[11px] mb-3" style={{ color: "var(--text-secondary)" }}>
-          📊 {breadth}
+          ðŸ“Š {breadth}
         </p>
 
         {/* Action Message */}
@@ -650,3 +664,5 @@ const MarketStatusCard = memo(function MarketStatusCard({
     </div>
   );
 });
+
+

@@ -3,9 +3,10 @@
 import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
+import useSWR from "swr";
 import {
   BookOpen, Lock, TrendingUp, TrendingDown, Target,
-  Brain, DollarSign,
+  Brain, DollarSign, Sparkles,
 } from "lucide-react";
 import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -17,6 +18,21 @@ import { GamificationCard } from "@/components/journal/GamificationCard";
 import { PnLSummary } from "@/components/journal/PnLSummary";
 import { Card } from "@/components/ui/Card";
 import type { JournalEntry } from "@/types";
+
+interface ClosedTrade {
+  ticker: string;
+  pnl: number;
+  buyPrice: number;
+  sellPrice: number;
+  qty: number;
+  date: string;
+}
+
+interface PnlData {
+  closedTrades: ClosedTrade[];
+}
+
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function JournalPage() {
   const router = useRouter();
@@ -291,7 +307,12 @@ export default function JournalPage() {
                   />
                 ))}
 
-              {activeTab === "pnl" && <PnLSummary />}
+              {activeTab === "pnl" && (
+                <>
+                  <PnLSummary />
+                  <JournalAiReviewCards />
+                </>
+              )}
 
               {activeTab === "analysis" && <PsychologyAnalysis />}
             </motion.div>
@@ -299,5 +320,77 @@ export default function JournalPage() {
         </div>
       </div>
     </MainLayout>
+  );
+}
+
+function scoreTrade(pnl: number) {
+  if (pnl >= 8) return { score: 9, verdict: "Ky luat tot", color: "#16a34a" };
+  if (pnl >= 3) return { score: 8, verdict: "Xu ly on", color: "#22c55e" };
+  if (pnl >= 0) return { score: 7, verdict: "Can toi uu diem thoat", color: "#f59e0b" };
+  if (pnl >= -3) return { score: 5, verdict: "Can cat lo som hon", color: "#f97316" };
+  return { score: 3, verdict: "Vi pham quan tri rui ro", color: "#ef4444" };
+}
+
+function JournalAiReviewCards() {
+  const { data, isLoading } = useSWR<PnlData>("/api/journal/pnl", fetcher, {
+    revalidateOnFocus: false,
+    dedupingInterval: 30_000,
+  });
+
+  const trades = (data?.closedTrades ?? []).slice(0, 6);
+
+  return (
+    <div className="mt-4 rounded-2xl border p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+      <div className="flex items-center gap-2 mb-3">
+        <Sparkles className="w-4 h-4" style={{ color: "#10b981" }} />
+        <h3 className="text-sm font-black" style={{ color: "var(--text-primary)" }}>
+          AI Broker danh gia lenh da dong
+        </h3>
+      </div>
+      {isLoading ? (
+        <div className="grid gap-2 sm:grid-cols-2">
+          {[1, 2].map((i) => (
+            <div key={i} className="h-24 rounded-xl animate-pulse" style={{ background: "var(--surface-2)" }} />
+          ))}
+        </div>
+      ) : trades.length === 0 ? (
+        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+          Chua co lenh da dong de AI cham diem.
+        </p>
+      ) : (
+        <div className="grid gap-2 sm:grid-cols-2">
+          {trades.map((trade, index) => {
+            const percent = trade.buyPrice > 0 ? ((trade.sellPrice - trade.buyPrice) / trade.buyPrice) * 100 : 0;
+            const review = scoreTrade(percent);
+            return (
+              <article
+                key={`${trade.ticker}-${trade.date}-${index}`}
+                className="rounded-xl border p-3"
+                style={{ background: "var(--surface-2)", borderColor: "var(--border)" }}
+              >
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <p className="text-sm font-black" style={{ color: "var(--text-primary)" }}>
+                    {trade.ticker}
+                  </p>
+                  <span
+                    className="text-[11px] px-2 py-0.5 rounded-full font-black"
+                    style={{ color: review.color, background: `${review.color}1A` }}
+                  >
+                    AI {review.score}/10
+                  </span>
+                </div>
+                <p className="text-xs mb-1" style={{ color: "var(--text-secondary)" }}>
+                  {review.verdict}
+                </p>
+                <p className="text-xs" style={{ color: percent >= 0 ? "#16a34a" : "#ef4444" }}>
+                  PnL {percent >= 0 ? "+" : ""}
+                  {percent.toFixed(2)}%
+                </p>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
