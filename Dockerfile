@@ -3,6 +3,9 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
+# Ensure Prisma detects musl + OpenSSL correctly during generate/build
+RUN apk add --no-cache openssl libc6-compat
+
 # Install deps
 COPY package*.json ./
 RUN npm ci
