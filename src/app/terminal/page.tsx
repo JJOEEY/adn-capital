@@ -20,29 +20,47 @@ interface ExtMessage {
 export default function TerminalPage() {
   const router = useRouter();
   const { isAuthenticated } = useCurrentDbUser();
-  const { isLoading, chatCount, limit, isLimitReached, sendMessage } = useChat();
-  const { clearMessages } = useChatStore();
+  const { isLoading, chatCount, limit, isLimitReached } = useChat();
+  const { clearMessages, setChatCount } = useChatStore();
 
   const [extraMessages, setExtraMessages] = useState<ExtMessage[]>([]);
   const [freeTextPending, setFreeTextPending] = useState(false);
 
   const limitPercent = limit === Infinity ? 0 : Math.min((chatCount / limit) * 100, 100);
 
-  // Khi useChat trả về response, chuyển thành extraMessage cho InvestmentChat
+  // Free-text handler (1 request duy nhất để tránh chậm và tránh đếm usage 2 lần)
   const handleFreeText = useCallback(
     async (text: string) => {
       setFreeTextPending(true);
       try {
-        await sendMessage(text);
-        // useChat lưu message vào chatStore, nhưng ở đây ta tự trap response
-        // Ta dùng cách đơn giản: post lên /api/chat và lấy kết quả
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: text }),
+          body: JSON.stringify({
+            message: text,
+            guestUsage: isAuthenticated ? undefined : chatCount,
+          }),
         });
-        const data: { reply?: string; error?: string } = await res.json();
-        const reply = data.reply ?? data.error ?? "Xin lỗi, có lỗi xảy ra. Thử lại nhé!";
+
+        const data: {
+          message?: string;
+          error?: string;
+          newUsage?: number;
+          type?: "widget";
+          ticker?: string;
+        } = await res.json();
+
+        if (typeof data.newUsage === "number") {
+          setChatCount(data.newUsage);
+        } else if (!isAuthenticated) {
+          setChatCount(chatCount + 1);
+        }
+
+        let reply = data.message ?? data.error ?? "Xin lỗi, có lỗi xảy ra. Thử lại nhé!";
+        if (data.type === "widget" && data.ticker) {
+          reply = `Em nhận diện mã **${data.ticker}**. Đại ca nhập trực tiếp mã (ví dụ: \`${data.ticker}\`) để mở 4 thẻ phân tích nhé.`;
+        }
+
         setExtraMessages((prev) => [
           ...prev,
           { id: crypto.randomUUID(), role: "bot", text: reply },
@@ -56,7 +74,7 @@ export default function TerminalPage() {
         setFreeTextPending(false);
       }
     },
-    [sendMessage]
+    [chatCount, isAuthenticated, setChatCount]
   );
 
   return (

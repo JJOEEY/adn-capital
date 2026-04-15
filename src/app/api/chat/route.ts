@@ -200,10 +200,11 @@ async function fetchMarketOverview(): Promise<MarketOverviewData | null> {
 
 // ─── Detect stock tickers trong tin nhắn tự do ────────────────────
 function detectTickers(msg: string): string[] {
-  // Match 2-4 uppercase letter sequences that look like tickers
-  const matches = msg.match(/\b[A-Z]{2,4}\b/g) ?? [];
-  // Also catch lowercase mentions like "hpg", "fpt"
-  const lowerMatches = msg.match(/\b(?:mã|cổ phiếu|cp)\s+([a-zA-Z]{2,4})\b/gi) ?? [];
+  const upperMsg = msg.toUpperCase();
+  // Match ticker-like words in any case
+  const matches = upperMsg.match(/\b[A-Z]{2,5}\b/g) ?? [];
+  // Also catch mentions like "mã hpg", "cp fpt"
+  const lowerMatches = msg.match(/\b(?:mã|cổ phiếu|cp)\s+([a-zA-Z]{2,5})\b/gi) ?? [];
   const extracted = lowerMatches.map(m => {
     const parts = m.split(/\s+/);
     return parts[parts.length - 1].toUpperCase();
@@ -211,7 +212,39 @@ function detectTickers(msg: string): string[] {
   const all = [...new Set([...matches, ...extracted])];
   // Filter out common Vietnamese words that look like tickers
   const EXCLUDE = new Set(["VND", "CUA", "CHO", "CON", "MOT", "HAI", "HOI", "NAY", "NHU", "THE", "VAN", "VOI", "TAT", "BAT", "MAU", "DAU", "BAN", "MUA", "LAM", "SAU", "ROI", "NEN", "KHI", "TAI", "VUA", "DAY", "HAY", "NHO", "TOI", "BOT"]);
-  return all.filter(t => t.length >= 3 && !EXCLUDE.has(t)).slice(0, 3);
+  return all
+    .filter((t) => t.length >= 2 && t.length <= 5 && !EXCLUDE.has(t) && KNOWN_TICKERS.has(t))
+    .slice(0, 3);
+}
+
+function shouldFetchMarketContext(msg: string): boolean {
+  if (detectTickers(msg).length > 0) return true;
+
+  const normalized = msg
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  const keywordPatterns = [
+    /\bthi truong\b/,
+    /\bchung khoan\b/,
+    /\bvn-?index\b/,
+    /\bvn30\b/,
+    /\bco phieu\b/,
+    /\bthanh khoan\b/,
+    /\bdong tien\b/,
+    /\bchart\b/,
+    /\b(ptkt|ptcb)\b/,
+    /\bky thuat\b/,
+    /\bco ban\b/,
+    /\b(ho tro|khang cu)\b/,
+    /\b(support|resistance)\b/,
+    /\b(ema\d*|rsi|macd|adx|mfi)\b/,
+    /\b(stop ?loss|target|gia muc tieu)\b/,
+    /\b(danh muc|ti trong)\b/,
+  ];
+
+  return keywordPatterns.some((pattern) => pattern.test(normalized));
 }
 
 // ─── Format market context cho general chat ──────────────────────
@@ -387,6 +420,10 @@ const KNOWN_TICKERS = new Set([
 // ─── Intent Detection (REGEX-FIRST, LLM fallback) ────────────────
 async function detectIntent(msg: string): Promise<{ intent: "CHAT_GENERAL" | "ANALYZE_TICKER"; ticker?: string }> {
   const upper = msg.trim().toUpperCase();
+  const normalized = msg
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
 
   // ── Fast path 1: bare ticker ("fpt", "FPT", "MWG sao em") ──
   const bareTickerMatch = upper.match(/^([A-Z]{2,5})(?:\s|$|\?|!|,|\.)/);
@@ -394,42 +431,36 @@ async function detectIntent(msg: string): Promise<{ intent: "CHAT_GENERAL" | "AN
     return { intent: "ANALYZE_TICKER", ticker: bareTickerMatch[1] };
   }
 
-  // ── Fast path 2: known ticker anywhere in short msg (<= 10 words) ──
-  const words = upper.split(/\s+/);
-  if (words.length <= 10) {
-    for (const word of words) {
-      const cleaned = word.replace(/[^A-Z]/g, "");
-      if (cleaned.length >= 2 && cleaned.length <= 5 && KNOWN_TICKERS.has(cleaned)) {
-        return { intent: "ANALYZE_TICKER", ticker: cleaned };
-      }
+  // ── Fast path 2: câu có keyword phân tích + chứa mã nằm trong danh sách known tickers ──
+  const analysisKeywords = [
+    "nhan dinh",
+    "danh gia",
+    "phan tich",
+    "co nen",
+    "xem",
+    "ma",
+    "co phieu",
+    "ky thuat",
+    "co ban",
+    "chart",
+    "mua",
+    "ban",
+    "hold",
+    "giu",
+    "target",
+    "stoploss",
+  ];
+
+  const hasAnalysisKeyword = analysisKeywords.some((kw) => normalized.includes(kw));
+  if (hasAnalysisKeyword) {
+    const candidates = upper.match(/\b([A-Z]{2,5})\b/g) ?? [];
+    const ticker = candidates.find((c) => KNOWN_TICKERS.has(c));
+    if (ticker) {
+      return { intent: "ANALYZE_TICKER", ticker };
     }
   }
 
-  // ── Fast path 3: regex for any 2-5 uppercase ticker with analysis keywords ──
-  const analysisKeywords = /(nh\u1eadn \u0111\u1ecbnh|ph\u00e2n t\u00edch|c\u00f3 n\u00ean|xem|n\u00f3 sao|sao r\u1ed3i|c\u00f3 ti\u1ec1m|m\u00e3|c\u1ed5 phi\u1ebfu|k\u1eb9o|xem h\u1ed9)/i;
-  const tickerInMsg = upper.match(/\b([A-Z]{2,5})\b/);
-  if (tickerInMsg && analysisKeywords.test(msg)) {
-    return { intent: "ANALYZE_TICKER", ticker: tickerInMsg[1] };
-  }
-
-  // ── Slow path: LLM for ambiguous cases ──
-  const prompt = `Bạn là bộ phân loại ý định cho ADN AI Bot. Phân tích tin nhắn và trả về JSON duy nhất.
-Intent:
-- ANALYZE_TICKER: hỏi về 1 mã cổ phiếu cụ thể
-- CHAT_GENERAL: hỏi chung, vĩ mô, kiến thức
-
-Tin nhắn: "${msg}"
-JSON: {"intent": "...", "ticker": "..."}  (ticker chỉ có nếu ANALYZE_TICKER)`;
-
-  try {
-    const raw = await executeAIRequest(prompt, "INTENT_CLASSIFICATION" as any);
-    const cleaned = raw.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(cleaned);
-    if (parsed.ticker) parsed.ticker = parsed.ticker.toUpperCase();
-    return parsed;
-  } catch {
-    return { intent: "CHAT_GENERAL" };
-  }
+  return { intent: "CHAT_GENERAL" };
 }
 
 // ─── Parse lệnh từ tin nhắn ──────────────────────────────────
@@ -729,9 +760,15 @@ export async function POST(req: NextRequest) {
     // 🚫 TICKER INTERCEPTOR — DÒNG ĐẦU TIÊN, TRƯỚC MỌI THỨ
     // Không để LLM quyết định widget/text. TypeScript quyết định.
     // ══════════════════════════════════════════════════════════
+    const { cmd, stock } = parseCommand(message);
     const upper = message.trim().toUpperCase();
-    const isDirectTicker = /^[A-Z]{2,5}$/.test(upper);
-    const isAnalyzePhrase =
+    const detectedIntent = !cmd
+      ? await detectIntent(message)
+      : { intent: "CHAT_GENERAL" as const };
+    const isDirectTicker = !cmd && /^[A-Z]{2,5}$/.test(upper) && KNOWN_TICKERS.has(upper);
+
+    const isAnalyzePhrase = !cmd && detectedIntent.intent === "ANALYZE_TICKER" && !!detectedIntent.ticker;
+    /*
       /\b[A-Z]{2,5}\b/.test(upper) && (
         upper.includes("PHÂN TÍCH") || upper.includes("NHAN DINH") || upper.includes("NHẬN ĐỊNH") ||
         upper.includes("NHẬ") || upper.includes("XEM") || upper.includes("TA ") ||
@@ -742,10 +779,15 @@ export async function POST(req: NextRequest) {
         upper.includes("CO BAN") || upper.includes("DASHBOARD")
       );
 
+    */
     const shouldRenderWidget = isDirectTicker || isAnalyzePhrase;
 
     if (shouldRenderWidget) {
-      const ticker = isDirectTicker ? upper : (extractTicker(upper) ?? "FPT");
+      const ticker = isDirectTicker
+        ? upper
+        : (detectedIntent.intent === "ANALYZE_TICKER" && detectedIntent.ticker
+          ? detectedIntent.ticker.toUpperCase()
+          : "FPT");
 
       console.log(`[INTERCEPTOR] 🎯 Widget triggered for ticker: ${ticker}`);
 
@@ -812,9 +854,6 @@ export async function POST(req: NextRequest) {
     // ══════════════════════════════════════════════════════════
     // END INTERCEPTOR — below here = general chat only
     // ══════════════════════════════════════════════════════════
-
-    // ── Step 0: FAST intent detection (ưu tiên đầu tiên, trước mọi thứ) ──
-    const { cmd, stock } = parseCommand(message);
 
     // ── Step 1: User auth + rate limit ──
     const dbUser = await getCurrentDbUser();
@@ -940,27 +979,33 @@ export async function POST(req: NextRequest) {
       }
 
     } else {
-      // Chat thông thường — LUÔN fetch data real-time trước khi trả lời
-      console.log(`[Chat General] Fetching market context cho: "${message.slice(0, 60)}..."`);
-
-      // Fetch market overview + VNINDEX TA song song
-      const [overview, vnindexTA] = await Promise.all([
-        fetchMarketOverview(),
-        fetchTASummary("VNINDEX"),
-      ]);
-
-      // Detect stock tickers trong tin nhắn → fetch TA cho từng mã
+      // Chat thông thường — chỉ fetch market data khi câu hỏi thực sự liên quan thị trường
       const tickers = detectTickers(message);
+      const needMarketContext = shouldFetchMarketContext(message) || tickers.length > 0;
+      let overview: MarketOverviewData | null = null;
+      let vnindexTA: TASummary | null = null;
       const stockTAs: { ticker: string; ta: TASummary }[] = [];
-      if (tickers.length > 0) {
-        console.log(`[Chat General] Detected tickers: ${tickers.join(", ")}`);
-        const taResults = await Promise.all(
-          tickers.map(async (t) => {
-            const ta = await fetchTASummary(t);
-            return ta ? { ticker: t, ta } : null;
-          })
-        );
-        for (const r of taResults) if (r) stockTAs.push(r);
+
+      if (needMarketContext) {
+        console.log(`[Chat General] Fetching market context cho: "${message.slice(0, 60)}..."`);
+
+        [overview, vnindexTA] = await Promise.all([
+          fetchMarketOverview(),
+          fetchTASummary("VNINDEX"),
+        ]);
+
+        if (tickers.length > 0) {
+          console.log(`[Chat General] Detected tickers: ${tickers.join(", ")}`);
+          const taResults = await Promise.all(
+            tickers.map(async (t) => {
+              const ta = await fetchTASummary(t);
+              return ta ? { ticker: t, ta } : null;
+            })
+          );
+          for (const r of taResults) if (r) stockTAs.push(r);
+        }
+      } else {
+        console.log(`[Chat General] Skip market context for non-market query: "${message.slice(0, 60)}..."`);
       }
 
       const marketCtx = formatMarketContext(overview, vnindexTA, stockTAs);
