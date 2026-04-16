@@ -57,3 +57,4 @@ push-to-github.ps1
 
 # VPS credentials (NEVER commit this)
 vps-credentials.json
+.env.vps
