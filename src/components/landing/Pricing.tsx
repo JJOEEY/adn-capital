@@ -314,11 +314,11 @@ export default function Pricing() {
               </div>
               <div className="flex-1">
                 <p className="text-sm font-bold mb-1" style={{ color: "var(--text-primary, #1C2B22)" }}>
-                  🎁 Mở tài khoản DNSE — Trải nghiệm miễn phí 2 tuần!
+                  🎁 Mở tài khoản DNSE — Trải nghiệm miễn phí 1 tuần!
                 </p>
                 <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary, #7D8471)" }}>
                   Mở tài khoản chứng khoán DNSE qua link giới thiệu, sau khi tài khoản được duyệt (~1 tiếng),
-                  nhập ID DNSE vào ô bên dưới để kích hoạt <span style={{ color: "var(--primary, #2E4D3D)", fontWeight: 600 }}>VIP miễn phí 2 tuần</span> + giá ưu đãi DNSE cho các gói tiếp theo.
+                  nhập ID DNSE vào ô bên dưới để kích hoạt <span style={{ color: isDark ? "var(--text-primary, #F8FAFC)" : "var(--primary, #2E4D3D)", fontWeight: 700 }}>VIP miễn phí 1 tuần</span> + giá ưu đãi DNSE cho các gói tiếp theo.
                 </p>
               </div>
               <a
