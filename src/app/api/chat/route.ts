@@ -455,6 +455,17 @@ const KNOWN_TICKERS = new Set([
   "PVT","PVD","BSR","OIL","ACV","VGC","PC1","GMD","CII","DBC",
 ]);
 
+const TICKER_STOP_WORDS = new Set([
+  "VND", "CUA", "CHO", "CON", "MOT", "HAI", "HOI", "NAY", "NHU", "THE", "VAN", "VOI",
+  "TAT", "BAT", "MAU", "DAU", "BAN", "MUA", "LAM", "SAU", "ROI", "NEN", "KHI", "TAI",
+  "VUA", "DAY", "HAY", "NHO", "TOI", "BOT", "SO", "SANH", "VA", "VOI", "GIUA",
+]);
+
+function extractTickerCandidates(msg: string): string[] {
+  const candidates = msg.toUpperCase().match(/\b[A-Z]{2,5}\b/g) ?? [];
+  return [...new Set(candidates.filter((code) => !TICKER_STOP_WORDS.has(code)))].slice(0, 5);
+}
+
 // ─── Intent Detection (REGEX-FIRST, LLM fallback) ────────────────
 async function detectIntent(msg: string): Promise<{ intent: "CHAT_GENERAL" | "ANALYZE_TICKER" | "COMPARE"; ticker?: string; tickers?: string[] }> {
   const upper = msg.trim().toUpperCase();
@@ -462,7 +473,7 @@ async function detectIntent(msg: string): Promise<{ intent: "CHAT_GENERAL" | "AN
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
-  const tickersInMessage = detectTickers(msg);
+  const tickersInMessage = extractTickerCandidates(msg);
 
   if (tickersInMessage.length >= 2) {
     return { intent: "COMPARE", tickers: tickersInMessage };
@@ -522,7 +533,7 @@ function parseCommand(msg: string): { cmd: string | null; stock: string | null; 
   if (compareMatch) {
     const compareStocks = (compareMatch[1].toUpperCase().match(/\b[A-Z]{2,5}\b/g) ?? [])
       .filter((ticker, idx, arr) => arr.indexOf(ticker) === idx)
-      .filter((ticker) => KNOWN_TICKERS.has(ticker))
+      .filter((ticker) => !TICKER_STOP_WORDS.has(ticker))
       .slice(0, 5);
     return { cmd: "/compare", stock: compareStocks[0] ?? null, compareStocks };
   }
