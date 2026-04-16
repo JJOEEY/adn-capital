@@ -158,13 +158,14 @@ interface BridgeNewsItem {
 async function fetchBridgeAI(
   endpoint: "ta" | "fa" | "tamly",
   ticker: string,
-  context: string = ""
+  context: string = "",
+  timeoutMs = 15_000,
 ): Promise<AIAnalysisResult | null> {
   try {
     const url = `${FIINQUANT_BRIDGE}/api/v1/ai/${endpoint}/${ticker}?context=${encodeURIComponent(context)}`;
     console.log(`[Chat AI] Fetching bridge AI ${endpoint}: ${url}`);
     const res = await fetch(url, {
-      signal: AbortSignal.timeout(60000),
+      signal: AbortSignal.timeout(timeoutMs),
       cache: "no-store",
     });
     if (!res.ok) {
@@ -175,6 +176,22 @@ async function fetchBridgeAI(
   } catch (err) {
     console.warn(`[Chat AI] Bridge AI ${endpoint} ${ticker}: Lỗi kết nối`, err);
     return null;
+  }
+}
+
+async function withTimeout<T>(task: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timeoutHandle: NodeJS.Timeout | null = null;
+  try {
+    return await Promise.race([
+      task,
+      new Promise<T>((_, reject) => {
+        timeoutHandle = setTimeout(() => {
+          reject(new Error(`[${label}] timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
   }
 }
 
@@ -1089,7 +1106,11 @@ export async function POST(req: NextRequest) {
 
     } else if (cmd === "/news" && stock) {
       try {
-        responseText = await executeAIRequest(buildNewsPrompt(stock, journalCtx), INTENT.NEWS);
+        responseText = await withTimeout(
+          executeAIRequest(buildNewsPrompt(stock, journalCtx), INTENT.NEWS),
+          20_000,
+          "news-ai"
+        );
       } catch (error) {
         console.warn(`[Chat /news] Gemini lỗi, fallback feed bridge cho ${stock}:`, error);
         const bridgeNews = await fetchBridgeTickerNews(stock);
@@ -1107,7 +1128,11 @@ export async function POST(req: NextRequest) {
         console.warn(`[Chat /tamly] Bridge AI lỗi, fallback local...`);
         const taData = await fetchTAData(stock);
         try {
-          responseText = await executeAIRequest(buildTamlyPrompt(stock, taData, journalCtx), INTENT.TAMLY);
+          responseText = await withTimeout(
+            executeAIRequest(buildTamlyPrompt(stock, taData, journalCtx), INTENT.TAMLY),
+            20_000,
+            "tamly-ai"
+          );
         } catch (error) {
           console.warn(`[Chat /tamly] Gemini lỗi, fallback deterministic cho ${stock}:`, error);
           responseText = buildTamlyFallback(stock, taData);
