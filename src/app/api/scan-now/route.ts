@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { processSignals } from "@/lib/UltimateSignalEngine";
+import {
+  getAiBrokerRuntimeConfig,
+  shouldAutoActivateSignal,
+  rebalanceActiveBasketNav,
+} from "@/lib/aiBroker";
 
 export const dynamic = "force-dynamic";
 
@@ -8,7 +14,7 @@ const BACKEND = process.env.FIINQUANT_URL ?? process.env.PYTHON_BRIDGE_URL ?? "h
 
 interface ScannerSignal {
   ticker: string;
-  type: string;
+  type: "SIEU_CO_PHIEU" | "TRUNG_HAN" | "DAU_CO" | "TAM_NGAM";
   entryPrice: number;
   reason?: string;
 }
@@ -18,7 +24,7 @@ function toSignalKey(ticker: string, type: string): string {
 }
 
 /**
- * POST /api/scan-now — Trigger scanner + đồng bộ ngay vào bảng Signal
+ * POST /api/scan-now — Trigger scanner + đồng bộ đầy đủ pipeline UltimateSignalEngine
  * Chỉ cho phép user đã đăng nhập
  */
 export async function POST() {
@@ -44,11 +50,14 @@ export async function POST() {
 
     const data = (await res.json()) as { detected?: number; signals?: ScannerSignal[] };
     const rawSignals = Array.isArray(data.signals) ? data.signals : [];
+    const validSignals = rawSignals.filter((s) =>
+      s?.ticker &&
+      typeof s?.entryPrice === "number" &&
+      ["SIEU_CO_PHIEU", "TRUNG_HAN", "DAU_CO", "TAM_NGAM"].includes(s?.type)
+    );
     const uniqueSignals = Array.from(
       new Map(
-        rawSignals
-          .filter((s) => s?.ticker && s?.type && typeof s?.entryPrice === "number")
-          .map((s) => [toSignalKey(s.ticker, s.type), s])
+        validSignals.map((s) => [toSignalKey(s.ticker, s.type), s])
       ).values()
     );
 
@@ -65,48 +74,96 @@ export async function POST() {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
+    const processed = await processSignals(uniqueSignals);
+
     const todaySignals = await prisma.signal.findMany({
       where: { createdAt: { gte: startOfDay } },
       select: { id: true, ticker: true, type: true, status: true },
     });
-
     const existingMap = new Map(todaySignals.map((s) => [toSignalKey(s.ticker, s.type), s]));
+    const aiBrokerConfig = await getAiBrokerRuntimeConfig();
 
     let created = 0;
     let updated = 0;
 
-    await prisma.$transaction(async (tx) => {
-      for (const signal of uniqueSignals) {
-        const normalizedTicker = signal.ticker.toUpperCase().trim();
-        const key = toSignalKey(normalizedTicker, signal.type);
-        const existing = existingMap.get(key);
+    const operations = processed.map((s) => {
+      const normalizedTicker = s.ticker.toUpperCase().trim();
+      const key = toSignalKey(normalizedTicker, s.type);
+      const existing = existingMap.get(key);
+      const autoActivate = shouldAutoActivateSignal(
+        {
+          entryPrice: s.entryPrice,
+          currentPrice: s.entryPrice,
+          winRate: s.winRate,
+          rrRatio: s.rrRatio,
+        },
+        aiBrokerConfig
+      );
+      const nextStatus =
+        existing?.status === "CLOSED"
+          ? "CLOSED"
+          : autoActivate
+          ? "ACTIVE"
+          : s.status;
 
-        if (existing) {
-          if (existing.status === "CLOSED") {
-            continue;
-          }
-          await tx.signal.update({
-            where: { id: existing.id },
-            data: {
-              entryPrice: signal.entryPrice,
-              reason: signal.reason ?? null,
-            },
-          });
-          updated += 1;
-          continue;
-        }
+      if (existing) {
+        updated += 1;
+        const activePayload =
+          existing.status !== "ACTIVE" && nextStatus === "ACTIVE"
+            ? { currentPrice: s.entryPrice, currentPnl: 0 }
+            : {};
 
-        await tx.signal.create({
+        return prisma.signal.update({
+          where: { id: existing.id },
           data: {
-            ticker: normalizedTicker,
-            type: signal.type,
-            entryPrice: signal.entryPrice,
-            reason: signal.reason ?? null,
+            status: nextStatus,
+            entryPrice: s.entryPrice,
+            tier: s.tier,
+            navAllocation: s.navAllocation,
+            target: s.target,
+            stoploss: s.stoploss,
+            triggerSignal: s.triggerSignal,
+            aiReasoning: s.aiReasoning,
+            reason: s.reason ?? null,
+            winRate: s.winRate,
+            sharpeRatio: s.sharpeRatio,
+            rrRatio: s.rrRatio,
+            ...activePayload,
           },
         });
-        created += 1;
       }
+
+      created += 1;
+      return prisma.signal.create({
+        data: {
+          ticker: normalizedTicker,
+          type: s.type,
+          status: nextStatus,
+          tier: s.tier,
+          entryPrice: s.entryPrice,
+          target: s.target,
+          stoploss: s.stoploss,
+          navAllocation: s.navAllocation,
+          triggerSignal: s.triggerSignal,
+          aiReasoning: s.aiReasoning,
+          reason: s.reason ?? null,
+          winRate: s.winRate,
+          sharpeRatio: s.sharpeRatio,
+          rrRatio: s.rrRatio,
+          ...(nextStatus === "ACTIVE"
+            ? {
+                currentPrice: s.entryPrice,
+                currentPnl: 0,
+              }
+            : {}),
+        },
+      });
     });
+
+    if (operations.length > 0) {
+      await prisma.$transaction(operations);
+      await rebalanceActiveBasketNav(aiBrokerConfig.maxTotalNav);
+    }
 
     return NextResponse.json({
       detected: data.detected ?? uniqueSignals.length,
@@ -114,6 +171,7 @@ export async function POST() {
       created,
       updated,
       signals: uniqueSignals,
+      message: `${created} mới, ${updated} cập nhật (UltimateEngine)`,
     });
   } catch (err) {
     console.error("[/api/scan-now] Error:", err);

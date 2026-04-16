@@ -35,6 +35,12 @@ import {
   formatPropTradingForAI,
 } from "@/lib/marketDataFetcher";
 import { fetchAllCafefNews, buildCafefContext } from "@/lib/cafefScraper";
+import { processSignals } from "@/lib/UltimateSignalEngine";
+import {
+  getAiBrokerRuntimeConfig,
+  shouldAutoActivateSignal,
+  rebalanceActiveBasketNav,
+} from "@/lib/aiBroker";
 
 export const maxDuration = 120;
 export const dynamic = "force-dynamic";
@@ -346,7 +352,7 @@ _Powered by ADN Capital AI_`;
 
 interface PythonScanSignal {
   ticker: string;
-  type: "SIEU_CO_PHIEU" | "TRUNG_HAN" | "DAU_CO";
+  type: "SIEU_CO_PHIEU" | "TRUNG_HAN" | "DAU_CO" | "TAM_NGAM";
   entryPrice: number;
   reason?: string;
 }
@@ -396,12 +402,19 @@ async function handleSignalScan5m(): Promise<NextResponse> {
     if (!res.ok) throw new Error(`Python scanner HTTP ${res.status}`);
     const scanResult: { detected: number; signals: PythonScanSignal[] } = await res.json();
 
-    const uniqueSignals = Array.from(
-      new Map(scanResult.signals.map((s) => [toSignalKey(s.ticker, s.type), s])).values()
+    const validSignals = scanResult.signals.filter((s) =>
+      s?.ticker &&
+      typeof s?.entryPrice === "number" &&
+      ["SIEU_CO_PHIEU", "TRUNG_HAN", "DAU_CO", "TAM_NGAM"].includes(s?.type)
     );
+    const uniqueSignals = Array.from(
+      new Map(validSignals.map((s) => [toSignalKey(s.ticker, s.type), s])).values()
+    );
+    const processed = await processSignals(uniqueSignals);
+    const aiBrokerConfig = await getAiBrokerRuntimeConfig();
+
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
-
     const todaySignals = await prisma.signal.findMany({
       where: { createdAt: { gte: startOfDay } },
       select: { id: true, ticker: true, type: true, status: true },
@@ -410,53 +423,107 @@ async function handleSignalScan5m(): Promise<NextResponse> {
 
     let createdCount = 0;
     let updatedCount = 0;
-    const notifySignals: PythonScanSignal[] = [];
+    const createCandidatesForNotify: PythonScanSignal[] = [];
 
-    await prisma.$transaction(async (tx) => {
-      for (const signal of uniqueSignals) {
-        const ticker = signal.ticker.toUpperCase().trim();
-        const key = toSignalKey(ticker, signal.type);
-        const existing = existingMap.get(key);
+    const operations = processed.map((s) => {
+      const normalizedTicker = s.ticker.toUpperCase().trim();
+      const key = toSignalKey(normalizedTicker, s.type);
+      const existing = existingMap.get(key);
+      const autoActivate = shouldAutoActivateSignal(
+        {
+          entryPrice: s.entryPrice,
+          currentPrice: s.entryPrice,
+          winRate: s.winRate,
+          rrRatio: s.rrRatio,
+        },
+        aiBrokerConfig
+      );
+      const nextStatus =
+        existing?.status === "CLOSED"
+          ? "CLOSED"
+          : autoActivate
+          ? "ACTIVE"
+          : s.status;
 
-        if (existing) {
-          if (existing.status !== "CLOSED") {
-            await tx.signal.update({
-              where: { id: existing.id },
-              data: {
-                entryPrice: signal.entryPrice,
-                reason: signal.reason ?? null,
-              },
-            });
-            updatedCount += 1;
-          }
-        } else {
-          await tx.signal.create({
-            data: {
-              ticker,
-              type: signal.type,
-              entryPrice: signal.entryPrice,
-              reason: signal.reason ?? null,
-            },
-          });
-          createdCount += 1;
-        }
+      if (existing) {
+        updatedCount += 1;
+        const activePayload =
+          existing.status !== "ACTIVE" && nextStatus === "ACTIVE"
+            ? { currentPrice: s.entryPrice, currentPnl: 0 }
+            : {};
 
-        if (!alreadySent.has(key)) {
-          notifySignals.push({ ...signal, ticker });
-        }
-      }
-
-      if (notifySignals.length > 0) {
-        await tx.signalHistory.createMany({
-          data: notifySignals.map((s) => ({
-            ticker: s.ticker,
-            signalType: s.type,
-            sentDate: todayISO,
-          })),
-          skipDuplicates: true,
+        return prisma.signal.update({
+          where: { id: existing.id },
+          data: {
+            status: nextStatus,
+            entryPrice: s.entryPrice,
+            tier: s.tier,
+            navAllocation: s.navAllocation,
+            target: s.target,
+            stoploss: s.stoploss,
+            triggerSignal: s.triggerSignal,
+            aiReasoning: s.aiReasoning,
+            reason: s.reason ?? null,
+            winRate: s.winRate,
+            sharpeRatio: s.sharpeRatio,
+            rrRatio: s.rrRatio,
+            ...activePayload,
+          },
         });
       }
+
+      createdCount += 1;
+      createCandidatesForNotify.push({
+        ticker: normalizedTicker,
+        type: s.type,
+        entryPrice: s.entryPrice,
+        reason: s.reason,
+      });
+      return prisma.signal.create({
+        data: {
+          ticker: normalizedTicker,
+          type: s.type,
+          status: nextStatus,
+          tier: s.tier,
+          entryPrice: s.entryPrice,
+          target: s.target,
+          stoploss: s.stoploss,
+          navAllocation: s.navAllocation,
+          triggerSignal: s.triggerSignal,
+          aiReasoning: s.aiReasoning,
+          reason: s.reason ?? null,
+          winRate: s.winRate,
+          sharpeRatio: s.sharpeRatio,
+          rrRatio: s.rrRatio,
+          ...(nextStatus === "ACTIVE"
+            ? {
+                currentPrice: s.entryPrice,
+                currentPnl: 0,
+              }
+            : {}),
+        },
+      });
     });
+
+    if (operations.length > 0) {
+      await prisma.$transaction(operations);
+      await rebalanceActiveBasketNav(aiBrokerConfig.maxTotalNav);
+    }
+
+    const notifySignals = createCandidatesForNotify.filter(
+      (s) => !alreadySent.has(toSignalKey(s.ticker, s.type))
+    );
+
+    if (notifySignals.length > 0) {
+      await prisma.signalHistory.createMany({
+        data: notifySignals.map((s) => ({
+          ticker: s.ticker,
+          signalType: s.type,
+          sentDate: todayISO,
+        })),
+        skipDuplicates: true,
+      });
+    }
 
     if (notifySignals.length > 0) {
       const signalText = notifySignals
