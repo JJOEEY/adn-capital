@@ -21,7 +21,9 @@ import {
   CreditCard,
   Crown,
   BookOpen,
+  LayoutPanelTop,
 } from "lucide-react";
+import { LandingProductsTab } from "@/components/admin/LandingProductsTab";
 
 /* ═══════════════════════════════════════════════════════════════════════════
  *  ADMIN CRM — Quản lý đăng ký + Quản lý Users/DNSE
@@ -64,7 +66,7 @@ interface UserRow {
   }>;
 }
 
-type Tab = "registrations" | "users" | "margin" | "journals";
+type Tab = "registrations" | "users" | "margin" | "journals" | "landing-products";
 
 interface MarginRow {
   id: string;
@@ -196,12 +198,24 @@ function AdminPageInner() {
             <BookOpen className="w-3.5 h-3.5" />
             Nhật Ký KH
           </button>
+          <button
+            onClick={() => setTab("landing-products")}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer"
+            style={tab === "landing-products"
+              ? { background: "rgba(20,184,166,0.15)", color: "#14b8a6", border: "1px solid rgba(20,184,166,0.25)" }
+              : { color: "var(--text-muted)" }
+            }
+          >
+            <LayoutPanelTop className="w-3.5 h-3.5" />
+            Landing Cards
+          </button>
         </div>
 
         {tab === "users" && <UsersTab />}
         {tab === "registrations" && <RegistrationsTab />}
         {tab === "margin" && <MarginTab />}
         {tab === "journals" && <JournalsTab />}
+        {tab === "landing-products" && <LandingProductsTab />}
       </div>
     </MainLayout>
   );

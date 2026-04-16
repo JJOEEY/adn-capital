@@ -439,66 +439,92 @@ function StatsSection() {
 /* ─────────────────────────────────────────────────────────────────────────────
    4. FEATURES / SẢN PHẨM & TÍNH NĂNG
 ───────────────────────────────────────────────────────────────────────────── */
-const FEATURES = [
+interface LandingProductCardUI {
+  id: string;
+  title: string;
+  subtitle: string | null;
+  description: string;
+  bullets: string[];
+  href: string;
+  imageUrl: string;
+  imageAlt: string | null;
+  badge: string | null;
+}
+
+const DEFAULT_LANDING_PRODUCTS: LandingProductCardUI[] = [
   {
-    href: "/art",
-    icon: Activity,
-    badge: "MỚI",
-    badgeStyle: "new" as const,
+    id: "landing-art",
     title: "Chỉ báo ART",
     subtitle: "Analytical Reversal Tracker",
-    desc: "Xác định điểm đảo chiều xu hướng thị trường. Đo lường mức độ cạn kiệt để nhận biết khi nào nên vào/thoát lệnh.",
-    features: ["Gauge trực quan 0–5 điểm", "Biểu đồ lịch sử ART + MA7", "Hỗ trợ mọi mã CK", "Cập nhật theo phiên giao dịch"],
+    description: "Xác định điểm đảo chiều xu hướng thị trường. Đo lường mức độ cạn kiệt để nhận biết khi nào nên vào/thoát lệnh.",
+    bullets: ["Gauge trực quan 0–5 điểm", "Biểu đồ lịch sử ART + MA7", "Hỗ trợ mọi mã CK", "Cập nhật theo phiên giao dịch"],
+    href: "/art",
+    imageUrl: "/logo.jpg",
+    imageAlt: "ART mockup",
+    badge: "MỚI",
   },
   {
-    href: "/terminal",
-    icon: MessageSquare,
-    badge: null,
-    badgeStyle: null,
+    id: "landing-terminal",
     title: "Tư vấn đầu tư",
     subtitle: "AI phân tích thông minh",
-    desc: "Hỏi đáp phân tích kỹ thuật, cơ bản, tâm lý với AI chuyên sâu về thị trường chứng khoán Việt Nam 24/7.",
-    features: ["Phân tích kỹ thuật theo yêu cầu", "Tóm tắt báo cáo tài chính", "Market sentiment & vĩ mô", "Luận điểm Long / Short"],
+    description: "Hỏi đáp phân tích kỹ thuật, cơ bản, tâm lý với AI chuyên sâu về thị trường chứng khoán Việt Nam 24/7.",
+    bullets: ["Phân tích kỹ thuật theo yêu cầu", "Tóm tắt báo cáo tài chính", "Market sentiment & vĩ mô", "Luận điểm Long / Short"],
+    href: "/terminal",
+    imageUrl: "/logo.jpg",
+    imageAlt: "Investment advisor mockup",
+    badge: null,
   },
   {
-    href: "/dashboard/signal-map",
-    icon: Zap,
-    badge: null,
-    badgeStyle: null,
+    id: "landing-broker",
     title: "ADN AI Broker",
     subtitle: "Tín hiệu mua/bán tự động",
-    desc: "Nhận tín hiệu Mua/Bán theo hệ thống Quant Trading của ADN Capital — bộ lọc đa chiều, tối ưu cho VN.",
-    features: ["Tín hiệu mua/bán tự động", "Bộ lọc Volume & RS cùng lúc", "Lịch sử tín hiệu đầy đủ", "Thông báo Real-time"],
+    description: "Nhận tín hiệu Mua/Bán theo hệ thống Quant Trading của ADN Capital — bộ lọc đa chiều, tối ưu cho VN.",
+    bullets: ["Tín hiệu mua/bán tự động", "Bộ lọc Volume & RS cùng lúc", "Lịch sử tín hiệu đầy đủ", "Thông báo Real-time"],
+    href: "/dashboard/signal-map",
+    imageUrl: "/logo.jpg",
+    imageAlt: "AI Broker mockup",
+    badge: null,
   },
   {
-    href: "/margin",
-    icon: Banknote,
-    badge: "HOT",
-    badgeStyle: "hot" as const,
+    id: "landing-margin",
     title: "Ký Quỹ Margin",
     subtitle: "Lãi suất từ 5.99%/năm",
-    desc: "Tư vấn miễn phí, phản hồi trong 2 giờ. Tối ưu đòn bẩy, quản lý tỷ lệ ký quỹ chuyên nghiệp.",
-    features: ["Lãi suất từ 5.99%/năm", "Tư vấn miễn phí", "Phản hồi trong 2 giờ", "Quản lý ký quỹ chuyên nghiệp"],
+    description: "Tư vấn miễn phí, phản hồi trong 2 giờ. Tối ưu đòn bẩy, quản lý tỷ lệ ký quỹ chuyên nghiệp.",
+    bullets: ["Lãi suất từ 5.99%/năm", "Tư vấn miễn phí", "Phản hồi trong 2 giờ", "Quản lý ký quỹ chuyên nghiệp"],
+    href: "/margin",
+    imageUrl: "/logo.jpg",
+    imageAlt: "Margin service mockup",
+    badge: "HOT",
   },
 ];
 
-function FeatureBadge({ type }: { type: "new" | "hot" | null }) {
-  if (!type) return null;
-  const styles = {
-    new: { background: "var(--primary-light)", color: "var(--primary)", border: "1px solid var(--border)" },
-    hot: { background: "rgba(192,57,43,0.10)", color: "var(--danger)", border: "1px solid rgba(192,57,43,0.25)" },
-  };
-  return (
-    <span
-      className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
-      style={styles[type]}
-    >
-      {type === "new" ? "MỚI" : "HOT"}
-    </span>
-  );
-}
-
 function FeaturesSection() {
+  const [cards, setCards] = useState<LandingProductCardUI[]>(DEFAULT_LANDING_PRODUCTS);
+  const [isLoadingCards, setIsLoadingCards] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    const loadCards = async () => {
+      try {
+        const res = await fetch("/api/landing-products", { cache: "no-store" });
+        if (!res.ok) throw new Error();
+        const data = (await res.json()) as { cards?: LandingProductCardUI[] };
+        const nextCards = Array.isArray(data.cards) ? data.cards : [];
+        if (active && nextCards.length > 0) {
+          setCards(nextCards);
+        }
+      } catch {
+        // fallback defaults already in state
+      } finally {
+        if (active) setIsLoadingCards(false);
+      }
+    };
+    void loadCards();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <section
       className="px-5 md:px-12 py-24"
@@ -527,85 +553,73 @@ function FeaturesSection() {
           </div>
         </FadeIn>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {FEATURES.map((f, i) => {
-            const Icon = f.icon;
-            return (
-              <FadeIn key={f.href} delay={i * 0.08}>
-                <Link href={f.href} className="block h-full">
-                  <div
-                    className="group h-full p-8 rounded-[14px] border transition-all duration-200 cursor-pointer"
-                    style={{
-                      background: "var(--surface)",
-                      borderColor: "var(--border)",
-                    }}
-                    onMouseEnter={(e) => {
-                      const el = e.currentTarget as HTMLDivElement;
-                      el.style.borderColor = "var(--border-strong)";
-                      el.style.transform = "translateY(-2px)";
-                      el.style.boxShadow = "0 4px 16px rgba(46,77,61,0.08)";
-                    }}
-                    onMouseLeave={(e) => {
-                      const el = e.currentTarget as HTMLDivElement;
-                      el.style.borderColor = "var(--border)";
-                      el.style.transform = "translateY(0)";
-                      el.style.boxShadow = "none";
-                    }}
-                  >
-                    {/* Icon + badge */}
-                    <div className="flex items-start justify-between mb-5">
-                      <div
-                        className="w-10 h-10 rounded-[10px] flex items-center justify-center"
-                        style={{ background: "var(--primary-light)" }}
+        <div className="space-y-5">
+          {cards.map((card, i) => (
+            <FadeIn key={card.id ?? `${card.href}-${i}`} delay={i * 0.08}>
+              <article
+                className="border rounded-xl p-6 md:p-8 flex flex-col-reverse md:flex-row items-center gap-8 md:gap-12 transition-all md:[&:nth-child(even)]:flex-row-reverse"
+                style={{
+                  borderColor: "var(--border)",
+                  background: "var(--surface)",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.borderColor = "var(--border-strong)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.borderColor = "var(--border)";
+                }}
+              >
+                <div className="w-full md:w-3/5 text-left">
+                  {card.badge && (
+                    <span
+                      className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-[0.08em] mb-3"
+                      style={{ background: "var(--primary-light)", color: "var(--primary)" }}
+                    >
+                      {card.badge}
+                    </span>
+                  )}
+                  <h3 className="text-[24px] md:text-[28px] font-black mb-1" style={{ color: "var(--text-primary)" }}>
+                    {card.title}
+                  </h3>
+                  {card.subtitle && (
+                    <p className="text-[14px] font-semibold mb-4" style={{ color: "var(--primary)" }}>
+                      {card.subtitle}
+                    </p>
+                  )}
+                  <p className="text-[15px] md:text-[16px] leading-[1.7] mb-4" style={{ color: "var(--text-secondary)" }}>
+                    {card.description}
+                  </p>
+                  <ul className="space-y-1.5">
+                    {card.bullets.map((bullet, bulletIndex) => (
+                      <li
+                        key={`${card.id}-bullet-${bulletIndex}`}
+                        className="flex items-start gap-2 text-[14px]"
+                        style={{ color: "var(--text-secondary)" }}
                       >
-                        <Icon className="w-5 h-5" style={{ color: "var(--primary)" }} />
-                      </div>
-                      <FeatureBadge type={f.badgeStyle} />
-                    </div>
+                        <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "var(--primary)" }} />
+                        <span>{bullet}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Link
+                    href={card.href}
+                    className="text-emerald-400 hover:text-emerald-300 font-medium inline-flex items-center gap-1 mt-6"
+                  >
+                    Xem thêm <ArrowUpRight className="w-4 h-4" />
+                  </Link>
+                </div>
 
-                    {/* Title */}
-                    <h3
-                      className="text-[18px] font-semibold mb-1"
-                      style={{ color: "var(--text-primary)" }}
-                    >
-                      {f.title}
-                    </h3>
-                    <p
-                      className="text-[13px] font-medium mb-3"
-                      style={{ color: "var(--primary)" }}
-                    >
-                      {f.subtitle}
-                    </p>
-
-                    {/* Description */}
-                    <p
-                      className="text-[15px] leading-[1.6] mb-5"
-                      style={{ color: "var(--text-secondary)" }}
-                    >
-                      {f.desc}
-                    </p>
-
-                    {/* Feature list */}
-                    <ul className="space-y-1.5">
-                      {f.features.map((feat) => (
-                        <li
-                          key={feat}
-                          className="flex items-center gap-2 text-[13px]"
-                          style={{ color: "var(--text-secondary)" }}
-                        >
-                          <CheckCircle2
-                            className="w-3.5 h-3.5 flex-shrink-0"
-                            style={{ color: "var(--primary)" }}
-                          />
-                          {feat}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </Link>
-              </FadeIn>
-            );
-          })}
+                <div className="w-full md:w-2/5 flex items-center justify-center">
+                  <img
+                    src={card.imageUrl || "/logo.jpg"}
+                    alt={card.imageAlt || card.title}
+                    className="w-full max-w-sm h-auto object-contain rounded-lg shadow-2xl"
+                    loading={isLoadingCards ? "eager" : "lazy"}
+                  />
+                </div>
+              </article>
+            </FadeIn>
+          ))}
         </div>
       </div>
     </section>

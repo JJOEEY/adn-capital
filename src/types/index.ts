@@ -120,3 +120,19 @@ export interface Badge {
   icon: string;
   earned: boolean;
 }
+
+export interface LandingProductCard {
+  id: string;
+  title: string;
+  subtitle: string | null;
+  description: string;
+  bullets: string[];
+  href: string;
+  imageUrl: string;
+  imageAlt: string | null;
+  badge: string | null;
+  isPublished: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}

@@ -351,6 +351,25 @@ model GuideSection {
   @@index([categoryId, sortOrder])
 }
 
+model LandingProductCard {
+  id          String   @id @default(cuid())
+  title       String
+  subtitle    String?
+  description String   @db.Text
+  bullets     String[] @default([])
+  href        String
+  imageUrl    String
+  imageAlt    String?
+  badge       String?
+  isPublished Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isPublished, sortOrder])
+  @@index([sortOrder])
+}
+
 // ═══════════════════════════════════════════════════════════════════
 //  CHANGELOG — Lịch sử chỉnh sửa hệ thống
 // ═══════════════════════════════════════════════════════════════════
