@@ -238,14 +238,6 @@ async function saveChatHistory(role: "user" | "assistant", message: string) {
   });
 }
 
-interface BridgeAiResponse {
-  analysis?: string;
-  signal?: string;
-  media_url?: string | null;
-  session_summary?: string;
-  vn_market?: string[];
-}
-
 async function subscribePush(): Promise<boolean> {
   try {
     const blockedReason = getPushBlockedReason();
@@ -446,26 +438,39 @@ export default function NotificationsPage() {
       if (chatLoading || cardLoading) return;
 
       setCardLoading(cardId);
-      const hour = new Date().getHours();
-      const newsType = hour >= 15 ? "eod" : "morning";
-      const endpointMap: Record<CardId, string> = {
-        ta: `/api/bridge/api/v1/ai/ta/${ticker}`,
-        fa: `/api/bridge/api/v1/ai/fa/${ticker}`,
-        tamly: `/api/bridge/api/v1/ai/tamly/${ticker}`,
-        news: `/api/bridge/api/v1/news/${newsType}`,
+      const commandMap: Record<CardId, string> = {
+        ta: `/ta ${ticker}`,
+        fa: `/fa ${ticker}`,
+        tamly: `/tamly ${ticker}`,
+        news: `/news ${ticker}`,
       };
 
       try {
-        const res = await fetch(endpointMap[cardId], { signal: AbortSignal.timeout(60_000) });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: commandMap[cardId] }),
+          signal: AbortSignal.timeout(120_000),
+        });
+        const data = (await res.json()) as { message?: string; error?: string };
+        if (res.status === 429) {
+          setChatMessages((prev) => [
+            ...prev,
+            {
+              id: crypto.randomUUID(),
+              role: "assistant",
+              text: data.message ?? "Đại ca đã dùng hết lượt tư vấn hôm nay.",
+              createdAt: new Date().toISOString(),
+              streamState: "done",
+            },
+          ]);
+          return;
+        }
+        if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
 
-        const data = (await res.json()) as BridgeAiResponse;
         const isTa = cardId === "ta";
-        const badge = mapSignalToBadge(data.signal);
-        const text =
-          cardId === "news"
-            ? data.session_summary || (data.vn_market ?? []).join("\n") || "Không có dữ liệu tin tức."
-            : data.analysis || "Không có dữ liệu phân tích.";
+        const text = data.message || "Không có dữ liệu phân tích.";
+        const badge = mapSignalToBadge(text);
 
         const assistantMessage: ChatMessage = {
           id: crypto.randomUUID(),

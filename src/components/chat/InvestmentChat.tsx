@@ -463,7 +463,7 @@ export function InvestmentChat({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ message: commandMap[cardId] }),
-          signal: AbortSignal.timeout(60_000),
+          signal: AbortSignal.timeout(120_000),
         });
         const data = await res.json() as { message?: string; error?: string };
         if (res.status === 429) {

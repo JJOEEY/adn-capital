@@ -146,6 +146,15 @@ interface AIAnalysisResult {
   cached?: boolean;
 }
 
+interface BridgeNewsItem {
+  title?: string;
+  summary?: string;
+  time?: string;
+  published_at?: string;
+  source?: string;
+  link?: string;
+}
+
 async function fetchBridgeAI(
   endpoint: "ta" | "fa" | "tamly",
   ticker: string,
@@ -166,6 +175,26 @@ async function fetchBridgeAI(
   } catch (err) {
     console.warn(`[Chat AI] Bridge AI ${endpoint} ${ticker}: Lỗi kết nối`, err);
     return null;
+  }
+}
+
+async function fetchBridgeTickerNews(ticker: string): Promise<BridgeNewsItem[]> {
+  try {
+    const url = `${FIINQUANT_BRIDGE}/api/v1/news/${ticker}?limit=5`;
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(15_000),
+      cache: "no-store",
+    });
+    if (!res.ok) return [];
+    const payload = (await res.json()) as { items?: BridgeNewsItem[]; news?: BridgeNewsItem[] };
+    const items = Array.isArray(payload.items)
+      ? payload.items
+      : Array.isArray(payload.news)
+        ? payload.news
+        : [];
+    return items.slice(0, 5);
+  } catch {
+    return [];
   }
 }
 
@@ -728,6 +757,73 @@ Dùng Google Search để bổ sung dữ liệu giao dịch mới nhất.
 - Đang có hàng / Chưa có hàng / Kẹp hàng${journalCtx ? "\n\n### 5. TƯ VẤN CÁ NHÂN" : ""}`;
 }
 
+function buildTamlyFallback(stock: string, taData: TAData | null): string {
+  if (!taData) {
+    return `## 🧠 ĐỌC VỊ DÒNG TIỀN ATC - ${stock}
+
+Hiện em chưa lấy đủ dữ liệu realtime cho ${stock}, đại ca vui lòng thử lại sau 1-2 phút giúp em.
+
+- Theo dõi thêm volume so với trung bình 10-20 phiên trước khi vào lệnh.
+- Ưu tiên quản trị rủi ro, tránh all-in khi chưa có xác nhận.
+- Em sẽ tự cập nhật lại khi feed realtime ổn định.`;
+  }
+
+  const volNow = taData.volume10[taData.volume10.length - 1] ?? 0;
+  const volRatio10 = taData.avgVolume10 > 0 ? volNow / taData.avgVolume10 : 0;
+  const macdHist = taData.macd?.histogram ?? null;
+  const bias =
+    volRatio10 >= 1.2 && taData.rsi14 >= 50
+      ? "Dòng tiền nghiêng tích cực"
+      : volRatio10 < 0.9
+        ? "Dòng tiền đang yếu, thiên về quan sát"
+        : "Dòng tiền trung tính";
+
+  return `## 🧠 ĐỌC VỊ DÒNG TIỀN ATC - ${stock}
+
+### 1. Dòng tiền phiên gần nhất
+- Giá: ${fmtPrice(taData.currentPrice)} VNĐ
+- Volume phiên gần nhất: ${fmtVol(volNow)}
+- TB10 phiên: ${fmtVol(taData.avgVolume10)} (tỷ lệ x${volRatio10.toFixed(2)})
+
+### 2. Tâm lý ngắn hạn
+- RSI(14): ${taData.rsi14}
+- MACD histogram: ${macdHist != null ? macdHist : "N/A"}
+- Đánh giá: ${bias}
+
+### 3. Hành động gợi ý
+- Có hàng: quản trị theo EMA20/EMA50, tránh gồng lỗ.
+- Chưa có hàng: chờ tín hiệu xác nhận volume tăng và giá giữ được vùng hỗ trợ.
+- Luôn đặt stop-loss theo kế hoạch trước khi vào lệnh.`;
+}
+
+function buildNewsFallback(stock: string, newsItems: BridgeNewsItem[]): string {
+  if (newsItems.length === 0) {
+    return `## 📰 TIN TỨC & SỰ KIỆN ${stock}
+
+Hiện em chưa kéo được feed tin mới cho ${stock}. Đại ca thử lại sau vài phút giúp em nhé.
+
+- Trong lúc chờ tin, ưu tiên theo dõi thanh khoản và biến động giá tại vùng hỗ trợ/kháng cự.
+- Em sẽ cập nhật lại ngay khi feed realtime ổn định.`;
+  }
+
+  const lines = newsItems.map((item, idx) => {
+    const title = item.title?.trim() || `Tin ${idx + 1}`;
+    const source = item.source?.trim() || "Nguồn thị trường";
+    const time = item.time?.trim() || item.published_at?.trim() || "Mới cập nhật";
+    return `- ${idx + 1}. ${title} (${source} - ${time})`;
+  });
+
+  return `## 📰 TIN TỨC & SỰ KIỆN ${stock}
+
+### Tin nổi bật gần nhất
+${lines.join("\n")}
+
+### Nhận định nhanh
+- Theo dõi phản ứng giá/khối lượng của ${stock} sau các tin trên.
+- Nếu tin tích cực nhưng giá không vượt cản, ưu tiên thận trọng.
+- Nếu tin trung tính mà volume tăng đột biến, chú ý khả năng dòng tiền lớn vào mã.`;
+}
+
 // ─── Helpers ────────────────────────────────────────────────────
 function generateId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -992,7 +1088,13 @@ export async function POST(req: NextRequest) {
       }
 
     } else if (cmd === "/news" && stock) {
-      responseText = await executeAIRequest(buildNewsPrompt(stock, journalCtx), INTENT.NEWS);
+      try {
+        responseText = await executeAIRequest(buildNewsPrompt(stock, journalCtx), INTENT.NEWS);
+      } catch (error) {
+        console.warn(`[Chat /news] Gemini lỗi, fallback feed bridge cho ${stock}:`, error);
+        const bridgeNews = await fetchBridgeTickerNews(stock);
+        responseText = buildNewsFallback(stock, bridgeNews);
+      }
 
     } else if (cmd === "/tamly" && stock) {
       console.log(`[Chat /tamly] Fetching AI Tâm lý từ Bridge cho ${stock}...`);
@@ -1004,7 +1106,12 @@ export async function POST(req: NextRequest) {
       } else {
         console.warn(`[Chat /tamly] Bridge AI lỗi, fallback local...`);
         const taData = await fetchTAData(stock);
-        responseText = await executeAIRequest(buildTamlyPrompt(stock, taData, journalCtx), INTENT.TAMLY);
+        try {
+          responseText = await executeAIRequest(buildTamlyPrompt(stock, taData, journalCtx), INTENT.TAMLY);
+        } catch (error) {
+          console.warn(`[Chat /tamly] Gemini lỗi, fallback deterministic cho ${stock}:`, error);
+          responseText = buildTamlyFallback(stock, taData);
+        }
       }
 
     } else {
