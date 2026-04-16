@@ -51,8 +51,11 @@ services:
       - NODE_ENV=production
       - HOSTNAME=0.0.0.0
       - PYTHON_BRIDGE_URL=http://fiinquant:8000
+      - GUIDE_UPLOAD_DIR=/app/storage/guides
       - DATABASE_URL=postgresql://${POSTGRES_USER:-adnuser}:${POSTGRES_PASSWORD}@pgbouncer:5432/${POSTGRES_DB:-adncapital}?schema=public&pgbouncer=true
       - DIRECT_DATABASE_URL=postgresql://${POSTGRES_USER:-adnuser}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-adncapital}?schema=public
+    volumes:
+      - ./app_data/guides:/app/storage/guides
     ports:
       - "3000:3000"
     depends_on:

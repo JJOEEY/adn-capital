@@ -20,6 +20,20 @@ services:
 DATABASE_URL=postgresql://adnuser:adn_pass_99@pgbouncer:5432/adncapital?pgbouncer=true
 DIRECT_DATABASE_URL=postgresql://adnuser:adn_pass_99@db:5432/adncapital
 ```
+5. Keep persistent storage for Guide Markdown images in `web`:
+```yaml
+services:
+  web:
+    environment:
+      - GUIDE_UPLOAD_DIR=/app/storage/guides
+    volumes:
+      - ./app_data/guides:/app/storage/guides
+```
+6. Ensure host folder permissions before deploy:
+```bash
+mkdir -p ./app_data/guides
+chmod 775 ./app_data ./app_data/guides
+```
 
 ## Mandatory post-deploy checks
 ```bash
@@ -33,6 +47,11 @@ Expected: `DATABASE_URL` has `@pgbouncer:5432`, `DIRECT_DATABASE_URL` has `@db:5
 ssh root@14.225.204.117 "cd /home/adncapital/app/adn-capital && docker compose exec -T db psql -U adnuser -d adncapital -c 'SELECT COUNT(*) FROM \"User\"'"
 ```
 Expected: user count > 0.
+
+```bash
+ssh root@14.225.204.117 "cd /home/adncapital/app/adn-capital && ls -ld ./app_data ./app_data/guides && docker compose exec -T web sh -lc 'test -w /app/storage/guides && echo GUIDE_UPLOAD_DIR writable'"
+```
+Expected: host folders exist and web container can write to `/app/storage/guides`.
 
 ## Emergency admin restore (if needed)
 ```bash

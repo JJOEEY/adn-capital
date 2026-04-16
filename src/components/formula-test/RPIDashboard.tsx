@@ -67,6 +67,16 @@ const fetcher = (url: string) =>
     return r.json();
   });
 
+const CHART_THEME = {
+  line: "var(--text-primary)",
+  dot: "var(--text-primary)",
+  gaugeCenter: "var(--bg-page)",
+  grid: "var(--border)",
+  axis: "var(--border)",
+  axisText: "var(--text-secondary)",
+  cursor: "var(--border-strong)",
+};
+
 /* ── Date helpers ──────────────────────────────────────────────────────── */
 function formatDateDMY(dateStr: string): string {
   const clean = dateStr.split(" ")[0];
@@ -178,11 +188,10 @@ function GaugeSVG({ value }: { value: number }) {
 
       {/* Needle with glow */}
       <line x1={cx} y1={cy} x2={nx} y2={ny}
-        stroke="#fff" strokeWidth="3" strokeLinecap="round"
-        style={{ filter: "drop-shadow(0 0 6px rgba(255,255,255,0.4))" }}
+        stroke={CHART_THEME.line} strokeWidth="3" strokeLinecap="round"
       />
-      <circle cx={cx} cy={cy} r="7" fill="#fff" />
-      <circle cx={cx} cy={cy} r="3" fill="#0a0a0a" />
+      <circle cx={cx} cy={cy} r="7" fill={CHART_THEME.dot} />
+      <circle cx={cx} cy={cy} r="3" fill={CHART_THEME.gaugeCenter} />
     </svg>
   );
 }
@@ -219,7 +228,7 @@ function CustomTooltip({
 function RPIDot(props: { cx?: number; cy?: number }) {
   const { cx, cy } = props;
   if (cx == null || cy == null) return null;
-  return <circle cx={cx} cy={cy} r={4} fill="#fff" stroke="#fff" strokeWidth={1} />;
+  return <circle cx={cx} cy={cy} r={4} fill={CHART_THEME.dot} stroke={CHART_THEME.dot} strokeWidth={1} />;
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -536,26 +545,26 @@ export const RPIDashboard = memo(function RPIDashboard() {
                   <ReferenceArea y1={1.0} y2={4.0} fill="rgba(245, 158, 11, 0.04)" strokeOpacity={0} />
                   <ReferenceArea y1={0} y2={1.0} fill="rgba(34, 197, 94, 0.08)" strokeOpacity={0} />
 
-                  <CartesianGrid stroke="#262626" strokeDasharray="3 3" vertical={false} />
+                  <CartesianGrid stroke={CHART_THEME.grid} strokeDasharray="3 3" vertical={false} />
 
                   <XAxis
                     dataKey="displayDate"
-                    tick={{ fontSize: 10, fill: "#6B7280" }}
+                    tick={{ fontSize: 10, fill: CHART_THEME.axisText }}
                     angle={-45}
                     textAnchor="end"
                     height={60}
                     interval={0}
-                    tickLine={{ stroke: "#404040" }}
-                    axisLine={{ stroke: "#404040" }}
+                    tickLine={{ stroke: CHART_THEME.axis }}
+                    axisLine={{ stroke: CHART_THEME.axis }}
                   />
 
                   <YAxis
                     domain={[0, 5]}
                     ticks={[0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]}
-                    tick={{ fontSize: 11, fill: "#6B7280" }}
+                    tick={{ fontSize: 11, fill: CHART_THEME.axisText }}
                     tickFormatter={(v: number) => v.toFixed(1)}
-                    axisLine={{ stroke: "#404040" }}
-                    tickLine={{ stroke: "#404040" }}
+                    axisLine={{ stroke: CHART_THEME.axis }}
+                    tickLine={{ stroke: CHART_THEME.axis }}
                     width={35}
                   />
 
@@ -563,7 +572,7 @@ export const RPIDashboard = memo(function RPIDashboard() {
                   <ReferenceLine y={4.0} stroke="#EF4444" strokeDasharray="6 3" strokeOpacity={0.4} />
                   <ReferenceLine y={1.0} stroke="#22C55E" strokeDasharray="6 3" strokeOpacity={0.4} />
 
-                  <Tooltip content={<CustomTooltip />} cursor={{ stroke: "#525252", strokeDasharray: "4 4" }} />
+                  <Tooltip content={<CustomTooltip />} cursor={{ stroke: CHART_THEME.cursor, strokeDasharray: "4 4" }} />
 
                   {/* MA7 area + line */}
                   <Area
@@ -583,10 +592,10 @@ export const RPIDashboard = memo(function RPIDashboard() {
                     type="monotone"
                     dataKey="rpi"
                     name="ART"
-                    stroke="#ffffff"
+                    stroke={CHART_THEME.line}
                     strokeWidth={2}
                     dot={<RPIDot />}
-                    activeDot={{ r: 6, fill: "#fff", stroke: "#fff" }}
+                    activeDot={{ r: 6, fill: CHART_THEME.dot, stroke: CHART_THEME.dot }}
                     isAnimationActive={false}
                   />
                 </ComposedChart>

@@ -16,6 +16,10 @@ echo "[safe-deploy] compose: ${COMPOSE_BIN}"
 cd "${APP_DIR}"
 git pull origin "${BRANCH}"
 
+# Ensure guide image storage exists and is writable before web container starts.
+mkdir -p ./app_data/guides
+chmod 775 ./app_data ./app_data/guides || true
+
 # Guardrail: web-only deploy, never down the full stack.
 ${COMPOSE_BIN} build --no-cache web
 ${COMPOSE_BIN} up -d web

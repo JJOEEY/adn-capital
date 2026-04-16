@@ -35,6 +35,12 @@ const fetcher = (url: string) =>
     return r.json();
   });
 
+const CHART_THEME = {
+  line: "var(--text-primary)",
+  dot: "var(--text-primary)",
+  gaugeCenter: "var(--bg-page)",
+};
+
 /* ── Classify ART — chỉ đổi text label, giữ nguyên màu sắc gauge ─────────────── */
 function classifyART(v: number) {
   if (v < 1.0)  return { label: "HOẢNG LOẠN CỰC ĐỘ - AN TOÀN", sublabel: "Cơ hội mua tốt nhất", color: "#22C55E" };
@@ -151,11 +157,10 @@ function GaugeSVG({ value }: { value: number }) {
         );
       })}
       <line x1={cx} y1={cy} x2={nx} y2={ny}
-        stroke="#fff" strokeWidth="3" strokeLinecap="round"
-        style={{ filter: "drop-shadow(0 0 6px rgba(255,255,255,0.4))" }}
+        stroke={CHART_THEME.line} strokeWidth="3" strokeLinecap="round"
       />
-      <circle cx={cx} cy={cy} r="7" fill="#fff" />
-      <circle cx={cx} cy={cy} r="3" fill="#0a0a0a" />
+      <circle cx={cx} cy={cy} r="7" fill={CHART_THEME.dot} />
+      <circle cx={cx} cy={cy} r="3" fill={CHART_THEME.gaugeCenter} />
     </svg>
   );
 }
@@ -171,7 +176,7 @@ function CustomTooltip({
   if (!active || !payload?.length) return null;
   return (
     <div className="px-4 py-3 rounded-lg shadow-xl border text-sm" style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
-      <p className="font-bold mb-1.5" style={{ color: "#f59e0b" }}>{label}</p>
+      <p className="font-bold mb-1.5" style={{ color: "var(--text-secondary)" }}>{label}</p>
       {payload.map((p, i) => (
         <div key={i} className="flex items-center gap-2 mt-0.5">
           <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: p.color }} />
@@ -185,7 +190,7 @@ function CustomTooltip({
 function ARTDot(props: { cx?: number; cy?: number }) {
   const { cx, cy } = props;
   if (cx == null || cy == null) return null;
-  return <circle cx={cx} cy={cy} r={3} fill="#fff" stroke="#fff" strokeWidth={1} />;
+  return <circle cx={cx} cy={cy} r={3} fill={CHART_THEME.dot} stroke={CHART_THEME.dot} strokeWidth={1} />;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -400,7 +405,7 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
                       dot={false} connectNulls={false} isAnimationActive={false} />
                     <Line type="monotone" dataKey="rpi" name="ART"
                       stroke="var(--text-primary)" strokeWidth={2}
-                      dot={<ARTDot />} activeDot={{ r: 5, fill: "#fff", stroke: "#fff" }}
+                      dot={<ARTDot />} activeDot={{ r: 5, fill: CHART_THEME.dot, stroke: CHART_THEME.dot }}
                       isAnimationActive={false} />
                   </ComposedChart>
                 </ResponsiveContainer>

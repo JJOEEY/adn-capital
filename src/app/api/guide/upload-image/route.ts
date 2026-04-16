@@ -12,7 +12,7 @@ const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
 const ALLOWED_EXT = new Set(["jpg", "jpeg", "png", "webp"]);
 
 function getUploadDir() {
-  return process.env.GUIDE_UPLOAD_DIR || path.join(process.cwd(), "..", "uploads", "guides");
+  return process.env.GUIDE_UPLOAD_DIR || path.join(process.cwd(), "storage", "guides");
 }
 
 function hasValidMagicBytes(bytes: Uint8Array, mime: string): boolean {

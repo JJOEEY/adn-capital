@@ -5,7 +5,7 @@ import path from "path";
 export const dynamic = "force-dynamic";
 
 function getUploadDir() {
-  return process.env.GUIDE_UPLOAD_DIR || path.join(process.cwd(), "..", "uploads", "guides");
+  return process.env.GUIDE_UPLOAD_DIR || path.join(process.cwd(), "storage", "guides");
 }
 
 const MIME_BY_EXT: Record<string, string> = {
