@@ -227,7 +227,7 @@ function HeroSection() {
     >
       {/* Subtle background orb */}
       <div
-        className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[500px] rounded-full pointer-events-none"
+        className="absolute top-0 left-1/2 -translate-x-1/2 w-[92vw] max-w-[860px] h-[420px] sm:h-[500px] md:h-[560px] rounded-full pointer-events-none"
         style={{
           background: "var(--primary-light)",
           opacity: 0.55,
@@ -260,15 +260,15 @@ function HeroSection() {
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.15, ease: [0.23, 1, 0.32, 1] }}
-          className="mb-7 leading-[1.05] text-center"
+          className="mb-8 leading-[1.04] text-center max-w-[92vw] sm:max-w-[760px] mx-auto"
         >
           <span
-            className="block font-black font-orbitron tracking-[0.08em] text-[28px] sm:text-[40px] lg:text-[48px]"
+            className="block whitespace-nowrap font-black font-orbitron tracking-[0.05em] text-[20px] sm:text-[32px] lg:text-[42px] xl:text-[44px]"
             style={{ color: "var(--text-primary)" }}
           >
             QUANT TRADING SYSTEM
           </span>
-          <span className="block mt-2 font-black font-orbitron tracking-[0.06em] text-[48px] sm:text-[72px] lg:text-[88px] text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-600">
+          <span className="block mt-2 whitespace-nowrap font-black font-orbitron tracking-[0.04em] text-[40px] sm:text-[56px] lg:text-[72px] xl:text-[76px] text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-600">
             ADN CAPITAL
           </span>
         </motion.h1>
