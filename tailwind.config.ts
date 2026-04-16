@@ -11,6 +11,11 @@ const config: Config = {
     extend: {
       /* ── Font ── */
       fontFamily: {
+        orbitron: [
+          "var(--font-orbitron)",
+          "Orbitron",
+          "sans-serif",
+        ],
         sans: [
           "var(--font-manrope)",
           "-apple-system",

@@ -237,9 +237,9 @@ function HeroSection() {
       <div className="relative z-10 max-w-[820px] mx-auto">
         {/* Badge label */}
         <FadeIn>
-          <div className="flex justify-center mb-7">
+          <div className="flex justify-center mb-8">
             <span
-              className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[13px] font-medium uppercase tracking-[0.08em]"
+              className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[13px] font-medium tracking-[0.08em]"
               style={{
                 background: "var(--primary-light)",
                 color: "var(--text-secondary)",
@@ -250,7 +250,7 @@ function HeroSection() {
                 className="w-1.5 h-1.5 rounded-full animate-pulse"
                 style={{ background: "var(--primary)" }}
               />
-              · ADN CAPITAL · QUANT TRADING SYSTEM
+              Đầu tư cùng
             </span>
           </div>
         </FadeIn>
@@ -260,11 +260,17 @@ function HeroSection() {
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.15, ease: [0.23, 1, 0.32, 1] }}
-          className="text-[40px] sm:text-[56px] lg:text-[68px] font-bold leading-[1.1] tracking-tight mb-5"
+          className="mb-7 leading-[1.05] text-center"
         >
-          <span style={{ color: "var(--text-primary)" }}>ĐẦU TƯ CÙNG</span>
-          <br />
-          <span style={{ color: "var(--primary)" }}>HỆ THỐNG ADN</span>
+          <span
+            className="block font-black font-orbitron tracking-[0.08em] text-[28px] sm:text-[40px] lg:text-[48px]"
+            style={{ color: "var(--text-primary)" }}
+          >
+            QUANT TRADING SYSTEM
+          </span>
+          <span className="block mt-2 font-black font-orbitron tracking-[0.06em] text-[48px] sm:text-[72px] lg:text-[88px] text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-600">
+            ADN CAPITAL
+          </span>
         </motion.h1>
 
         {/* Sub-headline */}

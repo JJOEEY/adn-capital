@@ -1,13 +1,20 @@
 import type { Metadata } from "next";
 import { AuthProvider } from "@/components/providers/AuthProvider";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
-import { Manrope } from "next/font/google";
+import { Manrope, Orbitron } from "next/font/google";
 import "./globals.css";
 
 const manrope = Manrope({
   subsets: ["latin", "vietnamese"],
   weight: ["400", "500", "600", "700"],
   variable: "--font-manrope",
+  display: "swap",
+});
+
+const orbitron = Orbitron({
+  subsets: ["latin"],
+  weight: ["900"],
+  variable: "--font-orbitron",
   display: "swap",
 });
 
@@ -78,7 +85,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
       </head>
-      <body className={`${manrope.variable} antialiased min-h-screen text-base leading-relaxed`} suppressHydrationWarning>
+      <body className={`${manrope.variable} ${orbitron.variable} antialiased min-h-screen text-base leading-relaxed`} suppressHydrationWarning>
         <AuthProvider>
           <ThemeProvider>{children}</ThemeProvider>
         </AuthProvider>
