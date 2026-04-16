@@ -31,6 +31,7 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 export function SignalMapClient({ isPremium = false }: { isPremium?: boolean }) {
   const [tab, setTab] = useState<Tab>("RADAR");
   const [tierFilter, setTierFilter] = useState<TierFilter>("all");
+  const [isScanning, setIsScanning] = useState(false);
 
   const { data, isLoading, isValidating, mutate } = useSWR<{ signals: Signal[] }>(
     "/api/signals?days=90",
@@ -67,6 +68,23 @@ export function SignalMapClient({ isPremium = false }: { isPremium?: boolean }) 
   const pnlColor = stats.totalPnl >= 0 ? "#16a34a" : "var(--danger)";
   const pnlBg    = stats.totalPnl >= 0 ? "rgba(22,163,74,0.05)" : "rgba(192,57,43,0.05)";
   const pnlBorder= stats.totalPnl >= 0 ? "rgba(22,163,74,0.20)" : "rgba(192,57,43,0.20)";
+  const isRefreshing = isValidating || isScanning;
+
+  async function handleRefresh() {
+    setIsScanning(true);
+    try {
+      const res = await fetch("/api/scan-now", { method: "POST" });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `HTTP ${res.status}`);
+      }
+    } catch (error) {
+      console.error("[SignalMap] Refresh scan failed:", error);
+    } finally {
+      await mutate();
+      setIsScanning(false);
+    }
+  }
 
   return (
     <div className="p-3 md:p-6 space-y-4 md:space-y-5 max-w-7xl mx-auto">
@@ -91,8 +109,8 @@ export function SignalMapClient({ isPremium = false }: { isPremium?: boolean }) 
             </p>
           </div>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => mutate()} loading={isValidating}>
-          <RefreshCw className={`w-3.5 h-3.5 ${isValidating ? "animate-spin" : ""}`} />
+        <Button variant="ghost" size="sm" onClick={handleRefresh} loading={isRefreshing}>
+          <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
           Làm mới
         </Button>
       </div>

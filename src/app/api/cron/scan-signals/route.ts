@@ -90,69 +90,101 @@ export async function GET(req: NextRequest) {
     const uniqueSignals = Array.from(
       new Map(scanResult.signals.map((s) => [toSignalKey(s.ticker, s.type), s])).values()
     );
-    const newSignals = uniqueSignals.filter((s) => !sentToday.has(toSignalKey(s.ticker, s.type)));
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const todaySignals = await prisma.signal.findMany({
+      where: { createdAt: { gte: startOfDay } },
+      select: { id: true, ticker: true, type: true, status: true },
+    });
+    const existingMap = new Map(todaySignals.map((s) => [toSignalKey(s.ticker, s.type), s]));
 
-    if (newSignals.length === 0) {
-      const duration = Date.now() - startTime;
-      await logCron("signal_scan", "success", "Không có tín hiệu mới", duration);
-      return NextResponse.json({
-        type: "signal_scan",
-        timestamp: new Date().toISOString(),
-        message: "Không có tín hiệu mới",
-        newSignals: [],
-        totalSignaledToday: sentToday.size,
-      });
-    }
+    let createdCount = 0;
+    let updatedCount = 0;
+    const notifySignals: PythonScanResult["signals"] = [];
 
-    const savedSignals = await prisma.$transaction(async (tx) => {
-      await tx.signalHistory.createMany({
-        data: newSignals.map((s) => ({
-          ticker: s.ticker.toUpperCase().trim(),
-          signalType: s.type,
-          sentDate: todayISO,
-        })),
-        skipDuplicates: true,
-      });
-      return Promise.all(
-        newSignals.map((signal) =>
-          tx.signal.create({
+    await prisma.$transaction(async (tx) => {
+      for (const signal of uniqueSignals) {
+        const ticker = signal.ticker.toUpperCase().trim();
+        const key = toSignalKey(ticker, signal.type);
+        const existing = existingMap.get(key);
+
+        if (existing) {
+          if (existing.status !== "CLOSED") {
+            await tx.signal.update({
+              where: { id: existing.id },
+              data: {
+                entryPrice: signal.entryPrice,
+                reason: signal.reason ?? null,
+              },
+            });
+            updatedCount += 1;
+          }
+        } else {
+          await tx.signal.create({
             data: {
-              ticker: signal.ticker.toUpperCase().trim(),
+              ticker,
               type: signal.type,
               entryPrice: signal.entryPrice,
+              reason: signal.reason ?? null,
             },
-          })
-        )
-      );
+          });
+          createdCount += 1;
+        }
+
+        if (!sentToday.has(key)) {
+          notifySignals.push({ ...signal, ticker });
+        }
+      }
+
+      if (notifySignals.length > 0) {
+        await tx.signalHistory.createMany({
+          data: notifySignals.map((s) => ({
+            ticker: s.ticker,
+            signalType: s.type,
+            sentDate: todayISO,
+          })),
+          skipDuplicates: true,
+        });
+      }
     });
 
-    // Đẩy Notification — include reason from Python scan
-    const reasonMap = new Map(newSignals.map((s) => [s.ticker, s.reason ?? ""]));
-    const signalText = savedSignals
-      .map((s) => {
-        const reason = reasonMap.get(s.ticker);
-        return `• ${s.ticker}: ${s.entryPrice.toLocaleString("vi-VN")} VNĐ${reason ? ` — ${reason}` : ""}`;
-      })
-      .join("\n");
-    const windowInfo = getSignalWindowInfo();
+    if (notifySignals.length > 0) {
+      const signalText = notifySignals
+        .map((s) => `• ${s.ticker}: ${s.entryPrice.toLocaleString("vi-VN")} VNĐ${s.reason ? ` — ${s.reason}` : ""}`)
+        .join("\n");
+      const windowInfo = getSignalWindowInfo();
 
-    await pushNotification(
-      windowInfo.type,
-      `📡 ${windowInfo.label} — ${savedSignals.length} tín hiệu đầu cơ mới`,
-      `## TÍN HIỆU MỚI (${windowInfo.label})\n\n${signalText}`
-    );
+      await pushNotification(
+        windowInfo.type,
+        `📡 ${windowInfo.label} — ${notifySignals.length} tín hiệu đầu cơ mới`,
+        `## TÍN HIỆU MỚI (${windowInfo.label})\n\n${signalText}`
+      );
+    }
 
     const duration = Date.now() - startTime;
-    await logCron("signal_scan", "success", `${savedSignals.length} tín hiệu mới`, duration, {
-      newSignals: savedSignals.length,
-    });
+    await logCron(
+      "signal_scan",
+      "success",
+      `Đồng bộ ${createdCount + updatedCount} tín hiệu (mới ${createdCount}, cập nhật ${updatedCount}, notify ${notifySignals.length})`,
+      duration,
+      {
+        created: createdCount,
+        updated: updatedCount,
+        notified: notifySignals.length,
+      }
+    );
 
     return NextResponse.json({
       type: "signal_scan",
       timestamp: new Date().toISOString(),
-      message: `Phát hiện ${savedSignals.length} tín hiệu đầu cơ mới`,
-      newSignals: savedSignals,
-      totalSignaledToday: sentToday.size + savedSignals.length,
+      message:
+        createdCount + updatedCount > 0
+          ? `Đồng bộ ${createdCount + updatedCount} tín hiệu`
+          : "Không có tín hiệu cần đồng bộ",
+      created: createdCount,
+      updated: updatedCount,
+      notified: notifySignals.length,
+      totalSignaledToday: sentToday.size + notifySignals.length,
     });
   } catch (error) {
     const duration = Date.now() - startTime;

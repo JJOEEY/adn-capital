@@ -399,55 +399,95 @@ async function handleSignalScan5m(): Promise<NextResponse> {
     const uniqueSignals = Array.from(
       new Map(scanResult.signals.map((s) => [toSignalKey(s.ticker, s.type), s])).values()
     );
-    const newSignals = uniqueSignals.filter((s) => !alreadySent.has(toSignalKey(s.ticker, s.type)));
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
 
-    if (newSignals.length > 0) {
-      await prisma.$transaction(async (tx) => {
+    const todaySignals = await prisma.signal.findMany({
+      where: { createdAt: { gte: startOfDay } },
+      select: { id: true, ticker: true, type: true, status: true },
+    });
+    const existingMap = new Map(todaySignals.map((s) => [toSignalKey(s.ticker, s.type), s]));
+
+    let createdCount = 0;
+    let updatedCount = 0;
+    const notifySignals: PythonScanSignal[] = [];
+
+    await prisma.$transaction(async (tx) => {
+      for (const signal of uniqueSignals) {
+        const ticker = signal.ticker.toUpperCase().trim();
+        const key = toSignalKey(ticker, signal.type);
+        const existing = existingMap.get(key);
+
+        if (existing) {
+          if (existing.status !== "CLOSED") {
+            await tx.signal.update({
+              where: { id: existing.id },
+              data: {
+                entryPrice: signal.entryPrice,
+                reason: signal.reason ?? null,
+              },
+            });
+            updatedCount += 1;
+          }
+        } else {
+          await tx.signal.create({
+            data: {
+              ticker,
+              type: signal.type,
+              entryPrice: signal.entryPrice,
+              reason: signal.reason ?? null,
+            },
+          });
+          createdCount += 1;
+        }
+
+        if (!alreadySent.has(key)) {
+          notifySignals.push({ ...signal, ticker });
+        }
+      }
+
+      if (notifySignals.length > 0) {
         await tx.signalHistory.createMany({
-          data: newSignals.map((s) => ({
-            ticker: s.ticker.toUpperCase().trim(),
+          data: notifySignals.map((s) => ({
+            ticker: s.ticker,
             signalType: s.type,
             sentDate: todayISO,
           })),
           skipDuplicates: true,
         });
-        await Promise.all(
-          newSignals.map((sig) =>
-            tx.signal.create({
-              data: {
-                ticker: sig.ticker.toUpperCase().trim(),
-                type: sig.type,
-                entryPrice: sig.entryPrice,
-                reason: sig.reason,
-              },
-            })
-          )
-        );
-      });
+      }
+    });
 
-      const signalText = newSignals
-        .map((s) => `• ${s.ticker.toUpperCase().trim()}: ${s.entryPrice.toLocaleString("vi-VN")} VNĐ${s.reason ? ` — ${s.reason}` : ""}`)
+    if (notifySignals.length > 0) {
+      const signalText = notifySignals
+        .map((s) => `• ${s.ticker}: ${s.entryPrice.toLocaleString("vi-VN")} VNĐ${s.reason ? ` — ${s.reason}` : ""}`)
         .join("\n");
       const windowInfo = getSignalWindowInfo(vnNow);
       await pushNotification(
         windowInfo.type,
-        `⚡ ${windowInfo.label} — ${newSignals.length} tín hiệu mới`,
+        `⚡ ${windowInfo.label} — ${notifySignals.length} tín hiệu mới`,
         `## TÍN HIỆU MỚI (${windowInfo.label})\n\n${signalText}`
       );
     }
 
     const duration = Date.now() - startTime;
     await logCron("signal_scan_5m", "success",
-      `Python scan: ${scanResult.detected} phát hiện, ${newSignals.length} tín hiệu mới`,
-      duration, { scanned: scanResult.detected, newSignals: newSignals.length }
+      `Python scan: ${scanResult.detected} phát hiện, tạo ${createdCount}, cập nhật ${updatedCount}, notify ${notifySignals.length}`,
+      duration,
+      { scanned: scanResult.detected, created: createdCount, updated: updatedCount, notified: notifySignals.length }
     );
 
     return NextResponse.json({
       type: "signal_scan_5m",
       timestamp: new Date().toISOString(),
-      message: newSignals.length > 0 ? `Phát hiện ${newSignals.length} tín hiệu mới` : "Không có tín hiệu mới",
-      newSignals,
-      totalSignaledToday: alreadySent.size + newSignals.length,
+      message:
+        createdCount + updatedCount > 0
+          ? `Đồng bộ ${createdCount + updatedCount} tín hiệu (mới ${createdCount}, cập nhật ${updatedCount})`
+          : "Không có tín hiệu cần đồng bộ",
+      created: createdCount,
+      updated: updatedCount,
+      notified: notifySignals.length,
+      totalSignaledToday: alreadySent.size + notifySignals.length,
     });
   } catch (error) {
     await logCron("signal_scan_5m", "error", String(error), Date.now() - startTime);
