@@ -84,13 +84,7 @@ export default function TerminalPage() {
 
   return (
     <MainLayout disableSwipe>
-      <div
-        className="flex flex-col"
-        style={{
-          height: "calc(100dvh - 3.5rem)",
-          minHeight: "calc(100svh - 3.5rem)",
-        }}
-      >
+      <div className="flex h-full min-h-0 flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-4 md:px-6 py-3 border-b" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
           <div className="flex items-center gap-3">
@@ -150,7 +144,7 @@ export default function TerminalPage() {
         </div>
 
         {/* Investment Chat */}
-        <div className="flex-1 overflow-hidden p-4 md:p-6">
+        <div className="flex-1 min-h-0 overflow-hidden p-3 pb-24 md:p-6 md:pb-6">
           <InvestmentChat
             onSendFreeText={isLimitReached ? undefined : handleFreeText}
             freeTextLoading={freeTextPending}

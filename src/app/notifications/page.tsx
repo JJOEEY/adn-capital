@@ -311,6 +311,7 @@ export default function NotificationsPage() {
   const [pushBlockedReason, setPushBlockedReason] = useState("");
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -331,6 +332,13 @@ export default function NotificationsPage() {
         });
       });
     }
+  }, []);
+
+  useEffect(() => {
+    const updateViewportType = () => setIsMobileViewport(window.innerWidth < 1024);
+    updateViewportType();
+    window.addEventListener("resize", updateViewportType);
+    return () => window.removeEventListener("resize", updateViewportType);
   }, []);
 
   useEffect(() => {
@@ -629,7 +637,7 @@ export default function NotificationsPage() {
     }
   }, [cardLoading, chatInput, chatLoading, chatMessages, status]);
 
-  const chatPanelHeight = viewportHeight ? `calc(${viewportHeight}px - 80px)` : "calc(100dvh - 80px)";
+  const chatPanelHeight = viewportHeight ? `calc(${viewportHeight}px - 64px)` : "calc(100dvh - 64px)";
 
   return (
     <MainLayout disableSwipe={subTab === "chatbot"}>
@@ -776,7 +784,7 @@ export default function NotificationsPage() {
           </div>
         ) : (
           <div className="flex-1 min-h-0 flex flex-col">
-            <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-3 space-y-3 overscroll-contain">
+            <div className="flex-1 overflow-y-auto px-3 pb-24 pt-3 sm:px-4 sm:pt-3 md:pb-4 space-y-3 overscroll-contain">
               {chatMessages.length === 0 && chatHydrated && (
                 <div className="flex flex-col items-center justify-center h-full text-center px-4">
                   <div className="w-16 h-16 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mb-4">
@@ -918,11 +926,15 @@ export default function NotificationsPage() {
             </div>
 
             <div
-              className="shrink-0 px-3 py-2 border-t"
+              className="sticky bottom-0 z-10 shrink-0 border-t px-3 py-2"
               style={{
                 background: "var(--surface)",
                 borderColor: "var(--border)",
-                paddingBottom: keyboardOpen ? 10 : "calc(env(safe-area-inset-bottom, 0px) + 10px)",
+                paddingBottom: keyboardOpen
+                  ? 10
+                  : isMobileViewport
+                    ? "calc(env(safe-area-inset-bottom, 0px) + 74px)"
+                    : 10,
               }}
             >
               <div className="flex gap-2 items-center">

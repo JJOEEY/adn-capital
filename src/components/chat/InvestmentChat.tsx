@@ -4,19 +4,8 @@ import { useRef, useState, useCallback, useEffect, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useSession } from "next-auth/react";
-import {
-  TrendingUp,
-  BarChart3,
-  Heart,
-  Newspaper,
-  Send,
-  Zap,
-  Bot,
-} from "lucide-react";
+import { TrendingUp, BarChart3, Heart, Newspaper, Send, Zap, Bot } from "lucide-react";
 import { StockChart } from "@/components/chat/StockChart";
-
-
-// ── Types ──────────────────────────────────────────────────────────────────
 
 type CardId = "ta" | "fa" | "tamly" | "news";
 type BrokerBadge = "MUA" | "GIỮ" | "BÁN";
@@ -45,13 +34,11 @@ interface HistoryMessage {
   };
 }
 
-// ── Ticker detection ────────────────────────────────────────────────────────
-
 const TICKER_PATTERN = /^[A-Z]{2,5}$/;
 
 function detectTicker(input: string): string | null {
-  const t = input.trim().toUpperCase();
-  if (TICKER_PATTERN.test(t)) return t;
+  const ticker = input.trim().toUpperCase();
+  if (TICKER_PATTERN.test(ticker)) return ticker;
   return null;
 }
 
@@ -63,53 +50,38 @@ async function saveChatHistory(role: "user" | "assistant", message: string) {
   });
 }
 
-// ── 4 Card Config (ADN Design System colors) ────────────────────────────────
-
 const CARDS = [
   {
     id: "ta" as CardId,
-    title: "Phân tích kỹ thuật",
-    sub: "Chart, RSI, MACD, hỗ trợ/kháng cự",
+    title: "Phan tich ky thuat",
+    sub: "Chart, RSI, MACD, ho tro/khang cu",
     icon: TrendingUp,
-    // Light: #2E4D3D / rgba(46,77,61,0.10) | Dark: #9aab9e / rgba(23,54,39,0.40)
-    lightIcon: "#2E4D3D",
-    lightIconBg: "rgba(46,77,61,0.10)",
-    darkIcon: "#9aab9e",
-    darkIconBg: "rgba(23,54,39,0.40)",
   },
   {
     id: "fa" as CardId,
-    title: "Phân tích cơ bản",
-    sub: "P/E, P/B, ROE, tăng trưởng lợi nhuận",
+    title: "Phan tich co ban",
+    sub: "P/E, P/B, ROE, tang truong",
     icon: BarChart3,
-    // Light: #5B8C5A / rgba(91,140,90,0.10) | Dark: #7ab87a / rgba(91,140,90,0.20)
-    lightIcon: "#5B8C5A",
-    lightIconBg: "rgba(91,140,90,0.10)",
-    darkIcon: "#7ab87a",
-    darkIconBg: "rgba(91,140,90,0.20)",
   },
   {
     id: "tamly" as CardId,
-    title: "Tâm lý & hành vi",
-    sub: "Mua/bán chủ động, khối ngoại, dòng tiền",
+    title: "Tam ly & hanh vi",
+    sub: "Dong tien, sentiment, rui ro",
     icon: Heart,
-    // Light: #7D8471 / rgba(125,132,113,0.10) | Dark: #9aab9e / rgba(125,132,113,0.15)
-    lightIcon: "#7D8471",
-    lightIconBg: "rgba(125,132,113,0.10)",
-    darkIcon: "#9aab9e",
-    darkIconBg: "rgba(125,132,113,0.15)",
   },
   {
     id: "news" as CardId,
-    title: "Tin tức & sự kiện",
-    sub: "Tổng hợp tin, sự kiện doanh nghiệp",
+    title: "Tin tuc & su kien",
+    sub: "Tong hop tin va tac dong",
     icon: Newspaper,
-    // Light: #A0845C / rgba(160,132,92,0.10) | Dark: #EBE2CF / rgba(73,38,40,0.35)
-    lightIcon: "#A0845C",
-    lightIconBg: "rgba(160,132,92,0.10)",
-    darkIcon: "#EBE2CF",
-    darkIconBg: "rgba(73,38,40,0.35)",
   },
+];
+
+const WELCOME_HINTS = [
+  { label: "HPG", desc: "Phan tich Hoa Phat" },
+  { label: "VCB", desc: "Phan tich Vietcombank" },
+  { label: "Thi truong hom nay?", desc: "Nhan dinh chung" },
+  { label: "Nen mua co nao?", desc: "Tu van lua chon" },
 ];
 
 function mapSignalToBadge(signal?: string | null): BrokerBadge {
@@ -123,61 +95,38 @@ function badgeStyle(badge: BrokerBadge): { color: string; borderColor: string; b
   const color = badge === "MUA" ? "#16a34a" : badge === "BÁN" ? "#ef4444" : "#f59e0b";
   return {
     color,
-    borderColor: `${color}55`,
+    borderColor: `${color}66`,
     background: `${color}1A`,
   };
 }
 
-// ── Sub-components ──────────────────────────────────────────────────────────
+function BotAvatar() {
+  return (
+    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-[rgba(46,77,61,0.16)]">
+      <Bot className="h-4 w-4 text-[var(--text-primary)]" />
+    </div>
+  );
+}
 
 function UserBubble({ text }: { text: string }) {
   return (
-    <div className="flex justify-end animate-fade-in">
-      <div
-        className="max-w-[72%] px-4 py-2.5 text-sm leading-relaxed"
-        style={{
-          borderRadius: "16px 16px 4px 16px",
-          // Light: bg #2E4D3D, color #FFFFFF | Dark: bg #173627, color #EBE2CF
-          background: "var(--user-bubble-bg, #2E4D3D)",
-          color: "var(--user-bubble-text, #FFFFFF)",
-        }}
-      >
+    <div className="flex justify-end">
+      <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-emerald-600 px-4 py-2.5 text-sm leading-relaxed text-white">
         {text}
       </div>
     </div>
   );
 }
 
-function BotAvatar() {
-  return (
-    <div
-      className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center border"
-      style={{
-        background: "var(--bot-avatar-bg, rgba(46,77,61,0.10))",
-        borderColor: "var(--bot-avatar-border, rgba(235,226,207,0.12))",
-      }}
-    >
-      <Bot className="w-4 h-4" style={{ color: "var(--bot-avatar-icon, #2E4D3D)" }} />
-    </div>
-  );
-}
-
 function TypingIndicator() {
   return (
-    <div className="flex items-start gap-2.5 animate-fade-in">
+    <div className="flex items-start gap-2.5">
       <BotAvatar />
-      <div
-        style={{
-          background: "var(--surface)",
-          border: "1px solid var(--border)",
-          borderRadius: "4px 16px 16px 16px",
-          padding: "12px 16px",
-        }}
-      >
-        <div className="flex gap-1 items-center h-5">
-          <span className="typing-dot" />
-          <span className="typing-dot" style={{ animationDelay: "0.2s" }} />
-          <span className="typing-dot" style={{ animationDelay: "0.4s" }} />
+      <div className="rounded-2xl rounded-tl-sm border border-white/10 bg-gray-800 px-4 py-3 text-sm text-gray-200">
+        <div className="flex gap-1.5">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-gray-300" />
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-gray-300 [animation-delay:120ms]" />
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-gray-300 [animation-delay:240ms]" />
         </div>
       </div>
     </div>
@@ -193,10 +142,7 @@ interface TickerCardsProps {
 
 function TickerCards({ ticker, onCardClick, loading, disabled = false }: TickerCardsProps) {
   return (
-    <div
-      className="grid gap-2 mt-2 animate-slide-up"
-      style={{ gridTemplateColumns: "1fr 1fr" }}
-    >
+    <div className="mt-2 grid grid-cols-2 gap-2">
       {CARDS.map((card) => {
         const Icon = card.icon;
         const isLoading = loading === card.id;
@@ -205,38 +151,17 @@ function TickerCards({ ticker, onCardClick, loading, disabled = false }: TickerC
             key={card.id}
             onClick={() => onCardClick(card.id, ticker)}
             disabled={loading !== null || disabled}
-            className="glow-card text-left p-3 flex flex-col gap-1.5 transition-all disabled:opacity-60"
-            style={{
-              borderRadius: "12px",
-              cursor: "pointer",
-              background: "var(--card-bg, #FFFFFF)",
-              border: "1px solid var(--card-border, #E8E4DB)",
-            }}
+            className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 text-left transition hover:border-[var(--border-strong)] disabled:opacity-60"
           >
-            <div
-              className="w-8 h-8 flex items-center justify-center"
-              style={{
-                background: "var(--card-icon-bg, rgba(46,77,61,0.10))",
-                borderRadius: "8px",
-              }}
-            >
+            <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-[rgba(46,77,61,0.12)]">
               {isLoading ? (
-                <div
-                  className="w-4 h-4 rounded-full border-2 border-current border-t-transparent animate-spin"
-                  style={{ color: "var(--card-icon-color, #2E4D3D)" }}
-                />
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--text-primary)] border-t-transparent" />
               ) : (
-                <Icon className="w-4 h-4" style={{ color: "var(--card-icon-color, #2E4D3D)" }} />
+                <Icon className="h-4 w-4 text-[var(--text-primary)]" />
               )}
             </div>
-            <div>
-              <p className="text-xs font-semibold leading-tight" style={{ color: "var(--text-primary, #1C2B22)" }}>
-                {card.title}
-              </p>
-              <p className="text-[11px] leading-tight mt-0.5" style={{ color: "var(--text-secondary, #7D8471)" }}>
-                {card.sub}
-              </p>
-            </div>
+            <p className="text-xs font-semibold text-[var(--text-primary)]">{card.title}</p>
+            <p className="mt-0.5 text-[11px] leading-tight text-[var(--text-secondary)]">{card.sub}</p>
           </button>
         );
       })}
@@ -253,43 +178,25 @@ interface BotBubbleProps {
 
 function BotBubble({ message, onCardClick, cardLoading, cardDisabled = false }: BotBubbleProps) {
   const brokerBadge = message.brokerBadge ?? "GIỮ";
-  const brokerBadgeStyle = badgeStyle(brokerBadge);
+  const brokerBadgeDesign = badgeStyle(brokerBadge);
 
   return (
-    <div className="flex items-start gap-2.5 animate-fade-in">
+    <div className="flex items-start gap-2.5">
       <BotAvatar />
-      <div className="flex flex-col gap-2 max-w-[80%]">
+      <div className="flex max-w-[90%] flex-col gap-2">
         {message.text && (
-          <div
-            className="px-4 py-2.5 text-sm leading-relaxed"
-            style={{
-              borderRadius: "4px 16px 16px 16px",
-              wordBreak: "break-word",
-              color: "var(--text-primary, #1C2B22)",
-              background: "var(--surface, #FFFFFF)",
-              border: "1px solid var(--border, #E8E4DB)",
-            }}
-          >
+          <div className="rounded-2xl rounded-tl-sm border border-white/10 bg-gray-800 px-4 py-2.5 text-sm leading-relaxed text-gray-100">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown>
           </div>
         )}
 
-        {/* Chart image (chỉ TA) */}
         {message.showDynamicChart && message.ticker && (
-          <div
-            className="rounded-2xl border p-2"
-            style={{
-              background: "var(--surface, #FFFFFF)",
-              borderColor: "var(--border, #E8E4DB)",
-            }}
-          >
-            <div className="flex items-center justify-between px-2 pt-1 pb-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted, #6B7280)" }}>
-                Khu vực AI nhận định
-              </span>
+          <div className="rounded-2xl border border-white/10 bg-gray-900 p-2">
+            <div className="flex items-center justify-between px-2 pb-2 pt-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Khu vuc AI nhan dinh</span>
               <span
-                className="text-[11px] font-black px-2 py-0.5 rounded-full border"
-                style={brokerBadgeStyle}
+                className="rounded-full border px-2 py-0.5 text-[11px] font-black"
+                style={brokerBadgeDesign}
               >
                 AI BROKER: {brokerBadge}
               </span>
@@ -299,15 +206,14 @@ function BotBubble({ message, onCardClick, cardLoading, cardDisabled = false }: 
         )}
 
         {message.mediaUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={message.mediaUrl}
             alt={`Chart ${message.ticker ?? ""}`}
-            className="w-full rounded-lg mt-3"
-            style={{ border: "1px solid var(--border)" }}
+            className="w-full rounded-lg border border-white/10"
           />
         )}
 
-        {/* 4 card mode */}
         {message.isCards && message.ticker && onCardClick && (
           <TickerCards
             ticker={message.ticker}
@@ -320,17 +226,6 @@ function BotBubble({ message, onCardClick, cardLoading, cardDisabled = false }: 
     </div>
   );
 }
-
-// ── Welcome screen ──────────────────────────────────────────────────────────
-
-const WELCOME_HINTS = [
-  { label: "HPG", desc: "Phân tích Hòa Phát" },
-  { label: "VCB", desc: "Phân tích Vietcombank" },
-  { label: "Thị trường hôm nay?", desc: "Nhận định chung" },
-  { label: "Nên mua cổ nào?", desc: "Tư vấn chọn cổ" },
-];
-
-// ── Main Component ──────────────────────────────────────────────────────────
 
 interface InvestmentChatProps {
   onSendFreeText?: (text: string) => void;
@@ -374,21 +269,21 @@ export function InvestmentChat({
       return;
     }
 
-    const vv = window.visualViewport;
+    const visualViewport = window.visualViewport;
     const updateViewport = () => {
-      const height = Math.round(vv?.height ?? window.innerHeight);
+      const height = Math.round(visualViewport?.height ?? window.innerHeight);
       setViewportHeight(height);
-      const keyboardHeight = Math.max(0, window.innerHeight - height - (vv?.offsetTop ?? 0));
+      const keyboardHeight = Math.max(0, window.innerHeight - height - (visualViewport?.offsetTop ?? 0));
       setKeyboardOpen(keyboardHeight > 120);
     };
 
     updateViewport();
-    vv?.addEventListener("resize", updateViewport);
-    vv?.addEventListener("scroll", updateViewport);
+    visualViewport?.addEventListener("resize", updateViewport);
+    visualViewport?.addEventListener("scroll", updateViewport);
     window.addEventListener("orientationchange", updateViewport);
     return () => {
-      vv?.removeEventListener("resize", updateViewport);
-      vv?.removeEventListener("scroll", updateViewport);
+      visualViewport?.removeEventListener("resize", updateViewport);
+      visualViewport?.removeEventListener("scroll", updateViewport);
       window.removeEventListener("orientationchange", updateViewport);
     };
   }, [isMobile]);
@@ -397,13 +292,13 @@ export function InvestmentChat({
     if (!userId) return;
     let isActive = true;
 
-    const hydrate = async () => {
+    const hydrateHistory = async () => {
       try {
-        const res = await fetch("/api/chat/history?limit=80", { cache: "no-store" });
-        const payload = (await res.json()) as { messages?: HistoryMessage[] };
+        const response = await fetch("/api/chat/history?limit=80", { cache: "no-store" });
+        const payload = (await response.json()) as { messages?: HistoryMessage[] };
         if (!isActive || !Array.isArray(payload.messages)) return;
 
-        const mapped: Message[] = payload.messages.map((item) => ({
+        const mapped = payload.messages.map((item) => ({
           id: item.id,
           role: item.role === "assistant" ? "bot" : "user",
           text: item.text,
@@ -411,21 +306,20 @@ export function InvestmentChat({
           ticker: item.widgetMeta?.ticker,
           showDynamicChart: item.widgetMeta?.complete === true && !!item.widgetMeta?.ticker,
           brokerBadge: item.widgetMeta?.badge,
-        }));
+        })) as Message[];
 
         setMessages(mapped);
       } catch {
-        // no-op
+        // ignore history errors
       }
     };
 
-    hydrate();
+    void hydrateHistory();
     return () => {
       isActive = false;
     };
   }, [userId]);
 
-  // Merge + stable sort để tránh lỗi gom nhóm user/bot sai thứ tự
   const allMessages = useMemo(
     () =>
       [...messages, ...extraMessages].sort((a, b) => {
@@ -433,20 +327,18 @@ export function InvestmentChat({
         if (a.id === b.id) return 0;
         return a.id.localeCompare(b.id);
       }),
-    [messages, extraMessages]
+    [messages, extraMessages],
   );
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [allMessages, cardLoading, botLoading, freeTextLoading]);
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [allMessages, cardLoading, botLoading, freeTextLoading, keyboardOpen]);
 
   const addMessage = useCallback((msg: Omit<Message, "id">) => {
-    const newMsg: Message = { ...msg, id: crypto.randomUUID() };
-    setMessages((prev) => [...prev, newMsg]);
-    return newMsg;
+    const newMessage: Message = { ...msg, id: crypto.randomUUID() };
+    setMessages((prev) => [...prev, newMessage]);
+    return newMessage;
   }, []);
-
-  // ── Card click handler ──────────────────────────────────────────────────
 
   const handleCardClick = useCallback(
     async (cardId: CardId, ticker: string) => {
@@ -459,24 +351,25 @@ export function InvestmentChat({
       };
 
       try {
-        const res = await fetch("/api/chat", {
+        const response = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ message: commandMap[cardId] }),
           signal: AbortSignal.timeout(120_000),
         });
-        const data = await res.json() as { message?: string; error?: string };
-        if (res.status === 429) {
+        const data = (await response.json()) as { message?: string; error?: string };
+
+        if (response.status === 429) {
           addMessage({
             role: "bot",
-            text: data.message ?? "Đại ca đã dùng hết lượt tư vấn hôm nay.",
+            text: data.message ?? "Ban da het luot tu van hom nay.",
             createdAt: Date.now(),
           });
           return;
         }
-        if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+        if (!response.ok) throw new Error(data.error ?? `HTTP ${response.status}`);
 
-        const text = data.message ?? "Không có dữ liệu phân tích.";
+        const text = data.message ?? "Khong co du lieu phan tich.";
         const taBadge = cardId === "ta" ? mapSignalToBadge(text) : undefined;
         addMessage({
           role: "bot",
@@ -487,30 +380,23 @@ export function InvestmentChat({
           showDynamicChart: cardId === "ta",
           brokerBadge: taBadge,
         });
+
         if (userId) {
-          const persistText =
-            cardId === "ta"
-              ? `[WIDGET:${ticker}:${taBadge ?? "GIỮ"}] ${text}`
-              : text;
-          await saveChatHistory("assistant", persistText).catch(() => undefined);
+          const persistedText = cardId === "ta" ? `[WIDGET:${ticker}:${taBadge ?? "GIỮ"}] ${text}` : text;
+          await saveChatHistory("assistant", persistedText).catch(() => undefined);
         }
       } catch {
         addMessage({
           role: "bot",
-          text: "Không thể tải dữ liệu, vui lòng thử lại.",
+          text: "Khong the tai du lieu, vui long thu lai.",
           createdAt: Date.now(),
         });
-        if (userId) {
-          await saveChatHistory("assistant", "Không thể tải dữ liệu, vui lòng thử lại.").catch(() => undefined);
-        }
       } finally {
         setCardLoading(null);
       }
     },
-    [addMessage, userId]
+    [addMessage, userId],
   );
-
-  // ── Submit handler ──────────────────────────────────────────────────────
 
   const handleSubmit = useCallback(() => {
     if (disableInput) return;
@@ -519,116 +405,67 @@ export function InvestmentChat({
     setInput("");
 
     const ticker = detectTicker(trimmed);
-
     addMessage({ role: "user", text: trimmed, createdAt: Date.now() });
 
     if (ticker) {
-        addMessage({
-          role: "bot",
-          text: `Đại ca muốn phân tích ${ticker}? Chọn loại phân tích:`,
-          createdAt: Date.now(),
-          ticker,
-          isCards: true,
-        });
-        if (userId) {
-          Promise.all([
-            saveChatHistory("user", trimmed),
-            saveChatHistory("assistant", `Đại ca muốn phân tích ${ticker}? Chọn loại phân tích:`),
-          ]).catch(() => undefined);
-        }
-    } else {
-      if (onSendFreeText) {
-        setBotLoading(true);
-        onSendFreeText(trimmed);
+      addMessage({
+        role: "bot",
+        text: `Nha dau tu muon phan tich ${ticker}? Hay chon loai phan tich ben duoi.`,
+        createdAt: Date.now(),
+        ticker,
+        isCards: true,
+      });
+      if (userId) {
+        Promise.all([
+          saveChatHistory("user", trimmed),
+          saveChatHistory("assistant", `Nha dau tu muon phan tich ${ticker}? Hay chon loai phan tich ben duoi.`),
+        ]).catch(() => undefined);
       }
+      return;
+    }
+
+    if (onSendFreeText) {
+      setBotLoading(true);
+      onSendFreeText(trimmed);
     }
   }, [disableInput, input, addMessage, onSendFreeText, userId]);
 
-  // Tắt loading khi extraMessages thay đổi
   useEffect(() => {
-    if (extraMessages.length > 0) setBotLoading(false);
+    if (extraMessages.length > 0) {
+      setBotLoading(false);
+    }
   }, [extraMessages]);
 
   const isLoading = cardLoading !== null || botLoading || freeTextLoading;
-  const chatShellHeight = isMobile
-    ? viewportHeight
-      ? `${Math.max(380, viewportHeight - 110)}px`
-      : "calc(100dvh - 110px)"
-    : undefined;
-  const messageAreaMaxHeight = isMobile
-    ? viewportHeight
-      ? `${Math.max(220, viewportHeight - 245)}px`
-      : "calc(100dvh - 245px)"
-    : "calc(100vh - 200px)";
 
   return (
     <div
-      className="flex flex-col gap-3"
+      className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border"
       style={{
-        borderRadius: "16px",
-        padding: "16px",
-        minHeight: "540px",
-        height: chatShellHeight,
         background: "var(--bg-page)",
-        border: "1px solid var(--border)",
+        borderColor: "var(--border)",
+        height: isMobile ? (viewportHeight ? `${viewportHeight}px` : "100dvh") : "100%",
       }}
     >
-      {/* Messages area */}
-      <div
-        className="flex-1 flex flex-col gap-3 overflow-y-auto"
-        style={{ minHeight: 0, maxHeight: messageAreaMaxHeight }}
-      >
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
         {allMessages.length === 0 && (
-          <div className="flex flex-col items-center justify-center flex-1 text-center py-8">
-            <div
-              className="w-14 h-14 rounded-2xl flex items-center justify-center mb-3"
-              style={{
-                background: "var(--primary-light, rgba(46,77,61,0.08))",
-                border: "1px solid var(--border, #E8E4DB)",
-              }}
-            >
-              <Zap className="w-7 h-7" style={{ color: "var(--primary, #2E4D3D)" }} />
+          <div className="flex flex-col items-center justify-center py-10 text-center">
+            <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--primary-light)]">
+              <Zap className="h-7 w-7 text-[var(--primary)]" />
             </div>
-            <h3
-              className="text-base font-bold mb-1"
-              style={{ color: "var(--text-primary, #1C2B22)" }}
-            >
-              Chào đại ca! 👋
-            </h3>
-            <p
-              className="text-sm mb-5 max-w-xs"
-              style={{ color: "var(--text-secondary, #7D8471)" }}
-            >
-              Nhập mã cổ phiếu (VD:{" "}
-              <span className="font-mono" style={{ color: "var(--primary, #2E4D3D)" }}>
-                HPG
-              </span>
-              ) để phân tích, hoặc đặt câu hỏi tự do.
+            <h3 className="mb-1 text-base font-bold text-[var(--text-primary)]">ADN AI Broker san sang ho tro</h3>
+            <p className="mb-5 max-w-xs text-sm text-[var(--text-secondary)]">
+              Nhap ma co phieu (VD: HPG) de mo 4 card phan tich, hoac dat cau hoi tu do.
             </p>
-            <div className="grid grid-cols-2 gap-2 w-full max-w-xs">
-              {WELCOME_HINTS.map((h) => (
+            <div className="grid w-full max-w-xs grid-cols-2 gap-2">
+              {WELCOME_HINTS.map((item) => (
                 <button
-                  key={h.label}
-                  onClick={() => { setInput(h.label); }}
-                  className="text-left px-3 py-2.5 transition-all"
-                  style={{
-                    borderRadius: "10px",
-                    background: "var(--surface, #FFFFFF)",
-                    border: "1px solid var(--border, #E8E4DB)",
-                  }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--border-strong, #D6CDBB)";
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--border, #E8E4DB)";
-                  }}
+                  key={item.label}
+                  onClick={() => setInput(item.label)}
+                  className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-left transition hover:border-[var(--border-strong)]"
                 >
-                  <p className="text-xs font-semibold font-mono" style={{ color: "var(--primary, #2E4D3D)" }}>
-                    {h.label}
-                  </p>
-                  <p className="text-[11px] mt-0.5" style={{ color: "var(--text-secondary, #7D8471)" }}>
-                    {h.desc}
-                  </p>
+                  <p className="text-xs font-semibold text-[var(--primary)]">{item.label}</p>
+                  <p className="mt-0.5 text-[11px] text-[var(--text-secondary)]">{item.desc}</p>
                 </button>
               ))}
             </div>
@@ -646,78 +483,59 @@ export function InvestmentChat({
               cardLoading={cardLoading}
               cardDisabled={disableInput}
             />
-          )
+          ),
         )}
 
         {isLoading && <TypingIndicator />}
-
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
       <div
-        className="flex gap-2 items-center"
+        className="sticky bottom-0 z-10 border-t bg-gray-900 p-3"
         style={{
+          borderColor: "rgba(255,255,255,0.08)",
           paddingBottom: isMobile
             ? keyboardOpen
-              ? "6px"
-              : "calc(env(safe-area-inset-bottom, 0px) + 6px)"
-            : 0,
+              ? "0.75rem"
+              : "calc(env(safe-area-inset-bottom, 0px) + 0.75rem)"
+            : "0.75rem",
         }}
       >
         {disableInput && (
-          <p className="text-[11px] px-3" style={{ color: "var(--danger)" }}>
-            {disableReason || "Đã hết lượt tư vấn trong ngày."}
+          <p className="mb-2 text-xs text-red-400">
+            {disableReason || "Da het luot tu van trong ngay."}
           </p>
         )}
-        <input
-          ref={inputRef}
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onFocus={() => {
-            setTimeout(() => {
-              bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-              inputRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-            }, 80);
-          }}
-          onKeyDown={(e) => e.key === "Enter" && !isLoading && !disableInput && handleSubmit()}
-          disabled={isLoading || disableInput}
-          placeholder="Nhập mã CP (HPG) hoặc câu hỏi tự do..."
-          className="flex-1 text-sm outline-none disabled:opacity-50"
-          style={{
-            height: "40px",
-            borderRadius: "99px",
-            padding: "0 14px",
-            fontSize: "14px",
-            color: "var(--text-primary)",
-            background: "var(--surface)",
-            border: "1px solid var(--border)",
-          }}
-        />
-        <button
-          onClick={handleSubmit}
-          disabled={isLoading || !input.trim() || disableInput}
-          className="flex-shrink-0 flex items-center justify-center transition-all disabled:opacity-40"
-          style={{
-            width: "40px",
-            height: "40px",
-            borderRadius: "50%",
-            background: "var(--send-btn-bg, #2E4D3D)",
-            border: "none",
-            cursor: "pointer",
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background =
-              "var(--send-btn-hover, #243d30)";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background =
-              "var(--send-btn-bg, #2E4D3D)";
-          }}
-        >
-          <Send className="w-4 h-4" style={{ color: "#fff" }} />
-        </button>
+
+        <div className="flex items-center gap-2">
+          <input
+            ref={inputRef}
+            type="text"
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            onFocus={() => {
+              setTimeout(() => {
+                bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+                inputRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+              }, 120);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !isLoading && !disableInput) {
+                handleSubmit();
+              }
+            }}
+            disabled={isLoading || disableInput}
+            placeholder="Nhap ma CP (HPG) hoac cau hoi tu do..."
+            className="h-11 flex-1 rounded-full border border-white/10 bg-[#0f1d16] px-4 text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:opacity-50"
+          />
+          <button
+            onClick={handleSubmit}
+            disabled={isLoading || !input.trim() || disableInput}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white transition hover:bg-emerald-500 disabled:opacity-40"
+          >
+            <Send className="h-4 w-4" />
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { BookOpen, ChevronDown, GripVertical, Plus, Save, Pencil, ArrowUpDown, ImagePlus } from "lucide-react";
+import { BookOpen, ChevronDown, GripVertical, Plus, Save, Pencil, ArrowUpDown, ImagePlus, Menu, X } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 
@@ -121,6 +121,7 @@ export default function HDSDPage() {
   const [reorderMode, setReorderMode] = useState(false);
   const [dragItem, setDragItem] = useState<DragItem | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [mobileTocOpen, setMobileTocOpen] = useState(false);
 
   const fetchGuides = useCallback(async () => {
     setLoading(true);
@@ -178,6 +179,7 @@ export default function HDSDPage() {
       setActiveSectionId(sectionId);
       setExpanded((prev) => ({ ...prev, [sectionId]: true }));
       scrollToSection(sectionId);
+      setMobileTocOpen(false);
     },
     [scrollToSection]
   );
@@ -334,12 +336,83 @@ export default function HDSDPage() {
     }
   }, [showCreateSection, categories, newSectionCategoryId]);
 
+  useEffect(() => {
+    if (!mobileTocOpen) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [mobileTocOpen]);
+
+  const renderSidebarContent = () => (
+    <>
+      <div className="mb-4 flex items-center gap-2 px-2">
+        <BookOpen className="h-4 w-4" style={{ color: "#f59e0b" }} />
+        <p className="text-sm font-black tracking-wide" style={{ color: "var(--text-primary)" }}>
+          Hướng dẫn sử dụng
+        </p>
+      </div>
+
+      {loading && (
+        <p className="px-2 text-sm" style={{ color: "var(--text-secondary)" }}>
+          Đang tải...
+        </p>
+      )}
+      {!loading && categories.length === 0 && (
+        <p className="px-2 text-sm" style={{ color: "var(--text-secondary)" }}>
+          Chưa có nội dung.
+        </p>
+      )}
+
+      <div className="space-y-3">
+        {categories.map((category) => (
+          <div key={category.id}>
+            <p className="mb-1 px-2 text-[11px] font-black uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+              {category.title}
+            </p>
+            <div className="space-y-1">
+              {category.sections.map((section) => {
+                const active = activeSectionId === section.id;
+                return (
+                  <button
+                    key={section.id}
+                    onClick={() => selectSection(section.id)}
+                    draggable={isAdmin && reorderMode}
+                    onDragStart={() => setDragItem({ sectionId: section.id, categoryId: category.id })}
+                    onDragOver={(e) => {
+                      if (isAdmin && reorderMode) e.preventDefault();
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (!isAdmin || !reorderMode) return;
+                      void handleDropSection(section.id, category.id);
+                    }}
+                    className="flex w-full items-start gap-1.5 rounded-xl px-2 py-2 text-left text-sm transition-all"
+                    style={{
+                      background: active ? "rgba(46,77,61,0.14)" : "transparent",
+                      border: active ? "1px solid rgba(46,77,61,0.25)" : "1px solid transparent",
+                      color: active ? "var(--text-primary)" : "var(--text-secondary)",
+                    }}
+                  >
+                    {isAdmin && reorderMode && <GripVertical className="mt-0.5 h-3.5 w-3.5 shrink-0" />}
+                    <span>{section.title}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+
   return (
     <MainLayout>
       <div className="w-full h-full px-0 md:px-2 py-0 md:py-2">
         <div className="relative rounded-none md:rounded-2xl overflow-hidden border-0 md:border h-[calc(100vh-56px)] md:h-[calc(100vh-110px)]" style={{ background: "var(--bg-page)", borderColor: "var(--border)" }}>
           {isAdmin && (
-            <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
+            <div className="absolute top-3 right-3 z-20 hidden items-center gap-2 md:flex">
               <button
                 onClick={() => {
                   setShowCreateSection((v) => !v);
@@ -378,65 +451,71 @@ export default function HDSDPage() {
             </div>
           )}
 
-          <div className="grid h-full" style={{ gridTemplateColumns: "240px minmax(0,1fr)" }}>
+          {mobileTocOpen && (
+            <>
+              <button
+                type="button"
+                className="fixed inset-0 z-40 bg-black/55 md:hidden"
+                aria-label="Dong muc luc"
+                onClick={() => setMobileTocOpen(false)}
+              />
+              <aside
+                className="fixed left-0 top-0 z-50 h-full w-[86vw] max-w-[320px] overflow-y-auto px-3 py-4 md:hidden"
+                style={{ background: "var(--surface)", borderRight: "1px solid var(--border)" }}
+              >
+                <div className="mb-4 flex items-center justify-between px-1">
+                  <p className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>
+                    Muc luc
+                  </p>
+                  <button
+                    type="button"
+                    className="rounded-lg p-2"
+                    style={{ background: "var(--bg-page)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+                    onClick={() => setMobileTocOpen(false)}
+                    aria-label="Dong drawer"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                {renderSidebarContent()}
+              </aside>
+            </>
+          )}
+
+          <div className="h-full md:grid md:[grid-template-columns:240px_minmax(0,1fr)]">
             <aside
-              className="h-full overflow-y-auto px-3 py-4"
+              className="hidden h-full overflow-y-auto px-3 py-4 md:block"
               style={{ background: "var(--surface)", borderRight: "1px solid var(--border)" }}
             >
-              <div className="flex items-center gap-2 px-2 mb-4">
-                <BookOpen className="w-4 h-4" style={{ color: "#f59e0b" }} />
-                <p className="text-sm font-black tracking-wide" style={{ color: "var(--text-primary)" }}>
-                  Hướng dẫn sử dụng
-                </p>
-              </div>
-
-              {loading && <p className="px-2 text-sm" style={{ color: "var(--text-secondary)" }}>Đang tải...</p>}
-              {!loading && categories.length === 0 && (
-                <p className="px-2 text-sm" style={{ color: "var(--text-secondary)" }}>Chưa có nội dung.</p>
-              )}
-
-              <div className="space-y-3">
-                {categories.map((category) => (
-                  <div key={category.id}>
-                    <p className="px-2 text-[11px] uppercase tracking-wider font-black mb-1" style={{ color: "var(--text-muted)" }}>
-                      {category.title}
-                    </p>
-                    <div className="space-y-1">
-                      {category.sections.map((section) => {
-                        const active = activeSectionId === section.id;
-                        return (
-                          <button
-                            key={section.id}
-                            onClick={() => selectSection(section.id)}
-                            draggable={isAdmin && reorderMode}
-                            onDragStart={() => setDragItem({ sectionId: section.id, categoryId: category.id })}
-                            onDragOver={(e) => {
-                              if (isAdmin && reorderMode) e.preventDefault();
-                            }}
-                            onDrop={(e) => {
-                              e.preventDefault();
-                              if (!isAdmin || !reorderMode) return;
-                              void handleDropSection(section.id, category.id);
-                            }}
-                            className="w-full text-left rounded-xl px-2 py-2 text-sm transition-all flex items-start gap-1.5"
-                            style={{
-                              background: active ? "rgba(46,77,61,0.14)" : "transparent",
-                              border: active ? "1px solid rgba(46,77,61,0.25)" : "1px solid transparent",
-                              color: active ? "var(--text-primary)" : "var(--text-secondary)",
-                            }}
-                          >
-                            {isAdmin && reorderMode && <GripVertical className="w-3.5 h-3.5 mt-0.5 shrink-0" />}
-                            <span>{section.title}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
+              {renderSidebarContent()}
             </aside>
 
-            <section className="h-full overflow-y-auto px-4 md:px-8 py-6 md:py-8">
+            <section className="h-full w-full overflow-y-auto px-4 py-5 md:px-8 md:py-8">
+              <div className="mb-4 flex items-center justify-between md:hidden">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold"
+                  style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+                  onClick={() => setMobileTocOpen(true)}
+                >
+                  <Menu className="h-4 w-4" />
+                  Muc luc
+                </button>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold"
+                    style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+                    onClick={() => {
+                      setShowCreateSection((v) => !v);
+                      setEditMode(false);
+                    }}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Them muc
+                  </button>
+                )}
+              </div>
               {error && (
                 <div
                   className="mb-4 rounded-xl px-3 py-2 text-sm"

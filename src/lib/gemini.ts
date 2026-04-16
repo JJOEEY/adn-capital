@@ -1,100 +1,139 @@
-/**
- * gemini.ts — Intent-based Model Routing + Graceful Fallback
- *
- * Quy tắc:
- *   - Flash group  → PTKT, NEWS, TAMLY, GENERAL (nhanh, nhẹ, rẻ)
- *   - Pro group    → PTCB (phân tích sâu, BCTC, định giá)
- *   - Fallback tự động: Primary → Fallback1 → thông báo lịch sự
- *   - SystemInstruction động theo intent
- *   - Backward-compat wrappers giữ nguyên API cũ
- */
-
 import { GoogleGenAI } from "@google/genai";
 
 const apiKey = process.env.GEMINI_API_KEY;
-if (!apiKey) console.warn("[Gemini] GEMINI_API_KEY chưa được cấu hình");
+if (!apiKey) {
+  console.warn("[Gemini] GEMINI_API_KEY is missing");
+}
 
 const genAI = new GoogleGenAI({ apiKey: apiKey ?? "" });
 
-// ── [QUY TẮC 1] MODEL CONSTANTS ──────────────────────────────────────────────
+const FLASH_PRIMARY = "gemini-3-flash-preview";
+const FLASH_FALLBACK = "gemini-2.5-flash";
 
-/** Nhóm Flash: Nhanh/Nhẹ — PTKT, Tin tức, Tâm lý, Chat thông thường */
-const FLASH_PRIMARY  = "gemini-2.5-flash";
-const FLASH_FALLBACK = "gemini-2.5-flash-lite";    // Dự phòng khi primary 429/503
+const PRO_PRIMARY = "gemini-3-pro-preview";
+const PRO_FALLBACK = "gemini-2.5-pro";
 
-/** Nhóm Pro: Phân tích Sâu — PTCB, BCTC, Định giá */
-const PRO_PRIMARY    = "gemini-2.5-pro";           // Mạnh, đọc JSON FiinQuant xuất sắc
-const PRO_FALLBACK   = "gemini-2.5-flash";         // Giảm cấp về Flash nếu Pro quá tải
-
-// Backward-compat export
 export const MODEL_FLASH = FLASH_PRIMARY;
 
-// ── [QUY TẮC 2] INTENT ENUM & ROUTING ────────────────────────────────────────
-
 export const INTENT = {
-  PTKT:    "PTKT",    // Phân tích Kỹ thuật
-  PTCB:    "PTCB",    // Phân tích Cơ bản / BCTC / Định giá
-  NEWS:    "NEWS",    // Tin tức
-  TAMLY:   "TAMLY",  // Tâm lý hành vi dòng tiền
-  GENERAL: "GENERAL", // Chat thông thường
+  PTKT: "PTKT",
+  PTCB: "PTCB",
+  NEWS: "NEWS",
+  TAMLY: "TAMLY",
+  GENERAL: "GENERAL",
+  COMPARE: "COMPARE",
 } as const;
 
-export type Intent = typeof INTENT[keyof typeof INTENT];
+export type Intent = (typeof INTENT)[keyof typeof INTENT];
 
-/** Model chain [primary, fallback] theo intent */
 const MODEL_CHAIN: Record<Intent, [string, string]> = {
-  PTKT:    [FLASH_PRIMARY, FLASH_FALLBACK],
-  PTCB:    [PRO_PRIMARY,   PRO_FALLBACK],
-  NEWS:    [FLASH_PRIMARY, FLASH_FALLBACK],
-  TAMLY:   [FLASH_PRIMARY, FLASH_FALLBACK],
+  PTKT: [FLASH_PRIMARY, FLASH_FALLBACK],
+  PTCB: [PRO_PRIMARY, PRO_FALLBACK],
+  NEWS: [FLASH_PRIMARY, FLASH_FALLBACK],
+  TAMLY: [FLASH_PRIMARY, FLASH_FALLBACK],
   GENERAL: [FLASH_PRIMARY, FLASH_FALLBACK],
+  COMPARE: [PRO_PRIMARY, PRO_FALLBACK],
 };
 
-/** Các intent cần Google Search grounding */
 const INTENT_USE_SEARCH: Record<Intent, boolean> = {
-  PTKT:    false,
-  PTCB:    true,
-  NEWS:    true,
-  TAMLY:   true,
+  PTKT: false,
+  PTCB: true,
+  NEWS: true,
+  TAMLY: false,
   GENERAL: true,
+  COMPARE: false,
 };
-
-// ── [QUY TẮC 3] SYSTEM INSTRUCTION THEO NGỮ CẢNH ────────────────────────────
 
 const SYSTEM_INSTRUCTIONS: Record<Intent, string> = {
-  PTKT: `Bạn là chuyên gia phân tích kỹ thuật chứng khoán Việt Nam hàng đầu.
-Xưng "em", gọi khách là "đại ca". Trả lời ngắn gọn, có cấu trúc Markdown.
-TUYỆT ĐỐI chỉ dùng số liệu từ dữ liệu real-time đã cung cấp — không bịa giá, EMA, RSI.
-Không tiết lộ nguồn API hay tên thư viện.`,
+  PTKT: `Bạn là ADN AI Broker - Trợ lý phân tích định lượng lõi của ADN Capital.
+[QUY TẮC XƯNG HÔ & GIỌNG VĂN BẮT BUỘC]:
+- Xưng hô bản thân là: "Hệ thống" hoặc "AI Broker".
+- Gọi người dùng là: "Nhà đầu tư".
+- Giọng văn: Chuyên nghiệp, lạnh lùng, sắc bén, tuyệt đối không dùng từ lóng (múc, xả, đu đỉnh...).
 
-  PTCB: `Bạn là chuyên gia phân tích cơ bản và định giá doanh nghiệp niêm yết Việt Nam.
-Xưng "em", gọi khách là "đại ca".
-KHI CÓ ĐẦY ĐỦ DỮ LIỆU: Kết thúc phân tích bằng JSON block sau (không thêm text sau JSON):
-\`\`\`json
-{"recommendation":"BUY|HOLD|SELL","targetPrice":0,"fairValueLow":0,"fairValueHigh":0,"upside":0,"keyRisks":[],"keyCatalysts":[]}
-\`\`\`
-Tuyệt đối không tự bịa số P/E, ROE, EPS — chỉ dùng số từ dữ liệu đã cung cấp.`,
+[QUY TẮC DỮ LIỆU]:
+- Chỉ dùng dữ liệu Real-time đã được cấp. Không tự ý bịa giá hoặc vẽ các mốc kháng cự/hỗ trợ không có cơ sở.
+- Trình bày báo cáo kỹ thuật ngắn gọn, trực quan theo cấu trúc:
+1. Trạng thái Xu hướng & Xung lực (Trend & Momentum).
+2. Các mốc Giá trị cốt lõi (Hỗ trợ/Kháng cự).
+3. Đánh giá Khối lượng & Dòng tiền kỹ thuật.
+4. Rủi ro & Mốc Stoploss (Bắt buộc phải có để quản trị rủi ro).
+5. Khuyến nghị hành động rõ ràng.
+Lưu ý: AI có thể sai sót, NĐT vui lòng kiểm tra kỹ thông tin trước khi đưa ra quyết định đầu tư cho mình.`,
 
-  NEWS: `Bạn là trợ lý tổng hợp tin tức chứng khoán Việt Nam.
-Xưng "em", gọi khách là "đại ca".
-Chỉ báo cáo tin đã xác minh qua Google Search. KHÔNG bịa tin hay ngày tháng.
-Format Markdown, ngắn gọn, thực tế.`,
+  PTCB: `Bạn là ADN AI Broker - Chuyên gia định giá và phân tích cơ bản của ADN Capital.
+[QUY TẮC XƯNG HÔ & GIỌNG VĂN BẮT BUỘC]:
+- Xưng hô bản thân là: "Hệ thống".
+- Gọi người dùng là: "Nhà đầu tư".
+- Giọng văn: Chuẩn mực tài chính, mang tư duy của Giám đốc Quỹ, tập trung vào Biên an toàn (Margin of Safety).
 
-  TAMLY: `Bạn là chuyên gia phân tích tâm lý hành vi và dòng tiền thông minh (Smart Money) tại TTCK Việt Nam.
-Xưng "em", gọi khách là "đại ca".
-Sử dụng framework VSA, Wyckoff. Phân biệt dòng tiền bán lẻ vs tổ chức.
-Chỉ dùng volume/price data đã cung cấp — không bịa số.`,
+[QUY TẮC DỮ LIỆU]:
+- Chỉ dựa trên các số liệu BCTC được cấp.
+- TUYỆT ĐỐI không tự tính toán sai hoặc bịa đặt P/E, P/B, EPS, ROE. Nếu thiếu data, trả lời: "Hệ thống hiện chưa có đủ dữ liệu để đánh giá tiêu chí này."
+- Phân tích sâu sắc theo các ý:
+1. Sức khỏe Tài chính (Cấu trúc vốn, Nợ vay, Dòng tiền).
+2. Mức độ hấp dẫn của Định giá hiện tại.
+3. Động lực tăng trưởng (Catalysts).
+4. Cảnh báo Rủi ro nội tại/ngành.
+5. Kết luận điểm rơi giải ngân.`,
 
-  GENERAL: `Bạn là ADN AI Bot System — trợ lý chứng khoán Việt Nam của ADN CAPITAL.
-Xưng "em", gọi khách là "đại ca". Phong cách: chuyên nghiệp nhưng gần gũi.
-Không tiết lộ tên API, thư viện hay cơ sở hạ tầng. Chỉ nói "dữ liệu real-time" hoặc "hệ thống quant".
-Khi có data thị trường, luôn bám sát số liệu thực — không suy đoán.`,
+  NEWS: `Bạn là ADN AI Broker - Hệ thống rà quét tin tức độc quyền của ADN Capital.
+[QUY TẮC XƯNG HÔ & GIỌNG VĂN BẮT BUỘC]:
+- Xưng hô bản thân là: "Hệ thống".
+- Gọi người dùng là: "Nhà đầu tư".
+- Giọng văn: Khách quan, trung lập, báo chí sự kiện. Không lồng ghép cảm xúc hưng phấn hay hoảng loạn.
+
+[QUY TẮC DỮ LIỆU]:
+- Chỉ tóm tắt những tin tức đã được xác minh trong Context.
+- Không bịa tin, không tự sáng tác diễn biến hay mốc thời gian.
+- Báo cáo theo cấu trúc:
+1. Tiêu điểm tin tức (Ngắn gọn 1-2 câu).
+2. Đánh giá Tác động (Tích cực / Tiêu cực / Trung tính đối với doanh nghiệp).
+3. Lưu ý hành động cho Nhà đầu tư để phòng vệ danh mục.`,
+
+  TAMLY: `Bạn là ADN AI Broker - Hệ thống đo lường hành vi tài chính của ADN Capital.
+[QUY TẮC XƯNG HÔ & GIỌNG VĂN BẮT BUỘC]:
+- Xưng hô bản thân là: "Hệ thống".
+- Gọi người dùng là: "Nhà đầu tư".
+- Giọng văn: Quan sát viên sắc bén, đọc vị dòng tiền, không lan truyền sự hoảng loạn.
+
+[QUY TẮC DỮ LIỆU]:
+- Phân tích dựa trên các chỉ báo Sentiment và Volume/Price được cấp. Không suy diễn vượt quá số liệu.
+- Phân tích tập trung vào:
+1. Dấu chân Dòng tiền thông minh (Smart Money đang gom hay xả).
+2. Trạng thái Tâm lý đám đông (FOMO / Kiệt sức / Hoảng loạn).
+3. Cảnh báo các rủi ro hành vi (Bull-trap / Bear-trap).
+4. Kịch bản thị trường kế tiếp.`,
+
+  GENERAL: `Bạn là ADN AI Broker - Trợ lý lõi của nền tảng Quant Trading ADN Capital.
+[QUY TẮC XƯNG HÔ & GIỌNG VĂN BẮT BUỘC]:
+- Xưng hô bản thân là: "Hệ thống".
+- Gọi người dùng là: "Nhà đầu tư" hoặc "Bạn".
+- Giọng văn: Kiên định, kỷ luật, đặt quản trị rủi ro lên hàng đầu.
+
+[QUY TẮC TƯ VẤN BẮT BUỘC]:
+- Không bao giờ hứa hẹn chắc chắn về lợi nhuận.
+- Nếu Nhà đầu tư hỏi dựa trên một premise (nhận định) sai lệch, Hệ thống phải khách quan bác bỏ và đưa ra số liệu đúng.
+- Trả lời thẳng vào trọng tâm, mạch lạc.
+- Cuối câu trả lời tư vấn Mua/Bán luôn chèn: "*Lưu ý: Khuyến nghị dựa trên thuật toán định lượng. Nhà đầu tư vui lòng tuân thủ kỷ luật quản trị rủi ro.*"`,
+
+  COMPARE: `Bạn là ADN AI Broker - Hệ thống trọng tài chấm điểm đầu tư của ADN Capital.
+[QUY TẮC XƯNG HÔ & GIỌNG VĂN BẮT BUỘC]:
+- Xưng hô bản thân là: "Hệ thống".
+- Gọi người dùng là: "Nhà đầu tư".
+- Giọng văn: Công tâm, rạch ròi, dùng số liệu để quyết định kẻ thắng người thua.
+
+[QUY TẮC DỮ LIỆU]:
+- So sánh trực diện, không nói nước đôi. Nếu một mã thiếu dữ liệu, phải minh bạch thông báo.
+- Trình bày đối đầu (Head-to-head) rõ ràng:
+1. Sức mạnh Kỹ thuật (Mã nào có dòng tiền và xu hướng tốt hơn).
+2. Nền tảng Cơ bản (Mã nào định giá rẻ hơn, an toàn hơn).
+3. Xếp hạng ưu tiên theo khẩu vị (Ngắn hạn chọn mã nào, Dài hạn chọn mã nào).
+4. Kết luận hành động dứt khoát.`,
 };
 
 const OVERLOAD_MESSAGE =
-  "Hệ thống AI đang quá tải lượt phân tích. Quý khách vui lòng thử lại sau ít phút 🙏";
-
-// ── Error detection ───────────────────────────────────────────────────────────
+  "Hệ thống AI đang quá tải lượt phân tích. Nhà đầu tư vui lòng thử lại sau ít phút.";
 
 function isRetryableError(err: unknown): boolean {
   const msg = String(err).toLowerCase();
@@ -106,22 +145,12 @@ function isRetryableError(err: unknown): boolean {
     msg.includes("high demand") ||
     msg.includes("overloaded") ||
     msg.includes("quota") ||
-    // Model không tồn tại → thử fallback
     msg.includes("not found") ||
     msg.includes("does not exist") ||
     msg.includes("model_error")
   );
 }
 
-// ── [QUY TẮC 2] CORE EXECUTOR ────────────────────────────────────────────────
-
-/**
- * executeAIRequest — Hàm trung tâm gọi Gemini API với intent routing + fallback.
- *
- * @param prompt            Nội dung prompt đầy đủ
- * @param intent            Mục đích → xác định model group và search mode
- * @param systemInstruction Override system instruction (tuỳ chọn)
- */
 export async function executeAIRequest(
   prompt: string,
   intent: Intent = INTENT.GENERAL,
@@ -145,30 +174,30 @@ export async function executeAIRequest(
       });
 
       if (model !== primary) {
-        console.warn(`[Gemini] ⚠️ Intent=${intent} → fallback ${model} (${primary} không khả dụng)`);
+        console.warn(
+          `[Gemini] fallback model used. intent=${intent} model=${model} primary=${primary}`,
+        );
       } else {
-        console.log(`[Gemini] Intent=${intent} model=${model}`);
+        console.log(`[Gemini] intent=${intent} model=${model}`);
       }
 
       return response.text ?? "";
     } catch (err) {
       lastErr = err;
       if (isRetryableError(err)) {
-        console.warn(`[Gemini] ⚠️ Model ${model} (intent=${intent}) lỗi ${String(err).slice(0, 80)}, thử tiếp...`);
+        console.warn(
+          `[Gemini] retryable error. intent=${intent} model=${model} err=${String(err).slice(0, 160)}`,
+        );
         continue;
       }
-      // Lỗi nghiêm trọng (auth, invalid key...) → ném ngay, không retry
       throw err;
     }
   }
 
-  console.error(`[Gemini] ❌ Tất cả model đều thất bại cho intent=${intent}:`, lastErr);
+  console.error(`[Gemini] all model attempts failed. intent=${intent}`, lastErr);
   return OVERLOAD_MESSAGE;
 }
 
-// ── BACKWARD-COMPAT WRAPPERS (giữ nguyên API cũ trong route.ts) ──────────────
-
-/** Dùng cho /ta (PTKT) — Flash, không search */
 export function getGeminiModel(_modelName?: string) {
   return {
     generateContent: async (prompt: string) => {
@@ -178,7 +207,6 @@ export function getGeminiModel(_modelName?: string) {
   };
 }
 
-/** Dùng cho /news, /fa, /tamly, general — Flash, có search */
 export function getGeminiModelWithSearch(_modelName?: string) {
   return {
     generateContent: async (prompt: string) => {
@@ -188,10 +216,10 @@ export function getGeminiModelWithSearch(_modelName?: string) {
   };
 }
 
-/** Dùng cho các module ngoài route.ts (market-news, crawler...) */
 export async function generateText(
   prompt: string,
   intent: Intent = INTENT.GENERAL,
 ): Promise<string> {
   return executeAIRequest(prompt, intent);
 }
+
