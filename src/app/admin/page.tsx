@@ -22,8 +22,10 @@ import {
   Crown,
   BookOpen,
   LayoutPanelTop,
+  Workflow,
 } from "lucide-react";
 import { LandingProductsTab } from "@/components/admin/LandingProductsTab";
+import { LandingProcessTab } from "@/components/admin/LandingProcessTab";
 
 /* ═══════════════════════════════════════════════════════════════════════════
  *  ADMIN CRM — Quản lý đăng ký + Quản lý Users/DNSE
@@ -66,7 +68,7 @@ interface UserRow {
   }>;
 }
 
-type Tab = "registrations" | "users" | "margin" | "journals" | "landing-products";
+type Tab = "registrations" | "users" | "margin" | "journals" | "landing-products" | "landing-process";
 
 interface MarginRow {
   id: string;
@@ -209,6 +211,17 @@ function AdminPageInner() {
             <LayoutPanelTop className="w-3.5 h-3.5" />
             Landing Cards
           </button>
+          <button
+            onClick={() => setTab("landing-process")}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer"
+            style={tab === "landing-process"
+              ? { background: "rgba(16,185,129,0.15)", color: "#10b981", border: "1px solid rgba(16,185,129,0.25)" }
+              : { color: "var(--text-muted)" }
+            }
+          >
+            <Workflow className="w-3.5 h-3.5" />
+            Landing Process
+          </button>
         </div>
 
         {tab === "users" && <UsersTab />}
@@ -216,6 +229,7 @@ function AdminPageInner() {
         {tab === "margin" && <MarginTab />}
         {tab === "journals" && <JournalsTab />}
         {tab === "landing-products" && <LandingProductsTab />}
+        {tab === "landing-process" && <LandingProcessTab />}
       </div>
     </MainLayout>
   );

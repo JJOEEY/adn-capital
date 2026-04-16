@@ -764,30 +764,72 @@ function PerformanceSection() {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   6. PROCESS — 3 BƯỚC
+   6. PROCESS — CMS STEPS
 ───────────────────────────────────────────────────────────────────────────── */
-const STEPS = [
+interface LandingProcessStepUI {
+  id: string;
+  title: string;
+  description: string;
+  imageUrl: string;
+  imageAlt: string | null;
+}
+
+const DEFAULT_PROCESS_STEPS: LandingProcessStepUI[] = [
   {
-    step: "01",
+    id: "landing-process-register",
     title: "Đăng ký tài khoản",
-    desc: "Mở tài khoản chứng khoán miễn phí qua link giới thiệu của ADN Capital. Phí giao dịch ưu đãi từ 0.15%.",
-    Icon: UserPlus,
+    description: "Mở tài khoản chứng khoán miễn phí qua link giới thiệu của ADN Capital. Phí giao dịch ưu đãi từ 0.15%.",
+    imageUrl: "/logo.jpg",
+    imageAlt: "Bước đăng ký tài khoản",
   },
   {
-    step: "02",
+    id: "landing-process-connect",
     title: "Kết nối hệ thống",
-    desc: "Đăng nhập ADN Capital bằng Google. Hệ thống tự động kích hoạt gói VIP khi xác nhận tài khoản.",
-    Icon: Rocket,
+    description: "Đăng nhập ADN Capital bằng Google. Hệ thống tự động kích hoạt gói VIP khi xác nhận tài khoản.",
+    imageUrl: "/logo.jpg",
+    imageAlt: "Bước kết nối hệ thống",
   },
   {
-    step: "03",
+    id: "landing-process-follow",
     title: "Theo dõi tín hiệu",
-    desc: "Nhận tín hiệu Mua/Bán đã được AI lọc. Dashboard hiển thị RS Rating và Market Score realtime.",
-    Icon: BarChart3,
+    description: "Nhận tín hiệu Mua/Bán đã được AI lọc. Dashboard hiển thị RS Rating và Market Score realtime.",
+    imageUrl: "/logo.jpg",
+    imageAlt: "Bước theo dõi tín hiệu",
   },
 ];
 
 function ProcessSection() {
+  const [steps, setSteps] = useState<LandingProcessStepUI[]>(DEFAULT_PROCESS_STEPS);
+  const [isLoadingSteps, setIsLoadingSteps] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    const loadSteps = async () => {
+      try {
+        const res = await fetch("/api/landing-process-steps", { cache: "no-store" });
+        if (!res.ok) throw new Error();
+        const data = (await res.json()) as { steps?: LandingProcessStepUI[] };
+        const nextSteps = Array.isArray(data.steps) ? data.steps : [];
+        if (active) {
+          setSteps(nextSteps);
+        }
+      } catch {
+        // fallback defaults already in state
+      } finally {
+        if (active) setIsLoadingSteps(false);
+      }
+    };
+    void loadSteps();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const gridClassName =
+    steps.length >= 3
+      ? "grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-6"
+      : "grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-6";
+
   return (
     <section
       className="px-5 md:px-12 py-24 text-center"
@@ -804,46 +846,58 @@ function ProcessSection() {
             style={{ color: "var(--text-primary)" }}
           >
             Quy trình{" "}
-            <span style={{ color: "var(--primary)" }}>3 bước</span>
+            <span style={{ color: "var(--primary)" }}>triển khai</span>
           </h2>
         </FadeIn>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-6 relative">
-          {/* Connector line — desktop only */}
-          <div className="hidden md:block absolute top-10 left-[20%] right-[20%] h-px"
-            style={{ background: "var(--border)" }}
-          />
-
-          {STEPS.map((s, i) => (
-            <FadeIn key={s.step} delay={i * 0.15}>
-              <div className="flex flex-col items-center">
+        {steps.length === 0 ? (
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+            Nội dung quy trình đang được cập nhật.
+          </p>
+        ) : (
+          <div className={gridClassName}>
+          {steps.map((step, i) => (
+            <FadeIn key={step.id ?? `${step.title}-${i}`} delay={i * 0.12}>
+              <div
+                className="rounded-2xl border p-6 h-full flex flex-col items-center"
+                style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+              >
+                <div className="w-full rounded-xl overflow-hidden border mb-5" style={{ borderColor: "var(--border)" }}>
+                  <img
+                    src={step.imageUrl || "/logo.jpg"}
+                    alt={step.imageAlt || step.title}
+                    className="w-full h-40 object-cover"
+                    loading={isLoadingSteps ? "eager" : "lazy"}
+                  />
+                </div>
                 {/* Step number circle */}
                 <div
-                  className="w-20 h-20 rounded-full flex items-center justify-center text-[32px] font-bold mb-6 relative z-10"
+                  className="w-16 h-16 rounded-full flex items-center justify-center text-[24px] font-bold mb-4"
                   style={{
                     background: "var(--primary-light)",
                     color: "var(--text-primary)",
                     border: "1px solid var(--border)",
                   }}
                 >
-                  {s.step}
+                  {String(i + 1).padStart(2, "0")}
                 </div>
                 <h3
                   className="text-[18px] font-semibold mb-2"
                   style={{ color: "var(--text-primary)" }}
                 >
-                  {s.title}
+                  {step.title}
                 </h3>
                 <p
-                  className="text-[15px] leading-[1.6] max-w-[260px]"
+                  className="text-[15px] leading-[1.6] max-w-[280px]"
                   style={{ color: "var(--text-secondary)" }}
                 >
-                  {s.desc}
+                  {step.description}
                 </p>
               </div>
             </FadeIn>
           ))}
-        </div>
+          </div>
+        )}
 
         <FadeIn delay={0.5}>
           <div className="mt-14">

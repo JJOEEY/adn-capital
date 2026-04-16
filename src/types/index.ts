@@ -136,3 +136,15 @@ export interface LandingProductCard {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface LandingProcessStep {
+  id: string;
+  title: string;
+  description: string;
+  imageUrl: string;
+  imageAlt: string | null;
+  isPublished: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
