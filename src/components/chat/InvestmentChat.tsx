@@ -112,18 +112,6 @@ const CARDS = [
   },
 ];
 
-// ── Render response từ AI ───────────────────────────────────────────────────
-
-interface AIResponse {
-  analysis?: string;
-  signal?: string;
-  media_url?: string | null;
-  session_summary?: string;
-  vn_market?: string[];
-  quarter?: string;
-  cached?: boolean;
-}
-
 function mapSignalToBadge(signal?: string | null): BrokerBadge {
   const normalized = (signal ?? "").toUpperCase();
   if (normalized.includes("BUY") || normalized.includes("MUA") || normalized.includes("BULL")) return "MUA";
@@ -138,22 +126,6 @@ function badgeStyle(badge: BrokerBadge): { color: string; borderColor: string; b
     borderColor: `${color}55`,
     background: `${color}1A`,
   };
-}
-
-function renderResponseText(cardId: CardId, ticker: string, data: AIResponse): string {
-  switch (cardId) {
-    case "ta":
-      return `**${ticker}** — ${data.signal ?? "N/A"}\n\n${data.analysis ?? ""}`;
-    case "fa":
-      return `**Phân tích cơ bản ${ticker}**\n\n${data.analysis ?? ""}`;
-    case "tamly":
-      return `**Tâm lý thị trường ${ticker}**\n\n${data.analysis ?? ""}`;
-    case "news":
-      if (data.session_summary) return data.session_summary;
-      return (data.vn_market ?? []).join("\n");
-    default:
-      return "";
-  }
 }
 
 // ── Sub-components ──────────────────────────────────────────────────────────
@@ -216,9 +188,10 @@ interface TickerCardsProps {
   ticker: string;
   onCardClick: (cardId: CardId, ticker: string) => void;
   loading: CardId | null;
+  disabled?: boolean;
 }
 
-function TickerCards({ ticker, onCardClick, loading }: TickerCardsProps) {
+function TickerCards({ ticker, onCardClick, loading, disabled = false }: TickerCardsProps) {
   return (
     <div
       className="grid gap-2 mt-2 animate-slide-up"
@@ -231,7 +204,7 @@ function TickerCards({ ticker, onCardClick, loading }: TickerCardsProps) {
           <button
             key={card.id}
             onClick={() => onCardClick(card.id, ticker)}
-            disabled={loading !== null}
+            disabled={loading !== null || disabled}
             className="glow-card text-left p-3 flex flex-col gap-1.5 transition-all disabled:opacity-60"
             style={{
               borderRadius: "12px",
@@ -275,9 +248,10 @@ interface BotBubbleProps {
   message: Message;
   onCardClick?: (cardId: CardId, ticker: string) => void;
   cardLoading?: CardId | null;
+  cardDisabled?: boolean;
 }
 
-function BotBubble({ message, onCardClick, cardLoading }: BotBubbleProps) {
+function BotBubble({ message, onCardClick, cardLoading, cardDisabled = false }: BotBubbleProps) {
   const brokerBadge = message.brokerBadge ?? "GIỮ";
   const brokerBadgeStyle = badgeStyle(brokerBadge);
 
@@ -339,6 +313,7 @@ function BotBubble({ message, onCardClick, cardLoading }: BotBubbleProps) {
             ticker={message.ticker}
             onCardClick={onCardClick}
             loading={cardLoading ?? null}
+            disabled={cardDisabled}
           />
         )}
       </div>
@@ -361,12 +336,16 @@ interface InvestmentChatProps {
   onSendFreeText?: (text: string) => void;
   freeTextLoading?: boolean;
   extraMessages?: Message[];
+  disableInput?: boolean;
+  disableReason?: string;
 }
 
 export function InvestmentChat({
   onSendFreeText,
   freeTextLoading = false,
   extraMessages = [],
+  disableInput = false,
+  disableReason = "",
 }: InvestmentChatProps) {
   const { data: session } = useSession();
   const userId = (session?.user as { id?: string })?.id ?? "";
@@ -472,32 +451,39 @@ export function InvestmentChat({
   const handleCardClick = useCallback(
     async (cardId: CardId, ticker: string) => {
       setCardLoading(cardId);
-      const hour = new Date().getHours();
-      const newsType = hour >= 15 ? "eod" : "morning";
-
-      const endpointMap: Record<CardId, string> = {
-        ta: `/api/bridge/api/v1/ai/ta/${ticker}${userId ? `?user_id=${userId}` : ""}`,
-        fa: `/api/bridge/api/v1/ai/fa/${ticker}`,
-        tamly: `/api/bridge/api/v1/ai/tamly/${ticker}`,
-        news: `/api/bridge/api/v1/news/${newsType}`,
+      const commandMap: Record<CardId, string> = {
+        ta: `/ta ${ticker}`,
+        fa: `/fa ${ticker}`,
+        tamly: `/tamly ${ticker}`,
+        news: `/news ${ticker}`,
       };
 
       try {
-        const res = await fetch(endpointMap[cardId], { signal: AbortSignal.timeout(60_000) });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data: AIResponse = await res.json();
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: commandMap[cardId] }),
+          signal: AbortSignal.timeout(60_000),
+        });
+        const data = await res.json() as { message?: string; error?: string };
+        if (res.status === 429) {
+          addMessage({
+            role: "bot",
+            text: data.message ?? "Đại ca đã dùng hết lượt tư vấn hôm nay.",
+            createdAt: Date.now(),
+          });
+          return;
+        }
+        if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
 
-        const text =
-          cardId === "ta"
-            ? (data.analysis ?? "Không có dữ liệu phân tích.")
-            : renderResponseText(cardId, ticker, data);
-        const taBadge = cardId === "ta" ? mapSignalToBadge(data.signal) : undefined;
+        const text = data.message ?? "Không có dữ liệu phân tích.";
+        const taBadge = cardId === "ta" ? mapSignalToBadge(text) : undefined;
         addMessage({
           role: "bot",
           text,
           createdAt: Date.now(),
           ticker,
-          mediaUrl: cardId === "ta" ? (data.media_url ?? null) : null,
+          mediaUrl: null,
           showDynamicChart: cardId === "ta",
           brokerBadge: taBadge,
         });
@@ -527,6 +513,7 @@ export function InvestmentChat({
   // ── Submit handler ──────────────────────────────────────────────────────
 
   const handleSubmit = useCallback(() => {
+    if (disableInput) return;
     const trimmed = input.trim();
     if (!trimmed) return;
     setInput("");
@@ -555,7 +542,7 @@ export function InvestmentChat({
         onSendFreeText(trimmed);
       }
     }
-  }, [input, addMessage, onSendFreeText, userId]);
+  }, [disableInput, input, addMessage, onSendFreeText, userId]);
 
   // Tắt loading khi extraMessages thay đổi
   useEffect(() => {
@@ -657,6 +644,7 @@ export function InvestmentChat({
               message={msg}
               onCardClick={msg.isCards ? handleCardClick : undefined}
               cardLoading={cardLoading}
+              cardDisabled={disableInput}
             />
           )
         )}
@@ -677,6 +665,11 @@ export function InvestmentChat({
             : 0,
         }}
       >
+        {disableInput && (
+          <p className="text-[11px] px-3" style={{ color: "var(--danger)" }}>
+            {disableReason || "Đã hết lượt tư vấn trong ngày."}
+          </p>
+        )}
         <input
           ref={inputRef}
           type="text"
@@ -688,8 +681,8 @@ export function InvestmentChat({
               inputRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
             }, 80);
           }}
-          onKeyDown={(e) => e.key === "Enter" && !isLoading && handleSubmit()}
-          disabled={isLoading}
+          onKeyDown={(e) => e.key === "Enter" && !isLoading && !disableInput && handleSubmit()}
+          disabled={isLoading || disableInput}
           placeholder="Nhập mã CP (HPG) hoặc câu hỏi tự do..."
           className="flex-1 text-sm outline-none disabled:opacity-50"
           style={{
@@ -704,7 +697,7 @@ export function InvestmentChat({
         />
         <button
           onClick={handleSubmit}
-          disabled={isLoading || !input.trim()}
+          disabled={isLoading || !input.trim() || disableInput}
           className="flex-shrink-0 flex items-center justify-center transition-all disabled:opacity-40"
           style={{
             width: "40px",

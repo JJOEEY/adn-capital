@@ -148,3 +148,13 @@ export interface LandingProcessStep {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface ChatUsageMeta {
+  used: number;
+  limit: number | null;
+  remaining: number | null;
+  isUnlimited: boolean;
+  isLimitReached: boolean;
+  mode: "daily" | "lifetime_package";
+  limitSource: "guest" | "free" | "vip_plan" | "admin_override";
+}

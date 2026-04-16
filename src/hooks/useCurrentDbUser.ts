@@ -12,6 +12,15 @@ interface CurrentDbUser {
   role: "FREE" | "VIP";
   systemRole: "ADMIN" | "USER" | "WRITER";
   chatCount: number;
+  usage?: {
+    used: number;
+    limit: number | null;
+    remaining: number | null;
+    isUnlimited: boolean;
+    isLimitReached: boolean;
+    mode: "daily" | "lifetime_package";
+    limitSource: "guest" | "free" | "vip_plan" | "admin_override";
+  };
   vipUntil: string | null;
   vipTier: "VIP" | "PREMIUM" | null;
   dnseId: string | null;

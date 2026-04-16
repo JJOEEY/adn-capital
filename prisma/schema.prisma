@@ -89,6 +89,9 @@ model User {
   articles       Article[]
   grantedEntitlements AdminEntitlementGrant[] @relation("EntitlementGrantedBy")
   receivedEntitlements AdminEntitlementGrant[] @relation("EntitlementTargetUser")
+  chatDailyUsages   ChatUsageDaily[]
+  chatQuotaOverride AdminChatQuotaOverride[] @relation("ChatQuotaTargetUser")
+  updatedQuotaOverrideBy AdminChatQuotaOverride[] @relation("ChatQuotaUpdatedBy")
 }
 
 model AdminEntitlementGrant {
@@ -383,6 +386,39 @@ model LandingProcessStep {
 
   @@index([isPublished, sortOrder])
   @@index([sortOrder])
+}
+
+model ChatUsageDaily {
+  id        String   @id @default(cuid())
+  userId    String
+  dateKey   String   // YYYY-MM-DD theo Asia/Ho_Chi_Minh
+  usedCount Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dateKey])
+  @@index([dateKey])
+}
+
+model AdminChatQuotaOverride {
+  id               String   @id @default(cuid())
+  targetUserId     String
+  totalQuota       Int
+  usedQuota        Int      @default(0)
+  active           Boolean  @default(true)
+  note             String?
+  updatedByAdminId String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  targetUser     User @relation("ChatQuotaTargetUser", fields: [targetUserId], references: [id], onDelete: Cascade)
+  updatedByAdmin User @relation("ChatQuotaUpdatedBy", fields: [updatedByAdminId], references: [id], onDelete: Cascade)
+
+  @@unique([targetUserId])
+  @@index([active, updatedAt])
+  @@index([updatedByAdminId, updatedAt])
 }
 
 // ═══════════════════════════════════════════════════════════════════

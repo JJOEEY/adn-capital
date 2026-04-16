@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentDbUser } from "@/lib/current-user";
 import { reconcileUserEntitlementState } from "@/lib/entitlements";
+import { resolveChatQuota } from "@/lib/chat-quota";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,7 @@ export async function GET() {
     dbUser.role,
     dbUser.vipUntil ?? null
   );
+  const quota = await resolveChatQuota({ userId: dbUser.id });
   const vipTier = entitlement.vipTier;
   const effectiveRole = entitlement.badge === "FREE" ? "FREE" : "VIP";
 
@@ -39,7 +41,8 @@ export async function GET() {
       image: dbUser.image ?? null,
       role: effectiveRole,
       systemRole,
-      chatCount: dbUser.chatCount,
+      chatCount: quota.usage.used,
+      usage: quota.usage,
       vipUntil: entitlement.vipUntil?.toISOString() ?? null,
       vipTier,
       dnseId: dbUser.dnseId ?? null,

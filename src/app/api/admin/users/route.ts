@@ -33,6 +33,17 @@ export async function GET() {
       dnseVerified: true,
       dnseAppliedAt: true,
       chatCount: true,
+      chatQuotaOverride: {
+        take: 1,
+        select: {
+          id: true,
+          totalQuota: true,
+          usedQuota: true,
+          active: true,
+          note: true,
+          updatedAt: true,
+        },
+      },
       createdAt: true,
       receivedEntitlements: {
         where: {

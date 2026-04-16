@@ -52,6 +52,14 @@ interface UserRow {
   dnseVerified: boolean;
   dnseAppliedAt: string | null;
   chatCount: number;
+  chatQuotaOverride?: Array<{
+    id: string;
+    totalQuota: number;
+    usedQuota: number;
+    active: boolean;
+    note: string | null;
+    updatedAt: string;
+  }>;
   createdAt: string;
   receivedEntitlements?: Array<{
     id: string;
@@ -247,6 +255,10 @@ function UsersTab() {
   const [vipMenuUser, setVipMenuUser] = useState<string | null>(null);
   const [customDays, setCustomDays] = useState("");
   const [customBadge, setCustomBadge] = useState<"VIP" | "PREMIUM">("VIP");
+  const [quotaMenuUser, setQuotaMenuUser] = useState<string | null>(null);
+  const [quotaTotalInput, setQuotaTotalInput] = useState("");
+  const [quotaUsedInput, setQuotaUsedInput] = useState("");
+  const [quotaNoteInput, setQuotaNoteInput] = useState("");
   const [cronStatus, setCronStatus] = useState<CronStatusPayload | null>(null);
   const [cronLoading, setCronLoading] = useState(true);
   const [brokerSettingsLoading, setBrokerSettingsLoading] = useState(true);
@@ -369,6 +381,22 @@ function UsersTab() {
         badge,
         durationDays: days,
       }),
+    });
+    if (res.ok) {
+      await fetchUsers();
+    }
+  };
+
+  const handleUpsertQuotaOverride = async (userId: string, payload: {
+    totalQuota: number;
+    usedQuota: number;
+    active: boolean;
+    note: string;
+  }) => {
+    const res = await fetch(`/api/admin/users/${userId}/chat-quota`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
     });
     if (res.ok) {
       await fetchUsers();
@@ -671,6 +699,7 @@ function UsersTab() {
               <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>Email</th>
               <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>Tên</th>
               <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>Role</th>
+              <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>Quota Override</th>
               <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>Quyền</th>
               <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>Cấp quyền</th>
               <th className="px-4 py-3 font-bold" style={{ color: "var(--text-muted)" }}>Thời gian</th>
@@ -684,13 +713,13 @@ function UsersTab() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={12} className="px-4 py-12 text-center">
+                <td colSpan={13} className="px-4 py-12 text-center">
                   <RefreshCw className="w-5 h-5 animate-spin mx-auto" style={{ color: "var(--text-muted)" }} />
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={12} className="px-4 py-12 text-center text-xs" style={{ color: "var(--text-muted)" }}>
+                <td colSpan={13} className="px-4 py-12 text-center text-xs" style={{ color: "var(--text-muted)" }}>
                   Không có user nào.
                 </td>
               </tr>
@@ -730,6 +759,15 @@ function UsersTab() {
                           {badge}
                         </span>
                       );
+                    })()}
+                  </td>
+
+                  <td className="px-4 py-3 text-xs" style={{ color: "var(--text-muted)" }}>
+                    {(() => {
+                      const quota = user.chatQuotaOverride?.[0];
+                      if (!quota) return "—";
+                      const remaining = Math.max(0, quota.totalQuota - quota.usedQuota);
+                      return `${quota.usedQuota}/${quota.totalQuota} (${remaining} còn)${quota.active ? "" : " · OFF"}`;
                     })()}
                   </td>
 
@@ -908,6 +946,106 @@ function UsersTab() {
                                 </div>
                               </>
                             )}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="relative">
+                        <button
+                          onClick={() => {
+                            const quota = user.chatQuotaOverride?.[0];
+                            setQuotaMenuUser(quotaMenuUser === user.id ? null : user.id);
+                            setQuotaTotalInput(String(quota?.totalQuota ?? 50));
+                            setQuotaUsedInput(String(quota?.usedQuota ?? 0));
+                            setQuotaNoteInput(quota?.note ?? "");
+                          }}
+                          className="p-1.5 rounded-md transition-colors cursor-pointer"
+                          style={user.chatQuotaOverride?.[0]?.active
+                            ? { background: "rgba(59,130,246,0.10)", color: "#3b82f6" }
+                            : { color: "var(--text-muted)" }}
+                          title="Quota override"
+                        >
+                          <Clock className="w-3.5 h-3.5" />
+                        </button>
+
+                        {quotaMenuUser === user.id && (
+                          <div className="absolute right-0 top-full mt-1 z-50 w-64 border rounded-xl shadow-2xl p-2 space-y-2" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+                            <p className="text-[12px] px-2 pt-1 pb-0.5 font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                              Quota tổng (override)
+                            </p>
+                            <div className="grid grid-cols-2 gap-1 px-1">
+                              <input
+                                type="number"
+                                min={0}
+                                value={quotaTotalInput}
+                                onChange={(e) => setQuotaTotalInput(e.target.value)}
+                                placeholder="Total"
+                                className="px-2 py-1 rounded-md text-xs outline-none"
+                                style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+                              />
+                              <input
+                                type="number"
+                                min={0}
+                                value={quotaUsedInput}
+                                onChange={(e) => setQuotaUsedInput(e.target.value)}
+                                placeholder="Used"
+                                className="px-2 py-1 rounded-md text-xs outline-none"
+                                style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+                              />
+                            </div>
+                            <div className="px-1">
+                              <input
+                                type="text"
+                                value={quotaNoteInput}
+                                onChange={(e) => setQuotaNoteInput(e.target.value)}
+                                placeholder="Ghi chú admin..."
+                                className="w-full px-2 py-1 rounded-md text-xs outline-none"
+                                style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+                              />
+                            </div>
+                            <div className="flex gap-1 px-1">
+                              <button
+                                onClick={() => {
+                                  void handleUpsertQuotaOverride(user.id, {
+                                    totalQuota: Math.max(0, Number(quotaTotalInput || 0)),
+                                    usedQuota: Math.max(0, Number(quotaUsedInput || 0)),
+                                    active: true,
+                                    note: quotaNoteInput.trim(),
+                                  });
+                                  setQuotaMenuUser(null);
+                                }}
+                                className="flex-1 px-2 py-1 rounded-md text-xs font-bold border cursor-pointer"
+                                style={{ background: "rgba(22,163,74,0.12)", color: "#16a34a", borderColor: "rgba(22,163,74,0.25)" }}
+                              >
+                                Lưu
+                              </button>
+                              <button
+                                onClick={() => {
+                                  void handleUpsertQuotaOverride(user.id, {
+                                    totalQuota: Math.max(0, Number(quotaTotalInput || 0)),
+                                    usedQuota: 0,
+                                    active: true,
+                                    note: quotaNoteInput.trim(),
+                                  });
+                                  setQuotaMenuUser(null);
+                                }}
+                                className="flex-1 px-2 py-1 rounded-md text-xs font-bold border cursor-pointer"
+                                style={{ background: "rgba(59,130,246,0.12)", color: "#3b82f6", borderColor: "rgba(59,130,246,0.25)" }}
+                              >
+                                Reset used
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  await fetch(`/api/admin/users/${user.id}/chat-quota`, { method: "DELETE" });
+                                  setQuotaMenuUser(null);
+                                  await fetchUsers();
+                                }}
+                                className="px-2 py-1 rounded-md text-xs font-bold border cursor-pointer"
+                                style={{ background: "rgba(192,57,43,0.10)", color: "var(--danger)", borderColor: "rgba(192,57,43,0.25)" }}
+                              >
+                                Xóa
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>

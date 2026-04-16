@@ -18,12 +18,15 @@ interface ExtMessage {
 }
 
 export default function TerminalPage() {
-  const { isAuthenticated } = useCurrentDbUser();
+  const { isAuthenticated, dbUser } = useCurrentDbUser();
   const { chatCount, limit, isLimitReached } = useChat();
   const { clearMessages, setChatCount } = useChatStore();
 
   const [extraMessages, setExtraMessages] = useState<ExtMessage[]>([]);
   const [freeTextPending, setFreeTextPending] = useState(false);
+  const usage = dbUser?.usage;
+  const remaining = usage?.remaining;
+  const showLowQuotaWarning = !usage?.isUnlimited && typeof remaining === "number" && remaining > 0 && remaining <= 3;
 
   const limitPercent = limit === Infinity ? 0 : Math.min((chatCount / limit) * 100, 100);
 
@@ -45,11 +48,14 @@ export default function TerminalPage() {
           message?: string;
           error?: string;
           newUsage?: number;
+          usage?: { used: number; isUnlimited: boolean };
           type?: "widget";
           ticker?: string;
         } = await res.json();
 
-        if (typeof data.newUsage === "number") {
+        if (typeof data.usage?.used === "number") {
+          setChatCount(data.usage.used);
+        } else if (typeof data.newUsage === "number") {
           setChatCount(data.newUsage);
         } else if (!isAuthenticated) {
           setChatCount(chatCount + 1);
@@ -149,8 +155,21 @@ export default function TerminalPage() {
             onSendFreeText={isLimitReached ? undefined : handleFreeText}
             freeTextLoading={freeTextPending}
             extraMessages={extraMessages}
+            disableInput={isLimitReached}
+            disableReason="Bạn đã hết lượt tư vấn. Nâng cấp VIP để tiếp tục ngay."
           />
         </div>
+
+        {showLowQuotaWarning && (
+          <div
+            className="mx-3 sm:mx-6 mb-2 px-4 py-3 rounded-xl"
+            style={{ background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.25)" }}
+          >
+            <p className="text-sm font-semibold" style={{ color: "#f59e0b" }}>
+              Cảnh báo: chỉ còn {remaining} lượt miễn phí hôm nay
+            </p>
+          </div>
+        )}
 
         {/* Limit reached banner */}
         {isLimitReached && (
@@ -163,10 +182,10 @@ export default function TerminalPage() {
             <Lock className="w-4 h-4 flex-shrink-0" style={{ color: "#f59e0b" }} />
             <div className="flex-1">
               <p className="text-sm font-semibold" style={{ color: "#f59e0b" }}>
-                Đại ca đã dùng hết {limit} lượt chat
+                Hết lượt tư vấn trong ngày
               </p>
               <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-                Nâng cấp VIP để chat không giới hạn với ADN AI
+                Nâng cấp VIP để mở khóa ngay và tiếp tục quét tín hiệu không gián đoạn.
               </p>
             </div>
             <a

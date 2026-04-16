@@ -2,15 +2,17 @@
 
 import { useChatStore } from "@/store/chatStore";
 import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
-import { generateId, USAGE_LIMITS } from "@/lib/utils";
+import { generateId } from "@/lib/utils";
 
 export function useChat() {
-  const { role, isAuthenticated } = useCurrentDbUser();
+  const { dbUser, isAuthenticated } = useCurrentDbUser();
   const { messages, isLoading, chatCount, addMessage, setLoading, setChatCount } =
     useChatStore();
 
-  const limit = USAGE_LIMITS[role] ?? 3;
-  const isLimitReached = limit !== Infinity && chatCount >= limit;
+  const serverUsage = dbUser?.usage;
+  const limit = serverUsage?.isUnlimited ? Infinity : (serverUsage?.limit ?? (isAuthenticated ? 5 : 3));
+  const currentCount = serverUsage?.used ?? chatCount;
+  const isLimitReached = serverUsage?.isLimitReached ?? (limit !== Infinity && currentCount >= limit);
 
   const sendMessage = async (content: string) => {
     if (!content.trim() || isLoading || isLimitReached) return;
@@ -31,7 +33,7 @@ export function useChat() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: content,
-          guestUsage: isAuthenticated ? undefined : chatCount,
+          guestUsage: isAuthenticated ? undefined : currentCount,
         }),
       });
 
@@ -39,6 +41,11 @@ export function useChat() {
         message?: string;
         error?: string;
         newUsage?: number;
+        usage?: {
+          used: number;
+          limit: number | null;
+          isUnlimited: boolean;
+        };
         chartStock?: string;
         chartExchange?: string;
         // Widget response fields
@@ -61,7 +68,11 @@ export function useChat() {
           role: "assistant",
           createdAt: new Date().toISOString(),
         });
-        if (limit !== Infinity) setChatCount(limit);
+        if (data.usage && !data.usage.isUnlimited) {
+          setChatCount(data.usage.used);
+        } else if (limit !== Infinity) {
+          setChatCount(limit);
+        }
         return;
       }
 
@@ -95,10 +106,12 @@ export function useChat() {
         });
       }
 
-      if (data.newUsage !== undefined) {
+      if (data.usage?.used !== undefined) {
+        setChatCount(data.usage.used);
+      } else if (data.newUsage !== undefined) {
         setChatCount(data.newUsage);
       } else {
-        setChatCount(chatCount + 1);
+        setChatCount(currentCount + 1);
       }
     } catch (error) {
       addMessage({
@@ -117,7 +130,7 @@ export function useChat() {
   return {
     messages,
     isLoading,
-    chatCount,
+    chatCount: currentCount,
     limit,
     isLimitReached,
     sendMessage,
