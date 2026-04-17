@@ -12,10 +12,12 @@ import {
   fetchPropTrading,
   fetchMarketBreadth,
   fetchInvestorTrading,
+  fetchRealtimeTradingData,
   type FiinMarketOverview,
   type FiinPropTrading,
   type FiinMarketBreadthResponse,
   type FiinInvestorTradingResponse,
+  type FiinRealtimeResponse,
 } from "./fiinquantClient";
 import { getVnDateISO, getVnNow } from "./time";
 import { fetchDnseMarketSnapshot } from "./dnseClient";
@@ -418,6 +420,11 @@ function toNumber(value: unknown): number | null {
   return null;
 }
 
+function toBillion(value: number | null): number | null {
+  if (value == null || !Number.isFinite(value)) return null;
+  return Math.abs(value) >= 1_000_000 ? value / 1_000_000_000 : value;
+}
+
 function pickNumber(obj: JsonRecord, keys: string[]): number | null {
   for (const key of keys) {
     if (!(key in obj)) continue;
@@ -425,6 +432,20 @@ function pickNumber(obj: JsonRecord, keys: string[]): number | null {
     if (num !== null) return num;
   }
   return null;
+}
+
+function hasAnyValue(raw: unknown): boolean {
+  if (raw == null) return false;
+  if (Array.isArray(raw)) return raw.length > 0;
+  if (typeof raw === "object") return Object.keys(raw as JsonRecord).length > 0;
+  return true;
+}
+
+function isInvestorPayloadUsable(raw: FiinInvestorTradingResponse | null): boolean {
+  if (!raw) return false;
+  const hasRows = Array.isArray(raw.data) && raw.data.length > 0;
+  const hasSummary = hasAnyValue(raw.summary);
+  return hasRows || hasSummary;
 }
 
 function inferGroup(raw: string): "foreign" | "proprietary" | "retail" | null {
@@ -462,7 +483,16 @@ function parseExchange(raw: string): "HOSE" | "HNX" | "UPCOM" | null {
 }
 
 function extractExchange(row: JsonRecord): "HOSE" | "HNX" | "UPCOM" | null {
-  const keys = ["exchange", "market", "index", "ticker", "symbol"];
+  const keys = [
+    "exchange",
+    "market",
+    "index",
+    "ticker",
+    "symbol",
+    "comGroupCode",
+    "ComGroupCode",
+    "groupCode",
+  ];
   for (const key of keys) {
     if (typeof row[key] !== "string") continue;
     const ex = parseExchange(String(row[key]));
@@ -497,6 +527,12 @@ function readBuySellNet(row: JsonRecord): { buy: number | null; sell: number | n
     "mua",
     "mua_gia_tri",
     "mua_rong",
+    "foreignBuyValueMatched",
+    "foreignBuyValueTotal",
+    "proprietaryTotalMatchBuyTradeValue",
+    "proprietaryTotalBuyTradeValue",
+    "localIndividualBuyValue",
+    "localIndividualBuyMatchValue",
   ]);
   const sell = pickNumber(row, [
     "sell",
@@ -506,6 +542,12 @@ function readBuySellNet(row: JsonRecord): { buy: number | null; sell: number | n
     "ban",
     "ban_gia_tri",
     "ban_rong",
+    "foreignSellValueMatched",
+    "foreignSellValueTotal",
+    "proprietaryTotalMatchSellTradeValue",
+    "proprietaryTotalSellTradeValue",
+    "localIndividualSellValue",
+    "localIndividualSellMatchValue",
   ]);
   const net = pickNumber(row, [
     "net",
@@ -515,8 +557,16 @@ function readBuySellNet(row: JsonRecord): { buy: number | null; sell: number | n
     "rong",
     "gia_tri_rong",
     "net_buy_sell",
+    "foreignNetValueMatched",
+    "proprietaryNetValue",
+    "localIndividualNetValue",
   ]);
-  return { buy, sell, net: net ?? (buy != null && sell != null ? buy - sell : null) };
+  const resolvedNet = net ?? (buy != null && sell != null ? buy - sell : null);
+  return {
+    buy: toBillion(buy),
+    sell: toBillion(sell),
+    net: toBillion(resolvedNet),
+  };
 }
 
 async function fetchTcbsMarketSnapshot(requestDateVN: string): Promise<AlternativeSnapshot | null> {
@@ -580,6 +630,13 @@ export interface MarketSnapshot {
   providerDiagnostics: ProviderDiagnostic[];
   indices: IndexData[];
   breadth: { up: number; down: number; unchanged: number } | null;
+  supplyDemand: {
+    buyVolume: number | null;
+    sellVolume: number | null;
+    netVolume: number | null;
+    buySellRatio: number | null;
+    source: "realtime" | "snapshot" | null;
+  };
   liquidity: number | null;
   liquidityByExchange: {
     HOSE: number | null;
@@ -620,6 +677,20 @@ function parseInvestorTradingData(raw: FiinInvestorTradingResponse | null) {
     proprietary.net = toNumber(raw.summary.proprietary.total_net_bn);
   }
 
+  const foreignSummary = (raw?.summary as JsonRecord | undefined)?.foreign as JsonRecord | undefined;
+  if (foreignSummary) {
+    foreign.buy = toNumber(foreignSummary.total_buy_bn ?? foreignSummary.totalBuyBn ?? foreignSummary.buy_bn);
+    foreign.sell = toNumber(foreignSummary.total_sell_bn ?? foreignSummary.totalSellBn ?? foreignSummary.sell_bn);
+    foreign.net = toNumber(foreignSummary.total_net_bn ?? foreignSummary.totalNetBn ?? foreignSummary.net_bn);
+  }
+
+  const retailSummary = (raw?.summary as JsonRecord | undefined)?.retail as JsonRecord | undefined;
+  if (retailSummary) {
+    retail.buy = toNumber(retailSummary.total_buy_bn ?? retailSummary.totalBuyBn ?? retailSummary.buy_bn);
+    retail.sell = toNumber(retailSummary.total_sell_bn ?? retailSummary.totalSellBn ?? retailSummary.sell_bn);
+    retail.net = toNumber(retailSummary.total_net_bn ?? retailSummary.totalNetBn ?? retailSummary.net_bn);
+  }
+
   const summaryRecord = (raw?.summary ?? {}) as JsonRecord;
   if (foreign.net == null) {
     foreign.net = pickNumber(summaryRecord, ["foreign_net_bn", "foreign_net", "foreignNet", "khoi_ngoai_rong"]);
@@ -627,6 +698,10 @@ function parseInvestorTradingData(raw: FiinInvestorTradingResponse | null) {
   if (retail.net == null) {
     retail.net = pickNumber(summaryRecord, ["retail_net_bn", "retail_net", "retailNet", "ca_nhan_rong"]);
   }
+
+  const hasForeignSummary = foreign.buy != null || foreign.sell != null || foreign.net != null;
+  const hasProprietarySummary = proprietary.buy != null || proprietary.sell != null || proprietary.net != null;
+  const hasRetailSummary = retail.buy != null || retail.sell != null || retail.net != null;
 
   const addToGroup = (group: "foreign" | "proprietary" | "retail", buy: number | null, sell: number | null, net: number | null) => {
     const target = group === "foreign" ? foreign : group === "proprietary" ? proprietary : retail;
@@ -660,6 +735,46 @@ function parseInvestorTradingData(raw: FiinInvestorTradingResponse | null) {
     const { buy, sell, net } = readBuySellNet(row);
     if (group) addToGroup(group, buy, sell, net);
 
+    const foreignBuy = toBillion(
+      pickNumber(row, [
+        "foreignBuyValueMatched",
+        "foreignBuyValueTotal",
+        "foreignIndividualBuyTradingMatchValue",
+        "foreignInstitutionalBuyTradingMatchValue",
+      ]),
+    );
+    const foreignSell = toBillion(
+      pickNumber(row, [
+        "foreignSellValueMatched",
+        "foreignSellValueTotal",
+        "foreignIndividualSellTradingMatchValue",
+        "foreignInstitutionalSellTradingMatchValue",
+      ]),
+    );
+    if (!hasForeignSummary && (foreignBuy != null || foreignSell != null)) {
+      addToGroup("foreign", foreignBuy, foreignSell, null);
+    }
+
+    const propBuy = toBillion(
+      pickNumber(row, ["proprietaryTotalMatchBuyTradeValue", "proprietaryTotalBuyTradeValue"]),
+    );
+    const propSell = toBillion(
+      pickNumber(row, ["proprietaryTotalMatchSellTradeValue", "proprietaryTotalSellTradeValue"]),
+    );
+    if (!hasProprietarySummary && (propBuy != null || propSell != null)) {
+      addToGroup("proprietary", propBuy, propSell, null);
+    }
+
+    const retailBuy = toBillion(
+      pickNumber(row, ["localIndividualBuyValue", "localIndividualBuyMatchValue"]),
+    );
+    const retailSell = toBillion(
+      pickNumber(row, ["localIndividualSellValue", "localIndividualSellMatchValue"]),
+    );
+    if (!hasRetailSummary && (retailBuy != null || retailSell != null)) {
+      addToGroup("retail", retailBuy, retailSell, null);
+    }
+
     const exchange = extractExchange(row);
     const liquidityValue = readLiquidityValue(row);
     if (exchange && liquidityValue != null && liquidityValue > 0) {
@@ -669,6 +784,16 @@ function parseInvestorTradingData(raw: FiinInvestorTradingResponse | null) {
 
   const sumLiquidity = (liquidityByExchange.HOSE ?? 0) + (liquidityByExchange.HNX ?? 0) + (liquidityByExchange.UPCOM ?? 0);
   liquidityByExchange.total = sumLiquidity > 0 ? sumLiquidity : null;
+
+  if (foreign.buy != null) foreign.buy = toBillion(foreign.buy);
+  if (foreign.sell != null) foreign.sell = toBillion(foreign.sell);
+  if (foreign.net != null) foreign.net = toBillion(foreign.net);
+  if (proprietary.buy != null) proprietary.buy = toBillion(proprietary.buy);
+  if (proprietary.sell != null) proprietary.sell = toBillion(proprietary.sell);
+  if (proprietary.net != null) proprietary.net = toBillion(proprietary.net);
+  if (retail.buy != null) retail.buy = toBillion(retail.buy);
+  if (retail.sell != null) retail.sell = toBillion(retail.sell);
+  if (retail.net != null) retail.net = toBillion(retail.net);
 
   return {
     investorTrading: {
@@ -685,19 +810,83 @@ function parseInvestorTradingData(raw: FiinInvestorTradingResponse | null) {
   };
 }
 
+function parseBreadthFromFeed(raw: FiinMarketBreadthResponse | null): { up: number; down: number; unchanged: number } | null {
+  const rows = Array.isArray(raw?.data) ? raw.data : [];
+  if (rows.length === 0) return null;
+
+  const validRows = rows.filter((row) => !(row?.error ?? "").toString().trim());
+  if (validRows.length === 0) return null;
+
+  const summed = validRows.reduce(
+    (acc, row) => {
+      acc.up += Number(row.up ?? 0);
+      acc.down += Number(row.down ?? 0);
+      acc.unchanged += Number(row.unchanged ?? 0);
+      return acc;
+    },
+    { up: 0, down: 0, unchanged: 0 },
+  );
+
+  if (summed.up + summed.down + summed.unchanged <= 0) return null;
+  return summed;
+}
+
+function parseRealtimeSupplyDemand(raw: FiinRealtimeResponse | null): MarketSnapshot["supplyDemand"] {
+  if (!raw) {
+    return {
+      buyVolume: null,
+      sellVolume: null,
+      netVolume: null,
+      buySellRatio: null,
+      source: null,
+    };
+  }
+
+  const summary = (raw.summary ?? {}) as JsonRecord;
+  const data = Array.isArray(raw.data) ? raw.data : [];
+  const latest = data.length > 0 ? (data[data.length - 1] as JsonRecord) : null;
+
+  const buy =
+    toNumber(summary.totalBuyVolume) ??
+    toNumber(summary.buyVolume) ??
+    toNumber(latest?.bu) ??
+    toNumber(latest?.totalBuyTradeVolume) ??
+    null;
+  const sell =
+    toNumber(summary.totalSellVolume) ??
+    toNumber(summary.sellVolume) ??
+    toNumber(latest?.sd) ??
+    toNumber(latest?.totalSellTradeVolume) ??
+    null;
+  const net =
+    toNumber(summary.netVolume) ??
+    toNumber(latest?.netVolume) ??
+    toNumber(latest?.fn) ??
+    (buy != null && sell != null ? buy - sell : null);
+
+  return {
+    buyVolume: buy,
+    sellVolume: sell,
+    netVolume: net,
+    buySellRatio: buy != null && sell != null && sell > 0 ? buy / sell : null,
+    source: buy != null || sell != null || net != null ? "realtime" : null,
+  };
+}
+
 /** Snapshot thị trường (dùng cho intraday notifications + briefs) */
 export async function getMarketSnapshot(): Promise<MarketSnapshot> {
   // Fetch song song: FiinQuant overview + VNDirect indices + top movers
   const requestDateVN = getVnDateISO();
   const providerDiagnostics: ProviderDiagnostic[] = [];
 
-  const [overview, investorRaw, vnindex, hnxindex, upcomindex, vn30, movers, dnseSnapshot, tcbsSnapshot] = await Promise.all([
+  const [overview, investorRawByDate, breadthFeed, realtimeVnindex, vnindex, hnxindex, upcomindex, vn30, movers, dnseSnapshot, tcbsSnapshot] = await Promise.all([
     fetchMarketOverview(),
     fetchInvestorTrading({
-      tickers: "VNINDEX,HNXINDEX,UPCOMINDEX",
       fromDate: requestDateVN,
       toDate: requestDateVN,
     }),
+    fetchMarketBreadth("VNINDEX,VN30,HNXINDEX,UPCOMINDEX"),
+    fetchRealtimeTradingData("VNINDEX", "5m"),
     fetchIndexFromDchart("VNINDEX", providerDiagnostics, requestDateVN),
     fetchIndexFromDchart("HNXINDEX", providerDiagnostics, requestDateVN),
     fetchIndexFromDchart("UPCOMINDEX", providerDiagnostics, requestDateVN),
@@ -717,7 +906,23 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
       fallbackUsed: true,
     });
   }
-  if (!investorRaw) {
+  if (!breadthFeed) {
+    providerDiagnostics.push({
+      provider: "FiinQuant",
+      endpoint: "/api/v1/market-breadth",
+      requestDateVN,
+      httpStatus: null,
+      error: "No data",
+      fallbackUsed: true,
+    });
+  }
+
+  let investorRaw = investorRawByDate;
+  if (!isInvestorPayloadUsable(investorRawByDate)) {
+    investorRaw = await fetchInvestorTrading();
+  }
+
+  if (!isInvestorPayloadUsable(investorRaw)) {
     providerDiagnostics.push({
       provider: "FiinQuant",
       endpoint: "/api/v1/investor-trading",
@@ -805,6 +1010,9 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
   }
   const overviewLiquidity = overview ? parseLiquidity(overview.liquidity) : null;
   const totalLiquidity = overviewLiquidity ?? parsedInvestor.liquidityByExchange.total;
+  const breadthFromFeed = parseBreadthFromFeed(breadthFeed);
+  const breadth = breadthFromFeed ?? (overview ? parseBreadth(overview.market_breadth) : null);
+  const supplyDemand = parseRealtimeSupplyDemand(realtimeVnindex);
 
   const indices: IndexData[] = [];
   if (vnindex) indices.push(vnindex);
@@ -817,7 +1025,8 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
     requestDateVN,
     providerDiagnostics,
     indices,
-    breadth: overview ? parseBreadth(overview.market_breadth) : null,
+    breadth,
+    supplyDemand,
     liquidity: totalLiquidity,
     liquidityByExchange: {
       HOSE: parsedInvestor.liquidityByExchange.HOSE,
@@ -959,6 +1168,24 @@ export function formatSnapshotForAI(
 
   if (snap.breadth) {
     lines.push(`\nĐộ rộng: Tăng ${snap.breadth.up} | Giảm ${snap.breadth.down} | Đứng ${snap.breadth.unchanged}`);
+  }
+
+  if (
+    snap.supplyDemand.buyVolume != null ||
+    snap.supplyDemand.sellVolume != null ||
+    snap.supplyDemand.netVolume != null
+  ) {
+    const fmtVol = (v: number | null) =>
+      v == null ? "?" : Math.abs(v).toLocaleString("vi-VN", { maximumFractionDigits: 0 });
+    const ratio =
+      snap.supplyDemand.buySellRatio != null
+        ? snap.supplyDemand.buySellRatio.toFixed(2)
+        : "?";
+    lines.push(
+      `Cung/Cầu: Mua ${fmtVol(snap.supplyDemand.buyVolume)} | Bán ${fmtVol(
+        snap.supplyDemand.sellVolume,
+      )} | Ròng ${fmtVol(snap.supplyDemand.netVolume)} | Tỷ lệ B/S ${ratio}`,
+    );
   }
 
   if (snap.liquidity) {

@@ -775,13 +775,19 @@ Hãy dùng Google Search để tìm tin tức thật. Chỉ báo cáo tin đã x
 }
 
 // ─── Build Prompt: /tamly ────────────────────────────────────
-function buildTamlyPrompt(stock: string, taData: TAData | null, journalCtx: string): string {
+function buildTamlyPrompt(
+  stock: string,
+  taData: TAData | null,
+  journalCtx: string,
+  realtimeFlowCtx = "",
+): string {
   const dataBlock = taData
     ? formatTAContext(taData)
     : `\n⚠️ Hệ thống quant chưa cập nhật dữ liệu real-time cho ${stock}.\n`;
 
   return `${BASE_SYSTEM_PROMPT}${journalCtx}
 ${dataBlock}
+${realtimeFlowCtx}
 ${taData ? RAG_RULES : ""}
 
 Nhà đầu tư yêu cầu ĐỌC VỊ DÒNG TIỀN & TÂM LÝ ATC của **${stock}**.
@@ -1016,6 +1022,64 @@ ${text}`,
     return repaired?.trim() ? repaired : text;
   } catch {
     return text;
+  }
+}
+
+interface BridgeRealtimePayload {
+  ticker?: string;
+  timeframe?: string;
+  count?: number;
+  summary?: {
+    totalBuyVolume?: number;
+    totalSellVolume?: number;
+    netVolume?: number;
+    [key: string]: unknown;
+  };
+  data?: Array<Record<string, unknown>>;
+}
+
+function fmtVolRaw(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "chưa cập nhật";
+  return Math.abs(value).toLocaleString("vi-VN", { maximumFractionDigits: 0 });
+}
+
+async function fetchTamlyRealtimeContext(ticker: string): Promise<string> {
+  try {
+    const res = await fetch(`${FIINQUANT_BRIDGE}/api/v1/realtime/${ticker}?timeframe=5m`, {
+      signal: AbortSignal.timeout(8_000),
+      cache: "no-store",
+    });
+    if (!res.ok) return "";
+
+    const payload = (await res.json()) as BridgeRealtimePayload;
+    const summary = payload.summary ?? {};
+    const points = Array.isArray(payload.data) ? payload.data : [];
+    const last = points.length > 0 ? points[points.length - 1] : null;
+
+    const buy = Number(summary.totalBuyVolume ?? (last?.bu as number | undefined) ?? NaN);
+    const sell = Number(summary.totalSellVolume ?? (last?.sd as number | undefined) ?? NaN);
+    const net = Number(summary.netVolume ?? (last?.fn as number | undefined) ?? NaN);
+    const close = Number((last?.close as number | undefined) ?? NaN);
+    const volume = Number((last?.volume as number | undefined) ?? NaN);
+
+    const hasFlow = Number.isFinite(buy) || Number.isFinite(sell) || Number.isFinite(net);
+    const hasPrice = Number.isFinite(close) || Number.isFinite(volume);
+    if (!hasFlow && !hasPrice) return "";
+
+    const ratio =
+      Number.isFinite(buy) && Number.isFinite(sell) && sell > 0 ? (buy / sell).toFixed(2) : null;
+
+    return `
+📡 DỮ LIỆU REALTIME CUNG/CẦU (${ticker}):
+- Buy volume: ${fmtVolRaw(Number.isFinite(buy) ? buy : null)}
+- Sell volume: ${fmtVolRaw(Number.isFinite(sell) ? sell : null)}
+- Net volume: ${fmtVolRaw(Number.isFinite(net) ? net : null)}
+- Buy/Sell ratio: ${ratio ?? "chưa cập nhật"}
+- Last close: ${Number.isFinite(close) ? fmtPrice(close) : "chưa cập nhật"}
+- Last volume: ${fmtVolRaw(Number.isFinite(volume) ? volume : null)}
+`;
+  } catch {
+    return "";
   }
 }
 
@@ -1362,7 +1426,9 @@ export async function POST(req: NextRequest) {
       responseIntent = INTENT.TAMLY;
       console.log(`[Chat /tamly] Fetching AI Tâm lý từ Bridge cho ${stock}...`);
       const personCtx = await getPersonalizationContext(userId, stock);
-      const aiResult = await fetchBridgeAI("tamly", stock, personCtx);
+      const realtimeFlowCtx = await fetchTamlyRealtimeContext(stock);
+      const aiContext = [personCtx, realtimeFlowCtx].filter(Boolean).join("\n");
+      const aiResult = await fetchBridgeAI("tamly", stock, aiContext);
 
       if (aiResult) {
         responseText = aiResult.analysis;
@@ -1371,7 +1437,7 @@ export async function POST(req: NextRequest) {
         const taData = await fetchTAData(stock);
         try {
           responseText = await withTimeout(
-            executeAIRequest(buildTamlyPrompt(stock, taData, journalCtx), INTENT.TAMLY),
+            executeAIRequest(buildTamlyPrompt(stock, taData, journalCtx, realtimeFlowCtx), INTENT.TAMLY),
             20_000,
             "tamly-ai"
           );

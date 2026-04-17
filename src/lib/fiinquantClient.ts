@@ -181,6 +181,37 @@ export interface FiinIntradaySnapshot {
   topVolume: Array<{ ticker: string; volume: number }>;
 }
 
+export interface FiinRealtimePoint {
+  ticker?: string;
+  date?: string;
+  open?: number;
+  high?: number;
+  low?: number;
+  close?: number;
+  volume?: number;
+  bu?: number;
+  sd?: number;
+  fn?: number;
+  fs?: number;
+  fb?: number;
+  [key: string]: unknown;
+}
+
+export interface FiinRealtimeResponse {
+  ticker: string;
+  timeframe?: string;
+  date?: string;
+  count?: number;
+  summary?: {
+    totalBuyVolume?: number;
+    totalSellVolume?: number;
+    netVolume?: number;
+    [key: string]: unknown;
+  };
+  data?: FiinRealtimePoint[];
+  [key: string]: unknown;
+}
+
 // ═══════════════════════════════════════════════
 //  Generic Fetch Helper
 // ═══════════════════════════════════════════════
@@ -284,6 +315,18 @@ export async function fetchEodNews(): Promise<FiinEodNews | null> {
 /** Intraday Market Snapshot (realtime) */
 export async function fetchIntradaySnapshot(): Promise<FiinIntradaySnapshot | null> {
   return fiinFetch<FiinIntradaySnapshot>("/api/v1/market-snapshot");
+}
+
+/** Dữ liệu realtime theo mã (nền tảng Trading_Data_Stream/Fetch_Trading_Data từ bridge) */
+export async function fetchRealtimeTradingData(
+  ticker: string,
+  timeframe = "5m"
+): Promise<FiinRealtimeResponse | null> {
+  const normalized = ticker.trim().toUpperCase();
+  if (!normalized) return null;
+  return fiinFetch<FiinRealtimeResponse>(
+    `/api/v1/realtime/${encodeURIComponent(normalized)}?timeframe=${encodeURIComponent(timeframe)}`
+  );
 }
 
 /** Scan Now (VIP feature — full market scanner) */
