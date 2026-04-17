@@ -266,6 +266,20 @@ function parseLiquidityFromContent(content: string): number | null {
     const value = toNumberOrNull(match[1]);
     if (value !== null && value > 0) return value;
   }
+
+  const plain = normalizeForCheck(compact).replace(/[^a-z0-9.,:\s|+-]/g, " ");
+  const fallbackPatterns = [
+    /tk[:\s]*([\d.,]+)/i,
+    /thanh\s*kho[a-z0-9]*[^0-9]{0,24}([\d.,]+)/i,
+    /tong[:\s]*([\d.,]+)/i,
+  ];
+  for (const pattern of fallbackPatterns) {
+    const match = plain.match(pattern);
+    if (!match) continue;
+    const value = toNumberOrNull(match[1]);
+    if (value !== null && value > 0) return value;
+  }
+
   return null;
 }
 
@@ -287,8 +301,13 @@ function parseNetFromTextLine(line: string): number | null {
   if (!numberMatch) return null;
   const value = toNumberOrNull(numberMatch[1]);
   if (value == null) return null;
-  if (normalized.includes("ban rong")) return -Math.abs(value);
-  if (normalized.includes("mua rong")) return Math.abs(value);
+  const direction = normalized.replace(/[^a-z\s]/g, " ");
+  if (direction.includes("ban rong") || (direction.includes("ban") && direction.includes("rong"))) {
+    return -Math.abs(value);
+  }
+  if (direction.includes("mua rong") || (direction.includes("mua") && direction.includes("rong"))) {
+    return Math.abs(value);
+  }
   return value;
 }
 
@@ -455,7 +474,17 @@ function hasValidEodPayload(payload: EodPayload): boolean {
   const hasForeign = payload.foreign_flow.length > 0 && !isUnavailableText(payload.foreign_flow);
   const hasTrades = payload.notable_trades.length > 0 && !isUnavailableText(payload.notable_trades);
   const hasSummary = payload.session_summary.length > 0 && !isUnavailableText(payload.session_summary);
-  return hasVni && (hasLiquidity || hasBreadth || hasForeign || hasTrades) && hasSummary;
+  return hasVni && hasLiquidity && (hasBreadth || hasForeign || hasTrades) && hasSummary;
+}
+
+function eodPayloadScore(payload: EodPayload): number {
+  let score = 0;
+  if (Number.isFinite(payload.vnindex) && payload.vnindex > 0) score += 20;
+  if (Number.isFinite(payload.liquidity) && payload.liquidity > 0) score += 40;
+  if (payload.breadth.total > 0) score += 20;
+  if (payload.foreign_flow.length > 0 && !isUnavailableText(payload.foreign_flow)) score += 10;
+  if (payload.notable_trades.length > 0 && !isUnavailableText(payload.notable_trades)) score += 10;
+  return score;
 }
 
 export async function GET(request: NextRequest) {
@@ -481,6 +510,8 @@ export async function GET(request: NextRequest) {
   }
 
   const payloads = reports.map((report) => toEodPayload(report));
-  const selected = payloads.find((payload) => hasValidEodPayload(payload)) ?? payloads[0];
+  const selected =
+    payloads.find((payload) => hasValidEodPayload(payload)) ??
+    [...payloads].sort((a, b) => eodPayloadScore(b) - eodPayloadScore(a))[0];
   return NextResponse.json(selected);
 }
