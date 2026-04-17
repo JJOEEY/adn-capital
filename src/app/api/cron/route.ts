@@ -182,6 +182,7 @@ export async function GET(req: NextRequest) {
 
   const type = req.nextUrl.searchParams.get("type") as CronType | null;
   const sync = req.nextUrl.searchParams.get("sync") === "1";
+  const forceRun = req.nextUrl.searchParams.get("force") === "1";
 
   if (!type || !["prop_trading", "intraday", "market_stats", "signal_scan_5m"].includes(type)) {
     return NextResponse.json(
@@ -194,8 +195,8 @@ export async function GET(req: NextRequest) {
   }
 
   if (sync) {
-    if (type === "prop_trading") return handlePropTrading();
-    if (type === "intraday" || type === "market_stats") return handleIntraday();
+    if (type === "prop_trading") return handlePropTrading(forceRun);
+    if (type === "intraday" || type === "market_stats") return handleIntraday(forceRun);
     return handleSignalScan5m();
   }
 
@@ -212,8 +213,8 @@ export async function GET(req: NextRequest) {
 
   const run = async () => {
     try {
-      if (type === "prop_trading") await handlePropTrading();
-      else if (type === "intraday" || type === "market_stats") await handleIntraday();
+      if (type === "prop_trading") await handlePropTrading(forceRun);
+      else if (type === "intraday" || type === "market_stats") await handleIntraday(forceRun);
       else await handleSignalScan5m();
       await prisma.cronLog.update({
         where: { id: queued.id },
@@ -243,9 +244,9 @@ export async function GET(req: NextRequest) {
 //  1. EOD FULL 19:00 — Ngoại + Tự doanh + Cá nhân
 // ═══════════════════════════════════════════════════════════════
 
-async function handlePropTrading(): Promise<NextResponse> {
+async function handlePropTrading(forceRun = false): Promise<NextResponse> {
   const startTime = Date.now();
-  if (!isTradingDay()) {
+  if (!forceRun && !isTradingDay()) {
     await logCron("prop_trading", "skipped", "Không phải ngày giao dịch", 0);
     return NextResponse.json({ message: "Skipped" });
   }
@@ -333,9 +334,9 @@ async function handlePropTrading(): Promise<NextResponse> {
 //     Format Dashboard chuyên nghiệp
 // ═══════════════════════════════════════════════════════════════
 
-async function handleIntraday(): Promise<NextResponse> {
+async function handleIntraday(forceRun = false): Promise<NextResponse> {
   const startTime = Date.now();
-  if (!isTradingDay()) {
+  if (!forceRun && !isTradingDay()) {
     await logCron("market_stats", "skipped", "Không phải ngày giao dịch", 0);
     return NextResponse.json({ message: "Skipped" });
   }
