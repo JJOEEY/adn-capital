@@ -490,6 +490,47 @@ function eodPayloadScore(payload: EodPayload): number {
 
 async function buildLiveEodFallbackPayload(): Promise<EodPayload | null> {
   try {
+    const marketRes = await fetch("http://127.0.0.1:3000/api/market", {
+      cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
+    }).catch(() => null);
+    if (marketRes?.ok) {
+      const marketData = (await marketRes.json()) as JsonRecord;
+      const vn = isRecord(marketData.vnindex) ? marketData.vnindex : {};
+      const updown = isRecord(marketData.updown) ? marketData.updown : {};
+      const liquidity = toNumberOrNull(marketData.totalVolume) ?? 0;
+      const vnValue = toNumberOrNull(vn.value) ?? 0;
+      const vnChange = toNumberOrNull(vn.changePercent) ?? 0;
+      const up = toNumber(updown.up);
+      const down = toNumber(updown.down);
+      const unchanged = toNumber(updown.unchanged);
+
+      if (vnValue > 0 && liquidity > 0) {
+        return {
+          date: toViDate(new Date()),
+          vnindex: vnValue,
+          change_pct: vnChange,
+          liquidity,
+          breadth: { up, down, unchanged, total: up + down + unchanged },
+          session_summary: "Bản tin EOD tạm thời từ dữ liệu thị trường trực tiếp.",
+          liquidity_detail: `Thanh khoản toàn thị trường đạt ${Math.round(liquidity).toLocaleString("vi-VN")} tỷ đồng.`,
+          foreign_flow: "Khối ngoại: chưa cập nhật",
+          notable_trades: "",
+          outlook: "",
+          sub_indices: [],
+          foreign_top_buy: [],
+          foreign_top_sell: [],
+          prop_trading_top_buy: [],
+          prop_trading_top_sell: [],
+          sector_gainers: [],
+          sector_losers: [],
+          buy_signals: [],
+          sell_signals: [],
+          top_breakout: [],
+        };
+      }
+    }
+
     const snapshot = await getMarketSnapshot();
     const vnindex = snapshot.indices.find((item) => item.ticker === "VNINDEX");
     if (!vnindex || snapshot.liquidity == null || snapshot.liquidity <= 0) return null;
