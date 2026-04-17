@@ -177,17 +177,11 @@ function toViDate(value: Date): string {
   return value.toLocaleDateString("vi-VN");
 }
 
-async function getLatestMorningReport() {
-  return prisma.marketReport.findFirst({
-    where: { type: "morning_brief" },
+async function getRecentReports(types: string[], take = 20) {
+  return prisma.marketReport.findMany({
+    where: { type: { in: types } },
     orderBy: { createdAt: "desc" },
-  });
-}
-
-async function getLatestEodReport() {
-  return prisma.marketReport.findFirst({
-    where: { type: { in: ["eod_full_19h", "close_brief_15h"] } },
-    orderBy: { createdAt: "desc" },
+    take,
   });
 }
 
@@ -277,6 +271,21 @@ function toEodPayload(report: { createdAt: Date; content: string; rawData: strin
   };
 }
 
+function hasValidMorningPayload(payload: ReturnType<typeof toMorningPayload>): boolean {
+  return payload.reference_indices.some(
+    (item) => item.name === "VN-INDEX" && Number.isFinite(item.value) && item.value > 0,
+  );
+}
+
+function hasValidEodPayload(payload: ReturnType<typeof toEodPayload>): boolean {
+  const hasVni = Number.isFinite(payload.vnindex) && payload.vnindex > 0;
+  const hasBreadth = payload.breadth.total > 0;
+  const hasLiquidity = Number.isFinite(payload.liquidity) && payload.liquidity > 0;
+  const hasInvestorData =
+    payload.foreign_flow.length > 0 || payload.notable_trades.length > 0;
+  return hasVni && (hasBreadth || hasLiquidity || hasInvestorData);
+}
+
 export async function GET(request: NextRequest) {
   const typeParam = request.nextUrl.searchParams.get("type") ?? "morning";
   if (typeParam !== "morning" && typeParam !== "eod") {
@@ -284,16 +293,20 @@ export async function GET(request: NextRequest) {
   }
 
   if (typeParam === "morning") {
-    const report = await getLatestMorningReport();
-    if (!report) {
+    const reports = await getRecentReports(["morning_brief"]);
+    if (reports.length === 0) {
       return NextResponse.json({ error: "Chưa có Morning Brief hợp lệ để hiển thị." }, { status: 404 });
     }
-    return NextResponse.json(toMorningPayload(report));
+    const payloads = reports.map((report) => toMorningPayload(report));
+    const selected = payloads.find((payload) => hasValidMorningPayload(payload)) ?? payloads[0];
+    return NextResponse.json(selected);
   }
 
-  const report = await getLatestEodReport();
-  if (!report) {
+  const reports = await getRecentReports(["eod_full_19h", "close_brief_15h"]);
+  if (reports.length === 0) {
     return NextResponse.json({ error: "Chưa có EOD Brief hợp lệ để hiển thị." }, { status: 404 });
   }
-  return NextResponse.json(toEodPayload(report));
+  const payloads = reports.map((report) => toEodPayload(report));
+  const selected = payloads.find((payload) => hasValidEodPayload(payload)) ?? payloads[0];
+  return NextResponse.json(selected);
 }
