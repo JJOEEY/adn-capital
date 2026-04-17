@@ -17,8 +17,29 @@ import {
   type FiinMarketBreadthResponse,
   type FiinInvestorTradingResponse,
 } from "./fiinquantClient";
+import { getVnDateISO, getVnNow } from "./time";
+import { fetchDnseMarketSnapshot } from "./dnseClient";
 
 type JsonRecord = Record<string, unknown>;
+
+export interface ProviderDiagnostic {
+  provider: string;
+  endpoint: string;
+  requestDateVN: string;
+  httpStatus: number | null;
+  error: string;
+  fallbackUsed: boolean;
+}
+
+async function safeReadJson<T>(res: Response): Promise<T | null> {
+  const raw = await res.text();
+  if (!raw?.trim()) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
 
 // ═══════════════════════════════════════════════
 //  VNDirect Public API — Index Data (no auth)
@@ -34,7 +55,12 @@ interface IndexData {
 
 const DCHART_BASE = "https://dchart-api.vndirect.com.vn/dchart/history";
 
-async function fetchIndexFromDchart(symbol: string): Promise<IndexData | null> {
+async function fetchIndexFromDchart(
+  symbol: string,
+  diagnostics: ProviderDiagnostic[],
+  requestDateVN: string,
+): Promise<IndexData | null> {
+  const endpoint = `${DCHART_BASE}?resolution=D&symbol=${symbol}`;
   try {
     const now = Math.floor(Date.now() / 1000);
     const from = now - 5 * 86400; // 5 ngày
@@ -44,9 +70,30 @@ async function fetchIndexFromDchart(symbol: string): Promise<IndexData | null> {
       signal: AbortSignal.timeout(10_000),
       headers: { "User-Agent": "Mozilla/5.0" },
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      diagnostics.push({
+        provider: "VND",
+        endpoint,
+        requestDateVN,
+        httpStatus: res.status,
+        error: `HTTP ${res.status}`,
+        fallbackUsed: true,
+      });
+      return null;
+    }
 
-    const data = await res.json();
+    const data = await safeReadJson<{ c?: number[]; v?: number[] }>(res);
+    if (!data) {
+      diagnostics.push({
+        provider: "VND",
+        endpoint,
+        requestDateVN,
+        httpStatus: res.status,
+        error: "Empty or invalid JSON body",
+        fallbackUsed: true,
+      });
+      return null;
+    }
     if (!data.c || data.c.length < 2) return null;
 
     const len = data.c.length;
@@ -64,6 +111,14 @@ async function fetchIndexFromDchart(symbol: string): Promise<IndexData | null> {
     };
   } catch (err) {
     console.error(`[dchart] Error fetching ${symbol}:`, err);
+    diagnostics.push({
+      provider: "VND",
+      endpoint,
+      requestDateVN,
+      httpStatus: null,
+      error: err instanceof Error ? err.message : String(err),
+      fallbackUsed: true,
+    });
     return null;
   }
 }
@@ -79,7 +134,10 @@ interface StockMove {
   volume?: number;
 }
 
-async function fetchTopMovers(): Promise<{ gainers: StockMove[]; losers: StockMove[] }> {
+async function fetchTopMovers(
+  diagnostics: ProviderDiagnostic[],
+  requestDateVN: string,
+): Promise<{ gainers: StockMove[]; losers: StockMove[] }> {
   const result = { gainers: [] as StockMove[], losers: [] as StockMove[] };
 
   try {
@@ -93,7 +151,17 @@ async function fetchTopMovers(): Promise<{ gainers: StockMove[]; losers: StockMo
     ]);
 
     if (gainRes?.ok) {
-      const data = await gainRes.json();
+      const data = await safeReadJson<JsonRecord>(gainRes);
+      if (!data) {
+        diagnostics.push({
+          provider: "VND",
+          endpoint: gainUrl,
+          requestDateVN,
+          httpStatus: gainRes.status,
+          error: "Empty or invalid JSON body",
+          fallbackUsed: true,
+        });
+      }
       const items = data?.data ?? data ?? [];
       if (Array.isArray(items)) {
         result.gainers = items.slice(0, 10).map((s: Record<string, unknown>) => ({
@@ -105,7 +173,17 @@ async function fetchTopMovers(): Promise<{ gainers: StockMove[]; losers: StockMo
     }
 
     if (loseRes?.ok) {
-      const data = await loseRes.json();
+      const data = await safeReadJson<JsonRecord>(loseRes);
+      if (!data) {
+        diagnostics.push({
+          provider: "VND",
+          endpoint: loseUrl,
+          requestDateVN,
+          httpStatus: loseRes.status,
+          error: "Empty or invalid JSON body",
+          fallbackUsed: true,
+        });
+      }
       const items = data?.data ?? data ?? [];
       if (Array.isArray(items)) {
         result.losers = items.slice(0, 10).map((s: Record<string, unknown>) => ({
@@ -117,6 +195,14 @@ async function fetchTopMovers(): Promise<{ gainers: StockMove[]; losers: StockMo
     }
   } catch (err) {
     console.error("[topMovers] Error:", err);
+    diagnostics.push({
+      provider: "VND",
+      endpoint: "finfo-api.vndirect.com.vn/v4/top_stocks",
+      requestDateVN,
+      httpStatus: null,
+      error: err instanceof Error ? err.message : String(err),
+      fallbackUsed: true,
+    });
   }
 
   // Fallback: SSI iBoard
@@ -129,7 +215,17 @@ async function fetchTopMovers(): Promise<{ gainers: StockMove[]; losers: StockMo
       });
 
       if (ssiRes.ok) {
-        const ssiData = await ssiRes.json();
+        const ssiData = await safeReadJson<JsonRecord>(ssiRes);
+        if (!ssiData) {
+          diagnostics.push({
+            provider: "VND",
+            endpoint: ssiUrl,
+            requestDateVN,
+            httpStatus: ssiRes.status,
+            error: "Empty or invalid JSON body",
+            fallbackUsed: true,
+          });
+        }
         const stocks = ssiData?.data ?? [];
         if (Array.isArray(stocks) && stocks.length > 0) {
           const mapped = stocks
@@ -148,6 +244,14 @@ async function fetchTopMovers(): Promise<{ gainers: StockMove[]; losers: StockMo
       }
     } catch (err) {
       console.error("[topMovers SSI fallback] Error:", err);
+      diagnostics.push({
+        provider: "VND",
+        endpoint: "iboard-query.ssi.com.vn/v2/stock/type/s/hose",
+        requestDateVN,
+        httpStatus: null,
+        error: err instanceof Error ? err.message : String(err),
+        fallbackUsed: true,
+      });
     }
   }
 
@@ -171,6 +275,14 @@ async function fetchTopMovers(): Promise<{ gainers: StockMove[]; losers: StockMo
       }
     } catch (err) {
       console.error("[topMovers RS-Rating fallback] Error:", err);
+      diagnostics.push({
+        provider: "FiinQuant",
+        endpoint: "/api/v1/rs-rating",
+        requestDateVN,
+        httpStatus: null,
+        error: err instanceof Error ? err.message : String(err),
+        fallbackUsed: true,
+      });
     }
   }
 
@@ -313,6 +425,8 @@ function readBuySellNet(row: JsonRecord): { buy: number | null; sell: number | n
 
 export interface MarketSnapshot {
   timestamp: string;
+  requestDateVN: string;
+  providerDiagnostics: ProviderDiagnostic[];
   indices: IndexData[];
   breadth: { up: number; down: number; unchanged: number } | null;
   liquidity: number | null;
@@ -401,25 +515,89 @@ function parseInvestorTradingData(raw: FiinInvestorTradingResponse | null) {
 /** Snapshot thị trường (dùng cho intraday notifications + briefs) */
 export async function getMarketSnapshot(): Promise<MarketSnapshot> {
   // Fetch song song: FiinQuant overview + VNDirect indices + top movers
-  const vnDate = new Date(
-    new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" })
-  ).toISOString().slice(0, 10);
+  const requestDateVN = getVnDateISO();
+  const providerDiagnostics: ProviderDiagnostic[] = [];
 
-  const [overview, investorRaw, vnindex, hnxindex, upcomindex, vn30, movers] = await Promise.all([
+  const [overview, investorRaw, vnindex, hnxindex, upcomindex, vn30, movers, dnseSnapshot] = await Promise.all([
     fetchMarketOverview(),
     fetchInvestorTrading({
       tickers: "VNINDEX,HNXINDEX,UPCOMINDEX",
-      fromDate: vnDate,
-      toDate: vnDate,
+      fromDate: requestDateVN,
+      toDate: requestDateVN,
     }),
-    fetchIndexFromDchart("VNINDEX"),
-    fetchIndexFromDchart("HNXINDEX"),
-    fetchIndexFromDchart("UPCOMINDEX"),
-    fetchIndexFromDchart("VN30"),
-    fetchTopMovers(),
+    fetchIndexFromDchart("VNINDEX", providerDiagnostics, requestDateVN),
+    fetchIndexFromDchart("HNXINDEX", providerDiagnostics, requestDateVN),
+    fetchIndexFromDchart("UPCOMINDEX", providerDiagnostics, requestDateVN),
+    fetchIndexFromDchart("VN30", providerDiagnostics, requestDateVN),
+    fetchTopMovers(providerDiagnostics, requestDateVN),
+    fetchDnseMarketSnapshot(requestDateVN),
   ]);
 
+  if (!overview) {
+    providerDiagnostics.push({
+      provider: "FiinQuant",
+      endpoint: "/api/v1/market-overview",
+      requestDateVN,
+      httpStatus: null,
+      error: "No data",
+      fallbackUsed: true,
+    });
+  }
+  if (!investorRaw) {
+    providerDiagnostics.push({
+      provider: "FiinQuant",
+      endpoint: "/api/v1/investor-trading",
+      requestDateVN,
+      httpStatus: null,
+      error: "No data",
+      fallbackUsed: true,
+    });
+  }
+
   const parsedInvestor = parseInvestorTradingData(investorRaw);
+  if (dnseSnapshot) {
+    if (parsedInvestor.liquidityByExchange.HOSE == null && dnseSnapshot.liquidityByExchange.HOSE != null) {
+      parsedInvestor.liquidityByExchange.HOSE = dnseSnapshot.liquidityByExchange.HOSE;
+    }
+    if (parsedInvestor.liquidityByExchange.HNX == null && dnseSnapshot.liquidityByExchange.HNX != null) {
+      parsedInvestor.liquidityByExchange.HNX = dnseSnapshot.liquidityByExchange.HNX;
+    }
+    if (parsedInvestor.liquidityByExchange.UPCOM == null && dnseSnapshot.liquidityByExchange.UPCOM != null) {
+      parsedInvestor.liquidityByExchange.UPCOM = dnseSnapshot.liquidityByExchange.UPCOM;
+    }
+
+    if (parsedInvestor.investorTrading.foreign.net == null && dnseSnapshot.investorTrading.foreignNet != null) {
+      parsedInvestor.investorTrading.foreign.net = dnseSnapshot.investorTrading.foreignNet;
+    }
+    if (parsedInvestor.investorTrading.proprietary.net == null && dnseSnapshot.investorTrading.proprietaryNet != null) {
+      parsedInvestor.investorTrading.proprietary.net = dnseSnapshot.investorTrading.proprietaryNet;
+    }
+    if (parsedInvestor.investorTrading.retail.net == null && dnseSnapshot.investorTrading.retailNet != null) {
+      parsedInvestor.investorTrading.retail.net = dnseSnapshot.investorTrading.retailNet;
+    }
+    parsedInvestor.investorTrading.availability.foreign =
+      parsedInvestor.investorTrading.availability.foreign || parsedInvestor.investorTrading.foreign.net != null;
+    parsedInvestor.investorTrading.availability.proprietary =
+      parsedInvestor.investorTrading.availability.proprietary || parsedInvestor.investorTrading.proprietary.net != null;
+    parsedInvestor.investorTrading.availability.retail =
+      parsedInvestor.investorTrading.availability.retail || parsedInvestor.investorTrading.retail.net != null;
+  } else {
+    providerDiagnostics.push({
+      provider: "DNSE",
+      endpoint: process.env.DNSE_MARKET_SNAPSHOT_URL ?? "DNSE_MARKET_SNAPSHOT_URL(not-configured)",
+      requestDateVN,
+      httpStatus: null,
+      error: "No data",
+      fallbackUsed: true,
+    });
+  }
+  const inferredExchangeTotal =
+    (parsedInvestor.liquidityByExchange.HOSE ?? 0) +
+    (parsedInvestor.liquidityByExchange.HNX ?? 0) +
+    (parsedInvestor.liquidityByExchange.UPCOM ?? 0);
+  if (inferredExchangeTotal > 0) {
+    parsedInvestor.liquidityByExchange.total = inferredExchangeTotal;
+  }
   const overviewLiquidity = overview ? parseLiquidity(overview.liquidity) : null;
   const totalLiquidity = overviewLiquidity ?? parsedInvestor.liquidityByExchange.total;
 
@@ -430,7 +608,9 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
   if (vn30) indices.push(vn30);
 
   return {
-    timestamp: new Date().toISOString(),
+    timestamp: getVnNow().toISOString(),
+    requestDateVN,
+    providerDiagnostics,
     indices,
     breadth: overview ? parseBreadth(overview.market_breadth) : null,
     liquidity: totalLiquidity,

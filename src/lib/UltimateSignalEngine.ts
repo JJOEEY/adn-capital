@@ -13,6 +13,7 @@
 
 import { getBatchSeasonality, type SeasonalityItem } from "@/lib/PriceCache";
 import NodeCache from "node-cache";
+import { executeAIRequest, INTENT } from "@/lib/gemini";
 
 // Seasonality in-memory cache: TTL 30 ngày (2592000s)
 // Key format: "ticker:YYYY-MM" — chỉ fetch lại khi sang tháng mới
@@ -201,9 +202,6 @@ async function callGeminiReasoning(params: {
   rrRatio: string;
   raw: RawScannerSignal;
 }): Promise<string> {
-  const GEMINI_KEY = process.env.GEMINI_API_KEY;
-  if (!GEMINI_KEY) return generateFallbackMessage(params);
-
   const checklist = buildChecklist(params.raw, params.tier);
 
   const prompt = `Bạn là AI Broker tại ADN Capital. Viết 1 đoạn phân tích ngắn gọn (3-4 câu) về tín hiệu sau bằng tiếng Việt, giọng chuyên nghiệp, súc tích:
@@ -215,23 +213,7 @@ NAV: ${params.navAllocation}%
 Nhắc nhở: Cơ chế gồng lãi — chỉ chốt khi TEI >= 4.5 (thị trường hưng phấn cực độ).`;
 
   try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: 256, temperature: 0.4 },
-        }),
-        signal: AbortSignal.timeout(15_000),
-      }
-    );
-
-    if (!res.ok) throw new Error(`Gemini API ${res.status}`);
-    const data = await res.json();
-    const aiText: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-
+    const aiText = await executeAIRequest(prompt, INTENT.GENERAL);
     return buildFinalCard({ ...params, aiText, checklist });
   } catch (e) {
     console.error("[Gemini] Error:", e);

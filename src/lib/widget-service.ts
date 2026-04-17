@@ -12,6 +12,7 @@
 import { prisma } from "@/lib/prisma";
 import { executeAIRequest, INTENT } from "@/lib/gemini";
 import { fetchFAData, type FAData } from "@/lib/stockData";
+import { getVnNow } from "@/lib/time";
 
 const BRIDGE = process.env.FIINQUANT_URL ?? "http://localhost:8000";
 
@@ -74,9 +75,9 @@ function getStatusLabel(score: number): string {
 
 // Determine current fiscal quarter label (for PTCB fallback display)
 function getCurrentQuarter(): { year: number; quarter: number } {
-  const now = new Date();
-  const month = now.getMonth() + 1; // 1-12
-  return { year: now.getFullYear(), quarter: Math.ceil(month / 3) };
+  const now = getVnNow();
+  const month = now.month() + 1; // 1-12
+  return { year: now.year(), quarter: Math.ceil(month / 3) };
 }
 
 function prevQuarter(year: number, quarter: number): { year: number; quarter: number } {
@@ -111,7 +112,7 @@ async function getPTKT(ticker: string): Promise<{ data: TechnicalStats | null; a
   if (cacheValid) return { data: ta, aiInsight: cached!.content };
 
   // Generate fresh AI insight (Gemini Flash)
-  const prompt = `Mày là Khổng Minh của VNINDEX. Gọi khách là "đại ca". Văn phong sắc bén, thực chiến.
+  const prompt = `Bạn là AI Broker của ADN Capital. Văn phong ngắn gọn, chuyên nghiệp, định hướng hành động.
 Dữ liệu PTKT ${ticker} hôm nay:
 • Giá: ${ta.price?.current?.toLocaleString("vi-VN")} VNĐ (${ta.price?.changePct > 0 ? "+" : ""}${ta.price?.changePct}%)
 • Xu hướng: ${ta.trend?.direction ?? "N/A"} | ADX: ${ta.trend?.adx ?? "N/A"}
@@ -192,7 +193,7 @@ async function getPTCB(ticker: string): Promise<{ data: FAData | null; aiInsight
   if (!fa) return { data: null, aiInsight: "Đang tải BCTC...", period: null };
 
   // Generate fresh AI insight (Gemini Pro)
-  const prompt = `Mày là Khổng Minh của VNINDEX. Gọi khách là "đại ca". Văn phong sắc bén, không rào trước đón sau.
+  const prompt = `Bạn là AI Broker của ADN Capital. Văn phong ngắn gọn, chuyên nghiệp, định hướng hành động.
 Lưu ý: Đây là dữ liệu BCTC của kỳ ${periodLabel ?? "gần nhất"}, hãy phân tích dựa trên bối cảnh này.
 
 Số liệu tài chính ${ticker}:
@@ -230,7 +231,7 @@ async function getBehavior(ticker: string): Promise<{ data: BehaviorStats; aiIns
   const score = tei ?? 2.5;
   const status = getStatusLabel(score);
 
-  const prompt = `Mày là Khổng Minh. Chỉ số TEI của ${ticker} = ${score.toFixed(2)}/5 (${periodUsed}).
+  const prompt = `Bạn là AI Broker của ADN Capital. Chỉ số TEI của ${ticker} = ${score.toFixed(2)}/5 (${periodUsed}).
 Đọc vị tâm lý đám đông hiện tại trong 2-3 câu thực chiến. Chỉ trả về TEXT THUẦN.`;
 
   let insight: string;
@@ -276,11 +277,11 @@ async function getNews(ticker: string): Promise<{ data: NewsItem[]; aiInsight: s
   }
 
   const headlines = news.slice(0, 10).map(n => `• ${n.title}`).join("\n");
-  const prompt = `Tóm tắt tin tức sau về ${ticker} và đưa ra 1 lời khuyên hành động ngắn gọn cho đại ca. Chỉ trả về TEXT THUẦN:\n${headlines}`;
+  const prompt = `Tóm tắt tin tức sau về ${ticker} và đưa ra 1 khuyến nghị hành động ngắn gọn. Chỉ trả về TEXT THUẦN:\n${headlines}`;
 
   let aiInsight = "";
   try { aiInsight = await executeAIRequest(prompt, INTENT.NEWS); }
-  catch { aiInsight = "Hệ thống đang tổng hợp tin tức, đại ca xem trực tiếp các headline bên trên nhé."; }
+  catch { aiInsight = "Hệ thống đang tổng hợp tin tức, vui lòng xem trực tiếp các headline bên trên."; }
 
   return { data: news, aiInsight };
 }

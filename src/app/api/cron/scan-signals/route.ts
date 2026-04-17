@@ -23,6 +23,7 @@ import {
   getVNDateISO,
   getSignalWindowInfo,
 } from "@/lib/cronHelpers";
+import { getVnNow } from "@/lib/time";
 
 const PYTHON_BRIDGE = process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000";
 
@@ -103,8 +104,7 @@ export async function GET(req: NextRequest) {
     const processed = await processSignals(uniqueSignals);
     const aiBrokerConfig = await getAiBrokerRuntimeConfig();
 
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
+    const startOfDay = getVnNow().startOf("day").toDate();
     const todaySignals = await prisma.signal.findMany({
       where: { createdAt: { gte: startOfDay } },
       select: { id: true, ticker: true, type: true, status: true },
@@ -203,6 +203,9 @@ export async function GET(req: NextRequest) {
     const notifySignals = createCandidatesForNotify.filter(
       (s) => !sentToday.has(toSignalKey(s.ticker, s.type))
     );
+    const backfillCandidates = createCandidatesForNotify.filter(
+      (s) => sentToday.has(toSignalKey(s.ticker, s.type))
+    );
 
     if (notifySignals.length > 0) {
       await prisma.signalHistory.createMany({
@@ -215,15 +218,32 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    if (notifySignals.length > 0) {
-      const signalText = notifySignals
+    const reconciliationCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const recentSignalNotifications = await prisma.notification.findMany({
+      where: {
+        type: { in: ["signal_10h", "signal_1130", "signal_14h", "signal_1445", "signal_scan"] },
+        createdAt: { gte: reconciliationCutoff },
+      },
+      select: { content: true },
+    });
+    const recentContent = recentSignalNotifications.map((n) => n.content).join("\n");
+    const missingOnWeb = backfillCandidates.filter((s) => !recentContent.includes(s.ticker));
+
+    const webNotifySignals = Array.from(
+      new Map(
+        [...notifySignals, ...missingOnWeb].map((s) => [toSignalKey(s.ticker, s.type), s]),
+      ).values(),
+    );
+
+    if (webNotifySignals.length > 0) {
+      const signalText = webNotifySignals
         .map((s) => `• ${s.ticker}: ${s.entryPrice.toLocaleString("vi-VN")} VNĐ${s.reason ? ` — ${s.reason}` : ""}`)
         .join("\n");
       const windowInfo = getSignalWindowInfo();
 
       await pushNotification(
         windowInfo.type,
-        `📡 ${windowInfo.label} — ${notifySignals.length} tín hiệu đầu cơ mới`,
+        `📡 ${windowInfo.label} — ${webNotifySignals.length} tín hiệu đầu cơ mới`,
         `## TÍN HIỆU MỚI (${windowInfo.label})\n\n${signalText}`
       );
     }
@@ -238,6 +258,7 @@ export async function GET(req: NextRequest) {
         created: createdCount,
         updated: updatedCount,
         notified: notifySignals.length,
+        reconciledWebOnly: missingOnWeb.length,
       }
     );
 
@@ -251,6 +272,7 @@ export async function GET(req: NextRequest) {
       created: createdCount,
       updated: updatedCount,
       notified: notifySignals.length,
+      reconciledWebOnly: missingOnWeb.length,
       totalSignaledToday: sentToday.size + notifySignals.length,
     });
   } catch (error) {

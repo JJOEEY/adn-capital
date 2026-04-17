@@ -13,6 +13,7 @@ import {
 } from "@/lib/cronHelpers";
 import { getMarketSnapshot, formatSnapshotForAI, getInvestorTradingText } from "@/lib/marketDataFetcher";
 import { fetchAllCafefNews, buildCafefContext } from "@/lib/cafefScraper";
+import { getVnNow } from "@/lib/time";
 
 export const maxDuration = 60;
 
@@ -121,11 +122,15 @@ _Powered by ADN Capital AI_`;
     await pushNotification("close_brief_15h", `🌆 Bản tin kết phiên ${today}`, safeReport);
 
     const duration = Date.now() - startTime;
-    await logCron("close_brief_15h", "success", `Verdict: ${isGood ? "GOOD" : "BAD"}`, duration);
+    await logCron("close_brief_15h", "success", `Verdict: ${isGood ? "GOOD" : "BAD"}`, duration, {
+      requestDateVN: snapshot.requestDateVN,
+      providerDiagnostics: snapshot.providerDiagnostics,
+      fallbackUsed: snapshot.providerDiagnostics.length > 0,
+    });
 
     return NextResponse.json({
       type: "close_brief_15h",
-      timestamp: new Date().toISOString(),
+      timestamp: getVnNow().toISOString(),
       verdict: isGood ? "GOOD" : "BAD",
       report: safeReport,
     });

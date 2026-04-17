@@ -13,7 +13,7 @@ export interface Signal {
   id: string;
   ticker: string;
   type: "SIEU_CO_PHIEU" | "TRUNG_HAN" | "DAU_CO" | "TAM_NGAM";
-  status: "RADAR" | "ACTIVE" | "CLOSED";
+  status: "RADAR" | "ACTIVE" | "HOLD_TO_DIE" | "CLOSED";
   tier: "LEADER" | "TRUNG_HAN" | "NGAN_HAN" | "TAM_NGAM";
   entryPrice: number;
   target?: number | null;

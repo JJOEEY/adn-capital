@@ -5,6 +5,13 @@
 
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import {
+  getVnDateISO,
+  getVnDateLabel,
+  getVnNow,
+  isVnTradingDay,
+  toVnTime,
+} from "@/lib/time";
 
 export type SignalWindowType = "signal_10h" | "signal_1130" | "signal_14h" | "signal_1445" | "signal_scan";
 
@@ -45,26 +52,39 @@ export async function pushNotification(
 ) {
   try {
     const safeContent = content?.trim() ? content : "Dữ liệu đang cập nhật. Vui lòng kiểm tra lại sau.";
-    await prisma.notification.create({
+    const dedupeCutoff = new Date(Date.now() - 15 * 60 * 1000);
+    const existing = await prisma.notification.findFirst({
+      where: {
+        type,
+        title,
+        content: safeContent,
+        createdAt: { gte: dedupeCutoff },
+      },
+      select: { id: true },
+    });
+    if (existing) {
+      return existing.id;
+    }
+
+    const created = await prisma.notification.create({
       data: { type, title, content: safeContent },
     });
     console.log(`[Notification] Đã tạo: ${type} — ${title}`);
 
     // Gửi Web Push cho tất cả subscribers
     await sendWebPushToAll(title, safeContent.substring(0, 200));
+    return created.id;
   } catch (err) {
     console.error(`[Notification] Lỗi tạo ${type}:`, err);
+    return null;
   }
 }
 
 /** Map giờ VN hiện tại sang window type cho tín hiệu */
 export function getSignalWindowInfo(at?: Date): { type: SignalWindowType; label: string } {
-  const vnNow = at
-    ? new Date(at.toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }))
-    : new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
-
-  const hh = vnNow.getHours();
-  const mm = vnNow.getMinutes();
+  const vnNow = at ? toVnTime(at) : getVnNow();
+  const hh = vnNow.hour();
+  const mm = vnNow.minute();
   const totalMinutes = hh * 60 + mm;
 
   // 10:00 / 10:30 gom chung window 10h
@@ -186,28 +206,15 @@ export async function saveMarketReport(
 
 /** Check xem hôm nay (giờ VN) có phải ngày giao dịch không (T2-T6) */
 export function isTradingDay(): boolean {
-  const vnNow = new Date(
-    new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" })
-  );
-  const day = vnNow.getDay();
-  return day >= 1 && day <= 5;
+  return isVnTradingDay();
 }
 
 /** Lấy ngày VN dạng string */
 export function getVNDateString(): string {
-  return new Date().toLocaleDateString("vi-VN", {
-    timeZone: "Asia/Ho_Chi_Minh",
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  return getVnDateLabel();
 }
 
 /** Lấy ngày VN dạng YYYY-MM-DD */
 export function getVNDateISO(): string {
-  const vnNow = new Date(
-    new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" })
-  );
-  return vnNow.toISOString().split("T")[0];
+  return getVnDateISO();
 }

@@ -2,6 +2,7 @@
 
 import useSWR from "swr";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { formatLocalDeviceDateTime } from "@/lib/time";
 import { History, Clock3 } from "lucide-react";
 
 interface ArchiveItem {
@@ -58,7 +59,7 @@ export default function ArchivePage() {
                     </span>
                     <span className="text-xs inline-flex items-center gap-1" style={{ color: "var(--text-muted)" }}>
                       <Clock3 className="w-3.5 h-3.5" />
-                      {new Date(item.createdAt).toLocaleString("vi-VN")}
+                      {formatLocalDeviceDateTime(item.createdAt)}
                     </span>
                   </div>
                   <h2 className="text-base font-bold mb-2" style={{ color: "var(--text-primary)" }}>{item.title}</h2>
@@ -79,4 +80,3 @@ export default function ArchivePage() {
     </MainLayout>
   );
 }
-

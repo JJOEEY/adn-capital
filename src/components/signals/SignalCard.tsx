@@ -101,13 +101,17 @@ export function SignalCard({ signal }: SignalCardProps) {
             </span>
           )}
 
-          {signal.status === "ACTIVE" && (
+          {(signal.status === "ACTIVE" || signal.status === "HOLD_TO_DIE") && (
             <>
               <span
                 className="text-[12px] font-bold px-1.5 py-0.5 rounded"
-                style={{ background: "rgba(22,163,74,0.10)", color: "#16a34a", border: "1px solid rgba(22,163,74,0.25)" }}
+                style={{
+                  background: signal.status === "HOLD_TO_DIE" ? "rgba(245,158,11,0.10)" : "rgba(22,163,74,0.10)",
+                  color: signal.status === "HOLD_TO_DIE" ? "#f59e0b" : "#16a34a",
+                  border: signal.status === "HOLD_TO_DIE" ? "1px solid rgba(245,158,11,0.25)" : "1px solid rgba(22,163,74,0.25)",
+                }}
               >
-                ĐANG GIỮ
+                {signal.status === "HOLD_TO_DIE" ? "HOLD TO DIE" : "ĐANG GIỮ"}
               </span>
               {signal.currentPnl != null && (
                 <span
@@ -203,7 +207,7 @@ export function SignalCard({ signal }: SignalCardProps) {
         </div>
 
         {/* Current price (ACTIVE) */}
-        {signal.status === "ACTIVE" && signal.currentPrice != null && (
+        {(signal.status === "ACTIVE" || signal.status === "HOLD_TO_DIE") && signal.currentPrice != null && (
           <div
             className="flex items-center justify-between rounded-lg p-2 mb-3"
             style={{

@@ -34,6 +34,11 @@ services:
 mkdir -p ./app_data/guides
 chmod 775 ./app_data ./app_data/guides
 ```
+7. API keys phải đi qua secrets/env, không hardcode vào source hoặc logs:
+```env
+DNSE_API_KEY=*** (secret only)
+DNSE_MARKET_SNAPSHOT_URL=https://... (optional, nếu bật fallback DNSE market snapshot)
+```
 
 ## Mandatory post-deploy checks
 ```bash
@@ -52,6 +57,30 @@ Expected: user count > 0.
 ssh root@14.225.204.117 "cd /home/adncapital/app/adn-capital && ls -ld ./app_data ./app_data/guides && docker compose exec -T web sh -lc 'test -w /app/storage/guides && echo GUIDE_UPLOAD_DIR writable'"
 ```
 Expected: host folders exist and web container can write to `/app/storage/guides`.
+
+```bash
+ssh root@14.225.204.117 "curl -sf https://adncapital.vn/api/health >/dev/null && echo HEALTH_OK"
+```
+Expected: trả về `HEALTH_OK` (HTTP 200).
+
+```bash
+ssh root@14.225.204.117 "cd /home/adncapital/app/adn-capital && docker compose exec -T db psql -U adnuser -d adncapital -c \"SELECT status, COUNT(*) FROM \\\"Signal\\\" WHERE status IN ('ACTIVE','HOLD_TO_DIE') GROUP BY status;\""
+```
+Expected: có dữ liệu `ACTIVE`/`HOLD_TO_DIE` đúng snapshot runtime.
+
+```bash
+ssh root@14.225.204.117 "cd /home/adncapital/app/adn-capital && docker compose exec -T db psql -U adnuser -d adncapital -c \"SELECT id,type,title,\\\"createdAt\\\" FROM \\\"Notification\\\" ORDER BY \\\"createdAt\\\" DESC LIMIT 5;\""
+```
+Expected: feed Notifications có bản ghi mới sau cron scan/intraday.
+
+```bash
+ssh root@14.225.204.117 "cd /home/adncapital/app/adn-capital && docker compose exec -T db psql -U adnuser -d adncapital -c \"SELECT \\\"cronName\\\", status, \\\"createdAt\\\" FROM \\\"CronLog\\\" WHERE \\\"cronName\\\" IN ('signal_scan_5m','signal_scan','signal-lifecycle') ORDER BY \\\"createdAt\\\" DESC LIMIT 20;\""
+```
+Expected: có log chạy định kỳ cho `signal-lifecycle` và scanner.
+
+## Rollback guardrail
+1. Nếu fail bất kỳ gate nào: rollback `web` image/tag trước đó, không restart `db`, không `down` full stack.
+2. Chỉ dùng emergency admin restore sau khi xác nhận `DATABASE_URL`/`DIRECT_DATABASE_URL` đang trỏ đúng DB production.
 
 ## Emergency admin restore (if needed)
 ```bash

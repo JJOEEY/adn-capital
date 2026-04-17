@@ -13,6 +13,7 @@ import {
   shouldAutoActivateSignal,
   rebalanceActiveBasketNav,
 } from "@/lib/aiBroker";
+import { getVnNow } from "@/lib/time";
 
 // Secret chia sẻ giữa Python scanner và Next.js
 const WEBHOOK_SECRET = process.env.SCANNER_SECRET ?? "adn-scanner-secret-key";
@@ -56,8 +57,7 @@ export async function POST(req: NextRequest) {
     const processed = await processSignals(validSignals);
 
     // ── 3. Lấy tín hiệu hôm nay để xác định create vs update ───────────
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
+    const startOfDay = getVnNow().startOf("day").toDate();
 
     const todaySignals = await prisma.signal.findMany({
       where: { createdAt: { gte: startOfDay } },
@@ -167,6 +167,25 @@ export async function POST(req: NextRequest) {
     const newSignalsForNotification = createdSignalsForNotify.filter(
       (s) => !sentSet.has(`${s.ticker}|${s.type}`)
     );
+    const backfillCandidates = createdSignalsForNotify.filter(
+      (s) => sentSet.has(`${s.ticker}|${s.type}`)
+    );
+
+    const reconciliationCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const recentSignalNotifications = await prisma.notification.findMany({
+      where: {
+        type: { in: ["signal_10h", "signal_1130", "signal_14h", "signal_1445", "signal_scan"] },
+        createdAt: { gte: reconciliationCutoff },
+      },
+      select: { content: true },
+    });
+    const recentContent = recentSignalNotifications.map((n) => n.content).join("\n");
+    const missingOnWeb = backfillCandidates.filter((s) => !recentContent.includes(s.ticker));
+    const webNotifySignals = Array.from(
+      new Map(
+        [...newSignalsForNotification, ...missingOnWeb].map((s) => [`${s.ticker}|${s.type}`, s]),
+      ).values(),
+    );
 
     if (newSignalsForNotification.length > 0) {
       const windowInfo = getSignalWindowInfo();
@@ -179,13 +198,23 @@ export async function POST(req: NextRequest) {
         skipDuplicates: true,
       });
 
-      const signalText = newSignalsForNotification
+      const signalText = webNotifySignals
         .map((s) => `• ${s.ticker}: ${s.entryPrice.toLocaleString("vi-VN")} VNĐ${s.reason ? ` — ${s.reason}` : ""}`)
         .join("\n");
 
       await pushNotification(
         windowInfo.type,
-        `⚡ ${windowInfo.label} — ${newSignalsForNotification.length} tín hiệu mới`,
+        `⚡ ${windowInfo.label} — ${webNotifySignals.length} tín hiệu mới`,
+        `## TÍN HIỆU MỚI (${windowInfo.label})\n\n${signalText}`
+      );
+    } else if (webNotifySignals.length > 0) {
+      const windowInfo = getSignalWindowInfo();
+      const signalText = webNotifySignals
+        .map((s) => `• ${s.ticker}: ${s.entryPrice.toLocaleString("vi-VN")} VNĐ${s.reason ? ` — ${s.reason}` : ""}`)
+        .join("\n");
+      await pushNotification(
+        windowInfo.type,
+        `⚡ ${windowInfo.label} — ${webNotifySignals.length} tín hiệu mới`,
         `## TÍN HIỆU MỚI (${windowInfo.label})\n\n${signalText}`
       );
     }
@@ -197,6 +226,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       saved: created,
       updated,
+      reconciledWebOnly: missingOnWeb.length,
       tickers: processed.map((s) => s.ticker),
       message: `${created} mới, ${updated} cập nhật (UltimateEngine)`,
     });

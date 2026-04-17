@@ -36,6 +36,7 @@ import {
 } from "@/lib/marketDataFetcher";
 import { fetchAllCafefNews, buildCafefContext } from "@/lib/cafefScraper";
 import { processSignals } from "@/lib/UltimateSignalEngine";
+import { getVnNow } from "@/lib/time";
 import {
   getAiBrokerRuntimeConfig,
   shouldAutoActivateSignal,
@@ -248,6 +249,9 @@ _Powered by ADN Capital AI_`;
     const duration = Date.now() - startTime;
     await logCron("prop_trading", "success", `EOD full 19h, ${duration}ms`, duration, {
       investorAvailability: snapshot.investorTrading.availability,
+      providerDiagnostics: snapshot.providerDiagnostics,
+      requestDateVN: snapshot.requestDateVN,
+      fallbackUsed: snapshot.providerDiagnostics.length > 0,
     });
     return NextResponse.json({ type: "eod_full_19h", timestamp: new Date().toISOString(), report: safeReport });
   } catch (error) {
@@ -269,9 +273,9 @@ async function handleIntraday(): Promise<NextResponse> {
   }
 
   const today = getVNDateString();
-  const vnNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
-  const hour = vnNow.getHours();
-  const minute = vnNow.getMinutes();
+  const vnNow = getVnNow();
+  const hour = vnNow.hour();
+  const minute = vnNow.minute();
   const timeLabel = `${hour}:${minute.toString().padStart(2, "0")}`;
 
   let notifType: string;
@@ -336,7 +340,11 @@ _Powered by ADN Capital AI_`;
     await pushNotification(notifType, `⚡ Market Update ${timeLabel}${idxInfo}`, safeReport);
 
     const duration = Date.now() - startTime;
-    await logCron("intraday", "success", `${notifType}, ${duration}ms`, duration);
+    await logCron("intraday", "success", `${notifType}, ${duration}ms`, duration, {
+      providerDiagnostics: snapshot.providerDiagnostics,
+      requestDateVN: snapshot.requestDateVN,
+      fallbackUsed: snapshot.providerDiagnostics.length > 0,
+    });
     return NextResponse.json({ type: "intraday", notifType, timeLabel, report: safeReport, timestamp: new Date().toISOString() });
   } catch (error) {
     await logCron("intraday", "error", String(error), Date.now() - startTime);
@@ -370,9 +378,9 @@ async function handleSignalScan5m(): Promise<NextResponse> {
     return NextResponse.json({ message: "Skipped" });
   }
 
-  const vnNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
-  const hour = vnNow.getHours();
-  const min  = vnNow.getMinutes();
+  const vnNow = getVnNow();
+  const hour = vnNow.hour();
+  const min = vnNow.minute();
   const timeKey = `${hour}:${min.toString().padStart(2, "0")}`;
 
   // ── Smart Gate ─────────────────────────────────────────────────────
@@ -413,8 +421,7 @@ async function handleSignalScan5m(): Promise<NextResponse> {
     const processed = await processSignals(uniqueSignals);
     const aiBrokerConfig = await getAiBrokerRuntimeConfig();
 
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
+    const startOfDay = getVnNow().startOf("day").toDate();
     const todaySignals = await prisma.signal.findMany({
       where: { createdAt: { gte: startOfDay } },
       select: { id: true, ticker: true, type: true, status: true },
@@ -513,6 +520,9 @@ async function handleSignalScan5m(): Promise<NextResponse> {
     const notifySignals = createCandidatesForNotify.filter(
       (s) => !alreadySent.has(toSignalKey(s.ticker, s.type))
     );
+    const backfillCandidates = createCandidatesForNotify.filter(
+      (s) => alreadySent.has(toSignalKey(s.ticker, s.type))
+    );
 
     if (notifySignals.length > 0) {
       await prisma.signalHistory.createMany({
@@ -525,14 +535,31 @@ async function handleSignalScan5m(): Promise<NextResponse> {
       });
     }
 
-    if (notifySignals.length > 0) {
-      const signalText = notifySignals
+    const reconciliationCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const recentSignalNotifications = await prisma.notification.findMany({
+      where: {
+        type: { in: ["signal_10h", "signal_1130", "signal_14h", "signal_1445", "signal_scan"] },
+        createdAt: { gte: reconciliationCutoff },
+      },
+      select: { content: true },
+    });
+    const recentContent = recentSignalNotifications.map((n) => n.content).join("\n");
+    const missingOnWeb = backfillCandidates.filter((s) => !recentContent.includes(s.ticker));
+
+    const webNotifySignals = Array.from(
+      new Map(
+        [...notifySignals, ...missingOnWeb].map((s) => [toSignalKey(s.ticker, s.type), s]),
+      ).values(),
+    );
+
+    if (webNotifySignals.length > 0) {
+      const signalText = webNotifySignals
         .map((s) => `• ${s.ticker}: ${s.entryPrice.toLocaleString("vi-VN")} VNĐ${s.reason ? ` — ${s.reason}` : ""}`)
         .join("\n");
-      const windowInfo = getSignalWindowInfo(vnNow);
+      const windowInfo = getSignalWindowInfo(vnNow.toDate());
       await pushNotification(
         windowInfo.type,
-        `⚡ ${windowInfo.label} — ${notifySignals.length} tín hiệu mới`,
+        `⚡ ${windowInfo.label} — ${webNotifySignals.length} tín hiệu mới`,
         `## TÍN HIỆU MỚI (${windowInfo.label})\n\n${signalText}`
       );
     }
@@ -541,7 +568,13 @@ async function handleSignalScan5m(): Promise<NextResponse> {
     await logCron("signal_scan_5m", "success",
       `Python scan: ${scanResult.detected} phát hiện, tạo ${createdCount}, cập nhật ${updatedCount}, notify ${notifySignals.length}`,
       duration,
-      { scanned: scanResult.detected, created: createdCount, updated: updatedCount, notified: notifySignals.length }
+      {
+        scanned: scanResult.detected,
+        created: createdCount,
+        updated: updatedCount,
+        notified: notifySignals.length,
+        reconciledWebOnly: missingOnWeb.length,
+      }
     );
 
     return NextResponse.json({
@@ -554,6 +587,7 @@ async function handleSignalScan5m(): Promise<NextResponse> {
       created: createdCount,
       updated: updatedCount,
       notified: notifySignals.length,
+      reconciledWebOnly: missingOnWeb.length,
       totalSignaledToday: alreadySent.size + notifySignals.length,
     });
   } catch (error) {

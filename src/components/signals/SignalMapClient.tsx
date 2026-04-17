@@ -40,14 +40,18 @@ export function SignalMapClient({ isPremium = false }: { isPremium?: boolean }) 
   );
 
   const allSignals = data?.signals ?? [];
-  const tabSignals = allSignals.filter((s) => (s.status ?? "RADAR") === tab);
+  const tabSignals = allSignals.filter((s) => {
+    const status = s.status ?? "RADAR";
+    if (tab === "ACTIVE") return status === "ACTIVE" || status === "HOLD_TO_DIE";
+    return status === tab;
+  });
   const filtered = tierFilter === "all"
     ? tabSignals
     : tabSignals.filter((s) => (s.tier ?? "NGAN_HAN") === tierFilter);
 
   const stats = {
     radar:  allSignals.filter((s) => (s.status ?? "RADAR") === "RADAR").length,
-    active: allSignals.filter((s) => s.status === "ACTIVE").length,
+    active: allSignals.filter((s) => s.status === "ACTIVE" || s.status === "HOLD_TO_DIE").length,
     closed: allSignals.filter((s) => s.status === "CLOSED").length,
     totalPnl: allSignals
       .filter((s) => s.status === "CLOSED" && s.pnl != null)

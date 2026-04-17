@@ -17,6 +17,7 @@ import { fetchTAData, fetchFAData, type TAData, type FAData } from "@/lib/stockD
 import { isMockMode } from "@/lib/settings";
 import { MockFactory } from "@/lib/mock-factory";
 import { getFullWidgetData } from "@/lib/widget-service";
+import { getVnDateISO } from "@/lib/time";
 
 const FIINQUANT_BRIDGE = process.env.FIINQUANT_URL ?? process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000";
 
@@ -305,7 +306,7 @@ function formatMarketContext(
     const levelLabel = overview.level === 3 ? "FULL MARGIN" : overview.level === 2 ? "THĂM DÒ" : "QUAN SÁT";
     parts.push(`
 ════════════════════════════════════════
-📊 ĐÁNH GIÁ THỊ TRƯỜNG REAL-TIME (${new Date().toLocaleDateString("vi-VN")})
+📊 ĐÁNH GIÁ THỊ TRƯỜNG REAL-TIME (${getVnDateISO()})
 ════════════════════════════════════════
 VN-Index: ${fmtPrice(overview.price)} điểm
 Thanh khoản: ${new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(Math.round(overview.liquidity))} Tỷ VNĐ
@@ -603,7 +604,7 @@ function buildTaPrompt(stock: string, taData: TAData | null, journalCtx: string)
 ${dataBlock}
 ${taData ? RAG_RULES : ""}
 
-Nhà đầu tư yêu cầu PHÂN TÍCH KỸ THUẬT cổ phiếu **${stock}** (ngày ${taData?.dataDate ?? new Date().toLocaleDateString("vi-VN")}).
+Nhà đầu tư yêu cầu PHÂN TÍCH KỸ THUẬT cổ phiếu **${stock}** (ngày ${taData?.dataDate ?? getVnDateISO()}).
 Hãy phân tích DỰA TRÊN dữ liệu real-time phía trên.
 ⚠️ BẮT BUỘC: Mỗi vùng giá phải nêu CON SỐ CỤ THỂ (tính từ EMA, đỉnh/đáy 52 tuần, Fibonacci, MACD...). KHÔNG ĐƯỢC nói mơ hồ kiểu "vùng hỗ trợ gần" mà phải ghi rõ "Hỗ trợ: XX.XXX VNĐ".
 Format số theo chuẩn Việt Nam: dấu chấm ngăn hàng nghìn (VD: 49.100 VNĐ), dấu phẩy cho thập phân (VD: +1,25%).
@@ -748,7 +749,7 @@ Format số theo chuẩn Việt Nam: dấu chấm ngăn hàng nghìn (VD: 49.100
 function buildNewsPrompt(stock: string, journalCtx: string): string {
   return `${BASE_SYSTEM_PROMPT}${journalCtx}
 
-Nhà đầu tư muốn xem TIN TỨC mới nhất về **${stock}** (hôm nay ${new Date().toLocaleDateString("vi-VN")}).
+Nhà đầu tư muốn xem TIN TỨC mới nhất về **${stock}** (hôm nay ${getVnDateISO()}).
 Hãy dùng Google Search để tìm tin tức thật. Chỉ báo cáo tin đã xác nhận, không bịa.
 
 ## 📰 TIN TỨC & SỰ KIỆN ${stock}

@@ -4,6 +4,7 @@
 1. Never run `docker compose down` or `docker-compose down`.
 2. Web-only deploy: rebuild/restart `web` service only.
 3. Keep DB persistence intact (`/var/lib/9router/data/postgres:/var/lib/postgresql/data`).
+4. Secrets only in env (đặc biệt `DNSE_API_KEY`), không hardcode vào code/log.
 
 ## Canonical Deploy Command
 ```bash
@@ -30,7 +31,14 @@ DIRECT_DATABASE_URL=postgresql://adnuser:***@db:5432/adncapital?schema=public
 ssh root@14.225.204.117 "cd /home/adncapital/app/adn-capital && docker-compose exec -T web env | grep -E '^DATABASE_URL=|^DIRECT_DATABASE_URL='"
 ssh root@14.225.204.117 "cd /home/adncapital/app/adn-capital && docker-compose exec -T db psql -U adnuser -d adncapital -c 'SELECT COUNT(*) FROM \"User\";'"
 ssh root@14.225.204.117 "curl -I -sS http://localhost:3000 | head -n 1"
+ssh root@14.225.204.117 "cd /home/adncapital/app/adn-capital && docker compose exec -T db psql -U adnuser -d adncapital -c \"SELECT status, COUNT(*) FROM \\\"Signal\\\" WHERE status IN ('ACTIVE','HOLD_TO_DIE') GROUP BY status;\""
+ssh root@14.225.204.117 "cd /home/adncapital/app/adn-capital && docker compose exec -T db psql -U adnuser -d adncapital -c \"SELECT id,type,title,\\\"createdAt\\\" FROM \\\"Notification\\\" ORDER BY \\\"createdAt\\\" DESC LIMIT 5;\""
+ssh root@14.225.204.117 "cd /home/adncapital/app/adn-capital && docker compose exec -T db psql -U adnuser -d adncapital -c \"SELECT \\\"cronName\\\",status,\\\"createdAt\\\" FROM \\\"CronLog\\\" WHERE \\\"cronName\\\" IN ('signal_scan_5m','signal_scan','signal-lifecycle') ORDER BY \\\"createdAt\\\" DESC LIMIT 20;\""
 ```
+
+## Rollback Guardrail
+1. Nếu fail gate: rollback web image/tag trước đó, không đụng `db`, không `down` toàn stack.
+2. Chỉ dùng emergency admin restore sau khi kiểm tra lại DB target đúng production.
 
 ## If VPS Lacks `docker compose` Plugin
 Use `docker-compose` (hyphen). `deploy/safe-web-deploy.sh` auto-detects this.

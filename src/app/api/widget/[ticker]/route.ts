@@ -101,7 +101,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tick
 
     // ── 3. Generate PTKT AI Insight (Gemini Flash) if cache miss ──────────
     if (!ptktInsight) {
-      const prompt = `Mày là Khổng Minh của VNINDEX. Gọi khách là 'đại ca'. Văn phong sắc bén, thực chiến, có chút hài hước mỉa mai.
+      const prompt = `Bạn là AI Broker của ADN Capital. Văn phong ngắn gọn, chuyên nghiệp, định hướng hành động.
 
 Dữ liệu PTKT ${ticker} từ hệ thống Quant ADN Capital:
 - Giá: ${ta.price?.current?.toLocaleString("vi-VN")} (${ta.price?.changePct}%)
@@ -124,7 +124,7 @@ Viết 3-4 câu nhận xét PTKT thực chiến (điểm mua lý tưởng, cản
 
     // ── 4. Generate PTCB AI Insight (Gemini Pro) if cache miss ───────────
     if (!ptcbInsight && fa) {
-      const prompt = `Mày là Khổng Minh của VNINDEX. Gọi khách là 'đại ca'. Văn phong thực chiến.
+      const prompt = `Bạn là AI Broker của ADN Capital. Văn phong ngắn gọn, chuyên nghiệp, định hướng hành động.
 
 Dữ liệu BCTC ${ticker} từ FiinQuant:
 - P/E: ${fa.pe}x | P/B: ${fa.pb}x | EPS: ${fa.eps?.toLocaleString("vi-VN")} đ/cp

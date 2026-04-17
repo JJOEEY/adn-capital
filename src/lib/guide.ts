@@ -64,11 +64,11 @@ const GUIDE_DEFAULT_DATA: GuideSeedCategory[] = [
           "## ADN Composite Score\n\nĐiểm tổng hợp từ nhiều thành phần (xu hướng, động lượng, thanh khoản, hành vi dòng tiền).\n\n- Điểm cao: ưu tiên theo dõi cơ hội\n- Điểm thấp: ưu tiên quản trị rủi ro",
       },
       {
-        title: "Hướng dẫn dùng AI Broker (Khổng Minh)",
-        slug: "huong-dan-dung-ai-broker-khong-minh",
+        title: "Hướng dẫn dùng ADN AI Broker",
+        slug: "huong-dan-dung-adn-ai-broker",
         sortOrder: 3,
         content:
-          "## AI Broker (Khổng Minh)\n\nNhập mã cổ phiếu để mở các thẻ phân tích:\n\n- Phân tích kỹ thuật\n- Phân tích cơ bản\n- Tâm lý & hành vi\n- Tin tức & sự kiện",
+          "## ADN AI Broker\n\nNhập mã cổ phiếu để mở các thẻ phân tích:\n\n- Phân tích kỹ thuật\n- Phân tích cơ bản\n- Tâm lý & hành vi\n- Tin tức & sự kiện",
       },
       {
         title: "Tư vấn đầu tư — Chat với AI",
@@ -186,4 +186,3 @@ export async function ensureGuideSeeded(): Promise<void> {
     }
   });
 }
-

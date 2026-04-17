@@ -1,22 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentDbUser } from "@/lib/current-user";
+import { getVnNow, isWithinVnTradingSession } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
-function getVietnamNow() {
-  return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
-}
-
 function isTradingWindow(now: Date) {
-  const day = now.getDay();
-  if (day < 1 || day > 5) return false;
-  const hour = now.getHours();
-  const minute = now.getMinutes();
-  const currentMinutes = hour * 60 + minute;
-  const start = 9 * 60;
-  const end = 15 * 60 + 30;
-  return currentMinutes >= start && currentMinutes <= end;
+  return isWithinVnTradingSession(now);
 }
 
 export async function GET() {
@@ -60,7 +50,7 @@ export async function GET() {
       }),
     ]);
 
-    const vnNow = getVietnamNow();
+    const vnNow = getVnNow().toDate();
     const staleThresholdMinutes = 45;
     const lastRunAt = lastRun?.createdAt ?? null;
     const minutesSinceLastRun = lastRunAt

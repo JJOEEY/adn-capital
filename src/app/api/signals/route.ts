@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     since.setHours(0, 0, 0, 0);
 
     const where: Record<string, unknown> = { createdAt: { gte: since } };
-    if (statusFilter && ["RADAR", "ACTIVE", "CLOSED"].includes(statusFilter)) {
+    if (statusFilter && ["RADAR", "ACTIVE", "HOLD_TO_DIE", "CLOSED"].includes(statusFilter)) {
       where.status = statusFilter;
     }
 
@@ -92,7 +92,7 @@ export async function PATCH(request: NextRequest) {
 
     const updateData: Record<string, unknown> = {};
 
-    if (status && ["RADAR", "ACTIVE", "CLOSED"].includes(status)) {
+    if (status && ["RADAR", "ACTIVE", "HOLD_TO_DIE", "CLOSED"].includes(status)) {
       updateData.status = status;
     }
 

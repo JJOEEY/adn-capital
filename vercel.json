@@ -62,6 +62,11 @@
       "comment": "14:45 VN (07:45 UTC) - Signal Scan"
     },
     {
+      "path": "/api/cron/signal-lifecycle",
+      "schedule": "*/5 2-8 * * 1-5",
+      "comment": "09:00-15:59 VN (02:00-08:59 UTC) - Lifecycle worker, route tự gate giờ giao dịch"
+    },
+    {
       "path": "/api/cron/ai-weekly-review",
       "schedule": "0 10 * * 5",
       "comment": "17:00 VN T6 — Weekly AI Review"

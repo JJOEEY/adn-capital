@@ -11,6 +11,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { updateSignalLifecycle } from "@/lib/SignalLifecycleWorker";
+import { getVnNow, isWithinVnTradingSession } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60; // Cho phép chạy tối đa 60s
@@ -28,10 +29,20 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    if (!isWithinVnTradingSession()) {
+      return NextResponse.json({
+        status: "skipped",
+        reason: "outside_trading_session",
+        timestamp: new Date().toISOString(),
+        vnTime: getVnNow().format("YYYY-MM-DD HH:mm:ss"),
+      });
+    }
+
     const result = await updateSignalLifecycle();
     return NextResponse.json({
       status: "ok",
       timestamp: new Date().toISOString(),
+      vnTime: getVnNow().format("YYYY-MM-DD HH:mm:ss"),
       ...result,
     });
   } catch (error) {

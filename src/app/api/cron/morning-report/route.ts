@@ -17,6 +17,7 @@ import {
 } from "@/lib/cronHelpers";
 import { getMarketSnapshot, formatSnapshotForAI } from "@/lib/marketDataFetcher";
 import { fetchAllCafefNews, buildCafefContext } from "@/lib/cafefScraper";
+import { getVnNow } from "@/lib/time";
 
 export const maxDuration = 60;
 
@@ -123,11 +124,14 @@ _Powered by ADN Capital AI_`;
     await logCron("morning_brief", "success", `Created in ${duration}ms`, duration, {
       indicesCount: snapshot.indices.length,
       cafefArticles: cafefNews.stockMarket.articles.length + cafefNews.macro.articles.length,
+      requestDateVN: snapshot.requestDateVN,
+      providerDiagnostics: snapshot.providerDiagnostics,
+      fallbackUsed: snapshot.providerDiagnostics.length > 0,
     });
 
     return NextResponse.json({
       type: "morning_brief",
-      timestamp: new Date().toISOString(),
+      timestamp: getVnNow().toISOString(),
       report: safeReport,
       dataSources: {
         fiinquant: !!snapshot.marketOverview,

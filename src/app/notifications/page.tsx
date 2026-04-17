@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { StockChart } from "@/components/chat/StockChart";
+import { formatLocalDeviceDate, formatLocalDeviceTime } from "@/lib/time";
 
 interface NotificationItem {
   id: string;
@@ -407,7 +408,7 @@ export default function NotificationsPage() {
   const grouped = useMemo(
     () =>
       notifications.reduce<Record<string, NotificationItem[]>>((acc, n) => {
-        const dateKey = new Date(n.createdAt).toLocaleDateString("vi-VN", {
+        const dateKey = formatLocalDeviceDate(n.createdAt, {
           weekday: "short",
           day: "2-digit",
           month: "2-digit",
@@ -744,7 +745,7 @@ export default function NotificationsPage() {
                   {items.map((n, idx) => {
                     const cfg = getConfig(n.type);
                     const Icon = cfg.icon;
-                    const time = new Date(n.createdAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+                    const time = formatLocalDeviceTime(n.createdAt, { hour: "2-digit", minute: "2-digit" });
                     const safeTitle = n.title?.trim() ? n.title : "Bản tin thị trường";
                     const safeContent = n.content?.trim() ? n.content : "Dữ liệu đang cập nhật. Vui lòng kiểm tra lại sau ít phút.";
                     return (

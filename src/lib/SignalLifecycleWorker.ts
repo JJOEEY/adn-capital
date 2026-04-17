@@ -62,13 +62,21 @@ interface TEIResult {
 //  PnL 40% → SL = +30%
 // ═══════════════════════════════════════════════════════════════════
 
-function calcTrailingStopLevel(currentPnlPct: number): number {
-  return Math.floor(currentPnlPct / 10) * 10 - 10;
+function inferMaxProfitFromCurrentStop(currentStopPct: number): number {
+  if (currentStopPct >= 20) return currentStopPct + 10;
+  if (currentStopPct >= 15) return 20;
+  if (currentStopPct >= 10) return 20; // backward compatible with old staircase
+  return 0;
 }
 
-function calcTrailingStopPrice(entryPrice: number, currentPnlPct: number): number {
-  const slPct = calcTrailingStopLevel(currentPnlPct);
-  return +(entryPrice * (1 + slPct / 100)).toFixed(2);
+function calcTrailingStopLevel(maxProfitPct: number): number {
+  if (maxProfitPct < HOLD_TO_DIE_THRESHOLD) return 0;
+  if (maxProfitPct < 30) return 15;
+  return +(maxProfitPct - 10).toFixed(2);
+}
+
+function calcTrailingStopPrice(entryPrice: number, trailingStopPct: number): number {
+  return +(entryPrice * (1 + trailingStopPct / 100)).toFixed(2);
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -200,8 +208,8 @@ export async function updateSignalLifecycle(): Promise<{
 
       // 1. Upgrade → HOLD_TO_DIE
       if (pnl >= HOLD_TO_DIE_THRESHOLD) {
-        const trailingStopPct   = calcTrailingStopLevel(pnl);
-        const trailingStopPrice = calcTrailingStopPrice(entryPrice, pnl);
+        const trailingStopPct = calcTrailingStopLevel(pnl);
+        const trailingStopPrice = calcTrailingStopPrice(entryPrice, trailingStopPct);
         const holdingAction = `🔥 Lợi nhuận đạt ${pnl}%, đề nghị tiếp tục GỒNG LÃI. Đã tự động dời Stoploss bảo toàn vốn lên mốc +${trailingStopPct}%.`;
 
         await prisma.signal.update({
@@ -261,8 +269,11 @@ export async function updateSignalLifecycle(): Promise<{
     // ═══════════════════════════════════════════════════════════
     if (signal.status === "HOLD_TO_DIE") {
       const currentTrailingSL = signal.stoploss ?? entryPrice;
-      const newTrailingPrice  = calcTrailingStopPrice(entryPrice, pnl);
-      const newTrailingPct    = calcTrailingStopLevel(pnl);
+      const currentStopPct = +(((currentTrailingSL - entryPrice) / entryPrice) * 100).toFixed(2);
+      const inferredMaxProfit = inferMaxProfitFromCurrentStop(currentStopPct);
+      const maxProfit = Math.max(inferredMaxProfit, pnl);
+      const newTrailingPct = calcTrailingStopLevel(maxProfit);
+      const newTrailingPrice = calcTrailingStopPrice(entryPrice, newTrailingPct);
 
       // Chỉ dời SL lên, không bao giờ kéo xuống
       const effectiveSL = Math.max(currentTrailingSL, newTrailingPrice);

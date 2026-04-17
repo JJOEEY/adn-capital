@@ -202,7 +202,18 @@ async function fiinFetch<T>(path: string, options?: { timeout?: number }): Promi
       return null;
     }
 
-    return (await res.json()) as T;
+    const raw = await res.text();
+    if (!raw?.trim()) {
+      console.error(`[FiinQuant] ${path} -> empty body`);
+      return null;
+    }
+
+    try {
+      return JSON.parse(raw) as T;
+    } catch (err) {
+      console.error(`[FiinQuant] ${path} -> invalid JSON`, err);
+      return null;
+    }
   } catch (err) {
     console.error(`[FiinQuant] ${path} error:`, err);
     return null;
