@@ -15,6 +15,8 @@ import { fetchFAData, type FAData } from "@/lib/stockData";
 import { getVnNow } from "@/lib/time";
 
 const BRIDGE = process.env.FIINQUANT_URL ?? "http://localhost:8000";
+const AI_BROKER_STYLE =
+  'Bạn là ADN AI Broker của ADN Capital. Xưng hô "Hệ thống", gọi người dùng là "Nhà đầu tư". Giọng văn chuyên nghiệp, kỷ luật, không dùng tiếng lóng.';
 
 // ─── Type definitions ─────────────────────────────────────────────
 export interface TechnicalStats {
@@ -65,8 +67,22 @@ async function bridgeGet<T>(path: string, timeout = 15_000): Promise<T | null> {
   } catch { return null; }
 }
 
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
+  let timer: NodeJS.Timeout | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((resolve) => {
+        timer = setTimeout(() => resolve(fallback), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 function getStatusLabel(score: number): string {
-  if (score >= 4.5) return "Cực kỳ hưng phấn ⚠️";
+  if (score >= 4.8) return "Cực kỳ hưng phấn ⚠️";
   if (score >= 4.0) return "Hưng phấn — Thận trọng";
   if (score >= 3.0) return "Tâm lý nóng";
   if (score >= 2.0) return "Trung tính";
@@ -112,7 +128,7 @@ async function getPTKT(ticker: string): Promise<{ data: TechnicalStats | null; a
   if (cacheValid) return { data: ta, aiInsight: cached!.content };
 
   // Generate fresh AI insight (Gemini Flash)
-  const prompt = `Bạn là AI Broker của ADN Capital. Văn phong ngắn gọn, chuyên nghiệp, định hướng hành động.
+  const prompt = `${AI_BROKER_STYLE}
 Dữ liệu PTKT ${ticker} hôm nay:
 • Giá: ${ta.price?.current?.toLocaleString("vi-VN")} VNĐ (${ta.price?.changePct > 0 ? "+" : ""}${ta.price?.changePct}%)
 • Xu hướng: ${ta.trend?.direction ?? "N/A"} | ADX: ${ta.trend?.adx ?? "N/A"}
@@ -193,7 +209,7 @@ async function getPTCB(ticker: string): Promise<{ data: FAData | null; aiInsight
   if (!fa) return { data: null, aiInsight: "Đang tải BCTC...", period: null };
 
   // Generate fresh AI insight (Gemini Pro)
-  const prompt = `Bạn là AI Broker của ADN Capital. Văn phong ngắn gọn, chuyên nghiệp, định hướng hành động.
+  const prompt = `${AI_BROKER_STYLE}
 Lưu ý: Đây là dữ liệu BCTC của kỳ ${periodLabel ?? "gần nhất"}, hãy phân tích dựa trên bối cảnh này.
 
 Số liệu tài chính ${ticker}:
@@ -231,7 +247,8 @@ async function getBehavior(ticker: string): Promise<{ data: BehaviorStats; aiIns
   const score = tei ?? 2.5;
   const status = getStatusLabel(score);
 
-  const prompt = `Bạn là AI Broker của ADN Capital. Chỉ số TEI của ${ticker} = ${score.toFixed(2)}/5 (${periodUsed}).
+  const prompt = `${AI_BROKER_STYLE}
+Chỉ số TEI của ${ticker} = ${score.toFixed(2)}/5 (${periodUsed}).
 Đọc vị tâm lý đám đông hiện tại trong 2-3 câu thực chiến. Chỉ trả về TEXT THUẦN.`;
 
   let insight: string;
@@ -277,7 +294,8 @@ async function getNews(ticker: string): Promise<{ data: NewsItem[]; aiInsight: s
   }
 
   const headlines = news.slice(0, 10).map(n => `• ${n.title}`).join("\n");
-  const prompt = `Tóm tắt tin tức sau về ${ticker} và đưa ra 1 khuyến nghị hành động ngắn gọn. Chỉ trả về TEXT THUẦN:\n${headlines}`;
+  const prompt = `${AI_BROKER_STYLE}
+Tóm tắt tin tức sau về ${ticker} và đưa ra 1 khuyến nghị hành động ngắn gọn. Chỉ trả về TEXT THUẦN:\n${headlines}`;
 
   let aiInsight = "";
   try { aiInsight = await executeAIRequest(prompt, INTENT.NEWS); }
@@ -290,10 +308,26 @@ async function getNews(ticker: string): Promise<{ data: NewsItem[]; aiInsight: s
 export async function getFullWidgetData(ticker: string): Promise<WidgetData> {
   // Fetch ALL tabs in parallel
   const [technical, fundamental, behavior, news] = await Promise.all([
-    getPTKT(ticker),
-    getPTCB(ticker),
-    getBehavior(ticker),
-    getNews(ticker),
+    withTimeout(
+      getPTKT(ticker),
+      12_000,
+      { data: null, aiInsight: "Hệ thống đang đồng bộ dữ liệu kỹ thuật." },
+    ),
+    withTimeout(
+      getPTCB(ticker),
+      12_000,
+      { data: null, aiInsight: "Hệ thống đang đồng bộ dữ liệu cơ bản.", period: null },
+    ),
+    withTimeout(
+      getBehavior(ticker),
+      8_000,
+      { data: { teiScore: 2.5, status: "Trung tính", period: "T-1" }, aiInsight: "Hệ thống đang đồng bộ dữ liệu hành vi." },
+    ),
+    withTimeout(
+      getNews(ticker),
+      8_000,
+      { data: [], aiInsight: "Hệ thống đang đồng bộ dữ liệu tin tức." },
+    ),
   ]);
 
   // TypeScript assembles the rigid response shape — AI never touches this

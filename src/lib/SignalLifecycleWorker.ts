@@ -5,7 +5,7 @@
  * - Khi PnL >= 20%: Chuyển ACTIVE → HOLD_TO_DIE
  * - Mỗi khi PnL nhảy thêm 10% → Dời SL lên mốc bảo toàn (PnL_floor - 10%)
  *   Ví dụ: PnL 25% → SL = +10% | PnL 32% → SL = +20% | PnL 41% → SL = +30%
- * - Đóng lệnh khi: giá xuống chạm SL mới HOẶC TEI >= 4.5
+ * - Đóng lệnh khi: giá xuống chạm SL mới HOẶC TEI >= 4.8
  * - Alert khi chạm ngưỡng cũ (target), không tự đóng lệnh
  *
  * API Budget / 5 phút:
@@ -30,7 +30,7 @@ import {
 // ═══════════════════════════════════════════════════════════════════
 
 const HOLD_TO_DIE_THRESHOLD = 20;   // % PnL để vào HOLD_TO_DIE
-const TEI_EXIT_THRESHOLD    = 4.5;  // TEI hưng phấn → chốt lời
+const TEI_EXIT_THRESHOLD    = 4.8;  // TEI hưng phấn cực độ → chốt lời
 const PYTHON_BRIDGE = process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000";
 
 // ═══════════════════════════════════════════════════════════════════

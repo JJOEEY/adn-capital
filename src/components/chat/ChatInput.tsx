@@ -15,7 +15,7 @@ const QUICK_COMMANDS = [
   { label: "/fa FPT", value: "/fa FPT" },
   { label: "/news VNM", value: "/news VNM" },
   { label: "/tamly TCB", value: "/tamly TCB" },
-  { label: "Thị trường hôm nay?", value: "Thị trường hôm nay như thế nào đại ca ơi?" },
+  { label: "Thị trường hôm nay?", value: "Thị trường hôm nay như thế nào?" },
 ];
 
 export function ChatInput({ onSend, disabled, placeholder }: ChatInputProps) {
@@ -75,7 +75,7 @@ export function ChatInput({ onSend, disabled, placeholder }: ChatInputProps) {
             onKeyDown={handleKeyDown}
             onInput={handleInput}
             disabled={disabled}
-            placeholder={placeholder ?? "Hỏi em về chứng khoán... (VD: PTKT HPG)"}
+            placeholder={placeholder ?? "Hỏi Hệ thống về chứng khoán... (VD: PTKT HPG)"}
             rows={1}
             className="w-full resize-none bg-[var(--surface)] border border-[var(--border)] focus:border-emerald-500/50 text-neutral-100 placeholder-neutral-600 text-sm px-4 py-3 rounded-xl outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           />

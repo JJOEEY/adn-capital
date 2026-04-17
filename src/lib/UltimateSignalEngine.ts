@@ -204,13 +204,16 @@ async function callGeminiReasoning(params: {
 }): Promise<string> {
   const checklist = buildChecklist(params.raw, params.tier);
 
-  const prompt = `Bạn là AI Broker tại ADN Capital. Viết 1 đoạn phân tích ngắn gọn (3-4 câu) về tín hiệu sau bằng tiếng Việt, giọng chuyên nghiệp, súc tích:
+  const prompt = `Bạn là ADN AI Broker của ADN Capital.
+Xưng hô bản thân là "Hệ thống", gọi người dùng là "Nhà đầu tư".
+Giọng văn: chuyên nghiệp, kỷ luật, sắc bén, không dùng tiếng lóng.
+Viết 1 đoạn phân tích ngắn gọn (3-4 câu) về tín hiệu sau:
 Mã: ${params.ticker} | Tier: ${params.tier}
 Entry: ${params.entryPrice.toLocaleString()} | Alert: ${params.target.toLocaleString()} | SL: ${params.stoploss.toLocaleString()}
 Lý do: ${params.triggerSignal}
 Chu kỳ tháng: ${params.seasonalityLabel} (Win-Rate ${params.winRate}%, Sharpe ${params.sharpeRatio})
 NAV: ${params.navAllocation}%
-Nhắc nhở: Cơ chế gồng lãi — chỉ chốt khi TEI >= 4.5 (thị trường hưng phấn cực độ).`;
+Nhắc nhở: Cơ chế gồng lãi — chỉ chốt khi TEI >= 4.8 (thị trường hưng phấn cực độ).`;
 
   try {
     const aiText = await executeAIRequest(prompt, INTENT.GENERAL);
@@ -277,7 +280,7 @@ function buildFinalCard(params: {
     `📅 **Seasonality:** ${params.seasonalityLabel} (WR: ${params.winRate}%, Sharpe: ${params.sharpeRatio})`,
     ``,
     ...(params.aiText ? [`🤖 **AI nhận định:**\n${params.aiText}`, ``] : []),
-    `🔥 **Gồng lãi:** Chốt khi TEI ≥ 4.5 (hưng phấn cực độ) hoặc vi phạm SL.`,
+    `🔥 **Gồng lãi:** Chốt khi TEI ≥ 4.8 (hưng phấn cực độ) hoặc vi phạm SL.`,
     `⚠️ Tuân thủ stoploss — Không bình quân giá xuống.`,
   ].join("\n");
 }

@@ -21,6 +21,41 @@ import { getVnDateISO, getVnNow } from "./time";
 import { fetchDnseMarketSnapshot } from "./dnseClient";
 
 type JsonRecord = Record<string, unknown>;
+type ProviderId = "fiin" | "vnd" | "dnse" | "tcbs";
+
+interface AlternativeSnapshot {
+  liquidityByExchange: {
+    HOSE: number | null;
+    HNX: number | null;
+    UPCOM: number | null;
+    total: number | null;
+  };
+  investorTrading: {
+    foreignNet: number | null;
+    proprietaryNet: number | null;
+    retailNet: number | null;
+  };
+}
+
+const PROVIDER_RING: ProviderId[] = ["fiin", "vnd", "dnse", "tcbs"];
+
+function getProviderOrder(): ProviderId[] {
+  const vnNow = getVnNow();
+  const seed = vnNow.hour() * 60 + vnNow.minute();
+  const start = seed % PROVIDER_RING.length;
+  return [...PROVIDER_RING.slice(start), ...PROVIDER_RING.slice(0, start)];
+}
+
+function pickRoundRobinValue(
+  order: ProviderId[],
+  values: Partial<Record<ProviderId, number | null>>,
+): number | null {
+  for (const provider of order) {
+    const value = values[provider];
+    if (value != null && Number.isFinite(value)) return value;
+  }
+  return null;
+}
 
 export interface ProviderDiagnostic {
   provider: string;
@@ -419,6 +454,57 @@ function readBuySellNet(row: JsonRecord): { buy: number | null; sell: number | n
   return { buy, sell, net: net ?? (buy != null && sell != null ? buy - sell : null) };
 }
 
+async function fetchTcbsMarketSnapshot(requestDateVN: string): Promise<AlternativeSnapshot | null> {
+  const endpoint = process.env.TCBS_MARKET_SNAPSHOT_URL;
+  if (!endpoint) return null;
+
+  const apiKey = process.env.TCBS_API_KEY;
+  try {
+    const url = new URL(endpoint);
+    if (!url.searchParams.has("date")) {
+      url.searchParams.set("date", requestDateVN);
+    }
+
+    const res = await fetch(url.toString(), {
+      cache: "no-store",
+      signal: AbortSignal.timeout(12_000),
+      headers: {
+        "Content-Type": "application/json",
+        ...(apiKey ? { Authorization: `Bearer ${apiKey}`, "X-Api-Key": apiKey } : {}),
+      },
+    });
+
+    if (!res.ok) return null;
+    const raw = await safeReadJson<JsonRecord>(res);
+    if (!raw) return null;
+
+    const hose = readLiquidityValue(raw);
+    const hnx = pickNumber(raw, ["hnx", "hnxValue", "liquidity_hnx"]);
+    const upcom = pickNumber(raw, ["upcom", "upcomValue", "liquidity_upcom"]);
+    const total = pickNumber(raw, ["total", "totalValue", "liquidity_total"]);
+
+    const foreignNet = pickNumber(raw, ["foreign_net", "foreignNet", "foreign_value"]);
+    const proprietaryNet = pickNumber(raw, ["proprietary_net", "proprietaryNet", "self_trading_net"]);
+    const retailNet = pickNumber(raw, ["retail_net", "retailNet", "individual_net"]);
+
+    return {
+      liquidityByExchange: {
+        HOSE: hose,
+        HNX: hnx,
+        UPCOM: upcom,
+        total,
+      },
+      investorTrading: {
+        foreignNet,
+        proprietaryNet,
+        retailNet,
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
 // ═══════════════════════════════════════════════
 //  Aggregated Data Fetchers
 // ═══════════════════════════════════════════════
@@ -518,7 +604,7 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
   const requestDateVN = getVnDateISO();
   const providerDiagnostics: ProviderDiagnostic[] = [];
 
-  const [overview, investorRaw, vnindex, hnxindex, upcomindex, vn30, movers, dnseSnapshot] = await Promise.all([
+  const [overview, investorRaw, vnindex, hnxindex, upcomindex, vn30, movers, dnseSnapshot, tcbsSnapshot] = await Promise.all([
     fetchMarketOverview(),
     fetchInvestorTrading({
       tickers: "VNINDEX,HNXINDEX,UPCOMINDEX",
@@ -531,6 +617,7 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
     fetchIndexFromDchart("VN30", providerDiagnostics, requestDateVN),
     fetchTopMovers(providerDiagnostics, requestDateVN),
     fetchDnseMarketSnapshot(requestDateVN),
+    fetchTcbsMarketSnapshot(requestDateVN),
   ]);
 
   if (!overview) {
@@ -555,33 +642,8 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
   }
 
   const parsedInvestor = parseInvestorTradingData(investorRaw);
-  if (dnseSnapshot) {
-    if (parsedInvestor.liquidityByExchange.HOSE == null && dnseSnapshot.liquidityByExchange.HOSE != null) {
-      parsedInvestor.liquidityByExchange.HOSE = dnseSnapshot.liquidityByExchange.HOSE;
-    }
-    if (parsedInvestor.liquidityByExchange.HNX == null && dnseSnapshot.liquidityByExchange.HNX != null) {
-      parsedInvestor.liquidityByExchange.HNX = dnseSnapshot.liquidityByExchange.HNX;
-    }
-    if (parsedInvestor.liquidityByExchange.UPCOM == null && dnseSnapshot.liquidityByExchange.UPCOM != null) {
-      parsedInvestor.liquidityByExchange.UPCOM = dnseSnapshot.liquidityByExchange.UPCOM;
-    }
 
-    if (parsedInvestor.investorTrading.foreign.net == null && dnseSnapshot.investorTrading.foreignNet != null) {
-      parsedInvestor.investorTrading.foreign.net = dnseSnapshot.investorTrading.foreignNet;
-    }
-    if (parsedInvestor.investorTrading.proprietary.net == null && dnseSnapshot.investorTrading.proprietaryNet != null) {
-      parsedInvestor.investorTrading.proprietary.net = dnseSnapshot.investorTrading.proprietaryNet;
-    }
-    if (parsedInvestor.investorTrading.retail.net == null && dnseSnapshot.investorTrading.retailNet != null) {
-      parsedInvestor.investorTrading.retail.net = dnseSnapshot.investorTrading.retailNet;
-    }
-    parsedInvestor.investorTrading.availability.foreign =
-      parsedInvestor.investorTrading.availability.foreign || parsedInvestor.investorTrading.foreign.net != null;
-    parsedInvestor.investorTrading.availability.proprietary =
-      parsedInvestor.investorTrading.availability.proprietary || parsedInvestor.investorTrading.proprietary.net != null;
-    parsedInvestor.investorTrading.availability.retail =
-      parsedInvestor.investorTrading.availability.retail || parsedInvestor.investorTrading.retail.net != null;
-  } else {
+  if (!dnseSnapshot) {
     providerDiagnostics.push({
       provider: "DNSE",
       endpoint: process.env.DNSE_MARKET_SNAPSHOT_URL ?? "DNSE_MARKET_SNAPSHOT_URL(not-configured)",
@@ -591,6 +653,62 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
       fallbackUsed: true,
     });
   }
+
+  if (!tcbsSnapshot) {
+    providerDiagnostics.push({
+      provider: "TCBS",
+      endpoint: process.env.TCBS_MARKET_SNAPSHOT_URL ?? "TCBS_MARKET_SNAPSHOT_URL(not-configured)",
+      requestDateVN,
+      httpStatus: null,
+      error: "No data",
+      fallbackUsed: true,
+    });
+  }
+
+  const providerOrder = getProviderOrder();
+
+  parsedInvestor.liquidityByExchange.HOSE = pickRoundRobinValue(providerOrder, {
+    fiin: parsedInvestor.liquidityByExchange.HOSE,
+    vnd: null,
+    dnse: dnseSnapshot?.liquidityByExchange.HOSE ?? null,
+    tcbs: tcbsSnapshot?.liquidityByExchange.HOSE ?? null,
+  });
+  parsedInvestor.liquidityByExchange.HNX = pickRoundRobinValue(providerOrder, {
+    fiin: parsedInvestor.liquidityByExchange.HNX,
+    vnd: null,
+    dnse: dnseSnapshot?.liquidityByExchange.HNX ?? null,
+    tcbs: tcbsSnapshot?.liquidityByExchange.HNX ?? null,
+  });
+  parsedInvestor.liquidityByExchange.UPCOM = pickRoundRobinValue(providerOrder, {
+    fiin: parsedInvestor.liquidityByExchange.UPCOM,
+    vnd: null,
+    dnse: dnseSnapshot?.liquidityByExchange.UPCOM ?? null,
+    tcbs: tcbsSnapshot?.liquidityByExchange.UPCOM ?? null,
+  });
+
+  parsedInvestor.investorTrading.foreign.net = pickRoundRobinValue(providerOrder, {
+    fiin: parsedInvestor.investorTrading.foreign.net,
+    vnd: null,
+    dnse: dnseSnapshot?.investorTrading.foreignNet ?? null,
+    tcbs: tcbsSnapshot?.investorTrading.foreignNet ?? null,
+  });
+  parsedInvestor.investorTrading.proprietary.net = pickRoundRobinValue(providerOrder, {
+    fiin: parsedInvestor.investorTrading.proprietary.net,
+    vnd: null,
+    dnse: dnseSnapshot?.investorTrading.proprietaryNet ?? null,
+    tcbs: tcbsSnapshot?.investorTrading.proprietaryNet ?? null,
+  });
+  parsedInvestor.investorTrading.retail.net = pickRoundRobinValue(providerOrder, {
+    fiin: parsedInvestor.investorTrading.retail.net,
+    vnd: null,
+    dnse: dnseSnapshot?.investorTrading.retailNet ?? null,
+    tcbs: tcbsSnapshot?.investorTrading.retailNet ?? null,
+  });
+
+  parsedInvestor.investorTrading.availability.foreign = parsedInvestor.investorTrading.foreign.net != null;
+  parsedInvestor.investorTrading.availability.proprietary = parsedInvestor.investorTrading.proprietary.net != null;
+  parsedInvestor.investorTrading.availability.retail = parsedInvestor.investorTrading.retail.net != null;
+
   const inferredExchangeTotal =
     (parsedInvestor.liquidityByExchange.HOSE ?? 0) +
     (parsedInvestor.liquidityByExchange.HNX ?? 0) +

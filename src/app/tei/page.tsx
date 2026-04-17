@@ -107,7 +107,7 @@ function classifyTEI(v: number) {
   if (v < 1.0)  return { label: "HOẢNG LOẠN CỰC ĐỘ - AN TOÀN", color: "#22C55E" };
   if (v < 2.5)  return { label: "AN TOÀN",                   color: "#22C55E" };
   if (v < 4.0)  return { label: "TRUNG TÍNH",               color: "#EAB308" };
-  if (v <= 4.8) return { label: "RỦI RO",                   color: "#EF4444" };
+  if (v < 4.8) return { label: "RỦI RO",                    color: "#EF4444" };
   return         { label: "HƯNG PHẤN CỰC ĐỘ - NGUY HIỂM", color: "#EF4444" };
 }
 
@@ -454,7 +454,7 @@ export default function TEIPage() {
               <div className="space-y-5">
                 <div className="border border-[var(--border)] rounded-xl p-5 bg-[var(--surface-2)]">
                   {[
-                  { text: "Hưng phấn cực độ (> 4.8)",         value: "4.8+", bg: "#EF4444" },
+                  { text: "Hưng phấn cực độ (>= 4.8)",        value: "4.8+", bg: "#EF4444" },
                     { text: "Hưng phấn - Nguy hiểm (4–4.8)",  value: "4.0",  bg: "#F97316" },
                     { text: "Trung tính (2.5–4)",               value: "2.5",  bg: "#EAB308" },
                     { text: "Hoảng loạn - An toàn (1–2.5)",   value: "1.5",  bg: "#22C55E" },

@@ -9,6 +9,22 @@ dayjs.locale("vi");
 
 export const VN_TIMEZONE = "Asia/Ho_Chi_Minh";
 
+const VN_TRADING_HOLIDAY_SET = new Set(
+  (
+    process.env.VN_TRADING_HOLIDAYS ??
+    process.env.NEXT_PUBLIC_VN_TRADING_HOLIDAYS ??
+    [
+      "2026-01-01", // Tet Duong lich
+      "2026-04-30", // Giai phong Mien Nam
+      "2026-05-01", // Quoc te Lao dong
+      "2026-09-02", // Quoc khanh
+    ].join(",")
+  )
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean),
+);
+
 export function toVnTime(input?: string | number | Date | Dayjs | null): Dayjs {
   if (input == null) return dayjs().tz(VN_TIMEZONE);
   return dayjs(input).tz(VN_TIMEZONE);
@@ -31,8 +47,11 @@ export function getVnTimeLabel(input?: string | number | Date | Dayjs | null): s
 }
 
 export function isVnTradingDay(input?: string | number | Date | Dayjs | null): boolean {
-  const day = toVnTime(input).day();
-  return day >= 1 && day <= 5;
+  const current = toVnTime(input);
+  const day = current.day();
+  if (day < 1 || day > 5) return false;
+  const dateIso = current.format("YYYY-MM-DD");
+  return !VN_TRADING_HOLIDAY_SET.has(dateIso);
 }
 
 export function isWithinVnTradingSession(input?: string | number | Date | Dayjs | null): boolean {

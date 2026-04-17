@@ -172,11 +172,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(payload);
   } catch {
     return NextResponse.json(
-      { error: "He thong du lieu dang bao tri, vui long thu lai sau" },
+      { error: "Hệ thống dữ liệu đang bảo trì, vui lòng thử lại sau." },
       { status: 503 }
     );
   } finally {
     inFlightRequests.delete(symbol);
   }
 }
-

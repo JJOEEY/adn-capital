@@ -21,6 +21,13 @@ import { getVnNow } from "@/lib/time";
 
 export const maxDuration = 60;
 
+function hasRequiredMorningData(snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>): boolean {
+  const requiredIndices = ["VNINDEX", "HNXINDEX", "UPCOMINDEX"];
+  const existing = new Set(snapshot.indices.map((item) => item.ticker));
+  const hasAllIndices = requiredIndices.every((ticker) => existing.has(ticker));
+  return hasAllIndices && snapshot.liquidity != null && snapshot.investorTrading.availability.foreign;
+}
+
 function buildMorningFallback(today: string, vnidx?: { value: number; changePct: number }) {
   const idxText = vnidx
     ? `${vnidx.value} | ${vnidx.changePct >= 0 ? "+" : ""}${vnidx.changePct}%`
@@ -56,6 +63,27 @@ export async function GET(req: NextRequest) {
       getMarketSnapshot(),
       fetchAllCafefNews(),
     ]);
+
+    if (!hasRequiredMorningData(snapshot)) {
+      const duration = Date.now() - startTime;
+      await logCron(
+        "morning_brief",
+        "skipped",
+        "Thiếu dữ liệu bắt buộc cho Morning Brief, không publish công khai",
+        duration,
+        {
+          liquidity: snapshot.liquidity,
+          investorAvailability: snapshot.investorTrading.availability,
+          indices: snapshot.indices.map((item) => item.ticker),
+          providerDiagnostics: snapshot.providerDiagnostics,
+        },
+      );
+      return NextResponse.json({
+        type: "morning_brief",
+        published: false,
+        reason: "missing_required_fields",
+      });
+    }
 
     const marketContext = formatSnapshotForAI(snapshot);
     const newsContext = buildCafefContext(cafefNews);

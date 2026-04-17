@@ -18,7 +18,7 @@ export async function POST() {
 
     if (journals.length < 3) {
       return NextResponse.json({
-        error: "Cần ít nhất 3 lệnh để phân tích tâm lý. Hãy ghi thêm nhật ký đại ca nhé!",
+        error: "Cần ít nhất 3 lệnh để phân tích tâm lý. Vui lòng ghi thêm nhật ký giao dịch.",
       }, { status: 400 });
     }
 

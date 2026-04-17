@@ -17,6 +17,11 @@ import { getVnNow } from "@/lib/time";
 
 export const maxDuration = 60;
 
+function hasRequiredCloseData(snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>): boolean {
+  const hasMainIndex = snapshot.indices.some((item) => item.ticker === "VNINDEX");
+  return hasMainIndex && snapshot.liquidity != null && snapshot.investorTrading.availability.foreign;
+}
+
 function buildEodFallback(today: string, vnidx?: { value: number; changePct: number }) {
   const idxText = vnidx
     ? `${vnidx.value} | ${vnidx.changePct >= 0 ? "+" : ""}${vnidx.changePct}%`
@@ -51,6 +56,27 @@ export async function GET(req: NextRequest) {
       getMarketSnapshot(),
       fetchAllCafefNews(),
     ]);
+
+    if (!hasRequiredCloseData(snapshot)) {
+      const duration = Date.now() - startTime;
+      await logCron(
+        "close_brief_15h",
+        "skipped",
+        "Thiếu dữ liệu bắt buộc cho bản tin 15:00, không publish công khai",
+        duration,
+        {
+          liquidity: snapshot.liquidity,
+          investorAvailability: snapshot.investorTrading.availability,
+          indices: snapshot.indices.map((item) => item.ticker),
+          providerDiagnostics: snapshot.providerDiagnostics,
+        },
+      );
+      return NextResponse.json({
+        type: "close_brief_15h",
+        published: false,
+        reason: "missing_required_fields",
+      });
+    }
 
     const newsContext = buildCafefContext(cafefNews);
 

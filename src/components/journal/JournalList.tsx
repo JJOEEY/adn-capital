@@ -65,7 +65,7 @@ export function JournalList({ entries, onDeleted, onDateFilter }: JournalListPro
         <BookOpen className="w-10 h-10 text-neutral-700 mx-auto mb-3" />
         <p className="text-sm font-medium text-neutral-500">Chưa có nhật ký nào</p>
         <p className="text-xs text-neutral-600 mt-1">
-          Ghi lại giao dịch đầu tiên để AI học hành vi của đại ca nhé!
+          Ghi lại giao dịch đầu tiên để AI học hành vi giao dịch của Nhà đầu tư.
         </p>
       </Card>
     );

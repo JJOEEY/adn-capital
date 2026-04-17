@@ -81,35 +81,35 @@ async function saveChatHistory(role: "user" | "assistant", message: string) {
 const CARDS = [
   {
     id: "ta" as CardId,
-    title: "Phan tich ky thuat",
-    sub: "Chart, RSI, MACD, ho tro/khang cu",
+    title: "Phân tích kỹ thuật",
+    sub: "Chart, RSI, MACD, hỗ trợ/kháng cự",
     icon: TrendingUp,
   },
   {
     id: "fa" as CardId,
-    title: "Phan tich co ban",
-    sub: "P/E, P/B, ROE, tang truong",
+    title: "Phân tích cơ bản",
+    sub: "P/E, P/B, ROE, tăng trưởng",
     icon: BarChart3,
   },
   {
     id: "tamly" as CardId,
-    title: "Tam ly & hanh vi",
-    sub: "Dong tien, sentiment, rui ro",
+    title: "Tâm lý & hành vi",
+    sub: "Dòng tiền, sentiment, rủi ro",
     icon: Heart,
   },
   {
     id: "news" as CardId,
-    title: "Tin tuc & su kien",
-    sub: "Tong hop tin va tac dong",
+    title: "Tin tức & sự kiện",
+    sub: "Tổng hợp tin và tác động",
     icon: Newspaper,
   },
 ];
 
 const WELCOME_HINTS = [
-  { label: "HPG", desc: "Phan tich Hoa Phat" },
-  { label: "VCB", desc: "Phan tich Vietcombank" },
-  { label: "Thi truong hom nay?", desc: "Nhan dinh chung" },
-  { label: "Nen mua co nao?", desc: "Tu van lua chon" },
+  { label: "HPG", desc: "Phân tích Hòa Phát" },
+  { label: "VCB", desc: "Phân tích Vietcombank" },
+  { label: "Thị trường hôm nay?", desc: "Nhận định chung" },
+  { label: "Nên mua cổ nào?", desc: "Tư vấn lựa chọn" },
 ];
 
 function mapSignalToBadge(signal?: string | null): BrokerBadge {
@@ -221,7 +221,7 @@ function BotBubble({ message, onCardClick, cardLoading, cardDisabled = false }: 
         {message.showDynamicChart && message.ticker && (
           <div className="rounded-2xl border border-white/10 bg-gray-900 p-2">
             <div className="flex items-center justify-between px-2 pb-2 pt-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Khu vuc AI nhan dinh</span>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Khu vực AI nhận định</span>
               <span
                 className="rounded-full border px-2 py-0.5 text-[11px] font-black"
                 style={brokerBadgeDesign}
@@ -390,14 +390,14 @@ export function InvestmentChat({
         if (response.status === 429) {
           addMessage({
             role: "bot",
-            text: data.message ?? "Ban da het luot tu van hom nay.",
+            text: data.message ?? "Nhà đầu tư đã hết lượt tư vấn hôm nay.",
             createdAt: Date.now(),
           });
           return;
         }
         if (!response.ok) throw new Error(data.error ?? `HTTP ${response.status}`);
 
-        const text = data.message ?? "Khong co du lieu phan tich.";
+        const text = data.message ?? "Không có dữ liệu phân tích.";
         const taBadge = cardId === "ta" ? mapSignalToBadge(text) : undefined;
         addMessage({
           role: "bot",
@@ -416,7 +416,7 @@ export function InvestmentChat({
       } catch {
         addMessage({
           role: "bot",
-          text: "Khong the tai du lieu, vui long thu lai.",
+          text: "Không thể tải dữ liệu, vui lòng thử lại.",
           createdAt: Date.now(),
         });
       } finally {
@@ -438,7 +438,7 @@ export function InvestmentChat({
     if (ticker) {
       addMessage({
         role: "bot",
-        text: `Nha dau tu muon phan tich ${ticker}? Hay chon loai phan tich ben duoi.`,
+        text: `Nhà đầu tư muốn phân tích ${ticker}? Hãy chọn loại phân tích bên dưới.`,
         createdAt: Date.now(),
         ticker,
         isCards: true,
@@ -446,7 +446,7 @@ export function InvestmentChat({
       if (userId) {
         Promise.all([
           saveChatHistory("user", trimmed),
-          saveChatHistory("assistant", `Nha dau tu muon phan tich ${ticker}? Hay chon loai phan tich ben duoi.`),
+          saveChatHistory("assistant", `Nhà đầu tư muốn phân tích ${ticker}? Hãy chọn loại phân tích bên dưới.`),
         ]).catch(() => undefined);
       }
       return;
@@ -481,9 +481,9 @@ export function InvestmentChat({
             <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--primary-light)]">
               <Zap className="h-7 w-7 text-[var(--primary)]" />
             </div>
-            <h3 className="mb-1 text-base font-bold text-[var(--text-primary)]">ADN AI Broker san sang ho tro</h3>
+            <h3 className="mb-1 text-base font-bold text-[var(--text-primary)]">ADN AI Broker sẵn sàng hỗ trợ</h3>
             <p className="mb-5 max-w-xs text-sm text-[var(--text-secondary)]">
-              Nhap ma co phieu (VD: HPG) de mo 4 card phan tich, hoac dat cau hoi tu do.
+              Nhập mã cổ phiếu (VD: HPG) để mở 4 card phân tích, hoặc đặt câu hỏi tự do.
             </p>
             <div className="grid w-full max-w-xs grid-cols-2 gap-2">
               {WELCOME_HINTS.map((item) => (
@@ -531,7 +531,7 @@ export function InvestmentChat({
       >
         {disableInput && (
           <p className="mb-2 text-xs text-red-400">
-            {disableReason || "Da het luot tu van trong ngay."}
+            {disableReason || "Đã hết lượt tư vấn trong ngày."}
           </p>
         )}
 
@@ -553,7 +553,7 @@ export function InvestmentChat({
               }
             }}
             disabled={isLoading || disableInput}
-            placeholder="Nhap ma CP (HPG) hoac cau hoi tu do..."
+            placeholder="Nhập mã CP (HPG) hoặc câu hỏi tự do..."
             className="h-11 flex-1 rounded-full border border-white/10 bg-[#0f1d16] px-4 text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:opacity-50"
           />
           <button

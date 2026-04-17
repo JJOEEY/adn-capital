@@ -31,7 +31,7 @@ function normalizeNewsPayload(type: "morning" | "eod", raw: unknown) {
     liquidity,
     liquidity_detail:
       (typeof data.liquidity_detail === "string" && data.liquidity_detail.trim()) ||
-      (liquidity > 0 ? `Thanh khoan toan thi truong dat ${Math.round(liquidity).toLocaleString("vi-VN")} ty dong.` : ""),
+      (liquidity > 0 ? `Thanh khoản toàn thị trường đạt ${Math.round(liquidity).toLocaleString("vi-VN")} tỷ đồng.` : ""),
   };
 }
 

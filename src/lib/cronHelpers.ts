@@ -13,7 +13,17 @@ import {
   toVnTime,
 } from "@/lib/time";
 
-export type SignalWindowType = "signal_10h" | "signal_1130" | "signal_14h" | "signal_1445" | "signal_scan";
+export type SignalWindowType =
+  | "signal_10h"
+  | "signal_1030"
+  | "signal_14h"
+  | "signal_1420"
+  | "signal_scan"
+  | "stats_10h"
+  | "stats_1130"
+  | "stats_14h"
+  | "stats_1445"
+  | "stats_scan";
 
 /** Validate cron secret header */
 export function validateCronSecret(req: NextRequest): boolean {
@@ -80,25 +90,55 @@ export async function pushNotification(
   }
 }
 
-/** Map giờ VN hiện tại sang window type cho tín hiệu */
-export function getSignalWindowInfo(at?: Date): { type: SignalWindowType; label: string } {
+/** Map giờ VN hiện tại sang window type */
+export function getSignalWindowInfo(
+  at?: Date,
+  mode: "type1" | "type2" = "type1",
+): { type: SignalWindowType; label: string } {
   const vnNow = at ? toVnTime(at) : getVnNow();
   const hh = vnNow.hour();
   const mm = vnNow.minute();
   const totalMinutes = hh * 60 + mm;
 
-  // 10:00 / 10:30 gom chung window 10h
-  if (totalMinutes >= 10 * 60 && totalMinutes < 11 * 60 + 30) {
+  if (mode === "type2") {
+    // 10:00
+    if (totalMinutes >= 10 * 60 && totalMinutes < 11 * 60 + 30) {
+      return { type: "stats_10h", label: "10:00" };
+    }
+    // 11:30
+    if (totalMinutes >= 11 * 60 + 30 && totalMinutes < 14 * 60) {
+      return { type: "stats_1130", label: "11:30" };
+    }
+    // 14:00
+    if (totalMinutes >= 14 * 60 && totalMinutes < 14 * 60 + 45) {
+      return { type: "stats_14h", label: "14:00" };
+    }
+    // 14:45
+    if (totalMinutes >= 14 * 60 + 45 && totalMinutes <= 15 * 60 + 30) {
+      return { type: "stats_1445", label: "14:45" };
+    }
+
+    return {
+      type: "stats_scan",
+      label: `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`,
+    };
+  }
+
+  // 10:00
+  if (totalMinutes >= 10 * 60 && totalMinutes < 10 * 60 + 30) {
     return { type: "signal_10h", label: "10:00" };
   }
-  if (totalMinutes >= 11 * 60 + 30 && totalMinutes < 14 * 60) {
-    return { type: "signal_1130", label: "11:30" };
+  // 10:30
+  if (totalMinutes >= 10 * 60 + 30 && totalMinutes < 14 * 60) {
+    return { type: "signal_1030", label: "10:30" };
   }
-  if (totalMinutes >= 14 * 60 && totalMinutes < 14 * 60 + 45) {
+  // 14:00
+  if (totalMinutes >= 14 * 60 && totalMinutes < 14 * 60 + 20) {
     return { type: "signal_14h", label: "14:00" };
   }
-  if (totalMinutes >= 14 * 60 + 45 && totalMinutes <= 15 * 60 + 30) {
-    return { type: "signal_1445", label: "14:45" };
+  // 14:20
+  if (totalMinutes >= 14 * 60 + 20 && totalMinutes <= 15 * 60 + 30) {
+    return { type: "signal_1420", label: "14:20" };
   }
 
   return { type: "signal_scan", label: `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}` };

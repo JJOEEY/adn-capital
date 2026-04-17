@@ -221,7 +221,17 @@ export async function GET(req: NextRequest) {
     const reconciliationCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const recentSignalNotifications = await prisma.notification.findMany({
       where: {
-        type: { in: ["signal_10h", "signal_1130", "signal_14h", "signal_1445", "signal_scan"] },
+        type: {
+          in: [
+            "signal_10h",
+            "signal_1030",
+            "signal_14h",
+            "signal_1420",
+            "signal_1130", // legacy
+            "signal_1445", // legacy
+            "signal_scan",
+          ],
+        },
         createdAt: { gte: reconciliationCutoff },
       },
       select: { content: true },

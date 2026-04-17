@@ -15,7 +15,7 @@ export default function StockDetailPage() {
   const params = useParams<{ ticker: string }>();
   const ticker = useMemo(() => (params?.ticker ?? "VNINDEX").toUpperCase(), [params?.ticker]);
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: "bot", text: `Toi dang theo doi ma ${ticker}. Ban muon toi giai thich tin hieu GIU/MUA/BAN?` },
+    { role: "bot", text: `Hệ thống đang theo dõi mã ${ticker}. Nhà đầu tư muốn phân tích tín hiệu GIỮ/MUA/BÁN?` },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -27,16 +27,16 @@ export default function StockDetailPage() {
     setMessages((prev) => [...prev, { role: "user", text }]);
     setLoading(true);
     try {
-      const prompt = `${text}\n\nMa co phieu dang xem: ${ticker}`;
+      const prompt = `${text}\n\nMã cổ phiếu đang xem: ${ticker}`;
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: prompt }),
       });
       const data = await res.json();
-      setMessages((prev) => [...prev, { role: "bot", text: data.message || data.error || "Khong co phan hoi." }]);
+      setMessages((prev) => [...prev, { role: "bot", text: data.message || data.error || "Hệ thống chưa có phản hồi." }]);
     } catch {
-      setMessages((prev) => [...prev, { role: "bot", text: "Loi ket noi AI. Vui long thu lai." }]);
+      setMessages((prev) => [...prev, { role: "bot", text: "Lỗi kết nối AI. Vui lòng thử lại." }]);
     } finally {
       setLoading(false);
     }
@@ -48,7 +48,7 @@ export default function StockDetailPage() {
         <div className="flex items-center gap-2">
           <ChartCandlestick className="w-5 h-5" style={{ color: "var(--text-secondary)" }} />
           <h1 className="text-xl font-black" style={{ color: "var(--text-primary)" }}>
-            Phan tich chi tiet: {ticker}
+            Phân tích chi tiết: {ticker}
           </h1>
         </div>
 
@@ -84,7 +84,7 @@ export default function StockDetailPage() {
                   onKeyDown={(event) => {
                     if (event.key === "Enter") handleSend();
                   }}
-                  placeholder={`Hoi AI ve ${ticker}...`}
+                  placeholder={`Hỏi AI về ${ticker}...`}
                   className="flex-1 rounded-xl px-3 py-2 text-sm outline-none"
                   style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
                 />

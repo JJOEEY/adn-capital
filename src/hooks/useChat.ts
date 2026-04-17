@@ -64,7 +64,7 @@ export function useChat() {
       if (res.status === 429) {
         addMessage({
           id: generateId(),
-          content: data.message ?? "Đại ca đã hết lượt chat rồi ạ!",
+          content: data.message ?? "Nhà đầu tư đã dùng hết lượt tư vấn trong hôm nay.",
           role: "assistant",
           createdAt: new Date().toISOString(),
         });
@@ -98,7 +98,7 @@ export function useChat() {
         // ── Normal text response ──
         addMessage({
           id: generateId(),
-          content: data.message ?? "Em không trả lời được lúc này ạ",
+          content: data.message ?? "Hệ thống chưa thể phản hồi ở thời điểm này.",
           role: "assistant",
           createdAt: new Date().toISOString(),
           chartStock: data.chartStock,
@@ -116,7 +116,7 @@ export function useChat() {
     } catch (error) {
       addMessage({
         id: generateId(),
-        content: `Lỗi kết nối đại ca ơi 😢 Thử lại sau nhé! (${
+        content: `Lỗi kết nối, vui lòng thử lại sau. (${
           error instanceof Error ? error.message : "Unknown error"
         })`,
         role: "assistant",

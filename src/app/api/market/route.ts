@@ -107,9 +107,9 @@ async function getMarketStatus() {
   else phase = "probe";
 
   const phaseConfig = {
-    no_trade: { verdict: "QUAN SÁT", action: "Tắt app, tắt bảng điện đi nhậu.", description: "Thị trường chưa đủ điều kiện. Hãy bảo toàn vốn." },
+    no_trade: { verdict: "QUAN SÁT", action: "Ưu tiên đứng ngoài và bảo toàn vốn.", description: "Thị trường chưa đủ điều kiện. Hãy bảo toàn vốn." },
     probe: { verdict: "THĂM DÒ", action: "Mở dần vị thế ở các cổ phiếu leader hoặc có câu chuyện riêng.", description: "Thị trường đạt điều kiện, đang tạo đáy. Vào hàng thận trọng." },
-    full_margin: { verdict: "FULL MARGIN", action: "Bây giờ chỉ có full margin chứ ai đi full cash nữa.", description: "Thị trường mạnh, tín hiệu rõ ràng. Có thể giải ngân toàn lực." },
+    full_margin: { verdict: "FULL MARGIN", action: "Có thể tăng tỷ trọng theo kế hoạch quản trị rủi ro.", description: "Thị trường mạnh, tín hiệu rõ ràng. Có thể giải ngân toàn lực." },
   };
 
   // Breadth ước tính
@@ -170,7 +170,7 @@ async function getMarketStatus() {
     opportunityBullets.push("Chọn lọc cổ phiếu có nền giá tốt, vol tích lũy.");
     riskBullets.push("Sideway kéo dài có thể phá nền giảm, cần kỷ luật quản lý vốn.");
   } else {
-    riskBullets.push("Áp lực bán chưa dứt, tránh bắt đáy khi lái lợn đang xả hàng.");
+    riskBullets.push("Áp lực bán chưa dứt, tránh bắt đáy khi chưa có tín hiệu đảo chiều xác nhận.");
     riskBullets.push("Biến động quốc tế có thể kéo dài đà giảm.");
     opportunityBullets.push("Cổ phiếu leader giảm về vùng hỗ trợ mạnh có thể tạo cơ hội trung hạn.");
   }

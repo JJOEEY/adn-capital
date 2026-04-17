@@ -114,7 +114,7 @@ export default function JournalPage() {
               Đăng nhập để dùng nhật ký
             </h2>
             <p className="text-sm mb-5" style={{ color: "var(--text-muted)" }}>
-              Nhật ký giao dịch lưu trữ cá nhân, cần đăng nhập để AI học hành vi của đại ca.
+              Nhật ký giao dịch lưu trữ cá nhân, cần đăng nhập để AI học hành vi của Nhà đầu tư.
             </p>
             <button
               onClick={() => router.push("/auth")}

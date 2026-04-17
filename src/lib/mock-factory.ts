@@ -23,7 +23,7 @@ export const MOCK_SIGNALS = [
     navAllocation: 10,
     rrRatio: "1:2.3",
     triggerSignal: "Chạm MA200 + StochRSI cắt lên từ vùng quá bán (<20)",
-    aiReasoning: "Đại ca ơi, MWG chạm MA200 xong stoch cắt lên — setup ngắn hạn đẹp. Entry thử 50k, SL chặt 48.5k nhé.",
+    aiReasoning: "Hệ thống ghi nhận MWG chạm MA200 và StochRSI cắt lên, phù hợp kịch bản ngắn hạn. Điểm vào tham chiếu 50.000, stoploss 48.500.",
     createdAt: new Date().toISOString(),
   },
   {
@@ -38,7 +38,7 @@ export const MOCK_SIGNALS = [
     navAllocation: 20,
     rrRatio: "1:2.0",
     triggerSignal: "Phân kỳ dương RSI+MFI + dòng tiền thể chế vào mạnh",
-    aiReasoning: "VCG có phân kỳ dương RSI và MFI — cá mập đang gom ngầm đó đại ca. Trung hạn có thể múc theo.",
+    aiReasoning: "VCG xuất hiện phân kỳ dương RSI và MFI, dòng tiền cải thiện. Nhà đầu tư có thể theo dõi cho kịch bản trung hạn có quản trị rủi ro.",
     createdAt: new Date().toISOString(),
   },
   {
@@ -53,7 +53,7 @@ export const MOCK_SIGNALS = [
     navAllocation: 30,
     rrRatio: "1:2.86",
     triggerSignal: "RS=91, VCP siết nền, Breakout đỉnh + fundamental=STRONG (LN Q4 +35%)",
-    aiReasoning: "FPT là siêu cổ phiếu đại ca ơi. RS 91, VCP siết đẹp, xuyên đỉnh bùng vol — đây là setup Minervini thuần chủng. Phân bổ max 30% NAV, SL giữ chặt 111.6k.",
+    aiReasoning: "FPT đạt tiêu chí cổ phiếu dẫn dắt với RS 91, nền VCP và bùng nổ thanh khoản. Tỷ trọng đề xuất tối đa 30% NAV, stoploss 111.600.",
     createdAt: new Date().toISOString(),
   },
 ];
@@ -137,22 +137,22 @@ function buildTickerData(
 MOCK_TICKERS["FPT"] = buildTickerData(
   "FPT", 120_000, 2.45, 67, 24.5, 4.8, 28.4, 35,  3.2,
   "BUY — Breakout VCP",
-  "Đại ca ơi, FPT đang breakout đỉnh cũ với vol mạnh 2.4x TB. RSI 67 — chưa quá mua. EMA10 cắt lên EMA30 rõ nét. Entry 120k, SL 111.6k, target vùng 144k. R/R cực đẹp.",
-  "Nền tảng FPT rất vững. PE 24.5x hợp lý cho tech leader VN. ROE 28.4%, LN tăng 35% YoY — không có dấu hiệu bơm thổi. Đại ca nắm trung-dài hạn được."
+  "Hệ thống ghi nhận FPT breakout vùng đỉnh cũ với thanh khoản mạnh 2,4 lần trung bình. RSI 67 chưa quá mua, EMA10 cắt lên EMA30. Entry 120.000, stoploss 111.600, target 144.000.",
+  "Nền tảng cơ bản của FPT tích cực: P/E 24,5x, ROE 28,4%, lợi nhuận tăng 35% YoY. Nhà đầu tư có thể cân nhắc chiến lược trung-dài hạn."
 );
 
 MOCK_TICKERS["MWG"] = buildTickerData(
   "MWG", 50_000, -0.8, 42, 18.2, 2.1, 12.3, 8,  2.1,
   "WATCH — Chạm MA200",
   "MWG chạm MA200 và StochRSI vừa cắt lên — setup bounce ngắn hạn. RSI 42, chưa quá bán nhưng đang trong vùng hỗ trợ. Entry 50k, SL chặt 48.5k, target 53.5k. Phù hợp lướt sóng.",
-  "MWG đang hồi phục sau chu kỳ khó khăn. PE 18.2x hợp lý. ROE 12.3% — tạm được. LN tăng 8% YoY chưa ấn tượng nhưng xu hướng phục hồi rõ. Đại ca đừng kỳ vọng quá cao."
+  "MWG đang hồi phục sau chu kỳ khó khăn. P/E 18,2x, ROE 12,3%, lợi nhuận tăng 8% YoY ở mức trung bình. Nhà đầu tư nên giữ kỳ vọng thận trọng."
 );
 
 MOCK_TICKERS["VCG"] = buildTickerData(
   "VCG", 25_000, 1.2, 58, 15.4, 1.8, 15.6, 22,  2.8,
   "BUY — Phân kỳ RSI+MFI",
-  "VCG có phân kỳ dương RSI và MFI cực đẹp — cá mập đang gom hàng ngầm đó đại ca. Đường giá tạo đáy cao hơn, MFI tạo đáy cao hơn — xác nhận rõ. Entry 25k, SL 23.75k.",
-  "VCG PE 15.4x khá rẻ so với ngành xây dựng. ROE 15.6% ổn định. LN tăng 22% YoY nhờ đơn hàng hạ tầng công từ ngân sách Nhà nước. Đại ca có thể nắm trung hạn 3-6 tháng."
+  "VCG xuất hiện phân kỳ dương RSI và MFI, cấu trúc giá tạo đáy cao dần. Entry tham chiếu 25.000, stoploss 23.750.",
+  "VCG có P/E 15,4x, ROE 15,6% và lợi nhuận tăng 22% YoY nhờ hạ tầng công. Nhà đầu tư có thể theo dõi chiến lược trung hạn 3-6 tháng."
 );
 
 // ── Mock Factory Singleton ────────────────────────────────────────────
@@ -168,8 +168,8 @@ export const MockFactory = {
     return buildTickerData(
       upper, 50_000, 0.5, 50, 15, 2, 15, 10, 2.5,
       "NEUTRAL",
-      `Đại ca hỏi ${upper} hả? Chờ em xem data thêm. Hiện tại chưa có tín hiệu rõ ràng, đứng ngoài quan sát thêm nhé.`,
-      `${upper} chưa có trong danh sách theo dõi ưu tiên của em. Đại ca chờ em cập nhật BCTC quý tới nhé.`
+      `Hệ thống đã nhận mã ${upper}. Hiện chưa có tín hiệu đủ mạnh, ưu tiên quan sát thêm.`,
+      `${upper} chưa nằm trong danh sách theo dõi ưu tiên. Hệ thống sẽ cập nhật khi có dữ liệu BCTC mới.`
     );
   },
 

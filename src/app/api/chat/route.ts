@@ -114,7 +114,7 @@ interface TASummary {
   recentCandles: Record<string, unknown>[];
 }
 
-async function fetchTASummary(ticker: string, timeoutMs = 30000): Promise<TASummary | null> {
+async function fetchTASummary(ticker: string, timeoutMs = 12000): Promise<TASummary | null> {
   try {
     const url = `${FIINQUANT_BRIDGE}/api/v1/ta-summary/${ticker}`;
     console.log(`[Chat /ta] Fetching TA Summary: ${url}`);
@@ -160,7 +160,7 @@ async function fetchBridgeAI(
   endpoint: "ta" | "fa" | "tamly",
   ticker: string,
   context: string = "",
-  timeoutMs = 15_000,
+  timeoutMs = 8_000,
 ): Promise<AIAnalysisResult | null> {
   try {
     const url = `${FIINQUANT_BRIDGE}/api/v1/ai/${endpoint}/${ticker}?context=${encodeURIComponent(context)}`;
@@ -880,28 +880,28 @@ function buildComparePrompt(
   const sections = compareData.map((item) => {
     const taSection = item.summary
       ? [
-          `Gia hien tai: ${fmtPrice(item.summary.price.current)} VNĐ (${fmtPct(item.summary.price.changePct)})`,
+          `Giá hiện tại: ${fmtPrice(item.summary.price.current)} VNĐ (${fmtPct(item.summary.price.changePct)})`,
           `Trend: ${item.summary.trend.direction} (${item.summary.trend.strength})`,
           `Signal: ${item.summary.signal}`,
           `Support/Resistance: ${item.summary.levels.support ? fmtPrice(item.summary.levels.support) : "N/A"} / ${item.summary.levels.resistance ? fmtPrice(item.summary.levels.resistance) : "N/A"}`,
         ].join("\n")
       : item.ta
         ? [
-            `Gia hien tai: ${fmtPrice(item.ta.currentPrice)} VNĐ (${fmtPct(item.ta.changePct)})`,
+            `Giá hiện tại: ${fmtPrice(item.ta.currentPrice)} VNĐ (${fmtPct(item.ta.changePct)})`,
             `EMA10/30/50: ${fmtPrice(item.ta.ema10)} / ${fmtPrice(item.ta.ema30)} / ${fmtPrice(item.ta.ema50)}`,
             `RSI: ${item.ta.rsi14}`,
             `MACD Hist: ${item.ta.macd?.histogram ?? "N/A"}`,
           ].join("\n")
-        : "Khong co du lieu ky thuat hop le.";
+        : "Không có dữ liệu kỹ thuật hợp lệ.";
 
     const faSection = item.fa
       ? [
           `P/E: ${item.fa.pe ?? "N/A"} | P/B: ${item.fa.pb ?? "N/A"} | EPS: ${item.fa.eps ?? "N/A"}`,
           `ROE: ${item.fa.roe ?? "N/A"} | ROA: ${item.fa.roa ?? "N/A"}`,
           `Doanh thu YoY: ${item.fa.revenueGrowthYoY != null ? fmtPct(item.fa.revenueGrowthYoY) : "N/A"}`,
-          `Loi nhuan YoY: ${item.fa.profitGrowthYoY != null ? fmtPct(item.fa.profitGrowthYoY) : "N/A"}`,
+          `Lợi nhuận YoY: ${item.fa.profitGrowthYoY != null ? fmtPct(item.fa.profitGrowthYoY) : "N/A"}`,
         ].join("\n")
-      : "Khong co du lieu co ban hop le.";
+      : "Không có dữ liệu cơ bản hợp lệ.";
 
     return `### MA ${item.ticker}
 ${taSection}
@@ -911,16 +911,16 @@ ${faSection}`;
   return `${BASE_SYSTEM_PROMPT}${journalCtx}
 ${RAG_RULES}
 
-Nha dau tu yeu cau so sanh da ma: ${tickers.join(", ")}.
-Hay so sanh truc dien theo dung quy tac COMPARE:
-1. Suc manh ky thuat
-2. Nen tang co ban
-3. Xep hang theo khau vi ngan han va dai han
-4. Ket luan hanh dong dut khoat
+Nhà đầu tư yêu cầu so sánh đa mã: ${tickers.join(", ")}.
+Hãy so sánh trực diện theo đúng quy tắc COMPARE:
+1. Sức mạnh kỹ thuật
+2. Nền tảng cơ bản
+3. Xếp hạng theo khẩu vị ngắn hạn và dài hạn
+4. Kết luận hành động dứt khoát
 
-Bat buoc minh bach neu mot ma thieu du lieu, khong duoc suy dien de lap cho trong.
+Bắt buộc minh bạch nếu một mã thiếu dữ liệu, không được suy diễn để lấp chỗ trống.
 
-## DU LIEU THUC TE
+## DỮ LIỆU THỰC TẾ
 ${sections.join("\n\n")}
 `;
 }
@@ -936,6 +936,56 @@ function ensureDisclaimer(intent: "PTKT" | "GENERAL", text: string): string {
     return text;
   }
   return `${text.trim()}\n\n${disclaimer}`;
+}
+
+function hasVietnameseDiacritics(text: string): boolean {
+  return /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i.test(
+    text,
+  );
+}
+
+function shouldRewritePersona(text: string): boolean {
+  if (!text.trim()) return false;
+  const lower = text.toLowerCase();
+  const slangPatterns = [
+    /đại ca/i,
+    /không minh/i,
+    /\bem\b.*\bđây\b/i,
+    /\bmúc\b/i,
+    /đu đỉnh/i,
+    /\ball-?in\b/i,
+  ];
+  if (slangPatterns.some((pattern) => pattern.test(lower))) return true;
+
+  const lettersOnly = text.replace(/[^A-Za-zÀ-ỹà-ỹ]/g, "");
+  if (lettersOnly.length >= 80 && !hasVietnameseDiacritics(text)) {
+    return true;
+  }
+
+  return false;
+}
+
+async function enforcePersonaAndLanguage(
+  text: string,
+  intent: typeof INTENT[keyof typeof INTENT],
+): Promise<string> {
+  if (!shouldRewritePersona(text)) return text;
+  try {
+    const repaired = await executeAIRequest(
+      `Viết lại câu trả lời sau theo đúng quy chuẩn ADN AI Broker.
+- Xưng "Hệ thống", gọi user là "Nhà đầu tư".
+- Giọng chuyên nghiệp, kỷ luật, không dùng tiếng lóng.
+- Bắt buộc tiếng Việt có dấu rõ ràng.
+- Giữ nguyên dữ kiện/ý chính, không thêm số liệu mới.
+
+Nội dung cần viết lại:
+${text}`,
+      intent,
+    );
+    return repaired?.trim() ? repaired : text;
+  } catch {
+    return text;
+  }
 }
 
 function parseVietnameseNumber(raw: string): number | null {
@@ -1040,6 +1090,10 @@ export async function POST(req: NextRequest) {
       ? await detectIntent(message)
       : { intent: "CHAT_GENERAL" as const };
     const isDirectTicker = !cmd && isLikelyTicker(upper);
+    const detectedTicker =
+      !cmd && detectedIntent.intent === "ANALYZE_TICKER"
+        ? detectedIntent.ticker ?? null
+        : null;
     const compareTickers =
       cmd === "/compare"
         ? compareStocks
@@ -1047,10 +1101,15 @@ export async function POST(req: NextRequest) {
           ? detectedIntent.tickers ?? []
           : [];
     const isCompareFlow = compareTickers.length >= 2;
-    const shouldRenderWidget = !isCompareFlow && isDirectTicker;
+    const widgetTicker = !isCompareFlow
+      ? isDirectTicker
+        ? upper
+        : detectedTicker
+      : null;
+    const shouldRenderWidget = Boolean(widgetTicker);
 
     if (shouldRenderWidget) {
-      const ticker = upper;
+      const ticker = widgetTicker!;
 
       console.log(`[INTERCEPTOR] 🎯 Widget triggered for ticker: ${ticker}`);
 
@@ -1205,10 +1264,12 @@ export async function POST(req: NextRequest) {
 
     // ── Xử lý các lệnh với RAG (Giữ nguyên logic cũ) ──
     let responseText: string;
+    let responseIntent: typeof INTENT[keyof typeof INTENT] = INTENT.GENERAL;
     let chartStock: string | undefined;
     let chartExchange: string | undefined;
 
     if (cmd === "/ta" && stock) {
+      responseIntent = INTENT.PTKT;
       console.log(`[Chat /ta] Fetching AI TA từ Bridge cho ${stock}...`);
       const personCtx = await getPersonalizationContext(userId, stock);
       const aiResult = await fetchBridgeAI("ta", stock, personCtx);
@@ -1240,6 +1301,7 @@ export async function POST(req: NextRequest) {
       responseText = ensureDisclaimer("PTKT", responseText);
 
     } else if (cmd === "/fa" && stock) {
+      responseIntent = INTENT.PTCB;
       console.log(`[Chat /fa] Fetching AI FA từ Bridge cho ${stock}...`);
       const personCtx = await getPersonalizationContext(userId, stock);
       const aiResult = await fetchBridgeAI("fa", stock, personCtx);
@@ -1254,6 +1316,7 @@ export async function POST(req: NextRequest) {
       }
 
     } else if (cmd === "/news" && stock) {
+      responseIntent = INTENT.NEWS;
       try {
         responseText = await withTimeout(
           executeAIRequest(buildNewsPrompt(stock, journalCtx), INTENT.NEWS),
@@ -1267,6 +1330,7 @@ export async function POST(req: NextRequest) {
       }
 
     } else if (cmd === "/tamly" && stock) {
+      responseIntent = INTENT.TAMLY;
       console.log(`[Chat /tamly] Fetching AI Tâm lý từ Bridge cho ${stock}...`);
       const personCtx = await getPersonalizationContext(userId, stock);
       const aiResult = await fetchBridgeAI("tamly", stock, personCtx);
@@ -1289,6 +1353,7 @@ export async function POST(req: NextRequest) {
       }
 
     } else if (isCompareFlow) {
+      responseIntent = INTENT.COMPARE;
       const targets = compareTickers.slice(0, 5);
       const compareData = await Promise.all(
         targets.map(async (ticker) => {
@@ -1305,6 +1370,7 @@ export async function POST(req: NextRequest) {
       responseText = await executeAIRequest(comparePrompt, INTENT.COMPARE);
 
     } else {
+      responseIntent = INTENT.GENERAL;
       // Chat thông thường — chỉ fetch market data khi câu hỏi thực sự liên quan thị trường
       const tickers = detectTickers(message);
       const needMarketContext = shouldFetchMarketContext(message) || tickers.length > 0;
@@ -1363,6 +1429,14 @@ Nhà đầu tư hỏi: ${message}`;
 
         responseText = await executeAIRequest(prompt, INTENT.GENERAL);
       }
+      responseText = ensureDisclaimer("GENERAL", responseText);
+    }
+
+    responseText = await enforcePersonaAndLanguage(responseText, responseIntent);
+    if (responseIntent === INTENT.PTKT) {
+      responseText = ensureDisclaimer("PTKT", responseText);
+    }
+    if (responseIntent === INTENT.GENERAL) {
       responseText = ensureDisclaimer("GENERAL", responseText);
     }
 

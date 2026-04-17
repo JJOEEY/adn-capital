@@ -2,17 +2,13 @@
  * API Cron Dispatcher — Smart Scheduler v2
  *
  * Smart Cron Schedule (VN Market Hours):
- * - 09:00–11:00: Quét 15 phút/lần (quét kỹ thuật)
- * - 11:00–11:30: TẠM DỪNG (nghỉ trưa Nhật/Pháp)
- * - 11:30: Quét 1 lần
- * - 13:00–13:30: TẠM DỪNG (nghỉ trưa phiên chiều)
- * - 13:30–14:00: Quét 15 phút/lần
- * - 14:00–14:45: Quét 5 phút/lần (Giờ Vàng)
+ * - Chỉ quét tại 4 mốc cố định để bảo toàn quota FiinQuant:
+ *   10:00, 10:30, 14:00, 14:20
  *
  * Endpoints:
  * - GET /api/cron?type=prop_trading     → 19:00 T2-T6
- * - GET /api/cron?type=intraday         → 10:00/11:30/14:00/14:45
- * - GET /api/cron?type=signal_scan_5m   → Smart 5m/15m gate
+ * - GET /api/cron?type=market_stats     → 10:00/11:30/14:00/14:45
+ * - GET /api/cron?type=signal_scan_5m   → fixed-slot gate
  */
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
@@ -48,7 +44,28 @@ export const dynamic = "force-dynamic";
 
 const PYTHON_BRIDGE = process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000";
 
-type CronType = "prop_trading" | "intraday" | "signal_scan_5m";
+type CronType = "prop_trading" | "intraday" | "market_stats" | "signal_scan_5m";
+
+function hasRequiredStatsData(snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>): boolean {
+  const hasMainIndex = snapshot.indices.some((item) => item.ticker === "VNINDEX");
+  return hasMainIndex && snapshot.liquidity != null && snapshot.investorTrading.availability.foreign;
+}
+
+function hasRequiredClose15Data(snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>): boolean {
+  const hasMainIndex = snapshot.indices.some((item) => item.ticker === "VNINDEX");
+  return hasMainIndex && snapshot.liquidity != null && snapshot.investorTrading.availability.foreign;
+}
+
+function hasRequiredFull19Data(snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>): boolean {
+  const hasMainIndex = snapshot.indices.some((item) => item.ticker === "VNINDEX");
+  return (
+    hasMainIndex &&
+    snapshot.liquidity != null &&
+    snapshot.investorTrading.availability.foreign &&
+    snapshot.investorTrading.availability.proprietary &&
+    snapshot.investorTrading.availability.retail
+  );
+}
 
 function buildIntradayFallback(today: string, timeLabel: string, vnidx?: { value: number; changePct: number }) {
   const idx = vnidx ? `${vnidx.value} | ${vnidx.changePct >= 0 ? "+" : ""}${vnidx.changePct}%` : "chưa cập nhật";
@@ -93,11 +110,11 @@ export async function GET(req: NextRequest) {
   const type = req.nextUrl.searchParams.get("type") as CronType | null;
   const sync = req.nextUrl.searchParams.get("sync") === "1";
 
-  if (!type || !["prop_trading", "intraday", "signal_scan_5m"].includes(type)) {
+  if (!type || !["prop_trading", "intraday", "market_stats", "signal_scan_5m"].includes(type)) {
     return NextResponse.json(
       {
         error: "Thiếu hoặc sai tham số 'type'",
-        availableTypes: ["prop_trading", "intraday", "signal_scan_5m"],
+        availableTypes: ["prop_trading", "market_stats", "signal_scan_5m"],
       },
       { status: 400 }
     );
@@ -105,7 +122,7 @@ export async function GET(req: NextRequest) {
 
   if (sync) {
     if (type === "prop_trading") return handlePropTrading();
-    if (type === "intraday") return handleIntraday();
+    if (type === "intraday" || type === "market_stats") return handleIntraday();
     return handleSignalScan5m();
   }
 
@@ -123,7 +140,7 @@ export async function GET(req: NextRequest) {
   const run = async () => {
     try {
       if (type === "prop_trading") await handlePropTrading();
-      else if (type === "intraday") await handleIntraday();
+      else if (type === "intraday" || type === "market_stats") await handleIntraday();
       else await handleSignalScan5m();
       await prisma.cronLog.update({
         where: { id: queued.id },
@@ -166,6 +183,27 @@ async function handlePropTrading(): Promise<NextResponse> {
   try {
     const [propData, snapshot] = await Promise.all([getPropTradingData(), getMarketSnapshot()]);
 
+    if (!hasRequiredFull19Data(snapshot)) {
+      const duration = Date.now() - startTime;
+      await logCron(
+        "prop_trading",
+        "skipped",
+        "Thiếu dữ liệu bắt buộc cho bản tin 19:00, không publish công khai",
+        duration,
+        {
+          availability: snapshot.investorTrading.availability,
+          liquidity: snapshot.liquidity,
+          indices: snapshot.indices.map((item) => item.ticker),
+          providerDiagnostics: snapshot.providerDiagnostics,
+        },
+      );
+      return NextResponse.json({
+        type: "eod_full_19h",
+        published: false,
+        reason: "missing_required_fields",
+      });
+    }
+
     if (propData) {
       await prisma.propTrading.upsert({
         where: { date: dateISO },
@@ -189,9 +227,10 @@ async function handlePropTrading(): Promise<NextResponse> {
       });
     }
 
-    const foreignLine = getInvestorTradingText(snapshot, "full19").find((line) => line.startsWith("Khối ngoại")) ?? "Khối ngoại: chưa cập nhật";
-    const proprietaryLine = getInvestorTradingText(snapshot, "full19").find((line) => line.startsWith("Tự doanh")) ?? "Tự doanh: chưa cập nhật";
-    const retailLine = getInvestorTradingText(snapshot, "full19").find((line) => line.startsWith("Cá nhân")) ?? "Cá nhân: chưa cập nhật";
+    const investorLines = getInvestorTradingText(snapshot, "full19");
+    const foreignLine = investorLines.find((line) => line.startsWith("Khối ngoại")) ?? "Khối ngoại: +0,0 tỷ";
+    const proprietaryLine = investorLines.find((line) => line.startsWith("Tự doanh")) ?? "Tự doanh: +0,0 tỷ";
+    const retailLine = investorLines.find((line) => line.startsWith("Cá nhân")) ?? "Cá nhân: +0,0 tỷ";
 
     // Gemini — Telegram-friendly Markdown format
     const prompt = `Bạn là Senior Quant tại ADN Capital.
@@ -261,34 +300,49 @@ _Powered by ADN Capital AI_`;
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  2. INTRADAY — 10:00, 11:30, 14:00, 14:45
+//  2. INTRADAY — 10:00, 10:30, 14:00, 14:20
 //     Format Dashboard chuyên nghiệp
 // ═══════════════════════════════════════════════════════════════
 
 async function handleIntraday(): Promise<NextResponse> {
   const startTime = Date.now();
   if (!isTradingDay()) {
-    await logCron("intraday", "skipped", "Không phải ngày giao dịch", 0);
+    await logCron("market_stats", "skipped", "Không phải ngày giao dịch", 0);
     return NextResponse.json({ message: "Skipped" });
   }
 
   const today = getVNDateString();
   const vnNow = getVnNow();
-  const hour = vnNow.hour();
-  const minute = vnNow.minute();
-  const timeLabel = `${hour}:${minute.toString().padStart(2, "0")}`;
-
-  let notifType: string;
-  if (hour === 10) notifType = "signal_10h";
-  else if (hour === 11) notifType = "signal_1130";
-  else if (hour === 14 && minute < 30) notifType = "signal_14h";
-  else notifType = "signal_1445";
+  const windowInfo = getSignalWindowInfo(vnNow.toDate(), "type2");
+  const notifType = windowInfo.type;
+  const timeLabel = windowInfo.label;
 
   try {
     const [snapshot, cafefNews] = await Promise.all([
       getMarketSnapshot(),
       fetchAllCafefNews(),
     ]);
+
+    if (!hasRequiredStatsData(snapshot)) {
+      const duration = Date.now() - startTime;
+      await logCron(
+        "market_stats",
+        "skipped",
+        "Thiếu dữ liệu bắt buộc cho bản tin cập nhật thông tin, không publish công khai",
+        duration,
+        {
+          availability: snapshot.investorTrading.availability,
+          liquidity: snapshot.liquidity,
+          indices: snapshot.indices.map((item) => item.ticker),
+          providerDiagnostics: snapshot.providerDiagnostics,
+        },
+      );
+      return NextResponse.json({
+        type: "market_stats",
+        published: false,
+        reason: "missing_required_fields",
+      });
+    }
 
     const vnidx = snapshot.indices.find(i => i.ticker === "VNINDEX");
     const vn30  = snapshot.indices.find(i => i.ticker === "VN30");
@@ -332,7 +386,7 @@ _Powered by ADN Capital AI_`;
       console.warn("[intraday] Gemini fallback:", err);
     }
     const safeReport = report?.trim() ? report : buildIntradayFallback(today, timeLabel, vnidx);
-    await saveMarketReport("intraday_update", `Market Update ${timeLabel}`, safeReport, {
+    await saveMarketReport("market_stats_update", `Market Update ${timeLabel}`, safeReport, {
       indices: snapshot.indices, breadth: snapshot.breadth, liquidity: snapshot.liquidity,
     });
 
@@ -340,22 +394,22 @@ _Powered by ADN Capital AI_`;
     await pushNotification(notifType, `⚡ Market Update ${timeLabel}${idxInfo}`, safeReport);
 
     const duration = Date.now() - startTime;
-    await logCron("intraday", "success", `${notifType}, ${duration}ms`, duration, {
+    await logCron("market_stats", "success", `${notifType}, ${duration}ms`, duration, {
       providerDiagnostics: snapshot.providerDiagnostics,
       requestDateVN: snapshot.requestDateVN,
       fallbackUsed: snapshot.providerDiagnostics.length > 0,
     });
-    return NextResponse.json({ type: "intraday", notifType, timeLabel, report: safeReport, timestamp: new Date().toISOString() });
+    return NextResponse.json({ type: "market_stats", notifType, timeLabel, report: safeReport, timestamp: new Date().toISOString() });
   } catch (error) {
-    await logCron("intraday", "error", String(error), Date.now() - startTime);
-    return NextResponse.json({ error: "Lỗi intraday" }, { status: 500 });
+    await logCron("market_stats", "error", String(error), Date.now() - startTime);
+    return NextResponse.json({ error: "Lỗi market stats" }, { status: 500 });
   }
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  3. SMART SIGNAL SCAN — 15m/5m gate
+//  3. SIGNAL SCAN — fixed-slot gate
 //
-//  Vercel gọi mỗi 5 phút. Logic nội bộ quyết định có chạy không.
+//  Chỉ quét khi khớp 4 mốc đã chốt để bảo toàn quota.
 // ═══════════════════════════════════════════════════════════════
 
 interface PythonScanSignal {
@@ -365,7 +419,7 @@ interface PythonScanSignal {
   reason?: string;
 }
 
-const FIXED_SCAN_SLOTS = new Set(["10:00", "10:30", "11:30", "14:00", "14:45"]);
+const FIXED_SCAN_SLOTS = new Set(["10:00", "10:30", "14:00", "14:20"]);
 
 function toSignalKey(ticker: string, type: string): string {
   return `${ticker.toUpperCase().trim()}|${type}`;
@@ -383,14 +437,9 @@ async function handleSignalScan5m(): Promise<NextResponse> {
   const min = vnNow.minute();
   const timeKey = `${hour}:${min.toString().padStart(2, "0")}`;
 
-  // ── Smart Gate ─────────────────────────────────────────────────────
-  //  09:00–11:00 → quét 15m (min chia hết cho 15)
-  //  11:00–11:30 → TẠM DỪNG
-  //  11:30       → quét 1 lần
-  //  11:30–13:00 → TẠM DỪNG
-  //  13:00–13:30 → TẠM DỪNG
-  //  13:30–14:00 → quét 15m
-  //  14:00–14:45 → quét 5m (Giờ Vàng — pass through)
+  // ── Fixed Gate ─────────────────────────────────────────────────────
+  //  Chỉ cho phép quét đúng 4 mốc:
+  //  10:00, 10:30, 14:00, 14:20
   // ──────────────────────────────────────────────────────────────────
   if (!FIXED_SCAN_SLOTS.has(timeKey)) {
     return NextResponse.json({ message: `Fixed Gate: skip ${timeKey}` });
@@ -538,7 +587,17 @@ async function handleSignalScan5m(): Promise<NextResponse> {
     const reconciliationCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const recentSignalNotifications = await prisma.notification.findMany({
       where: {
-        type: { in: ["signal_10h", "signal_1130", "signal_14h", "signal_1445", "signal_scan"] },
+        type: {
+          in: [
+            "signal_10h",
+            "signal_1030",
+            "signal_14h",
+            "signal_1420",
+            "signal_1130", // legacy
+            "signal_1445", // legacy
+            "signal_scan",
+          ],
+        },
         createdAt: { gte: reconciliationCutoff },
       },
       select: { content: true },

@@ -139,7 +139,7 @@ function TEIGauge({ value }: { value: number }) {
   const r = 50;
   const circumference = Math.PI * r;
   const progress = (clamped / 5) * circumference;
-  const strokeColor = value >= 4.5 ? "#f87171" : value >= 2.5 ? "#fbbf24" : "#34d399";
+  const strokeColor = value >= 4.8 ? "#f87171" : value >= 2.5 ? "#fbbf24" : "#34d399";
 
   return (
     <div className="flex flex-col items-center gap-2">
@@ -180,7 +180,7 @@ export function TickerWidget({ ticker, data }: TickerWidgetData) {
   const teiScore = behavior?.teiScore ?? 2.5;
   const isUp     = (ta?.price?.changePct ?? 0) >= 0;
 
-  const teiColor = teiScore >= 4.5 ? "text-red-400" : teiScore >= 2.5 ? "text-yellow-400" : "text-emerald-400";
+  const teiColor = teiScore >= 4.8 ? "text-red-400" : teiScore >= 2.5 ? "text-yellow-400" : "text-emerald-400";
 
   return (
     <motion.div
@@ -331,7 +331,7 @@ export function TickerWidget({ ticker, data }: TickerWidgetData) {
                   </div>
                   <div className="w-full grid grid-cols-1 sm:grid-cols-3 gap-2">
                     {[
-                      { label: "Hưng phấn cực độ (≥ 4.5)", style: { color: "var(--danger)" }, icon: AlertTriangle },
+                      { label: "Hưng phấn cực độ (≥ 4.8)", style: { color: "var(--danger)" }, icon: AlertTriangle },
                       { label: "Trung tính (2.0 – 4.0)", style: { color: "#eab308" }, icon: Minus },
                       { label: "Bi quan – Cơ hội (≤ 1.0)", style: { color: "#16a34a" }, icon: ShieldCheck },
                     ].map(item => (

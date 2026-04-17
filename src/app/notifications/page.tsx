@@ -97,12 +97,12 @@ const typeConfig: Record<
     border: "rgba(234,179,8,0.20)",
     label: "CẬP NHẬT 10:00",
   },
-  signal_1130: {
+  signal_1030: {
     icon: Zap,
     colorHex: "#eab308",
     bg: "rgba(234,179,8,0.10)",
     border: "rgba(234,179,8,0.20)",
-    label: "CẬP NHẬT 11:30",
+    label: "CẬP NHẬT 10:30",
   },
   signal_14h: {
     icon: TrendingUp,
@@ -111,12 +111,54 @@ const typeConfig: Record<
     border: "rgba(16,185,129,0.20)",
     label: "CẬP NHẬT 14:00",
   },
+  signal_1420: {
+    icon: TrendingUp,
+    colorHex: "#10b981",
+    bg: "rgba(16,185,129,0.10)",
+    border: "rgba(16,185,129,0.20)",
+    label: "CẬP NHẬT 14:20",
+  },
+  signal_1130: {
+    icon: Zap,
+    colorHex: "#eab308",
+    bg: "rgba(234,179,8,0.10)",
+    border: "rgba(234,179,8,0.20)",
+    label: "CẬP NHẬT 11:30",
+  },
   signal_1445: {
     icon: TrendingUp,
     colorHex: "#10b981",
     bg: "rgba(16,185,129,0.10)",
     border: "rgba(16,185,129,0.20)",
     label: "CẬP NHẬT 14:45",
+  },
+  stats_10h: {
+    icon: Zap,
+    colorHex: "#eab308",
+    bg: "rgba(234,179,8,0.10)",
+    border: "rgba(234,179,8,0.20)",
+    label: "CẬP NHẬT THÔNG TIN 10:00",
+  },
+  stats_1130: {
+    icon: Zap,
+    colorHex: "#eab308",
+    bg: "rgba(234,179,8,0.10)",
+    border: "rgba(234,179,8,0.20)",
+    label: "CẬP NHẬT THÔNG TIN 11:30",
+  },
+  stats_14h: {
+    icon: TrendingUp,
+    colorHex: "#10b981",
+    bg: "rgba(16,185,129,0.10)",
+    border: "rgba(16,185,129,0.20)",
+    label: "CẬP NHẬT THÔNG TIN 14:00",
+  },
+  stats_1445: {
+    icon: TrendingUp,
+    colorHex: "#10b981",
+    bg: "rgba(16,185,129,0.10)",
+    border: "rgba(16,185,129,0.20)",
+    label: "CẬP NHẬT THÔNG TIN 14:45",
   },
   intraday_update: {
     icon: TrendingUp,
@@ -494,7 +536,7 @@ export default function NotificationsPage() {
             {
               id: crypto.randomUUID(),
               role: "assistant",
-              text: data.message ?? "Đại ca đã dùng hết lượt tư vấn hôm nay.",
+              text: data.message ?? "Nhà đầu tư đã dùng hết lượt tư vấn hôm nay.",
               createdAt: new Date().toISOString(),
               streamState: "done",
             },
@@ -569,7 +611,7 @@ export default function NotificationsPage() {
       const cardsMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: "assistant",
-        text: `Đại ca muốn phân tích ${directTicker}? Chọn loại phân tích:`,
+        text: `Nhà đầu tư muốn phân tích ${directTicker}? Hãy chọn loại phân tích:`,
         ticker: directTicker,
         isCards: true,
         createdAt: new Date().toISOString(),
@@ -638,7 +680,7 @@ export default function NotificationsPage() {
         role: "assistant",
         text: isWidget
           ? `${payload.data?.technical?.aiInsight ?? payload.data?.fundamental?.aiInsight ?? `Đã phân tích nhanh mã ${payload.ticker}.`}`
-          : payload.message || payload.reply || "Em chưa có phản hồi, đại ca hỏi lại giúp em nhé.",
+          : payload.message || payload.reply || "Hệ thống chưa có phản hồi, Nhà đầu tư vui lòng thử lại.",
         createdAt: new Date().toISOString(),
         streamState: payload.streamState ?? "done",
         widgetMeta,
@@ -718,10 +760,13 @@ export default function NotificationsPage() {
                 {[
                   { label: "08:00", color: "#22c55e", bg: "rgba(34,197,94,0.10)", border: "rgba(34,197,94,0.20)" },
                   { label: "10:00", color: "#eab308", bg: "rgba(234,179,8,0.10)", border: "rgba(234,179,8,0.20)" },
+                  { label: "10:30", color: "#eab308", bg: "rgba(234,179,8,0.10)", border: "rgba(234,179,8,0.20)" },
                   { label: "11:30", color: "#eab308", bg: "rgba(234,179,8,0.10)", border: "rgba(234,179,8,0.20)" },
                   { label: "14:00", color: "#10b981", bg: "rgba(16,185,129,0.10)", border: "rgba(16,185,129,0.20)" },
+                  { label: "14:20", color: "#10b981", bg: "rgba(16,185,129,0.10)", border: "rgba(16,185,129,0.20)" },
                   { label: "14:45", color: "#10b981", bg: "rgba(16,185,129,0.10)", border: "rgba(16,185,129,0.20)" },
                   { label: "15:00", color: "#06b6d4", bg: "rgba(6,182,212,0.10)", border: "rgba(6,182,212,0.20)" },
+                  { label: "19:00", color: "#38bdf8", bg: "rgba(56,189,248,0.10)", border: "rgba(56,189,248,0.20)" },
                 ].map((s) => (
                   <span key={s.label} className="text-[11px] font-bold px-2 py-1 rounded-lg border" style={{ color: s.color, background: s.bg, borderColor: s.border }}>
                     {s.label}
@@ -759,7 +804,7 @@ export default function NotificationsPage() {
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-12 text-center">
                 <Clock className="w-12 h-12 text-neutral-700 mx-auto mb-3" />
                 <p className="text-sm text-neutral-500">Chưa có thông báo nào</p>
-                <p className="text-xs text-neutral-600 mt-1">Bản tin tự động cập nhật 08:00, 10:00, 11:30, 14:00, 14:45, 15:00</p>
+                <p className="text-xs text-neutral-600 mt-1">Bản tin tự động cập nhật 08:00, 10:00, 10:30, 11:30, 14:00, 14:20, 14:45, 15:00, 19:00</p>
               </div>
             ) : (
               Object.entries(grouped).map(([dateStr, items]) => (
