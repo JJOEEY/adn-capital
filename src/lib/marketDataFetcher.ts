@@ -19,7 +19,7 @@ import {
   type FiinInvestorTradingResponse,
   type FiinRealtimeResponse,
 } from "./fiinquantClient";
-import { getVnDateISO, getVnNow } from "./time";
+import { getVnDateISO, getVnNow, isVnTradingDay, toVnTime } from "./time";
 import { fetchDnseMarketSnapshot } from "./dnseClient";
 
 type JsonRecord = Record<string, unknown>;
@@ -391,7 +391,7 @@ function parseBreadth(raw: unknown): { up: number; down: number; unchanged: numb
 }
 
 function parseLiquidity(raw: unknown): number | null {
-  if (typeof raw === "number") return raw;
+  if (typeof raw === "number") return raw > 0 ? raw : null;
   if (typeof raw === "object" && raw !== null) {
     const obj = raw as Record<string, unknown>;
     const candidates = [
@@ -407,6 +407,17 @@ function parseLiquidity(raw: unknown): number | null {
     }
   }
   return null;
+}
+
+function getLatestTradingDateISO(): string {
+  let cursor = toVnTime();
+  for (let i = 0; i < 10; i += 1) {
+    if (isVnTradingDay(cursor)) {
+      return cursor.format("YYYY-MM-DD");
+    }
+    cursor = cursor.subtract(1, "day");
+  }
+  return getVnDateISO();
 }
 
 function toNumber(value: unknown): number | null {
@@ -876,7 +887,7 @@ function parseRealtimeSupplyDemand(raw: FiinRealtimeResponse | null): MarketSnap
 /** Snapshot thị trường (dùng cho intraday notifications + briefs) */
 export async function getMarketSnapshot(): Promise<MarketSnapshot> {
   // Fetch song song: FiinQuant overview + VNDirect indices + top movers
-  const requestDateVN = getVnDateISO();
+  const requestDateVN = getLatestTradingDateISO();
   const providerDiagnostics: ProviderDiagnostic[] = [];
 
   const [overview, investorRawByDate, breadthFeed, realtimeVnindex, vnindex, hnxindex, upcomindex, vn30, movers, dnseSnapshot, tcbsSnapshot] = await Promise.all([
@@ -1009,7 +1020,7 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
     parsedInvestor.liquidityByExchange.total = inferredExchangeTotal;
   }
   const overviewLiquidity = overview ? parseLiquidity(overview.liquidity) : null;
-  const totalLiquidity = overviewLiquidity ?? parsedInvestor.liquidityByExchange.total;
+  const totalLiquidity = parsedInvestor.liquidityByExchange.total ?? overviewLiquidity;
   const breadthFromFeed = parseBreadthFromFeed(breadthFeed);
   const breadth = breadthFromFeed ?? (overview ? parseBreadth(overview.market_breadth) : null);
   const supplyDemand = parseRealtimeSupplyDemand(realtimeVnindex);

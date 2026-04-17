@@ -197,7 +197,7 @@ export default function DashboardPage() {
       {/* ═══ TICKER TAPE ═══ */}
       {loading || !data ? <TickerTapeSkeleton /> : <TickerTape items={tickerItems} />}
 
-      <div className="p-3 md:p-5 space-y-4 w-full max-w-[1440px] mx-auto min-w-0 overflow-x-hidden">
+      <div className="w-full min-w-0 overflow-x-hidden space-y-4 px-3 md:px-5 xl:px-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -279,36 +279,32 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* ═══ BOTTOM: News (left 2-col) | AI + ART (right) ═══ */}
-        <div className="grid w-full min-w-0 grid-cols-1 lg:grid-cols-3 lg:[grid-template-columns:repeat(3,minmax(0,1fr))] gap-4">
-          {/* Left: Morning + EOD stacked */}
-          <div className="lg:col-span-2 w-full min-w-0 grid grid-cols-1 md:grid-cols-2 lg:[grid-template-columns:repeat(2,minmax(0,1fr))] gap-4">
-            <SafeSection fallback={<MorningNewsSkeleton />}>
-              <Suspense fallback={<MorningNewsSkeleton />}>
-                <MorningNews />
-              </Suspense>
-            </SafeSection>
-            <SafeSection fallback={<EveningNewsSkeleton />}>
-              <Suspense fallback={<EveningNewsSkeleton />}>
-                <EveningNews />
-              </Suspense>
-            </SafeSection>
-          </div>
+        {/* ═══ BOTTOM: Adaptive full-width card grid ═══ */}
+        <div className="grid w-full min-w-0 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <SafeSection fallback={<MorningNewsSkeleton />}>
+            <Suspense fallback={<MorningNewsSkeleton />}>
+              <MorningNews />
+            </Suspense>
+          </SafeSection>
 
-          {/* Right: AI decision + ART */}
-          <div className="w-full min-w-0 flex flex-col gap-4">
-            <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để mở Khu vực AI Nhận định">
-              <AIBrokerDecisionCard
-                summary={data?.aiSummary ?? null}
-                signalLabel={effectiveOverview?.action_message ?? null}
-              />
-            </LockOverlay>
-            <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem Chỉ báo Cạn Kiệt Xu Hướng">
-              <SafeSection fallback={<RPISkeleton />}>
-                {!mounted ? <RPISkeleton /> : <ReversePointIndex />}
-              </SafeSection>
-            </LockOverlay>
-          </div>
+          <SafeSection fallback={<EveningNewsSkeleton />}>
+            <Suspense fallback={<EveningNewsSkeleton />}>
+              <EveningNews />
+            </Suspense>
+          </SafeSection>
+
+          <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để mở Khu vực AI Nhận định">
+            <AIBrokerDecisionCard
+              summary={data?.aiSummary ?? null}
+              signalLabel={effectiveOverview?.action_message ?? null}
+            />
+          </LockOverlay>
+
+          <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem Chỉ báo Cạn Kiệt Xu Hướng">
+            <SafeSection fallback={<RPISkeleton />}>
+              {!mounted ? <RPISkeleton /> : <ReversePointIndex />}
+            </SafeSection>
+          </LockOverlay>
         </div>
       </div>
     </MainLayout>
@@ -664,4 +660,3 @@ const MarketStatusCard = memo(function MarketStatusCard({
     </div>
   );
 });
-
