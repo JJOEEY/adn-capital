@@ -385,7 +385,7 @@ export default function NotificationsPage() {
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const { data, isLoading } = useSWR<{ notifications: NotificationItem[] }>(
-    "/api/notifications?limit=50",
+    "/api/notifications?limit=50&scope=updates",
     fetcher,
     { refreshInterval: 60_000, revalidateOnFocus: true }
   );
@@ -758,15 +758,12 @@ export default function NotificationsPage() {
             <div className="flex items-center justify-between gap-2">
               <div className="flex gap-2 flex-wrap flex-1">
                 {[
-                  { label: "08:00", color: "#22c55e", bg: "rgba(34,197,94,0.10)", border: "rgba(34,197,94,0.20)" },
                   { label: "10:00", color: "#eab308", bg: "rgba(234,179,8,0.10)", border: "rgba(234,179,8,0.20)" },
                   { label: "10:30", color: "#eab308", bg: "rgba(234,179,8,0.10)", border: "rgba(234,179,8,0.20)" },
                   { label: "11:30", color: "#eab308", bg: "rgba(234,179,8,0.10)", border: "rgba(234,179,8,0.20)" },
                   { label: "14:00", color: "#10b981", bg: "rgba(16,185,129,0.10)", border: "rgba(16,185,129,0.20)" },
                   { label: "14:20", color: "#10b981", bg: "rgba(16,185,129,0.10)", border: "rgba(16,185,129,0.20)" },
                   { label: "14:45", color: "#10b981", bg: "rgba(16,185,129,0.10)", border: "rgba(16,185,129,0.20)" },
-                  { label: "15:00", color: "#06b6d4", bg: "rgba(6,182,212,0.10)", border: "rgba(6,182,212,0.20)" },
-                  { label: "19:00", color: "#38bdf8", bg: "rgba(56,189,248,0.10)", border: "rgba(56,189,248,0.20)" },
                 ].map((s) => (
                   <span key={s.label} className="text-[11px] font-bold px-2 py-1 rounded-lg border" style={{ color: s.color, background: s.bg, borderColor: s.border }}>
                     {s.label}
@@ -804,7 +801,7 @@ export default function NotificationsPage() {
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-12 text-center">
                 <Clock className="w-12 h-12 text-neutral-700 mx-auto mb-3" />
                 <p className="text-sm text-neutral-500">Chưa có thông báo nào</p>
-                <p className="text-xs text-neutral-600 mt-1">Bản tin tự động cập nhật 08:00, 10:00, 10:30, 11:30, 14:00, 14:20, 14:45, 15:00, 19:00</p>
+                <p className="text-xs text-neutral-600 mt-1">Feed chỉ hiển thị 2 nhóm: scan mã cổ phiếu và scan thị trường theo các mốc 10:00, 10:30, 11:30, 14:00, 14:20, 14:45.</p>
               </div>
             ) : (
               Object.entries(grouped).map(([dateStr, items]) => (
