@@ -713,7 +713,7 @@ export default function NotificationsPage() {
     <MainLayout disableSwipe={subTab === "chatbot"}>
       <div className="flex flex-col min-h-0" style={{ height: chatPanelHeight }}>
         <div className="shrink-0 px-4 pt-3 pb-2">
-          <div className="flex gap-1.5 bg-[var(--surface)] rounded-xl p-1 border border-white/[0.06]">
+          <div className="flex gap-1.5 bg-[var(--surface)] rounded-xl p-1 border border-[var(--border)]">
             <button
               onClick={() => setSubTab("updates")}
               className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer"
@@ -731,7 +731,7 @@ export default function NotificationsPage() {
               className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer"
               style={
                 subTab === "chatbot"
-                  ? { background: "rgba(168,85,247,0.15)", color: "#a855f7", border: "1px solid rgba(168,85,247,0.25)" }
+                  ? { background: "var(--primary-light)", color: "var(--primary)", border: "1px solid var(--border-strong)" }
                   : { color: "var(--text-muted)" }
               }
             >
@@ -857,15 +857,15 @@ export default function NotificationsPage() {
             <div className="flex-1 overflow-y-auto px-3 pb-24 pt-3 sm:px-4 sm:pt-3 md:pb-4 space-y-3 overscroll-contain">
               {chatMessages.length === 0 && chatHydrated && (
                 <div className="flex flex-col items-center justify-center h-full text-center px-4">
-                  <div className="w-16 h-16 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mb-4">
-                    <Bot className="w-8 h-8 text-purple-400" />
+                  <div className="w-16 h-16 rounded-2xl border flex items-center justify-center mb-4" style={{ background: "var(--primary-light)", borderColor: "var(--border)" }}>
+                    <Bot className="w-8 h-8" style={{ color: "var(--primary)" }} />
                   </div>
-                  <h3 className="text-lg font-black text-white mb-1">ADN AI Advisor</h3>
-                  <p className="text-xs text-neutral-500 max-w-xs mb-4">
+                  <h3 className="text-lg font-black mb-1" style={{ color: "var(--text-primary)" }}>ADN AI Broker</h3>
+                  <p className="text-xs max-w-xs mb-4" style={{ color: "var(--text-secondary)" }}>
                     Nhập trực tiếp mã cổ phiếu (ví dụ: HPG) để mở 4 thẻ phân tích, hoặc dùng lệnh:
                     <br />
-                    <span className="text-purple-400 font-mono">/ta Mã</span> · <span className="text-purple-400 font-mono">/fa Mã</span> ·{" "}
-                    <span className="text-purple-400 font-mono">/news Mã</span>
+                    <span className="font-mono" style={{ color: "var(--primary)" }}>/ta Mã</span> · <span className="font-mono" style={{ color: "var(--primary)" }}>/fa Mã</span> ·{" "}
+                    <span className="font-mono" style={{ color: "var(--primary)" }}>/news Mã</span>
                   </p>
                 </div>
               )}
@@ -878,8 +878,8 @@ export default function NotificationsPage() {
                 return (
                   <div key={m.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
                     {!isUser && (
-                      <div className="w-7 h-7 rounded-full bg-purple-500/15 flex items-center justify-center shrink-0 mr-2 mt-1">
-                        <Bot className="w-3.5 h-3.5 text-purple-400" />
+                      <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 mr-2 mt-1" style={{ background: "var(--primary-light)" }}>
+                        <Bot className="w-3.5 h-3.5" style={{ color: "var(--primary)" }} />
                       </div>
                     )}
                     <div className={`max-w-[88%] ${isUser ? "" : "w-full sm:max-w-[88%]"}`}>
@@ -888,14 +888,14 @@ export default function NotificationsPage() {
                         style={
                           isUser
                             ? {
-                                background: "rgba(16,185,129,0.15)",
-                                color: "#d1fae5",
-                                borderColor: "rgba(16,185,129,0.20)",
+                                background: "var(--primary)",
+                                color: "var(--on-primary)",
+                                borderColor: "var(--primary-hover)",
                                 borderRadius: "16px 16px 4px 16px",
                               }
                             : {
                                 background: "var(--surface)",
-                                color: "var(--text-secondary)",
+                                color: "var(--text-primary)",
                                 borderColor: "var(--border)",
                                 borderRadius: "16px 16px 16px 4px",
                               }
@@ -976,15 +976,15 @@ export default function NotificationsPage() {
 
               {chatLoading && (
                 <div className="flex justify-start">
-                  <div className="w-7 h-7 rounded-full bg-purple-500/15 flex items-center justify-center shrink-0 mr-2 mt-1">
-                    <Bot className="w-3.5 h-3.5 text-purple-400" />
+                  <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 mr-2 mt-1" style={{ background: "var(--primary-light)" }}>
+                    <Bot className="w-3.5 h-3.5" style={{ color: "var(--primary)" }} />
                   </div>
                   <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl rounded-bl-sm px-4 py-3 flex gap-1.5">
                     {[0, 1, 2].map((i) => (
                       <motion.div
                         key={i}
                         className="w-2 h-2 rounded-full"
-                        style={{ background: "#a855f7" }}
+                        style={{ background: "var(--primary)" }}
                         animate={{ opacity: [0.3, 1, 0.3] }}
                         transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.15 }}
                       />
@@ -1035,7 +1035,7 @@ export default function NotificationsPage() {
                   onClick={handleChatSend}
                   disabled={chatLoading || cardLoading !== null || !chatInput.trim()}
                   className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center disabled:opacity-30 transition-all cursor-pointer active:scale-95"
-                  style={{ background: "#a855f7", color: "#ffffff" }}
+                  style={{ background: "var(--primary)", color: "var(--on-primary)" }}
                 >
                   <Send className="w-4 h-4" />
                 </button>

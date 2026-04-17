@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm";
 import { useSession } from "next-auth/react";
 import { TrendingUp, BarChart3, Heart, Newspaper, Send, Zap, Bot } from "lucide-react";
 import { StockChart } from "@/components/chat/StockChart";
+import { useTheme } from "@/components/providers/ThemeProvider";
 
 type CardId = "ta" | "fa" | "tamly" | "news";
 type BrokerBadge = "MUA" | "GIỮ" | "BÁN";
@@ -130,8 +131,11 @@ function badgeStyle(badge: BrokerBadge): { color: string; borderColor: string; b
 
 function BotAvatar() {
   return (
-    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-[rgba(46,77,61,0.16)]">
-      <Bot className="h-4 w-4 text-[var(--text-primary)]" />
+    <div
+      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border"
+      style={{ borderColor: "var(--border)", background: "var(--primary-light)" }}
+    >
+      <Bot className="h-4 w-4" style={{ color: "var(--primary)" }} />
     </div>
   );
 }
@@ -139,7 +143,10 @@ function BotAvatar() {
 function UserBubble({ text }: { text: string }) {
   return (
     <div className="flex justify-end">
-      <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-emerald-600 px-4 py-2.5 text-sm leading-relaxed text-white">
+      <div
+        className="max-w-[85%] rounded-2xl rounded-tr-sm border px-4 py-2.5 text-sm leading-relaxed"
+        style={{ background: "var(--primary)", color: "var(--on-primary)", borderColor: "var(--primary-hover)" }}
+      >
         {text}
       </div>
     </div>
@@ -150,11 +157,14 @@ function TypingIndicator() {
   return (
     <div className="flex items-start gap-2.5">
       <BotAvatar />
-      <div className="rounded-2xl rounded-tl-sm border border-white/10 bg-gray-800 px-4 py-3 text-sm text-gray-200">
+      <div
+        className="rounded-2xl rounded-tl-sm border px-4 py-3 text-sm"
+        style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--text-secondary)" }}
+      >
         <div className="flex gap-1.5">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-gray-300" />
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-gray-300 [animation-delay:120ms]" />
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-gray-300 [animation-delay:240ms]" />
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ background: "var(--text-muted)" }} />
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full [animation-delay:120ms]" style={{ background: "var(--text-muted)" }} />
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full [animation-delay:240ms]" style={{ background: "var(--text-muted)" }} />
         </div>
       </div>
     </div>
@@ -213,15 +223,20 @@ function BotBubble({ message, onCardClick, cardLoading, cardDisabled = false }: 
       <BotAvatar />
       <div className="flex max-w-[90%] flex-col gap-2">
         {message.text && (
-          <div className="rounded-2xl rounded-tl-sm border border-white/10 bg-gray-800 px-4 py-2.5 text-sm leading-relaxed text-gray-100">
+          <div
+            className="rounded-2xl rounded-tl-sm border px-4 py-2.5 text-sm leading-relaxed"
+            style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--text-primary)" }}
+          >
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown>
           </div>
         )}
 
         {message.showDynamicChart && message.ticker && (
-          <div className="rounded-2xl border border-white/10 bg-gray-900 p-2">
+          <div className="rounded-2xl border p-2" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
             <div className="flex items-center justify-between px-2 pb-2 pt-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Khu vực AI nhận định</span>
+              <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                Khu vực AI nhận định
+              </span>
               <span
                 className="rounded-full border px-2 py-0.5 text-[11px] font-black"
                 style={brokerBadgeDesign}
@@ -238,7 +253,8 @@ function BotBubble({ message, onCardClick, cardLoading, cardDisabled = false }: 
           <img
             src={message.mediaUrl}
             alt={`Chart ${message.ticker ?? ""}`}
-            className="w-full rounded-lg border border-white/10"
+            className="w-full rounded-lg border"
+            style={{ borderColor: "var(--border)" }}
           />
         )}
 
@@ -271,6 +287,7 @@ export function InvestmentChat({
   disableReason = "",
 }: InvestmentChatProps) {
   const { data: session } = useSession();
+  const { theme } = useTheme();
   const userId = (session?.user as { id?: string })?.id ?? "";
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -519,9 +536,10 @@ export function InvestmentChat({
       </div>
 
       <div
-        className="sticky bottom-0 z-10 border-t bg-gray-900 p-3"
+        className="sticky bottom-0 z-10 border-t p-3"
         style={{
-          borderColor: "rgba(255,255,255,0.08)",
+          borderColor: "var(--border)",
+          background: "var(--surface)",
           paddingBottom: isMobile
             ? keyboardOpen
               ? "0.75rem"
@@ -529,11 +547,7 @@ export function InvestmentChat({
             : "0.75rem",
         }}
       >
-        {disableInput && (
-          <p className="mb-2 text-xs text-red-400">
-            {disableReason || "Đã hết lượt tư vấn trong ngày."}
-          </p>
-        )}
+        {disableInput && <p className="mb-2 text-xs" style={{ color: "var(--danger)" }}>{disableReason || "Đã hết lượt tư vấn trong ngày."}</p>}
 
         <div className="flex items-center gap-2">
           <input
@@ -554,12 +568,18 @@ export function InvestmentChat({
             }}
             disabled={isLoading || disableInput}
             placeholder="Nhập mã CP (HPG) hoặc câu hỏi tự do..."
-            className="h-11 flex-1 rounded-full border border-white/10 bg-[#0f1d16] px-4 text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:opacity-50"
+            className="h-11 flex-1 rounded-full border px-4 text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:opacity-50"
+            style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
           />
           <button
             onClick={handleSubmit}
             disabled={isLoading || !input.trim() || disableInput}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white transition hover:bg-emerald-500 disabled:opacity-40"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition disabled:opacity-40"
+            style={{
+              background: "var(--primary)",
+              color: "var(--on-primary)",
+              filter: theme === "dark" ? "none" : "saturate(0.95)",
+            }}
           >
             <Send className="h-4 w-4" />
           </button>

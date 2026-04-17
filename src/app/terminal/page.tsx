@@ -70,7 +70,7 @@ export default function TerminalPage() {
           reply =
             data.data?.technical?.aiInsight ??
             data.data?.fundamental?.aiInsight ??
-            "Em nhan dien ma **" + data.ticker + "** va da phan tich nhanh. Dai ca co the nhap truc tiep ma " + data.ticker + " de mo 4 the chi tiet.";
+            "Hệ thống đã nhận diện mã **" + data.ticker + "** và phân tích nhanh. Nhà đầu tư có thể nhập trực tiếp mã " + data.ticker + " để mở 4 thẻ phân tích chi tiết.";
         }
         setExtraMessages((prev) => [
           ...prev,

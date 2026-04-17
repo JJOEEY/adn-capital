@@ -13,12 +13,12 @@ interface ThemeContextValue {
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("dark");
+  const [theme, setThemeState] = useState<Theme>("light");
 
-  // Initialize from localStorage, default dark
+  // Initialize from localStorage, default light
   useEffect(() => {
     const stored = localStorage.getItem("adn-theme") as Theme | null;
-    const initial = stored === "light" ? "light" : "dark";
+    const initial = stored === "dark" ? "dark" : "light";
     setThemeState(initial);
     applyTheme(initial);
   }, []);

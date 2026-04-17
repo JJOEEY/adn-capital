@@ -151,7 +151,7 @@ function LandingHeader() {
         </Link>
         <a href="https://s.dnse.vn/AhkV3Y" target="_blank" rel="noopener noreferrer"
           className="hidden sm:inline-flex items-center px-5 py-2 rounded-[10px] text-[14px] font-semibold transition-all"
-          style={{ background: "var(--primary)", color: "var(--text-primary)" }}
+          style={{ background: "var(--primary)", color: "var(--on-primary)" }}
           onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--primary-hover)"; }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--primary)"; }}>
           Mở TK
@@ -183,7 +183,7 @@ function LandingHeader() {
                 style={{ color: "var(--text-primary)", border: "1px solid var(--border)" }}>Đăng nhập</Link>
               <a href="https://s.dnse.vn/AhkV3Y" target="_blank" rel="noopener noreferrer"
                 className="flex-1 text-center py-2 rounded-[10px] text-[14px] font-semibold"
-                style={{ background: "var(--primary)", color: "var(--text-primary)" }}>Mở TK</a>
+                style={{ background: "var(--primary)", color: "var(--on-primary)" }}>Mở TK</a>
             </div>
           </nav>
         </div>
@@ -294,7 +294,7 @@ function HeroSection() {
               className="group flex items-center gap-2 px-7 py-3.5 rounded-[10px] font-semibold text-[15px] transition-all hover:scale-[1.02] active:scale-[0.98]"
               style={{
                 background: "var(--primary)",
-                color: "var(--text-primary)",
+                color: "var(--on-primary)",
               }}
               onMouseEnter={(e) => {
                 (e.currentTarget as HTMLAnchorElement).style.background = "var(--primary-hover)";
@@ -908,7 +908,7 @@ function ProcessSection() {
               className="inline-flex items-center gap-2 px-7 py-3.5 rounded-[10px] font-semibold text-[15px] transition-all hover:scale-[1.02]"
               style={{
                 background: "var(--primary)",
-                color: "var(--text-primary)",
+                color: "var(--on-primary)",
               }}
               onMouseEnter={(e) => {
                 (e.currentTarget as HTMLAnchorElement).style.background = "var(--primary-hover)";

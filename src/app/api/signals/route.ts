@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getBatchPrices } from "@/lib/PriceCache";
 
 export const dynamic = "force-dynamic";
 
@@ -31,10 +32,40 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
 
+    const liveStatuses = new Set(["ACTIVE", "HOLD_TO_DIE"]);
+    const liveTickers = [...new Set(
+      signals
+        .filter((s) => liveStatuses.has(s.status))
+        .map((s) => s.ticker)
+        .filter(Boolean),
+    )];
+
+    let livePriceMap: Record<string, { close: number }> = {};
+    if (liveTickers.length > 0) {
+      try {
+        livePriceMap = await getBatchPrices(liveTickers);
+      } catch (error) {
+        console.error("[/api/signals] live price fallback to DB:", error);
+      }
+    }
+
     const now = Date.now();
 
     return NextResponse.json({
       signals: signals.map((s) => ({
+        ...(function () {
+          const live = liveStatuses.has(s.status) ? livePriceMap[s.ticker] : undefined;
+          const liveCurrentPrice =
+            live && typeof live.close === "number" && Number.isFinite(live.close) && live.close > 0
+              ? live.close
+              : null;
+          const currentPrice = liveCurrentPrice ?? s.currentPrice;
+          const currentPnl =
+            currentPrice != null && s.entryPrice > 0
+              ? +(((currentPrice - s.entryPrice) / s.entryPrice) * 100).toFixed(2)
+              : s.currentPnl;
+          return { currentPrice, currentPnl };
+        })(),
         id: s.id,
         ticker: s.ticker,
         type: s.type,
@@ -44,8 +75,6 @@ export async function GET(request: NextRequest) {
         target: s.target,
         stoploss: s.stoploss,
         closePrice: s.closePrice,
-        currentPrice: s.currentPrice,
-        currentPnl: s.currentPnl,
         navAllocation: s.navAllocation,
         triggerSignal: s.triggerSignal,
         aiReasoning: s.aiReasoning,

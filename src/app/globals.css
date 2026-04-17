@@ -31,6 +31,8 @@
   --border: #E8E4DB;
   --border-strong: #D6CDBB;
   --surface: #FFFFFF;
+  --surface-2: #F3F1EB;
+  --on-primary: #F8F7F2;
   --danger: #C0392B;
   --accent-fa: #5B8C5A;
   --accent-news: #A0845C;
@@ -54,6 +56,8 @@
   --border: rgba(235,226,207,0.10);
   --border-strong: rgba(235,226,207,0.18);
   --surface: #111a14;
+  --surface-2: #162219;
+  --on-primary: #EBE2CF;
   --danger: #c0614a;
   --accent-fa: #7ab87a;
   --accent-news: #EBE2CF;

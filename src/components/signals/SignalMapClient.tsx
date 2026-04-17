@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import useSWR from "swr";
 import { Zap, RefreshCw, Crosshair, Briefcase, CheckCircle, Crown, Lock, Bot } from "lucide-react";
 import { SignalCard } from "@/components/signals/SignalCard";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import type { Signal } from "@/types";
 import Link from "next/link";
+import { isWithinVnTradingSession } from "@/lib/time";
 
 type Tab = "RADAR" | "ACTIVE" | "CLOSED";
 type TierFilter = "all" | "LEADER" | "TRUNG_HAN" | "NGAN_HAN" | "TAM_NGAM";
@@ -32,11 +33,28 @@ export function SignalMapClient({ isPremium = false }: { isPremium?: boolean }) 
   const [tab, setTab] = useState<Tab>("RADAR");
   const [tierFilter, setTierFilter] = useState<TierFilter>("all");
   const [isScanning, setIsScanning] = useState(false);
+  const [isTradingSession, setIsTradingSession] = useState(false);
+
+  useEffect(() => {
+    const updateTradingSession = () => setIsTradingSession(isWithinVnTradingSession());
+    updateTradingSession();
+    const timer = window.setInterval(updateTradingSession, 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const refreshInterval =
+    tab === "ACTIVE"
+      ? isTradingSession
+        ? 30_000
+        : 15 * 60_000
+      : isTradingSession
+        ? 5 * 60_000
+        : 15 * 60_000;
 
   const { data, isLoading, isValidating, mutate } = useSWR<{ signals: Signal[] }>(
     "/api/signals?days=90",
     fetcher,
-    { refreshInterval: 300_000, revalidateOnFocus: false, keepPreviousData: true }
+    { refreshInterval, revalidateOnFocus: false, keepPreviousData: true }
   );
 
   const allSignals = data?.signals ?? [];

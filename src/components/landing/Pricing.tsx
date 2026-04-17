@@ -139,7 +139,7 @@ const accentTokens: Record<
     borderHover: "hover:border-sky-500/50",
     shadow: "hover:shadow-[0_0_50px_-12px_rgba(56,189,248,0.4)]",
     badge: "bg-sky-500/10 text-sky-400 border-sky-500/25",
-    btn: "bg-sky-500 hover:bg-sky-400 text-black",
+    btn: "bg-sky-500 hover:bg-sky-400 text-white",
     iconBg: "bg-sky-500/10",
     iconText: "text-sky-400",
     ribbon: "bg-sky-500",
@@ -285,7 +285,7 @@ export default function Pricing() {
           </span>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black" style={{ color: "var(--text-primary, #1C2B22)" }}>
             Chọn Gói Phù Hợp Với{" "}
-            <span style={{ color: "var(--primary, #2E4D3D)" }}>Đại Ca</span>
+            <span style={{ color: "var(--primary, #2E4D3D)" }}>Nhà Đầu Tư</span>
           </h2>
           <p className={`mt-4 max-w-xl mx-auto text-sm sm:text-base ${isDark ? "text-white/40" : "text-slate-500"}`}>
             Mở khoá toàn bộ sức mạnh của ADN System — Giao dịch thông minh hơn,
