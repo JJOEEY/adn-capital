@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
 export const revalidate = 0;
+const FIINQUANT_BRIDGE =
+  (process.env.FIINQUANT_URL ?? process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000").replace(/\/$/, "");
 
 // In-memory cache 5 phút → tránh gọi VNDirect liên tục
 let cachedMarket: { data: any; timestamp: number } | null = null;
@@ -208,7 +210,7 @@ export async function GET() {
     // Lấy dữ liệu THỰC từ Python backend cho AI summary (tầm nhìn 30 phiên)
     let aiSummary = "";
     try {
-      const overviewRes = await fetch("http://localhost:8000/api/v1/market-overview", {
+      const overviewRes = await fetch(`${FIINQUANT_BRIDGE}/api/v1/market-overview`, {
         signal: AbortSignal.timeout(8000),
       });
       if (overviewRes.ok) {

@@ -2,7 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-const PYTHON_API = "http://localhost:8000/api/v1";
+const FIINQUANT_BRIDGE =
+  (process.env.FIINQUANT_URL ?? process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000").replace(/\/$/, "");
+const PYTHON_API = `${FIINQUANT_BRIDGE}/api/v1`;
 
 function toNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -31,13 +33,15 @@ function normalizeNewsPayload(type: "morning" | "eod", raw: unknown) {
     liquidity,
     liquidity_detail:
       (typeof data.liquidity_detail === "string" && data.liquidity_detail.trim()) ||
-      (liquidity > 0 ? `Thanh khoản toàn thị trường đạt ${Math.round(liquidity).toLocaleString("vi-VN")} tỷ đồng.` : ""),
+      (liquidity > 0
+        ? `Thanh khoản toàn thị trường đạt ${Math.round(liquidity).toLocaleString("vi-VN")} tỷ đồng.`
+        : ""),
   };
 }
 
 /**
  * GET /api/news?type=morning|eod
- * Proxy to Python backend for Gemini-powered market news.
+ * Proxy sang Python bridge cho bản tin thị trường.
  */
 export async function GET(request: NextRequest) {
   const type = request.nextUrl.searchParams.get("type") ?? "morning";
@@ -48,7 +52,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const res = await fetch(`${PYTHON_API}/news/${type}`, {
-      signal: AbortSignal.timeout(30_000), // Gemini có thể mất 10-20s
+      signal: AbortSignal.timeout(30_000),
       cache: "no-store",
     });
 

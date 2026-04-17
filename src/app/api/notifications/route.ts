@@ -11,8 +11,8 @@ const APP_UPDATES_ALLOWED_TYPES = [
   "signal_1030",
   "signal_14h",
   "signal_1420",
-  "signal_1130", // legacy
-  "signal_1445", // legacy
+  "signal_1130",
+  "signal_1445",
   "stats_scan",
   "stats_10h",
   "stats_1130",
@@ -21,22 +21,15 @@ const APP_UPDATES_ALLOWED_TYPES = [
 ] as const;
 
 /**
- * GET /api/notifications?limit=30&type=signal_5m
- * Trả về danh sách notifications gần nhất.
- * Optional: filter theo type.
- * Private notifications (userId != null) chỉ hiện cho đúng user đó.
- * Global notifications (userId = null) hiện cho tất cả.
+ * GET /api/notifications?limit=30&type=signal_10h&scope=updates|all
+ * - Mặc định scope=updates để feed app chỉ hiển thị scan mã + scan thị trường.
+ * - scope=all dùng cho trang quản trị/điều tra khi cần xem toàn bộ.
  */
 export async function GET(request: NextRequest) {
   try {
-    const limit = Math.min(
-      parseInt(request.nextUrl.searchParams.get("limit") ?? "30", 10) || 30,
-      100
-    );
+    const limit = Math.min(parseInt(request.nextUrl.searchParams.get("limit") ?? "30", 10) || 30, 100);
     const type = request.nextUrl.searchParams.get("type");
-    const scope = request.nextUrl.searchParams.get("scope");
-
-    // Lấy user hiện tại (nếu đã đăng nhập)
+    const scope = request.nextUrl.searchParams.get("scope") ?? "updates";
     const dbUser = await getCurrentDbUser();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -44,20 +37,14 @@ export async function GET(request: NextRequest) {
 
     if (type) {
       where.type = type;
-    } else if (scope === "updates") {
+    } else if (scope !== "all") {
       where.type = { in: APP_UPDATES_ALLOWED_TYPES };
     }
 
-    // Private notification logic:
-    // - userId = null: Global, hiện cho tất cả
-    // - userId != null: Chỉ hiện cho đúng user đó
     if (dbUser) {
-      where.OR = [
-        { userId: null },       // Global notifications
-        { userId: dbUser.id },  // Private notifications cho user này
-      ];
+      where.OR = [{ userId: null }, { userId: dbUser.id }];
     } else {
-      where.userId = null; // Guest chỉ xem global
+      where.userId = null;
     }
 
     const notifications = await prisma.notification.findMany({
@@ -69,9 +56,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ notifications });
   } catch (error) {
     console.error("[/api/notifications] Lỗi:", error);
-    return NextResponse.json(
-      { error: "Lỗi tải thông báo" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Lỗi tải thông báo" }, { status: 500 });
   }
 }
