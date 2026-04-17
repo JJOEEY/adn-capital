@@ -28,7 +28,6 @@ import {
   formatSnapshotForAI,
   getInvestorTradingText,
   getPropTradingData,
-  formatPropTradingForAI,
 } from "@/lib/marketDataFetcher";
 import { fetchAllCafefNews, buildCafefContext } from "@/lib/cafefScraper";
 import { processSignals } from "@/lib/UltimateSignalEngine";
@@ -94,6 +93,58 @@ function buildPropTradingFallback(today: string, foreignNet?: number | null, pro
 ⚠️ *GHI CHÚ DỮ LIỆU:*
 • Một số dữ liệu có thể đang đồng bộ cuối ngày.
 • Hệ thống sẽ tự cập nhật lại khi nguồn đầy đủ.
+
+_Powered by ADN Capital AI_`;
+}
+
+function formatTy(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "chưa cập nhật";
+  return `${Math.abs(value).toLocaleString("vi-VN", { maximumFractionDigits: 0 })} tỷ`;
+}
+
+function buildPropTradingReport(today: string, snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>) {
+  const vnindex = snapshot.indices.find((item) => item.ticker === "VNINDEX");
+  const vn30 = snapshot.indices.find((item) => item.ticker === "VN30");
+  const investorLines = getInvestorTradingText(snapshot, "full19");
+  const investorSection =
+    investorLines.length > 0
+      ? investorLines.map((line) => `• ${line}`).join("\n")
+      : "• Khối ngoại: chưa cập nhật\n• Tự doanh: chưa cập nhật\n• Cá nhân: chưa cập nhật";
+
+  const fmtExchange = (value: number | null) => (value == null ? "?" : formatTy(value));
+  const liquidityTotal = snapshot.liquidity != null ? formatTy(snapshot.liquidity) : "chưa cập nhật";
+
+  const direction =
+    (vnindex?.changePct ?? 0) > 0
+      ? "thị trường duy trì sắc xanh."
+      : (vnindex?.changePct ?? 0) < 0
+      ? "thị trường chịu áp lực điều chỉnh."
+      : "thị trường đi ngang, chưa hình thành xu hướng rõ.";
+
+  const foreignNet = snapshot.investorTrading.foreign.net ?? 0;
+  const flowNote =
+    foreignNet > 0
+      ? "Khối ngoại đang hỗ trợ xu hướng ngắn hạn."
+      : foreignNet < 0
+      ? "Khối ngoại vẫn bán ròng, cần quản trị rủi ro chặt chẽ."
+      : "Dòng tiền khối ngoại trung tính.";
+
+  return `🌙 *BẢN TIN TỔNG HỢP 19:00 — ${today}*
+
+📊 *KẾT QUẢ CHỈ SỐ:*
+🇻🇳 VN-INDEX: ${vnindex ? `${vnindex.value} | ${vnindex.changePct >= 0 ? "+" : ""}${vnindex.changePct}%` : "chưa cập nhật"}
+💎 VN30: ${vn30 ? `${vn30.value} | ${vn30.changePct >= 0 ? "+" : ""}${vn30.changePct}%` : "chưa cập nhật"}
+
+💧 *THANH KHOẢN:*
+• Tổng: ${liquidityTotal}
+• HoSE/HNX/UPCoM: ${fmtExchange(snapshot.liquidityByExchange.HOSE)} | ${fmtExchange(snapshot.liquidityByExchange.HNX)} | ${fmtExchange(snapshot.liquidityByExchange.UPCOM)}
+
+🏦 *DÒNG TIỀN NHÀ ĐẦU TƯ:*
+${investorSection}
+
+💡 *NHẬN ĐỊNH SMART MONEY:*
+• ${direction}
+• ${flowNote}
 
 _Powered by ADN Capital AI_`;
 }
@@ -227,51 +278,7 @@ async function handlePropTrading(): Promise<NextResponse> {
       });
     }
 
-    const investorLines = getInvestorTradingText(snapshot, "full19");
-    const foreignLine = investorLines.find((line) => line.startsWith("Khối ngoại")) ?? "Khối ngoại: +0,0 tỷ";
-    const proprietaryLine = investorLines.find((line) => line.startsWith("Tự doanh")) ?? "Tự doanh: +0,0 tỷ";
-    const retailLine = investorLines.find((line) => line.startsWith("Cá nhân")) ?? "Cá nhân: +0,0 tỷ";
-
-    // Gemini — Telegram-friendly Markdown format
-    const prompt = `Bạn là Senior Quant tại ADN Capital.
-Dữ liệu thị trường tổng hợp cuối ngày:
-${formatSnapshotForAI(snapshot, { investorMode: "full19" })}
-${propData ? `\nDữ liệu tự doanh chi tiết:\n${formatPropTradingForAI(propData)}` : ""}
-
-Hãy viết bản tin tổng hợp 19:00 theo đúng format Markdown Telegram dưới đây.
-KHÔNG thêm các section không có trong format. CHỈ dùng số liệu từ dữ liệu được cung cấp:
-
-🌙 *BẢN TIN TỔNG HỢP 19:00 — ${today}*
-
-📊 *DÒNG TIỀN NHÀ ĐẦU TƯ:*
-• ${foreignLine}
-• ${proprietaryLine}
-• ${retailLine}
-
-💧 *THANH KHOẢN:*
-• Tổng: ${snapshot.liquidity != null ? `${snapshot.liquidity}` : "chưa cập nhật"} tỷ VNĐ
-• HoSE/HNX/UPCoM: ${snapshot.liquidityByExchange.HOSE ?? "?"}/${snapshot.liquidityByExchange.HNX ?? "?"}/${snapshot.liquidityByExchange.UPCOM ?? "?"}
-
-💡 *NHẬN ĐỊNH SMART MONEY:*
-[2-3 câu phân tích ngắn gọn, không bịa số]
-
-_Powered by ADN Capital AI_`;
-
-    let report = "";
-    try {
-      report = await generateText(prompt);
-    } catch (err) {
-      console.warn("[prop_trading] Gemini fallback:", err);
-    }
-    const safeReport =
-      report?.trim()
-        ? report
-        : buildPropTradingFallback(
-            today,
-            snapshot.investorTrading.foreign.net,
-            snapshot.investorTrading.proprietary.net,
-            snapshot.investorTrading.retail.net
-          );
+    const safeReport = buildPropTradingReport(today, snapshot);
 
     await saveMarketReport(
       "eod_full_19h",

@@ -345,15 +345,42 @@ function parseBreadth(raw: unknown): { up: number; down: number; unchanged: numb
 
   // Parse string: "Tăng: 31 | Giảm: 137 | Không đổi: 31"
   if (typeof raw === "string") {
-    const upMatch = raw.match(/[Tt]ăng[:\s]+(\d+)/);
-    const downMatch = raw.match(/[Gg]iảm[:\s]+(\d+)/);
-    const unchMatch = raw.match(/(?:[Kk]hông đổi|[Đđ]ứng)[:\s]+(\d+)/);
+    const normalized = raw
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
 
-    if (upMatch || downMatch) {
+    const upMatch = normalized.match(/(?:tang|up)[^\d]{0,8}(\d+)/);
+    const downMatch = normalized.match(/(?:giam|down)[^\d]{0,8}(\d+)/);
+    const unchMatch = normalized.match(/(?:khong doi|dung|unchanged|flat)[^\d]{0,8}(\d+)/);
+
+    if (upMatch || downMatch || unchMatch) {
       return {
-        up: upMatch ? parseInt(upMatch[1]) : 0,
-        down: downMatch ? parseInt(downMatch[1]) : 0,
-        unchanged: unchMatch ? parseInt(unchMatch[1]) : 0,
+        up: upMatch ? Number.parseInt(upMatch[1], 10) : 0,
+        down: downMatch ? Number.parseInt(downMatch[1], 10) : 0,
+        unchanged: unchMatch ? Number.parseInt(unchMatch[1], 10) : 0,
+      };
+    }
+
+    // Fallback for arrow formats: "↑170 | ↓152 | =40" or "↑0 ↓0 -0"
+    const upArrow = raw.match(/[↑↗]\s*(\d+)/);
+    const downArrow = raw.match(/[↓↘]\s*(\d+)/);
+    const equalArrow = raw.match(/[=→\-]\s*(\d+)/);
+    if (upArrow || downArrow || equalArrow) {
+      return {
+        up: upArrow ? Number.parseInt(upArrow[1], 10) : 0,
+        down: downArrow ? Number.parseInt(downArrow[1], 10) : 0,
+        unchanged: equalArrow ? Number.parseInt(equalArrow[1], 10) : 0,
+      };
+    }
+
+    // Generic numeric fallback: first 3 numbers are up/down/unchanged
+    const numbers = raw.match(/\d+/g);
+    if (numbers && numbers.length >= 3) {
+      return {
+        up: Number.parseInt(numbers[0], 10),
+        down: Number.parseInt(numbers[1], 10),
+        unchanged: Number.parseInt(numbers[2], 10),
       };
     }
   }
@@ -401,10 +428,13 @@ function pickNumber(obj: JsonRecord, keys: string[]): number | null {
 }
 
 function inferGroup(raw: string): "foreign" | "proprietary" | "retail" | null {
-  const value = raw.toLowerCase();
-  if (/(ngo[aạ]i|foreign|nn\b)/i.test(value)) return "foreign";
-  if (/(t[ựu]\s*doanh|proprietary|tu_doanh)/i.test(value)) return "proprietary";
-  if (/(c[aá]\s*nh[aâ]n|retail|individual)/i.test(value)) return "retail";
+  const value = raw
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  if (/(ngoai|foreign|nn\b)/i.test(value)) return "foreign";
+  if (/(tu\s*doanh|proprietary|self\s*trading|to\s*chuc)/i.test(value)) return "proprietary";
+  if (/(ca\s*nhan|retail|individual|noi\s*dia)/i.test(value)) return "retail";
   return null;
 }
 
@@ -418,9 +448,16 @@ function extractGroupLabel(row: JsonRecord): string {
 
 function parseExchange(raw: string): "HOSE" | "HNX" | "UPCOM" | null {
   const value = raw.toUpperCase();
-  if (value.includes("HOSE") || value.includes("VNINDEX") || value.includes("VN30")) return "HOSE";
+  if (
+    value.includes("HOSE") ||
+    value.includes("HSX") ||
+    value.includes("VNINDEX") ||
+    value.includes("VN30")
+  ) {
+    return "HOSE";
+  }
   if (value.includes("HNX")) return "HNX";
-  if (value.includes("UPCOM")) return "UPCOM";
+  if (value.includes("UPCOM") || value.includes("UP-COM")) return "UPCOM";
   return null;
 }
 
@@ -438,19 +475,47 @@ function readLiquidityValue(row: JsonRecord): number | null {
   return pickNumber(row, [
     "totalValue",
     "total_value",
+    "totalTradingValue",
+    "total_trading_value",
     "matchValue",
     "match_value",
     "trading_value",
     "value",
+    "gia_tri_giao_dich",
+    "gia_tri_khop_lenh",
     "gtgd",
     "gtgd_ty",
   ]);
 }
 
 function readBuySellNet(row: JsonRecord): { buy: number | null; sell: number | null; net: number | null } {
-  const buy = pickNumber(row, ["buy", "buy_value", "buyValue", "buy_bn", "mua", "mua_rong"]);
-  const sell = pickNumber(row, ["sell", "sell_value", "sellValue", "sell_bn", "ban", "ban_rong"]);
-  const net = pickNumber(row, ["net", "net_value", "netValue", "net_bn", "rong", "gia_tri_rong"]);
+  const buy = pickNumber(row, [
+    "buy",
+    "buy_value",
+    "buyValue",
+    "buy_bn",
+    "mua",
+    "mua_gia_tri",
+    "mua_rong",
+  ]);
+  const sell = pickNumber(row, [
+    "sell",
+    "sell_value",
+    "sellValue",
+    "sell_bn",
+    "ban",
+    "ban_gia_tri",
+    "ban_rong",
+  ]);
+  const net = pickNumber(row, [
+    "net",
+    "net_value",
+    "netValue",
+    "net_bn",
+    "rong",
+    "gia_tri_rong",
+    "net_buy_sell",
+  ]);
   return { buy, sell, net: net ?? (buy != null && sell != null ? buy - sell : null) };
 }
 
@@ -555,6 +620,14 @@ function parseInvestorTradingData(raw: FiinInvestorTradingResponse | null) {
     proprietary.net = toNumber(raw.summary.proprietary.total_net_bn);
   }
 
+  const summaryRecord = (raw?.summary ?? {}) as JsonRecord;
+  if (foreign.net == null) {
+    foreign.net = pickNumber(summaryRecord, ["foreign_net_bn", "foreign_net", "foreignNet", "khoi_ngoai_rong"]);
+  }
+  if (retail.net == null) {
+    retail.net = pickNumber(summaryRecord, ["retail_net_bn", "retail_net", "retailNet", "ca_nhan_rong"]);
+  }
+
   const addToGroup = (group: "foreign" | "proprietary" | "retail", buy: number | null, sell: number | null, net: number | null) => {
     const target = group === "foreign" ? foreign : group === "proprietary" ? proprietary : retail;
     const nextBuy = (target.buy ?? 0) + (buy ?? 0);
@@ -565,9 +638,23 @@ function parseInvestorTradingData(raw: FiinInvestorTradingResponse | null) {
     target.net = Number.isFinite(nextNet) ? nextNet : target.net;
   };
 
+  const columns = Array.isArray(raw?.columns)
+    ? raw.columns.map((col) => String(col))
+    : [];
   for (const item of raw?.data ?? []) {
-    if (typeof item !== "object" || item === null) continue;
-    const row = item as JsonRecord;
+    let row: JsonRecord | null = null;
+    if (Array.isArray(item)) {
+      row = {};
+      if (columns.length > 0) {
+        columns.forEach((col, idx) => {
+          row![col] = item[idx];
+        });
+      }
+    } else if (typeof item === "object" && item !== null) {
+      row = item as JsonRecord;
+    }
+    if (!row) continue;
+
     const label = extractGroupLabel(row);
     const group = inferGroup(label);
     const { buy, sell, net } = readBuySellNet(row);

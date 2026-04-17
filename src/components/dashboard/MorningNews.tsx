@@ -27,8 +27,8 @@ interface MorningData {
   date: string;
   reference_indices: Array<{
     name: string;
-    value: number;
-    change_pct: number;
+    value: number | null;
+    change_pct: number | null;
   }>;
   vn_market: string[];
   macro: string[];
@@ -66,7 +66,7 @@ export function MorningNews() {
         i.name.toUpperCase().includes(name) ||
         name.includes(i.name.toUpperCase()),
     );
-    return found ?? { name, value: 0, change_pct: 0 };
+    return found ?? { name, value: null, change_pct: null };
   });
 
   return (
@@ -105,8 +105,8 @@ export function MorningNews() {
           </p>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             {indices.map((idx) => {
-              const up = idx.change_pct > 0;
-              const down = idx.change_pct < 0;
+              const up = typeof idx.change_pct === "number" && idx.change_pct > 0;
+              const down = typeof idx.change_pct === "number" && idx.change_pct < 0;
               return (
                 <div
                   key={idx.name}
@@ -126,7 +126,7 @@ export function MorningNews() {
                       ? idx.value.toLocaleString("en-US", {
                           maximumFractionDigits: 2,
                         })
-                      : idx.value}
+                      : "--"}
                   </p>
                   <p
                     className="text-xs font-semibold mt-0.5"
@@ -134,13 +134,16 @@ export function MorningNews() {
                       color: up ? "#16a34a" : down ? "var(--danger)" : "var(--text-muted)",
                     }}
                   >
-                    {up && "+"}
-                    {typeof idx.change_pct === "number"
-                      ? idx.change_pct.toFixed(2)
-                      : idx.change_pct}
-                    %
-                    {up && <TrendingUp className="w-3 h-3 inline ml-1" />}
-                    {down && <TrendingDown className="w-3 h-3 inline ml-1" />}
+                    {typeof idx.change_pct === "number" ? (
+                      <>
+                        {up && "+"}
+                        {idx.change_pct.toFixed(2)}%
+                        {up && <TrendingUp className="w-3 h-3 inline ml-1" />}
+                        {down && <TrendingDown className="w-3 h-3 inline ml-1" />}
+                      </>
+                    ) : (
+                      "--"
+                    )}
                   </p>
                 </div>
               );

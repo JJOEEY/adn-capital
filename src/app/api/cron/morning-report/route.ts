@@ -140,10 +140,20 @@ _Powered by ADN Capital AI_`;
     const safeReport = report?.trim() ? report : buildMorningFallback(today, vnidx);
 
     // ── 3. Lưu DB ────────────────────────────────────────────────────
-    await saveMarketReport("morning_brief", `Báo cáo sáng ${today}`, safeReport, {
-      snapshot: { indices: snapshot.indices, breadth: snapshot.breadth, liquidity: snapshot.liquidity },
-      cafefArticles: { stockMarket: cafefNews.stockMarket.articles.length, macro: cafefNews.macro.articles.length, global: cafefNews.global.articles.length },
-    }, { indices: snapshot.indices, marketScore: snapshot.marketOverview?.score });
+    await saveMarketReport(
+      "morning_brief",
+      `Báo cáo sáng ${today}`,
+      safeReport,
+      {
+        snapshot,
+        cafefArticles: {
+          stockMarket: cafefNews.stockMarket.articles.length,
+          macro: cafefNews.macro.articles.length,
+          global: cafefNews.global.articles.length,
+        },
+      },
+      { indices: snapshot.indices, marketScore: snapshot.marketOverview?.score },
+    );
 
     // ── 4. Push Notification ──────────────────────────────────────────
     await pushNotification("morning_brief", `☀️ Bản tin sáng ${today}`, safeReport);
