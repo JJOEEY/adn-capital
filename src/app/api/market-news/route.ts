@@ -129,6 +129,30 @@ function parseBreadth(raw: unknown): { up: number; down: number; unchanged: numb
   return { up: 0, down: 0, unchanged: 0, total: 0 };
 }
 
+function parseLiquidityFromContent(content: string): number | null {
+  const compact = content.replace(/\n/g, " ");
+  const patterns = [
+    /TK:\s*([\d.,]+)/i,
+    /Thanh khoản[^0-9]{0,16}([\d.,]+)\s*tỷ/i,
+    /Tổng:\s*([\d.,]+)\s*tỷ/i,
+  ];
+  for (const pattern of patterns) {
+    const match = compact.match(pattern);
+    if (!match) continue;
+    const value = toNumberOrNull(match[1]);
+    if (value !== null && value > 0) return value;
+  }
+  return null;
+}
+
+function pickContentLine(content: string, keyword: string): string {
+  const lines = content
+    .split("\n")
+    .map((line) => line.replace(/^[-*#>\s•]+/g, "").trim())
+    .filter(Boolean);
+  return lines.find((line) => line.toLowerCase().includes(keyword.toLowerCase())) ?? "";
+}
+
 function getSnapshot(raw: JsonRecord | null): JsonRecord {
   if (!raw) return {};
   const nested = pickRecord(raw, ["snapshot", "data", "payload"]);
@@ -212,10 +236,11 @@ function toEodPayload(report: { createdAt: Date; content: string; rawData: strin
 
   const breadth = parseBreadth(snapshot.breadth ?? snapshot.market_breadth);
   const liquidityByExchange = pickRecord(snapshot, ["liquidityByExchange", "liquidity_by_exchange"]) ?? {};
-  const totalLiquidity =
+  const totalLiquidityRaw =
     toNumberOrNull(snapshot.liquidity) ??
     toNumberOrNull(liquidityByExchange.total) ??
     toNumberOrNull(snapshot.totalLiquidity) ??
+    parseLiquidityFromContent(report.content) ??
     0;
 
   const investorRoot =
@@ -235,28 +260,31 @@ function toEodPayload(report: { createdAt: Date; content: string; rawData: strin
     report.content,
     "Bản tin kết phiên đã được tạo. Hệ thống đang đồng bộ thêm dữ liệu hiển thị.",
   );
+  const foreignLineFromContent = pickContentLine(report.content, "khối ngoại");
+  const propLineFromContent = pickContentLine(report.content, "tự doanh");
+  const retailLineFromContent = pickContentLine(report.content, "cá nhân");
 
   return {
     date: toViDate(report.createdAt),
     vnindex: toNumber(vnindex?.value),
     change_pct: toNumber(vnindex?.change_pct),
-    liquidity: Math.max(totalLiquidity, 0),
+    liquidity: Math.max(totalLiquidityRaw, 0),
     breadth,
     session_summary: lines[0] ?? "",
     liquidity_detail:
-      totalLiquidity > 0
-        ? `Thanh khoản toàn thị trường đạt ${Math.round(totalLiquidity).toLocaleString("vi-VN")} tỷ đồng.`
+      totalLiquidityRaw > 0
+        ? `Thanh khoản toàn thị trường đạt ${Math.round(totalLiquidityRaw).toLocaleString("vi-VN")} tỷ đồng.`
         : "",
     foreign_flow:
       foreignNet !== 0
         ? `Khối ngoại ${foreignNet >= 0 ? "mua ròng" : "bán ròng"} ${Math.abs(foreignNet).toFixed(1)} tỷ.`
-        : "",
+        : foreignLineFromContent,
     notable_trades:
       proprietaryNet !== 0 || retailNet !== 0
         ? `Tự doanh: ${proprietaryNet >= 0 ? "+" : ""}${proprietaryNet.toFixed(1)} tỷ | Cá nhân: ${
             retailNet >= 0 ? "+" : ""
           }${retailNet.toFixed(1)} tỷ.`
-        : "",
+        : [propLineFromContent, retailLineFromContent].filter(Boolean).join(" | "),
     outlook: lines[1] ?? "",
     sub_indices: Array.isArray(raw?.sub_indices) ? raw?.sub_indices : [],
     foreign_top_buy: Array.isArray(raw?.foreign_top_buy) ? raw?.foreign_top_buy : [],
