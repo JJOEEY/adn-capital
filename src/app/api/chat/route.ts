@@ -930,12 +930,43 @@ const PTKT_DISCLAIMER =
 const GENERAL_DISCLAIMER =
   "*Lưu ý: Khuyến nghị dựa trên thuật toán định lượng. Nhà đầu tư vui lòng tuân thủ kỷ luật quản trị rủi ro.*";
 
+function normalizeDisclaimerText(input: string): string {
+  return input
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function stripKnownDisclaimers(intent: "PTKT" | "GENERAL", text: string): string {
+  const lines = text.split("\n");
+  return lines
+    .filter((line) => {
+      const normalized = normalizeDisclaimerText(line);
+      if (intent === "PTKT") {
+        return !(
+          normalized.includes("ai co the sai sot") ||
+          normalized.includes("kiem tra ky thong tin truoc khi dua ra quyet dinh dau tu")
+        );
+      }
+      return !(
+        normalized.includes("khuyen nghi dua tren thuat toan dinh luong") ||
+        normalized.includes("ky luat quan tri rui ro")
+      );
+    })
+    .join("\n")
+    .trim();
+}
+
 function ensureDisclaimer(intent: "PTKT" | "GENERAL", text: string): string {
   const disclaimer = intent === "PTKT" ? PTKT_DISCLAIMER : GENERAL_DISCLAIMER;
-  if (text.toLowerCase().includes(disclaimer.toLowerCase())) {
+  const cleaned = stripKnownDisclaimers(intent, text);
+  const normalizedCleaned = normalizeDisclaimerText(cleaned);
+  const normalizedDisclaimer = normalizeDisclaimerText(disclaimer);
+  if (normalizedCleaned.includes(normalizedDisclaimer)) {
     return text;
   }
-  return `${text.trim()}\n\n${disclaimer}`;
+  if (!cleaned) return disclaimer;
+  return `${cleaned}\n\n${disclaimer}`;
 }
 
 function hasVietnameseDiacritics(text: string): boolean {
@@ -1298,8 +1329,6 @@ export async function POST(req: NextRequest) {
         }
         chartStock = stock;
       }
-      responseText = ensureDisclaimer("PTKT", responseText);
-
     } else if (cmd === "/fa" && stock) {
       responseIntent = INTENT.PTCB;
       console.log(`[Chat /fa] Fetching AI FA từ Bridge cho ${stock}...`);
@@ -1429,7 +1458,6 @@ Nhà đầu tư hỏi: ${message}`;
 
         responseText = await executeAIRequest(prompt, INTENT.GENERAL);
       }
-      responseText = ensureDisclaimer("GENERAL", responseText);
     }
 
     responseText = await enforcePersonaAndLanguage(responseText, responseIntent);
