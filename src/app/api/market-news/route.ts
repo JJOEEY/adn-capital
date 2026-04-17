@@ -11,6 +11,41 @@ type IndexRow = {
   change_pct: number;
 };
 
+type MorningPayload = {
+  date: string;
+  reference_indices: Array<{
+    name: string;
+    value: number | null;
+    change_pct: number | null;
+  }>;
+  vn_market: string[];
+  macro: string[];
+  risk_opportunity: string[];
+};
+
+type EodPayload = {
+  date: string;
+  vnindex: number;
+  change_pct: number;
+  liquidity: number;
+  breadth: { up: number; down: number; unchanged: number; total: number };
+  session_summary: string;
+  liquidity_detail: string;
+  foreign_flow: string;
+  notable_trades: string;
+  outlook: string;
+  sub_indices: Array<{ name: string; change_pts: number; change_pct: number }>;
+  foreign_top_buy: string[];
+  foreign_top_sell: string[];
+  prop_trading_top_buy: string[];
+  prop_trading_top_sell: string[];
+  sector_gainers: string[];
+  sector_losers: string[];
+  buy_signals: string[];
+  sell_signals: string[];
+  top_breakout: string[];
+};
+
 function parseJsonMaybe(value: string | null): JsonRecord | null {
   if (!value) return null;
   try {
@@ -24,7 +59,7 @@ function parseJsonMaybe(value: string | null): JsonRecord | null {
 function toNumberOrNull(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string") {
-    const cleaned = value.replace(/[^\d.-]/g, "");
+    const cleaned = value.replace(/[^\d.,-]/g, "").replace(/,/g, "");
     if (!cleaned) return null;
     const parsed = Number(cleaned);
     if (Number.isFinite(parsed)) return parsed;
@@ -33,8 +68,8 @@ function toNumberOrNull(value: unknown): number | null {
 }
 
 function toNumber(value: unknown, fallback = 0): number {
-  const num = toNumberOrNull(value);
-  return num ?? fallback;
+  const n = toNumberOrNull(value);
+  return n ?? fallback;
 }
 
 function isRecord(value: unknown): value is JsonRecord {
@@ -57,74 +92,163 @@ function pickArray(base: JsonRecord, keys: string[]): unknown[] {
   return [];
 }
 
+function stripDiacritics(text: string): string {
+  return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function normalizeForCheck(text: string): string {
+  return stripDiacritics(text).toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function isUnavailableText(text: string): boolean {
+  if (!text?.trim()) return true;
+  const n = normalizeForCheck(text);
+  return (
+    n.includes("chua cap nhat") ||
+    n.includes("dang cap nhat") ||
+    n.includes("khong co du lieu") ||
+    n.includes("khong co thong tin") ||
+    n.includes("n/a")
+  );
+}
+
+function toViDate(value: Date): string {
+  return value.toLocaleDateString("vi-VN");
+}
+
 function normalizeIndexName(raw: unknown): string {
-  const text = String(raw ?? "").trim().toUpperCase();
-  switch (text) {
-    case "VNINDEX":
-    case "VN-INDEX":
-      return "VN-INDEX";
-    case "HNXINDEX":
-    case "HNX":
-      return "HNX-INDEX";
-    case "UPCOMINDEX":
-    case "UPCOM":
-      return "UPCOM-INDEX";
-    case "DOWJONES":
-    case "DOW JONES":
-      return "DOW JONES";
-    case "WTI":
-    case "DAU WTI":
-    case "DẦU WTI":
-      return "DẦU WTI";
-    case "VANG":
-    case "VÀNG":
-      return "VÀNG";
-    default:
-      return String(raw ?? "");
-  }
+  const source = String(raw ?? "").trim();
+  const n = normalizeForCheck(source).replace(/[^a-z0-9]/g, "");
+  if (n === "vnindex") return "VN-INDEX";
+  if (n === "vn30") return "VN30";
+  if (n === "hnxindex" || n === "hnx") return "HNX-INDEX";
+  if (n === "upcomindex" || n === "upcom") return "UPCOM-INDEX";
+  if (n === "dowjones" || n === "dow") return "DOW JONES";
+  if (n === "dxy") return "DXY";
+  if (n === "vang" || n === "gold") return "VÀNG";
+  if (n === "dauwti" || n === "wti" || n === "oilwti") return "DẦU WTI";
+  return source.toUpperCase();
+}
+
+function getSnapshot(raw: JsonRecord | null): JsonRecord {
+  if (!raw) return {};
+  const nested = pickRecord(raw, ["snapshot", "data", "payload"]);
+  return nested ?? raw;
 }
 
 function normalizeSentenceList(content: string, fallback: string): string[] {
   const lines = content
     .split("\n")
     .map((line) => line.replace(/^[-*#>\s•]+/g, "").trim())
-    .filter((line) => line.length >= 6)
-    .slice(0, 8);
+    .filter((line) => line.length >= 4)
+    .slice(0, 12);
   if (lines.length === 0) return [fallback];
   return lines;
 }
 
-function parseBreadth(raw: unknown): { up: number; down: number; unchanged: number; total: number } {
+function parseIndexLine(content: string, ticker: "VN-INDEX" | "DOW JONES" | "DXY" | "VÀNG" | "DẦU WTI") {
+  const escaped = ticker
+    .replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")
+    .replace("VÀNG", "(?:VÀNG|VANG|GOLD)")
+    .replace("DẦU WTI", "(?:DẦU\\s*WTI|DAU\\s*WTI|WTI)")
+    .replace("DOW JONES", "(?:DOW\\s*JONES|DOWJONES)");
+
+  const rgx = new RegExp(`${escaped}[^\\d]{0,12}([\\d.,]+)(?:\\s*\\|\\s*([+-]?[\\d.,]+)%)?`, "i");
+  const match = content.match(rgx);
+  if (!match) return null;
+  return {
+    value: toNumberOrNull(match[1]),
+    change_pct: toNumberOrNull(match[2]),
+  };
+}
+
+function extractIndices(snapshot: JsonRecord, content: string): IndexRow[] {
+  const direct = pickArray(snapshot, ["indices", "reference_indices", "referenceIndices"]);
+  const rows = direct
+    .map((item) => {
+      if (!isRecord(item)) return null;
+      const name = normalizeIndexName(item.ticker ?? item.name ?? item.symbol ?? "");
+      if (!name) return null;
+      return {
+        name,
+        value: toNumber(item.value ?? item.close ?? item.price),
+        change_pct: toNumber(item.changePct ?? item.change_pct ?? item.percentChange),
+      } satisfies IndexRow;
+    })
+    .filter((item): item is IndexRow => item !== null);
+
+  const byName = new Map<string, IndexRow>();
+  for (const row of rows) byName.set(row.name, row);
+
+  const refs: Array<"VN-INDEX" | "DOW JONES" | "DXY" | "VÀNG" | "DẦU WTI"> = [
+    "VN-INDEX",
+    "DOW JONES",
+    "DXY",
+    "VÀNG",
+    "DẦU WTI",
+  ];
+  for (const ref of refs) {
+    if (byName.has(ref)) continue;
+    const parsed = parseIndexLine(content, ref);
+    if (!parsed?.value || parsed.value <= 0) continue;
+    byName.set(ref, {
+      name: ref,
+      value: parsed.value,
+      change_pct: parsed.change_pct ?? 0,
+    });
+  }
+
+  if (!byName.has("VN-INDEX")) {
+    const vn = rows.find((r) => normalizeForCheck(r.name).includes("vn"));
+    if (vn) byName.set("VN-INDEX", { ...vn, name: "VN-INDEX" });
+  }
+
+  return Array.from(byName.values());
+}
+
+function parseBreadthFromString(raw: string) {
+  const normalized = normalizeForCheck(raw);
+  const upMatch = normalized.match(/(?:tang|up|↑)\s*(\d+)/);
+  const downMatch = normalized.match(/(?:giam|down|↓)\s*(\d+)/);
+  const unchMatch = normalized.match(/(?:khong doi|dung|unchanged|flat|→|=)\s*(\d+)/);
+  if (upMatch || downMatch || unchMatch) {
+    const up = upMatch ? Number.parseInt(upMatch[1], 10) : 0;
+    const down = downMatch ? Number.parseInt(downMatch[1], 10) : 0;
+    const unchanged = unchMatch ? Number.parseInt(unchMatch[1], 10) : 0;
+    return { up, down, unchanged, total: up + down + unchanged };
+  }
+
+  const nums = raw.match(/\d+/g);
+  if (nums && nums.length >= 3) {
+    const up = Number.parseInt(nums[0], 10);
+    const down = Number.parseInt(nums[1], 10);
+    const unchanged = Number.parseInt(nums[2], 10);
+    return { up, down, unchanged, total: up + down + unchanged };
+  }
+  return null;
+}
+
+function parseBreadth(raw: unknown, content: string): { up: number; down: number; unchanged: number; total: number } {
   if (isRecord(raw)) {
     const up = toNumber(raw.up);
     const down = toNumber(raw.down);
     const unchanged = toNumber(raw.unchanged);
     const total = toNumber(raw.total, up + down + unchanged);
-    return { up, down, unchanged, total };
+    if (up + down + unchanged > 0) return { up, down, unchanged, total };
   }
 
   if (typeof raw === "string") {
-    const normalized = raw
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase();
-    const upMatch = normalized.match(/(?:tang|up)[^\d]{0,8}(\d+)/);
-    const downMatch = normalized.match(/(?:giam|down)[^\d]{0,8}(\d+)/);
-    const unchMatch = normalized.match(/(?:khong doi|dung|unchanged|flat)[^\d]{0,8}(\d+)/);
-    if (upMatch || downMatch || unchMatch) {
-      const up = upMatch ? Number.parseInt(upMatch[1], 10) : 0;
-      const down = downMatch ? Number.parseInt(downMatch[1], 10) : 0;
-      const unchanged = unchMatch ? Number.parseInt(unchMatch[1], 10) : 0;
-      return { up, down, unchanged, total: up + down + unchanged };
-    }
-    const numbers = raw.match(/\d+/g);
-    if (numbers && numbers.length >= 3) {
-      const up = Number.parseInt(numbers[0], 10);
-      const down = Number.parseInt(numbers[1], 10);
-      const unchanged = Number.parseInt(numbers[2], 10);
-      return { up, down, unchanged, total: up + down + unchanged };
-    }
+    const parsed = parseBreadthFromString(raw);
+    if (parsed) return parsed;
   }
+
+  const line =
+    content
+      .split("\n")
+      .map((x) => x.trim())
+      .find((x) => normalizeForCheck(x).includes("do rong")) ?? "";
+  const parsedFromContent = line ? parseBreadthFromString(line) : null;
+  if (parsedFromContent) return parsedFromContent;
 
   return { up: 0, down: 0, unchanged: 0, total: 0 };
 }
@@ -150,58 +274,45 @@ function pickContentLine(content: string, keyword: string): string {
     .split("\n")
     .map((line) => line.replace(/^[-*#>\s•]+/g, "").trim())
     .filter(Boolean);
-  return lines.find((line) => line.toLowerCase().includes(keyword.toLowerCase())) ?? "";
+  const normalizedKeyword = normalizeForCheck(keyword);
+  return (
+    lines.find((line) => normalizeForCheck(line).includes(normalizedKeyword)) ?? ""
+  );
 }
 
-function getSnapshot(raw: JsonRecord | null): JsonRecord {
-  if (!raw) return {};
-  const nested = pickRecord(raw, ["snapshot", "data", "payload"]);
-  return nested ?? raw;
+function parseNetFromTextLine(line: string): number | null {
+  if (!line) return null;
+  const normalized = normalizeForCheck(line);
+  const numberMatch = line.match(/([+-]?\d[\d.,]*)\s*tỷ/i);
+  if (!numberMatch) return null;
+  const value = toNumberOrNull(numberMatch[1]);
+  if (value == null) return null;
+  if (normalized.includes("ban rong")) return -Math.abs(value);
+  if (normalized.includes("mua rong")) return Math.abs(value);
+  return value;
 }
 
-function extractIndices(snapshot: JsonRecord): IndexRow[] {
-  const direct = pickArray(snapshot, ["indices", "reference_indices", "referenceIndices"]);
-  const mapped = direct
+function parseStringArray(raw: unknown): string[] {
+  return Array.isArray(raw) ? raw.filter((x): x is string => typeof x === "string" && x.trim().length > 0) : [];
+}
+
+function parseSubIndices(raw: unknown): Array<{ name: string; change_pts: number; change_pct: number }> {
+  if (!Array.isArray(raw)) return [];
+  return raw
     .map((item) => {
       if (!isRecord(item)) return null;
-      const name = normalizeIndexName(item.ticker ?? item.name ?? item.symbol ?? "");
+      const name = String(item.name ?? item.ticker ?? item.symbol ?? "").trim();
       if (!name) return null;
       return {
         name,
-        value: toNumber(item.value ?? item.close ?? item.price),
-        change_pct: toNumber(item.changePct ?? item.change_pct ?? item.percentChange),
-      } satisfies IndexRow;
+        change_pts: toNumber(item.change_pts ?? item.changePts ?? item.change ?? 0),
+        change_pct: toNumber(item.change_pct ?? item.changePct ?? item.percentChange ?? 0),
+      };
     })
-    .filter((item): item is IndexRow => item !== null);
-
-  if (mapped.length > 0) return mapped;
-
-  const result: IndexRow[] = [];
-  const flatCandidates: Array<[string, string[]]> = [
-    ["VN-INDEX", ["vnindex", "vnIndex"]],
-    ["DOW JONES", ["dowJones", "dow_jones"]],
-    ["DXY", ["dxy"]],
-    ["VÀNG", ["gold", "vang"]],
-    ["DẦU WTI", ["wti", "oil"]],
-  ];
-
-  for (const [name, keys] of flatCandidates) {
-    const value = keys
-      .map((key) => toNumberOrNull(snapshot[key]))
-      .find((num): num is number => typeof num === "number");
-    if (typeof value === "number") {
-      result.push({ name, value, change_pct: 0 });
-    }
-  }
-
-  return result;
+    .filter((x): x is { name: string; change_pts: number; change_pct: number } => x !== null);
 }
 
-function toViDate(value: Date): string {
-  return value.toLocaleDateString("vi-VN");
-}
-
-async function getRecentReports(types: string[], take = 20) {
+async function getRecentReports(types: string[], take = 60) {
   return prisma.marketReport.findMany({
     where: { type: { in: types } },
     orderBy: { createdAt: "desc" },
@@ -209,11 +320,10 @@ async function getRecentReports(types: string[], take = 20) {
   });
 }
 
-function toMorningPayload(report: { createdAt: Date; content: string; rawData: string | null }) {
+function toMorningPayload(report: { createdAt: Date; content: string; rawData: string | null }): MorningPayload {
   const raw = parseJsonMaybe(report.rawData);
   const snapshot = getSnapshot(raw);
-  const indices = extractIndices(snapshot);
-
+  const indices = extractIndices(snapshot, report.content);
   const lines = normalizeSentenceList(
     report.content,
     "Bản tin sáng đã được tạo. Hệ thống đang đồng bộ thêm dữ liệu thị trường.",
@@ -228,13 +338,13 @@ function toMorningPayload(report: { createdAt: Date; content: string; rawData: s
   };
 }
 
-function toEodPayload(report: { createdAt: Date; content: string; rawData: string | null }) {
+function toEodPayload(report: { createdAt: Date; content: string; rawData: string | null }): EodPayload {
   const raw = parseJsonMaybe(report.rawData);
   const snapshot = getSnapshot(raw);
-  const indices = extractIndices(snapshot);
+  const indices = extractIndices(snapshot, report.content);
   const vnindex = indices.find((item) => item.name === "VN-INDEX");
 
-  const breadth = parseBreadth(snapshot.breadth ?? snapshot.market_breadth);
+  const breadth = parseBreadth(snapshot.breadth ?? snapshot.market_breadth, report.content);
   const liquidityByExchange = pickRecord(snapshot, ["liquidityByExchange", "liquidity_by_exchange"]) ?? {};
   const totalLiquidityRaw =
     toNumberOrNull(snapshot.liquidity) ??
@@ -251,18 +361,43 @@ function toEodPayload(report: { createdAt: Date; content: string; rawData: strin
   const proprietary = pickRecord(investorRoot, ["proprietary"]) ?? {};
   const retail = pickRecord(investorRoot, ["retail"]) ?? {};
 
-  const foreignNet = toNumberOrNull(foreign.net) ?? toNumberOrNull(investorRoot.foreignNet) ?? 0;
+  const foreignLineFromContent = pickContentLine(report.content, "khối ngoại");
+  const propLineFromContent = pickContentLine(report.content, "tự doanh");
+  const retailLineFromContent = pickContentLine(report.content, "cá nhân");
+
+  const foreignNet =
+    toNumberOrNull(foreign.net) ??
+    toNumberOrNull(investorRoot.foreignNet) ??
+    parseNetFromTextLine(foreignLineFromContent) ??
+    null;
   const proprietaryNet =
-    toNumberOrNull(proprietary.net) ?? toNumberOrNull(investorRoot.proprietaryNet) ?? 0;
-  const retailNet = toNumberOrNull(retail.net) ?? toNumberOrNull(investorRoot.retailNet) ?? 0;
+    toNumberOrNull(proprietary.net) ??
+    toNumberOrNull(investorRoot.proprietaryNet) ??
+    parseNetFromTextLine(propLineFromContent) ??
+    null;
+  const retailNet =
+    toNumberOrNull(retail.net) ??
+    toNumberOrNull(investorRoot.retailNet) ??
+    parseNetFromTextLine(retailLineFromContent) ??
+    null;
 
   const lines = normalizeSentenceList(
     report.content,
     "Bản tin kết phiên đã được tạo. Hệ thống đang đồng bộ thêm dữ liệu hiển thị.",
   );
-  const foreignLineFromContent = pickContentLine(report.content, "khối ngoại");
-  const propLineFromContent = pickContentLine(report.content, "tự doanh");
-  const retailLineFromContent = pickContentLine(report.content, "cá nhân");
+
+  const sentimentLine =
+    lines.find((line) => normalizeForCheck(line).includes("nhan dinh")) ??
+    lines.find((line) => normalizeForCheck(line).includes("smart money")) ??
+    lines[1] ??
+    "";
+
+  const liquidityByExchangeText = [
+    toNumberOrNull(liquidityByExchange.HOSE),
+    toNumberOrNull(liquidityByExchange.HNX),
+    toNumberOrNull(liquidityByExchange.UPCOM),
+  ];
+  const hasExchangeLiquidity = liquidityByExchangeText.some((v) => v != null && v > 0);
 
   return {
     date: toViDate(report.createdAt),
@@ -273,45 +408,54 @@ function toEodPayload(report: { createdAt: Date; content: string; rawData: strin
     session_summary: lines[0] ?? "",
     liquidity_detail:
       totalLiquidityRaw > 0
-        ? `Thanh khoản toàn thị trường đạt ${Math.round(totalLiquidityRaw).toLocaleString("vi-VN")} tỷ đồng.`
+        ? `Thanh khoản toàn thị trường đạt ${Math.round(totalLiquidityRaw).toLocaleString("vi-VN")} tỷ đồng${
+            hasExchangeLiquidity
+              ? ` (HoSE ${Math.round(toNumber(liquidityByExchange.HOSE)).toLocaleString("vi-VN")} | HNX ${Math.round(
+                  toNumber(liquidityByExchange.HNX),
+                ).toLocaleString("vi-VN")} | UPCoM ${Math.round(toNumber(liquidityByExchange.UPCOM)).toLocaleString(
+                  "vi-VN",
+                )})`
+              : ""
+          }.`
         : "",
     foreign_flow:
-      foreignNet !== 0
+      foreignNet != null
         ? `Khối ngoại ${foreignNet >= 0 ? "mua ròng" : "bán ròng"} ${Math.abs(foreignNet).toFixed(1)} tỷ.`
         : foreignLineFromContent,
     notable_trades:
-      proprietaryNet !== 0 || retailNet !== 0
-        ? `Tự doanh: ${proprietaryNet >= 0 ? "+" : ""}${proprietaryNet.toFixed(1)} tỷ | Cá nhân: ${
-            retailNet >= 0 ? "+" : ""
-          }${retailNet.toFixed(1)} tỷ.`
+      proprietaryNet != null || retailNet != null
+        ? `Tự doanh: ${
+            proprietaryNet == null ? "chưa cập nhật" : `${proprietaryNet >= 0 ? "+" : ""}${proprietaryNet.toFixed(1)} tỷ`
+          } | Cá nhân: ${retailNet == null ? "chưa cập nhật" : `${retailNet >= 0 ? "+" : ""}${retailNet.toFixed(1)} tỷ`}.`
         : [propLineFromContent, retailLineFromContent].filter(Boolean).join(" | "),
-    outlook: lines[1] ?? "",
-    sub_indices: Array.isArray(raw?.sub_indices) ? raw?.sub_indices : [],
-    foreign_top_buy: Array.isArray(raw?.foreign_top_buy) ? raw?.foreign_top_buy : [],
-    foreign_top_sell: Array.isArray(raw?.foreign_top_sell) ? raw?.foreign_top_sell : [],
-    prop_trading_top_buy: Array.isArray(raw?.prop_trading_top_buy) ? raw?.prop_trading_top_buy : [],
-    prop_trading_top_sell: Array.isArray(raw?.prop_trading_top_sell) ? raw?.prop_trading_top_sell : [],
-    sector_gainers: Array.isArray(raw?.sector_gainers) ? raw?.sector_gainers : [],
-    sector_losers: Array.isArray(raw?.sector_losers) ? raw?.sector_losers : [],
-    buy_signals: Array.isArray(raw?.buy_signals) ? raw?.buy_signals : [],
-    sell_signals: Array.isArray(raw?.sell_signals) ? raw?.sell_signals : [],
-    top_breakout: Array.isArray(raw?.top_breakout) ? raw?.top_breakout : [],
+    outlook: sentimentLine,
+    sub_indices: parseSubIndices(raw?.sub_indices),
+    foreign_top_buy: parseStringArray(raw?.foreign_top_buy),
+    foreign_top_sell: parseStringArray(raw?.foreign_top_sell),
+    prop_trading_top_buy: parseStringArray(raw?.prop_trading_top_buy),
+    prop_trading_top_sell: parseStringArray(raw?.prop_trading_top_sell),
+    sector_gainers: parseStringArray(raw?.sector_gainers),
+    sector_losers: parseStringArray(raw?.sector_losers),
+    buy_signals: parseStringArray(raw?.buy_signals),
+    sell_signals: parseStringArray(raw?.sell_signals),
+    top_breakout: parseStringArray(raw?.top_breakout),
   };
 }
 
-function hasValidMorningPayload(payload: ReturnType<typeof toMorningPayload>): boolean {
+function hasValidMorningPayload(payload: MorningPayload): boolean {
   return payload.reference_indices.some(
-    (item) => item.name === "VN-INDEX" && Number.isFinite(item.value) && item.value > 0,
+    (item) => item.name === "VN-INDEX" && typeof item.value === "number" && item.value > 0,
   );
 }
 
-function hasValidEodPayload(payload: ReturnType<typeof toEodPayload>): boolean {
+function hasValidEodPayload(payload: EodPayload): boolean {
   const hasVni = Number.isFinite(payload.vnindex) && payload.vnindex > 0;
   const hasBreadth = payload.breadth.total > 0;
   const hasLiquidity = Number.isFinite(payload.liquidity) && payload.liquidity > 0;
-  const hasInvestorData =
-    payload.foreign_flow.length > 0 || payload.notable_trades.length > 0;
-  return hasVni && (hasBreadth || hasLiquidity || hasInvestorData);
+  const hasForeign = payload.foreign_flow.length > 0 && !isUnavailableText(payload.foreign_flow);
+  const hasTrades = payload.notable_trades.length > 0 && !isUnavailableText(payload.notable_trades);
+  const hasSummary = payload.session_summary.length > 0 && !isUnavailableText(payload.session_summary);
+  return hasVni && (hasLiquidity || hasBreadth || hasForeign || hasTrades) && hasSummary;
 }
 
 export async function GET(request: NextRequest) {
@@ -325,6 +469,7 @@ export async function GET(request: NextRequest) {
     if (reports.length === 0) {
       return NextResponse.json({ error: "Chưa có Morning Brief hợp lệ để hiển thị." }, { status: 404 });
     }
+
     const payloads = reports.map((report) => toMorningPayload(report));
     const selected = payloads.find((payload) => hasValidMorningPayload(payload)) ?? payloads[0];
     return NextResponse.json(selected);
@@ -334,6 +479,7 @@ export async function GET(request: NextRequest) {
   if (reports.length === 0) {
     return NextResponse.json({ error: "Chưa có EOD Brief hợp lệ để hiển thị." }, { status: 404 });
   }
+
   const payloads = reports.map((report) => toEodPayload(report));
   const selected = payloads.find((payload) => hasValidEodPayload(payload)) ?? payloads[0];
   return NextResponse.json(selected);

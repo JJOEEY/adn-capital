@@ -17,7 +17,14 @@ export const maxDuration = 60;
 
 function hasRequiredCloseData(snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>): boolean {
   const hasMainIndex = snapshot.indices.some((item) => item.ticker === "VNINDEX");
-  return hasMainIndex && snapshot.liquidity != null && snapshot.investorTrading.availability.foreign;
+  const breadth = snapshot.breadth;
+  const hasBreadth = !!breadth && breadth.up + breadth.down + breadth.unchanged > 0;
+  const hasLiquidity =
+    snapshot.liquidity != null &&
+    snapshot.liquidity > 0 &&
+    snapshot.liquidityByExchange.HOSE != null &&
+    snapshot.liquidityByExchange.HOSE > 0;
+  return hasMainIndex && hasLiquidity && hasBreadth && snapshot.investorTrading.availability.foreign;
 }
 
 function formatTy(value: number | null | undefined): string {

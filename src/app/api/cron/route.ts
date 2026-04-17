@@ -45,21 +45,43 @@ const PYTHON_BRIDGE = process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000";
 
 type CronType = "prop_trading" | "intraday" | "market_stats" | "signal_scan_5m";
 
+function hasMeaningfulBreadth(snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>): boolean {
+  const breadth = snapshot.breadth;
+  return !!breadth && breadth.up + breadth.down + breadth.unchanged > 0;
+}
+
+function hasMeaningfulLiquidity(snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>): boolean {
+  const total = snapshot.liquidity;
+  const hose = snapshot.liquidityByExchange.HOSE;
+  return total != null && total > 0 && hose != null && hose > 0;
+}
+
 function hasRequiredStatsData(snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>): boolean {
   const hasMainIndex = snapshot.indices.some((item) => item.ticker === "VNINDEX");
-  return hasMainIndex && snapshot.liquidity != null && snapshot.investorTrading.availability.foreign;
+  return (
+    hasMainIndex &&
+    hasMeaningfulLiquidity(snapshot) &&
+    hasMeaningfulBreadth(snapshot) &&
+    snapshot.investorTrading.availability.foreign
+  );
 }
 
 function hasRequiredClose15Data(snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>): boolean {
   const hasMainIndex = snapshot.indices.some((item) => item.ticker === "VNINDEX");
-  return hasMainIndex && snapshot.liquidity != null && snapshot.investorTrading.availability.foreign;
+  return (
+    hasMainIndex &&
+    hasMeaningfulLiquidity(snapshot) &&
+    hasMeaningfulBreadth(snapshot) &&
+    snapshot.investorTrading.availability.foreign
+  );
 }
 
 function hasRequiredFull19Data(snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>): boolean {
   const hasMainIndex = snapshot.indices.some((item) => item.ticker === "VNINDEX");
   return (
     hasMainIndex &&
-    snapshot.liquidity != null &&
+    hasMeaningfulLiquidity(snapshot) &&
+    hasMeaningfulBreadth(snapshot) &&
     snapshot.investorTrading.availability.foreign &&
     snapshot.investorTrading.availability.proprietary &&
     snapshot.investorTrading.availability.retail
