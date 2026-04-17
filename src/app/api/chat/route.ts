@@ -248,20 +248,15 @@ async function fetchMarketOverview(): Promise<MarketOverviewData | null> {
 // ─── Detect stock tickers trong tin nhắn tự do ────────────────────
 function detectTickers(msg: string): string[] {
   const upperMsg = msg.toUpperCase();
-  // Match ticker-like words in any case
+  const normalizedUpper = msg.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
   const matches = upperMsg.match(/\b[A-Z]{2,5}\b/g) ?? [];
-  // Also catch mentions like "mã hpg", "cp fpt"
-  const lowerMatches = msg.match(/\b(?:mã|cổ phiếu|cp)\s+([a-zA-Z]{2,5})\b/gi) ?? [];
-  const extracted = lowerMatches.map(m => {
-    const parts = m.split(/\s+/);
-    return parts[parts.length - 1].toUpperCase();
-  });
-  const all = [...new Set([...matches, ...extracted])];
-  // Filter out common Vietnamese words that look like tickers
-  const EXCLUDE = new Set(["VND", "CUA", "CHO", "CON", "MOT", "HAI", "HOI", "NAY", "NHU", "THE", "VAN", "VOI", "TAT", "BAT", "MAU", "DAU", "BAN", "MUA", "LAM", "SAU", "ROI", "NEN", "KHI", "TAI", "VUA", "DAY", "HAY", "NHO", "TOI", "BOT"]);
-  return all
-    .filter((t) => t.length >= 2 && t.length <= 5 && !EXCLUDE.has(t) && KNOWN_TICKERS.has(t))
-    .slice(0, 3);
+  const normalizedMatches = normalizedUpper.match(/\b[A-Z]{2,5}\b/g) ?? [];
+  const contextMatches = [...normalizedUpper.matchAll(/\b(?:MA|CO PHIEU|CP|TICKER)\s*[:\-]?\s*([A-Z]{2,5})\b/g)].map(
+    (match) => match[1],
+  );
+
+  const all = [...new Set([...matches, ...normalizedMatches, ...contextMatches])];
+  return all.filter((ticker) => isLikelyTicker(ticker)).slice(0, 3);
 }
 
 function shouldFetchMarketContext(msg: string): boolean {
@@ -459,12 +454,30 @@ const KNOWN_TICKERS = new Set([
 const TICKER_STOP_WORDS = new Set([
   "VND", "CUA", "CHO", "CON", "MOT", "HAI", "HOI", "NAY", "NHU", "THE", "VAN", "VOI",
   "TAT", "BAT", "MAU", "DAU", "BAN", "MUA", "LAM", "SAU", "ROI", "NEN", "KHI", "TAI",
-  "VUA", "DAY", "HAY", "NHO", "TOI", "BOT", "SO", "SANH", "VA", "VOI", "GIUA",
+  "VUA", "DAY", "HAY", "NHO", "TOI", "BOT", "SO", "SANH", "VA", "GIUA", "CO", "PHIEU",
+  "XEM", "PHAN", "TICH", "NHAN", "DINH", "HOLD", "STOP", "LOSS", "TARGET", "TICKER",
 ]);
 
+function isLikelyTicker(code: string): boolean {
+  const upper = code.toUpperCase();
+  if (!/^[A-Z]{2,5}$/.test(upper)) return false;
+  if (KNOWN_TICKERS.has(upper)) return true;
+  return !TICKER_STOP_WORDS.has(upper);
+}
+
 function extractTickerCandidates(msg: string): string[] {
-  const candidates = msg.toUpperCase().match(/\b[A-Z]{2,5}\b/g) ?? [];
-  return [...new Set(candidates.filter((code) => !TICKER_STOP_WORDS.has(code)))].slice(0, 5);
+  const upper = msg.toUpperCase();
+  const normalizedUpper = msg.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+  const candidates = [
+    ...(upper.match(/\b[A-Z]{2,5}\b/g) ?? []),
+    ...(normalizedUpper.match(/\b[A-Z]{2,5}\b/g) ?? []),
+  ];
+  const contextMatches = [...normalizedUpper.matchAll(/\b(?:MA|CO PHIEU|CP|TICKER|XEM|PHAN TICH|NHAN DINH)\s*[:\-]?\s*([A-Z]{2,5})\b/g)].map(
+    (match) => match[1],
+  );
+
+  const all = [...new Set([...candidates, ...contextMatches])];
+  return all.filter((code) => isLikelyTicker(code)).slice(0, 5);
 }
 
 // ─── Intent Detection (REGEX-FIRST, LLM fallback) ────────────────
@@ -482,7 +495,7 @@ async function detectIntent(msg: string): Promise<{ intent: "CHAT_GENERAL" | "AN
 
   // ── Fast path 1: bare ticker ("fpt", "FPT", "MWG sao em") ──
   const bareTickerMatch = upper.match(/^([A-Z]{2,5})(?:\s|$|\?|!|,|\.)/);
-  if (bareTickerMatch && KNOWN_TICKERS.has(bareTickerMatch[1])) {
+  if (bareTickerMatch && isLikelyTicker(bareTickerMatch[1])) {
     return { intent: "ANALYZE_TICKER", ticker: bareTickerMatch[1] };
   }
 
@@ -509,7 +522,7 @@ async function detectIntent(msg: string): Promise<{ intent: "CHAT_GENERAL" | "AN
   const hasAnalysisKeyword = analysisKeywords.some((kw) => normalized.includes(kw));
   if (hasAnalysisKeyword) {
     const candidates = upper.match(/\b([A-Z]{2,5})\b/g) ?? [];
-    const ticker = candidates.find((c) => KNOWN_TICKERS.has(c));
+    const ticker = candidates.find((c) => isLikelyTicker(c));
     if (ticker) {
       return { intent: "ANALYZE_TICKER", ticker };
     }
@@ -1026,9 +1039,7 @@ export async function POST(req: NextRequest) {
     const detectedIntent = !cmd
       ? await detectIntent(message)
       : { intent: "CHAT_GENERAL" as const };
-    const isDirectTicker = !cmd && /^[A-Z]{2,5}$/.test(upper) && KNOWN_TICKERS.has(upper);
-
-    const isAnalyzePhrase = !cmd && detectedIntent.intent === "ANALYZE_TICKER" && !!detectedIntent.ticker;
+    const isDirectTicker = !cmd && isLikelyTicker(upper);
     const compareTickers =
       cmd === "/compare"
         ? compareStocks
@@ -1036,14 +1047,10 @@ export async function POST(req: NextRequest) {
           ? detectedIntent.tickers ?? []
           : [];
     const isCompareFlow = compareTickers.length >= 2;
-    const shouldRenderWidget = !isCompareFlow && (isDirectTicker || isAnalyzePhrase);
+    const shouldRenderWidget = !isCompareFlow && isDirectTicker;
 
     if (shouldRenderWidget) {
-      const ticker = isDirectTicker
-        ? upper
-        : (detectedIntent.intent === "ANALYZE_TICKER" && detectedIntent.ticker
-          ? detectedIntent.ticker.toUpperCase()
-          : "FPT");
+      const ticker = upper;
 
       console.log(`[INTERCEPTOR] 🎯 Widget triggered for ticker: ${ticker}`);
 
@@ -1387,3 +1394,4 @@ Nhà đầu tư hỏi: ${message}`;
     );
   }
 }
+

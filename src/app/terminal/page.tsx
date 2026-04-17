@@ -51,6 +51,10 @@ export default function TerminalPage() {
           usage?: { used: number; isUnlimited: boolean };
           type?: "widget";
           ticker?: string;
+          data?: {
+            technical?: { aiInsight?: string };
+            fundamental?: { aiInsight?: string };
+          };
         } = await res.json();
 
         if (typeof data.usage?.used === "number") {
@@ -63,9 +67,11 @@ export default function TerminalPage() {
 
         let reply = data.message ?? data.error ?? "Xin lỗi, có lỗi xảy ra. Thử lại nhé!";
         if (data.type === "widget" && data.ticker) {
-          reply = `Em nhận diện mã **${data.ticker}**. Đại ca nhập trực tiếp mã (ví dụ: \`${data.ticker}\`) để mở 4 thẻ phân tích nhé.`;
+          reply =
+            data.data?.technical?.aiInsight ??
+            data.data?.fundamental?.aiInsight ??
+            "Em nhan dien ma **" + data.ticker + "** va da phan tich nhanh. Dai ca co the nhap truc tiep ma " + data.ticker + " de mo 4 the chi tiet.";
         }
-
         setExtraMessages((prev) => [
           ...prev,
           { id: crypto.randomUUID(), role: "bot", text: reply, createdAt: Date.now() },
@@ -195,3 +201,4 @@ export default function TerminalPage() {
     </MainLayout>
   );
 }
+

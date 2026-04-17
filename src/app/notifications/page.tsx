@@ -53,6 +53,12 @@ interface ChatMessage {
 const GUEST_CHAT_STORAGE_KEY = "adn-notifications-chat-v2";
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 const TICKER_PATTERN = /^[A-Z]{2,5}$/;
+const TICKER_TOKEN_PATTERN = /\b[A-Z]{2,5}\b/g;
+const TICKER_STOP_WORDS = new Set([
+  "VA", "VOI", "CHO", "CON", "MA", "CP", "THE", "NAY", "NHU", "MUA", "BAN", "GIU", "HOLD",
+  "NEU", "DUOC", "SAO", "ROI", "TOI", "MINH", "LAM", "KHI", "NEN", "XEM", "PHAN",
+  "TICH", "NHAN", "DINH", "CO", "PHIEU", "TICKER", "TIN", "TUC", "HOM", "VND",
+]);
 
 const CARD_OPTIONS: Array<{
   id: CardId;
@@ -225,10 +231,30 @@ function mapSignalToBadge(signal?: string | null): BrokerBadge {
   return "GIỮ";
 }
 
+function stripDiacritics(text: string): string {
+  return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
 function detectTicker(input: string): string | null {
-  const value = input.trim().toUpperCase();
-  if (!value) return null;
-  return TICKER_PATTERN.test(value) ? value : null;
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  const exact = trimmed.toUpperCase();
+  if (TICKER_PATTERN.test(exact) && !TICKER_STOP_WORDS.has(exact)) return exact;
+
+  const upper = trimmed.toUpperCase();
+  const normalizedUpper = stripDiacritics(trimmed).toUpperCase();
+  const candidates = [
+    ...(upper.match(TICKER_TOKEN_PATTERN) ?? []),
+    ...(normalizedUpper.match(TICKER_TOKEN_PATTERN) ?? []),
+  ];
+  const contextRegex = /\b(?:MA|CO PHIEU|CP|TICKER|XEM|PHAN TICH|NHAN DINH)\s*[:\-]?\s*([A-Z]{2,5})\b/g;
+  for (const match of normalizedUpper.matchAll(contextRegex)) {
+    candidates.push(match[1]);
+  }
+
+  const deduped = [...new Set(candidates)];
+  return deduped.find((code) => TICKER_PATTERN.test(code) && !TICKER_STOP_WORDS.has(code)) ?? null;
 }
 
 async function saveChatHistory(role: "user" | "assistant", message: string) {
@@ -459,7 +485,7 @@ export default function NotificationsPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ message: commandMap[cardId] }),
-          signal: AbortSignal.timeout(120_000),
+          signal: AbortSignal.timeout(45_000),
         });
         const data = (await res.json()) as { message?: string; error?: string };
         if (res.status === 429) {
@@ -580,7 +606,8 @@ export default function NotificationsPage() {
         streamState?: "done";
         widgetMeta?: { complete?: boolean; ticker?: string; badge?: BrokerBadge };
         data?: {
-          technical?: { data?: { signal?: string | null } | null };
+          technical?: { data?: { signal?: string | null } | null; aiInsight?: string };
+          fundamental?: { aiInsight?: string };
         };
       };
 
@@ -610,7 +637,7 @@ export default function NotificationsPage() {
         id: crypto.randomUUID(),
         role: "assistant",
         text: isWidget
-          ? `Đã phân tích nhanh mã ${payload.ticker}.`
+          ? `${payload.data?.technical?.aiInsight ?? payload.data?.fundamental?.aiInsight ?? `Đã phân tích nhanh mã ${payload.ticker}.`}`
           : payload.message || payload.reply || "Em chưa có phản hồi, đại ca hỏi lại giúp em nhé.",
         createdAt: new Date().toISOString(),
         streamState: payload.streamState ?? "done",
