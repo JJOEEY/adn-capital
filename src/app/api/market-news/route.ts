@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getMarketSnapshot, getInvestorTradingText } from "@/lib/marketDataFetcher";
 
 export const dynamic = "force-dynamic";
 
@@ -487,6 +488,48 @@ function eodPayloadScore(payload: EodPayload): number {
   return score;
 }
 
+async function buildLiveEodFallbackPayload(): Promise<EodPayload | null> {
+  try {
+    const snapshot = await getMarketSnapshot();
+    const vnindex = snapshot.indices.find((item) => item.ticker === "VNINDEX");
+    if (!vnindex || snapshot.liquidity == null || snapshot.liquidity <= 0) return null;
+
+    const investorLines = getInvestorTradingText(snapshot, "full19");
+    const foreignLine = investorLines.find((line) => normalizeForCheck(line).includes("khoi ngoai")) ?? "";
+    const otherLines = investorLines.filter((line) => line !== foreignLine).join(" | ");
+
+    return {
+      date: toViDate(new Date(snapshot.timestamp)),
+      vnindex: vnindex.value,
+      change_pct: vnindex.changePct,
+      liquidity: snapshot.liquidity,
+      breadth: {
+        up: snapshot.breadth?.up ?? 0,
+        down: snapshot.breadth?.down ?? 0,
+        unchanged: snapshot.breadth?.unchanged ?? 0,
+        total: (snapshot.breadth?.up ?? 0) + (snapshot.breadth?.down ?? 0) + (snapshot.breadth?.unchanged ?? 0),
+      },
+      session_summary: `Bản tin EOD tạm thời từ snapshot trực tiếp (${snapshot.requestDateVN}).`,
+      liquidity_detail: `Thanh khoản toàn thị trường đạt ${Math.round(snapshot.liquidity).toLocaleString("vi-VN")} tỷ đồng.`,
+      foreign_flow: foreignLine || "Khối ngoại: chưa cập nhật",
+      notable_trades: otherLines,
+      outlook: snapshot.marketOverview?.action_message ?? "",
+      sub_indices: [],
+      foreign_top_buy: [],
+      foreign_top_sell: [],
+      prop_trading_top_buy: [],
+      prop_trading_top_sell: [],
+      sector_gainers: [],
+      sector_losers: [],
+      buy_signals: [],
+      sell_signals: [],
+      top_breakout: [],
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(request: NextRequest) {
   const typeParam = request.nextUrl.searchParams.get("type") ?? "morning";
   if (typeParam !== "morning" && typeParam !== "eod") {
@@ -510,8 +553,13 @@ export async function GET(request: NextRequest) {
   }
 
   const payloads = reports.map((report) => toEodPayload(report));
-  const selected =
+  let selected =
     payloads.find((payload) => hasValidEodPayload(payload)) ??
     [...payloads].sort((a, b) => eodPayloadScore(b) - eodPayloadScore(a))[0];
+
+  if (!hasValidEodPayload(selected)) {
+    const liveFallback = await buildLiveEodFallbackPayload();
+    if (liveFallback) selected = liveFallback;
+  }
   return NextResponse.json(selected);
 }
