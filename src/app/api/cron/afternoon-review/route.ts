@@ -82,7 +82,7 @@ export async function GET(req: NextRequest) {
   try {
     const snapshot = await getMarketSnapshot();
 
-    if (!hasRequiredCloseData(snapshot)) {
+    if (!hasRequiredCloseData(snapshot) && !forceRun) {
       const duration = Date.now() - startTime;
       await logCron(
         "close_brief_15h",

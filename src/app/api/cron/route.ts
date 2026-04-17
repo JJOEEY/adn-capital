@@ -257,7 +257,7 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
   try {
     const [propData, snapshot] = await Promise.all([getPropTradingData(), getMarketSnapshot()]);
 
-    if (!hasRequiredFull19Data(snapshot)) {
+    if (!hasRequiredFull19Data(snapshot) && !forceRun) {
       const duration = Date.now() - startTime;
       await logCron(
         "prop_trading",
