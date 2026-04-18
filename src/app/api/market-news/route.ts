@@ -120,7 +120,7 @@ function isUnavailableText(text: string): boolean {
 }
 
 function toViDate(value: Date): string {
-  return value.toLocaleDateString("vi-VN");
+  return new Intl.DateTimeFormat("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }).format(value);
 }
 
 function normalizeIndexName(raw: unknown): string {
