@@ -123,6 +123,13 @@ function toViDate(value: Date): string {
   return new Intl.DateTimeFormat("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }).format(value);
 }
 
+function toViDateFromDateKey(dateKey: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return dateKey;
+  const value = new Date(`${dateKey}T00:00:00+07:00`);
+  if (Number.isNaN(value.getTime())) return dateKey;
+  return toViDate(value);
+}
+
 function normalizeIndexName(raw: unknown): string {
   const source = String(raw ?? "").trim();
   const n = normalizeForCheck(source).replace(/[^a-z0-9]/g, "");
@@ -395,13 +402,14 @@ function toMorningPayload(report: { createdAt: Date; content: string; rawData: s
   const raw = parseJsonMaybe(report.rawData);
   const snapshot = getSnapshot(raw);
   const indices = extractIndices(snapshot, report.content);
+  const reportDateKey = getReportDateKey(report);
   const lines = normalizeSentenceList(
     report.content,
     "Bản tin sáng đã được tạo. Hệ thống đang đồng bộ thêm dữ liệu thị trường.",
   );
 
   return {
-    date: toViDate(report.createdAt),
+    date: toViDateFromDateKey(reportDateKey),
     reference_indices: indices,
     vn_market: lines.slice(0, 2),
     macro: lines.slice(2, 4),
@@ -413,6 +421,7 @@ function toEodPayload(report: { createdAt: Date; content: string; rawData: strin
   const raw = parseJsonMaybe(report.rawData);
   const snapshot = getSnapshot(raw);
   const indices = extractIndices(snapshot, report.content);
+  const reportDateKey = getReportDateKey(report);
   const vnindex = indices.find((item) => item.name === "VN-INDEX");
 
   const breadth = parseBreadth(snapshot.breadth ?? snapshot.market_breadth, report.content);
@@ -471,7 +480,7 @@ function toEodPayload(report: { createdAt: Date; content: string; rawData: strin
   const hasExchangeLiquidity = liquidityByExchangeText.some((v) => v != null && v > 0);
 
   return {
-    date: toViDate(report.createdAt),
+    date: toViDateFromDateKey(reportDateKey),
     vnindex: toNumber(vnindex?.value),
     change_pct: toNumber(vnindex?.change_pct),
     liquidity: Math.max(totalLiquidityRaw, 0),
