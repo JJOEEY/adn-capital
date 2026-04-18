@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getMarketSnapshot, getInvestorTradingText } from "@/lib/marketDataFetcher";
+import { fetchAllCafefNews } from "@/lib/cafefScraper";
 
 export const dynamic = "force-dynamic";
 
@@ -128,6 +129,234 @@ function toViDateFromDateKey(dateKey: string): string {
   const value = new Date(`${dateKey}T00:00:00+07:00`);
   if (Number.isNaN(value.getTime())) return dateKey;
   return toViDate(value);
+}
+
+function stripMarkdownAndBullets(text: string): string {
+  return text
+    .replace(/[*_`]/g, "")
+    .replace(/\\([|_*`])/g, "$1")
+    .replace(/^\s*(?:[-•●▪▫◦‣▶►]+|\d+[.)]|[^\p{L}\p{N}]*)/u, "")
+    .trim();
+}
+
+function isHeadingLike(text: string): boolean {
+  const n = normalizeForCheck(stripMarkdownAndBullets(text));
+  return (
+    n.includes("chi so tham chieu") ||
+    n.includes("thi truong viet nam") ||
+    n.includes("vi mo trong nuoc") ||
+    n.includes("quoc te") ||
+    n.includes("rui ro") ||
+    n.includes("co hoi") ||
+    n.includes("ban tin sang")
+  );
+}
+
+function parseMorningSections(content: string): {
+  vnMarket: string[];
+  macro: string[];
+  riskOpportunity: string[];
+} {
+  const vnMarket: string[] = [];
+  const macro: string[] = [];
+  const riskOpportunity: string[] = [];
+  let section: "vn" | "macro" | "risk" | null = null;
+
+  const lines = content.split("\n").map((line) => line.trim());
+  for (const line of lines) {
+    if (!line) continue;
+    const normalized = normalizeForCheck(stripMarkdownAndBullets(line));
+
+    if (normalized.includes("thi truong viet nam")) {
+      section = "vn";
+      continue;
+    }
+    if (normalized.includes("vi mo") || normalized.includes("quoc te")) {
+      section = "macro";
+      continue;
+    }
+    if (normalized.includes("rui ro") || normalized.includes("co hoi")) {
+      section = "risk";
+      continue;
+    }
+
+    if (!section) continue;
+    if (isHeadingLike(line)) continue;
+
+    const cleaned = stripMarkdownAndBullets(line);
+    if (!cleaned || cleaned.length < 10) continue;
+    if (isUnavailableText(cleaned)) continue;
+
+    if (section === "vn") vnMarket.push(cleaned);
+    if (section === "macro") macro.push(cleaned);
+    if (section === "risk") riskOpportunity.push(cleaned);
+  }
+
+  return {
+    vnMarket: vnMarket.slice(0, 5),
+    macro: macro.slice(0, 5),
+    riskOpportunity: riskOpportunity.slice(0, 5),
+  };
+}
+
+function isMacroHeadline(line: string): boolean {
+  const n = normalizeForCheck(line);
+  const macroKeywords = [
+    "my",
+    "us",
+    "fed",
+    "ecb",
+    "dxy",
+    "usd",
+    "wti",
+    "vang",
+    "gold",
+    "quoc te",
+    "toan cau",
+    "vi mo",
+    "lai suat",
+    "ty gia",
+    "cpi",
+    "pmi",
+    "trung quoc",
+    "chau au",
+  ];
+  return macroKeywords.some((k) => n.includes(k));
+}
+
+function isVietnamMarketHeadline(line: string): boolean {
+  const n = normalizeForCheck(line);
+  const vnKeywords = [
+    "vn-index",
+    "vnindex",
+    "vn30",
+    "hose",
+    "hnx",
+    "upcom",
+    "co phieu",
+    "doanh nghiep",
+    "nganh",
+    "khoi ngoai",
+    "chung khoan viet nam",
+    "thi truong viet nam",
+  ];
+  return vnKeywords.some((k) => n.includes(k));
+}
+
+function dedupeKeepOrder(items: string[]): string[] {
+  const seen = new Set<string>();
+  const output: string[] = [];
+  for (const item of items) {
+    const cleaned = stripMarkdownAndBullets(item);
+    if (!cleaned) continue;
+    const key = normalizeForCheck(cleaned);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    output.push(cleaned);
+  }
+  return output;
+}
+
+function isLikelyNewsLine(line: string): boolean {
+  const n = normalizeForCheck(line);
+  if (!n || n.length < 14) return false;
+  if (n.includes("ban tin sang") || n.includes("chi so tham chieu")) return false;
+  return true;
+}
+
+function detectNewsSentiment(title: string): "positive" | "negative" | "neutral" {
+  const n = normalizeForCheck(title);
+  const positiveWords = ["tang", "mua rong", "ho tro", "dot pha", "tich cuc", "hoi phuc", "ha lai suat"];
+  const negativeWords = ["giam", "ban rong", "rui ro", "ap luc", "that chat", "suy yeu", "chot loi"];
+  if (positiveWords.some((w) => n.includes(w))) return "positive";
+  if (negativeWords.some((w) => n.includes(w))) return "negative";
+  return "neutral";
+}
+
+async function enrichMorningPayload(base: MorningPayload): Promise<MorningPayload> {
+  const normalizedBaseVn = dedupeKeepOrder(base.vn_market.filter(isLikelyNewsLine));
+  const normalizedBaseMacro = dedupeKeepOrder(base.macro.filter(isLikelyNewsLine));
+  const normalizedBaseRisk = dedupeKeepOrder(base.risk_opportunity.filter(isMeaningfulLine));
+
+  if (normalizedBaseVn.length >= 4 && normalizedBaseMacro.length >= 4 && normalizedBaseRisk.length >= 2) {
+    return {
+      ...base,
+      vn_market: normalizedBaseVn.slice(0, 5),
+      macro: normalizedBaseMacro.slice(0, 5),
+      risk_opportunity: normalizedBaseRisk.slice(0, 4),
+    };
+  }
+
+  const [cafefNews, snapshot] = await Promise.all([fetchAllCafefNews().catch(() => null), getMarketSnapshot().catch(() => null)]);
+
+  const vnNews = cafefNews
+    ? dedupeKeepOrder(cafefNews.stockMarket.articles.map((a) => a.title).filter(isLikelyNewsLine))
+    : [];
+  const macroNews = cafefNews
+    ? dedupeKeepOrder(
+        [...cafefNews.macro.articles, ...cafefNews.global.articles, ...cafefNews.goldForex.articles]
+          .map((a) => a.title)
+          .filter(isLikelyNewsLine),
+      )
+    : [];
+
+  const mergedVn = dedupeKeepOrder([...normalizedBaseVn, ...vnNews]).slice(0, 5);
+  const mergedMacro = dedupeKeepOrder([...normalizedBaseMacro, ...macroNews]).slice(0, 5);
+
+  const computedRiskOpportunity: string[] = [...normalizedBaseRisk];
+  if (snapshot) {
+    const vnindex = snapshot.indices.find((item) => item.ticker === "VNINDEX");
+    if (vnindex) {
+      if (vnindex.changePct < 0) {
+        computedRiskOpportunity.push(
+          `Rủi ro: VN-INDEX giảm ${Math.abs(vnindex.changePct).toFixed(2)}%, cần ưu tiên kỷ luật tỷ trọng và stoploss.`,
+        );
+      } else {
+        computedRiskOpportunity.push(
+          `Cơ hội: VN-INDEX tăng ${vnindex.changePct.toFixed(2)}%, xu hướng ngắn hạn đang giữ nhịp tích cực.`,
+        );
+      }
+    }
+
+    const breadth = snapshot.breadth;
+    if (breadth) {
+      if (breadth.down > breadth.up) {
+        computedRiskOpportunity.push(
+          `Rủi ro: Độ rộng nghiêng tiêu cực (giảm ${breadth.down} mã > tăng ${breadth.up} mã), hạn chế mua đuổi.`,
+        );
+      } else {
+        computedRiskOpportunity.push(
+          `Cơ hội: Độ rộng tích cực (tăng ${breadth.up} mã > giảm ${breadth.down} mã), ưu tiên nhóm có dòng tiền xác nhận.`,
+        );
+      }
+    }
+
+    const foreignNet = toNumberOrNull(snapshot.investorTrading.foreign.net);
+    if (foreignNet != null) {
+      if (foreignNet < 0) {
+        computedRiskOpportunity.push(`Rủi ro: Khối ngoại đang bán ròng ${Math.abs(foreignNet).toFixed(1)} tỷ, dễ tạo áp lực ngắn hạn.`);
+      } else if (foreignNet > 0) {
+        computedRiskOpportunity.push(`Cơ hội: Khối ngoại mua ròng ${foreignNet.toFixed(1)} tỷ, hỗ trợ tâm lý và thanh khoản thị trường.`);
+      }
+    }
+  }
+
+  const firstNegativeNews = [...mergedVn, ...mergedMacro].find((title) => detectNewsSentiment(title) === "negative");
+  if (firstNegativeNews) {
+    computedRiskOpportunity.push(`Rủi ro tin tức: ${firstNegativeNews}`);
+  }
+  const firstPositiveNews = [...mergedVn, ...mergedMacro].find((title) => detectNewsSentiment(title) === "positive");
+  if (firstPositiveNews) {
+    computedRiskOpportunity.push(`Cơ hội tin tức: ${firstPositiveNews}`);
+  }
+
+  const mergedRisk = dedupeKeepOrder(computedRiskOpportunity).slice(0, 4);
+  return {
+    ...base,
+    vn_market: mergedVn.length > 0 ? mergedVn : normalizedBaseVn.slice(0, 5),
+    macro: mergedMacro.length > 0 ? mergedMacro : normalizedBaseMacro.slice(0, 5),
+    risk_opportunity: mergedRisk,
+  };
 }
 
 function normalizeIndexName(raw: unknown): string {
@@ -403,17 +632,53 @@ function toMorningPayload(report: { createdAt: Date; content: string; rawData: s
   const snapshot = getSnapshot(raw);
   const indices = extractIndices(snapshot, report.content);
   const reportDateKey = getReportDateKey(report);
+  const parsed = parseMorningSections(report.content);
   const lines = normalizeSentenceList(
     report.content,
     "Bản tin sáng đã được tạo. Hệ thống đang đồng bộ thêm dữ liệu thị trường.",
   );
 
+  const cleanedLines = dedupeKeepOrder(
+    lines
+      .map(stripMarkdownAndBullets)
+      .filter((line) => line.length >= 12 && !isHeadingLike(line) && !isUnavailableText(line)),
+  );
+  const fallbackNewsLines = dedupeKeepOrder(cleanedLines.filter(isLikelyNewsLine));
+  const fallbackVn = fallbackNewsLines.filter(isVietnamMarketHeadline);
+  const fallbackMacro = fallbackNewsLines.filter(isMacroHeadline);
+  const fallbackRisk = dedupeKeepOrder(
+    cleanedLines.filter((line) => {
+      const n = normalizeForCheck(line);
+      return (
+        n.includes("rui ro") ||
+        n.includes("co hoi") ||
+        n.includes("ap luc") ||
+        n.includes("than trong") ||
+        n.includes("luu y")
+      );
+    }),
+  );
+  const vnMarket = dedupeKeepOrder([
+    ...parsed.vnMarket,
+    ...fallbackVn,
+    ...fallbackNewsLines,
+  ]).slice(0, 5);
+  const macro = dedupeKeepOrder([
+    ...parsed.macro,
+    ...fallbackMacro,
+    ...fallbackNewsLines.filter((line) => !isVietnamMarketHeadline(line)),
+  ]).slice(0, 5);
+  const riskOpportunity = dedupeKeepOrder([
+    ...parsed.riskOpportunity,
+    ...fallbackRisk,
+  ]).slice(0, 4);
+
   return {
     date: toViDateFromDateKey(reportDateKey),
     reference_indices: indices,
-    vn_market: lines.slice(0, 2),
-    macro: lines.slice(2, 4),
-    risk_opportunity: lines.slice(4, 6),
+    vn_market: vnMarket,
+    macro,
+    risk_opportunity: riskOpportunity,
   };
 }
 
@@ -823,6 +1088,7 @@ export async function GET(request: NextRequest) {
       [...sameDatePayloads].sort((a, b) => morningPayloadScore(b) - morningPayloadScore(a))[0] ??
       orderedPayloads[0];
     selected = backfillMorningPayload(selected, orderedPayloads);
+    selected = await enrichMorningPayload(selected);
     return NextResponse.json(selected);
   }
 
