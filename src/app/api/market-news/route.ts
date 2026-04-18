@@ -47,6 +47,12 @@ type EodPayload = {
   top_breakout: string[];
 };
 
+type ReportRow = {
+  createdAt: Date;
+  content: string;
+  rawData: string | null;
+};
+
 function parseJsonMaybe(value: string | null): JsonRecord | null {
   if (!value) return null;
   try {
@@ -272,7 +278,7 @@ function parseLiquidityFromContent(content: string): number | null {
   const fallbackPatterns = [
     /tk[:\s]*([\d.,]+)/i,
     /thanh\s*kho[a-z0-9]*[^0-9]{0,24}([\d.,]+)/i,
-    /tong[:\s]*([\d.,]+)/i,
+    /tong[:]\s*([\d.,]+)\s*(?:ty|tyvnd|vnd)?/i,
   ];
   for (const pattern of fallbackPatterns) {
     const match = plain.match(pattern);
@@ -338,6 +344,51 @@ async function getRecentReports(types: string[], take = 60) {
     orderBy: { createdAt: "desc" },
     take,
   });
+}
+
+function reportDateFromCreatedAt(createdAt: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Ho_Chi_Minh",
+  }).format(createdAt);
+}
+
+function getReportDateKey(report: ReportRow): string {
+  const raw = parseJsonMaybe(report.rawData);
+  const snapshot = getSnapshot(raw);
+  const dateFromSnapshot = typeof snapshot.requestDateVN === "string" ? snapshot.requestDateVN : null;
+  if (dateFromSnapshot && /^\d{4}-\d{2}-\d{2}$/.test(dateFromSnapshot)) return dateFromSnapshot;
+  return reportDateFromCreatedAt(report.createdAt);
+}
+
+function isWeekdayDateKey(dateKey: string): boolean {
+  const d = new Date(`${dateKey}T00:00:00+07:00`);
+  if (Number.isNaN(d.getTime())) return false;
+  const day = d.getUTCDay();
+  return day >= 1 && day <= 5;
+}
+
+function pickPreferredReportDateKey(reports: ReportRow[]): string | null {
+  for (const report of reports) {
+    const key = getReportDateKey(report);
+    if (isWeekdayDateKey(key)) return key;
+  }
+  return reports[0] ? getReportDateKey(reports[0]) : null;
+}
+
+function isMeaningfulLine(text: string): boolean {
+  return text.trim().length > 0 && !isUnavailableText(text);
+}
+
+function firstMeaningfulList(lists: string[][]): string[] {
+  for (const list of lists) {
+    const filtered = list.filter(isMeaningfulLine);
+    if (filtered.length > 0) return filtered;
+  }
+  return [];
+}
+
+function normalizeIndexKey(name: string): string {
+  return normalizeForCheck(name).replace(/[^a-z0-9]/g, "");
 }
 
 function toMorningPayload(report: { createdAt: Date; content: string; rawData: string | null }): MorningPayload {
@@ -462,10 +513,171 @@ function toEodPayload(report: { createdAt: Date; content: string; rawData: strin
   };
 }
 
+function morningPayloadScore(payload: MorningPayload): number {
+  const validRefs = payload.reference_indices.filter(
+    (item) => typeof item.value === "number" && item.value > 0,
+  ).length;
+  let score = validRefs * 20;
+  if (payload.vn_market.some(isMeaningfulLine)) score += 20;
+  if (payload.macro.some(isMeaningfulLine)) score += 20;
+  if (payload.risk_opportunity.some(isMeaningfulLine)) score += 20;
+  return score;
+}
+
+function backfillMorningPayload(base: MorningPayload, history: MorningPayload[]): MorningPayload {
+  const fallbackByIndex = new Map<string, { name: string; value: number | null; change_pct: number | null }>();
+  for (const payload of history) {
+    for (const item of payload.reference_indices) {
+      if (typeof item.value !== "number" || item.value <= 0) continue;
+      const key = normalizeIndexKey(item.name);
+      if (!fallbackByIndex.has(key)) {
+        fallbackByIndex.set(key, {
+          name: item.name,
+          value: item.value,
+          change_pct: item.change_pct,
+        });
+      }
+    }
+  }
+
+  const referenceIndices = base.reference_indices.map((item) => {
+    if (typeof item.value === "number" && item.value > 0) return item;
+    const fallback = fallbackByIndex.get(normalizeIndexKey(item.name));
+    if (!fallback) return item;
+    return {
+      name: item.name || fallback.name,
+      value: fallback.value,
+      change_pct: fallback.change_pct,
+    };
+  });
+
+  const preferredIndexNames = ["VN-INDEX", "DOW JONES", "DXY", "VÃ€NG", "Dáº¦U WTI", "VÀNG", "DẦU WTI"];
+  for (const preferredName of preferredIndexNames) {
+    const exists = referenceIndices.some(
+      (item) => normalizeIndexKey(item.name) === normalizeIndexKey(preferredName),
+    );
+    if (exists) continue;
+    const fallback = fallbackByIndex.get(normalizeIndexKey(preferredName));
+    if (!fallback) continue;
+    referenceIndices.push({
+      name: preferredName,
+      value: fallback.value,
+      change_pct: fallback.change_pct,
+    });
+  }
+
+  return {
+    ...base,
+    reference_indices: referenceIndices,
+    vn_market:
+      base.vn_market.filter(isMeaningfulLine).length > 0
+        ? base.vn_market.filter(isMeaningfulLine)
+        : firstMeaningfulList(history.map((payload) => payload.vn_market)),
+    macro:
+      base.macro.filter(isMeaningfulLine).length > 0
+        ? base.macro.filter(isMeaningfulLine)
+        : firstMeaningfulList(history.map((payload) => payload.macro)),
+    risk_opportunity:
+      base.risk_opportunity.filter(isMeaningfulLine).length > 0
+        ? base.risk_opportunity.filter(isMeaningfulLine)
+        : firstMeaningfulList(history.map((payload) => payload.risk_opportunity)),
+  };
+}
+
+function backfillEodPayload(base: EodPayload, history: EodPayload[]): EodPayload {
+  const pickNumberField = (getter: (payload: EodPayload) => number): number | null => {
+    for (const payload of history) {
+      const value = getter(payload);
+      if (Number.isFinite(value) && value > 0) return value;
+    }
+    return null;
+  };
+
+  const pickTextField = (getter: (payload: EodPayload) => string): string => {
+    for (const payload of history) {
+      const value = getter(payload);
+      if (value && !isUnavailableText(value)) return value;
+    }
+    return "";
+  };
+
+  const pickArrayField = (getter: (payload: EodPayload) => string[]): string[] => {
+    for (const payload of history) {
+      const value = getter(payload);
+      if (value.length > 0) return value;
+    }
+    return [];
+  };
+
+  const result: EodPayload = { ...base };
+
+  if (!(Number.isFinite(result.vnindex) && result.vnindex > 0)) {
+    result.vnindex = pickNumberField((payload) => payload.vnindex) ?? result.vnindex;
+  }
+  if (!(Number.isFinite(result.liquidity) && result.liquidity > 0)) {
+    result.liquidity = pickNumberField((payload) => payload.liquidity) ?? result.liquidity;
+  }
+  if (!(result.breadth.total > 0)) {
+    const source = history.find((payload) => payload.breadth.total > 0);
+    if (source) result.breadth = source.breadth;
+  }
+
+  if (!result.session_summary || isUnavailableText(result.session_summary)) {
+    result.session_summary = pickTextField((payload) => payload.session_summary);
+  }
+  if (!result.liquidity_detail || isUnavailableText(result.liquidity_detail)) {
+    result.liquidity_detail = pickTextField((payload) => payload.liquidity_detail);
+  }
+  if (!result.foreign_flow || isUnavailableText(result.foreign_flow)) {
+    result.foreign_flow = pickTextField((payload) => payload.foreign_flow);
+  }
+  if (!result.notable_trades || isUnavailableText(result.notable_trades)) {
+    result.notable_trades = pickTextField((payload) => payload.notable_trades);
+  }
+  if (!result.outlook || isUnavailableText(result.outlook)) {
+    result.outlook = pickTextField((payload) => payload.outlook);
+  }
+
+  if (result.sub_indices.length === 0) {
+    const source = history.find((payload) => payload.sub_indices.length > 0);
+    if (source) result.sub_indices = source.sub_indices;
+  }
+
+  if (result.foreign_top_buy.length === 0) result.foreign_top_buy = pickArrayField((payload) => payload.foreign_top_buy);
+  if (result.foreign_top_sell.length === 0)
+    result.foreign_top_sell = pickArrayField((payload) => payload.foreign_top_sell);
+  if (result.prop_trading_top_buy.length === 0)
+    result.prop_trading_top_buy = pickArrayField((payload) => payload.prop_trading_top_buy);
+  if (result.prop_trading_top_sell.length === 0)
+    result.prop_trading_top_sell = pickArrayField((payload) => payload.prop_trading_top_sell);
+  if (result.sector_gainers.length === 0) result.sector_gainers = pickArrayField((payload) => payload.sector_gainers);
+  if (result.sector_losers.length === 0) result.sector_losers = pickArrayField((payload) => payload.sector_losers);
+  if (result.buy_signals.length === 0) result.buy_signals = pickArrayField((payload) => payload.buy_signals);
+  if (result.sell_signals.length === 0) result.sell_signals = pickArrayField((payload) => payload.sell_signals);
+  if (result.top_breakout.length === 0) result.top_breakout = pickArrayField((payload) => payload.top_breakout);
+
+  if (result.liquidity > 0 && (!result.liquidity_detail || isUnavailableText(result.liquidity_detail))) {
+    result.liquidity_detail = `Thanh khoản toàn thị trường đạt ${Math.round(result.liquidity).toLocaleString("vi-VN")} tỷ đồng.`;
+  }
+
+  return result;
+}
+
 function hasValidMorningPayload(payload: MorningPayload): boolean {
-  return payload.reference_indices.some(
-    (item) => item.name === "VN-INDEX" && typeof item.value === "number" && item.value > 0,
+  const validRefs = payload.reference_indices.filter(
+    (item) => typeof item.value === "number" && item.value > 0,
+  ).length;
+  const hasVni = payload.reference_indices.some(
+    (item) =>
+      normalizeIndexKey(item.name) === normalizeIndexKey("VN-INDEX") &&
+      typeof item.value === "number" &&
+      item.value > 0,
   );
+  const hasAnyContent =
+    payload.vn_market.some(isMeaningfulLine) ||
+    payload.macro.some(isMeaningfulLine) ||
+    payload.risk_opportunity.some(isMeaningfulLine);
+  return validRefs >= 2 || (hasVni && hasAnyContent);
 }
 
 function hasValidEodPayload(payload: EodPayload): boolean {
@@ -490,6 +702,7 @@ function eodPayloadScore(payload: EodPayload): number {
 
 async function buildLiveEodFallbackPayload(): Promise<EodPayload | null> {
   try {
+    const candidates: EodPayload[] = [];
     const marketRes = await fetch("http://127.0.0.1:3000/api/market", {
       cache: "no-store",
       signal: AbortSignal.timeout(10_000),
@@ -506,7 +719,7 @@ async function buildLiveEodFallbackPayload(): Promise<EodPayload | null> {
       const unchanged = toNumber(updown.unchanged);
 
       if (vnValue > 0 && liquidity > 0) {
-        return {
+        candidates.push({
           date: toViDate(new Date()),
           vnindex: vnValue,
           change_pct: vnChange,
@@ -527,19 +740,18 @@ async function buildLiveEodFallbackPayload(): Promise<EodPayload | null> {
           buy_signals: [],
           sell_signals: [],
           top_breakout: [],
-        };
+        });
       }
     }
 
     const snapshot = await getMarketSnapshot();
     const vnindex = snapshot.indices.find((item) => item.ticker === "VNINDEX");
-    if (!vnindex || snapshot.liquidity == null || snapshot.liquidity <= 0) return null;
+    if (vnindex && snapshot.liquidity != null && snapshot.liquidity > 0) {
+      const investorLines = getInvestorTradingText(snapshot, "full19");
+      const foreignLine = investorLines.find((line) => normalizeForCheck(line).includes("khoi ngoai")) ?? "";
+      const otherLines = investorLines.filter((line) => line !== foreignLine).join(" | ");
 
-    const investorLines = getInvestorTradingText(snapshot, "full19");
-    const foreignLine = investorLines.find((line) => normalizeForCheck(line).includes("khoi ngoai")) ?? "";
-    const otherLines = investorLines.filter((line) => line !== foreignLine).join(" | ");
-
-    return {
+      candidates.push({
       date: toViDate(new Date(snapshot.timestamp)),
       vnindex: vnindex.value,
       change_pct: vnindex.changePct,
@@ -565,7 +777,11 @@ async function buildLiveEodFallbackPayload(): Promise<EodPayload | null> {
       buy_signals: [],
       sell_signals: [],
       top_breakout: [],
-    };
+      });
+    }
+
+    if (candidates.length === 0) return null;
+    return candidates.sort((a, b) => eodPayloadScore(b) - eodPayloadScore(a))[0];
   } catch {
     return null;
   }
@@ -583,8 +799,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Chưa có Morning Brief hợp lệ để hiển thị." }, { status: 404 });
     }
 
-    const payloads = reports.map((report) => toMorningPayload(report));
-    const selected = payloads.find((payload) => hasValidMorningPayload(payload)) ?? payloads[0];
+    const enriched = reports.map((report) => ({
+      dateKey: getReportDateKey(report),
+      payload: toMorningPayload(report),
+    }));
+    const preferredDateKey = pickPreferredReportDateKey(reports);
+    const sameDatePayloads = preferredDateKey
+      ? enriched.filter((item) => item.dateKey === preferredDateKey).map((item) => item.payload)
+      : [];
+    const orderedPayloads = [...enriched.map((item) => item.payload)].sort(
+      (a, b) => morningPayloadScore(b) - morningPayloadScore(a),
+    );
+    let selected =
+      [...sameDatePayloads].sort((a, b) => morningPayloadScore(b) - morningPayloadScore(a))[0] ??
+      orderedPayloads[0];
+    selected = backfillMorningPayload(selected, orderedPayloads);
     return NextResponse.json(selected);
   }
 
@@ -593,14 +822,22 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Chưa có EOD Brief hợp lệ để hiển thị." }, { status: 404 });
   }
 
-  const payloads = reports.map((report) => toEodPayload(report));
-  let selected =
-    payloads.find((payload) => hasValidEodPayload(payload)) ??
-    [...payloads].sort((a, b) => eodPayloadScore(b) - eodPayloadScore(a))[0];
+  const enriched = reports.map((report) => ({
+    dateKey: getReportDateKey(report),
+    payload: toEodPayload(report),
+  }));
+  const preferredDateKey = pickPreferredReportDateKey(reports);
+  const sameDatePayloads = preferredDateKey
+    ? enriched.filter((item) => item.dateKey === preferredDateKey).map((item) => item.payload)
+    : [];
+  const orderedPayloads = [...enriched.map((item) => item.payload)].sort((a, b) => eodPayloadScore(b) - eodPayloadScore(a));
+
+  let selected = [...sameDatePayloads].sort((a, b) => eodPayloadScore(b) - eodPayloadScore(a))[0] ?? orderedPayloads[0];
+  selected = backfillEodPayload(selected, orderedPayloads);
 
   if (!hasValidEodPayload(selected)) {
     const liveFallback = await buildLiveEodFallbackPayload();
-    if (liveFallback) selected = liveFallback;
+    if (liveFallback) selected = backfillEodPayload(selected, [liveFallback]);
   }
   return NextResponse.json(selected);
 }
