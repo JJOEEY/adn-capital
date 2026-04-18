@@ -261,7 +261,21 @@ function isLikelyNewsLine(line: string): boolean {
   const n = normalizeForCheck(line);
   if (!n || n.length < 14) return false;
   if (n.includes("ban tin sang") || n.includes("chi so tham chieu")) return false;
+  if (n.includes("powered by adn capital")) return false;
+  if (n.startsWith("vn-index:") || n.startsWith("vnindex:")) return false;
+  if (/^[a-z0-9\\-\\s]+:\\s*[\\d.,]+/.test(n)) return false;
+  if (line.includes("| +") || line.includes("| -")) return false;
   return true;
+}
+
+function isBoilerplateLine(line: string): boolean {
+  const n = normalizeForCheck(line);
+  return (
+    n.includes("powered by adn capital") ||
+    n.includes("adncapital.com.vn") ||
+    n.includes("he thong") ||
+    n.includes("ban tin sang adn capital")
+  );
 }
 
 function detectNewsSentiment(title: string): "positive" | "negative" | "neutral" {
@@ -274,18 +288,11 @@ function detectNewsSentiment(title: string): "positive" | "negative" | "neutral"
 }
 
 async function enrichMorningPayload(base: MorningPayload): Promise<MorningPayload> {
-  const normalizedBaseVn = dedupeKeepOrder(base.vn_market.filter(isLikelyNewsLine));
-  const normalizedBaseMacro = dedupeKeepOrder(base.macro.filter(isLikelyNewsLine));
-  const normalizedBaseRisk = dedupeKeepOrder(base.risk_opportunity.filter(isMeaningfulLine));
-
-  if (normalizedBaseVn.length >= 4 && normalizedBaseMacro.length >= 4 && normalizedBaseRisk.length >= 2) {
-    return {
-      ...base,
-      vn_market: normalizedBaseVn.slice(0, 5),
-      macro: normalizedBaseMacro.slice(0, 5),
-      risk_opportunity: normalizedBaseRisk.slice(0, 4),
-    };
-  }
+  const normalizedBaseVn = dedupeKeepOrder(base.vn_market.filter(isLikelyNewsLine).filter((line) => !isBoilerplateLine(line)));
+  const normalizedBaseMacro = dedupeKeepOrder(base.macro.filter(isLikelyNewsLine).filter((line) => !isBoilerplateLine(line)));
+  const normalizedBaseRisk = dedupeKeepOrder(
+    base.risk_opportunity.filter(isMeaningfulLine).filter((line) => !isBoilerplateLine(line)),
+  );
 
   const [cafefNews, snapshot] = await Promise.all([fetchAllCafefNews().catch(() => null), getMarketSnapshot().catch(() => null)]);
 
@@ -300,8 +307,8 @@ async function enrichMorningPayload(base: MorningPayload): Promise<MorningPayloa
       )
     : [];
 
-  const mergedVn = dedupeKeepOrder([...normalizedBaseVn, ...vnNews]).slice(0, 5);
-  const mergedMacro = dedupeKeepOrder([...normalizedBaseMacro, ...macroNews]).slice(0, 5);
+  const mergedVn = dedupeKeepOrder([...vnNews, ...normalizedBaseVn]).filter(isLikelyNewsLine).slice(0, 5);
+  const mergedMacro = dedupeKeepOrder([...macroNews, ...normalizedBaseMacro]).filter(isLikelyNewsLine).slice(0, 5);
 
   const computedRiskOpportunity: string[] = [...normalizedBaseRisk];
   if (snapshot) {
@@ -350,7 +357,7 @@ async function enrichMorningPayload(base: MorningPayload): Promise<MorningPayloa
     computedRiskOpportunity.push(`Cơ hội tin tức: ${firstPositiveNews}`);
   }
 
-  const mergedRisk = dedupeKeepOrder(computedRiskOpportunity).slice(0, 4);
+  const mergedRisk = dedupeKeepOrder(computedRiskOpportunity.filter((line) => !isBoilerplateLine(line))).slice(0, 4);
   return {
     ...base,
     vn_market: mergedVn.length > 0 ? mergedVn : normalizedBaseVn.slice(0, 5),
