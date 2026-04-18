@@ -975,6 +975,20 @@ function liquidityMismatch(overviewLiquidity: number | null, inferredLiquidity: 
   return inferredLiquidity < overviewLiquidity * 0.25 || inferredLiquidity > overviewLiquidity * 3.5;
 }
 
+function shouldPreferInferredLiquidity(
+  overviewLiquidity: number | null,
+  inferredLiquidity: number | null,
+): boolean {
+  if (!isValidLiquidity(inferredLiquidity)) return false;
+  if (!isValidLiquidity(overviewLiquidity)) return true;
+
+  // Guard stale/incorrect low overview values (e.g. hundreds instead of tens of thousands of ty VND).
+  if (overviewLiquidity < 1_000 && inferredLiquidity >= 5_000) return true;
+  if (overviewLiquidity < 2_000 && inferredLiquidity >= 8_000) return true;
+
+  return !liquidityMismatch(overviewLiquidity, inferredLiquidity);
+}
+
 /** Snapshot thị trường (dùng cho intraday notifications + briefs) */
 export async function getMarketSnapshot(): Promise<MarketSnapshot> {
   const requestDateVN = getLatestTradingDateISO();
@@ -1157,8 +1171,7 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
       (parsedInvestor.liquidityByExchange.UPCOM ?? 0);
     const overviewLiquidity = overview ? parseLiquidity(overview.liquidity) : null;
 
-    const allowInferredLiquidity =
-      inferredExchangeTotal > 0 && !liquidityMismatch(overviewLiquidity, inferredExchangeTotal);
+    const allowInferredLiquidity = shouldPreferInferredLiquidity(overviewLiquidity, inferredExchangeTotal);
 
     if (inferredExchangeTotal > 0 && !allowInferredLiquidity && isValidLiquidity(overviewLiquidity)) {
       providerDiagnostics.push({

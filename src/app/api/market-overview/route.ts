@@ -1,65 +1,101 @@
-/**
- * API proxy → Python FastAPI  GET /api/v1/market-overview
- * Trả về điểm sức mạnh VN-INDEX + thanh khoản + xu hướng.
- * Cache 24h để tránh gọi backend liên tục.
- * Sau khi fetch thành công, tự động lưu vào market_cache.json để /api/market-status đọc.
- */
-
 import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 
 const CACHE_FILE = path.join(process.cwd(), "market_cache.json");
 const BACKEND = process.env.FIINQUANT_URL ?? process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000";
-const TTL = 86_400_000; // 24h
+const TTL_MS = 15 * 60 * 1000;
 
-let cache: { data: any; ts: number } | null = null;
-let isRefreshing = false;
+type CachePayload = Record<string, unknown> & {
+  last_updated?: string;
+};
 
-// Khởi tạo in-memory cache từ file nếu có
-function loadCacheFromFile() {
-  if (cache) return;
+function readCacheFromFile(): { data: CachePayload; ageMs: number } | null {
   try {
-    if (fs.existsSync(CACHE_FILE)) {
-      const raw = fs.readFileSync(CACHE_FILE, "utf-8");
-      const data = JSON.parse(raw);
-      cache = { data, ts: Date.now() - 1000 };
-      console.log("[/api/market-overview] Loaded cache from file");
-    }
-  } catch {}
+    if (!fs.existsSync(CACHE_FILE)) return null;
+    const raw = fs.readFileSync(CACHE_FILE, "utf-8");
+    const data = JSON.parse(raw) as CachePayload;
+    const ts = typeof data.last_updated === "string" ? new Date(data.last_updated).getTime() : NaN;
+    const ageMs = Number.isFinite(ts) ? Date.now() - ts : Number.POSITIVE_INFINITY;
+    return { data, ageMs };
+  } catch {
+    return null;
+  }
 }
 
-function saveCacheToFile(data: any) {
+function saveCacheToFile(data: CachePayload) {
   try {
-    fs.writeFileSync(CACHE_FILE, JSON.stringify({
-      ...data,
-      last_updated: new Date().toISOString()
-    }, null, 2));
+    fs.writeFileSync(
+      CACHE_FILE,
+      JSON.stringify(
+        {
+          ...data,
+          last_updated: new Date().toISOString(),
+        },
+        null,
+        2,
+      ),
+    );
   } catch (err) {
     console.error("[/api/market-overview] Failed to save cache file:", err);
   }
 }
 
-export async function GET() {
+async function fetchLiveOverview(): Promise<CachePayload | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12_000);
   try {
-    if (fs.existsSync(CACHE_FILE)) {
-      const raw = fs.readFileSync(CACHE_FILE, "utf-8");
-      const data = JSON.parse(raw);
-      return NextResponse.json(data);
-    }
-  } catch (err) {
-    console.error("[/api/market-overview] Cache read error:", err);
+    const response = await fetch(`${BACKEND}/api/v1/market-overview`, {
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    if (!response.ok) return null;
+    const payload = (await response.json()) as CachePayload;
+    return payload && typeof payload === "object" ? payload : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function GET() {
+  const cached = readCacheFromFile();
+  if (cached && cached.ageMs <= TTL_MS) {
+    return NextResponse.json({
+      ...cached.data,
+      stale: false,
+      source: "cache",
+    });
   }
 
-  // Fallback nếu chưa có cache (Tuyệt đối không gọi live bridge)
+  const live = await fetchLiveOverview();
+  if (live) {
+    saveCacheToFile(live);
+    return NextResponse.json({
+      ...live,
+      stale: false,
+      source: "live",
+    });
+  }
+
+  if (cached) {
+    return NextResponse.json({
+      ...cached.data,
+      stale: true,
+      source: "cache-stale",
+    });
+  }
+
   return NextResponse.json({
     score: 0,
     max_score: 14,
     level: 1,
-    status_badge: "⏳ Đang cập nhật...",
-    market_breadth: "Đang tính toán...",
-    action_message: "Hệ thống đang cập nhật dữ liệu vĩ mô, vui lòng quay lại sau.",
-    last_updated: new Date().toISOString()
+    status_badge: "Dang cap nhat...",
+    market_breadth: "Dang tinh toan...",
+    action_message: "He thong dang cap nhat du lieu vi mo, vui long quay lai sau.",
+    last_updated: new Date().toISOString(),
+    stale: true,
+    source: "fallback",
   });
 }
-

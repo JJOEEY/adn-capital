@@ -76,11 +76,11 @@ function fromBridgeMorningPayload(raw: FiinMorningNews): MorningPayload {
 
 function fromBridgeEodPayload(raw: FiinEodNews): EodPayload {
   const rawRecord = raw as unknown as JsonRecord;
-  const liquidityByExchange: ExchangeLiquidity = {
+  const liquidityByExchange = normalizeExchangeLiquidity({
     HOSE: toNumberOrNull(rawRecord.hose_val),
     HNX: toNumberOrNull(rawRecord.hnx_val),
     UPCOM: toNumberOrNull(rawRecord.upcom_val),
-  };
+  });
 
   return {
     date: raw.date,
@@ -142,6 +142,18 @@ function toNumberOrNull(value: unknown): number | null {
 function toNumber(value: unknown, fallback = 0): number {
   const n = toNumberOrNull(value);
   return n ?? fallback;
+}
+
+function normalizeExchangeValue(value: number | null): number | null {
+  return value != null && Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function normalizeExchangeLiquidity(exchanges: ExchangeLiquidity): ExchangeLiquidity {
+  return {
+    HOSE: normalizeExchangeValue(exchanges.HOSE),
+    HNX: normalizeExchangeValue(exchanges.HNX),
+    UPCOM: normalizeExchangeValue(exchanges.UPCOM),
+  };
 }
 
 function isRecord(value: unknown): value is JsonRecord {
@@ -410,6 +422,7 @@ function toMorningHighlight(line: string): string {
     const cut = result.slice(0, 170);
     result = `${cut.slice(0, cut.lastIndexOf(" ") > 120 ? cut.lastIndexOf(" ") : 170).trim()}…`;
   }
+
   return result;
 }
 
@@ -422,6 +435,55 @@ function buildMorningHighlights(lines: string[], limit = 5): string[] {
       .filter((line) => !isBoilerplateLine(line))
       .filter(isLikelyNewsLine),
   ).slice(0, limit);
+}
+
+function ensureMinimumHighlights(primary: string[], fallbackPool: string[], min = 4, max = 5): string[] {
+  const merged = dedupeKeepOrder([...primary, ...fallbackPool]).slice(0, max);
+  if (merged.length >= min) return merged;
+  return dedupeKeepOrder([...fallbackPool, ...primary]).slice(0, max);
+}
+
+async function fetchPublishedMorningFallback(): Promise<{ vn: string[]; macro: string[] }> {
+  try {
+    const rows = await prisma.article.findMany({
+      where: { status: "PUBLISHED" },
+      select: {
+        title: true,
+        category: { select: { slug: true, name: true } },
+      },
+      orderBy: { publishedAt: "desc" },
+      take: 40,
+    });
+
+    const vn: string[] = [];
+    const macro: string[] = [];
+    for (const row of rows) {
+      const title = sanitizeNewsLine(row.title ?? "");
+      if (!title || !isLikelyNewsLine(title)) continue;
+      const categorySlug = normalizeForCheck(String(row.category?.slug ?? ""));
+      const categoryName = normalizeForCheck(String(row.category?.name ?? ""));
+      const categoryHint = `${categorySlug} ${categoryName}`;
+
+      const macroByCategory =
+        categoryHint.includes("macro") ||
+        categoryHint.includes("vi-mo") ||
+        categoryHint.includes("quoc-te") ||
+        categoryHint.includes("quoc te");
+
+      if (macroByCategory || isMacroHeadline(title)) {
+        macro.push(title);
+      } else {
+        vn.push(title);
+      }
+    }
+
+    return {
+      vn: buildMorningHighlights(vn, 10),
+      macro: buildMorningHighlights(macro, 10),
+    };
+  } catch {
+    return { vn: [], macro: [] };
+  }
 }
 
 function detectNewsSentiment(title: string): "positive" | "negative" | "neutral" {
@@ -443,18 +505,32 @@ async function enrichMorningPayload(
     base.risk_opportunity.filter(isMeaningfulLine).filter((line) => !isBoilerplateLine(line)),
   );
 
-  const [cafefNews, snapshot] = await Promise.all([fetchAllCafefNews().catch(() => null), getMarketSnapshot().catch(() => null)]);
+  const [cafefNews, snapshot, publishedFallback] = await Promise.all([
+    fetchAllCafefNews().catch(() => null),
+    getMarketSnapshot().catch(() => null),
+    fetchPublishedMorningFallback(),
+  ]);
 
   const vnNews = cafefNews
-    ? dedupeKeepOrder(cafefNews.stockMarket.articles.map((a) => sanitizeNewsLine(a.title)).filter(isLikelyNewsLine))
-    : [];
+    ? dedupeKeepOrder(
+        [
+          ...cafefNews.stockMarket.articles.map((a) => sanitizeNewsLine(a.title)),
+          ...publishedFallback.vn,
+        ].filter(isLikelyNewsLine),
+      )
+    : dedupeKeepOrder(publishedFallback.vn.filter(isLikelyNewsLine));
   const macroNews = cafefNews
     ? dedupeKeepOrder(
-        [...cafefNews.macro.articles, ...cafefNews.global.articles, ...cafefNews.goldForex.articles]
+        [
+          ...cafefNews.macro.articles,
+          ...cafefNews.global.articles,
+          ...cafefNews.goldForex.articles,
+          ...publishedFallback.macro.map((title) => ({ title })),
+        ]
           .map((a) => sanitizeNewsLine(a.title))
           .filter(isLikelyNewsLine),
       )
-    : [];
+    : dedupeKeepOrder(publishedFallback.macro.filter(isLikelyNewsLine));
 
   const needsBridgeNews =
     normalizedBaseVn.length + vnNews.length < 4 ||
@@ -467,16 +543,16 @@ async function enrichMorningPayload(
           .catch(() => null)
       : null);
 
-  const mergedVn = buildMorningHighlights([
+  const mergedVn = ensureMinimumHighlights(buildMorningHighlights([
     ...(bridgeMorningPayload?.vn_market ?? []),
     ...normalizedBaseVn,
     ...vnNews,
-  ]);
-  const mergedMacro = buildMorningHighlights([
+  ]), [...vnNews, ...publishedFallback.vn], 4, 5);
+  const mergedMacro = ensureMinimumHighlights(buildMorningHighlights([
     ...(bridgeMorningPayload?.macro ?? []),
     ...normalizedBaseMacro,
     ...macroNews,
-  ]);
+  ]), [...macroNews, ...publishedFallback.macro], 4, 5);
 
   const computedRiskOpportunity: string[] = [...normalizedBaseRisk];
   if (snapshot) {
@@ -771,6 +847,28 @@ function buildLiquidityDetail(totalLiquidityRaw: number, exchanges: ExchangeLiqu
   )} | HNX ${formatExchangeLiquidity(exchanges.HNX)} | UPCoM ${formatExchangeLiquidity(exchanges.UPCOM)}).`;
 }
 
+function hasImpossibleBreadthClaim(summary: string): boolean {
+  const n = normalizeForCheck(summary);
+  return (
+    n.includes("khong co ma nao tang") ||
+    n.includes("khong co ma nao giam") ||
+    n.includes("khong co ma nao dung gia") ||
+    n.includes("do rong thi truong hose khong ghi nhan")
+  );
+}
+
+function buildDeterministicSessionSummary(payload: EodPayload): string {
+  const direction =
+    payload.change_pct > 0 ? "tang" : payload.change_pct < 0 ? "giam" : "di ngang";
+  const breadthPart =
+    payload.breadth.total > 0
+      ? `Do rong: tang ${payload.breadth.up}, giam ${payload.breadth.down}, dung ${payload.breadth.unchanged}.`
+      : "";
+  return `VN-INDEX dong cua ${payload.vnindex.toFixed(2)} diem (${payload.change_pct >= 0 ? "+" : ""}${payload.change_pct.toFixed(
+    2,
+  )}%), thi truong ${direction}. Thanh khoan ${Math.round(payload.liquidity).toLocaleString("vi-VN")} ty. ${breadthPart}`.trim();
+}
+
 function parseStringArray(raw: unknown): string[] {
   return Array.isArray(raw) ? raw.filter((x): x is string => typeof x === "string" && x.trim().length > 0) : [];
 }
@@ -909,7 +1007,7 @@ function toEodPayload(report: { createdAt: Date; content: string; rawData: strin
   const breadth = parseBreadth(snapshot.breadth ?? snapshot.market_breadth, report.content);
   const liquidityByExchangeRaw = pickRecord(snapshot, ["liquidityByExchange", "liquidity_by_exchange"]) ?? {};
   const exchangeFromContent = parseExchangeLiquidityFromContent(report.content);
-  const exchangeLiquidity: ExchangeLiquidity = {
+  const exchangeLiquidity = normalizeExchangeLiquidity({
     HOSE:
       toNumberOrNull((raw ?? {})["hose_val"]) ??
       toNumberOrNull(liquidityByExchangeRaw.HOSE) ??
@@ -922,7 +1020,7 @@ function toEodPayload(report: { createdAt: Date; content: string; rawData: strin
       toNumberOrNull((raw ?? {})["upcom_val"]) ??
       toNumberOrNull(liquidityByExchangeRaw.UPCOM) ??
       exchangeFromContent.UPCOM,
-  };
+  });
   const liquidityByExchange = {
     HOSE: exchangeLiquidity.HOSE,
     HNX: exchangeLiquidity.HNX,
@@ -987,7 +1085,7 @@ function toEodPayload(report: { createdAt: Date; content: string; rawData: strin
     liquidity: Math.max(totalLiquidityRaw, 0),
     liquidity_by_exchange: exchangeLiquidity,
     breadth,
-    session_summary: lines[0] ?? "",
+    session_summary: lines[0] && !hasImpossibleBreadthClaim(lines[0]) ? lines[0] : "",
     liquidity_detail:
       totalLiquidityRaw > 0
         ? `Thanh khoản toàn thị trường đạt ${Math.round(totalLiquidityRaw).toLocaleString("vi-VN")} tỷ đồng${
@@ -1152,6 +1250,13 @@ function backfillEodPayload(base: EodPayload, history: EodPayload[]): EodPayload
   if (!result.session_summary || isUnavailableText(result.session_summary)) {
     result.session_summary = pickTextField((payload) => payload.session_summary);
   }
+  if (
+    result.session_summary &&
+    result.breadth.total > 0 &&
+    hasImpossibleBreadthClaim(result.session_summary)
+  ) {
+    result.session_summary = buildDeterministicSessionSummary(result);
+  }
   if (!result.liquidity_detail || isUnavailableText(result.liquidity_detail)) {
     result.liquidity_detail = pickTextField((payload) => payload.liquidity_detail);
   }
@@ -1190,6 +1295,9 @@ function backfillEodPayload(base: EodPayload, history: EodPayload[]): EodPayload
     result.liquidity_detail = `Thanh khoản toàn thị trường đạt ${Math.round(result.liquidity).toLocaleString("vi-VN")} tỷ đồng.`;
   }
 
+  if (!result.session_summary || isUnavailableText(result.session_summary)) {
+    result.session_summary = buildDeterministicSessionSummary(result);
+  }
   return result;
 }
 
@@ -1397,6 +1505,9 @@ export async function GET(request: NextRequest) {
     if (liveFallback) selected = backfillEodPayload(selected, [liveFallback]);
   }
 
+  if (selected.liquidity_by_exchange) {
+    selected.liquidity_by_exchange = normalizeExchangeLiquidity(selected.liquidity_by_exchange);
+  }
   if (selected.liquidity > 0 && selected.liquidity_by_exchange) {
     selected.liquidity_detail = buildLiquidityDetail(selected.liquidity, selected.liquidity_by_exchange);
   }

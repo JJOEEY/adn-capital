@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getMarketSnapshot } from "@/lib/marketDataFetcher";
 
 export const revalidate = 0;
 const FIINQUANT_BRIDGE =
@@ -80,11 +81,12 @@ async function getMarketStatus() {
   const today = new Date().toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
 
   // Fetch VN-Index + HNX + VN30 + chart song song
-  const [vnidxData, hnxData, vn30Data, chartData] = await Promise.all([
+  const [vnidxData, hnxData, vn30Data, chartData, snapshot] = await Promise.all([
     fetchIndexData("VNINDEX"),
     fetchIndexData("HNX"),
     fetchIndexData("VN30"),
     fetchChartData("VNINDEX"),
+    getMarketSnapshot().catch(() => null),
   ]);
 
   const vnindex = vnidxData ?? { value: 1287.45, change: 12.3, changePercent: 0.96, volume: 0 };
@@ -118,7 +120,12 @@ async function getMarketStatus() {
   const up = vnindex.changePercent > 0 ? Math.floor(250 + vnindex.changePercent * 50) : Math.floor(200 + vnindex.changePercent * 30);
   const down = vnindex.changePercent < 0 ? Math.floor(250 - vnindex.changePercent * 50) : Math.floor(200 - vnindex.changePercent * 30);
   const unchanged = Math.floor(60 + Math.random() * 30);
-  const totalVol = vnindex.volume ? `${(vnindex.volume / 1e6).toFixed(0)} tỷ` : "N/A";
+  const totalVol =
+    snapshot?.liquidity && snapshot.liquidity > 0
+      ? `${Math.round(snapshot.liquidity).toLocaleString("vi-VN")} tỷ`
+      : vnindex.volume
+      ? `${(vnindex.volume / 1e6).toFixed(0)} tỷ`
+      : "N/A";
 
   // Liên thị trường (template-based, cập nhật theo logic)
   const pct = vnindex.changePercent;
@@ -196,6 +203,7 @@ async function getMarketStatus() {
     riskBullets,
     opportunityBullets,
     chartData,
+    snapshotLiquidity: snapshot?.liquidity ?? null,
   };
 }
 
@@ -215,7 +223,12 @@ export async function GET() {
       });
       if (overviewRes.ok) {
         const ov = await overviewRes.json();
-        const realLiquidity = ov.liquidity ? `${Math.round(ov.liquidity).toLocaleString("vi-VN")} tỷ` : marketData.totalVolume;
+        const realLiquidity =
+          marketData.snapshotLiquidity && marketData.snapshotLiquidity > 0
+            ? `${Math.round(marketData.snapshotLiquidity).toLocaleString("vi-VN")} tỷ`
+            : ov.liquidity
+            ? `${Math.round(ov.liquidity).toLocaleString("vi-VN")} tỷ`
+            : marketData.totalVolume;
         const realPrice = ov.price ? ov.price.toFixed(2).replace(".", ",") : marketData.vnindex.value.toFixed(2).replace(".", ",");
         const realScore = ov.score ?? 0;
         const realLevel = ov.level ?? 1;
