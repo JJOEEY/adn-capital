@@ -33,6 +33,11 @@ interface EodData {
   vnindex: number;
   change_pct: number;
   liquidity: number;
+  liquidity_by_exchange?: {
+    HOSE?: number | null;
+    HNX?: number | null;
+    UPCOM?: number | null;
+  };
   breadth: { up: number; down: number; unchanged: number; total: number };
   session_summary: string;
   liquidity_detail: string;
@@ -63,6 +68,19 @@ const TONE = {
   indigo: { text: "#6366f1", border: "rgba(99,102,241,0.30)", bg: "rgba(99,102,241,0.08)" },
 } as const;
 
+function normalizeSubIndices(
+  rows: EodData["sub_indices"] | undefined,
+): Array<{ name: string; change_pts: number; change_pct: number }> {
+  if (!Array.isArray(rows)) return [];
+  return rows.filter((row) => {
+    if (!row || typeof row.name !== "string") return false;
+    const name = row.name.trim();
+    if (!name) return false;
+    if (/^0+$/.test(name)) return false;
+    return Number.isFinite(row.change_pts) || Number.isFinite(row.change_pct);
+  });
+}
+
 export function EveningNews() {
   const { data, isLoading } = useSWR<EodData>(
     "/api/market-news?type=eod",
@@ -78,6 +96,14 @@ export function EveningNews() {
   if (isLoading || !data) return <EveningNewsSkeleton />;
 
   const up = data.change_pct >= 0;
+  const normalizedSubIndices = normalizeSubIndices(data.sub_indices);
+  const exchangeLiquidityLine =
+    data.liquidity_by_exchange &&
+    ((data.liquidity_by_exchange.HOSE ?? 0) > 0 ||
+      (data.liquidity_by_exchange.HNX ?? 0) > 0 ||
+      (data.liquidity_by_exchange.UPCOM ?? 0) > 0)
+      ? `Thanh khoản theo sàn: HoSE ${(data.liquidity_by_exchange.HOSE ?? 0).toLocaleString("vi-VN")} | HNX ${(data.liquidity_by_exchange.HNX ?? 0).toLocaleString("vi-VN")} | UPCoM ${(data.liquidity_by_exchange.UPCOM ?? 0).toLocaleString("vi-VN")} tỷ đồng.`
+      : null;
 
   return (
     <div className="relative w-full min-w-0 rounded-2xl border shadow-[0_4px_24px_-12px_rgba(46,77,61,0.12)] overflow-hidden transform-gpu" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
@@ -132,6 +158,14 @@ export function EveningNews() {
                 <BoldKeywords text={data.liquidity_detail} />
               </FlashBullet>
             )}
+            {exchangeLiquidityLine && (
+              <FlashBullet
+                icon={<Banknote className="w-3.5 h-3.5" style={{ color: TONE.blue.text }} />}
+                tone="blue"
+              >
+                <BoldKeywords text={exchangeLiquidityLine} />
+              </FlashBullet>
+            )}
 
             {/* Khối ngoại */}
             {data.foreign_flow && (
@@ -166,10 +200,10 @@ export function EveningNews() {
 
           <div className="divide-y divide-[var(--border)]">
             {/* Row: Chỉ số phụ */}
-            {data.sub_indices && data.sub_indices.length > 0 && (
+            {normalizedSubIndices.length > 0 && (
               <GridRow label="Chỉ số">
                 <div className="flex flex-wrap gap-2">
-                  {data.sub_indices.map((idx) => {
+                  {normalizedSubIndices.map((idx) => {
                     const positive = idx.change_pct >= 0;
                     return (
                       <span

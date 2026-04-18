@@ -226,14 +226,14 @@ export default function DashboardPage() {
     const eodLiquidity =
       parseNumberishLiquidity(eodBrief?.liquidity) ??
       parseTotalLiquidityFromDetail(eodBrief?.liquidity_detail);
-    if (eodLiquidity != null) {
-      return eodLiquidity;
-    }
-    if (overview?.liquidity && Number.isFinite(overview.liquidity) && overview.liquidity > 0) {
-      return overview.liquidity;
-    }
     const parsedFromDisplay = parseLiquidityFromDisplay(data?.totalVolume);
-    return parsedFromDisplay ?? null;
+    const candidates = [
+      eodLiquidity,
+      overview?.liquidity && Number.isFinite(overview.liquidity) && overview.liquidity > 0 ? overview.liquidity : null,
+      parsedFromDisplay,
+    ].filter((value): value is number => value != null && Number.isFinite(value) && value > 0);
+    if (candidates.length === 0) return null;
+    return Math.max(...candidates);
   }, [eodBrief?.liquidity, eodBrief?.liquidity_detail, overview?.liquidity, data?.totalVolume]);
 
   const liquidityDisplay = effectiveLiquidityTy != null ? `${fmtLiquidity(effectiveLiquidityTy)} Tỷ VNĐ` : data?.totalVolume ?? "N/A";

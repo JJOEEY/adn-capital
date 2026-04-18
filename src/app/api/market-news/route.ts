@@ -61,15 +61,19 @@ function fromBridgeMorningPayload(raw: FiinMorningNews): MorningPayload {
     date: raw.date,
     reference_indices: Array.isArray(raw.reference_indices)
       ? raw.reference_indices.map((item) => ({
-          name: normalizeIndexName(item.name),
+          name: normalizeIndexName(repairMojibake(item.name)),
           value: toNumberOrNull(item.value),
           change_pct: toNumberOrNull(item.change_pct),
         }))
       : [],
-    vn_market: Array.isArray(raw.vn_market) ? raw.vn_market.filter(Boolean).slice(0, 5) : [],
-    macro: Array.isArray(raw.macro) ? raw.macro.filter(Boolean).slice(0, 5) : [],
+    vn_market: Array.isArray(raw.vn_market)
+      ? raw.vn_market.map((line) => sanitizeNewsLine(line)).filter(Boolean).slice(0, 5)
+      : [],
+    macro: Array.isArray(raw.macro)
+      ? raw.macro.map((line) => sanitizeNewsLine(line)).filter(Boolean).slice(0, 5)
+      : [],
     risk_opportunity: Array.isArray(raw.risk_opportunity)
-      ? raw.risk_opportunity.filter(Boolean).slice(0, 5)
+      ? raw.risk_opportunity.map((line) => sanitizeNewsLine(line)).filter(Boolean).slice(0, 5)
       : [],
   };
 }
@@ -180,6 +184,38 @@ function stripDiacritics(text: string): string {
   return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
+function mojibakeScore(text: string): number {
+  const direct =
+    (text.match(/[ÃÂÆÐ€�]/g)?.length ?? 0) * 4 +
+    (text.match(/(?:áº|á»|â€|â€“|â€”|â€¢)/g)?.length ?? 0) * 3;
+  return direct;
+}
+
+function latin1ToUtf8(text: string): string {
+  try {
+    return Buffer.from(text, "latin1").toString("utf8");
+  } catch {
+    return text;
+  }
+}
+
+function repairMojibake(text: string): string {
+  if (!text) return "";
+  const candidates = [text, latin1ToUtf8(text)];
+  candidates.push(latin1ToUtf8(candidates[1]));
+
+  let best = candidates[0];
+  let bestScore = mojibakeScore(best);
+  for (const candidate of candidates.slice(1)) {
+    const score = mojibakeScore(candidate);
+    if (score < bestScore) {
+      best = candidate;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
 function decodeHtmlEntities(text: string): string {
   return text
     .replace(/&quot;/gi, "\"")
@@ -191,7 +227,7 @@ function decodeHtmlEntities(text: string): string {
 }
 
 function normalizeForCheck(text: string): string {
-  return stripDiacritics(text).toLowerCase().replace(/\s+/g, " ").trim();
+  return stripDiacritics(repairMojibake(text)).toLowerCase().replace(/\s+/g, " ").trim();
 }
 
 function isUnavailableText(text: string): boolean {
@@ -226,7 +262,7 @@ function stripMarkdownAndBullets(text: string): string {
 }
 
 function sanitizeNewsLine(text: string): string {
-  return stripMarkdownAndBullets(decodeHtmlEntities(text));
+  return repairMojibake(stripMarkdownAndBullets(decodeHtmlEntities(text)));
 }
 
 function isGenericCategoryLine(text: string): boolean {
@@ -943,13 +979,14 @@ function normalizeIndexKey(name: string): string {
 }
 
 function toMorningPayload(report: { createdAt: Date; content: string; rawData: string | null }): MorningPayload {
+  const normalizedContent = repairMojibake(report.content);
   const raw = parseJsonMaybe(report.rawData);
   const snapshot = getSnapshot(raw);
-  const indices = extractIndices(snapshot, report.content);
+  const indices = extractIndices(snapshot, normalizedContent);
   const reportDateKey = getReportDateKey(report);
-  const parsed = parseMorningSections(report.content);
+  const parsed = parseMorningSections(normalizedContent);
   const lines = normalizeSentenceList(
-    report.content,
+    normalizedContent,
     "Bản tin sáng đã được tạo. Hệ thống đang đồng bộ thêm dữ liệu thị trường.",
   );
 
@@ -998,15 +1035,16 @@ function toMorningPayload(report: { createdAt: Date; content: string; rawData: s
 }
 
 function toEodPayload(report: { createdAt: Date; content: string; rawData: string | null }): EodPayload {
+  const normalizedContent = repairMojibake(report.content);
   const raw = parseJsonMaybe(report.rawData);
   const snapshot = getSnapshot(raw);
-  const indices = extractIndices(snapshot, report.content);
+  const indices = extractIndices(snapshot, normalizedContent);
   const reportDateKey = getReportDateKey(report);
   const vnindex = indices.find((item) => item.name === "VN-INDEX");
 
-  const breadth = parseBreadth(snapshot.breadth ?? snapshot.market_breadth, report.content);
+  const breadth = parseBreadth(snapshot.breadth ?? snapshot.market_breadth, normalizedContent);
   const liquidityByExchangeRaw = pickRecord(snapshot, ["liquidityByExchange", "liquidity_by_exchange"]) ?? {};
-  const exchangeFromContent = parseExchangeLiquidityFromContent(report.content);
+  const exchangeFromContent = parseExchangeLiquidityFromContent(normalizedContent);
   const exchangeLiquidity = normalizeExchangeLiquidity({
     HOSE:
       toNumberOrNull((raw ?? {})["hose_val"]) ??
@@ -1034,7 +1072,7 @@ function toEodPayload(report: { createdAt: Date; content: string; rawData: strin
     liquidityByExchange.total ??
     toNumberOrNull(snapshot.totalLiquidity) ??
     (inferredTotalFromExchanges > 0 ? inferredTotalFromExchanges : null) ??
-    parseLiquidityFromContent(report.content) ??
+    parseLiquidityFromContent(normalizedContent) ??
     0;
 
   const investorRoot =
@@ -1045,9 +1083,9 @@ function toEodPayload(report: { createdAt: Date; content: string; rawData: strin
   const proprietary = pickRecord(investorRoot, ["proprietary"]) ?? {};
   const retail = pickRecord(investorRoot, ["retail"]) ?? {};
 
-  const foreignLineFromContent = pickContentLine(report.content, "khối ngoại");
-  const propLineFromContent = pickContentLine(report.content, "tự doanh");
-  const retailLineFromContent = pickContentLine(report.content, "cá nhân");
+  const foreignLineFromContent = pickContentLine(normalizedContent, "khối ngoại");
+  const propLineFromContent = pickContentLine(normalizedContent, "tự doanh");
+  const retailLineFromContent = pickContentLine(normalizedContent, "cá nhân");
 
   const foreignNet =
     toNumberOrNull(foreign.net) ??
@@ -1066,7 +1104,7 @@ function toEodPayload(report: { createdAt: Date; content: string; rawData: strin
     null;
 
   const lines = normalizeSentenceList(
-    report.content,
+    normalizedContent,
     "Bản tin kết phiên đã được tạo. Hệ thống đang đồng bộ thêm dữ liệu hiển thị.",
   );
 
@@ -1472,6 +1510,16 @@ export async function GET(request: NextRequest) {
       selected = backfillMorningPayload(selected, [bridgeMorningPayload]);
     }
     selected = await enrichMorningPayload(selected, bridgeMorningPayload);
+    selected = {
+      ...selected,
+      reference_indices: selected.reference_indices.map((item) => ({
+        ...item,
+        name: normalizeIndexName(repairMojibake(item.name)),
+      })),
+      vn_market: selected.vn_market.map((line) => sanitizeNewsLine(line)).filter(Boolean),
+      macro: selected.macro.map((line) => sanitizeNewsLine(line)).filter(Boolean),
+      risk_opportunity: selected.risk_opportunity.map((line) => sanitizeNewsLine(line)).filter(Boolean),
+    };
     return NextResponse.json(selected);
   }
 
@@ -1505,11 +1553,52 @@ export async function GET(request: NextRequest) {
     if (liveFallback) selected = backfillEodPayload(selected, [liveFallback]);
   }
 
+  const liveSnapshot = await getMarketSnapshot().catch(() => null);
+  if (liveSnapshot) {
+    const snapshotLiquidityByExchange: ExchangeLiquidity = normalizeExchangeLiquidity({
+      HOSE: toNumberOrNull(liveSnapshot.liquidityByExchange.HOSE),
+      HNX: toNumberOrNull(liveSnapshot.liquidityByExchange.HNX),
+      UPCOM: toNumberOrNull(liveSnapshot.liquidityByExchange.UPCOM),
+    });
+
+    const shouldFillExchange =
+      hasMissingSecondaryExchangeLiquidity(selected.liquidity_by_exchange) &&
+      ((snapshotLiquidityByExchange.HNX ?? 0) > 0 || (snapshotLiquidityByExchange.UPCOM ?? 0) > 0);
+    if (shouldFillExchange) {
+      selected.liquidity_by_exchange = snapshotLiquidityByExchange;
+    }
+
+    const snapshotLiquidity = toNumberOrNull(liveSnapshot.liquidity);
+    if (snapshotLiquidity != null && snapshotLiquidity > 0) {
+      const selectedLiquidity = toNumberOrNull(selected.liquidity) ?? 0;
+      if (selectedLiquidity <= 0 || selectedLiquidity < snapshotLiquidity * 0.4) {
+        selected.liquidity = snapshotLiquidity;
+      }
+    }
+  }
+
   if (selected.liquidity_by_exchange) {
     selected.liquidity_by_exchange = normalizeExchangeLiquidity(selected.liquidity_by_exchange);
   }
   if (selected.liquidity > 0 && selected.liquidity_by_exchange) {
     selected.liquidity_detail = buildLiquidityDetail(selected.liquidity, selected.liquidity_by_exchange);
   }
+  selected = {
+    ...selected,
+    session_summary: sanitizeNewsLine(selected.session_summary),
+    liquidity_detail: sanitizeNewsLine(selected.liquidity_detail),
+    foreign_flow: sanitizeNewsLine(selected.foreign_flow),
+    notable_trades: sanitizeNewsLine(selected.notable_trades),
+    outlook: sanitizeNewsLine(selected.outlook),
+    foreign_top_buy: selected.foreign_top_buy.map((line) => sanitizeNewsLine(line)).filter(Boolean),
+    foreign_top_sell: selected.foreign_top_sell.map((line) => sanitizeNewsLine(line)).filter(Boolean),
+    prop_trading_top_buy: selected.prop_trading_top_buy.map((line) => sanitizeNewsLine(line)).filter(Boolean),
+    prop_trading_top_sell: selected.prop_trading_top_sell.map((line) => sanitizeNewsLine(line)).filter(Boolean),
+    sector_gainers: selected.sector_gainers.map((line) => sanitizeNewsLine(line)).filter(Boolean),
+    sector_losers: selected.sector_losers.map((line) => sanitizeNewsLine(line)).filter(Boolean),
+    buy_signals: selected.buy_signals.map((line) => sanitizeNewsLine(line)).filter(Boolean),
+    sell_signals: selected.sell_signals.map((line) => sanitizeNewsLine(line)).filter(Boolean),
+    top_breakout: selected.top_breakout.map((line) => sanitizeNewsLine(line)).filter(Boolean),
+  };
   return NextResponse.json(selected);
 }

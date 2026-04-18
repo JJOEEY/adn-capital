@@ -45,6 +45,43 @@ const INDEX_ICONS: Record<string, string> = {
   "DẦU WTI": "🛢️",
 };
 
+function cleanDisplayLine(line: string): string {
+  return line
+    .replace(/[*_`]/g, "")
+    .replace(/^\s*[-•\d.)]+\s*/u, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isUiHeadingLike(line: string): boolean {
+  const n = cleanDisplayLine(line).toLowerCase();
+  return (
+    !n ||
+    n.includes("bản tin sáng adn capital") ||
+    n.includes("chỉ số tham chiếu") ||
+    n.includes("thị trường việt nam") ||
+    n.includes("vĩ mô trong nước") ||
+    n.includes("rủi ro / cơ hội") ||
+    n.includes("powered by adn capital")
+  );
+}
+
+function normalizeListForDisplay(items?: string[]): string[] {
+  if (!Array.isArray(items)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of items) {
+    const cleaned = cleanDisplayLine(raw);
+    if (cleaned.length < 16 || isUiHeadingLike(cleaned)) continue;
+    const key = cleaned.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(cleaned);
+    if (out.length >= 5) break;
+  }
+  return out;
+}
+
 export function MorningNews() {
   const { data, isLoading } = useSWR<MorningData>(
     "/api/market-news?type=morning",
@@ -58,6 +95,10 @@ export function MorningNews() {
   );
 
   if (isLoading || !data) return <MorningNewsSkeleton />;
+
+  const vnItems = normalizeListForDisplay(data.vn_market);
+  const macroItems = normalizeListForDisplay(data.macro);
+  const riskItems = normalizeListForDisplay(data.risk_opportunity);
 
   /* Sắp xếp reference_indices theo INDEX_ORDER */
   const indices = INDEX_ORDER.map((name) => {
@@ -83,10 +124,10 @@ export function MorningNews() {
           </div>
           <div>
             <h3 className="text-xs font-black uppercase tracking-wider" style={{ color: "var(--primary)" }}>
-              Điểm Tin Nổi Bật Buổi Sáng
+              BẢN TIN SÁNG ADN CAPITAL
             </h3>
             <p className="text-[12px] mt-0.5" style={{ color: "var(--text-muted)" }}>
-              AI MORNING HIGHLIGHTS
+              AI SUMMARY HIGHLIGHTS
             </p>
           </div>
         </div>
@@ -156,24 +197,24 @@ export function MorningNews() {
         {/* Box 1: Thị trường Việt Nam */}
         <ContentBox
           icon={<BarChart3 className="w-4 h-4" style={{ color: "var(--accent-news)" }} />}
-          title="Điểm Tin Việt Nam Nổi Bật"
-          items={data.vn_market}
+          title="Điểm tin Việt Nam nổi bật"
+          items={vnItems}
           bulletColor="var(--accent-news)"
         />
 
         {/* Box 2: Vĩ mô Trong nước & Quốc tế */}
         <ContentBox
           icon={<Globe className="w-4 h-4" style={{ color: "var(--accent-fa)" }} />}
-          title="Vĩ mô Trong Nước & Quốc Tế"
-          items={data.macro}
+          title="Vĩ mô trong nước & quốc tế"
+          items={macroItems}
           bulletColor="var(--accent-fa)"
         />
 
         {/* Box 3: Rủi ro / Cơ hội */}
         <ContentBox
           icon={<AlertTriangle className="w-4 h-4" style={{ color: "var(--danger)" }} />}
-          title="Rủi Ro / Cơ Hội"
-          items={data.risk_opportunity}
+          title="Rủi ro / Cơ hội"
+          items={riskItems}
           bulletColor="var(--danger)"
         />
 
