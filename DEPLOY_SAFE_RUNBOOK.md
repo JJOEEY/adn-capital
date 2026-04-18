@@ -41,6 +41,16 @@ DNSE_API_KEY=*** (secret only)
 DNSE_MARKET_SNAPSHOT_URL=https://... (optional)
 ```
 
+## Quota Optimization Plan (4 steps)
+1. Free-first data routing:
+Use public/index sources (VNDirect + optional VNStock bridge) for index/liquidity first, keep FiinQuant for investor flow and premium metrics.
+2. Snapshot cache + in-flight dedupe:
+Enable short TTL cache for market snapshot (90s) and reuse in-flight promise to avoid duplicated Fiin calls from dashboard + cron bursts.
+3. Data quality gate before publish:
+Reject mismatched liquidity aggregates (unit/range mismatch) and fallback to better source instead of publishing broken values.
+4. Channel-specific source policy:
+Dashboard/app feed reads unified report records; Morning/EOD fallback to bridge payload when DB report is weak to keep UX stable without extra Fiin spam.
+
 ## Mandatory post-deploy checks
 ```bash
 ssh root@14.225.204.117 "cd /home/adncapital/app/adn-capital && docker-compose exec -T web env | grep -E 'DATABASE_URL|DIRECT_DATABASE_URL'"

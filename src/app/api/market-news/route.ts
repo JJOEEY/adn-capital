@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getMarketSnapshot, getInvestorTradingText } from "@/lib/marketDataFetcher";
 import { fetchAllCafefNews } from "@/lib/cafefScraper";
+import { fetchEodNews, fetchMorningNews, type FiinEodNews, type FiinMorningNews } from "@/lib/fiinquantClient";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,54 @@ type EodPayload = {
   sell_signals: string[];
   top_breakout: string[];
 };
+
+function fromBridgeMorningPayload(raw: FiinMorningNews): MorningPayload {
+  return {
+    date: raw.date,
+    reference_indices: Array.isArray(raw.reference_indices)
+      ? raw.reference_indices.map((item) => ({
+          name: normalizeIndexName(item.name),
+          value: toNumberOrNull(item.value),
+          change_pct: toNumberOrNull(item.change_pct),
+        }))
+      : [],
+    vn_market: Array.isArray(raw.vn_market) ? raw.vn_market.filter(Boolean).slice(0, 5) : [],
+    macro: Array.isArray(raw.macro) ? raw.macro.filter(Boolean).slice(0, 5) : [],
+    risk_opportunity: Array.isArray(raw.risk_opportunity)
+      ? raw.risk_opportunity.filter(Boolean).slice(0, 5)
+      : [],
+  };
+}
+
+function fromBridgeEodPayload(raw: FiinEodNews): EodPayload {
+  return {
+    date: raw.date,
+    vnindex: toNumber(raw.vnindex),
+    change_pct: toNumber(raw.change_pct),
+    liquidity: toNumber(raw.liquidity),
+    breadth: {
+      up: toNumber(raw.breadth?.up),
+      down: toNumber(raw.breadth?.down),
+      unchanged: toNumber(raw.breadth?.unchanged),
+      total: toNumber(raw.breadth?.total),
+    },
+    session_summary: raw.session_summary ?? "",
+    liquidity_detail: raw.liquidity_detail ?? "",
+    foreign_flow: raw.foreign_flow ?? "",
+    notable_trades: raw.notable_trades ?? "",
+    outlook: raw.outlook ?? "",
+    sub_indices: Array.isArray(raw.sub_indices) ? raw.sub_indices : [],
+    foreign_top_buy: Array.isArray(raw.foreign_top_buy) ? raw.foreign_top_buy : [],
+    foreign_top_sell: Array.isArray(raw.foreign_top_sell) ? raw.foreign_top_sell : [],
+    prop_trading_top_buy: Array.isArray(raw.prop_trading_top_buy) ? raw.prop_trading_top_buy : [],
+    prop_trading_top_sell: Array.isArray(raw.prop_trading_top_sell) ? raw.prop_trading_top_sell : [],
+    sector_gainers: Array.isArray(raw.sector_gainers) ? raw.sector_gainers : [],
+    sector_losers: Array.isArray(raw.sector_losers) ? raw.sector_losers : [],
+    buy_signals: Array.isArray(raw.buy_signals) ? raw.buy_signals : [],
+    sell_signals: Array.isArray(raw.sell_signals) ? raw.sell_signals : [],
+    top_breakout: Array.isArray(raw.top_breakout) ? raw.top_breakout : [],
+  };
+}
 
 type ReportRow = {
   createdAt: Date;
@@ -287,7 +336,10 @@ function detectNewsSentiment(title: string): "positive" | "negative" | "neutral"
   return "neutral";
 }
 
-async function enrichMorningPayload(base: MorningPayload): Promise<MorningPayload> {
+async function enrichMorningPayload(
+  base: MorningPayload,
+  bridgeMorningHint: MorningPayload | null = null,
+): Promise<MorningPayload> {
   const normalizedBaseVn = dedupeKeepOrder(base.vn_market.filter(isLikelyNewsLine).filter((line) => !isBoilerplateLine(line)));
   const normalizedBaseMacro = dedupeKeepOrder(base.macro.filter(isLikelyNewsLine).filter((line) => !isBoilerplateLine(line)));
   const normalizedBaseRisk = dedupeKeepOrder(
@@ -307,8 +359,31 @@ async function enrichMorningPayload(base: MorningPayload): Promise<MorningPayloa
       )
     : [];
 
-  const mergedVn = dedupeKeepOrder([...vnNews, ...normalizedBaseVn]).filter(isLikelyNewsLine).slice(0, 5);
-  const mergedMacro = dedupeKeepOrder([...macroNews, ...normalizedBaseMacro]).filter(isLikelyNewsLine).slice(0, 5);
+  const needsBridgeNews =
+    normalizedBaseVn.length + vnNews.length < 4 ||
+    normalizedBaseMacro.length + macroNews.length < 4;
+  const bridgeMorningPayload =
+    bridgeMorningHint ??
+    (needsBridgeNews
+      ? await fetchMorningNews()
+          .then((value) => (value ? fromBridgeMorningPayload(value) : null))
+          .catch(() => null)
+      : null);
+
+  const mergedVn = dedupeKeepOrder([
+    ...vnNews,
+    ...(bridgeMorningPayload?.vn_market ?? []),
+    ...normalizedBaseVn,
+  ])
+    .filter(isLikelyNewsLine)
+    .slice(0, 5);
+  const mergedMacro = dedupeKeepOrder([
+    ...macroNews,
+    ...(bridgeMorningPayload?.macro ?? []),
+    ...normalizedBaseMacro,
+  ])
+    .filter(isLikelyNewsLine)
+    .slice(0, 5);
 
   const computedRiskOpportunity: string[] = [...normalizedBaseRisk];
   if (snapshot) {
@@ -357,7 +432,12 @@ async function enrichMorningPayload(base: MorningPayload): Promise<MorningPayloa
     computedRiskOpportunity.push(`Cơ hội tin tức: ${firstPositiveNews}`);
   }
 
-  const mergedRisk = dedupeKeepOrder(computedRiskOpportunity.filter((line) => !isBoilerplateLine(line))).slice(0, 4);
+  const mergedRisk = dedupeKeepOrder([
+    ...(bridgeMorningPayload?.risk_opportunity ?? []),
+    ...computedRiskOpportunity,
+  ]
+    .filter((line) => !isBoilerplateLine(line)))
+    .slice(0, 4);
   return {
     ...base,
     vn_market: mergedVn.length > 0 ? mergedVn : normalizedBaseVn.slice(0, 5),
@@ -971,6 +1051,13 @@ function hasValidEodPayload(payload: EodPayload): boolean {
   return hasVni && hasLiquidity && (hasBreadth || hasForeign || hasTrades) && hasSummary;
 }
 
+function shouldUseBridgeEod(payload: EodPayload): boolean {
+  const lowLiquidity = !Number.isFinite(payload.liquidity) || payload.liquidity <= 0 || payload.liquidity < 1_000;
+  const weakBreadth = !payload.breadth || payload.breadth.total <= 0;
+  const missingFlows = isUnavailableText(payload.foreign_flow) && isUnavailableText(payload.notable_trades);
+  return lowLiquidity || weakBreadth || missingFlows || !hasValidEodPayload(payload);
+}
+
 function eodPayloadScore(payload: EodPayload): number {
   let score = 0;
   if (Number.isFinite(payload.vnindex) && payload.vnindex > 0) score += 20;
@@ -1095,7 +1182,13 @@ export async function GET(request: NextRequest) {
       [...sameDatePayloads].sort((a, b) => morningPayloadScore(b) - morningPayloadScore(a))[0] ??
       orderedPayloads[0];
     selected = backfillMorningPayload(selected, orderedPayloads);
-    selected = await enrichMorningPayload(selected);
+    let bridgeMorningPayload: MorningPayload | null = null;
+    const bridgeMorning = await fetchMorningNews().catch(() => null);
+    if (bridgeMorning) {
+      bridgeMorningPayload = fromBridgeMorningPayload(bridgeMorning);
+      selected = backfillMorningPayload(selected, [bridgeMorningPayload]);
+    }
+    selected = await enrichMorningPayload(selected, bridgeMorningPayload);
     return NextResponse.json(selected);
   }
 
@@ -1116,6 +1209,13 @@ export async function GET(request: NextRequest) {
 
   let selected = [...sameDatePayloads].sort((a, b) => eodPayloadScore(b) - eodPayloadScore(a))[0] ?? orderedPayloads[0];
   selected = backfillEodPayload(selected, orderedPayloads);
+
+  if (shouldUseBridgeEod(selected)) {
+    const bridgeEod = await fetchEodNews().catch(() => null);
+    if (bridgeEod) {
+      selected = backfillEodPayload(fromBridgeEodPayload(bridgeEod), [selected, ...orderedPayloads]);
+    }
+  }
 
   if (!hasValidEodPayload(selected)) {
     const liveFallback = await buildLiveEodFallbackPayload();
