@@ -14,6 +14,12 @@ type IndexRow = {
   change_pct: number;
 };
 
+type ExchangeLiquidity = {
+  HOSE: number | null;
+  HNX: number | null;
+  UPCOM: number | null;
+};
+
 type MorningPayload = {
   date: string;
   reference_indices: Array<{
@@ -31,6 +37,7 @@ type EodPayload = {
   vnindex: number;
   change_pct: number;
   liquidity: number;
+  liquidity_by_exchange?: ExchangeLiquidity;
   breadth: { up: number; down: number; unchanged: number; total: number };
   session_summary: string;
   liquidity_detail: string;
@@ -68,11 +75,19 @@ function fromBridgeMorningPayload(raw: FiinMorningNews): MorningPayload {
 }
 
 function fromBridgeEodPayload(raw: FiinEodNews): EodPayload {
+  const rawRecord = raw as unknown as JsonRecord;
+  const liquidityByExchange: ExchangeLiquidity = {
+    HOSE: toNumberOrNull(rawRecord.hose_val),
+    HNX: toNumberOrNull(rawRecord.hnx_val),
+    UPCOM: toNumberOrNull(rawRecord.upcom_val),
+  };
+
   return {
     date: raw.date,
     vnindex: toNumber(raw.vnindex),
     change_pct: toNumber(raw.change_pct),
     liquidity: toNumber(raw.liquidity),
+    liquidity_by_exchange: liquidityByExchange,
     breadth: {
       up: toNumber(raw.breadth?.up),
       down: toNumber(raw.breadth?.down),
@@ -153,6 +168,16 @@ function stripDiacritics(text: string): string {
   return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&quot;/gi, "\"")
+    .replace(/&#0*39;|&apos;/gi, "'")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&nbsp;/gi, " ");
+}
+
 function normalizeForCheck(text: string): string {
   return stripDiacritics(text).toLowerCase().replace(/\s+/g, " ").trim();
 }
@@ -188,6 +213,21 @@ function stripMarkdownAndBullets(text: string): string {
     .trim();
 }
 
+function sanitizeNewsLine(text: string): string {
+  return stripMarkdownAndBullets(decodeHtmlEntities(text));
+}
+
+function isGenericCategoryLine(text: string): boolean {
+  const cleaned = sanitizeNewsLine(text);
+  if (!cleaned) return true;
+  const words = cleaned.split(/\s+/).filter(Boolean);
+  const normalized = normalizeForCheck(cleaned);
+  if (/\d/.test(cleaned)) return false;
+  if (/[,:;.!?]/.test(cleaned)) return false;
+  if (words.length <= 4 && cleaned.length <= 36) return true;
+  return normalized === "thi truong chung khoan" || normalized === "hang hoa nguyen lieu";
+}
+
 function isHeadingLike(text: string): boolean {
   const n = normalizeForCheck(stripMarkdownAndBullets(text));
   return (
@@ -198,6 +238,16 @@ function isHeadingLike(text: string): boolean {
     n.includes("rui ro") ||
     n.includes("co hoi") ||
     n.includes("ban tin sang")
+  );
+}
+
+function isSectionHeaderLine(text: string): boolean {
+  const n = normalizeForCheck(sanitizeNewsLine(text));
+  return (
+    isHeadingLike(text) ||
+    n.includes("ban tin tong hop") ||
+    n.includes("adn capital flashnote") ||
+    n.includes("bang dong tien chi tiet")
   );
 }
 
@@ -214,7 +264,8 @@ function parseMorningSections(content: string): {
   const lines = content.split("\n").map((line) => line.trim());
   for (const line of lines) {
     if (!line) continue;
-    const normalized = normalizeForCheck(stripMarkdownAndBullets(line));
+    const cleanedLine = sanitizeNewsLine(line);
+    const normalized = normalizeForCheck(cleanedLine);
 
     if (normalized.includes("thi truong viet nam")) {
       section = "vn";
@@ -230,11 +281,12 @@ function parseMorningSections(content: string): {
     }
 
     if (!section) continue;
-    if (isHeadingLike(line)) continue;
+    if (isSectionHeaderLine(line)) continue;
 
-    const cleaned = stripMarkdownAndBullets(line);
+    const cleaned = sanitizeNewsLine(line);
     if (!cleaned || cleaned.length < 10) continue;
     if (isUnavailableText(cleaned)) continue;
+    if (isGenericCategoryLine(cleaned)) continue;
 
     if (section === "vn") vnMarket.push(cleaned);
     if (section === "macro") macro.push(cleaned);
@@ -296,7 +348,7 @@ function dedupeKeepOrder(items: string[]): string[] {
   const seen = new Set<string>();
   const output: string[] = [];
   for (const item of items) {
-    const cleaned = stripMarkdownAndBullets(item);
+    const cleaned = sanitizeNewsLine(item);
     if (!cleaned) continue;
     const key = normalizeForCheck(cleaned);
     if (seen.has(key)) continue;
@@ -307,24 +359,69 @@ function dedupeKeepOrder(items: string[]): string[] {
 }
 
 function isLikelyNewsLine(line: string): boolean {
-  const n = normalizeForCheck(line);
+  const cleaned = sanitizeNewsLine(line);
+  const n = normalizeForCheck(cleaned);
   if (!n || n.length < 14) return false;
+  if (isGenericCategoryLine(cleaned)) return false;
+  if (isSectionHeaderLine(cleaned)) return false;
   if (n.includes("ban tin sang") || n.includes("chi so tham chieu")) return false;
   if (n.includes("powered by adn capital")) return false;
   if (n.startsWith("vn-index:") || n.startsWith("vnindex:")) return false;
   if (/^[a-z0-9\\-\\s]+:\\s*[\\d.,]+/.test(n)) return false;
-  if (line.includes("| +") || line.includes("| -")) return false;
+  if (cleaned.includes("| +") || cleaned.includes("| -")) return false;
+  if (isTemplateHeadingLine(cleaned)) return false;
   return true;
 }
 
 function isBoilerplateLine(line: string): boolean {
-  const n = normalizeForCheck(line);
+  const n = normalizeForCheck(sanitizeNewsLine(line));
   return (
     n.includes("powered by adn capital") ||
     n.includes("adncapital.com.vn") ||
     n.includes("he thong") ||
-    n.includes("ban tin sang adn capital")
+    n.includes("ban tin sang adn capital") ||
+    isTemplateHeadingLine(line)
   );
+}
+
+function isTemplateHeadingLine(line: string): boolean {
+  const n = normalizeForCheck(sanitizeNewsLine(line));
+  return (
+    n.includes("ban tin sang adn capital") ||
+    n.includes("ban tin tong hop") ||
+    n.includes("nhan dinh smart money") ||
+    n.includes("chi so tham chieu")
+  );
+}
+
+function toMorningHighlight(line: string): string {
+  const cleaned = sanitizeNewsLine(line).replace(/\s+/g, " ").trim();
+  if (!cleaned) return "";
+
+  let result = cleaned
+    .replace(/^tin nhanh[:\-\s]*/i, "")
+    .replace(/^ban tin sang adn capital[:\-\s]*/i, "")
+    .replace(/^thi truong viet nam[:\-\s]*/i, "")
+    .replace(/^vi mo(?:\s+trong\s+nuoc)?(?:\s*&?\s*quoc\s*te)?[:\-\s]*/i, "")
+    .trim();
+
+  if (!result) return "";
+  if (result.length > 170) {
+    const cut = result.slice(0, 170);
+    result = `${cut.slice(0, cut.lastIndexOf(" ") > 120 ? cut.lastIndexOf(" ") : 170).trim()}…`;
+  }
+  return result;
+}
+
+function buildMorningHighlights(lines: string[], limit = 5): string[] {
+  return dedupeKeepOrder(
+    lines
+      .map(toMorningHighlight)
+      .filter((line) => line.length >= 14)
+      .filter((line) => !isTemplateHeadingLine(line))
+      .filter((line) => !isBoilerplateLine(line))
+      .filter(isLikelyNewsLine),
+  ).slice(0, limit);
 }
 
 function detectNewsSentiment(title: string): "positive" | "negative" | "neutral" {
@@ -349,12 +446,12 @@ async function enrichMorningPayload(
   const [cafefNews, snapshot] = await Promise.all([fetchAllCafefNews().catch(() => null), getMarketSnapshot().catch(() => null)]);
 
   const vnNews = cafefNews
-    ? dedupeKeepOrder(cafefNews.stockMarket.articles.map((a) => a.title).filter(isLikelyNewsLine))
+    ? dedupeKeepOrder(cafefNews.stockMarket.articles.map((a) => sanitizeNewsLine(a.title)).filter(isLikelyNewsLine))
     : [];
   const macroNews = cafefNews
     ? dedupeKeepOrder(
         [...cafefNews.macro.articles, ...cafefNews.global.articles, ...cafefNews.goldForex.articles]
-          .map((a) => a.title)
+          .map((a) => sanitizeNewsLine(a.title))
           .filter(isLikelyNewsLine),
       )
     : [];
@@ -370,20 +467,16 @@ async function enrichMorningPayload(
           .catch(() => null)
       : null);
 
-  const mergedVn = dedupeKeepOrder([
-    ...vnNews,
+  const mergedVn = buildMorningHighlights([
     ...(bridgeMorningPayload?.vn_market ?? []),
     ...normalizedBaseVn,
-  ])
-    .filter(isLikelyNewsLine)
-    .slice(0, 5);
-  const mergedMacro = dedupeKeepOrder([
-    ...macroNews,
+    ...vnNews,
+  ]);
+  const mergedMacro = buildMorningHighlights([
     ...(bridgeMorningPayload?.macro ?? []),
     ...normalizedBaseMacro,
-  ])
-    .filter(isLikelyNewsLine)
-    .slice(0, 5);
+    ...macroNews,
+  ]);
 
   const computedRiskOpportunity: string[] = [...normalizedBaseRisk];
   if (snapshot) {
@@ -440,8 +533,8 @@ async function enrichMorningPayload(
     .slice(0, 4);
   return {
     ...base,
-    vn_market: mergedVn.length > 0 ? mergedVn : normalizedBaseVn.slice(0, 5),
-    macro: mergedMacro.length > 0 ? mergedMacro : normalizedBaseMacro.slice(0, 5),
+    vn_market: mergedVn.length > 0 ? mergedVn : buildMorningHighlights(normalizedBaseVn, 5),
+    macro: mergedMacro.length > 0 ? mergedMacro : buildMorningHighlights(normalizedBaseMacro, 5),
     risk_opportunity: mergedRisk,
   };
 }
@@ -641,6 +734,43 @@ function parseNetFromTextLine(line: string): number | null {
   return value;
 }
 
+function parseExchangeLiquidityFromContent(content: string): ExchangeLiquidity {
+  const compact = normalizeForCheck(content.replace(/\n/g, " "));
+  const read = (label: string): number | null => {
+    const rx = new RegExp(`${label}[^\\d]{0,12}([\\d.,]+)`, "i");
+    const match = compact.match(rx);
+    if (!match) return null;
+    return toNumberOrNull(match[1]);
+  };
+
+  return {
+    HOSE: read("hose"),
+    HNX: read("hnx"),
+    UPCOM: read("upcom"),
+  };
+}
+
+function hasMissingSecondaryExchangeLiquidity(exchanges: ExchangeLiquidity | undefined): boolean {
+  if (!exchanges) return true;
+  const hnx = exchanges.HNX ?? 0;
+  const upcom = exchanges.UPCOM ?? 0;
+  return hnx <= 0 && upcom <= 0;
+}
+
+function buildLiquidityDetail(totalLiquidityRaw: number, exchanges: ExchangeLiquidity): string {
+  if (!(totalLiquidityRaw > 0)) return "";
+  const hasExchangeLiquidity = [exchanges.HOSE, exchanges.HNX, exchanges.UPCOM].some((v) => v != null && v > 0);
+  if (!hasExchangeLiquidity) {
+    return `Thanh khoản toàn thị trường đạt ${Math.round(totalLiquidityRaw).toLocaleString("vi-VN")} tỷ đồng.`;
+  }
+
+  const formatExchangeLiquidity = (value: number | null): string =>
+    value != null && value > 0 ? Math.round(value).toLocaleString("vi-VN") : "chưa cập nhật";
+  return `Thanh khoản toàn thị trường đạt ${Math.round(totalLiquidityRaw).toLocaleString("vi-VN")} tỷ đồng (HoSE ${formatExchangeLiquidity(
+    exchanges.HOSE,
+  )} | HNX ${formatExchangeLiquidity(exchanges.HNX)} | UPCoM ${formatExchangeLiquidity(exchanges.UPCOM)}).`;
+}
+
 function parseStringArray(raw: unknown): string[] {
   return Array.isArray(raw) ? raw.filter((x): x is string => typeof x === "string" && x.trim().length > 0) : [];
 }
@@ -727,8 +857,8 @@ function toMorningPayload(report: { createdAt: Date; content: string; rawData: s
 
   const cleanedLines = dedupeKeepOrder(
     lines
-      .map(stripMarkdownAndBullets)
-      .filter((line) => line.length >= 12 && !isHeadingLike(line) && !isUnavailableText(line)),
+      .map(sanitizeNewsLine)
+      .filter((line) => line.length >= 12 && !isSectionHeaderLine(line) && !isUnavailableText(line) && !isGenericCategoryLine(line)),
   );
   const fallbackNewsLines = dedupeKeepOrder(cleanedLines.filter(isLikelyNewsLine));
   const fallbackVn = fallbackNewsLines.filter(isVietnamMarketHeadline);
@@ -763,8 +893,8 @@ function toMorningPayload(report: { createdAt: Date; content: string; rawData: s
   return {
     date: toViDateFromDateKey(reportDateKey),
     reference_indices: indices,
-    vn_market: vnMarket,
-    macro,
+    vn_market: buildMorningHighlights(vnMarket, 5),
+    macro: buildMorningHighlights(macro, 5),
     risk_opportunity: riskOpportunity,
   };
 }
@@ -777,11 +907,35 @@ function toEodPayload(report: { createdAt: Date; content: string; rawData: strin
   const vnindex = indices.find((item) => item.name === "VN-INDEX");
 
   const breadth = parseBreadth(snapshot.breadth ?? snapshot.market_breadth, report.content);
-  const liquidityByExchange = pickRecord(snapshot, ["liquidityByExchange", "liquidity_by_exchange"]) ?? {};
+  const liquidityByExchangeRaw = pickRecord(snapshot, ["liquidityByExchange", "liquidity_by_exchange"]) ?? {};
+  const exchangeFromContent = parseExchangeLiquidityFromContent(report.content);
+  const exchangeLiquidity: ExchangeLiquidity = {
+    HOSE:
+      toNumberOrNull((raw ?? {})["hose_val"]) ??
+      toNumberOrNull(liquidityByExchangeRaw.HOSE) ??
+      exchangeFromContent.HOSE,
+    HNX:
+      toNumberOrNull((raw ?? {})["hnx_val"]) ??
+      toNumberOrNull(liquidityByExchangeRaw.HNX) ??
+      exchangeFromContent.HNX,
+    UPCOM:
+      toNumberOrNull((raw ?? {})["upcom_val"]) ??
+      toNumberOrNull(liquidityByExchangeRaw.UPCOM) ??
+      exchangeFromContent.UPCOM,
+  };
+  const liquidityByExchange = {
+    HOSE: exchangeLiquidity.HOSE,
+    HNX: exchangeLiquidity.HNX,
+    UPCOM: exchangeLiquidity.UPCOM,
+    total: toNumberOrNull(liquidityByExchangeRaw.total),
+  };
+  const inferredTotalFromExchanges =
+    (exchangeLiquidity.HOSE ?? 0) + (exchangeLiquidity.HNX ?? 0) + (exchangeLiquidity.UPCOM ?? 0);
   const totalLiquidityRaw =
     toNumberOrNull(snapshot.liquidity) ??
-    toNumberOrNull(liquidityByExchange.total) ??
+    liquidityByExchange.total ??
     toNumberOrNull(snapshot.totalLiquidity) ??
+    (inferredTotalFromExchanges > 0 ? inferredTotalFromExchanges : null) ??
     parseLiquidityFromContent(report.content) ??
     0;
 
@@ -824,18 +978,14 @@ function toEodPayload(report: { createdAt: Date; content: string; rawData: strin
     lines[1] ??
     "";
 
-  const liquidityByExchangeText = [
-    toNumberOrNull(liquidityByExchange.HOSE),
-    toNumberOrNull(liquidityByExchange.HNX),
-    toNumberOrNull(liquidityByExchange.UPCOM),
-  ];
-  const hasExchangeLiquidity = liquidityByExchangeText.some((v) => v != null && v > 0);
+  const hasExchangeLiquidity = (exchangeLiquidity.HNX ?? 0) > 0 || (exchangeLiquidity.UPCOM ?? 0) > 0;
 
   return {
     date: toViDateFromDateKey(reportDateKey),
     vnindex: toNumber(vnindex?.value),
     change_pct: toNumber(vnindex?.change_pct),
     liquidity: Math.max(totalLiquidityRaw, 0),
+    liquidity_by_exchange: exchangeLiquidity,
     breadth,
     session_summary: lines[0] ?? "",
     liquidity_detail:
@@ -978,6 +1128,22 @@ function backfillEodPayload(base: EodPayload, history: EodPayload[]): EodPayload
   if (!(Number.isFinite(result.liquidity) && result.liquidity > 0)) {
     result.liquidity = pickNumberField((payload) => payload.liquidity) ?? result.liquidity;
   }
+  if (!result.liquidity_by_exchange) {
+    const source = history.find((payload) => payload.liquidity_by_exchange != null);
+    if (source?.liquidity_by_exchange) {
+      result.liquidity_by_exchange = source.liquidity_by_exchange;
+    }
+  }
+  if (hasMissingSecondaryExchangeLiquidity(result.liquidity_by_exchange)) {
+    const source = history.find(
+      (payload) =>
+        payload.liquidity_by_exchange &&
+        ((payload.liquidity_by_exchange.HNX ?? 0) > 0 || (payload.liquidity_by_exchange.UPCOM ?? 0) > 0),
+    );
+    if (source?.liquidity_by_exchange) {
+      result.liquidity_by_exchange = source.liquidity_by_exchange;
+    }
+  }
   if (!(result.breadth.total > 0)) {
     const source = history.find((payload) => payload.breadth.total > 0);
     if (source) result.breadth = source.breadth;
@@ -1017,6 +1183,9 @@ function backfillEodPayload(base: EodPayload, history: EodPayload[]): EodPayload
   if (result.sell_signals.length === 0) result.sell_signals = pickArrayField((payload) => payload.sell_signals);
   if (result.top_breakout.length === 0) result.top_breakout = pickArrayField((payload) => payload.top_breakout);
 
+  if (result.liquidity > 0 && result.liquidity_by_exchange) {
+    result.liquidity_detail = buildLiquidityDetail(result.liquidity, result.liquidity_by_exchange);
+  }
   if (result.liquidity > 0 && (!result.liquidity_detail || isUnavailableText(result.liquidity_detail))) {
     result.liquidity_detail = `Thanh khoản toàn thị trường đạt ${Math.round(result.liquidity).toLocaleString("vi-VN")} tỷ đồng.`;
   }
@@ -1118,12 +1287,18 @@ async function buildLiveEodFallbackPayload(): Promise<EodPayload | null> {
       const investorLines = getInvestorTradingText(snapshot, "full19");
       const foreignLine = investorLines.find((line) => normalizeForCheck(line).includes("khoi ngoai")) ?? "";
       const otherLines = investorLines.filter((line) => line !== foreignLine).join(" | ");
+      const snapshotExchangeLiquidity: ExchangeLiquidity = {
+        HOSE: snapshot.liquidityByExchange.HOSE ?? null,
+        HNX: snapshot.liquidityByExchange.HNX ?? null,
+        UPCOM: snapshot.liquidityByExchange.UPCOM ?? null,
+      };
 
       candidates.push({
       date: toViDate(new Date(snapshot.timestamp)),
       vnindex: vnindex.value,
       change_pct: vnindex.changePct,
       liquidity: snapshot.liquidity,
+      liquidity_by_exchange: snapshotExchangeLiquidity,
       breadth: {
         up: snapshot.breadth?.up ?? 0,
         down: snapshot.breadth?.down ?? 0,
@@ -1131,7 +1306,7 @@ async function buildLiveEodFallbackPayload(): Promise<EodPayload | null> {
         total: (snapshot.breadth?.up ?? 0) + (snapshot.breadth?.down ?? 0) + (snapshot.breadth?.unchanged ?? 0),
       },
       session_summary: `Bản tin EOD tạm thời từ snapshot trực tiếp (${snapshot.requestDateVN}).`,
-      liquidity_detail: `Thanh khoản toàn thị trường đạt ${Math.round(snapshot.liquidity).toLocaleString("vi-VN")} tỷ đồng.`,
+      liquidity_detail: buildLiquidityDetail(snapshot.liquidity, snapshotExchangeLiquidity),
       foreign_flow: foreignLine || "Khối ngoại: chưa cập nhật",
       notable_trades: otherLines,
       outlook: snapshot.marketOverview?.action_message ?? "",
@@ -1210,16 +1385,20 @@ export async function GET(request: NextRequest) {
   let selected = [...sameDatePayloads].sort((a, b) => eodPayloadScore(b) - eodPayloadScore(a))[0] ?? orderedPayloads[0];
   selected = backfillEodPayload(selected, orderedPayloads);
 
-  if (shouldUseBridgeEod(selected)) {
+  if (shouldUseBridgeEod(selected) || hasMissingSecondaryExchangeLiquidity(selected.liquidity_by_exchange)) {
     const bridgeEod = await fetchEodNews().catch(() => null);
     if (bridgeEod) {
       selected = backfillEodPayload(fromBridgeEodPayload(bridgeEod), [selected, ...orderedPayloads]);
     }
   }
 
-  if (!hasValidEodPayload(selected)) {
+  if (!hasValidEodPayload(selected) || hasMissingSecondaryExchangeLiquidity(selected.liquidity_by_exchange)) {
     const liveFallback = await buildLiveEodFallbackPayload();
     if (liveFallback) selected = backfillEodPayload(selected, [liveFallback]);
+  }
+
+  if (selected.liquidity > 0 && selected.liquidity_by_exchange) {
+    selected.liquidity_detail = buildLiquidityDetail(selected.liquidity, selected.liquidity_by_exchange);
   }
   return NextResponse.json(selected);
 }

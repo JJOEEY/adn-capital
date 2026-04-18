@@ -37,6 +37,11 @@ interface MarketData {
   chartData: Array<{ date: string; close: number }>;
 }
 
+interface EodBriefData {
+  liquidity?: number | string | null;
+  liquidity_detail?: string | null;
+}
+
 /** Dữ liệu "Đánh giá Đáy Thị Trường" từ Python API */
 interface MarketOverview {
   ticker: string;
@@ -78,6 +83,30 @@ function fmtLiquidity(tyVnd: number): string {
   return new Intl.NumberFormat("vi-VN", {
     maximumFractionDigits: 0,
   }).format(Math.round(tyVnd));
+}
+
+function parseLiquidityFromDisplay(value: string | undefined): number | null {
+  if (!value) return null;
+  const cleaned = value.replace(/[^\d.,-]/g, "").replace(/\./g, "").replace(/,/g, ".");
+  const parsed = Number(cleaned);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+}
+
+function parseNumberishLiquidity(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) return value;
+  if (typeof value !== "string") return null;
+  return parseLiquidityFromDisplay(value);
+}
+
+function parseTotalLiquidityFromDetail(detail: string | null | undefined): number | null {
+  if (!detail) return null;
+  const totalMatch =
+    detail.match(/toàn thị trường đạt\s*([\d.,]+)/i) ??
+    detail.match(/tổng\s*([\d.,]+)\s*tỷ/i) ??
+    detail.match(/thanh khoản[^0-9]{0,24}([\d.,]+)/i);
+  if (!totalMatch?.[1]) return null;
+  return parseLiquidityFromDisplay(totalMatch[1]);
 }
 
 /** Component-level error boundary — hiện skeleton thay vì crash toàn trang */
@@ -158,6 +187,11 @@ export default function DashboardPage() {
     errorRetryInterval: 5000,
   });
 
+  const { data: eodBrief } = useSWR<EodBriefData>("/api/market-news?type=eod", swrFetcher, {
+    ...swrOpts,
+    refreshInterval: 300_000,
+  });
+
   // Dùng overview nếu có (đầy đủ), fallback về marketStatus (từ cache)
   const effectiveOverview = overview ?? marketStatus ?? null;
 
@@ -188,9 +222,21 @@ export default function DashboardPage() {
   }, [data]);
 
   // Thanh khoản: ưu tiên từ Python backend (đã fix)
-  const liquidityDisplay = overview
-    ? `${fmtLiquidity(overview.liquidity)} Tỷ VNĐ`
-    : data?.totalVolume ?? "N/A";
+  const effectiveLiquidityTy = useMemo(() => {
+    const eodLiquidity =
+      parseNumberishLiquidity(eodBrief?.liquidity) ??
+      parseTotalLiquidityFromDetail(eodBrief?.liquidity_detail);
+    if (eodLiquidity != null) {
+      return eodLiquidity;
+    }
+    if (overview?.liquidity && Number.isFinite(overview.liquidity) && overview.liquidity > 0) {
+      return overview.liquidity;
+    }
+    const parsedFromDisplay = parseLiquidityFromDisplay(data?.totalVolume);
+    return parsedFromDisplay ?? null;
+  }, [eodBrief?.liquidity, eodBrief?.liquidity_detail, overview?.liquidity, data?.totalVolume]);
+
+  const liquidityDisplay = effectiveLiquidityTy != null ? `${fmtLiquidity(effectiveLiquidityTy)} Tỷ VNĐ` : data?.totalVolume ?? "N/A";
 
   return (
     <MainLayout>
@@ -264,6 +310,7 @@ export default function DashboardPage() {
                   <GaugeCard 
                     overview={effectiveOverview} 
                     marketData={data ?? null}
+                    liquidityOverride={effectiveLiquidityTy}
                   />
                 )}
 
@@ -420,11 +467,19 @@ function GaugeSVG({ score, maxScore }: { score: number; maxScore: number }) {
   );
 }
 
-const GaugeCard = memo(function GaugeCard({ overview, marketData }: { overview: MarketOverview | null; marketData: MarketData | null }) {
+const GaugeCard = memo(function GaugeCard({
+  overview,
+  marketData,
+  liquidityOverride,
+}: {
+  overview: MarketOverview | null;
+  marketData: MarketData | null;
+  liquidityOverride?: number | null;
+}) {
   const fallbackScore = !overview && marketData ? (marketData.status === "GOOD" ? 11 : marketData.status === "BAD" ? 2 : 6) : 0;
   const score = overview?.score ?? fallbackScore;
   const maxScore = overview?.max_score ?? 14;
-  const liquidity = overview?.liquidity ?? 0;
+  const liquidity = liquidityOverride ?? overview?.liquidity ?? 0;
   const color = getScoreColor(score, maxScore);
   const label = getScoreLabel(score, maxScore);
   const taScore = overview?.ta_score;

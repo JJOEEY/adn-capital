@@ -83,10 +83,10 @@ export function MorningNews() {
           </div>
           <div>
             <h3 className="text-xs font-black uppercase tracking-wider" style={{ color: "var(--primary)" }}>
-              Bản Tin Sáng ADN Capital
+              Điểm Tin Nổi Bật Buổi Sáng
             </h3>
             <p className="text-[12px] mt-0.5" style={{ color: "var(--text-muted)" }}>
-              MORNING BRIEF
+              AI MORNING HIGHLIGHTS
             </p>
           </div>
         </div>
@@ -156,7 +156,7 @@ export function MorningNews() {
         {/* Box 1: Thị trường Việt Nam */}
         <ContentBox
           icon={<BarChart3 className="w-4 h-4" style={{ color: "var(--accent-news)" }} />}
-          title="Thị trường Việt Nam"
+          title="Điểm Tin Việt Nam Nổi Bật"
           items={data.vn_market}
           bulletColor="var(--accent-news)"
         />
