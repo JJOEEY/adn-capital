@@ -68,7 +68,7 @@ ssh root@14.225.204.117 "cd /home/adncapital/app/adn-capital && ls -ld ./app_dat
 Expected: host folders exist and web container can write to `/app/storage/guides`.
 
 ```bash
-ssh root@14.225.204.117 "curl -sf https://adncapital.vn/api/health >/dev/null && echo HEALTH_OK"
+ssh root@14.225.204.117 "curl -sf http://127.0.0.1:3000/api/health >/dev/null && echo HEALTH_OK"
 ```
 Expected: `HEALTH_OK`.
 

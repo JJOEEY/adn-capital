@@ -34,11 +34,11 @@ CURL_CMD="curl -s -o /dev/null -w '%{http_code}' -H 'x-cron-secret: $CRON_SECRET
 # 08:00 VN = 01:00 UTC — Morning Brief
 # 15:00 VN = 08:00 UTC — EOD Brief
 # 19:00 VN = 12:00 UTC — Prop Trading (T2-T6)
-# 10:00 VN = 03:00 UTC — Intraday update
-# 11:30 VN = 04:30 UTC — Intraday update
-# 14:00 VN = 07:00 UTC — Intraday update
-# 14:45 VN = 07:45 UTC — Intraday update
-# Signal scan fixed checkpoints: 10:00, 10:30, 11:30, 14:00, 14:45 VN
+# 10:00 VN = 03:00 UTC — Market stats update
+# 11:30 VN = 04:30 UTC — Market stats update
+# 14:00 VN = 07:00 UTC — Market stats update
+# 14:45 VN = 07:45 UTC — Market stats update
+# Signal scan fixed checkpoints: 10:00, 10:30, 14:00, 14:20 VN
 
 CRON_FILE="/tmp/adn-crontab"
 
@@ -57,25 +57,24 @@ cat > $CRON_FILE << EOF
 # Prop Trading (Tự Doanh) — 19:00 VN (12:00 UTC), T2-T6
 0 12 * * 1-5 $CURL_CMD "$APP_URL/api/cron?type=prop_trading" >> $LOG_DIR/prop.log 2>&1
 
-# Intraday 10:00 VN (03:00 UTC)
-0 3 * * 1-5 $CURL_CMD "$APP_URL/api/cron?type=intraday" >> $LOG_DIR/intraday.log 2>&1
+# Market stats 10:00 VN (03:00 UTC)
+0 3 * * 1-5 $CURL_CMD "$APP_URL/api/cron?type=market_stats" >> $LOG_DIR/intraday.log 2>&1
 
-# Intraday 11:30 VN (04:30 UTC)
-30 4 * * 1-5 $CURL_CMD "$APP_URL/api/cron?type=intraday" >> $LOG_DIR/intraday.log 2>&1
+# Market stats 11:30 VN (04:30 UTC)
+30 4 * * 1-5 $CURL_CMD "$APP_URL/api/cron?type=market_stats" >> $LOG_DIR/intraday.log 2>&1
 
-# Intraday 14:00 VN (07:00 UTC)
-0 7 * * 1-5 $CURL_CMD "$APP_URL/api/cron?type=intraday" >> $LOG_DIR/intraday.log 2>&1
+# Market stats 14:00 VN (07:00 UTC)
+0 7 * * 1-5 $CURL_CMD "$APP_URL/api/cron?type=market_stats" >> $LOG_DIR/intraday.log 2>&1
 
-# Intraday 14:45 VN (07:45 UTC)
-45 7 * * 1-5 $CURL_CMD "$APP_URL/api/cron?type=intraday" >> $LOG_DIR/intraday.log 2>&1
+# Market stats 14:45 VN (07:45 UTC)
+45 7 * * 1-5 $CURL_CMD "$APP_URL/api/cron?type=market_stats" >> $LOG_DIR/intraday.log 2>&1
 
 
-# Signal Scan fixed checkpoints (VN): 10:00, 10:30, 11:30, 14:00, 14:45
+# Signal scan fixed checkpoints (VN): 10:00, 10:30, 14:00, 14:20
 0 3 * * 1-5 $CURL_CMD "$APP_URL/api/cron?type=signal_scan_5m" >> $LOG_DIR/signal.log 2>&1
 30 3 * * 1-5 $CURL_CMD "$APP_URL/api/cron?type=signal_scan_5m" >> $LOG_DIR/signal.log 2>&1
-30 4 * * 1-5 $CURL_CMD "$APP_URL/api/cron?type=signal_scan_5m" >> $LOG_DIR/signal.log 2>&1
 0 7 * * 1-5 $CURL_CMD "$APP_URL/api/cron?type=signal_scan_5m" >> $LOG_DIR/signal.log 2>&1
-45 7 * * 1-5 $CURL_CMD "$APP_URL/api/cron?type=signal_scan_5m" >> $LOG_DIR/signal.log 2>&1
+20 7 * * 1-5 $CURL_CMD "$APP_URL/api/cron?type=signal_scan_5m" >> $LOG_DIR/signal.log 2>&1
 
 
 # Log rotation — weekly
@@ -87,8 +86,8 @@ echo "📋 Crontab entries:"
 cat $CRON_FILE
 echo ""
 
-# Install crontab cho user adncapital
-crontab -u adncapital $CRON_FILE 2>/dev/null || crontab $CRON_FILE
+# Install crontab cho user hiện tại (thường là root trên VPS)
+crontab $CRON_FILE
 
 echo "✅ Crontab đã được cài đặt!"
 echo ""
