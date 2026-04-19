@@ -20,7 +20,7 @@
 - Guarantees:
   - no `docker-compose down`
   - web-only build/restart
-  - optional `prisma migrate deploy` via safe-web-deploy defaults
+  - optional `prisma migrate deploy` only when `RUN_MIGRATIONS=1`
 
 ## 3) Smoke (must pass)
 - Run:

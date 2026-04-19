@@ -21,6 +21,11 @@ ssh root@14.225.204.117 "cd /home/adncapital/app/adn-capital && bash deploy/pred
 ```
 
 `deploy/safe-web-deploy.sh` already runs post-deploy smoke by default.
+By default it skips migration execution (`RUN_MIGRATIONS=0`).  
+Enable migrations only when precheck confirms pending production-safe migrations:
+```bash
+ssh root@14.225.204.117 "cd /home/adncapital/app/adn-capital && RUN_MIGRATIONS=1 bash deploy/safe-web-deploy.sh"
+```
 
 ## Manual Commands (when needed)
 Precheck only:
