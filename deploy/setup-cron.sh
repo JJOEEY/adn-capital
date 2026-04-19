@@ -1,100 +1,64 @@
-#!/bin/bash
-# ============================================
-# ADN Capital - Cron Setup cho VPS
-# Cài đặt crontab cho tất cả automated jobs
-# ============================================
-# CÁCH DÙNG: bash /home/adncapital/app/adn-capital/deploy/setup-cron.sh
-# ============================================
+#!/usr/bin/env bash
+set -euo pipefail
 
-set -e
+# Usage:
+#   CRON_SECRET=... ADN_URL=http://localhost:3000 bash deploy/setup-cron.sh
 
-# Config
 APP_URL="${ADN_URL:-http://localhost:3000}"
-CRON_SECRET="${CRON_SECRET:-adn-cron-dev-key}"
-LOG_DIR="/home/adncapital/logs/cron"
+CRON_SECRET="${CRON_SECRET:-}"
+LOG_DIR="${LOG_DIR:-/home/adncapital/logs/cron}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Tạo thư mục log
-mkdir -p $LOG_DIR
+if [[ -f "${SCRIPT_DIR}/cron-contracts.env" ]]; then
+  # shellcheck disable=SC1091
+  source "${SCRIPT_DIR}/cron-contracts.env"
+fi
 
-echo "╔══════════════════════════════════════╗"
-echo "║   ADN Capital - Cron Setup VPS       ║"
-echo "╠══════════════════════════════════════╣"
-echo "║ App URL: $APP_URL"
-echo "║ Log Dir: $LOG_DIR"
-echo "╚══════════════════════════════════════╝"
-echo ""
+[[ -n "${CRON_SECRET}" ]] || {
+  echo "[setup-cron][FAIL] CRON_SECRET is required" >&2
+  exit 1
+}
 
-# Helper function: tạo cron call
-CURL_CMD="curl -s -o /dev/null -w '%{http_code}' -H 'x-cron-secret: $CRON_SECRET'"
+mkdir -p "${LOG_DIR}"
 
-# Tạo crontab entries
-# ═══════════════════════════════════════
-# Schedule Giờ VN (UTC+7) → Giờ UTC
-# ═══════════════════════════════════════
-# 08:00 VN = 01:00 UTC — Morning Brief
-# 15:00 VN = 08:00 UTC — EOD Brief
-# 19:00 VN = 12:00 UTC — Prop Trading (T2-T6)
-# 10:00 VN = 03:00 UTC — Market stats update
-# 11:30 VN = 04:30 UTC — Market stats update
-# 14:00 VN = 07:00 UTC — Market stats update
-# 14:45 VN = 07:45 UTC — Market stats update
-# Signal scan fixed checkpoints: 10:00, 10:30, 14:00, 14:20 VN
-
+CURL_CMD="curl -fsS -H 'x-cron-secret: ${CRON_SECRET}'"
 CRON_FILE="/tmp/adn-crontab"
 
-cat > $CRON_FILE << EOF
-# ═══════════════════════════════════════════════
-# ADN Capital Automated Cron Jobs
-# Generated: $(date)
-# ═══════════════════════════════════════════════
+cat > "${CRON_FILE}" <<EOF
+# ADN Capital canonical scheduler (UTC time, VN=UTC+7)
+# Generated: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-# Morning Brief — 8:00 sáng VN (01:00 UTC)
-0 1 * * * $CURL_CMD "$APP_URL/api/cron/morning-report" >> $LOG_DIR/morning.log 2>&1
+# Type 3 - Morning brief (08:00 VN)
+${CRON_MORNING_SCHEDULE:-0 1 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_MORNING:-morning_brief}" >> ${LOG_DIR}/morning_brief.log 2>&1
 
-# EOD Brief — 15:00 VN (08:00 UTC)
-0 8 * * 1-5 $CURL_CMD "$APP_URL/api/cron/afternoon-review" >> $LOG_DIR/eod.log 2>&1
+# Type 1 - Signal scan (10:00, 10:30, 14:00, 14:20 VN)
+${CRON_SIGNAL_1000_SCHEDULE:-0 3 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_SIGNAL_TYPE1:-signal_scan_type1}" >> ${LOG_DIR}/signal_type1.log 2>&1
+${CRON_SIGNAL_1030_SCHEDULE:-30 3 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_SIGNAL_TYPE1:-signal_scan_type1}" >> ${LOG_DIR}/signal_type1.log 2>&1
+${CRON_SIGNAL_1400_SCHEDULE:-0 7 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_SIGNAL_TYPE1:-signal_scan_type1}" >> ${LOG_DIR}/signal_type1.log 2>&1
+${CRON_SIGNAL_1420_SCHEDULE:-20 7 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_SIGNAL_TYPE1:-signal_scan_type1}" >> ${LOG_DIR}/signal_type1.log 2>&1
 
-# Prop Trading (Tự Doanh) — 19:00 VN (12:00 UTC), T2-T6
-0 12 * * 1-5 $CURL_CMD "$APP_URL/api/cron?type=prop_trading" >> $LOG_DIR/prop.log 2>&1
+# Type 2 - Market stats (10:00, 11:30, 14:00, 14:45 VN)
+${CRON_MARKET_1000_SCHEDULE:-0 3 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_MARKET_TYPE2:-market_stats_type2}" >> ${LOG_DIR}/market_type2.log 2>&1
+${CRON_MARKET_1130_SCHEDULE:-30 4 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_MARKET_TYPE2:-market_stats_type2}" >> ${LOG_DIR}/market_type2.log 2>&1
+${CRON_MARKET_1400_SCHEDULE:-0 7 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_MARKET_TYPE2:-market_stats_type2}" >> ${LOG_DIR}/market_type2.log 2>&1
+${CRON_MARKET_1445_SCHEDULE:-45 7 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_MARKET_TYPE2:-market_stats_type2}" >> ${LOG_DIR}/market_type2.log 2>&1
 
-# Market stats 10:00 VN (03:00 UTC)
-0 3 * * 1-5 $CURL_CMD "$APP_URL/api/cron?type=market_stats" >> $LOG_DIR/intraday.log 2>&1
+# Type 3 - Close brief 15:00 VN
+${CRON_CLOSE_15H_SCHEDULE:-0 8 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_CLOSE_15H:-close_brief_15h}" >> ${LOG_DIR}/close_brief_15h.log 2>&1
 
-# Market stats 11:30 VN (04:30 UTC)
-30 4 * * 1-5 $CURL_CMD "$APP_URL/api/cron?type=market_stats" >> $LOG_DIR/intraday.log 2>&1
+# Type 3 - Full EOD 19:00 VN
+${CRON_EOD_19H_SCHEDULE:-0 12 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_EOD_19H:-eod_full_19h}" >> ${LOG_DIR}/eod_full_19h.log 2>&1
 
-# Market stats 14:00 VN (07:00 UTC)
-0 7 * * 1-5 $CURL_CMD "$APP_URL/api/cron?type=market_stats" >> $LOG_DIR/intraday.log 2>&1
+# Additional workers (non-canonical event jobs)
+*/5 2-8 * * 1-5 ${CURL_CMD} "${APP_URL}/api/cron/signal-lifecycle" >> ${LOG_DIR}/signal_lifecycle.log 2>&1
+0 10 * * 5 ${CURL_CMD} "${APP_URL}/api/cron/ai-weekly-review" >> ${LOG_DIR}/weekly_review.log 2>&1
 
-# Market stats 14:45 VN (07:45 UTC)
-45 7 * * 1-5 $CURL_CMD "$APP_URL/api/cron?type=market_stats" >> $LOG_DIR/intraday.log 2>&1
-
-
-# Signal scan fixed checkpoints (VN): 10:00, 10:30, 14:00, 14:20
-0 3 * * 1-5 $CURL_CMD "$APP_URL/api/cron?type=signal_scan_5m" >> $LOG_DIR/signal.log 2>&1
-30 3 * * 1-5 $CURL_CMD "$APP_URL/api/cron?type=signal_scan_5m" >> $LOG_DIR/signal.log 2>&1
-0 7 * * 1-5 $CURL_CMD "$APP_URL/api/cron?type=signal_scan_5m" >> $LOG_DIR/signal.log 2>&1
-20 7 * * 1-5 $CURL_CMD "$APP_URL/api/cron?type=signal_scan_5m" >> $LOG_DIR/signal.log 2>&1
-
-
-# Log rotation — weekly
-0 0 * * 0 find $LOG_DIR -name "*.log" -mtime +30 -delete
-
+# Log cleanup
+0 0 * * 0 find ${LOG_DIR} -name "*.log" -mtime +30 -delete
 EOF
 
-echo "📋 Crontab entries:"
-cat $CRON_FILE
-echo ""
+crontab "${CRON_FILE}"
 
-# Install crontab cho user hiện tại (thường là root trên VPS)
-crontab $CRON_FILE
-
-echo "✅ Crontab đã được cài đặt!"
-echo ""
-echo "📊 Kiểm tra: crontab -l"
-echo "📂 Logs tại: $LOG_DIR"
-echo ""
-echo "⚠️  Nhớ kiểm tra:"
-echo "  1. CRON_SECRET trong .env khớp với script"
-echo "  2. Python backend (FiinQuant) đang chạy: curl $APP_URL/api/market"
-echo "  3. Prisma migration: npx prisma db push"
+echo "[setup-cron] Installed crontab from ${CRON_FILE}"
+echo "[setup-cron] Canonical cron types: signal_scan_type1, market_stats_type2, morning_brief, close_brief_15h, eod_full_19h"
+echo "[setup-cron] Verify with: crontab -l"

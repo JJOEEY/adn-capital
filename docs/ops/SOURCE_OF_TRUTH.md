@@ -33,13 +33,19 @@ Legacy aliases (supported for compatibility only):
 ## 4) Deploy Baseline
 Safe deploy default:
 ```bash
-docker-compose build --no-cache web
-docker-compose up -d web
+bash deploy/predeploy-check.sh
+bash deploy/safe-web-deploy.sh
+bash deploy/postdeploy-smoke.sh
 ```
 
 Forbidden in normal deploy:
 ```bash
 docker-compose down
+```
+
+Rollback baseline:
+```bash
+bash deploy/rollback-web.sh <git-ref>
 ```
 
 ## 5) AI Policy Freeze
@@ -50,4 +56,3 @@ AI forbidden:
 - generate raw trading signal
 - override deterministic lifecycle/risk rules
 - override broker truth state
-

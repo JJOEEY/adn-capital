@@ -2,57 +2,57 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
     {
-      "path": "/api/cron/morning-report",
+      "path": "/api/cron?type=morning_brief",
       "schedule": "0 1 * * 1-5",
       "comment": "08:00 VN (01:00 UTC) - Morning Brief"
     },
     {
-      "path": "/api/cron?type=market_stats",
+      "path": "/api/cron?type=market_stats_type2",
       "schedule": "0 3 * * 1-5",
       "comment": "10:00 VN (03:00 UTC) - Type 2 market stats"
     },
     {
-      "path": "/api/cron?type=market_stats",
+      "path": "/api/cron?type=market_stats_type2",
       "schedule": "30 4 * * 1-5",
       "comment": "11:30 VN (04:30 UTC) - Type 2 market stats"
     },
     {
-      "path": "/api/cron?type=market_stats",
+      "path": "/api/cron?type=market_stats_type2",
       "schedule": "0 7 * * 1-5",
       "comment": "14:00 VN (07:00 UTC) - Type 2 market stats"
     },
     {
-      "path": "/api/cron?type=market_stats",
+      "path": "/api/cron?type=market_stats_type2",
       "schedule": "45 7 * * 1-5",
       "comment": "14:45 VN (07:45 UTC) - Type 2 market stats"
     },
     {
-      "path": "/api/cron/afternoon-review",
+      "path": "/api/cron?type=close_brief_15h",
       "schedule": "0 8 * * 1-5",
       "comment": "15:00 VN (08:00 UTC) - EOD close brief"
     },
     {
-      "path": "/api/cron?type=prop_trading",
+      "path": "/api/cron?type=eod_full_19h",
       "schedule": "0 12 * * 1-5",
       "comment": "19:00 VN (12:00 UTC) - EOD full brief"
     },
     {
-      "path": "/api/cron?type=signal_scan_5m",
+      "path": "/api/cron?type=signal_scan_type1",
       "schedule": "0 3 * * 1-5",
       "comment": "10:00 VN (03:00 UTC) - Type 1 signal scan"
     },
     {
-      "path": "/api/cron?type=signal_scan_5m",
+      "path": "/api/cron?type=signal_scan_type1",
       "schedule": "30 3 * * 1-5",
       "comment": "10:30 VN (03:30 UTC) - Type 1 signal scan"
     },
     {
-      "path": "/api/cron?type=signal_scan_5m",
+      "path": "/api/cron?type=signal_scan_type1",
       "schedule": "0 7 * * 1-5",
       "comment": "14:00 VN (07:00 UTC) - Type 1 signal scan"
     },
     {
-      "path": "/api/cron?type=signal_scan_5m",
+      "path": "/api/cron?type=signal_scan_type1",
       "schedule": "20 7 * * 1-5",
       "comment": "14:20 VN (07:20 UTC) - Type 1 signal scan"
     },
