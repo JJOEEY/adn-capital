@@ -1,5 +1,10 @@
 # Phase 5.4 - ALLOWLIST_PILOT_RUNTIME_VERIFICATION
 
+Status: Supporting verification record  
+Canonical references:
+- [docs/architecture/ADN_MASTER_ARCHITECTURE.md](../architecture/ADN_MASTER_ARCHITECTURE.md)
+- [docs/ops/SOURCE_OF_TRUTH.md](./SOURCE_OF_TRUTH.md)
+
 ## 1) Pilot scope
 - Objective: verify controlled pilot on real runtime/session, not public launch.
 - Public execution: OFF.

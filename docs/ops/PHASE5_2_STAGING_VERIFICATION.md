@@ -1,5 +1,10 @@
 # Phase 5.2 — Staging Verification Checklist
 
+Status: Supporting verification record  
+Canonical references:
+- [docs/architecture/ADN_MASTER_ARCHITECTURE.md](../architecture/ADN_MASTER_ARCHITECTURE.md)
+- [docs/ops/SOURCE_OF_TRUTH.md](./SOURCE_OF_TRUTH.md)
+
 ## A) Runtime dependencies (must pass)
 - PostgreSQL env:
   - `DATABASE_URL` starts with `postgresql://` or `postgres://`

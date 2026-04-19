@@ -1,5 +1,9 @@
 # ADN Capital x Fincept Pattern — Kiến trúc triển khai cho chứng khoán Việt Nam
 
+> Status: Superseded as canonical architecture baseline.  
+> Canonical file: [docs/architecture/ADN_MASTER_ARCHITECTURE.md](docs/architecture/ADN_MASTER_ARCHITECTURE.md).  
+> Keep this document for historical blueprint context only.
+
 > Tài liệu này là **implementation blueprint** để Codex/Copilot hiểu đúng ý đồ kỹ thuật khi nâng cấp `adn-capital`.
 > Mục tiêu là **mượn pattern kiến trúc từ FinceptTerminal** nhưng **giữ nguyên stack hiện tại của ADN**: Next.js + TypeScript + Prisma + Python FastAPI bridge + Docker Compose.
 > Đây **không** phải tài liệu để rewrite app sang Qt/C++ và **không** phải hướng dẫn copy code từ Fincept.
@@ -1381,4 +1385,3 @@ Khi Codex cần hiểu hiện trạng, phải đọc các file này trước:
 - tuyệt đối đọc cache tables trong Prisma schema trước
 - tuyệt đối kiểm tra endpoint bridge hiện có trước
 - tuyệt đối ưu tiên reuse các batch endpoint đã có trước khi tạo endpoint mới
-

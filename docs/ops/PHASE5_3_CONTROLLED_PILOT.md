@@ -1,5 +1,10 @@
 # Phase 5.3 - Controlled Pilot (Compliance Gated)
 
+Status: Supporting verification record  
+Canonical references:
+- [docs/architecture/ADN_MASTER_ARCHITECTURE.md](../architecture/ADN_MASTER_ARCHITECTURE.md)
+- [docs/ops/SOURCE_OF_TRUTH.md](./SOURCE_OF_TRUTH.md)
+
 ## Purpose
 Move execution from pure staging-safe into controlled pilot readiness, while keeping public rollout disabled and keeping real submit OFF by default.
 

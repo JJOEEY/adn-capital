@@ -14,6 +14,7 @@ import {
   rebalanceActiveBasketNav,
 } from "@/lib/aiBroker";
 import { getVnNow } from "@/lib/time";
+import { emitWorkflowTrigger } from "@/lib/workflows";
 
 // Secret chia sẻ giữa Python scanner và Next.js
 const WEBHOOK_SECRET = process.env.SCANNER_SECRET ?? "adn-scanner-secret-key";
@@ -80,6 +81,14 @@ export async function POST(req: NextRequest) {
     let created = 0;
     let updated = 0;
     const createdSignalsForNotify: IncomingSignal[] = [];
+    const activatedSignals: Array<{
+      ticker: string;
+      signalType: string;
+      fromStatus: string;
+      toStatus: string;
+      entryPrice: number;
+      reason: string | null;
+    }> = [];
     const aiBrokerConfig = await getAiBrokerRuntimeConfig();
 
     const operations = processed.map((s) => {
@@ -103,6 +112,16 @@ export async function POST(req: NextRequest) {
 
       if (existing) {
         updated++;
+        if (existing.status !== nextStatus && nextStatus === "ACTIVE") {
+          activatedSignals.push({
+            ticker: s.ticker.toUpperCase().trim(),
+            signalType: s.type,
+            fromStatus: existing.status,
+            toStatus: nextStatus,
+            entryPrice: s.entryPrice,
+            reason: s.reason ?? null,
+          });
+        }
         const activePayload =
           existing.status !== "ACTIVE" && nextStatus === "ACTIVE"
             ? { currentPrice: s.entryPrice, currentPnl: 0 }
@@ -128,6 +147,16 @@ export async function POST(req: NextRequest) {
         });
       } else {
         created++;
+        if (nextStatus === "ACTIVE") {
+          activatedSignals.push({
+            ticker: s.ticker.toUpperCase().trim(),
+            signalType: s.type,
+            fromStatus: "NEW",
+            toStatus: nextStatus,
+            entryPrice: s.entryPrice,
+            reason: s.reason ?? null,
+          });
+        }
         createdSignalsForNotify.push({
           ticker: s.ticker.toUpperCase().trim(),
           type: s.type,
@@ -226,6 +255,17 @@ export async function POST(req: NextRequest) {
         windowInfo.type,
         `⚡ ${windowInfo.label} — ${webNotifySignals.length} tín hiệu mới`,
         `## TÍN HIỆU MỚI (${windowInfo.label})\n\n${signalText}`
+      );
+    }
+    if (activatedSignals.length > 0) {
+      await Promise.all(
+        activatedSignals.map((signal) =>
+          emitWorkflowTrigger({
+            type: "signal_status_changed",
+            source: "webhook:signals",
+            payload: signal,
+          }),
+        ),
       );
     }
 

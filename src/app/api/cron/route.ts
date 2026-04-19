@@ -40,6 +40,7 @@ import {
 import { invalidateTopics } from "@/lib/datahub/core";
 import { normalizeCronType, LEGACY_CRON_ALIASES } from "@/lib/cron-contracts";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
+import { emitWorkflowTrigger } from "@/lib/workflows";
 
 export const maxDuration = 120;
 export const dynamic = "force-dynamic";
@@ -50,6 +51,38 @@ function buildInternalCronRequest(url: string): NextRequest {
   const headers = new Headers();
   headers.set("x-cron-secret", process.env.CRON_SECRET ?? "adn-cron-dev-key");
   return new NextRequest(url, { headers });
+}
+
+async function runCronHandlerWithWorkflowHook(
+  cronType: string,
+  handler: () => Promise<NextResponse>,
+  source: string,
+) {
+  try {
+    const response = await handler();
+    const status = response.status < 400 ? "success" : "error";
+    await emitWorkflowTrigger({
+      type: "cron",
+      source,
+      payload: {
+        cronType,
+        status,
+        httpStatus: response.status,
+      },
+    });
+    return response;
+  } catch (error) {
+    await emitWorkflowTrigger({
+      type: "cron",
+      source,
+      payload: {
+        cronType,
+        status: "error",
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
+    throw error;
+  }
 }
 
 async function handleMorningBrief(forceRun = false): Promise<NextResponse> {
@@ -224,11 +257,19 @@ export async function GET(req: NextRequest) {
   }
 
   if (sync) {
-    if (type === "morning_brief") return handleMorningBrief(forceRun);
-    if (type === "close_brief_15h") return handleCloseBrief15(forceRun);
-    if (type === "eod_full_19h") return handlePropTrading(forceRun);
-    if (type === "market_stats_type2") return handleIntraday(forceRun);
-    return handleSignalScan5m();
+    if (type === "morning_brief") {
+      return runCronHandlerWithWorkflowHook(type, () => handleMorningBrief(forceRun), "cron-dispatch:sync");
+    }
+    if (type === "close_brief_15h") {
+      return runCronHandlerWithWorkflowHook(type, () => handleCloseBrief15(forceRun), "cron-dispatch:sync");
+    }
+    if (type === "eod_full_19h") {
+      return runCronHandlerWithWorkflowHook(type, () => handlePropTrading(forceRun), "cron-dispatch:sync");
+    }
+    if (type === "market_stats_type2") {
+      return runCronHandlerWithWorkflowHook(type, () => handleIntraday(forceRun), "cron-dispatch:sync");
+    }
+    return runCronHandlerWithWorkflowHook(type, () => handleSignalScan5m(), "cron-dispatch:sync");
   }
 
   const queued = await prisma.cronLog.create({
@@ -244,11 +285,17 @@ export async function GET(req: NextRequest) {
 
   const run = async () => {
     try {
-      if (type === "morning_brief") await handleMorningBrief(forceRun);
-      else if (type === "close_brief_15h") await handleCloseBrief15(forceRun);
-      else if (type === "eod_full_19h") await handlePropTrading(forceRun);
-      else if (type === "market_stats_type2") await handleIntraday(forceRun);
-      else await handleSignalScan5m();
+      if (type === "morning_brief") {
+        await runCronHandlerWithWorkflowHook(type, () => handleMorningBrief(forceRun), "cron-dispatch:async");
+      } else if (type === "close_brief_15h") {
+        await runCronHandlerWithWorkflowHook(type, () => handleCloseBrief15(forceRun), "cron-dispatch:async");
+      } else if (type === "eod_full_19h") {
+        await runCronHandlerWithWorkflowHook(type, () => handlePropTrading(forceRun), "cron-dispatch:async");
+      } else if (type === "market_stats_type2") {
+        await runCronHandlerWithWorkflowHook(type, () => handleIntraday(forceRun), "cron-dispatch:async");
+      } else {
+        await runCronHandlerWithWorkflowHook(type, () => handleSignalScan5m(), "cron-dispatch:async");
+      }
       await prisma.cronLog.update({
         where: { id: queued.id },
         data: { status: "success", message: "completed" },
@@ -349,6 +396,16 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
     );
     await pushNotification("eod_full_19h", `🌙 Bản tin tổng hợp 19:00 ${today}`, safeReport);
     invalidateTopics({ tags: ["news", "brief", "market", "dashboard"] });
+    await emitWorkflowTrigger({
+      type: "brief_ready",
+      source: "cron:eod_full_19h",
+      payload: {
+        reportType: "eod_full_19h",
+        title: `Bản tin tổng hợp 19:00 ${today}`,
+        content: safeReport,
+        dateLabel: today,
+      },
+    });
 
     const duration = Date.now() - startTime;
     await logCron("eod_full_19h", "success", `EOD full 19h, ${duration}ms`, duration, {
@@ -546,6 +603,14 @@ async function handleSignalScan5m(): Promise<NextResponse> {
     let createdCount = 0;
     let updatedCount = 0;
     const createCandidatesForNotify: PythonScanSignal[] = [];
+    const activatedSignals: Array<{
+      ticker: string;
+      signalType: string;
+      fromStatus: string;
+      toStatus: string;
+      entryPrice: number;
+      reason: string | null;
+    }> = [];
 
     const operations = processed.map((s) => {
       const normalizedTicker = s.ticker.toUpperCase().trim();
@@ -569,6 +634,16 @@ async function handleSignalScan5m(): Promise<NextResponse> {
 
       if (existing) {
         updatedCount += 1;
+        if (existing.status !== nextStatus && nextStatus === "ACTIVE") {
+          activatedSignals.push({
+            ticker: normalizedTicker,
+            signalType: s.type,
+            fromStatus: existing.status,
+            toStatus: nextStatus,
+            entryPrice: s.entryPrice,
+            reason: s.reason ?? null,
+          });
+        }
         const activePayload =
           existing.status !== "ACTIVE" && nextStatus === "ACTIVE"
             ? { currentPrice: s.entryPrice, currentPnl: 0 }
@@ -595,6 +670,16 @@ async function handleSignalScan5m(): Promise<NextResponse> {
       }
 
       createdCount += 1;
+      if (nextStatus === "ACTIVE") {
+        activatedSignals.push({
+          ticker: normalizedTicker,
+          signalType: s.type,
+          fromStatus: "NEW",
+          toStatus: nextStatus,
+          entryPrice: s.entryPrice,
+          reason: s.reason ?? null,
+        });
+      }
       createCandidatesForNotify.push({
         ticker: normalizedTicker,
         type: s.type,
@@ -686,6 +771,17 @@ async function handleSignalScan5m(): Promise<NextResponse> {
         windowInfo.type,
         `⚡ ${windowInfo.label} — ${webNotifySignals.length} tín hiệu mới`,
         `## TÍN HIỆU MỚI (${windowInfo.label})\n\n${signalText}`
+      );
+    }
+    if (activatedSignals.length > 0) {
+      await Promise.all(
+        activatedSignals.map((signal) =>
+          emitWorkflowTrigger({
+            type: "signal_status_changed",
+            source: "cron:signal_scan_type1",
+            payload: signal,
+          }),
+        ),
       );
     }
     invalidateTopics({ tags: ["signal", "broker", "portfolio"] });

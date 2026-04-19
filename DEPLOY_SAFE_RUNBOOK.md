@@ -1,5 +1,6 @@
 # ADN Capital Safe Deploy Runbook
-Reference contract: [docs/ops/SOURCE_OF_TRUTH.md](docs/ops/SOURCE_OF_TRUTH.md)
+Reference contract: [docs/ops/SOURCE_OF_TRUTH.md](docs/ops/SOURCE_OF_TRUTH.md)  
+Architecture baseline: [docs/architecture/ADN_MASTER_ARCHITECTURE.md](docs/architecture/ADN_MASTER_ARCHITECTURE.md)
 
 ## Hard Rules
 1. Never run `docker-compose down` in normal deploy flow.

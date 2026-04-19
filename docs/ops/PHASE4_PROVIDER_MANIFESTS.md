@@ -1,5 +1,10 @@
 # Phase 4 Provider Manifests (Contract-First)
 
+Status: Supporting phase record  
+Canonical references:
+- [docs/architecture/ADN_MASTER_ARCHITECTURE.md](../architecture/ADN_MASTER_ARCHITECTURE.md)
+- [docs/ops/SOURCE_OF_TRUTH.md](./SOURCE_OF_TRUTH.md)
+
 ## Active Mode
 - `CONTRACT_FIRST_FALLBACK_MODE`
 

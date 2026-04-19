@@ -13,6 +13,7 @@ import {
 import { getMarketSnapshot, getInvestorTradingText } from "@/lib/marketDataFetcher";
 import { getVnNow } from "@/lib/time";
 import { invalidateTopics } from "@/lib/datahub/core";
+import { emitWorkflowTrigger } from "@/lib/workflows";
 
 export const maxDuration = 60;
 
@@ -122,6 +123,16 @@ export async function GET(req: NextRequest) {
 
     await pushNotification("close_brief_15h", `🌆 Bản tin kết phiên ${today}`, safeReport);
     invalidateTopics({ tags: ["news", "brief", "dashboard", "market"] });
+    await emitWorkflowTrigger({
+      type: "brief_ready",
+      source: "cron:close_brief_15h",
+      payload: {
+        reportType: "close_brief_15h",
+        title: `Bản tin kết phiên ${today}`,
+        content: safeReport,
+        dateLabel: today,
+      },
+    });
 
     const duration = Date.now() - startTime;
     await logCron("close_brief_15h", "success", `Verdict: ${isGood ? "GOOD" : "BAD"}`, duration, {

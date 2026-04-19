@@ -1,5 +1,9 @@
 # ADN Capital Rebuild Plan v3.2
 
+> Status: Superseded as canonical architecture/ops contract.  
+> Canonical file: [docs/architecture/ADN_MASTER_ARCHITECTURE.md](docs/architecture/ADN_MASTER_ARCHITECTURE.md).  
+> Keep this document as historical execution plan and delivery trace.
+
 > Mục tiêu: rebuild ADN Capital theo pattern đã rút ra từ Fincept nhưng **không rewrite stack**, vẫn giữ Next.js + Python bridge + Postgres/PgBouncer + Docker Compose hiện tại. Bản v3.2 này sửa các điểm còn rủi ro trong v3.1 để Codex có thể triển khai an toàn hơn.
 
 ---
@@ -779,4 +783,3 @@ Bản v3.2 này có thể dùng làm **plan chính thức cho Codex** vì đã s
 - tránh env/docs tự mâu thuẫn
 - tránh leak private broker state vào public research topics
 - giảm scope workflow để rollout an toàn hơn
-

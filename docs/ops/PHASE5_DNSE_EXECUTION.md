@@ -1,5 +1,10 @@
 # Phase 5 - DNSE Execution Adapter
 
+Status: Supporting phase record  
+Canonical references:
+- [docs/architecture/ADN_MASTER_ARCHITECTURE.md](../architecture/ADN_MASTER_ARCHITECTURE.md)
+- [docs/ops/SOURCE_OF_TRUTH.md](./SOURCE_OF_TRUTH.md)
+
 ## 1) Current execution baseline
 - Mode: `SAFE_EXECUTION_ADAPTER_MODE`
 - Real submit default: `OFF`

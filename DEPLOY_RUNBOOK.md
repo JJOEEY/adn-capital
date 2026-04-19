@@ -5,6 +5,9 @@ This file is a thin wrapper to avoid contract drift.
 Use the canonical runbook:
 - [DEPLOY_SAFE_RUNBOOK.md](DEPLOY_SAFE_RUNBOOK.md)
 
+Architecture baseline:
+- [docs/architecture/ADN_MASTER_ARCHITECTURE.md](docs/architecture/ADN_MASTER_ARCHITECTURE.md)
+
 Use the canonical checklist:
 - [docs/ops/PRODUCTION_DEPLOY_CHECKLIST.md](docs/ops/PRODUCTION_DEPLOY_CHECKLIST.md)
 

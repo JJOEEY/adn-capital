@@ -1,5 +1,26 @@
 # ADN Capital Source Of Truth (Phase 0 Freeze)
 
+Status: Canonical runtime contract  
+Master architecture: [docs/architecture/ADN_MASTER_ARCHITECTURE.md](../architecture/ADN_MASTER_ARCHITECTURE.md)  
+Decision records: [docs/architecture/ADR_INDEX.md](../architecture/ADR_INDEX.md)
+
+## Documentation Hierarchy
+- Canonical architecture baseline:
+  - [docs/architecture/ADN_MASTER_ARCHITECTURE.md](../architecture/ADN_MASTER_ARCHITECTURE.md)
+- Canonical runtime/deploy contracts:
+  - [docs/ops/SOURCE_OF_TRUTH.md](./SOURCE_OF_TRUTH.md)
+  - [DEPLOY_SAFE_RUNBOOK.md](../../DEPLOY_SAFE_RUNBOOK.md)
+  - [docs/ops/PRODUCTION_DEPLOY_CHECKLIST.md](./PRODUCTION_DEPLOY_CHECKLIST.md)
+- Supporting phase records:
+  - [docs/ops/PHASE4_PROVIDER_MANIFESTS.md](./PHASE4_PROVIDER_MANIFESTS.md)
+  - [docs/ops/PHASE5_DNSE_EXECUTION.md](./PHASE5_DNSE_EXECUTION.md)
+  - [docs/ops/PHASE5_2_STAGING_VERIFICATION.md](./PHASE5_2_STAGING_VERIFICATION.md)
+  - [docs/ops/PHASE5_3_CONTROLLED_PILOT.md](./PHASE5_3_CONTROLLED_PILOT.md)
+  - [docs/ops/PHASE5_4_ALLOWLIST_PILOT.md](./PHASE5_4_ALLOWLIST_PILOT.md)
+  - [docs/ops/PHASE6_WORKFLOW_RUNTIME.md](./PHASE6_WORKFLOW_RUNTIME.md)
+  - [docs/ops/WORKFLOW_RUNTIME_OPERATIONS.md](./WORKFLOW_RUNTIME_OPERATIONS.md)
+  - [docs/ops/PHASE6_1_STAGING_VERIFICATION.md](./PHASE6_1_STAGING_VERIFICATION.md)
+
 ## 1) Runtime Ownership
 - `web` owns DataHub cache/topic APIs (`/api/hub/*`).
 - `fiinquant` owns scheduler execution (slot-gated jobs).
@@ -161,3 +182,44 @@ AI forbidden:
   - no public execution rollout
   - no compliance bypass
   - no AI override over deterministic gate
+
+## 11) Workflow Runtime (Phase 6)
+- Runtime mode:
+  - JSON-first, registry-driven workflow engine in `web`
+  - event-driven only (no new scheduler loop)
+- Canonical runtime modules:
+  - `src/lib/workflows/definitions.ts`
+  - `src/lib/workflows/triggers.ts`
+  - `src/lib/workflows/actions.ts`
+  - `src/lib/workflows/engine.ts`
+- Canonical trigger ingress:
+  - `POST /api/internal/workflows/trigger` (internal auth required)
+- Canonical admin/debug:
+  - `GET /api/admin/system/workflows`
+  - `GET /api/admin/system/workflows/runs`
+  - `/admin/workflows`
+- Canonical verification commands:
+  - `npm run verify:phase6:runtime`
+  - `npm run verify:phase6:smoke`
+  - `npm run verify:phase6:staging`
+- Execution log contract:
+  - persisted in `CronLog` with `cronName=workflow:{workflowKey}`
+  - `resultData` stores trigger snapshot, action statuses, retries, warnings/errors
+- Required supported triggers:
+  - `cron`
+  - `signal_status_changed`
+  - `market_threshold`
+  - `portfolio_risk_threshold`
+  - `brief_ready`
+- Required supported actions:
+  - `invalidate_topic`
+  - `refresh_topic`
+  - `run_scanner`
+  - `create_notification`
+  - `send_telegram`
+  - `persist_report`
+  - `write_log`
+- Deterministic and compliance boundaries:
+  - workflow runtime cannot become scheduler owner
+  - workflow runtime cannot bypass DNSE compliance/allowlist/kill-switch guards
+  - workflow runtime cannot enable real submit by itself

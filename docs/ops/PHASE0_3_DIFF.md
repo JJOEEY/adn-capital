@@ -1,5 +1,10 @@
 # Phase 0–3 Diff Review
 
+Status: Historical evidence record (supporting only)  
+Canonical references:
+- [docs/architecture/ADN_MASTER_ARCHITECTURE.md](../architecture/ADN_MASTER_ARCHITECTURE.md)
+- [docs/ops/SOURCE_OF_TRUTH.md](./SOURCE_OF_TRUTH.md)
+
 ## Commit range
 - Start baseline: `4a715cb`
 - End phase 0–3 deploy: `90d58b1`

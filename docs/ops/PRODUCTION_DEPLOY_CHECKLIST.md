@@ -1,5 +1,10 @@
 # Production Deploy Checklist
 
+Status: Canonical deploy checklist  
+Reference:
+- [DEPLOY_SAFE_RUNBOOK.md](../../DEPLOY_SAFE_RUNBOOK.md)
+- [docs/architecture/ADN_MASTER_ARCHITECTURE.md](../architecture/ADN_MASTER_ARCHITECTURE.md)
+
 ## 1) Precheck (must pass)
 - Run:
   - `bash deploy/predeploy-check.sh`
