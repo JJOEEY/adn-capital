@@ -52,11 +52,12 @@ function createSession() {
     });
     applySetCookie(response);
 
+    const raw = await response.text();
     let payload = {};
     try {
-      payload = await response.json();
+      payload = raw ? JSON.parse(raw) : {};
     } catch {
-      payload = { raw: await response.text() };
+      payload = { raw };
     }
     return { status: response.status, payload };
   }
