@@ -34,6 +34,27 @@ assert_http_not_5xx() {
   pass "Endpoint healthy (${code}): ${url}"
 }
 
+retry_health_json() {
+  local url="$1"
+  local attempts="${2:-18}"
+  local sleep_seconds="${3:-5}"
+  local i=1
+  local body=""
+
+  while (( i <= attempts )); do
+    body="$(curl -fsS "${url}" 2>/dev/null || true)"
+    if [[ -n "${body}" ]] && grep -q '"status":"ok"' <<<"${body}"; then
+      echo "${body}"
+      return 0
+    fi
+    log "Waiting for health endpoint (${i}/${attempts})..."
+    sleep "${sleep_seconds}"
+    ((i++))
+  done
+
+  return 1
+}
+
 cd "${APP_DIR}" || fail "Cannot cd to ${APP_DIR}"
 
 log "App dir: ${APP_DIR}"
@@ -53,9 +74,8 @@ if [[ "${MOCK_MODE}" == "1" ]]; then
   exit 0
 fi
 
-HEALTH_RAW="$(curl -fsS http://127.0.0.1:3000/api/health || true)"
-[[ -n "${HEALTH_RAW}" ]] || fail "/api/health did not return data"
-grep -q '"status":"ok"' <<<"${HEALTH_RAW}" || fail "/api/health status is not ok"
+HEALTH_RAW="$(retry_health_json "http://127.0.0.1:3000/api/health" "${HEALTH_RETRY_ATTEMPTS:-18}" "${HEALTH_RETRY_SLEEP:-5}" || true)"
+[[ -n "${HEALTH_RAW}" ]] || fail "/api/health did not return status ok after retries"
 pass "/api/health returns status ok"
 
 WEB_ENV="$(${COMPOSE_BIN} exec -T web env)"
