@@ -2,18 +2,42 @@ import type { BacktestProviderManifest, ScannerProviderManifest } from "@/types/
 
 export const fallbackBacktestProviders: BacktestProviderManifest[] = [
   {
-    provider: "vn_breakout_suite",
+    providerKey: "vn_breakout_suite",
+    providerType: "backtest",
+    title: "VN Breakout Suite",
     version: "1.0.0",
-    label: "VN Breakout Suite",
     description: "Backtest breakout strategy with trend and liquidity filters.",
-    parameters: [
+    capabilities: ["backtest", "risk-metrics", "entry-exit-simulation"],
+    executionMode: "web-adapter",
+    supportsInsight: true,
+    defaults: {
+      ticker: "HPG",
+      dateRange: { start: "2025-01-01", end: "2025-12-31" },
+      lookback: 20,
+      minVolumeRatio: 1.5,
+      universe: "VN30",
+      includeDelisted: false,
+    },
+    constraints: {
+      maxUniverseSize: 200,
+      deterministicCore: true,
+      allowAiInsightOnlyAfterDeterministic: true,
+    },
+    fields: [
       {
         key: "ticker",
         label: "Ticker",
-        type: "string",
+        type: "ticker",
         required: true,
         default: "HPG",
         helpText: "Vietnam stock ticker, example: HPG, FPT, VCB.",
+      },
+      {
+        key: "dateRange",
+        label: "Date Range",
+        type: "dateRange",
+        required: true,
+        default: { start: "2025-01-01", end: "2025-12-31" },
       },
       {
         key: "lookback",
@@ -44,17 +68,46 @@ export const fallbackBacktestProviders: BacktestProviderManifest[] = [
           { label: "ALL", value: "ALL" },
         ],
       },
+      {
+        key: "includeDelisted",
+        label: "Include delisted symbols",
+        type: "boolean",
+        default: false,
+      },
+      {
+        key: "note",
+        label: "Run note",
+        type: "textarea",
+        helpText: "Optional context note for this run.",
+      },
     ],
   },
 ];
 
 export const fallbackScannerProviders: ScannerProviderManifest[] = [
   {
-    provider: "adn_signal_scanner",
+    providerKey: "adn_signal_scanner",
+    providerType: "scanner",
+    title: "ADN Signal Scanner",
     version: "1.0.0",
-    label: "ADN Signal Scanner",
     description: "Rule-based scanner for RADAR and ACTIVE candidates.",
-    parameters: [
+    capabilities: ["scan", "radar", "active-basket"],
+    executionMode: "web-adapter",
+    supportsInsight: true,
+    defaults: {
+      universe: "VN30",
+      watchlists: ["VN30", "HOSE"],
+      minPrice: 10,
+      includeMarginOnly: true,
+      asOfDate: "2026-04-19",
+    },
+    constraints: {
+      deterministicCore: true,
+      minPriceFloor: 10,
+      maxNavAllocation: 90,
+      aiCannotCreateRawSignals: true,
+    },
+    fields: [
       {
         key: "universe",
         label: "Universe",
@@ -74,6 +127,35 @@ export const fallbackScannerProviders: ScannerProviderManifest[] = [
         max: 200,
         step: 0.5,
         default: 10,
+      },
+      {
+        key: "watchlists",
+        label: "Watchlist scope",
+        type: "multiselect",
+        options: [
+          { label: "VN30", value: "VN30" },
+          { label: "VN100", value: "VN100" },
+          { label: "HOSE", value: "HOSE" },
+          { label: "HNX", value: "HNX" },
+          { label: "UPCOM", value: "UPCOM" },
+        ],
+      },
+      {
+        key: "includeMarginOnly",
+        label: "Margin eligible only",
+        type: "boolean",
+        default: true,
+      },
+      {
+        key: "asOfDate",
+        label: "As of date",
+        type: "date",
+      },
+      {
+        key: "reasoningStyle",
+        label: "Insight style",
+        type: "text",
+        default: "risk-first",
       },
     ],
   },

@@ -1,55 +1,108 @@
-export type ProviderFieldType = "number" | "string" | "boolean" | "select";
+export type ProviderMode = "PYTHON_PROVIDER_MODE" | "CONTRACT_FIRST_FALLBACK_MODE";
+export type ProviderType = "scanner" | "backtest";
+export type ProviderSource = "bridge" | "fallback" | "web-adapter";
+export type ProviderExecutionMode = "python-bridge" | "web-adapter" | "fallback-stub";
+export type ProviderRunStatus = "success" | "degraded" | "error";
+
+export type ProviderFieldType =
+  | "text"
+  | "number"
+  | "select"
+  | "multiselect"
+  | "boolean"
+  | "date"
+  | "dateRange"
+  | "ticker"
+  | "textarea";
 
 export interface ProviderFieldOption {
   label: string;
   value: string;
 }
 
+export interface ProviderDateRangeValue {
+  start: string;
+  end: string;
+}
+
+export type ProviderInputValue =
+  | string
+  | number
+  | boolean
+  | string[]
+  | ProviderDateRangeValue
+  | null;
+
 export interface ProviderField {
   key: string;
   label: string;
   type: ProviderFieldType;
   required?: boolean;
-  default?: string | number | boolean;
+  default?: ProviderInputValue;
+  placeholder?: string;
+  helpText?: string;
   min?: number;
   max?: number;
   step?: number;
   options?: ProviderFieldOption[];
-  helpText?: string;
 }
 
-export interface BacktestProviderManifest {
-  provider: string;
-  version: string;
-  label: string;
+export interface ProviderManifestBase {
+  providerKey: string;
+  providerType: ProviderType;
+  title: string;
   description?: string;
-  parameters: ProviderField[];
+  version: string;
+  capabilities: string[];
+  fields: ProviderField[];
+  defaults?: Record<string, ProviderInputValue>;
+  constraints?: Record<string, unknown>;
+  executionMode: ProviderExecutionMode;
+  supportsInsight: boolean;
 }
 
-export interface ScannerProviderManifest {
-  provider: string;
-  version: string;
-  label: string;
-  description?: string;
-  parameters: ProviderField[];
-}
+export type BacktestProviderManifest = ProviderManifestBase & {
+  providerType: "backtest";
+};
+
+export type ScannerProviderManifest = ProviderManifestBase & {
+  providerType: "scanner";
+};
 
 export interface BacktestManifestResponse {
   providers: BacktestProviderManifest[];
-  source: "bridge" | "fallback";
+  source: ProviderSource;
+  mode: ProviderMode;
   fetchedAt: string;
+  warnings?: string[];
 }
 
 export interface ScannerManifestResponse {
   providers: ScannerProviderManifest[];
-  source: "bridge" | "fallback";
+  source: ProviderSource;
+  mode: ProviderMode;
   fetchedAt: string;
+  warnings?: string[];
+}
+
+export interface ProviderRunRequest {
+  providerKey: string;
+  inputs: Record<string, ProviderInputValue>;
+  context?: Record<string, unknown>;
+  requestInsight?: boolean;
 }
 
 export interface ProviderRunResponse {
-  ok: boolean;
-  provider: string;
-  result?: unknown;
-  error?: string;
-  source?: "bridge" | "fallback";
+  status: ProviderRunStatus;
+  providerKey: string;
+  runId: string;
+  startedAt: string;
+  completedAt?: string;
+  result: unknown | null;
+  summary?: string;
+  insight?: string;
+  warnings: string[];
+  errors: string[];
+  source: ProviderSource;
+  deterministic: boolean;
 }

@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { fallbackScannerProviders } from "@/lib/providers/fallback-manifests";
-import type { ScannerManifestResponse, ScannerProviderManifest } from "@/types/provider-manifest";
+import type { ScannerManifestResponse } from "@/types/provider-manifest";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
+import { normalizeManifestResponse } from "@/lib/providers/contracts";
 
 export const dynamic = "force-dynamic";
 
 const BRIDGE = getPythonBridgeUrl();
 
 export async function GET() {
+  const warnings: string[] = [];
   try {
     const res = await fetch(`${BRIDGE}/api/v1/providers/scanner/manifest`, {
       cache: "no-store",
@@ -15,27 +17,33 @@ export async function GET() {
     });
 
     if (res.ok) {
-      const payload = (await res.json()) as Partial<ScannerManifestResponse> & {
-        providers?: ScannerProviderManifest[];
-      };
-      const providers = Array.isArray(payload.providers) ? payload.providers : [];
+      const payload = (await res.json()) as unknown;
+      const normalized = normalizeManifestResponse("scanner", payload, "bridge");
+      const providers = normalized.providers;
       if (providers.length > 0) {
-        return NextResponse.json({
-          providers,
-          source: "bridge",
-          fetchedAt: new Date().toISOString(),
-        } satisfies ScannerManifestResponse);
+        return NextResponse.json(normalized satisfies ScannerManifestResponse);
       }
+      warnings.push("Bridge returned an empty scanner provider list.");
+    } else {
+      warnings.push(`Bridge manifest endpoint returned HTTP ${res.status}.`);
     }
-  } catch {
-    // fallback below
+  } catch (error) {
+    warnings.push(
+      error instanceof Error ? error.message : "Bridge manifest fetch failed for unknown reason.",
+    );
   }
 
-  console.warn("[providers.scanner.manifest] bridge unavailable, serving fallback manifest");
+  console.warn(
+    "[providers.scanner.manifest] bridge unavailable, serving fallback manifest",
+    warnings.join(" | "),
+  );
 
-  return NextResponse.json({
-    providers: fallbackScannerProviders,
-    source: "fallback",
-    fetchedAt: new Date().toISOString(),
-  } satisfies ScannerManifestResponse);
+  return NextResponse.json(
+    normalizeManifestResponse(
+      "scanner",
+      { providers: fallbackScannerProviders },
+      "fallback",
+      warnings,
+    ) satisfies ScannerManifestResponse,
+  );
 }

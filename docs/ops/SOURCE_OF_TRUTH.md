@@ -56,3 +56,16 @@ AI forbidden:
 - generate raw trading signal
 - override deterministic lifecycle/risk rules
 - override broker truth state
+
+## 6) Provider Runtime (Phase 4)
+- Current mode: `CONTRACT_FIRST_FALLBACK_MODE`
+- Reason: workspace does not include executable Python provider registry source; web keeps contract-first adapters.
+- Canonical provider endpoints:
+  - `GET /api/v1/providers/backtest/manifest`
+  - `POST /api/v1/providers/backtest/run`
+  - `GET /api/v1/providers/scanner/manifest`
+  - `POST /api/v1/providers/scanner/run`
+- Deterministic boundary:
+  - Scanner/backtest result is source-of-truth.
+  - `requestInsight` can only add explanation after deterministic result exists.
+  - If deterministic source is unavailable, API returns degraded/error with warnings; no synthetic trading signal output.

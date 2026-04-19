@@ -1,5 +1,7 @@
 import type {
   BacktestManifestResponse,
+  ProviderInputValue,
+  ProviderRunRequest,
   ProviderRunResponse,
   ScannerManifestResponse,
 } from "@/types/provider-manifest";
@@ -10,8 +12,10 @@ async function parseJson<T>(res: Response): Promise<T> {
 }
 
 async function parseErrorMessage(res: Response): Promise<string> {
-  const payload = (await res.json().catch(() => null)) as { error?: string; message?: string } | null;
-  return payload?.error || payload?.message || `Request failed (${res.status})`;
+  const payload = (await res.json().catch(() => null)) as
+    | { error?: string; message?: string; errors?: string[] }
+    | null;
+  return payload?.error || payload?.message || payload?.errors?.[0] || `Request failed (${res.status})`;
 }
 
 export async function fetchBacktestManifest(): Promise<BacktestManifestResponse> {
@@ -37,41 +41,57 @@ export async function fetchScannerManifest(): Promise<ScannerManifestResponse> {
 }
 
 export async function runBacktestProvider(payload: {
-  provider: string;
-  params: Record<string, unknown>;
+  providerKey: string;
+  inputs: Record<string, ProviderInputValue>;
+  context?: Record<string, unknown>;
+  requestInsight?: boolean;
 }): Promise<ProviderRunResponse> {
+  const canonicalPayload: ProviderRunRequest = {
+    providerKey: payload.providerKey,
+    inputs: payload.inputs,
+    context: payload.context,
+    requestInsight: payload.requestInsight,
+  };
   const res = await fetch("/api/v1/providers/backtest/run", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(canonicalPayload),
     signal: AbortSignal.timeout(60_000),
   });
   if (!res.ok) {
     throw new Error(await parseErrorMessage(res));
   }
   const data = await parseJson<ProviderRunResponse>(res);
-  if (!data.ok) {
-    throw new Error(data.error || "Backtest provider run failed");
+  if (data.status !== "success") {
+    throw new Error(data.errors[0] || "Backtest provider run failed");
   }
   return data;
 }
 
 export async function runScannerProvider(payload: {
-  provider: string;
-  params: Record<string, unknown>;
+  providerKey: string;
+  inputs: Record<string, ProviderInputValue>;
+  context?: Record<string, unknown>;
+  requestInsight?: boolean;
 }): Promise<ProviderRunResponse> {
+  const canonicalPayload: ProviderRunRequest = {
+    providerKey: payload.providerKey,
+    inputs: payload.inputs,
+    context: payload.context,
+    requestInsight: payload.requestInsight,
+  };
   const res = await fetch("/api/v1/providers/scanner/run", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(canonicalPayload),
     signal: AbortSignal.timeout(60_000),
   });
   if (!res.ok) {
     throw new Error(await parseErrorMessage(res));
   }
   const data = await parseJson<ProviderRunResponse>(res);
-  if (!data.ok) {
-    throw new Error(data.error || "Scanner provider run failed");
+  if (data.status !== "success") {
+    throw new Error(data.errors[0] || "Scanner provider run failed");
   }
   return data;
 }
