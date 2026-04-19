@@ -69,3 +69,50 @@ AI forbidden:
   - Scanner/backtest result is source-of-truth.
   - `requestInsight` can only add explanation after deterministic result exists.
   - If deterministic source is unavailable, API returns degraded/error with warnings; no synthetic trading signal output.
+
+## 7) DNSE Execution Runtime (Phase 5.1)
+- Current mode: `SAFE_EXECUTION_ADAPTER_MODE`
+- Reason:
+  - Workspace currently has DNSE identity verification (`dnseId`, `dnseVerified`) but does not contain a compliance-approved end-user OTP/Trading-Token partner flow for auto submit.
+  - Real order execution must remain server-side and deterministic-first with explicit human confirmation.
+- Canonical endpoints:
+  - `POST /api/v1/brokers/dnse/order-intents/parse`
+  - `POST /api/v1/brokers/dnse/order-intents/validate`
+  - `POST /api/v1/brokers/dnse/orders/preview`
+  - `POST /api/v1/brokers/dnse/orders/submit`
+- Canonical private broker topics:
+  - `broker:dnse:{userId}:{accountId}:positions`
+  - `broker:dnse:{userId}:{accountId}:orders`
+  - `broker:dnse:{userId}:{accountId}:balance`
+  - `broker:dnse:{userId}:{accountId}:holdings`
+- Compatibility aliases remain readable:
+  - `broker:dnse:{accountId}:{channel}`
+  - `broker:dnse:current-user:{channel}`
+- Production-safe defaults:
+  - `DNSE_ORDER_INTENT_ENABLED=true`
+  - `DNSE_ORDER_PREVIEW_ENABLED=true`
+  - `DNSE_REAL_ORDER_SUBMIT_ENABLED=false`
+  - `DNSE_MANUAL_TEST_TOKEN_MODE=false`
+  - `DNSE_COMPLIANCE_APPROVED_FLOW=false`
+  - `DNSE_ALLOW_REAL_SUBMIT_IN_PROD=false`
+  - `DNSE_ALLOW_MANUAL_TEST_IN_PROD=false`
+- Deterministic boundary:
+  - AI may suggest `OrderIntent` drafts only.
+  - Deterministic gate decides valid/blocked/needs_confirmation.
+  - Human confirmation is mandatory before submit.
+  - If submit is not enabled/approved, API returns `blocked_not_enabled` or `approval_required` (never fake success).
+
+## 8) DNSE Staging Verification (Phase 5.2)
+- Canonical debug API:
+  - `GET /api/admin/system/dnse-execution` (admin only)
+- Canonical debug view:
+  - `/admin/dnse-execution`
+- Canonical runtime validator:
+  - `npm run verify:phase5:runtime`
+- Verification policy:
+  - staging-safe flow must verify parse -> validate -> preview -> submit(safe-mode)
+  - submit must remain blocked/degraded in safe defaults
+  - audit trail and broker topic hydration must be visible with freshness/source/error contract
+- Compliance policy:
+  - if OTP/trading-token end-user flow is not compliance-approved, execution remains safe-gated only
+  - real submit remains OFF by default

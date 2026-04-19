@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { Bot, ChartCandlestick, RefreshCw, Send } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { StockChart } from "@/components/chat/StockChart";
+import { OrderTicketPanel } from "@/components/broker/OrderTicketPanel";
 import { useTopic } from "@/hooks/useTopic";
 import { useTopics } from "@/hooks/useTopics";
 
@@ -672,14 +673,17 @@ export default function StockDetailPage() {
             </div> : null}
           </section>
 
-          <AITalkPanel
-            ticker={resolvedTicker}
-            messages={messages}
-            input={input}
-            setInput={setInput}
-            onSend={handleSend}
-            loading={chatLoading}
-          />
+          <div className="space-y-4">
+            <AITalkPanel
+              ticker={resolvedTicker}
+              messages={messages}
+              input={input}
+              setInput={setInput}
+              onSend={handleSend}
+              loading={chatLoading}
+            />
+            <OrderTicketPanel ticker={resolvedTicker} />
+          </div>
         </div>
       </div>
     </MainLayout>

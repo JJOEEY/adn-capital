@@ -10,7 +10,9 @@
     "check:encoding": "node scripts/check-encoding.mjs",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "verify:phase5:runtime": "node scripts/phase5-runtime-readiness.mjs",
+    "verify:phase5:staging-smoke": "node scripts/phase5-staging-safe-smoke.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",

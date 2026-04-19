@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
 import { fetchFAData, fetchTAData } from "@/lib/stockData";
 import { resolveMarketTicker } from "@/lib/ticker-resolver";
+import { listDnseOrderHistory } from "@/lib/brokers/dnse/order-history";
 import { TopicContext, TopicDefinition } from "./types";
 
 type JsonRecord = Record<string, unknown>;
@@ -453,11 +454,16 @@ async function loadBrokerTopic(connectionId: string, channel: "positions" | "ord
   }
 
   if (channel === "orders") {
+    const orders = await listDnseOrderHistory({
+      userId: context.userId,
+      connectionId,
+      limit: 80,
+    });
     return {
       connected: Boolean(currentUser?.dnseId && currentUser?.dnseVerified),
       connectionId,
-      source: "internal-stub",
-      orders: [],
+      source: "dnse-execution-audit",
+      orders,
     };
   }
 
@@ -479,6 +485,21 @@ async function loadBrokerTopic(connectionId: string, channel: "positions" | "ord
     source: "internal-merged",
     holdings: positions,
   };
+}
+
+async function loadBrokerTopicForUserAccount(
+  targetUserId: string,
+  accountId: string,
+  channel: "positions" | "orders" | "balance" | "holdings",
+  context: TopicContext,
+) {
+  if (!context.userId) {
+    throw new Error("Unauthorized private broker topic");
+  }
+  if (context.userId !== targetUserId) {
+    throw new Error("Forbidden private broker topic");
+  }
+  return loadBrokerTopic(accountId, channel, context);
 }
 
 async function resolveCurrentBrokerConnectionId(userId: string): Promise<string> {
@@ -1022,6 +1043,70 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
       return match ? { ok: true, params: { ticker: match[1] } } : { ok: false };
     },
     resolve: async (topicKey) => loadResearchWorkbench(topicKey),
+  },
+  {
+    id: "broker:dnse:{userId}:{accountId}:positions",
+    ttlMs: 45_000,
+    minIntervalMs: 10_000,
+    source: "broker-sync",
+    version: "v2",
+    access: "private",
+    cacheScope: "user",
+    tags: ["broker", "dnse", "private", "positions", "canonical-v2"],
+    match: (topicKey) => {
+      const match = topicKey.match(/^broker:dnse:([A-Za-z0-9_-]+):([A-Za-z0-9_-]+):positions$/);
+      return match ? { ok: true, params: { userId: match[1], accountId: match[2], channel: "positions" } } : { ok: false };
+    },
+    resolve: async (_, context, params) =>
+      loadBrokerTopicForUserAccount(params.userId, params.accountId, "positions", context),
+  },
+  {
+    id: "broker:dnse:{userId}:{accountId}:orders",
+    ttlMs: 45_000,
+    minIntervalMs: 10_000,
+    source: "broker-sync",
+    version: "v2",
+    access: "private",
+    cacheScope: "user",
+    tags: ["broker", "dnse", "private", "orders", "canonical-v2"],
+    match: (topicKey) => {
+      const match = topicKey.match(/^broker:dnse:([A-Za-z0-9_-]+):([A-Za-z0-9_-]+):orders$/);
+      return match ? { ok: true, params: { userId: match[1], accountId: match[2], channel: "orders" } } : { ok: false };
+    },
+    resolve: async (_, context, params) =>
+      loadBrokerTopicForUserAccount(params.userId, params.accountId, "orders", context),
+  },
+  {
+    id: "broker:dnse:{userId}:{accountId}:balance",
+    ttlMs: 45_000,
+    minIntervalMs: 10_000,
+    source: "broker-sync",
+    version: "v2",
+    access: "private",
+    cacheScope: "user",
+    tags: ["broker", "dnse", "private", "balance", "canonical-v2"],
+    match: (topicKey) => {
+      const match = topicKey.match(/^broker:dnse:([A-Za-z0-9_-]+):([A-Za-z0-9_-]+):balance$/);
+      return match ? { ok: true, params: { userId: match[1], accountId: match[2], channel: "balance" } } : { ok: false };
+    },
+    resolve: async (_, context, params) =>
+      loadBrokerTopicForUserAccount(params.userId, params.accountId, "balance", context),
+  },
+  {
+    id: "broker:dnse:{userId}:{accountId}:holdings",
+    ttlMs: 45_000,
+    minIntervalMs: 10_000,
+    source: "broker-sync",
+    version: "v2",
+    access: "private",
+    cacheScope: "user",
+    tags: ["broker", "dnse", "private", "holdings", "canonical-v2"],
+    match: (topicKey) => {
+      const match = topicKey.match(/^broker:dnse:([A-Za-z0-9_-]+):([A-Za-z0-9_-]+):holdings$/);
+      return match ? { ok: true, params: { userId: match[1], accountId: match[2], channel: "holdings" } } : { ok: false };
+    },
+    resolve: async (_, context, params) =>
+      loadBrokerTopicForUserAccount(params.userId, params.accountId, "holdings", context),
   },
   {
     id: "broker:dnse:{connectionId}:positions",

@@ -1,0 +1,38 @@
+import { invalidateTopics } from "@/lib/datahub/core";
+import { prisma } from "@/lib/prisma";
+
+export type DnseBrokerChannel = "positions" | "orders" | "balance" | "holdings";
+
+export function buildDnseBrokerTopicKeys(connectionId: string): string[] {
+  const channels: DnseBrokerChannel[] = ["positions", "orders", "balance", "holdings"];
+  return channels.map((channel) => `broker:dnse:${connectionId}:${channel}`);
+}
+
+export function buildDnseBrokerTopicKeysV2(userId: string, accountId: string): string[] {
+  const channels: DnseBrokerChannel[] = ["positions", "orders", "balance", "holdings"];
+  return channels.map((channel) => `broker:dnse:${userId}:${accountId}:${channel}`);
+}
+
+export function buildDnseCurrentUserAliasTopicKeys(): string[] {
+  return [
+    "broker:dnse:current-user:positions",
+    "broker:dnse:current-user:orders",
+    "broker:dnse:current-user:balance",
+    "broker:dnse:current-user:holdings",
+  ];
+}
+
+export async function invalidateDnseBrokerTopicsForUser(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { dnseId: true },
+  });
+  const connectionId = user?.dnseId?.trim() ?? "";
+  const topics = [
+    ...buildDnseCurrentUserAliasTopicKeys(),
+    ...(connectionId ? buildDnseBrokerTopicKeysV2(userId, connectionId) : []),
+    ...(connectionId ? buildDnseBrokerTopicKeys(connectionId) : []),
+  ];
+  if (topics.length === 0) return { removed: 0, remaining: 0 };
+  return invalidateTopics({ topics, tags: ["broker", "dnse"] });
+}
