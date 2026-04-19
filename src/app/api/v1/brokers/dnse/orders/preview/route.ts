@@ -6,6 +6,7 @@ import type { OrderExecutionPreview, OrderTicket } from "@/types/dnse-execution"
 import { savePreviewTicket } from "@/lib/brokers/dnse/preview-store";
 import { writeDnseExecutionAudit } from "@/lib/brokers/dnse/audit";
 import { invalidateDnseBrokerTopicsForUser } from "@/lib/brokers/dnse/topics";
+import { getDnseExecutionRolloutSnapshot } from "@/lib/brokers/dnse/rollout";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,33 @@ export async function POST(req: NextRequest) {
   }
 
   const flags = getDnseExecutionFlags();
+  const rollout = await getDnseExecutionRolloutSnapshot({
+    userId: userContext.user.id,
+    email: userContext.user.email,
+    accountId: userContext.approvedConnectionId,
+  });
+  if (rollout.killSwitchEnabled) {
+    await writeDnseExecutionAudit({
+      action: "preview_blocked_kill_switch",
+      description: "DNSE preview blocked by global kill switch",
+      actorUserId: userContext.user.id,
+      targetUserId: userContext.user.id,
+      payload: {
+        mode: flags.mode,
+        rollout,
+      },
+    });
+    return NextResponse.json(
+      {
+        mode: flags.mode,
+        error: "execution_kill_switch_enabled",
+        reason: rollout.killSwitchReason,
+        deterministic: true,
+      },
+      { status: 503 },
+    );
+  }
+
   const body = parseIntentRequestBody(await req.json().catch(() => null));
   const draft = parseOrderIntentDraft({
     text: body.text,
@@ -82,6 +110,7 @@ export async function POST(req: NextRequest) {
     targetUserId: userContext.user.id,
     payload: {
       mode: flags.mode,
+      rollout,
       ticket,
     },
   });
@@ -90,6 +119,7 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     mode: flags.mode,
+    rollout,
     ticket,
     deterministic: true,
     confirmationPhrase: "CONFIRM",

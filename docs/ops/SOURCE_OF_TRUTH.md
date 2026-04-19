@@ -116,3 +116,48 @@ AI forbidden:
 - Compliance policy:
   - if OTP/trading-token end-user flow is not compliance-approved, execution remains safe-gated only
   - real submit remains OFF by default
+
+## 9) DNSE Controlled Pilot (Phase 5.3)
+- Rollout mode:
+  - `COMPLIANCE_GATED_CONTROLLED_PILOT` (implementation mode on top of SAFE execution adapter)
+  - public rollout is not enabled
+  - real submit remains OFF by default
+- Pilot allowlist contract (env + DB-backed settings):
+  - `DNSE_EXECUTION_ALLOWLIST_ENFORCED=true`
+  - `DNSE_EXECUTION_ALLOWLIST_USER_IDS`
+  - `DNSE_EXECUTION_ALLOWLIST_ACCOUNT_IDS`
+  - `DNSE_EXECUTION_ALLOWLIST_EMAILS`
+  - matching happens by `userId | accountId | email`
+- Global kill switch:
+  - `DNSE_EXECUTION_KILL_SWITCH`
+  - `DNSE_EXECUTION_KILL_SWITCH_REASON`
+  - when ON, parse/validate/preview/submit are blocked immediately
+- Safety guards (deterministic):
+  - idempotency cache + replay cooldown + duplicate submit window
+  - market-session guard
+  - max-notional guard
+  - account-binding guard (`intent.accountId` must match approved DNSE link)
+- Compliance gate:
+  - any branch that can reach real submit must return `approval_required` unless:
+    - `DNSE_COMPLIANCE_APPROVED_FLOW=true`
+    - and explicit production override is enabled
+- Canonical debug/read model:
+  - `GET /api/admin/system/dnse-execution`
+  - `/admin/dnse-execution`
+  - includes runtime blockers, rollout state, topic hydration, and parse->validate->preview->submit decision chain.
+
+## 10) DNSE Allowlist Pilot Runtime Verification (Phase 5.4)
+- Canonical verification commands:
+  - `npm run verify:phase5:runtime`
+  - `npm run verify:phase5:pilot-runtime`
+- Canonical operator checklist:
+  - `docs/ops/PHASE5_4_ALLOWLIST_PILOT.md`
+- Runtime verification expectations:
+  - inside allowlist: parse/validate/preview pass, submit remains deterministically blocked by safe/compliance gate
+  - outside allowlist: submit blocked with explicit `pilot_allowlist_required`
+  - kill switch ON: execution entry points are blocked immediately
+  - admin debug route shows filters + decision chain + expected submit status
+- Real submit policy remains unchanged:
+  - no public execution rollout
+  - no compliance bypass
+  - no AI override over deterministic gate

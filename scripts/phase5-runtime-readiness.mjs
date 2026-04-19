@@ -13,6 +13,13 @@ function isPostgresUrl(value) {
   return value.startsWith("postgres://") || value.startsWith("postgresql://");
 }
 
+function parseList(value) {
+  return String(value ?? "")
+    .split(/[,\n;]+/g)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 async function main() {
   const env = process.env;
   const checks = {
@@ -28,6 +35,12 @@ async function main() {
     DNSE_COMPLIANCE_APPROVED_FLOW_DISABLED: !isTruthy(env.DNSE_COMPLIANCE_APPROVED_FLOW, false),
     DNSE_ALLOW_REAL_SUBMIT_IN_PROD_DISABLED: !isTruthy(env.DNSE_ALLOW_REAL_SUBMIT_IN_PROD, false),
     DNSE_ALLOW_MANUAL_TEST_IN_PROD_DISABLED: !isTruthy(env.DNSE_ALLOW_MANUAL_TEST_IN_PROD, false),
+    DNSE_KILL_SWITCH_DISABLED: !isTruthy(env.DNSE_EXECUTION_KILL_SWITCH, false),
+    DNSE_ALLOWLIST_ENFORCED: isTruthy(env.DNSE_EXECUTION_ALLOWLIST_ENFORCED, true),
+    DNSE_MARKET_SESSION_GUARD_ENABLED: isTruthy(env.DNSE_ENFORCE_MARKET_SESSION_GUARD, true),
+    DNSE_DUPLICATE_SUBMIT_WINDOW_VALID:
+      Number.isFinite(Number(env.DNSE_DUPLICATE_SUBMIT_WINDOW_MS ?? "")) &&
+      Number(env.DNSE_DUPLICATE_SUBMIT_WINDOW_MS ?? "") > 0,
   };
 
   const blockers = [];
@@ -43,16 +56,26 @@ async function main() {
   if (!checks.DNSE_COMPLIANCE_APPROVED_FLOW_DISABLED) blockers.push("DNSE_COMPLIANCE_APPROVED_FLOW_must_be_false_by_default");
   if (!checks.DNSE_ALLOW_REAL_SUBMIT_IN_PROD_DISABLED) blockers.push("DNSE_ALLOW_REAL_SUBMIT_IN_PROD_must_be_false");
   if (!checks.DNSE_ALLOW_MANUAL_TEST_IN_PROD_DISABLED) blockers.push("DNSE_ALLOW_MANUAL_TEST_IN_PROD_must_be_false");
-  if (!checks.DNSE_COMPLIANCE_APPROVED_FLOW_DISABLED) {
-    warnings.push("DNSE_COMPLIANCE_APPROVED_FLOW_enabled_check_release_controls");
-  } else {
-    warnings.push("compliance_flow_not_approved_real_submit_remains_blocked");
-  }
+  if (!checks.DNSE_KILL_SWITCH_DISABLED) blockers.push("DNSE_EXECUTION_KILL_SWITCH_must_be_false_for_pilot_verification");
+  if (!checks.DNSE_DUPLICATE_SUBMIT_WINDOW_VALID) blockers.push("DNSE_DUPLICATE_SUBMIT_WINDOW_MS_invalid");
+
+  const envAllowlist = {
+    userIds: parseList(env.DNSE_EXECUTION_ALLOWLIST_USER_IDS),
+    accountIds: parseList(env.DNSE_EXECUTION_ALLOWLIST_ACCOUNT_IDS),
+    emails: parseList(env.DNSE_EXECUTION_ALLOWLIST_EMAILS),
+  };
 
   let dbReachable = false;
   let dnseLinkedUserCount = 0;
   let adminUserCount = 0;
   let dbError = null;
+  let dbSettings = {
+    DNSE_EXECUTION_KILL_SWITCH: "false",
+    DNSE_EXECUTION_ALLOWLIST_ENFORCED: checks.DNSE_ALLOWLIST_ENFORCED ? "true" : "false",
+    DNSE_EXECUTION_ALLOWLIST_USER_IDS: "",
+    DNSE_EXECUTION_ALLOWLIST_ACCOUNT_IDS: "",
+    DNSE_EXECUTION_ALLOWLIST_EMAILS: "",
+  };
 
   if (checks.DATABASE_URL && checks.DIRECT_DATABASE_URL) {
     const prisma = new PrismaClient();
@@ -65,6 +88,17 @@ async function main() {
       adminUserCount = await prisma.user.count({
         where: { systemRole: "ADMIN" },
       });
+      const settingsRows = await prisma.systemSetting.findMany({
+        where: {
+          key: {
+            in: Object.keys(dbSettings),
+          },
+        },
+        select: { key: true, value: true },
+      });
+      for (const row of settingsRows) {
+        dbSettings[row.key] = row.value;
+      }
     } catch (error) {
       dbError = error instanceof Error ? error.message : String(error);
       blockers.push("database_connection_failed");
@@ -73,12 +107,27 @@ async function main() {
     }
   }
 
-  if (dbReachable && dnseLinkedUserCount <= 0) {
-    blockers.push("no_dnse_linked_account_for_topic_hydration");
-  }
-  if (dbReachable && adminUserCount <= 0) {
-    blockers.push("no_admin_user_found");
-  }
+  const mergedAllowlistEnforced = isTruthy(
+    dbSettings.DNSE_EXECUTION_ALLOWLIST_ENFORCED,
+    checks.DNSE_ALLOWLIST_ENFORCED,
+  );
+  const mergedKillSwitch =
+    isTruthy(env.DNSE_EXECUTION_KILL_SWITCH, false) ||
+    isTruthy(dbSettings.DNSE_EXECUTION_KILL_SWITCH, false);
+  const mergedAllowlist = {
+    userIds: Array.from(new Set([...envAllowlist.userIds, ...parseList(dbSettings.DNSE_EXECUTION_ALLOWLIST_USER_IDS)])),
+    accountIds: Array.from(
+      new Set([...envAllowlist.accountIds, ...parseList(dbSettings.DNSE_EXECUTION_ALLOWLIST_ACCOUNT_IDS)]),
+    ),
+    emails: Array.from(new Set([...envAllowlist.emails, ...parseList(dbSettings.DNSE_EXECUTION_ALLOWLIST_EMAILS)])),
+  };
+  const mergedAllowlistCount =
+    mergedAllowlist.userIds.length + mergedAllowlist.accountIds.length + mergedAllowlist.emails.length;
+
+  if (mergedKillSwitch) blockers.push("execution_kill_switch_enabled");
+  if (mergedAllowlistEnforced && mergedAllowlistCount === 0) blockers.push("pilot_allowlist_empty");
+  if (dbReachable && dnseLinkedUserCount <= 0) blockers.push("no_dnse_linked_account_for_topic_hydration");
+  if (dbReachable && adminUserCount <= 0) blockers.push("no_admin_user_found");
 
   const requirements = {
     appHealth: {
@@ -93,6 +142,14 @@ async function main() {
     brokerTopicHydration: {
       required: ["db reachable", ">=1 dnse linked user"],
       pass: dbReachable && dnseLinkedUserCount > 0,
+    },
+    controlledPilotGuards: {
+      required: [
+        "DNSE_EXECUTION_ALLOWLIST_ENFORCED=true",
+        "allowlist has >=1 identity",
+        "kill switch disabled",
+      ],
+      pass: mergedAllowlistEnforced && mergedAllowlistCount > 0 && !mergedKillSwitch,
     },
     executionSafeMode: {
       required: [
@@ -109,9 +166,14 @@ async function main() {
         checks.DNSE_ALLOW_REAL_SUBMIT_IN_PROD_DISABLED &&
         checks.DNSE_ALLOW_MANUAL_TEST_IN_PROD_DISABLED,
     },
-    adminDebugPage: {
-      required: ["admin session", "/api/admin/system/dnse-execution"],
-      pass: adminUserCount > 0,
+    executionSafety: {
+      required: [
+        "DNSE_ENFORCE_MARKET_SESSION_GUARD=true",
+        "DNSE_DUPLICATE_SUBMIT_WINDOW_MS>0",
+      ],
+      pass:
+        checks.DNSE_MARKET_SESSION_GUARD_ENABLED &&
+        checks.DNSE_DUPLICATE_SUBMIT_WINDOW_VALID,
     },
   };
 
@@ -123,6 +185,13 @@ async function main() {
       error: dbError,
       dnseLinkedUserCount,
       adminUserCount,
+      settings: dbSettings,
+    },
+    rollout: {
+      allowlistEnforced: mergedAllowlistEnforced,
+      allowlistCount: mergedAllowlistCount,
+      allowlist: mergedAllowlist,
+      killSwitchEnabled: mergedKillSwitch,
     },
     sessionRequirements: {
       adminSessionRequired: true,

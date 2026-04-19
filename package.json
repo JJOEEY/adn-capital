@@ -12,7 +12,8 @@
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
     "verify:phase5:runtime": "node scripts/phase5-runtime-readiness.mjs",
-    "verify:phase5:staging-smoke": "node scripts/phase5-staging-safe-smoke.mjs"
+    "verify:phase5:staging-smoke": "node scripts/phase5-staging-safe-smoke.mjs",
+    "verify:phase5:pilot-runtime": "node scripts/phase5-pilot-runtime-verify.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",

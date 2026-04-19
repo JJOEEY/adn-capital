@@ -3,6 +3,7 @@ import { getDnseExecutionFlags } from "@/lib/brokers/dnse/flags";
 import { parseOrderIntentDraft, validateOrderIntent } from "@/lib/brokers/dnse/order-intent-gate";
 import { parseIntentRequestBody, requireExecutionUserContext } from "@/lib/brokers/dnse/api";
 import { writeDnseExecutionAudit } from "@/lib/brokers/dnse/audit";
+import { getDnseExecutionRolloutSnapshot } from "@/lib/brokers/dnse/rollout";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,33 @@ export async function POST(req: NextRequest) {
   }
 
   const flags = getDnseExecutionFlags();
+  const rollout = await getDnseExecutionRolloutSnapshot({
+    userId: userContext.user.id,
+    email: userContext.user.email,
+    accountId: userContext.approvedConnectionId,
+  });
+  if (rollout.killSwitchEnabled) {
+    await writeDnseExecutionAudit({
+      action: "validate_blocked_kill_switch",
+      description: "DNSE intent validation blocked by global kill switch",
+      actorUserId: userContext.user.id,
+      targetUserId: userContext.user.id,
+      payload: {
+        mode: flags.mode,
+        rollout,
+      },
+    });
+    return NextResponse.json(
+      {
+        mode: flags.mode,
+        error: "execution_kill_switch_enabled",
+        reason: rollout.killSwitchReason,
+        deterministic: true,
+      },
+      { status: 503 },
+    );
+  }
+
   const body = parseIntentRequestBody(await req.json().catch(() => null));
   const draft = parseOrderIntentDraft({
     text: body.text,
@@ -43,6 +71,7 @@ export async function POST(req: NextRequest) {
     targetUserId: userContext.user.id,
     payload: {
       mode: flags.mode,
+      rollout,
       intent: validation.normalizedIntent,
       validation,
     },

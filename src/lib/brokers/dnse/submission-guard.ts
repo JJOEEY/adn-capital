@@ -9,6 +9,7 @@ type SubmissionRecord = {
 type GuardState = {
   byIdempotency: Map<string, SubmissionRecord>;
   byReplay: Map<string, number>;
+  byDuplicate: Map<string, number>;
 };
 
 const SUBMISSION_GUARD_KEY = Symbol.for("__adn_dnse_submission_guard__");
@@ -20,6 +21,7 @@ function getState(): GuardState {
   const created: GuardState = {
     byIdempotency: new Map(),
     byReplay: new Map(),
+    byDuplicate: new Map(),
   };
   root[SUBMISSION_GUARD_KEY] = created;
   return created;
@@ -32,6 +34,9 @@ function cleanState(nowMs: number) {
   }
   for (const [key, atMs] of state.byReplay.entries()) {
     if (nowMs - atMs > 60_000) state.byReplay.delete(key);
+  }
+  for (const [key, atMs] of state.byDuplicate.entries()) {
+    if (nowMs - atMs > 5 * 60 * 1000) state.byDuplicate.delete(key);
   }
 }
 
@@ -64,6 +69,24 @@ export function checkReplayCooldown(key: string, cooldownMs: number) {
     };
   }
   state.byReplay.set(key, nowMs);
+  return {
+    allowed: true,
+    retryAfterMs: 0,
+  };
+}
+
+export function checkDuplicateSubmit(key: string, duplicateWindowMs: number) {
+  const nowMs = Date.now();
+  cleanState(nowMs);
+  const state = getState();
+  const last = state.byDuplicate.get(key);
+  if (last != null && nowMs - last < duplicateWindowMs) {
+    return {
+      allowed: false,
+      retryAfterMs: duplicateWindowMs - (nowMs - last),
+    };
+  }
+  state.byDuplicate.set(key, nowMs);
   return {
     allowed: true,
     retryAfterMs: 0,

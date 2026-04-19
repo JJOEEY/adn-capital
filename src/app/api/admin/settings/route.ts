@@ -11,6 +11,12 @@ const ALLOWED_SETTINGS = new Set([
   "AI_BROKER_MIN_RR",
   "AI_BROKER_AUTO_PICK",
   "AI_BROKER_MAX_TOTAL_NAV",
+  "DNSE_EXECUTION_KILL_SWITCH",
+  "DNSE_EXECUTION_KILL_SWITCH_REASON",
+  "DNSE_EXECUTION_ALLOWLIST_ENFORCED",
+  "DNSE_EXECUTION_ALLOWLIST_USER_IDS",
+  "DNSE_EXECUTION_ALLOWLIST_ACCOUNT_IDS",
+  "DNSE_EXECUTION_ALLOWLIST_EMAILS",
 ]);
 
 export async function GET(_req: NextRequest) {
@@ -18,13 +24,32 @@ export async function GET(_req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const [mockMode, minPrice, minWinRate, minRr, autoPick, maxTotalNav] = await Promise.all([
+  const [
+    mockMode,
+    minPrice,
+    minWinRate,
+    minRr,
+    autoPick,
+    maxTotalNav,
+    dnseKillSwitch,
+    dnseKillSwitchReason,
+    dnseAllowlistEnforced,
+    dnseAllowlistUserIds,
+    dnseAllowlistAccountIds,
+    dnseAllowlistEmails,
+  ] = await Promise.all([
     isMockMode(),
     getSetting("AI_BROKER_MIN_PRICE", "10"),
     getSetting("AI_BROKER_MIN_WINRATE", "60"),
     getSetting("AI_BROKER_MIN_RR", "1"),
     getSetting("AI_BROKER_AUTO_PICK", "true"),
     getSetting("AI_BROKER_MAX_TOTAL_NAV", "90"),
+    getSetting("DNSE_EXECUTION_KILL_SWITCH", "false"),
+    getSetting("DNSE_EXECUTION_KILL_SWITCH_REASON", ""),
+    getSetting("DNSE_EXECUTION_ALLOWLIST_ENFORCED", "true"),
+    getSetting("DNSE_EXECUTION_ALLOWLIST_USER_IDS", ""),
+    getSetting("DNSE_EXECUTION_ALLOWLIST_ACCOUNT_IDS", ""),
+    getSetting("DNSE_EXECUTION_ALLOWLIST_EMAILS", ""),
   ]);
 
   return NextResponse.json({
@@ -34,6 +59,12 @@ export async function GET(_req: NextRequest) {
     AI_BROKER_MIN_RR: minRr,
     AI_BROKER_AUTO_PICK: autoPick === "true",
     AI_BROKER_MAX_TOTAL_NAV: maxTotalNav,
+    DNSE_EXECUTION_KILL_SWITCH: dnseKillSwitch === "true",
+    DNSE_EXECUTION_KILL_SWITCH_REASON: dnseKillSwitchReason,
+    DNSE_EXECUTION_ALLOWLIST_ENFORCED: dnseAllowlistEnforced === "true",
+    DNSE_EXECUTION_ALLOWLIST_USER_IDS: dnseAllowlistUserIds,
+    DNSE_EXECUTION_ALLOWLIST_ACCOUNT_IDS: dnseAllowlistAccountIds,
+    DNSE_EXECUTION_ALLOWLIST_EMAILS: dnseAllowlistEmails,
     updatedAt: new Date().toISOString(),
   });
 }

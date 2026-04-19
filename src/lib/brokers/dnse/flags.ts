@@ -22,12 +22,15 @@ export type DnseExecutionFlags = {
   isProductionRuntime: boolean;
   maxOrderNotional: number | null;
   replayCooldownMs: number;
+  duplicateSubmitWindowMs: number;
+  enforceMarketSessionGuard: boolean;
   blockedReasons: string[];
 };
 
 export function getDnseExecutionFlags(): DnseExecutionFlags {
   const maxNotionalRaw = Number(process.env.DNSE_MAX_ORDER_NOTIONAL ?? "");
   const cooldownRaw = Number(process.env.DNSE_ORDER_REPLAY_COOLDOWN_MS ?? "");
+  const duplicateWindowRaw = Number(process.env.DNSE_DUPLICATE_SUBMIT_WINDOW_MS ?? "");
   const modeRaw = (process.env.DNSE_EXECUTION_MODE ?? "").trim();
   const mode: DnseExecutionMode =
     modeRaw === "APPROVED_PARTNER_FLOW_MODE"
@@ -69,6 +72,9 @@ export function getDnseExecutionFlags(): DnseExecutionFlags {
     isProductionRuntime,
     maxOrderNotional: Number.isFinite(maxNotionalRaw) && maxNotionalRaw > 0 ? maxNotionalRaw : null,
     replayCooldownMs: Number.isFinite(cooldownRaw) && cooldownRaw > 0 ? cooldownRaw : 12_000,
+    duplicateSubmitWindowMs:
+      Number.isFinite(duplicateWindowRaw) && duplicateWindowRaw > 0 ? duplicateWindowRaw : 30_000,
+    enforceMarketSessionGuard: toBool(process.env.DNSE_ENFORCE_MARKET_SESSION_GUARD, true),
     blockedReasons,
   };
 }
