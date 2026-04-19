@@ -35,11 +35,12 @@
 
 ## 4) Rollback (if deploy/smoke fails)
 - Run:
-  - `bash deploy/rollback-web.sh <git-ref>`
+  - `bash deploy/rollback-web.sh`
 - Rules:
   - rollback web only
   - never restart/stop full stack
   - never touch db service in normal rollback
+  - rollback ref is captured before deploy in `.deploy_prev_ref`
 
 ## Abort Conditions
 - Any precheck failure.

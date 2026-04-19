@@ -8,6 +8,8 @@ RUN_SMOKE="${RUN_SMOKE:-1}"
 RUN_MIGRATIONS="${RUN_MIGRATIONS:-1}"
 ALLOW_UNHEALTHY_BASELINE="${ALLOW_UNHEALTHY_BASELINE:-0}"
 ALLOW_STALE_CRON="${ALLOW_STALE_CRON:-0}"
+PREV_REF_FILE="${PREV_REF_FILE:-.deploy_prev_ref}"
+PREV_IMAGE_FILE="${PREV_IMAGE_FILE:-.deploy_prev_image}"
 
 if command -v docker-compose >/dev/null 2>&1; then
   COMPOSE_BIN="docker-compose"
@@ -20,6 +22,20 @@ echo "[safe-deploy] compose: ${COMPOSE_BIN}"
 echo "[safe-deploy] target branch: ${BRANCH}"
 
 cd "${APP_DIR}"
+PREV_REF="$(git rev-parse HEAD)"
+echo "${PREV_REF}" > "${PREV_REF_FILE}"
+echo "[safe-deploy] captured rollback ref: ${PREV_REF} -> ${PREV_REF_FILE}"
+if ${COMPOSE_BIN} ps -q web >/dev/null 2>&1; then
+  WEB_CID="$(${COMPOSE_BIN} ps -q web || true)"
+  if [[ -n "${WEB_CID}" ]]; then
+    PREV_IMAGE_ID="$(docker inspect -f '{{.Image}}' "${WEB_CID}" 2>/dev/null || true)"
+    if [[ -n "${PREV_IMAGE_ID}" ]]; then
+      echo "${PREV_IMAGE_ID}" > "${PREV_IMAGE_FILE}"
+      echo "[safe-deploy] captured running web image id: ${PREV_IMAGE_ID} -> ${PREV_IMAGE_FILE}"
+    fi
+  fi
+fi
+
 git fetch origin "${BRANCH}"
 git checkout "${BRANCH}"
 git pull --ff-only origin "${BRANCH}"

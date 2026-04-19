@@ -1,19 +1,29 @@
 import type { Metadata } from "next";
 import { AuthProvider } from "@/components/providers/AuthProvider";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
-import { Manrope, Orbitron } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-const manrope = Manrope({
-  subsets: ["latin", "vietnamese"],
-  weight: ["400", "500", "600", "700"],
+const manrope = localFont({
+  src: [
+    {
+      path: "../fonts/Manrope-Variable.ttf",
+      weight: "400 700",
+      style: "normal",
+    },
+  ],
   variable: "--font-manrope",
   display: "swap",
 });
 
-const orbitron = Orbitron({
-  subsets: ["latin"],
-  weight: ["900"],
+const orbitron = localFont({
+  src: [
+    {
+      path: "../fonts/Orbitron-Variable.ttf",
+      weight: "900",
+      style: "normal",
+    },
+  ],
   variable: "--font-orbitron",
   display: "swap",
 });

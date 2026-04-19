@@ -40,6 +40,10 @@ ssh root@14.225.204.117 "cd /home/adncapital/app/adn-capital && bash deploy/post
 
 Rollback web only:
 ```bash
+ssh root@14.225.204.117 "cd /home/adncapital/app/adn-capital && bash deploy/rollback-web.sh"
+```
+If needed, explicit ref is still supported:
+```bash
 ssh root@14.225.204.117 "cd /home/adncapital/app/adn-capital && bash deploy/rollback-web.sh <git-ref>"
 ```
 
@@ -57,6 +61,9 @@ DIRECT_DATABASE_URL=postgresql://adnuser:***@db:5432/adncapital?schema=public
 - `/api/hub/topics` GET and POST return 200.
 - Public routes do not return 5xx.
 - Canonical cron logs are present and not stale.
+- Deploy script captures rollback metadata before pull/build:
+  - `.deploy_prev_ref`
+  - `.deploy_prev_image` (best-effort)
 
 ## Abort Conditions
 - Predeploy reports missing env contract/service mismatch.
