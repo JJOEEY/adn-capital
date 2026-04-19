@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentDbUser } from "@/lib/current-user";
 import { prisma } from "@/lib/prisma";
+import { getPythonBridgeUrl } from "@/lib/runtime-config";
 
 /**
  * GET /api/journal/pnl
@@ -113,7 +114,7 @@ export async function GET(req: NextRequest) {
 
     // Holdings hiện tại (mã đang giữ)
     // Fetch giá thị trường thực từ FiinQuant bridge
-    const BACKEND = process.env.FIINQUANT_URL ?? process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000";
+    const BACKEND = getPythonBridgeUrl();
     const holdingTickers = Object.entries(holdings)
       .filter(([, v]) => v.qty > 0)
       .map(([ticker]) => ticker);

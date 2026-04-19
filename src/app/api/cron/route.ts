@@ -37,13 +37,34 @@ import {
   shouldAutoActivateSignal,
   rebalanceActiveBasketNav,
 } from "@/lib/aiBroker";
+import { invalidateTopics } from "@/lib/datahub/core";
+import { normalizeCronType, LEGACY_CRON_ALIASES } from "@/lib/cron-contracts";
+import { getPythonBridgeUrl } from "@/lib/runtime-config";
 
 export const maxDuration = 120;
 export const dynamic = "force-dynamic";
 
-const PYTHON_BRIDGE = process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000";
+const PYTHON_BRIDGE = getPythonBridgeUrl();
 
-type CronType = "prop_trading" | "intraday" | "market_stats" | "signal_scan_5m";
+function buildInternalCronRequest(url: string): NextRequest {
+  const headers = new Headers();
+  headers.set("x-cron-secret", process.env.CRON_SECRET ?? "adn-cron-dev-key");
+  return new NextRequest(url, { headers });
+}
+
+async function handleMorningBrief(forceRun = false): Promise<NextResponse> {
+  const mod = await import("@/app/api/cron/morning-report/route");
+  const url = new URL("http://localhost/api/cron/morning-report");
+  if (forceRun) url.searchParams.set("force", "1");
+  return mod.GET(buildInternalCronRequest(url.toString()));
+}
+
+async function handleCloseBrief15(forceRun = false): Promise<NextResponse> {
+  const mod = await import("@/app/api/cron/afternoon-review/route");
+  const url = new URL("http://localhost/api/cron/afternoon-review");
+  if (forceRun) url.searchParams.set("force", "1");
+  return mod.GET(buildInternalCronRequest(url.toString()));
+}
 
 function hasMeaningfulBreadth(snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>): boolean {
   const breadth = snapshot.breadth;
@@ -180,23 +201,33 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Không có quyền truy cập" }, { status: 401 });
   }
 
-  const type = req.nextUrl.searchParams.get("type") as CronType | null;
+  const requestedType = req.nextUrl.searchParams.get("type");
+  const type = normalizeCronType(requestedType);
   const sync = req.nextUrl.searchParams.get("sync") === "1";
   const forceRun = req.nextUrl.searchParams.get("force") === "1";
 
-  if (!type || !["prop_trading", "intraday", "market_stats", "signal_scan_5m"].includes(type)) {
+  if (!type) {
     return NextResponse.json(
       {
         error: "Thiếu hoặc sai tham số 'type'",
-        availableTypes: ["prop_trading", "market_stats", "signal_scan_5m"],
+        availableTypes: [
+          "morning_brief",
+          "close_brief_15h",
+          "eod_full_19h",
+          "market_stats_type2",
+          "signal_scan_type1",
+        ],
+        legacyAliases: LEGACY_CRON_ALIASES,
       },
       { status: 400 }
     );
   }
 
   if (sync) {
-    if (type === "prop_trading") return handlePropTrading(forceRun);
-    if (type === "intraday" || type === "market_stats") return handleIntraday(forceRun);
+    if (type === "morning_brief") return handleMorningBrief(forceRun);
+    if (type === "close_brief_15h") return handleCloseBrief15(forceRun);
+    if (type === "eod_full_19h") return handlePropTrading(forceRun);
+    if (type === "market_stats_type2") return handleIntraday(forceRun);
     return handleSignalScan5m();
   }
 
@@ -213,8 +244,10 @@ export async function GET(req: NextRequest) {
 
   const run = async () => {
     try {
-      if (type === "prop_trading") await handlePropTrading(forceRun);
-      else if (type === "intraday" || type === "market_stats") await handleIntraday(forceRun);
+      if (type === "morning_brief") await handleMorningBrief(forceRun);
+      else if (type === "close_brief_15h") await handleCloseBrief15(forceRun);
+      else if (type === "eod_full_19h") await handlePropTrading(forceRun);
+      else if (type === "market_stats_type2") await handleIntraday(forceRun);
       else await handleSignalScan5m();
       await prisma.cronLog.update({
         where: { id: queued.id },
@@ -237,6 +270,7 @@ export async function GET(req: NextRequest) {
     jobId: queued.id,
     queuedAt: queued.createdAt.toISOString(),
     type,
+    requestedType,
   });
 }
 
@@ -247,7 +281,7 @@ export async function GET(req: NextRequest) {
 async function handlePropTrading(forceRun = false): Promise<NextResponse> {
   const startTime = Date.now();
   if (!forceRun && !isTradingDay()) {
-    await logCron("prop_trading", "skipped", "Không phải ngày giao dịch", 0);
+    await logCron("eod_full_19h", "skipped", "Không phải ngày giao dịch", 0);
     return NextResponse.json({ message: "Skipped" });
   }
 
@@ -260,7 +294,7 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
     if (!hasRequiredFull19Data(snapshot) && !forceRun) {
       const duration = Date.now() - startTime;
       await logCron(
-        "prop_trading",
+        "eod_full_19h",
         "skipped",
         "Thiếu dữ liệu bắt buộc cho bản tin 19:00, không publish công khai",
         duration,
@@ -314,9 +348,10 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
       }
     );
     await pushNotification("eod_full_19h", `🌙 Bản tin tổng hợp 19:00 ${today}`, safeReport);
+    invalidateTopics({ tags: ["news", "brief", "market", "dashboard"] });
 
     const duration = Date.now() - startTime;
-    await logCron("prop_trading", "success", `EOD full 19h, ${duration}ms`, duration, {
+    await logCron("eod_full_19h", "success", `EOD full 19h, ${duration}ms`, duration, {
       investorAvailability: snapshot.investorTrading.availability,
       providerDiagnostics: snapshot.providerDiagnostics,
       requestDateVN: snapshot.requestDateVN,
@@ -324,7 +359,7 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
     });
     return NextResponse.json({ type: "eod_full_19h", timestamp: new Date().toISOString(), report: safeReport });
   } catch (error) {
-    await logCron("prop_trading", "error", String(error), Date.now() - startTime);
+    await logCron("eod_full_19h", "error", String(error), Date.now() - startTime);
     return NextResponse.json({ error: "Lỗi Tự Doanh" }, { status: 500 });
   }
 }
@@ -337,7 +372,7 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
 async function handleIntraday(forceRun = false): Promise<NextResponse> {
   const startTime = Date.now();
   if (!forceRun && !isTradingDay()) {
-    await logCron("market_stats", "skipped", "Không phải ngày giao dịch", 0);
+    await logCron("market_stats_type2", "skipped", "Không phải ngày giao dịch", 0);
     return NextResponse.json({ message: "Skipped" });
   }
 
@@ -356,7 +391,7 @@ async function handleIntraday(forceRun = false): Promise<NextResponse> {
     if (!hasRequiredStatsData(snapshot)) {
       const duration = Date.now() - startTime;
       await logCron(
-        "market_stats",
+        "market_stats_type2",
         "skipped",
         "Thiếu dữ liệu bắt buộc cho bản tin cập nhật thông tin, không publish công khai",
         duration,
@@ -368,7 +403,7 @@ async function handleIntraday(forceRun = false): Promise<NextResponse> {
         },
       );
       return NextResponse.json({
-        type: "market_stats",
+        type: "market_stats_type2",
         published: false,
         reason: "missing_required_fields",
       });
@@ -422,16 +457,17 @@ _Powered by ADN Capital AI_`;
 
     const idxInfo = vnidx ? ` | VN-Index: ${vnidx.value} (${vnidx.changePct >= 0 ? "+" : ""}${vnidx.changePct}%)` : "";
     await pushNotification(notifType, `⚡ Market Update ${timeLabel}${idxInfo}`, safeReport);
+    invalidateTopics({ tags: ["market", "dashboard", "news"] });
 
     const duration = Date.now() - startTime;
-    await logCron("market_stats", "success", `${notifType}, ${duration}ms`, duration, {
+    await logCron("market_stats_type2", "success", `${notifType}, ${duration}ms`, duration, {
       providerDiagnostics: snapshot.providerDiagnostics,
       requestDateVN: snapshot.requestDateVN,
       fallbackUsed: snapshot.providerDiagnostics.length > 0,
     });
-    return NextResponse.json({ type: "market_stats", notifType, timeLabel, report: safeReport, timestamp: new Date().toISOString() });
+    return NextResponse.json({ type: "market_stats_type2", notifType, timeLabel, report: safeReport, timestamp: new Date().toISOString() });
   } catch (error) {
-    await logCron("market_stats", "error", String(error), Date.now() - startTime);
+    await logCron("market_stats_type2", "error", String(error), Date.now() - startTime);
     return NextResponse.json({ error: "Lỗi market stats" }, { status: 500 });
   }
 }
@@ -458,7 +494,7 @@ function toSignalKey(ticker: string, type: string): string {
 async function handleSignalScan5m(): Promise<NextResponse> {
   const startTime = Date.now();
   if (!isTradingDay()) {
-    await logCron("signal_scan_5m", "skipped", "Không phải ngày giao dịch", 0);
+    await logCron("signal_scan_type1", "skipped", "Không phải ngày giao dịch", 0);
     return NextResponse.json({ message: "Skipped" });
   }
 
@@ -652,9 +688,10 @@ async function handleSignalScan5m(): Promise<NextResponse> {
         `## TÍN HIỆU MỚI (${windowInfo.label})\n\n${signalText}`
       );
     }
+    invalidateTopics({ tags: ["signal", "broker", "portfolio"] });
 
     const duration = Date.now() - startTime;
-    await logCron("signal_scan_5m", "success",
+    await logCron("signal_scan_type1", "success",
       `Python scan: ${scanResult.detected} phát hiện, tạo ${createdCount}, cập nhật ${updatedCount}, notify ${notifySignals.length}`,
       duration,
       {
@@ -667,7 +704,7 @@ async function handleSignalScan5m(): Promise<NextResponse> {
     );
 
     return NextResponse.json({
-      type: "signal_scan_5m",
+      type: "signal_scan_type1",
       timestamp: new Date().toISOString(),
       message:
         createdCount + updatedCount > 0
@@ -680,7 +717,7 @@ async function handleSignalScan5m(): Promise<NextResponse> {
       totalSignaledToday: alreadySent.size + notifySignals.length,
     });
   } catch (error) {
-    await logCron("signal_scan_5m", "error", String(error), Date.now() - startTime);
+    await logCron("signal_scan_type1", "error", String(error), Date.now() - startTime);
     return NextResponse.json({ error: "Lỗi quét tín hiệu" }, { status: 500 });
   }
 }

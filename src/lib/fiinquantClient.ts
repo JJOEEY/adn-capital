@@ -8,7 +8,9 @@
  * Module này cung cấp typed wrappers cho các endpoint.
  */
 
-const BACKEND = () => process.env.FIINQUANT_URL ?? "http://localhost:8000";
+import { getPythonBridgeUrl } from "@/lib/runtime-config";
+
+const BACKEND = () => getPythonBridgeUrl();
 const TIMEOUT = 30_000;
 
 // ═══════════════════════════════════════════════

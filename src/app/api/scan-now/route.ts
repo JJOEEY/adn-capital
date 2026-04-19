@@ -7,10 +7,11 @@ import {
   shouldAutoActivateSignal,
   rebalanceActiveBasketNav,
 } from "@/lib/aiBroker";
+import { getPythonBridgeUrl } from "@/lib/runtime-config";
 
 export const dynamic = "force-dynamic";
 
-const BACKEND = process.env.FIINQUANT_URL ?? process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000";
+const BACKEND = getPythonBridgeUrl();
 
 interface ScannerSignal {
   ticker: string;

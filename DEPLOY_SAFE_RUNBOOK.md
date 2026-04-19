@@ -1,4 +1,5 @@
 # ADN Capital Safe Deploy Runbook
+Reference baseline: [docs/ops/SOURCE_OF_TRUTH.md](docs/ops/SOURCE_OF_TRUTH.md)
 
 ## Golden command
 ```bash
@@ -9,19 +10,20 @@ ssh root@14.225.204.117 "cd /home/adncapital/app/adn-capital && bash deploy/safe
 1. Never run `docker-compose down`.
 2. Only rebuild/restart `web` service (no full stack restart).
 3. Always prefer `docker-compose` for compose commands (fallback to `docker compose` only when needed).
-4. Keep persistent PostgreSQL storage in `docker-compose.yml`:
+4. Canonical bridge env key is `PYTHON_BRIDGE_URL` (`FIINQUANT_URL` is backward-compat only).
+5. Keep persistent PostgreSQL storage in `docker-compose.yml`:
 ```yaml
 services:
   db:
     volumes:
       - /var/lib/9router/data/postgres:/var/lib/postgresql/data
 ```
-5. `DATABASE_URL` must point to `pgbouncer`, `DIRECT_DATABASE_URL` must point to `db`:
+6. `DATABASE_URL` must point to `pgbouncer`, `DIRECT_DATABASE_URL` must point to `db`:
 ```env
 DATABASE_URL=postgresql://adnuser:adn_pass_99@pgbouncer:5432/adncapital?pgbouncer=true
 DIRECT_DATABASE_URL=postgresql://adnuser:adn_pass_99@db:5432/adncapital
 ```
-6. Keep persistent storage for Guide images in `web`:
+7. Keep persistent storage for Guide images in `web`:
 ```yaml
 services:
   web:
@@ -30,16 +32,19 @@ services:
     volumes:
       - ./app_data/guides:/app/storage/guides
 ```
-7. Ensure host folder permissions before deploy:
+8. Ensure host folder permissions before deploy:
 ```bash
 mkdir -p ./app_data/guides
 chmod 775 ./app_data ./app_data/guides
 ```
-8. API keys must come from secrets/env only (no hardcode in source/logs):
+9. API keys must come from secrets/env only (no hardcode in source/logs):
 ```env
 DNSE_API_KEY=*** (secret only)
 DNSE_MARKET_SNAPSHOT_URL=https://... (optional)
 ```
+10. Scheduler canonical names:
+`signal_scan_type1`, `market_stats_type2`, `morning_brief`, `close_brief_15h`, `eod_full_19h`
+Legacy aliases remain for compatibility only: `signal_scan_5m`, `market_stats`, `intraday`, `prop_trading`.
 
 ## Quota Optimization Plan (4 steps)
 1. Free-first data routing:
@@ -83,7 +88,7 @@ ssh root@14.225.204.117 "cd /home/adncapital/app/adn-capital && docker-compose e
 Expected: recent notification feed records exist.
 
 ```bash
-ssh root@14.225.204.117 "cd /home/adncapital/app/adn-capital && docker-compose exec -T db psql -U adnuser -d adncapital -c \"SELECT \\\"cronName\\\", status, \\\"createdAt\\\" FROM \\\"CronLog\\\" WHERE \\\"cronName\\\" IN ('signal_scan_5m','signal_scan','signal-lifecycle') ORDER BY \\\"createdAt\\\" DESC LIMIT 20;\""
+ssh root@14.225.204.117 "cd /home/adncapital/app/adn-capital && docker-compose exec -T db psql -U adnuser -d adncapital -c \"SELECT \\\"cronName\\\", status, \\\"createdAt\\\" FROM \\\"CronLog\\\" WHERE \\\"cronName\\\" IN ('signal_scan_type1','market_stats_type2','morning_brief','close_brief_15h','eod_full_19h','signal_scan_5m') ORDER BY \\\"createdAt\\\" DESC LIMIT 20;\""
 ```
 Expected: periodic cron logs are present.
 

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getPythonBridgeUrl } from "@/lib/runtime-config";
 
 /**
  * RS Rating API — Proxy → Python FastAPI /api/v1/rs-rating
@@ -6,7 +7,7 @@ import { NextResponse } from "next/server";
  * Cache 15 phút.
  */
 
-const BACKEND = process.env.FIINQUANT_URL ?? process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000";
+const BACKEND = getPythonBridgeUrl();
 
 let cache: { data: unknown; ts: number } | null = null;
 const CACHE_TTL = 15 * 60 * 1000; // 15 phút

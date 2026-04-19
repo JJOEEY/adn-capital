@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getPythonBridgeUrl } from "@/lib/runtime-config";
 
-const FIINQUANT_BRIDGE = process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000";
+const FIINQUANT_BRIDGE = getPythonBridgeUrl();
 
 const DCHART_BASE = "https://dchart-api.vndirect.com.vn/dchart/history";
 const DCHART_HEADERS: HeadersInit = {

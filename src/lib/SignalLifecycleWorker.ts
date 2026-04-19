@@ -24,6 +24,7 @@ import {
   shouldAutoActivateSignal,
   rebalanceActiveBasketNav,
 } from "@/lib/aiBroker";
+import { getPythonBridgeUrl } from "@/lib/runtime-config";
 
 // ═══════════════════════════════════════════════════════════════════
 //  Constants
@@ -31,7 +32,7 @@ import {
 
 const HOLD_TO_DIE_THRESHOLD = 20;   // % PnL để vào HOLD_TO_DIE
 const TEI_EXIT_THRESHOLD    = 4.8;  // TEI hưng phấn cực độ → chốt lời
-const PYTHON_BRIDGE = process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000";
+const PYTHON_BRIDGE = getPythonBridgeUrl();
 
 // ═══════════════════════════════════════════════════════════════════
 //  Types

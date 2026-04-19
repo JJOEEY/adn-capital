@@ -1,6 +1,5 @@
 "use client";
 
-import useSWR from "swr";
 import {
   Zap,
   TrendingUp,
@@ -10,17 +9,12 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { MorningNewsSkeleton } from "./NewsSkeleton";
+import { useTopic } from "@/hooks/useTopic";
 
 /* ═══════════════════════════════════════════════════════════════════════════
  *  MorningNews — Bản tin sáng FiinQuant  ·  08:00
  *  Design: 3D Card nổi, viền phát sáng amber, dark mode premium
  * ═══════════════════════════════════════════════════════════════════════════ */
-
-const fetcher = (url: string) =>
-  fetch(url).then((r) => {
-    if (!r.ok) throw new Error("Fetch failed");
-    return r.json();
-  });
 
 /** Kiểu dữ liệu Gemini trả về cho morning */
 interface MorningData {
@@ -83,18 +77,15 @@ function normalizeListForDisplay(items?: string[]): string[] {
 }
 
 export function MorningNews() {
-  const { data, isLoading } = useSWR<MorningData>(
-    "/api/market-news?type=morning",
-    fetcher,
-    {
-      revalidateOnFocus: false,
-      keepPreviousData: true,
-      dedupingInterval: 300_000,
-      fallbackData: undefined,
-    },
-  );
+  const morningTopic = useTopic<MorningData>("brief:morning:latest", {
+    pollMs: 300_000,
+    revalidateOnFocus: false,
+    dedupingInterval: 60_000,
+    staleWhileRevalidate: true,
+  });
+  const data = morningTopic.data;
 
-  if (isLoading || !data) return <MorningNewsSkeleton />;
+  if ((morningTopic.isLoading && !data) || !data) return <MorningNewsSkeleton />;
 
   const vnItems = normalizeListForDisplay(data.vn_market);
   const macroItems = normalizeListForDisplay(data.macro);
@@ -131,7 +122,12 @@ export function MorningNews() {
             </p>
           </div>
         </div>
-        <span className="text-[12px] font-mono" style={{ color: "var(--text-muted)" }}>{data.date}</span>
+        <div className="text-right">
+          <span className="text-[12px] font-mono block" style={{ color: "var(--text-muted)" }}>
+            {data.date}
+          </span>
+          <FreshnessBadge freshness={morningTopic.freshness} />
+        </div>
       </div>
 
       <div className="relative z-10 p-5 space-y-5">
@@ -229,6 +225,25 @@ export function MorningNews() {
         </div>
       </div>
     </div>
+  );
+}
+
+function FreshnessBadge({ freshness }: { freshness: string | null }) {
+  if (!freshness) return null;
+  const normalized = freshness.toLowerCase();
+  const isFresh = normalized === "fresh";
+  const isStale = normalized === "stale";
+  const label = isFresh ? "Fresh" : isStale ? "Stale" : normalized.toUpperCase();
+  const style = isFresh
+    ? { color: "#16a34a", borderColor: "rgba(22,163,74,0.25)", background: "rgba(22,163,74,0.10)" }
+    : isStale
+      ? { color: "#f59e0b", borderColor: "rgba(245,158,11,0.25)", background: "rgba(245,158,11,0.10)" }
+      : { color: "var(--danger)", borderColor: "rgba(192,57,43,0.25)", background: "rgba(192,57,43,0.10)" };
+
+  return (
+    <span className="mt-1 inline-block rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider" style={style}>
+      {label}
+    </span>
   );
 }
 

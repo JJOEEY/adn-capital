@@ -1,9 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { getPythonBridgeUrl } from "@/lib/runtime-config";
 
 export const dynamic = "force-dynamic";
 
-const FIINQUANT_BRIDGE =
-  (process.env.FIINQUANT_URL ?? process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000").replace(/\/$/, "");
+const FIINQUANT_BRIDGE = getPythonBridgeUrl();
 const PYTHON_API = `${FIINQUANT_BRIDGE}/api/v1`;
 
 function toNumber(value: unknown): number | null {

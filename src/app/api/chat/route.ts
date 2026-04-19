@@ -14,12 +14,14 @@ import { prisma } from "@/lib/prisma";
 import { executeAIRequest, INTENT } from "@/lib/gemini";
 import { consumeChatQuota, resolveChatQuota } from "@/lib/chat-quota";
 import { fetchTAData, fetchFAData, type TAData, type FAData } from "@/lib/stockData";
+import { resolveMarketTicker } from "@/lib/ticker-resolver";
 import { isMockMode } from "@/lib/settings";
 import { MockFactory } from "@/lib/mock-factory";
 import { getFullWidgetData } from "@/lib/widget-service";
 import { getVnDateISO } from "@/lib/time";
+import { getPythonBridgeUrl } from "@/lib/runtime-config";
 
-const FIINQUANT_BRIDGE = process.env.FIINQUANT_URL ?? process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000";
+const FIINQUANT_BRIDGE = getPythonBridgeUrl();
 
 // ─── Knowledge Base Cache ─────────────────────────────────────
 let knowledgeCache: { content: string; ts: number } | null = null;
@@ -480,6 +482,25 @@ function extractTickerCandidates(msg: string): string[] {
   return all.filter((code) => isLikelyTicker(code)).slice(0, 5);
 }
 
+async function filterValidTickers(codes: string[], limit = 5): Promise<string[]> {
+  const unique = [...new Set(codes.map((code) => code.toUpperCase()))]
+    .filter((code) => /^[A-Z0-9._-]{2,12}$/.test(code))
+    .filter((code) => !TICKER_STOP_WORDS.has(code))
+    .slice(0, 12);
+
+  if (unique.length === 0) return [];
+
+  const results = await Promise.all(
+    unique.map(async (code) => {
+      if (KNOWN_TICKERS.has(code)) return code;
+      const resolved = await resolveMarketTicker(code);
+      return resolved.valid ? resolved.ticker : null;
+    }),
+  );
+
+  return results.filter((code): code is string => Boolean(code)).slice(0, limit);
+}
+
 // ─── Intent Detection (REGEX-FIRST, LLM fallback) ────────────────
 async function detectIntent(msg: string): Promise<{ intent: "CHAT_GENERAL" | "ANALYZE_TICKER" | "COMPARE"; ticker?: string; tickers?: string[] }> {
   const upper = msg.trim().toUpperCase();
@@ -487,7 +508,7 @@ async function detectIntent(msg: string): Promise<{ intent: "CHAT_GENERAL" | "AN
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
-  const tickersInMessage = extractTickerCandidates(msg);
+  const tickersInMessage = await filterValidTickers(extractTickerCandidates(msg), 5);
 
   if (tickersInMessage.length >= 2) {
     return { intent: "COMPARE", tickers: tickersInMessage };
@@ -496,7 +517,10 @@ async function detectIntent(msg: string): Promise<{ intent: "CHAT_GENERAL" | "AN
   // ── Fast path 1: bare ticker ("fpt", "FPT", "MWG sao em") ──
   const bareTickerMatch = upper.match(/^([A-Z]{2,5})(?:\s|$|\?|!|,|\.)/);
   if (bareTickerMatch && isLikelyTicker(bareTickerMatch[1])) {
-    return { intent: "ANALYZE_TICKER", ticker: bareTickerMatch[1] };
+    const validated = await filterValidTickers([bareTickerMatch[1]], 1);
+    if (validated.length > 0) {
+      return { intent: "ANALYZE_TICKER", ticker: validated[0] };
+    }
   }
 
   // ── Fast path 2: câu có keyword phân tích + chứa mã nằm trong danh sách known tickers ──
@@ -522,9 +546,9 @@ async function detectIntent(msg: string): Promise<{ intent: "CHAT_GENERAL" | "AN
   const hasAnalysisKeyword = analysisKeywords.some((kw) => normalized.includes(kw));
   if (hasAnalysisKeyword) {
     const candidates = upper.match(/\b([A-Z]{2,5})\b/g) ?? [];
-    const ticker = candidates.find((c) => isLikelyTicker(c));
-    if (ticker) {
-      return { intent: "ANALYZE_TICKER", ticker };
+    const validated = await filterValidTickers(candidates, 1);
+    if (validated.length > 0) {
+      return { intent: "ANALYZE_TICKER", ticker: validated[0] };
     }
   }
 
@@ -1179,26 +1203,30 @@ export async function POST(req: NextRequest) {
     // 🚫 TICKER INTERCEPTOR — DÒNG ĐẦU TIÊN, TRƯỚC MỌI THỨ
     // Không để LLM quyết định widget/text. TypeScript quyết định.
     // ══════════════════════════════════════════════════════════
-    const { cmd, stock, compareStocks } = parseCommand(message);
+    const { cmd, stock: parsedStock, compareStocks } = parseCommand(message);
     const upper = message.trim().toUpperCase();
     const detectedIntent = !cmd
       ? await detectIntent(message)
       : { intent: "CHAT_GENERAL" as const };
-    const isDirectTicker = !cmd && isLikelyTicker(upper);
+    const isDirectTickerCandidate = !cmd && isLikelyTicker(upper) && /^[A-Z0-9._-]{2,12}$/.test(upper);
+    const directTickerResolution = isDirectTickerCandidate ? await resolveMarketTicker(upper) : null;
+    const directTicker = directTickerResolution?.valid ? directTickerResolution.ticker : null;
     const detectedTicker =
       !cmd && detectedIntent.intent === "ANALYZE_TICKER"
         ? detectedIntent.ticker ?? null
         : null;
+    const commandStockResolution = parsedStock ? await resolveMarketTicker(parsedStock) : null;
+    const stock = commandStockResolution?.valid ? commandStockResolution.ticker : null;
     const compareTickers =
       cmd === "/compare"
-        ? compareStocks
+        ? await filterValidTickers(compareStocks, 5)
         : detectedIntent.intent === "COMPARE"
           ? detectedIntent.tickers ?? []
           : [];
     const isCompareFlow = compareTickers.length >= 2;
     const widgetTicker = !isCompareFlow
-      ? isDirectTicker
-        ? upper
+      ? directTicker
+        ? directTicker
         : detectedTicker
       : null;
     const shouldRenderWidget = Boolean(widgetTicker);
@@ -1308,7 +1336,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (cmd === "/compare" && compareStocks.length < 2) {
+    if (cmd === "/compare" && compareTickers.length < 2) {
       return NextResponse.json({
         message:
           'Hệ thống cần ít nhất 2 mã để so sánh. Ví dụ: **/compare HPG HSG** hoặc **/compare FPT CMG VGI**.',

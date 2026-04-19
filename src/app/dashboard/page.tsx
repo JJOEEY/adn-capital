@@ -1,7 +1,6 @@
 ﻿"use client";
 
 import { useEffect, useState, useMemo, useCallback, memo, Suspense, Component, type ReactNode } from "react";
-import useSWR from "swr";
 import { RefreshCw, Bot, Zap, ShieldAlert, Flame, AlertTriangle, TrendingUp } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/Button";
@@ -14,6 +13,7 @@ import { EveningNews } from "@/components/dashboard/EveningNews";
 import { MorningNewsSkeleton, EveningNewsSkeleton } from "@/components/dashboard/NewsSkeleton";
 import { LockOverlay } from "@/components/ui/LockOverlay";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useTopic } from "@/hooks/useTopic";
 
 interface MarketData {
   status: "GOOD" | "BAD" | "NEUTRAL";
@@ -41,6 +41,10 @@ interface EodBriefData {
   liquidity?: number | string | null;
   liquidity_detail?: string | null;
 }
+
+type SignalActivePayload = {
+  id: string;
+};
 
 /** Dữ liệu "Đánh giá Đáy Thị Trường" từ Python API */
 interface MarketOverview {
@@ -135,12 +139,23 @@ class SafeSection extends Component<
   }
 }
 
-/** SWR fetcher — throw on HTTP error để SWR retry */
-const swrFetcher = (url: string) =>
-  fetch(url, { signal: AbortSignal.timeout(30_000) }).then((r) => {
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    return r.json();
-  });
+function FreshnessPill({ label, freshness }: { label: string; freshness: string | null }) {
+  const state = (freshness ?? "unknown").toLowerCase();
+  const isFresh = state === "fresh";
+  const isStale = state === "stale";
+  const text = isFresh ? "Fresh" : isStale ? "Stale" : state.toUpperCase();
+  const style = isFresh
+    ? { color: "#16a34a", borderColor: "rgba(22,163,74,0.25)", background: "rgba(22,163,74,0.10)" }
+    : isStale
+      ? { color: "#f59e0b", borderColor: "rgba(245,158,11,0.25)", background: "rgba(245,158,11,0.10)" }
+      : { color: "var(--danger)", borderColor: "rgba(192,57,43,0.25)", background: "rgba(192,57,43,0.10)" };
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider" style={style}>
+      <span>{label}</span>
+      <span>· {text}</span>
+    </span>
+  );
+}
 
 export default function DashboardPage() {
   const { isVip } = useSubscription();
@@ -150,60 +165,52 @@ export default function DashboardPage() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  /* ── SWR config chung: giữ data cũ, không gọi lại khi chuyển tab ── */
-  const swrOpts = {
-    keepPreviousData: true,
+  /* ── DataHub topic hooks ── */
+  const marketOverviewTopic = useTopic<MarketData>("vn:index:overview", {
+    refreshInterval: 60_000,
+    revalidateOnFocus: false,
+    dedupingInterval: 15_000,
+  });
+  const marketCompositeCacheTopic = useTopic<MarketOverview>("vn:index:composite", {
+    refreshInterval: 60_000,
+    revalidateOnFocus: false,
+    dedupingInterval: 15_000,
+  });
+  const marketCompositeLiveTopic = useTopic<MarketOverview>("vn:index:composite:live", {
+    refreshInterval: 300_000,
     revalidateOnFocus: false,
     dedupingInterval: 60_000,
-    refreshInterval: 60_000,
-  };
-
-  /* ── 3 SWR hooks song song ── */
-  const {
-    data,
-    isLoading: loadingMarket,
-    isValidating: validatingMarket,
-    mutate: mutateMarket,
-  } = useSWR<MarketData>("/api/market", swrFetcher, swrOpts);
-
-  // Primary: market-status (từ file cache, load tức thì ~20ms)
-  const {
-    data: marketStatus,
-  } = useSWR<MarketOverview>("/api/market-status", swrFetcher, {
-    ...swrOpts,
-    refreshInterval: 0,
-    shouldRetryOnError: false,
   });
-
-  // Secondary: market-overview (từ Python bridge, đầy đủ hơn nhưng chậm)
-  const {
-    data: overview,
-    isLoading: loadingOverview,
-    mutate: mutateOverview,
-  } = useSWR<MarketOverview>("/api/market-overview", swrFetcher, {
-    ...swrOpts,
-    refreshInterval: 0,
-    errorRetryCount: 2,
-    errorRetryInterval: 5000,
-  });
-
-  const { data: eodBrief } = useSWR<EodBriefData>("/api/market-news?type=eod", swrFetcher, {
-    ...swrOpts,
+  const eodTopic = useTopic<EodBriefData>("news:eod:latest", {
     refreshInterval: 300_000,
+    revalidateOnFocus: false,
+    dedupingInterval: 60_000,
   });
+  const activeSignalsTopic = useTopic<SignalActivePayload[]>("signal:market:active", {
+    refreshInterval: 60_000,
+    revalidateOnFocus: false,
+    dedupingInterval: 15_000,
+  });
+
+  const data = marketOverviewTopic.data;
+  const marketStatus = marketCompositeCacheTopic.data;
+  const overview = marketCompositeLiveTopic.data;
+  const eodBrief = eodTopic.data;
 
   // Dùng overview nếu có (đầy đủ), fallback về marketStatus (từ cache)
   const effectiveOverview = overview ?? marketStatus ?? null;
 
 
   /* ── Derived state ── */
-  const loading = !mounted || (!data && loadingMarket);
-  const refreshing = mounted && !!data && validatingMarket;
+  const loading = !mounted || (!data && marketOverviewTopic.isLoading);
+  const refreshing = mounted && !!data && marketOverviewTopic.isValidating;
 
   const handleRefresh = useCallback(() => {
-    mutateMarket();
-    mutateOverview();
-  }, [mutateMarket, mutateOverview]);
+    void marketOverviewTopic.refresh(true);
+    void marketCompositeCacheTopic.refresh(true);
+    void marketCompositeLiveTopic.refresh(true);
+    void eodTopic.refresh(true);
+  }, [marketOverviewTopic, marketCompositeCacheTopic, marketCompositeLiveTopic, eodTopic]);
 
   const tickerItems = useMemo(() => {
     if (!data) return [];
@@ -259,6 +266,11 @@ export default function DashboardPage() {
             <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
               Tổng quan thị trường · {data?.date ?? "..."}
             </p>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <FreshnessPill label="Market" freshness={marketOverviewTopic.freshness} />
+              <FreshnessPill label="Brief" freshness={eodTopic.freshness} />
+              <FreshnessPill label="Signal" freshness={activeSignalsTopic.freshness} />
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <Button

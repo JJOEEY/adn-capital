@@ -1,6 +1,5 @@
 "use client";
 
-import useSWR from "swr";
 import {
   Moon,
   Lightbulb,
@@ -16,17 +15,12 @@ import {
   Rocket,
 } from "lucide-react";
 import { EveningNewsSkeleton } from "./NewsSkeleton";
+import { useTopic } from "@/hooks/useTopic";
 
 /* ═══════════════════════════════════════════════════════════════════════════
  *  EveningNews — Tổng hợp Thị trường  ·  19:00
  *  Kết hợp: Flashnote (text) + Bảng Dòng Tiền (CSS Grid dark mode)
  * ═══════════════════════════════════════════════════════════════════════════ */
-
-const fetcher = (url: string) =>
-  fetch(url).then((r) => {
-    if (!r.ok) throw new Error("Fetch failed");
-    return r.json();
-  });
 
 interface EodData {
   date: string;
@@ -82,18 +76,15 @@ function normalizeSubIndices(
 }
 
 export function EveningNews() {
-  const { data, isLoading } = useSWR<EodData>(
-    "/api/market-news?type=eod",
-    fetcher,
-    {
-      revalidateOnFocus: false,
-      keepPreviousData: true,
-      dedupingInterval: 300_000,
-      fallbackData: undefined,
-    },
-  );
+  const eodTopic = useTopic<EodData>("news:eod:latest", {
+    pollMs: 300_000,
+    revalidateOnFocus: false,
+    dedupingInterval: 60_000,
+    staleWhileRevalidate: true,
+  });
+  const data = eodTopic.data;
 
-  if (isLoading || !data) return <EveningNewsSkeleton />;
+  if ((eodTopic.isLoading && !data) || !data) return <EveningNewsSkeleton />;
 
   const up = data.change_pct >= 0;
   const normalizedSubIndices = normalizeSubIndices(data.sub_indices);
@@ -130,6 +121,7 @@ export function EveningNews() {
           <span className="text-[12px] font-mono block" style={{ color: "var(--text-muted)" }}>
             {data.date}
           </span>
+          <FreshnessBadge freshness={eodTopic.freshness} />
           {data.vnindex > 0 && (
             <span className="text-xs font-bold" style={{ color: up ? "#16a34a" : "var(--danger)" }}>
               VNI {data.vnindex.toLocaleString("en-US", { maximumFractionDigits: 1 })} (
@@ -361,6 +353,25 @@ export function EveningNews() {
         </div>
       </div>
     </div>
+  );
+}
+
+function FreshnessBadge({ freshness }: { freshness: string | null }) {
+  if (!freshness) return null;
+  const normalized = freshness.toLowerCase();
+  const isFresh = normalized === "fresh";
+  const isStale = normalized === "stale";
+  const label = isFresh ? "Fresh" : isStale ? "Stale" : normalized.toUpperCase();
+  const style = isFresh
+    ? { color: "#16a34a", borderColor: "rgba(22,163,74,0.25)", background: "rgba(22,163,74,0.10)" }
+    : isStale
+      ? { color: "#f59e0b", borderColor: "rgba(245,158,11,0.25)", background: "rgba(245,158,11,0.10)" }
+      : { color: "var(--danger)", borderColor: "rgba(192,57,43,0.25)", background: "rgba(192,57,43,0.10)" };
+
+  return (
+    <span className="mt-1 inline-block rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider" style={style}>
+      {label}
+    </span>
   );
 }
 

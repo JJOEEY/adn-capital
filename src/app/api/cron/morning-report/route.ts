@@ -18,6 +18,7 @@ import {
 import { getMarketSnapshot, formatSnapshotForAI } from "@/lib/marketDataFetcher";
 import { fetchAllCafefNews, buildCafefContext } from "@/lib/cafefScraper";
 import { getVnNow } from "@/lib/time";
+import { invalidateTopics } from "@/lib/datahub/core";
 
 export const maxDuration = 60;
 
@@ -157,6 +158,7 @@ _Powered by ADN Capital AI_`;
 
     // ── 4. Push Notification ──────────────────────────────────────────
     await pushNotification("morning_brief", `☀️ Bản tin sáng ${today}`, safeReport);
+    invalidateTopics({ tags: ["news", "brief", "dashboard", "market"] });
 
     const duration = Date.now() - startTime;
     await logCron("morning_brief", "success", `Created in ${duration}ms`, duration, {

@@ -12,6 +12,7 @@ import {
 } from "@/lib/cronHelpers";
 import { getMarketSnapshot, getInvestorTradingText } from "@/lib/marketDataFetcher";
 import { getVnNow } from "@/lib/time";
+import { invalidateTopics } from "@/lib/datahub/core";
 
 export const maxDuration = 60;
 
@@ -120,6 +121,7 @@ export async function GET(req: NextRequest) {
     );
 
     await pushNotification("close_brief_15h", `🌆 Bản tin kết phiên ${today}`, safeReport);
+    invalidateTopics({ tags: ["news", "brief", "dashboard", "market"] });
 
     const duration = Date.now() - startTime;
     await logCron("close_brief_15h", "success", `Verdict: ${isGood ? "GOOD" : "BAD"}`, duration, {

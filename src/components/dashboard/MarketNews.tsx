@@ -1,10 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import useSWR from "swr";
 import { Newspaper, Sun, Moon, ChevronDown, ChevronUp, TrendingUp, TrendingDown, AlertTriangle, Lightbulb } from "lucide-react";
-
-const fetcher = (url: string) => fetch(url).then((r) => (r.ok ? r.json() : null));
+import { useTopic } from "@/hooks/useTopic";
 
 type Tone = "emerald" | "red" | "blue" | "amber" | "indigo" | "purple";
 
@@ -21,15 +19,17 @@ const TONE = {
  *  Morning Intelligence — Tin tức buổi sáng lúc 8h
  * ═══════════════════════════════════════════════════════════════════════════ */
 export function MorningNews() {
-  const { data, isLoading, error } = useSWR("/api/news?type=morning", fetcher, {
+  const morningTopic = useTopic<any>("brief:morning:latest", {
+    refreshInterval: 300_000,
     revalidateOnFocus: false,
-    keepPreviousData: true,
-    dedupingInterval: 300_000,
+    dedupingInterval: 60_000,
+    staleWhileRevalidate: true,
   });
+  const data = morningTopic.data;
   const [expanded, setExpanded] = useState(false);
 
-  if (isLoading) return <NewsSkeleton title="MORNING INTELLIGENCE" icon={<Sun className="w-4 h-4" style={{ color: TONE.amber.text }} />} />;
-  if (error || !data) return null;
+  if (morningTopic.isLoading) return <NewsSkeleton title="MORNING INTELLIGENCE" icon={<Sun className="w-4 h-4" style={{ color: TONE.amber.text }} />} />;
+  if (!data) return null;
 
   return (
     <div className="bg-[var(--surface)] border rounded-2xl overflow-hidden" style={{ borderColor: "rgba(245,158,11,0.20)" }}>
@@ -123,15 +123,17 @@ export function MorningNews() {
  *  EOD Flash Note — Tổng hợp cuối ngày lúc 19h
  * ═══════════════════════════════════════════════════════════════════════════ */
 export function EODSummary() {
-  const { data, isLoading, error } = useSWR("/api/news?type=eod", fetcher, {
+  const eodTopic = useTopic<any>("news:eod:latest", {
+    refreshInterval: 300_000,
     revalidateOnFocus: false,
-    keepPreviousData: true,
-    dedupingInterval: 300_000,
+    dedupingInterval: 60_000,
+    staleWhileRevalidate: true,
   });
+  const data = eodTopic.data;
   const [expanded, setExpanded] = useState(false);
 
-  if (isLoading) return <NewsSkeleton title="EOD FLASH NOTE" icon={<Moon className="w-4 h-4" style={{ color: TONE.indigo.text }} />} />;
-  if (error || !data) return null;
+  if (eodTopic.isLoading) return <NewsSkeleton title="EOD FLASH NOTE" icon={<Moon className="w-4 h-4" style={{ color: TONE.indigo.text }} />} />;
+  if (!data) return null;
 
   const pctColor = (data.change_pct ?? 0) >= 0 ? TONE.emerald.text : TONE.red.text;
 

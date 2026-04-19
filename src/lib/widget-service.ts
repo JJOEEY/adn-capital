@@ -13,8 +13,9 @@ import { prisma } from "@/lib/prisma";
 import { executeAIRequest, INTENT } from "@/lib/gemini";
 import { fetchFAData, type FAData } from "@/lib/stockData";
 import { getVnNow } from "@/lib/time";
+import { getPythonBridgeUrl } from "@/lib/runtime-config";
 
-const BRIDGE = process.env.FIINQUANT_URL ?? "http://localhost:8000";
+const BRIDGE = getPythonBridgeUrl();
 const AI_BROKER_STYLE =
   'Bạn là ADN AI Broker của ADN Capital. Xưng hô "Hệ thống", gọi người dùng là "Nhà đầu tư". Giọng văn chuyên nghiệp, kỷ luật, không dùng tiếng lóng.';
 

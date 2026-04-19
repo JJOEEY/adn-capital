@@ -7,6 +7,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { InvestmentChat } from "@/components/chat/InvestmentChat";
 import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 import { useChat } from "@/hooks/useChat";
+import { useTopic } from "@/hooks/useTopic";
 import { useChatStore } from "@/store/chatStore";
 
 // Shape hiển thị extra message từ free-text response
@@ -17,6 +18,28 @@ interface ExtMessage {
   createdAt: number;
 }
 
+type ActiveSignalRow = {
+  id: string;
+};
+
+function FreshnessBadge({ freshness }: { freshness: string | null }) {
+  if (!freshness) return null;
+  const state = freshness.toLowerCase();
+  const isFresh = state === "fresh";
+  const isStale = state === "stale";
+  const label = isFresh ? "Fresh" : isStale ? "Stale" : state.toUpperCase();
+  const style = isFresh
+    ? { color: "#16a34a", borderColor: "rgba(22,163,74,0.25)", background: "rgba(22,163,74,0.10)" }
+    : isStale
+      ? { color: "#f59e0b", borderColor: "rgba(245,158,11,0.25)", background: "rgba(245,158,11,0.10)" }
+      : { color: "var(--danger)", borderColor: "rgba(192,57,43,0.25)", background: "rgba(192,57,43,0.10)" };
+  return (
+    <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider" style={style}>
+      {label}
+    </span>
+  );
+}
+
 export default function TerminalPage() {
   const { isAuthenticated, dbUser } = useCurrentDbUser();
   const { chatCount, limit, isLimitReached } = useChat();
@@ -24,6 +47,12 @@ export default function TerminalPage() {
 
   const [extraMessages, setExtraMessages] = useState<ExtMessage[]>([]);
   const [freeTextPending, setFreeTextPending] = useState(false);
+  const activeSignalsTopic = useTopic<ActiveSignalRow[]>("signal:market:active", {
+    refreshInterval: 60_000,
+    revalidateOnFocus: false,
+    dedupingInterval: 15_000,
+  });
+  const activeSignalsCount = Array.isArray(activeSignalsTopic.data) ? activeSignalsTopic.data.length : 0;
   const usage = dbUser?.usage;
   const remaining = usage?.remaining;
   const showLowQuotaWarning = !usage?.isUnlimited && typeof remaining === "number" && remaining > 0 && remaining <= 3;
@@ -105,6 +134,12 @@ export default function TerminalPage() {
               <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>
                 Phân tích TA · FA · Tâm lý · Tin tức • Online
               </p>
+              <div className="mt-1 flex items-center gap-1.5">
+                <FreshnessBadge freshness={activeSignalsTopic.freshness} />
+                <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+                  ACTIVE: {activeSignalsCount}
+                </span>
+              </div>
             </div>
           </div>
 

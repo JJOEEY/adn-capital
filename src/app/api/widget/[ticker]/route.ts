@@ -16,8 +16,9 @@ import { executeAIRequest, INTENT } from "@/lib/gemini";
 import { fetchFAData } from "@/lib/stockData";
 import { isMockMode } from "@/lib/settings";
 import { MockFactory } from "@/lib/mock-factory";
+import { getPythonBridgeUrl } from "@/lib/runtime-config";
 
-const FIINQUANT_BRIDGE = process.env.FIINQUANT_URL ?? process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000";
+const FIINQUANT_BRIDGE = getPythonBridgeUrl();
 const CACHE_EXPIRY_PTKT_MS = 24 * 60 * 60 * 1000;        // 1 ngày
 const CACHE_EXPIRY_PTCB_MS = 90 * 24 * 60 * 60 * 1000;   // 90 ngày (1 quý)
 

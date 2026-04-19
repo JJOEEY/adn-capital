@@ -1,7 +1,6 @@
 "use client";
 
 import { memo, useMemo, useEffect } from "react";
-import useSWR from "swr";
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -15,6 +14,7 @@ import {
   ReferenceArea,
 } from "recharts";
 import { calculateRPI, getLatestRPI, type OHLCVData } from "@/lib/rpi/calculator";
+import { useTopic } from "@/hooks/useTopic";
 
 /* ═══════════════════════════════════════════════════════════════════════════
  *  ART — Analytical Reversal Tracker (Bộ theo dõi đảo chiều xu hướng)
@@ -28,12 +28,6 @@ import { calculateRPI, getLatestRPI, type OHLCVData } from "@/lib/rpi/calculator
  *   3.5–4.8→ 🔴 Hưng phấn - Nguy hiểm
  *   > 4.8  → 🔴 Hưng phấn cực độ
  * ═══════════════════════════════════════════════════════════════════════════ */
-
-const fetcher = (url: string) =>
-  fetch(url, { signal: AbortSignal.timeout(60_000) }).then((r) => {
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    return r.json();
-  });
 
 const CHART_THEME = {
   line: "var(--text-primary)",
@@ -193,23 +187,37 @@ function ARTDot(props: { cx?: number; cy?: number }) {
   return <circle cx={cx} cy={cy} r={3} fill={CHART_THEME.dot} stroke={CHART_THEME.dot} strokeWidth={1} />;
 }
 
+function FreshnessBadge({ freshness }: { freshness: string | null }) {
+  if (!freshness) return null;
+  const state = freshness.toLowerCase();
+  const isFresh = state === "fresh";
+  const isStale = state === "stale";
+  const label = isFresh ? "Fresh" : isStale ? "Stale" : state.toUpperCase();
+  const style = isFresh
+    ? { color: "#16a34a", borderColor: "rgba(22,163,74,0.25)", background: "rgba(22,163,74,0.10)" }
+    : isStale
+      ? { color: "#f59e0b", borderColor: "rgba(245,158,11,0.25)", background: "rgba(245,158,11,0.10)" }
+      : { color: "var(--danger)", borderColor: "rgba(192,57,43,0.25)", background: "rgba(192,57,43,0.10)" };
+  return (
+    <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider" style={style}>
+      {label}
+    </span>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
  *  MAIN COMPONENT — Dashboard ART Widget
  *  Fix skeleton: Card render ngay với giá trị 0, chart load sau (lazy)
  * ═══════════════════════════════════════════════════════════════════════════ */
 export const ReversePointIndex = memo(function ReversePointIndex() {
-  const { data: rawData, isLoading, mutate } = useSWR(
-    "/api/historical/VN30",
-    fetcher,
-    {
-      keepPreviousData: true,
-      revalidateOnFocus: false,
-      dedupingInterval: 60_000,
-      refreshInterval: 0,
-      shouldRetryOnError: true,
-      errorRetryCount: 3,
-    },
-  );
+  const historicalTopic = useTopic<{ data?: Array<Record<string, unknown>> }>("vn:historical:VN30:1d", {
+    refreshInterval: 0,
+    revalidateOnFocus: false,
+    dedupingInterval: 60_000,
+    staleWhileRevalidate: true,
+  });
+  const rawData = historicalTopic.data;
+  const isLoading = historicalTopic.isLoading;
 
   // Smart Scheduler: 9:30, 14:00, 15:00 T2-T6
   useEffect(() => {
@@ -222,11 +230,11 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
         const is930 = hour === 9 && min === 30;
         const is1400 = hour === 14 && min === 0;
         const is1500 = hour === 15 && min === 0;
-        if (is930 || is1400 || is1500) mutate();
+        if (is930 || is1400 || is1500) void historicalTopic.refresh(true);
       }
     }, 60000);
     return () => clearInterval(timer);
-  }, [mutate]);
+  }, [historicalTopic.refresh]);
 
   const ohlcvData: OHLCVData[] = useMemo(() => {
     if (!rawData?.data?.length) return [];
@@ -288,6 +296,9 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
           <span className="text-[11px] font-bold px-2 py-0.5 rounded-full border" style={cfg.badge}>
             {classification.label}
           </span>
+        </div>
+        <div className="mb-2">
+          <FreshnessBadge freshness={historicalTopic.freshness} />
         </div>
 
         {/* Gauge + Thresholds */}

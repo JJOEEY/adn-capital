@@ -1,8 +1,8 @@
 "use client";
 
 import { memo } from "react";
-import useSWR from "swr";
 import { ShieldCheck, AlertTriangle, XOctagon, TrendingUp } from "lucide-react";
+import { useTopic } from "@/hooks/useTopic";
 
 /* ═══════════════════════════════════════════════════════════════════════════
  *  LeaderRadar — Widget "Cầu Dao Tổng" trên Dashboard
@@ -81,24 +81,15 @@ const STATE_CONFIG = {
   },
 } as const;
 
-const fetcher = (url: string) =>
-  fetch(url, { signal: AbortSignal.timeout(12_000) }).then((r) => {
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    return r.json();
-  });
-
 export const LeaderRadar = memo(function LeaderRadar() {
-  const { data, isLoading } = useSWR<LeaderRadarData>(
-    "/api/leader-radar",
-    fetcher,
-    {
-      keepPreviousData: true,
-      revalidateOnFocus: false,
-      dedupingInterval: 60_000,
-      refreshInterval: 60_000,
-      shouldRetryOnError: false,
-    },
-  );
+  const leaderRadarTopic = useTopic<LeaderRadarData>("signal:leader-radar", {
+    refreshInterval: 60_000,
+    revalidateOnFocus: false,
+    dedupingInterval: 60_000,
+    staleWhileRevalidate: true,
+  });
+  const data = leaderRadarTopic.data;
+  const isLoading = leaderRadarTopic.isLoading;
 
   if (isLoading || !data) return <LeaderRadarSkeleton />;
 
@@ -140,6 +131,9 @@ export const LeaderRadar = memo(function LeaderRadar() {
           >
             {state}
           </span>
+        </div>
+        <div className="mb-2">
+          <FreshnessBadge freshness={leaderRadarTopic.freshness} />
         </div>
 
         {/* Cash Ratio Bar */}
@@ -251,6 +245,24 @@ export const LeaderRadar = memo(function LeaderRadar() {
     </div>
   );
 });
+
+function FreshnessBadge({ freshness }: { freshness: string | null }) {
+  if (!freshness) return null;
+  const state = freshness.toLowerCase();
+  const isFresh = state === "fresh";
+  const isStale = state === "stale";
+  const label = isFresh ? "Fresh" : isStale ? "Stale" : state.toUpperCase();
+  const style = isFresh
+    ? { color: "#16a34a", borderColor: "rgba(22,163,74,0.25)", background: "rgba(22,163,74,0.10)" }
+    : isStale
+      ? { color: "#f59e0b", borderColor: "rgba(245,158,11,0.25)", background: "rgba(245,158,11,0.10)" }
+      : { color: "var(--danger)", borderColor: "rgba(192,57,43,0.25)", background: "rgba(192,57,43,0.10)" };
+  return (
+    <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider" style={style}>
+      {label}
+    </span>
+  );
+}
 
 function LeaderRadarSkeleton() {
   return (

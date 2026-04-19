@@ -24,8 +24,9 @@ import {
   getSignalWindowInfo,
 } from "@/lib/cronHelpers";
 import { getVnNow } from "@/lib/time";
+import { getPythonBridgeUrl } from "@/lib/runtime-config";
 
-const PYTHON_BRIDGE = process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000";
+const PYTHON_BRIDGE = getPythonBridgeUrl();
 
 // ═══════════════════════════════════════════════
 //  Bảo mật & Anti-duplicate

@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
+import { getPythonBridgeUrl } from "@/lib/runtime-config";
 import {
   calculateRPIFromVN30,
   type OHLCVData,
 } from "@/lib/rpi/calculator";
 
-const BACKEND = process.env.FIINQUANT_URL ?? process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000";
+const BACKEND = getPythonBridgeUrl();
 
 const VN30_TICKERS = [
   "ACB", "BCM", "BID", "BVH", "CTG", "FPT", "GAS", "GVR", "HDB", "HPG",

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import useSWR from "swr";
 import { Zap, RefreshCw, Crosshair, Briefcase, CheckCircle, Crown, Lock, Bot } from "lucide-react";
 import { SignalCard } from "@/components/signals/SignalCard";
 import { Button } from "@/components/ui/Button";
@@ -9,6 +8,7 @@ import { Card } from "@/components/ui/Card";
 import type { Signal } from "@/types";
 import Link from "next/link";
 import { isWithinVnTradingSession } from "@/lib/time";
+import { useTopic } from "@/hooks/useTopic";
 
 type Tab = "RADAR" | "ACTIVE" | "CLOSED";
 type TierFilter = "all" | "LEADER" | "TRUNG_HAN" | "NGAN_HAN" | "TAM_NGAM";
@@ -27,7 +27,23 @@ const TIER_FILTERS: { value: TierFilter; label: string }[] = [
   { value: "TAM_NGAM", label: "🎯 Tiếp cận" },
 ];
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+function FreshnessBadge({ freshness }: { freshness: string | null }) {
+  if (!freshness) return null;
+  const state = freshness.toLowerCase();
+  const isFresh = state === "fresh";
+  const isStale = state === "stale";
+  const label = isFresh ? "Fresh" : isStale ? "Stale" : state.toUpperCase();
+  const style = isFresh
+    ? { color: "#16a34a", borderColor: "rgba(22,163,74,0.25)", background: "rgba(22,163,74,0.10)" }
+    : isStale
+      ? { color: "#f59e0b", borderColor: "rgba(245,158,11,0.25)", background: "rgba(245,158,11,0.10)" }
+      : { color: "var(--danger)", borderColor: "rgba(192,57,43,0.25)", background: "rgba(192,57,43,0.10)" };
+  return (
+    <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider" style={style}>
+      {label}
+    </span>
+  );
+}
 
 export function SignalMapClient({ isPremium = false }: { isPremium?: boolean }) {
   const [tab, setTab] = useState<Tab>("RADAR");
@@ -51,13 +67,13 @@ export function SignalMapClient({ isPremium = false }: { isPremium?: boolean }) 
         ? 5 * 60_000
         : 15 * 60_000;
 
-  const { data, isLoading, isValidating, mutate } = useSWR<{ signals: Signal[] }>(
-    "/api/signals?days=90",
-    fetcher,
-    { refreshInterval, revalidateOnFocus: false, keepPreviousData: true }
-  );
+  const signalMapTopic = useTopic<{ signals: Signal[] }>("signal:map:latest", {
+    refreshInterval,
+    revalidateOnFocus: false,
+    dedupingInterval: 10_000,
+  });
 
-  const allSignals = data?.signals ?? [];
+  const allSignals = signalMapTopic.data?.signals ?? [];
   const tabSignals = allSignals.filter((s) => {
     const status = s.status ?? "RADAR";
     if (tab === "ACTIVE") return status === "ACTIVE" || status === "HOLD_TO_DIE";
@@ -90,7 +106,7 @@ export function SignalMapClient({ isPremium = false }: { isPremium?: boolean }) 
   const pnlColor = stats.totalPnl >= 0 ? "#16a34a" : "var(--danger)";
   const pnlBg    = stats.totalPnl >= 0 ? "rgba(22,163,74,0.05)" : "rgba(192,57,43,0.05)";
   const pnlBorder= stats.totalPnl >= 0 ? "rgba(22,163,74,0.20)" : "rgba(192,57,43,0.20)";
-  const isRefreshing = isValidating || isScanning;
+  const isRefreshing = signalMapTopic.isValidating || isScanning;
 
   async function handleRefresh() {
     setIsScanning(true);
@@ -103,7 +119,7 @@ export function SignalMapClient({ isPremium = false }: { isPremium?: boolean }) 
     } catch (error) {
       console.error("[SignalMap] Refresh scan failed:", error);
     } finally {
-      await mutate();
+      await signalMapTopic.refresh(true);
       setIsScanning(false);
     }
   }
@@ -129,6 +145,9 @@ export function SignalMapClient({ isPremium = false }: { isPremium?: boolean }) 
             <p className="text-xs sm:text-sm truncate" style={{ color: "var(--text-secondary)" }}>
               Broker System Powered by ADN Capital
             </p>
+            <div className="mt-1">
+              <FreshnessBadge freshness={signalMapTopic.freshness} />
+            </div>
           </div>
         </div>
         <Button variant="ghost" size="sm" onClick={handleRefresh} loading={isRefreshing}>
@@ -229,7 +248,7 @@ export function SignalMapClient({ isPremium = false }: { isPremium?: boolean }) 
       </div>
 
       {/* ═══ Signal grid ═══ */}
-      {isLoading ? (
+      {signalMapTopic.isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {[1, 2, 3].map((i) => (
             <div key={i} className="h-52 rounded-2xl animate-pulse" style={{ background: "var(--surface)" }} />

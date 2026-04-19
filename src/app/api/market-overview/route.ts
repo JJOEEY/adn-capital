@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
+import { getPythonBridgeUrl } from "@/lib/runtime-config";
 
 const CACHE_FILE = path.join(process.cwd(), "market_cache.json");
-const BACKEND = process.env.FIINQUANT_URL ?? process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000";
+const BACKEND = getPythonBridgeUrl();
 const TTL_MS = 15 * 60 * 1000;
 
 type CachePayload = Record<string, unknown> & {

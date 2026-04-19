@@ -10,6 +10,8 @@
  * Ví dụ: DGC close=49.1 => 49,100 VNĐ.
  */
 
+import { getPythonBridgeUrl } from "@/lib/runtime-config";
+
 const DCHART_BASE = "https://dchart-api.vndirect.com.vn/dchart/history";
 
 // Header giả lập browser, tránh bị chặn
@@ -371,7 +373,7 @@ export async function fetchTAData(ticker: string): Promise<TAData | null> {
  */
 export async function fetchFAData(ticker: string): Promise<FAData | null> {
   const code = ticker.toUpperCase();
-  const BACKEND = process.env.FIINQUANT_URL ?? "http://localhost:8000";
+  const BACKEND = getPythonBridgeUrl();
 
   try {
     console.log(`[fetchFAData] ${code}: Gọi FiinQuant Bridge /api/v1/fundamental/${code}`);

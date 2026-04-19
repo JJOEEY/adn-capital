@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentDbUser } from "@/lib/current-user";
 import { getVnNow, isWithinVnTradingSession } from "@/lib/time";
+import { SIGNAL_SCANNER_CRON_NAMES } from "@/lib/cron-contracts";
 
 export const dynamic = "force-dynamic";
 
@@ -17,12 +18,7 @@ export async function GET() {
     }
 
     const cronNameFilter = {
-      OR: [
-        { cronName: "signal_scan" },
-        { cronName: "signal_scan_5m" },
-        { cronName: "scan-signals" },
-        { cronName: "scan_signals" },
-      ],
+      OR: SIGNAL_SCANNER_CRON_NAMES.map((cronName) => ({ cronName })),
     };
 
     const [lastRun, lastSuccess, lastError, lastSignal] = await Promise.all([

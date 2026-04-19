@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { getMarketSnapshot } from "@/lib/marketDataFetcher";
+import { getPythonBridgeUrl } from "@/lib/runtime-config";
 
 export const revalidate = 0;
-const FIINQUANT_BRIDGE =
-  (process.env.FIINQUANT_URL ?? process.env.PYTHON_BRIDGE_URL ?? "http://localhost:8000").replace(/\/$/, "");
+const FIINQUANT_BRIDGE = getPythonBridgeUrl();
 
 // In-memory cache 5 phút → tránh gọi VNDirect liên tục
 let cachedMarket: { data: any; timestamp: number } | null = null;
