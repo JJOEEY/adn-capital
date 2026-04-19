@@ -80,11 +80,13 @@ function buildRuntimeDependencyAudit(hasConnectedDnseUser: boolean) {
     DNSE_MANUAL_TEST_TRADING_TOKEN: Boolean(env.DNSE_MANUAL_TEST_TRADING_TOKEN),
   };
   const blockers: string[] = [];
+  const warnings: string[] = [];
   if (!dependencies.DATABASE_URL) blockers.push("missing_or_invalid_DATABASE_URL");
   if (!dependencies.DIRECT_DATABASE_URL) blockers.push("missing_or_invalid_DIRECT_DATABASE_URL");
   if (!dependencies.NEXTAUTH_URL) blockers.push("missing_NEXTAUTH_URL");
   if (!dependencies.AUTH_TRUST_HOST) blockers.push("missing_AUTH_TRUST_HOST_for_local_or_proxy_runtime");
-  if (!dependencies.DNSE_API_KEY) blockers.push("missing_DNSE_API_KEY");
+  if (!dependencies.DNSE_API_KEY) warnings.push("missing_DNSE_API_KEY");
+  if (!flags.complianceApprovedFlow) warnings.push("compliance_flow_not_approved_real_submit_remains_blocked");
   if (!hasConnectedDnseUser) blockers.push("no_dnse_verified_user_found");
 
   const canRunStagingSafeFlow = blockers.length === 0;
@@ -126,6 +128,7 @@ function buildRuntimeDependencyAudit(hasConnectedDnseUser: boolean) {
     dependencies,
     requirements,
     blockers,
+    warnings,
     canRunStagingSafeFlow,
     expectedSubmitStatus,
   };

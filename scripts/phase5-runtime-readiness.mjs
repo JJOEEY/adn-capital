@@ -31,17 +31,23 @@ async function main() {
   };
 
   const blockers = [];
+  const warnings = [];
   if (!checks.DATABASE_URL) blockers.push("missing_or_invalid_DATABASE_URL");
   if (!checks.DIRECT_DATABASE_URL) blockers.push("missing_or_invalid_DIRECT_DATABASE_URL");
   if (!checks.NEXTAUTH_URL) blockers.push("missing_NEXTAUTH_URL");
   if (!checks.NEXTAUTH_SECRET) blockers.push("missing_NEXTAUTH_SECRET_or_AUTH_SECRET");
   if (!checks.AUTH_TRUST_HOST) blockers.push("AUTH_TRUST_HOST_should_be_true_for_staging_proxy_runtime");
-  if (!checks.DNSE_API_KEY) blockers.push("missing_DNSE_API_KEY");
+  if (!checks.DNSE_API_KEY) warnings.push("missing_DNSE_API_KEY");
   if (!checks.DNSE_EXECUTION_MODE_SAFE) blockers.push("DNSE_EXECUTION_MODE_is_not_SAFE_EXECUTION_ADAPTER_MODE");
   if (!checks.DNSE_REAL_ORDER_SUBMIT_DISABLED) blockers.push("DNSE_REAL_ORDER_SUBMIT_ENABLED_must_be_false");
   if (!checks.DNSE_COMPLIANCE_APPROVED_FLOW_DISABLED) blockers.push("DNSE_COMPLIANCE_APPROVED_FLOW_must_be_false_by_default");
   if (!checks.DNSE_ALLOW_REAL_SUBMIT_IN_PROD_DISABLED) blockers.push("DNSE_ALLOW_REAL_SUBMIT_IN_PROD_must_be_false");
   if (!checks.DNSE_ALLOW_MANUAL_TEST_IN_PROD_DISABLED) blockers.push("DNSE_ALLOW_MANUAL_TEST_IN_PROD_must_be_false");
+  if (!checks.DNSE_COMPLIANCE_APPROVED_FLOW_DISABLED) {
+    warnings.push("DNSE_COMPLIANCE_APPROVED_FLOW_enabled_check_release_controls");
+  } else {
+    warnings.push("compliance_flow_not_approved_real_submit_remains_blocked");
+  }
 
   let dbReachable = false;
   let dnseLinkedUserCount = 0;
@@ -125,6 +131,7 @@ async function main() {
     },
     requirements,
     blockers,
+    warnings,
     ready: blockers.length === 0,
   };
 

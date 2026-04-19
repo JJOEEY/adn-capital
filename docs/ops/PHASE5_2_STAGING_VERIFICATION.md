@@ -8,7 +8,7 @@
   - `NEXTAUTH_URL` is set
   - `AUTH_TRUST_HOST=true` (recommended behind proxy/local)
 - DNSE env:
-  - `DNSE_API_KEY` set
+  - `DNSE_API_KEY` recommended (warning nếu thiếu ở SAFE mode)
   - `DNSE_EXECUTION_MODE=SAFE_EXECUTION_ADAPTER_MODE`
   - `DNSE_REAL_ORDER_SUBMIT_ENABLED=false` (default)
   - `DNSE_MANUAL_TEST_TOKEN_MODE=false` (default)
