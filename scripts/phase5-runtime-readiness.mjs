@@ -20,6 +20,13 @@ function parseList(value) {
     .filter(Boolean);
 }
 
+function readPositiveNumber(raw, defaultValue) {
+  const normalized = String(raw ?? "").trim();
+  if (!normalized) return defaultValue;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
 async function main() {
   const env = process.env;
   const checks = {
@@ -39,8 +46,7 @@ async function main() {
     DNSE_ALLOWLIST_ENFORCED: isTruthy(env.DNSE_EXECUTION_ALLOWLIST_ENFORCED, true),
     DNSE_MARKET_SESSION_GUARD_ENABLED: isTruthy(env.DNSE_ENFORCE_MARKET_SESSION_GUARD, true),
     DNSE_DUPLICATE_SUBMIT_WINDOW_VALID:
-      Number.isFinite(Number(env.DNSE_DUPLICATE_SUBMIT_WINDOW_MS ?? "30000")) &&
-      Number(env.DNSE_DUPLICATE_SUBMIT_WINDOW_MS ?? "30000") > 0,
+      readPositiveNumber(env.DNSE_DUPLICATE_SUBMIT_WINDOW_MS, 30000) != null,
   };
 
   const blockers = [];
