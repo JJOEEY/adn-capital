@@ -237,7 +237,7 @@ export default function HDSDPage() {
         body: JSON.stringify({
           title: newSectionTitle.trim(),
           categoryId: newSectionCategoryId,
-          content: `## ${newSectionTitle.trim()}\n\nĐang cập nhật nội dung...`,
+          content: `## ${newSectionTitle.trim()}\n\nNội dung đang được biên soạn.`,
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -356,7 +356,7 @@ export default function HDSDPage() {
 
       {loading && (
         <p className="px-2 text-sm" style={{ color: "var(--text-secondary)" }}>
-          Đang tải...
+          Đang đồng bộ hướng dẫn...
         </p>
       )}
       {!loading && categories.length === 0 && (

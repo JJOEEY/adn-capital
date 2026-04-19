@@ -78,7 +78,10 @@ const menuSections: MenuSection[] = [
   },
   {
     title: "Về Chúng Tôi",
-    items: [{ href: "#", label: "Updating...", icon: Home }],
+    items: [
+      { href: "/san-pham", label: "Giới thiệu hệ thống", icon: Home },
+      { href: "/pricing", label: "Bảng giá dịch vụ", icon: Crown },
+    ],
   },
   {
     title: "Quản Lý",
