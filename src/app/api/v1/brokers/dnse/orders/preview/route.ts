@@ -16,6 +16,14 @@ const PREVIEW_TTL_MS = 5 * 60 * 1000;
 export async function POST(req: NextRequest) {
   const userContext = await requireExecutionUserContext();
   if (!userContext) {
+    emitObservabilityEvent({
+      domain: "broker",
+      level: "warn",
+      event: "dnse_preview_unauthorized",
+      meta: {
+        path: req.nextUrl.pathname,
+      },
+    });
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

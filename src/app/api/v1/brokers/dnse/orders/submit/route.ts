@@ -60,6 +60,14 @@ function inferBlockedHttpStatus(status: DnseExecutionResult["status"], fallback 
 export async function POST(req: NextRequest) {
   const userContext = await requireExecutionUserContext();
   if (!userContext) {
+    emitObservabilityEvent({
+      domain: "broker",
+      level: "warn",
+      event: "dnse_submit_unauthorized",
+      meta: {
+        path: req.nextUrl.pathname,
+      },
+    });
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
