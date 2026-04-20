@@ -287,13 +287,26 @@ export function SignalMapClient({
       ) : filtered.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {filtered.map((signal, index) => (
+            (() => {
+              const query = new URLSearchParams({
+                ticker: signal.ticker,
+              });
+              if (signal.navAllocation != null && Number.isFinite(signal.navAllocation)) {
+                query.set("navPct", String(signal.navAllocation));
+              }
+              if (signal.entryPrice != null && Number.isFinite(signal.entryPrice)) {
+                query.set("entry", String(signal.entryPrice));
+              }
+              return (
             <SignalCard
               key={signal.id}
               signal={signal}
               index={index}
               showBuyAction={showExecutionActions && tab === "RADAR"}
-              buyHref={`/dashboard/dnse-trading?ticker=${encodeURIComponent(signal.ticker)}`}
+              buyHref={`/dashboard/dnse-trading?${query.toString()}`}
             />
+              );
+            })()
           ))}
         </div>
       ) : (
