@@ -325,14 +325,6 @@ export async function GET(req: NextRequest) {
     void run();
   }, 0);
 
-  return NextResponse.json({
-    accepted: true,
-    jobId: queued.id,
-    queuedAt: queued.createdAt.toISOString(),
-    type,
-    requestedType,
-  });
-
   emitObservabilityEvent({
     domain: "cron",
     event: "cron_dispatch_queued",
@@ -343,6 +335,14 @@ export async function GET(req: NextRequest) {
       sync,
       forceRun,
     },
+  });
+
+  return NextResponse.json({
+    accepted: true,
+    jobId: queued.id,
+    queuedAt: queued.createdAt.toISOString(),
+    type,
+    requestedType,
   });
 }
 
