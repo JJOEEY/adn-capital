@@ -25,7 +25,56 @@ import { fetchDnseMarketSnapshot } from "./dnseClient";
 type JsonRecord = Record<string, unknown>;
 type ProviderId = "fiin" | "vnd" | "vnstock" | "dnse" | "tcbs";
 
+type BreadthGroup = {
+  up: number;
+  down: number;
+  unchanged: number;
+  ceiling: number;
+  floor: number;
+};
+
+function toStrictBreadthGroup(
+  raw:
+    | {
+        up: number | null;
+        down: number | null;
+        unchanged: number | null;
+        ceiling: number | null;
+        floor: number | null;
+      }
+    | null
+    | undefined,
+): BreadthGroup | null {
+  if (!raw) return null;
+  const normalized: BreadthGroup = {
+    up: Number(raw.up ?? 0),
+    down: Number(raw.down ?? 0),
+    unchanged: Number(raw.unchanged ?? 0),
+    ceiling: Number(raw.ceiling ?? 0),
+    floor: Number(raw.floor ?? 0),
+  };
+  return normalized.up + normalized.down + normalized.unchanged + normalized.ceiling + normalized.floor > 0
+    ? normalized
+    : null;
+}
+
 interface AlternativeSnapshot {
+  indices?: Array<{
+    symbol: string;
+    value: number | null;
+    change: number | null;
+    changePct: number | null;
+    volume: number | null;
+    liquidity: number | null;
+  }>;
+  breadth?: {
+    total: BreadthGroup | null;
+    byExchange: {
+      HOSE: BreadthGroup | null;
+      HNX: BreadthGroup | null;
+      UPCOM: BreadthGroup | null;
+    } | null;
+  } | null;
   liquidityByExchange: {
     HOSE: number | null;
     HNX: number | null;
@@ -37,9 +86,12 @@ interface AlternativeSnapshot {
     proprietaryNet: number | null;
     retailNet: number | null;
   };
+  source?: string;
+  timestamp?: number;
+  freshness?: "fresh" | "stale";
 }
 
-const PROVIDER_RING: ProviderId[] = ["vnd", "vnstock", "fiin", "dnse", "tcbs"];
+const PROVIDER_PRIORITY: ProviderId[] = ["dnse", "fiin", "vnstock", "vnd", "tcbs"];
 
 type MarketSnapshotCacheEntry = {
   requestDateVN: string;
@@ -52,10 +104,7 @@ let marketSnapshotCache: MarketSnapshotCacheEntry | null = null;
 let marketSnapshotInFlight: Promise<MarketSnapshot> | null = null;
 
 function getProviderOrder(): ProviderId[] {
-  const vnNow = getVnNow();
-  const seed = vnNow.hour() * 60 + vnNow.minute();
-  const start = seed % PROVIDER_RING.length;
-  return [...PROVIDER_RING.slice(start), ...PROVIDER_RING.slice(0, start)];
+  return PROVIDER_PRIORITY;
 }
 
 function pickRoundRobinValue(
@@ -67,6 +116,58 @@ function pickRoundRobinValue(
     if (value != null && Number.isFinite(value)) return value;
   }
   return null;
+}
+
+function pickProvider(
+  order: ProviderId[],
+  values: Partial<Record<ProviderId, number | null>>,
+): ProviderId | "none" {
+  for (const provider of order) {
+    const value = values[provider];
+    if (value != null && Number.isFinite(value)) return provider;
+  }
+  return "none";
+}
+
+function pickIndexProvider(
+  order: ProviderId[],
+  candidates: Partial<Record<ProviderId, IndexData | null>>,
+): ProviderId | "none" {
+  for (const provider of order) {
+    if (candidates[provider]) return provider;
+  }
+  return "none";
+}
+
+function normalizeDnseIndexRows(
+  snapshot:
+    | AlternativeSnapshot
+    | {
+        indices?: Array<{
+          symbol: string;
+          value: number | null;
+          change: number | null;
+          changePct: number | null;
+          volume: number | null;
+        }>;
+      }
+    | null,
+): Map<string, IndexData> {
+  const map = new Map<string, IndexData>();
+  const rows = snapshot?.indices ?? [];
+  for (const row of rows) {
+    if (!row.symbol) continue;
+    const ticker = row.symbol.toUpperCase();
+    if (row.value == null || !Number.isFinite(row.value)) continue;
+    map.set(ticker, {
+      ticker,
+      value: row.value,
+      change: row.change ?? 0,
+      changePct: row.changePct ?? 0,
+      volume: row.volume ?? 0,
+    });
+  }
+  return map;
 }
 
 export interface ProviderDiagnostic {
@@ -98,6 +199,60 @@ function pickRecord(base: JsonRecord, keys: string[]): JsonRecord | null {
     if (isRecord(value)) return value;
   }
   return null;
+}
+
+function parseAlternativeIndices(payload: JsonRecord): AlternativeSnapshot["indices"] {
+  const rows: AlternativeSnapshot["indices"] = [];
+  const seen = new Set<string>();
+
+  const pushRow = (symbolRaw: unknown, rowRaw?: JsonRecord | null) => {
+    const symbol = String(symbolRaw ?? "").trim().toUpperCase();
+    if (!symbol || seen.has(symbol)) return;
+    const row = rowRaw ?? {};
+    const value =
+      toNumber(row.value) ??
+      toNumber(row.indexValue) ??
+      toNumber(row.close) ??
+      toNumber(row.price);
+    if (value == null || !Number.isFinite(value)) return;
+    rows.push({
+      symbol,
+      value,
+      change: toNumber(row.change) ?? toNumber(row.delta),
+      changePct:
+        toNumber(row.changePct) ??
+        toNumber(row.percentChange) ??
+        toNumber(row.pct) ??
+        toNumber(row.change_percent),
+      volume: toNumber(row.volume) ?? toNumber(row.totalQtty) ?? toNumber(row.totalVolume),
+      liquidity: toNumber(row.liquidity) ?? toNumber(row.totalVal) ?? toNumber(row.totalValue),
+    });
+    seen.add(symbol);
+  };
+
+  const arrays = [
+    ...(Array.isArray(payload.indices) ? payload.indices : []),
+    ...(Array.isArray(payload.indexData) ? payload.indexData : []),
+    ...(Array.isArray(payload.marketIndices) ? payload.marketIndices : []),
+  ];
+  for (const item of arrays) {
+    if (!isRecord(item)) continue;
+    pushRow(item.symbol ?? item.index ?? item.indexId ?? item.ticker ?? item.code, item);
+  }
+
+  const singles: Array<[string, string]> = [
+    ["vnindex", "VNINDEX"],
+    ["hnxindex", "HNXINDEX"],
+    ["upcomindex", "UPCOMINDEX"],
+    ["vn30", "VN30"],
+  ];
+  for (const [key, symbol] of singles) {
+    const row = pickRecord(payload, [key]);
+    if (!row) continue;
+    pushRow(symbol, row);
+  }
+
+  return rows.length > 0 ? rows : undefined;
 }
 
 // ═══════════════════════════════════════════════
@@ -626,16 +781,20 @@ async function fetchTcbsMarketSnapshot(requestDateVN: string): Promise<Alternati
     const raw = await safeReadJson<JsonRecord>(res);
     if (!raw) return null;
 
-    const hose = readLiquidityValue(raw);
-    const hnx = pickNumber(raw, ["hnx", "hnxValue", "liquidity_hnx"]);
-    const upcom = pickNumber(raw, ["upcom", "upcomValue", "liquidity_upcom"]);
-    const total = pickNumber(raw, ["total", "totalValue", "liquidity_total"]);
+    const payload = isRecord(raw.snapshot) ? (raw.snapshot as JsonRecord) : raw;
+    const indices = parseAlternativeIndices(payload);
 
-    const foreignNet = pickNumber(raw, ["foreign_net", "foreignNet", "foreign_value"]);
-    const proprietaryNet = pickNumber(raw, ["proprietary_net", "proprietaryNet", "self_trading_net"]);
-    const retailNet = pickNumber(raw, ["retail_net", "retailNet", "individual_net"]);
+    const hose = readLiquidityValue(payload);
+    const hnx = pickNumber(payload, ["hnx", "hnxValue", "liquidity_hnx"]);
+    const upcom = pickNumber(payload, ["upcom", "upcomValue", "liquidity_upcom"]);
+    const total = pickNumber(payload, ["total", "totalValue", "liquidity_total"]);
+
+    const foreignNet = pickNumber(payload, ["foreign_net", "foreignNet", "foreign_value"]);
+    const proprietaryNet = pickNumber(payload, ["proprietary_net", "proprietaryNet", "self_trading_net"]);
+    const retailNet = pickNumber(payload, ["retail_net", "retailNet", "individual_net"]);
 
     return {
+      indices,
       liquidityByExchange: {
         HOSE: hose,
         HNX: hnx,
@@ -678,6 +837,7 @@ async function fetchVnstockMarketSnapshot(requestDateVN: string): Promise<Altern
     if (!raw) return null;
 
     const payload = isRecord(raw.snapshot) ? (raw.snapshot as JsonRecord) : raw;
+    const indices = parseAlternativeIndices(payload);
     const liquidityRoot = pickRecord(payload, ["liquidityByExchange", "liquidity", "marketLiquidity"]) ?? payload;
     const investorRoot = pickRecord(payload, ["investorTrading", "investorFlow", "investor"]) ?? payload;
 
@@ -689,6 +849,7 @@ async function fetchVnstockMarketSnapshot(requestDateVN: string): Promise<Altern
       ((hose ?? 0) + (hnx ?? 0) + (upcom ?? 0) > 0 ? (hose ?? 0) + (hnx ?? 0) + (upcom ?? 0) : null);
 
     return {
+      indices,
       liquidityByExchange: {
         HOSE: hose,
         HNX: hnx,
@@ -722,6 +883,11 @@ export interface MarketSnapshot {
   providerDiagnostics: ProviderDiagnostic[];
   indices: IndexData[];
   breadth: { up: number; down: number; unchanged: number } | null;
+  breadthByExchange: {
+    HOSE: BreadthGroup | null;
+    HNX: BreadthGroup | null;
+    UPCOM: BreadthGroup | null;
+  } | null;
   supplyDemand: {
     buyVolume: number | null;
     sellVolume: number | null;
@@ -745,6 +911,16 @@ export interface MarketSnapshot {
   marketOverview: FiinMarketOverview | null;
   topGainers: Array<{ ticker: string; changePct: number }>;
   topLosers: Array<{ ticker: string; changePct: number }>;
+  source: {
+    primary: ProviderId | "mixed" | "none";
+    indices: ProviderId | "mixed" | "none";
+    breadth: ProviderId | "mixed" | "none";
+    liquidity: ProviderId | "mixed" | "none";
+    investorTrading: ProviderId | "mixed" | "none";
+  };
+  freshness: "fresh" | "stale" | "degraded";
+  publish: boolean;
+  publishBlockers: string[];
 }
 
 function emptyGroup() {
@@ -921,6 +1097,37 @@ function parseBreadthFromFeed(raw: FiinMarketBreadthResponse | null): { up: numb
 
   if (summed.up + summed.down + summed.unchanged <= 0) return null;
   return summed;
+}
+
+function parseBreadthByExchangeFromFeed(
+  raw: FiinMarketBreadthResponse | null,
+): { HOSE: BreadthGroup | null; HNX: BreadthGroup | null; UPCOM: BreadthGroup | null } | null {
+  const rows = Array.isArray(raw?.data) ? raw.data : [];
+  if (rows.length === 0) return null;
+
+  const result: { HOSE: BreadthGroup | null; HNX: BreadthGroup | null; UPCOM: BreadthGroup | null } = {
+    HOSE: null,
+    HNX: null,
+    UPCOM: null,
+  };
+
+  for (const row of rows) {
+    const rowRecord = row as unknown as JsonRecord;
+    const indexId = String(rowRecord.index ?? rowRecord.ticker ?? "").toUpperCase();
+    const normalized: BreadthGroup = {
+      up: Number(rowRecord.up ?? 0),
+      down: Number(rowRecord.down ?? 0),
+      unchanged: Number(rowRecord.unchanged ?? 0),
+      ceiling: Number(rowRecord.ceiling ?? 0),
+      floor: Number(rowRecord.floor ?? 0),
+    };
+
+    if (indexId === "VNINDEX") result.HOSE = normalized;
+    if (indexId === "HNXINDEX") result.HNX = normalized;
+    if (indexId === "UPCOMINDEX") result.UPCOM = normalized;
+  }
+
+  return result.HOSE || result.HNX || result.UPCOM ? result : null;
 }
 
 function parseRealtimeSupplyDemand(raw: FiinRealtimeResponse | null): MarketSnapshot["supplyDemand"] {
@@ -1117,47 +1324,161 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
 
     const providerOrder = getProviderOrder();
 
+    const dchartIndexMap = new Map<string, IndexData>();
+    if (vnindex) dchartIndexMap.set("VNINDEX", vnindex);
+    if (hnxindex) dchartIndexMap.set("HNXINDEX", hnxindex);
+    if (upcomindex) dchartIndexMap.set("UPCOMINDEX", upcomindex);
+    if (vn30) dchartIndexMap.set("VN30", vn30);
+
+    const fiinIndexMap = new Map<string, IndexData>();
+    if (overview?.ticker && String(overview.ticker).toUpperCase().includes("VNINDEX")) {
+      const priceRecord =
+        typeof overview.price === "object" && overview.price !== null
+          ? (overview.price as { current?: unknown; change?: unknown; change_pct?: unknown })
+          : null;
+      const fiinValue =
+        toNumber(priceRecord?.current) ??
+        toNumber(overview.price) ??
+        null;
+      if (fiinValue != null && Number.isFinite(fiinValue)) {
+        const fiinChange =
+          toNumber(priceRecord?.change) ??
+          0;
+        const fiinChangePct =
+          toNumber(priceRecord?.change_pct) ??
+          0;
+        fiinIndexMap.set("VNINDEX", {
+          ticker: "VNINDEX",
+          value: fiinValue,
+          change: fiinChange,
+          changePct: fiinChangePct,
+          volume: 0,
+        });
+      }
+    }
+
+    const dnseIndexMap = normalizeDnseIndexRows(dnseSnapshot);
+    const vnstockIndexMap = normalizeDnseIndexRows(vnstockSnapshot);
+    const tcbsIndexMap = normalizeDnseIndexRows(tcbsSnapshot);
+    const requiredIndexSymbols = ["VNINDEX", "HNXINDEX", "UPCOMINDEX", "VN30"] as const;
+    const indices: IndexData[] = [];
+    const indexSourceSet = new Set<ProviderId>();
+
+    for (const symbol of requiredIndexSymbols) {
+      const pickedProvider = pickIndexProvider(providerOrder, {
+        dnse: dnseIndexMap.get(symbol) ?? null,
+        fiin: fiinIndexMap.get(symbol) ?? null,
+        vnstock: vnstockIndexMap.get(symbol) ?? null,
+        vnd: dchartIndexMap.get(symbol) ?? null,
+        tcbs: tcbsIndexMap.get(symbol) ?? null,
+      });
+      const selected =
+        pickedProvider === "dnse"
+          ? (dnseIndexMap.get(symbol) ?? null)
+          : pickedProvider === "fiin"
+          ? (fiinIndexMap.get(symbol) ?? null)
+          : pickedProvider === "vnstock"
+          ? (vnstockIndexMap.get(symbol) ?? null)
+          : pickedProvider === "vnd"
+          ? (dchartIndexMap.get(symbol) ?? null)
+          : pickedProvider === "tcbs"
+          ? (tcbsIndexMap.get(symbol) ?? null)
+          : null;
+      if (selected) {
+        indices.push(selected);
+        if (pickedProvider !== "none") indexSourceSet.add(pickedProvider);
+      }
+    }
+
+    const liquiditySourceByExchange = {
+      HOSE: pickProvider(providerOrder, {
+        dnse: dnseSnapshot?.liquidityByExchange.HOSE ?? null,
+        fiin: parsedInvestor.liquidityByExchange.HOSE,
+        vnstock: vnstockSnapshot?.liquidityByExchange.HOSE ?? null,
+        vnd: null,
+        tcbs: tcbsSnapshot?.liquidityByExchange.HOSE ?? null,
+      }),
+      HNX: pickProvider(providerOrder, {
+        dnse: dnseSnapshot?.liquidityByExchange.HNX ?? null,
+        fiin: parsedInvestor.liquidityByExchange.HNX,
+        vnstock: vnstockSnapshot?.liquidityByExchange.HNX ?? null,
+        vnd: null,
+        tcbs: tcbsSnapshot?.liquidityByExchange.HNX ?? null,
+      }),
+      UPCOM: pickProvider(providerOrder, {
+        dnse: dnseSnapshot?.liquidityByExchange.UPCOM ?? null,
+        fiin: parsedInvestor.liquidityByExchange.UPCOM,
+        vnstock: vnstockSnapshot?.liquidityByExchange.UPCOM ?? null,
+        vnd: null,
+        tcbs: tcbsSnapshot?.liquidityByExchange.UPCOM ?? null,
+      }),
+    } as const;
+
     parsedInvestor.liquidityByExchange.HOSE = pickRoundRobinValue(providerOrder, {
-      fiin: parsedInvestor.liquidityByExchange.HOSE,
-      vnd: null,
-      vnstock: vnstockSnapshot?.liquidityByExchange.HOSE ?? null,
       dnse: dnseSnapshot?.liquidityByExchange.HOSE ?? null,
+      fiin: parsedInvestor.liquidityByExchange.HOSE,
+      vnstock: vnstockSnapshot?.liquidityByExchange.HOSE ?? null,
+      vnd: null,
       tcbs: tcbsSnapshot?.liquidityByExchange.HOSE ?? null,
     });
     parsedInvestor.liquidityByExchange.HNX = pickRoundRobinValue(providerOrder, {
-      fiin: parsedInvestor.liquidityByExchange.HNX,
-      vnd: null,
-      vnstock: vnstockSnapshot?.liquidityByExchange.HNX ?? null,
       dnse: dnseSnapshot?.liquidityByExchange.HNX ?? null,
+      fiin: parsedInvestor.liquidityByExchange.HNX,
+      vnstock: vnstockSnapshot?.liquidityByExchange.HNX ?? null,
+      vnd: null,
       tcbs: tcbsSnapshot?.liquidityByExchange.HNX ?? null,
     });
     parsedInvestor.liquidityByExchange.UPCOM = pickRoundRobinValue(providerOrder, {
-      fiin: parsedInvestor.liquidityByExchange.UPCOM,
-      vnd: null,
-      vnstock: vnstockSnapshot?.liquidityByExchange.UPCOM ?? null,
       dnse: dnseSnapshot?.liquidityByExchange.UPCOM ?? null,
+      fiin: parsedInvestor.liquidityByExchange.UPCOM,
+      vnstock: vnstockSnapshot?.liquidityByExchange.UPCOM ?? null,
+      vnd: null,
       tcbs: tcbsSnapshot?.liquidityByExchange.UPCOM ?? null,
     });
 
+    const investorSource = {
+      foreign: pickProvider(providerOrder, {
+        dnse: dnseSnapshot?.investorTrading.foreignNet ?? null,
+        fiin: parsedInvestor.investorTrading.foreign.net,
+        vnstock: vnstockSnapshot?.investorTrading.foreignNet ?? null,
+        vnd: null,
+        tcbs: tcbsSnapshot?.investorTrading.foreignNet ?? null,
+      }),
+      proprietary: pickProvider(providerOrder, {
+        dnse: dnseSnapshot?.investorTrading.proprietaryNet ?? null,
+        fiin: parsedInvestor.investorTrading.proprietary.net,
+        vnstock: vnstockSnapshot?.investorTrading.proprietaryNet ?? null,
+        vnd: null,
+        tcbs: tcbsSnapshot?.investorTrading.proprietaryNet ?? null,
+      }),
+      retail: pickProvider(providerOrder, {
+        dnse: dnseSnapshot?.investorTrading.retailNet ?? null,
+        fiin: parsedInvestor.investorTrading.retail.net,
+        vnstock: vnstockSnapshot?.investorTrading.retailNet ?? null,
+        vnd: null,
+        tcbs: tcbsSnapshot?.investorTrading.retailNet ?? null,
+      }),
+    } as const;
+
     parsedInvestor.investorTrading.foreign.net = pickRoundRobinValue(providerOrder, {
-      fiin: parsedInvestor.investorTrading.foreign.net,
-      vnd: null,
-      vnstock: vnstockSnapshot?.investorTrading.foreignNet ?? null,
       dnse: dnseSnapshot?.investorTrading.foreignNet ?? null,
+      fiin: parsedInvestor.investorTrading.foreign.net,
+      vnstock: vnstockSnapshot?.investorTrading.foreignNet ?? null,
+      vnd: null,
       tcbs: tcbsSnapshot?.investorTrading.foreignNet ?? null,
     });
     parsedInvestor.investorTrading.proprietary.net = pickRoundRobinValue(providerOrder, {
-      fiin: parsedInvestor.investorTrading.proprietary.net,
-      vnd: null,
-      vnstock: vnstockSnapshot?.investorTrading.proprietaryNet ?? null,
       dnse: dnseSnapshot?.investorTrading.proprietaryNet ?? null,
+      fiin: parsedInvestor.investorTrading.proprietary.net,
+      vnstock: vnstockSnapshot?.investorTrading.proprietaryNet ?? null,
+      vnd: null,
       tcbs: tcbsSnapshot?.investorTrading.proprietaryNet ?? null,
     });
     parsedInvestor.investorTrading.retail.net = pickRoundRobinValue(providerOrder, {
-      fiin: parsedInvestor.investorTrading.retail.net,
-      vnd: null,
-      vnstock: vnstockSnapshot?.investorTrading.retailNet ?? null,
       dnse: dnseSnapshot?.investorTrading.retailNet ?? null,
+      fiin: parsedInvestor.investorTrading.retail.net,
+      vnstock: vnstockSnapshot?.investorTrading.retailNet ?? null,
+      vnd: null,
       tcbs: tcbsSnapshot?.investorTrading.retailNet ?? null,
     });
 
@@ -1190,15 +1511,100 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
       (isValidLiquidity(overviewLiquidity) ? overviewLiquidity : null) ??
       (inferredExchangeTotal > 0 ? inferredExchangeTotal : null);
 
+    const breadthFromDnse = dnseSnapshot?.breadth?.total
+      ? {
+          up: dnseSnapshot.breadth.total.up ?? 0,
+          down: dnseSnapshot.breadth.total.down ?? 0,
+          unchanged: dnseSnapshot.breadth.total.unchanged ?? 0,
+        }
+      : null;
+    const breadthByExchangeFromDnse =
+      dnseSnapshot?.breadth?.byExchange
+        ? {
+            HOSE: toStrictBreadthGroup(dnseSnapshot.breadth.byExchange.HOSE),
+            HNX: toStrictBreadthGroup(dnseSnapshot.breadth.byExchange.HNX),
+            UPCOM: toStrictBreadthGroup(dnseSnapshot.breadth.byExchange.UPCOM),
+          }
+        : null;
+
     const breadthFromFeed = parseBreadthFromFeed(breadthFeed);
-    const breadth = breadthFromFeed ?? (overview ? parseBreadth(overview.market_breadth) : null);
+    const breadthByExchangeFromFeed = parseBreadthByExchangeFromFeed(breadthFeed);
+    const breadth = breadthFromDnse ?? breadthFromFeed ?? (overview ? parseBreadth(overview.market_breadth) : null);
+    const breadthByExchange = breadthByExchangeFromDnse ?? breadthByExchangeFromFeed;
+    const breadthSource: ProviderId | "none" =
+      breadthFromDnse ? "dnse" : breadthFromFeed ? "fiin" : "none";
+
     const supplyDemand = parseRealtimeSupplyDemand(realtimeVnindex);
 
-    const indices: IndexData[] = [];
-    if (vnindex) indices.push(vnindex);
-    if (hnxindex) indices.push(hnxindex);
-    if (upcomindex) indices.push(upcomindex);
-    if (vn30) indices.push(vn30);
+    const requiredIndexSet = new Set(indices.map((item) => item.ticker.toUpperCase()));
+    const publishBlockers: string[] = [];
+    const hasRequiredIndices = requiredIndexSymbols.every((ticker) => requiredIndexSet.has(ticker));
+    if (!hasRequiredIndices) publishBlockers.push("missing_required_indices");
+    if (!breadth || breadth.up + breadth.down + breadth.unchanged <= 0) {
+      publishBlockers.push("missing_breadth");
+    }
+    if (totalLiquidity == null || !Number.isFinite(totalLiquidity) || totalLiquidity <= 0) {
+      publishBlockers.push("missing_liquidity");
+    }
+    if (!parsedInvestor.investorTrading.availability.foreign) {
+      publishBlockers.push("missing_foreign_flow");
+    }
+    const publish = publishBlockers.length === 0;
+    if (!publish) {
+      providerDiagnostics.push({
+        provider: "publish-guard",
+        endpoint: "snapshot-contract",
+        requestDateVN,
+        httpStatus: null,
+        error: publishBlockers.join(","),
+        fallbackUsed: true,
+      });
+      console.warn(
+        `[market-snapshot] publish=false date=${requestDateVN} blockers=${publishBlockers.join(",")}`,
+      );
+    }
+
+    const liquidityProviderSet = new Set<ProviderId>(
+      [liquiditySourceByExchange.HOSE, liquiditySourceByExchange.HNX, liquiditySourceByExchange.UPCOM]
+        .filter((provider): provider is ProviderId => provider !== "none"),
+    );
+    const investorProviderSet = new Set<ProviderId>(
+      [investorSource.foreign, investorSource.proprietary, investorSource.retail]
+        .filter((provider): provider is ProviderId => provider !== "none"),
+    );
+
+    const resolveMixedSource = (set: Set<ProviderId>): ProviderId | "mixed" | "none" => {
+      if (set.size === 0) return "none";
+      if (set.size === 1) return Array.from(set)[0]!;
+      return "mixed";
+    };
+
+    const indicesSource = resolveMixedSource(indexSourceSet);
+    const liquiditySource = resolveMixedSource(liquidityProviderSet);
+    const investorTradingSource = resolveMixedSource(investorProviderSet);
+
+    const source = {
+      indices: indicesSource,
+      breadth: breadthSource,
+      liquidity: liquiditySource,
+      investorTrading: investorTradingSource,
+      primary:
+        indicesSource !== "none"
+          ? indicesSource
+          : breadthSource !== "none"
+          ? breadthSource
+          : liquiditySource !== "none"
+          ? liquiditySource
+          : investorTradingSource !== "none"
+          ? investorTradingSource
+          : "none",
+    } as const;
+
+    const freshnessBaseTimestamp = dnseSnapshot?.timestamp ?? Date.now();
+    const freshnessAgeMs = Date.now() - freshnessBaseTimestamp;
+    let freshness: "fresh" | "stale" | "degraded" =
+      freshnessAgeMs <= 120_000 ? "fresh" : "stale";
+    if (!publish) freshness = "degraded";
 
     const snapshot: MarketSnapshot = {
       timestamp: getVnNow().toISOString(),
@@ -1206,6 +1612,7 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
       providerDiagnostics,
       indices,
       breadth,
+      breadthByExchange,
       supplyDemand,
       liquidity: totalLiquidity,
       liquidityByExchange: {
@@ -1218,6 +1625,10 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
       marketOverview: overview,
       topGainers: movers.gainers,
       topLosers: movers.losers,
+      source,
+      freshness,
+      publish,
+      publishBlockers,
     };
 
     marketSnapshotCache = {

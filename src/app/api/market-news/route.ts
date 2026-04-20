@@ -265,6 +265,16 @@ function sanitizeNewsLine(text: string): string {
   return repairMojibake(stripMarkdownAndBullets(decodeHtmlEntities(text)));
 }
 
+function sanitizeNarrativeLine(text: string): string {
+  const cleaned = sanitizeNewsLine(text).replace(/\s+/g, " ").trim();
+  if (!cleaned) return "";
+  if (isUnavailableText(cleaned)) return "";
+  const noSpace = cleaned.replace(/\s+/g, "");
+  if (/^0+$/.test(noSpace)) return "";
+  if (/^[\d.,:+\-|/()%\s]+$/.test(cleaned)) return "";
+  return cleaned;
+}
+
 function isGenericCategoryLine(text: string): boolean {
   const cleaned = sanitizeNewsLine(text);
   if (!cleaned) return true;
@@ -871,16 +881,16 @@ function hasMissingSecondaryExchangeLiquidity(exchanges: ExchangeLiquidity | und
 
 function buildLiquidityDetail(totalLiquidityRaw: number, exchanges: ExchangeLiquidity): string {
   if (!(totalLiquidityRaw > 0)) return "";
-  const hasExchangeLiquidity = [exchanges.HOSE, exchanges.HNX, exchanges.UPCOM].some((v) => v != null && v > 0);
-  if (!hasExchangeLiquidity) {
+  const exchangeParts = [
+    exchanges.HOSE != null && exchanges.HOSE > 0 ? `HoSE ${Math.round(exchanges.HOSE).toLocaleString("vi-VN")}` : null,
+    exchanges.HNX != null && exchanges.HNX > 0 ? `HNX ${Math.round(exchanges.HNX).toLocaleString("vi-VN")}` : null,
+    exchanges.UPCOM != null && exchanges.UPCOM > 0 ? `UPCoM ${Math.round(exchanges.UPCOM).toLocaleString("vi-VN")}` : null,
+  ].filter((item): item is string => Boolean(item));
+
+  if (exchangeParts.length === 0) {
     return `Thanh khoản toàn thị trường đạt ${Math.round(totalLiquidityRaw).toLocaleString("vi-VN")} tỷ đồng.`;
   }
-
-  const formatExchangeLiquidity = (value: number | null): string =>
-    value != null && value > 0 ? Math.round(value).toLocaleString("vi-VN") : "chưa cập nhật";
-  return `Thanh khoản toàn thị trường đạt ${Math.round(totalLiquidityRaw).toLocaleString("vi-VN")} tỷ đồng (HoSE ${formatExchangeLiquidity(
-    exchanges.HOSE,
-  )} | HNX ${formatExchangeLiquidity(exchanges.HNX)} | UPCoM ${formatExchangeLiquidity(exchanges.UPCOM)}).`;
+  return `Thanh khoản toàn thị trường đạt ${Math.round(totalLiquidityRaw).toLocaleString("vi-VN")} tỷ đồng (${exchangeParts.join(" | ")}).`;
 }
 
 function hasImpossibleBreadthClaim(summary: string): boolean {
@@ -1139,12 +1149,15 @@ function toEodPayload(report: { createdAt: Date; content: string; rawData: strin
     foreign_flow:
       foreignNet != null
         ? `Khối ngoại ${foreignNet >= 0 ? "mua ròng" : "bán ròng"} ${Math.abs(foreignNet).toFixed(1)} tỷ.`
-        : foreignLineFromContent,
+        : (foreignLineFromContent || ""),
     notable_trades:
       proprietaryNet != null || retailNet != null
-        ? `Tự doanh: ${
-            proprietaryNet == null ? "chưa cập nhật" : `${proprietaryNet >= 0 ? "+" : ""}${proprietaryNet.toFixed(1)} tỷ`
-          } | Cá nhân: ${retailNet == null ? "chưa cập nhật" : `${retailNet >= 0 ? "+" : ""}${retailNet.toFixed(1)} tỷ`}.`
+        ? [
+            proprietaryNet != null ? `Tự doanh: ${proprietaryNet >= 0 ? "+" : ""}${proprietaryNet.toFixed(1)} tỷ` : null,
+            retailNet != null ? `Cá nhân: ${retailNet >= 0 ? "+" : ""}${retailNet.toFixed(1)} tỷ` : null,
+          ]
+            .filter((line): line is string => Boolean(line))
+            .join(" | ")
         : [propLineFromContent, retailLineFromContent].filter(Boolean).join(" | "),
     outlook: sentimentLine,
     sub_indices: parseSubIndices(raw?.sub_indices),
@@ -1410,7 +1423,7 @@ async function buildLiveEodFallbackPayload(): Promise<EodPayload | null> {
           breadth: { up, down, unchanged, total: up + down + unchanged },
           session_summary: "Bản tin EOD tạm thời từ dữ liệu thị trường trực tiếp.",
           liquidity_detail: `Thanh khoản toàn thị trường đạt ${Math.round(liquidity).toLocaleString("vi-VN")} tỷ đồng.`,
-          foreign_flow: "Khối ngoại: chưa cập nhật",
+          foreign_flow: "",
           notable_trades: "",
           outlook: "",
           sub_indices: [],
@@ -1428,6 +1441,7 @@ async function buildLiveEodFallbackPayload(): Promise<EodPayload | null> {
     }
 
     const snapshot = await getMarketSnapshot();
+    if (!snapshot.publish) return null;
     const vnindex = snapshot.indices.find((item) => item.ticker === "VNINDEX");
     if (vnindex && snapshot.liquidity != null && snapshot.liquidity > 0) {
       const investorLines = getInvestorTradingText(snapshot, "full19");
@@ -1453,7 +1467,7 @@ async function buildLiveEodFallbackPayload(): Promise<EodPayload | null> {
       },
       session_summary: `Bản tin EOD tạm thời từ snapshot trực tiếp (${snapshot.requestDateVN}).`,
       liquidity_detail: buildLiquidityDetail(snapshot.liquidity, snapshotExchangeLiquidity),
-      foreign_flow: foreignLine || "Khối ngoại: chưa cập nhật",
+      foreign_flow: foreignLine || "",
       notable_trades: otherLines,
       outlook: snapshot.marketOverview?.action_message ?? "",
       sub_indices: [],
@@ -1520,6 +1534,9 @@ export async function GET(request: NextRequest) {
       macro: selected.macro.map((line) => sanitizeNewsLine(line)).filter(Boolean),
       risk_opportunity: selected.risk_opportunity.map((line) => sanitizeNewsLine(line)).filter(Boolean),
     };
+    if (!hasValidMorningPayload(selected)) {
+      return NextResponse.json({ error: "Morning Brief chưa đủ dữ liệu hợp lệ để publish." }, { status: 503 });
+    }
     return NextResponse.json(selected);
   }
 
@@ -1585,11 +1602,11 @@ export async function GET(request: NextRequest) {
   }
   selected = {
     ...selected,
-    session_summary: sanitizeNewsLine(selected.session_summary),
-    liquidity_detail: sanitizeNewsLine(selected.liquidity_detail),
-    foreign_flow: sanitizeNewsLine(selected.foreign_flow),
-    notable_trades: sanitizeNewsLine(selected.notable_trades),
-    outlook: sanitizeNewsLine(selected.outlook),
+    session_summary: sanitizeNarrativeLine(selected.session_summary),
+    liquidity_detail: sanitizeNarrativeLine(selected.liquidity_detail),
+    foreign_flow: sanitizeNarrativeLine(selected.foreign_flow),
+    notable_trades: sanitizeNarrativeLine(selected.notable_trades),
+    outlook: sanitizeNarrativeLine(selected.outlook),
     foreign_top_buy: selected.foreign_top_buy.map((line) => sanitizeNewsLine(line)).filter(Boolean),
     foreign_top_sell: selected.foreign_top_sell.map((line) => sanitizeNewsLine(line)).filter(Boolean),
     prop_trading_top_buy: selected.prop_trading_top_buy.map((line) => sanitizeNewsLine(line)).filter(Boolean),
@@ -1600,5 +1617,8 @@ export async function GET(request: NextRequest) {
     sell_signals: selected.sell_signals.map((line) => sanitizeNewsLine(line)).filter(Boolean),
     top_breakout: selected.top_breakout.map((line) => sanitizeNewsLine(line)).filter(Boolean),
   };
+  if (!hasValidEodPayload(selected)) {
+    return NextResponse.json({ error: "EOD Brief chưa đủ dữ liệu hợp lệ để publish." }, { status: 503 });
+  }
   return NextResponse.json(selected);
 }

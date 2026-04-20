@@ -703,6 +703,12 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
       return {
         ticker: "VNINDEX",
         breadth: snapshot.breadth,
+        byExchange: snapshot.breadthByExchange,
+        source: snapshot.source.breadth,
+        timestamp: snapshot.timestamp,
+        freshness: snapshot.freshness,
+        publish: snapshot.publish,
+        publishBlockers: snapshot.publishBlockers,
       };
     },
   },
