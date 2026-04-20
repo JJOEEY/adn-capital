@@ -250,6 +250,7 @@ export async function POST(req: NextRequest) {
 
   const brokerPayload = buildDnseExecutionRequest(ticket.intent);
   const result = await submitOrderToDnse({
+    userId: userContext.user.id,
     intent: ticket.intent,
     brokerPayload,
     validation: ticket.validation,

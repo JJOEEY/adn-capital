@@ -9,7 +9,9 @@ import {
   CircleOff,
   Link2,
   RefreshCw,
+  ShieldCheck,
   TrendingUp,
+  Unlink,
   Wallet,
 } from "lucide-react";
 import { OrderTicketPanel } from "@/components/broker/OrderTicketPanel";
@@ -26,6 +28,8 @@ type BrokerPosition = {
   navAllocation: number | null;
   type: string | null;
   tier: string | null;
+  quantity?: number | null;
+  marketValue?: number | null;
 };
 
 type BrokerBalanceTopic = {
@@ -37,6 +41,8 @@ type BrokerBalanceTopic = {
   maxActiveNavPct?: number;
   totalNav?: number | null;
   buyingPower?: number | null;
+  cash?: number | null;
+  debt?: number | null;
 };
 
 type BrokerHoldingsTopic = {
@@ -62,8 +68,31 @@ type BrokerOrdersTopic = {
   }>;
 };
 
-const DNSE_LOGIN_URL =
-  process.env.NEXT_PUBLIC_DNSE_LOGIN_URL || "https://banggia.dnse.com.vn/";
+type DnseConnectionStatus = {
+  dnseId: string | null;
+  dnseVerified: boolean;
+  dnseAppliedAt: string | null;
+  oauth: {
+    configured: boolean;
+    missing: string[];
+    startUrl: string;
+    disconnectUrl: string;
+  };
+  connection: {
+    linked: boolean;
+    accountId: string | null;
+    accountName: string | null;
+    subAccountId: string | null;
+    status: string;
+    scope: string | null;
+    accessTokenExpiresAt: string | null;
+    refreshTokenExpiresAt: string | null;
+    lastSyncedAt: string | null;
+    lastError: string | null;
+    updatedAt: string | null;
+    source: "oauth" | "legacy_manual";
+  };
+};
 
 function fmtPrice(value: number | null | undefined) {
   if (value == null || !Number.isFinite(value)) return "--";
@@ -93,12 +122,22 @@ function pnlTone(value: number | null | undefined) {
   };
 }
 
+function fmtDateTime(value: string | null | undefined) {
+  if (!value) return "--";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "--";
+  return date.toLocaleString("vi-VN");
+}
+
 export function DnseTradingClient() {
   const { dbUser, isLoading } = useCurrentDbUser();
   const searchParams = useSearchParams();
   const queryTicker = (searchParams.get("ticker") ?? "").trim().toUpperCase();
   const queryNavPctRaw = Number(searchParams.get("navPct") ?? "");
   const queryEntryRaw = Number(searchParams.get("entry") ?? "");
+  const oauthStatus = (searchParams.get("oauth") ?? "").trim().toLowerCase();
+  const oauthMessage = (searchParams.get("message") ?? "").trim();
+
   const queryNavPct =
     Number.isFinite(queryNavPctRaw) && queryNavPctRaw > 0
       ? Math.min(100, queryNavPctRaw)
@@ -107,8 +146,9 @@ export function DnseTradingClient() {
     Number.isFinite(queryEntryRaw) && queryEntryRaw > 0 ? queryEntryRaw : null;
 
   const [ticker, setTicker] = useState(queryTicker || "HPG");
-  const [dnseIdInput, setDnseIdInput] = useState("");
   const [totalNavInput, setTotalNavInput] = useState("");
+  const [connectionStatus, setConnectionStatus] = useState<DnseConnectionStatus | null>(null);
+  const [statusLoading, setStatusLoading] = useState(true);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -116,10 +156,6 @@ export function DnseTradingClient() {
   useEffect(() => {
     if (queryTicker) setTicker(queryTicker);
   }, [queryTicker]);
-
-  useEffect(() => {
-    if (dbUser?.dnseId) setDnseIdInput(dbUser.dnseId);
-  }, [dbUser?.dnseId]);
 
   useEffect(() => {
     if (dbUser?.initialJournalNAV && !totalNavInput) {
@@ -177,38 +213,65 @@ export function DnseTradingClient() {
     }
   }, [holdings, queryTicker]);
 
-  const isConnected = Boolean(dbUser?.dnseId && dbUser?.dnseVerified);
-
-  async function handleSaveDnseId() {
-    const next = dnseIdInput.trim();
-    if (!next) {
-      setSubmitError("Vui lòng nhập ID DNSE hợp lệ.");
-      setSubmitMessage(null);
-      return;
+  useEffect(() => {
+    let cancelled = false;
+    async function loadConnectionStatus() {
+      setStatusLoading(true);
+      try {
+        const response = await fetch("/api/user/dnse", { cache: "no-store" });
+        const payload = (await response.json()) as DnseConnectionStatus & { error?: string };
+        if (!cancelled && response.ok) {
+          setConnectionStatus(payload);
+        } else if (!cancelled) {
+          setConnectionStatus(null);
+          setSubmitError(payload.error ?? "Không thể tải trạng thái DNSE");
+        }
+      } catch {
+        if (!cancelled) {
+          setConnectionStatus(null);
+          setSubmitError("Không thể tải trạng thái DNSE");
+        }
+      } finally {
+        if (!cancelled) setStatusLoading(false);
+      }
     }
+    void loadConnectionStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const isConnected = Boolean(
+    connectionStatus?.connection?.linked &&
+      connectionStatus.connection.source === "oauth" &&
+      connectionStatus.dnseVerified,
+  );
+
+  async function handleDisconnect() {
+    if (!connectionStatus?.oauth?.disconnectUrl) return;
+    const ok = window.confirm("Bạn muốn ngắt kết nối DNSE cho tài khoản này?");
+    if (!ok) return;
 
     setSubmitLoading(true);
-    setSubmitError(null);
     setSubmitMessage(null);
+    setSubmitError(null);
     try {
-      const res = await fetch("/api/user/dnse", {
+      const response = await fetch(connectionStatus.oauth.disconnectUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dnseId: next }),
       });
-      const payload = (await res.json()) as { message?: string; error?: string };
-      if (!res.ok) {
-        throw new Error(payload.error ?? "Không thể liên kết ID DNSE.");
+      const payload = (await response.json().catch(() => null)) as
+        | { message?: string; error?: string }
+        | null;
+      if (!response.ok) {
+        throw new Error(payload?.error ?? "Không thể ngắt kết nối DNSE");
       }
-      setSubmitMessage(
-        payload.message ??
-          "Đã gửi yêu cầu liên kết DNSE, chờ admin xác minh.",
-      );
+      setSubmitMessage(payload?.message ?? "Đã ngắt kết nối DNSE");
+      const refreshed = await fetch("/api/user/dnse", { cache: "no-store" });
+      const refreshedPayload = (await refreshed.json()) as DnseConnectionStatus;
+      setConnectionStatus(refreshedPayload);
       await brokerTopics.refresh(true);
     } catch (error) {
-      setSubmitError(
-        error instanceof Error ? error.message : "Không thể liên kết ID DNSE.",
-      );
+      setSubmitError(error instanceof Error ? error.message : "Không thể ngắt kết nối DNSE");
     } finally {
       setSubmitLoading(false);
     }
@@ -222,8 +285,7 @@ export function DnseTradingClient() {
             DNSE Trading
           </h1>
           <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-            Kết nối tài khoản DNSE của bạn để theo dõi NAV, danh mục nắm giữ và đặt
-            lệnh an toàn.
+            Kết nối tài khoản DNSE thật để đồng bộ NAV, danh mục nắm giữ và đặt lệnh trong pilot an toàn.
           </p>
         </div>
         <button
@@ -242,6 +304,31 @@ export function DnseTradingClient() {
         </button>
       </div>
 
+      {oauthStatus === "ok" ? (
+        <div
+          className="rounded-xl border px-3 py-2 text-sm"
+          style={{
+            borderColor: "rgba(22,163,74,0.25)",
+            background: "rgba(22,163,74,0.10)",
+            color: "#166534",
+          }}
+        >
+          {oauthMessage || "Kết nối DNSE thành công."}
+        </div>
+      ) : null}
+      {oauthStatus === "error" ? (
+        <div
+          className="rounded-xl border px-3 py-2 text-sm"
+          style={{
+            borderColor: "rgba(192,57,43,0.25)",
+            background: "rgba(192,57,43,0.10)",
+            color: "var(--danger)",
+          }}
+        >
+          {oauthMessage || "Kết nối DNSE thất bại."}
+        </div>
+      ) : null}
+
       <div className="grid gap-3 md:grid-cols-3">
         <div
           className="rounded-2xl border p-4 md:col-span-2"
@@ -253,13 +340,13 @@ export function DnseTradingClient() {
               className="text-sm font-black uppercase tracking-wide"
               style={{ color: "var(--text-primary)" }}
             >
-              Liên kết tài khoản DNSE
+              Tài khoản DNSE chính
             </h2>
           </div>
 
-          {isLoading ? (
+          {isLoading || statusLoading ? (
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              Đang tải thông tin tài khoản...
+              Đang tải thông tin kết nối DNSE...
             </p>
           ) : (
             <>
@@ -268,9 +355,9 @@ export function DnseTradingClient() {
                   className="rounded-full border px-2 py-1 text-xs font-semibold"
                   style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
                 >
-                  ID: {dbUser?.dnseId ?? "--"}
+                  ID: {connectionStatus?.connection?.accountId ?? "--"}
                 </span>
-                {dbUser?.dnseVerified ? (
+                {isConnected ? (
                   <span
                     className="inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold"
                     style={{
@@ -279,7 +366,7 @@ export function DnseTradingClient() {
                       background: "rgba(22,163,74,0.10)",
                     }}
                   >
-                    <CheckCircle2 className="h-3.5 w-3.5" /> Đã xác minh
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Đã liên kết OAuth
                   </span>
                 ) : (
                   <span
@@ -290,16 +377,53 @@ export function DnseTradingClient() {
                       background: "rgba(245,158,11,0.10)",
                     }}
                   >
-                    <AlertTriangle className="h-3.5 w-3.5" /> Chờ xác minh
+                    <AlertTriangle className="h-3.5 w-3.5" /> Chưa liên kết OAuth
                   </span>
                 )}
+                <span
+                  className="inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold"
+                  style={{
+                    borderColor: "rgba(37,99,235,0.25)",
+                    color: "#1d4ed8",
+                    background: "rgba(37,99,235,0.10)",
+                  }}
+                >
+                  <ShieldCheck className="h-3.5 w-3.5" /> Pilot Guard bật
+                </span>
               </div>
 
-              {dbUser?.dnseVerified ? (
-                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                  Tài khoản DNSE đã xác minh. Bạn có thể đặt lệnh trong khu vực bên
-                  dưới theo các guard an toàn hệ thống.
-                </p>
+              {isConnected ? (
+                <div className="grid gap-2 text-xs md:grid-cols-2" style={{ color: "var(--text-secondary)" }}>
+                  <p>
+                    Chủ tài khoản:{" "}
+                    <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
+                      {connectionStatus?.connection?.accountName || "--"}
+                    </span>
+                  </p>
+                  <p>
+                    Tiểu khoản:{" "}
+                    <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
+                      {connectionStatus?.connection?.subAccountId || "--"}
+                    </span>
+                  </p>
+                  <p>
+                    Access token hết hạn:{" "}
+                    <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
+                      {fmtDateTime(connectionStatus?.connection?.accessTokenExpiresAt)}
+                    </span>
+                  </p>
+                  <p>
+                    Đồng bộ gần nhất:{" "}
+                    <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
+                      {fmtDateTime(connectionStatus?.connection?.lastSyncedAt)}
+                    </span>
+                  </p>
+                  {connectionStatus?.connection?.lastError ? (
+                    <p className="md:col-span-2" style={{ color: "var(--danger)" }}>
+                      Lỗi gần nhất: {connectionStatus.connection.lastError}
+                    </p>
+                  ) : null}
+                </div>
               ) : (
                 <div className="space-y-3">
                   <div
@@ -311,18 +435,16 @@ export function DnseTradingClient() {
                     }}
                   >
                     <p className="font-semibold" style={{ color: "var(--text-primary)" }}>
-                      Các bước kết nối DNSE
+                      Cách kết nối OAuth DNSE
                     </p>
-                    <p>1. Bấm “Đăng nhập DNSE” để đăng nhập tài khoản DNSE ở tab mới.</p>
-                    <p>2. Lấy mã tài khoản/tiểu khoản DNSE chính của bạn.</p>
-                    <p>3. Dán ID vào ô bên dưới và bấm “Liên kết DNSE”.</p>
+                    <p>1. Bấm “Kết nối DNSE OAuth”.</p>
+                    <p>2. Đăng nhập và ủy quyền trên trang DNSE.</p>
+                    <p>3. Hệ thống tự callback, lưu token an toàn và bật đồng bộ NAV/holdings realtime.</p>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2">
+                  {connectionStatus?.oauth?.configured ? (
                     <a
-                      href={DNSE_LOGIN_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      href={connectionStatus.oauth.startUrl}
                       className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold"
                       style={{
                         borderColor: "var(--border)",
@@ -331,40 +453,43 @@ export function DnseTradingClient() {
                       }}
                     >
                       <Link2 className="h-3.5 w-3.5" />
-                      Đăng nhập DNSE
+                      Kết nối DNSE OAuth
                     </a>
-                  </div>
-
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <input
-                      value={dnseIdInput}
-                      onChange={(event) => setDnseIdInput(event.target.value)}
-                      placeholder="Nhập ID DNSE chính"
-                      className="w-full rounded-xl border px-3 py-2 text-sm"
+                  ) : (
+                    <div
+                      className="rounded-xl border px-3 py-2 text-xs"
                       style={{
-                        borderColor: "var(--border)",
-                        background: "var(--surface-2)",
-                        color: "var(--text-primary)",
+                        borderColor: "rgba(192,57,43,0.25)",
+                        color: "var(--danger)",
+                        background: "rgba(192,57,43,0.08)",
                       }}
-                    />
-                    <button
-                      onClick={() => void handleSaveDnseId()}
-                      disabled={submitLoading}
-                      className="rounded-xl px-4 py-2 text-xs font-bold disabled:opacity-60"
-                      style={{ background: "var(--primary)", color: "var(--on-primary)" }}
                     >
-                      {submitLoading ? "Đang liên kết..." : "Liên kết DNSE"}
-                    </button>
-                  </div>
-
-                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                    Sau khi liên kết, admin xác minh để kích hoạt luồng đặt lệnh an toàn
-                    cho tài khoản của bạn.
-                  </p>
+                      OAuth DNSE chưa cấu hình đủ:{" "}
+                      {connectionStatus?.oauth?.missing?.join(", ") || "thiếu biến môi trường"}
+                    </div>
+                  )}
                 </div>
               )}
             </>
           )}
+
+          {isConnected ? (
+            <div className="mt-3">
+              <button
+                onClick={() => void handleDisconnect()}
+                disabled={submitLoading}
+                className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold disabled:opacity-60"
+                style={{
+                  borderColor: "rgba(192,57,43,0.25)",
+                  color: "var(--danger)",
+                  background: "rgba(192,57,43,0.08)",
+                }}
+              >
+                <Unlink className="h-3.5 w-3.5" />
+                {submitLoading ? "Đang ngắt kết nối..." : "Ngắt kết nối DNSE"}
+              </button>
+            </div>
+          ) : null}
 
           {submitMessage ? (
             <div
@@ -416,6 +541,14 @@ export function DnseTradingClient() {
                 </span>
               </p>
               <p style={{ color: "var(--text-secondary)" }}>
+                Sức mua khả dụng:{" "}
+                <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
+                  {balanceTopic?.buyingPower != null
+                    ? `${Math.round(balanceTopic.buyingPower).toLocaleString("vi-VN")} VND`
+                    : "--"}
+                </span>
+              </p>
+              <p style={{ color: "var(--text-secondary)" }}>
                 NAV đã phân bổ:{" "}
                 <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
                   {Number(balanceTopic?.navAllocatedPct ?? 0).toFixed(2)}%
@@ -434,16 +567,20 @@ export function DnseTradingClient() {
                 </span>
               </p>
               <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                Source: {balanceTopic?.source ?? "N/A"}
+                Nguồn: {balanceTopic?.source ?? "N/A"}
               </p>
+              {balanceTopic?.reason ? (
+                <p className="text-xs" style={{ color: "#f59e0b" }}>
+                  Ghi chú: {balanceTopic.reason}
+                </p>
+              ) : null}
             </div>
           ) : (
             <div
               className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold"
               style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
             >
-              <CircleOff className="h-3.5 w-3.5" /> Chưa có dữ liệu NAV vì tài khoản DNSE
-              chưa xác minh.
+              <CircleOff className="h-3.5 w-3.5" /> Chưa có dữ liệu NAV realtime vì tài khoản DNSE chưa liên kết OAuth.
             </div>
           )}
 
@@ -536,13 +673,24 @@ export function DnseTradingClient() {
                         Hiện tại: <span style={{ color: "var(--text-primary)" }}>{fmtPrice(row.currentPrice)}</span>
                       </p>
                       <p>
+                        Số lượng:{" "}
+                        <span style={{ color: "var(--text-primary)" }}>
+                          {row.quantity != null ? Number(row.quantity).toLocaleString("vi-VN") : "--"}
+                        </span>
+                      </p>
+                      <p>
+                        Giá trị:{" "}
+                        <span style={{ color: "var(--text-primary)" }}>
+                          {row.marketValue != null
+                            ? `${Math.round(row.marketValue).toLocaleString("vi-VN")} VND`
+                            : "--"}
+                        </span>
+                      </p>
+                      <p>
                         Target / SL:{" "}
                         <span style={{ color: "var(--text-primary)" }}>
                           {fmtPrice(row.target)} / {fmtPrice(row.stoploss)}
                         </span>
-                      </p>
-                      <p>
-                        NAV: <span style={{ color: "var(--text-primary)" }}>{Number(row.navAllocation ?? 0).toFixed(2)}%</span>
                       </p>
                     </div>
                   </button>
@@ -612,14 +760,28 @@ export function DnseTradingClient() {
             />
           </div>
         </div>
+
+        {!isConnected ? (
+          <div
+            className="rounded-xl border px-3 py-2 text-sm"
+            style={{
+              borderColor: "rgba(245,158,11,0.25)",
+              background: "rgba(245,158,11,0.10)",
+              color: "#92400e",
+            }}
+          >
+            Bạn cần liên kết OAuth DNSE trước khi đặt lệnh.
+          </div>
+        ) : null}
+
         <OrderTicketPanel
           ticker={(ticker || "HPG").trim().toUpperCase()}
           recommendedNavPct={queryNavPct ?? undefined}
           totalNavValue={totalNavValue ?? undefined}
           defaultPrice={queryEntryPrice ?? undefined}
+          defaultAccountId={connectionStatus?.connection?.accountId ?? undefined}
         />
       </div>
     </div>
   );
 }
-

@@ -6,6 +6,8 @@ import { getPythonBridgeUrl } from "@/lib/runtime-config";
 import { fetchFAData, fetchTAData } from "@/lib/stockData";
 import { resolveMarketTicker } from "@/lib/ticker-resolver";
 import { listDnseOrderHistory } from "@/lib/brokers/dnse/order-history";
+import { ensureDnseAccessTokenForUser } from "@/lib/brokers/dnse/connection";
+import { fetchDnseBrokerChannel } from "@/lib/brokers/dnse/client";
 import { resolveTopicFamily, resolveTopicStaleWindowMs } from "./policy";
 import { TopicContext, TopicDefinition } from "./types";
 
@@ -421,12 +423,21 @@ async function loadBrokerTopic(connectionId: string, channel: "positions" | "ord
     throw new Error("Unauthorized private broker topic");
   }
 
-  const currentUser = await prisma.user.findUnique({
-    where: { id: context.userId },
-    select: { dnseId: true, dnseVerified: true },
-  });
+  const [currentUser, connection] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: context.userId },
+      select: { dnseId: true, dnseVerified: true },
+    }),
+    prisma.dnseConnection.findUnique({
+      where: { userId: context.userId },
+      select: { accountId: true, status: true },
+    }),
+  ]);
 
-  const allowedConnectionId = currentUser?.dnseId?.trim() || null;
+  const allowedConnectionId =
+    connection?.status === "ACTIVE"
+      ? connection.accountId.trim()
+      : (currentUser?.dnseId?.trim() || null);
   if (!allowedConnectionId || connectionId !== allowedConnectionId) {
     throw new Error("Broker connection not found for current user");
   }
@@ -444,6 +455,120 @@ async function loadBrokerTopic(connectionId: string, channel: "positions" | "ord
     tier: row.tier,
     updatedAt: row.updatedAt,
   }));
+
+  const oauthAuth = await ensureDnseAccessTokenForUser(context.userId).catch(() => null);
+  if (oauthAuth?.connection?.accountId === connectionId) {
+    try {
+      const live = await fetchDnseBrokerChannel({
+        channel,
+        accessToken: oauthAuth.accessToken,
+        accountId: connectionId,
+        userId: context.userId,
+      });
+
+      if (channel === "positions") {
+        return {
+          connected: true,
+          connectionId,
+          source: live.source,
+          positions:
+            live.positions?.map((row) => ({
+              ticker: row.ticker,
+              entryPrice: row.entryPrice,
+              currentPrice: row.currentPrice ?? row.entryPrice,
+              pnlPercent: row.pnlPercent ?? 0,
+              target: null,
+              stoploss: null,
+              navAllocation: null,
+              type: null,
+              tier: null,
+              quantity: row.quantity,
+              marketValue: row.marketValue,
+            })) ?? [],
+        };
+      }
+
+      if (channel === "orders") {
+        return {
+          connected: true,
+          connectionId,
+          source: live.source,
+          orders: live.orders ?? [],
+        };
+      }
+
+      if (channel === "balance") {
+        const navAllocatedPct = positions.reduce((sum, row) => sum + (row.navAllocation ?? 0), 0);
+        return {
+          connected: true,
+          connectionId,
+          source: live.source,
+          navAllocatedPct: Number(navAllocatedPct.toFixed(2)),
+          navRemainingPct: Number(Math.max(0, 100 - navAllocatedPct).toFixed(2)),
+          maxActiveNavPct: 90,
+          totalNav: live.totalNav ?? null,
+          buyingPower: live.buyingPower ?? null,
+          cash: live.cash ?? null,
+          debt: live.debt ?? null,
+        };
+      }
+
+      return {
+        connected: true,
+        connectionId,
+        source: live.source,
+        holdings:
+          live.holdings?.map((row) => ({
+            ticker: row.ticker,
+            entryPrice: row.entryPrice,
+            currentPrice: row.currentPrice ?? row.entryPrice,
+            pnlPercent: row.pnlPercent ?? 0,
+            target: null,
+            stoploss: null,
+            navAllocation: null,
+            type: null,
+            tier: null,
+            quantity: row.quantity,
+            marketValue: row.marketValue,
+          })) ?? [],
+      };
+    } catch (error) {
+      const fallbackReason = error instanceof Error ? error.message : "dnse_oauth_fetch_failed";
+      if (channel === "orders") {
+        const orders = await listDnseOrderHistory({
+          userId: context.userId,
+          connectionId,
+          limit: 80,
+        });
+        return {
+          connected: Boolean(currentUser?.dnseId && currentUser?.dnseVerified),
+          connectionId,
+          source: "dnse-execution-audit-fallback",
+          reason: fallbackReason,
+          orders,
+        };
+      }
+      if (channel === "balance") {
+        const navAllocatedPct = positions.reduce((sum, row) => sum + (row.navAllocation ?? 0), 0);
+        return {
+          connected: Boolean(currentUser?.dnseId && currentUser?.dnseVerified),
+          connectionId,
+          source: "internal-estimate-fallback",
+          reason: fallbackReason,
+          navAllocatedPct: Number(navAllocatedPct.toFixed(2)),
+          navRemainingPct: Number(Math.max(0, 100 - navAllocatedPct).toFixed(2)),
+          maxActiveNavPct: 90,
+        };
+      }
+      return {
+        connected: Boolean(currentUser?.dnseId && currentUser?.dnseVerified),
+        connectionId,
+        source: "internal-merged-fallback",
+        reason: fallbackReason,
+        [channel === "positions" ? "positions" : "holdings"]: positions,
+      };
+    }
+  }
 
   if (channel === "positions") {
     return {
@@ -504,11 +629,20 @@ async function loadBrokerTopicForUserAccount(
 }
 
 async function resolveCurrentBrokerConnectionId(userId: string): Promise<string> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { dnseId: true, dnseVerified: true },
-  });
-  const connectionId = user?.dnseId?.trim() ?? "";
+  const [user, connection] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { dnseId: true, dnseVerified: true },
+    }),
+    prisma.dnseConnection.findUnique({
+      where: { userId },
+      select: { accountId: true, status: true },
+    }),
+  ]);
+  const connectionId =
+    connection?.status === "ACTIVE"
+      ? connection.accountId.trim()
+      : (user?.dnseId?.trim() ?? "");
   if (!connectionId || !user?.dnseVerified) {
     throw new Error("DNSE connection is not verified for current user");
   }

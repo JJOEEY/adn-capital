@@ -23,11 +23,20 @@ export function buildDnseCurrentUserAliasTopicKeys(): string[] {
 }
 
 export async function invalidateDnseBrokerTopicsForUser(userId: string) {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { dnseId: true },
-  });
-  const connectionId = user?.dnseId?.trim() ?? "";
+  const [user, connection] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { dnseId: true },
+    }),
+    prisma.dnseConnection.findUnique({
+      where: { userId },
+      select: { accountId: true, status: true },
+    }),
+  ]);
+  const connectionId =
+    connection?.status === "ACTIVE"
+      ? connection.accountId.trim()
+      : (user?.dnseId?.trim() ?? "");
   const topics = [
     ...buildDnseCurrentUserAliasTopicKeys(),
     ...(connectionId ? buildDnseBrokerTopicKeysV2(userId, connectionId) : []),

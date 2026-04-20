@@ -7,6 +7,12 @@ Status: Canonical env contract for pilot-safe DNSE runtime.
 - direct DB connection via `DIRECT_DATABASE_URL`
 - auth/session runtime configured
 - admin access enabled for debug routes
+- OAuth/token security:
+  - `DNSE_TOKEN_ENCRYPTION_KEY`
+  - `DNSE_OAUTH_AUTHORIZE_URL`
+  - `DNSE_OAUTH_TOKEN_URL`
+  - `DNSE_OAUTH_CLIENT_ID`
+  - `DNSE_OAUTH_CLIENT_SECRET`
 
 ## DNSE Execution Flags (safe defaults)
 ```env
@@ -20,6 +26,14 @@ DNSE_EXECUTION_KILL_SWITCH=false
 DNSE_ALLOW_REAL_SUBMIT_IN_PROD=false
 DNSE_ALLOW_MANUAL_TEST_IN_PROD=false
 ```
+
+## Real-time Broker Data Endpoints (per-user OAuth token)
+- `DNSE_BROKER_ACCOUNT_PROFILE_URL`
+- `DNSE_BROKER_BALANCE_URL`
+- `DNSE_BROKER_HOLDINGS_URL`
+- `DNSE_BROKER_POSITIONS_URL`
+- `DNSE_BROKER_ORDERS_URL`
+- `DNSE_ORDER_SUBMIT_URL` (for pilot real submit path, still guarded by compliance + allowlist + kill switch)
 
 ## Allowlist Config
 Use one or more:

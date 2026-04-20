@@ -5,6 +5,9 @@ import type {
   OrderValidationResult,
 } from "@/types/dnse-execution";
 import { getDnseExecutionFlags } from "./flags";
+import { ensureDnseAccessTokenForUser } from "./connection";
+import { getDnseOAuthConfig } from "./oauth";
+import { submitDnseOrderByUserToken } from "./client";
 
 type JsonRecord = Record<string, unknown>;
 const MANUAL_TEST_MODE_LOG_KEY = Symbol.for("__adn_dnse_manual_test_mode_logged__");
@@ -30,6 +33,7 @@ function toErrorText(payload: unknown, fallback: string): string {
 }
 
 export async function submitOrderToDnse(args: {
+  userId: string;
   intent: OrderIntent;
   brokerPayload: DnseExecutionRequest;
   validation: OrderValidationResult;
@@ -63,16 +67,65 @@ export async function submitOrderToDnse(args: {
   }
 
   if (!flags.manualTestTokenMode) {
-    return {
-      status: "approval_required",
-      intentId: args.intent.intentId,
-      submittedAt: null,
-      result: null,
-      warnings: ["submit_disabled_until_compliance_approved_partner_flow"],
-      errors: ["approval_required"],
-      source: "safe-adapter",
-      deterministic: true,
-    };
+    const oauthConfig = getDnseOAuthConfig();
+    if (!oauthConfig.submitUrl) {
+      return {
+        status: "approval_required",
+        intentId: args.intent.intentId,
+        submittedAt: null,
+        result: null,
+        warnings: ["DNSE_ORDER_SUBMIT_URL_missing"],
+        errors: ["approval_required"],
+        source: "safe-adapter",
+        deterministic: true,
+      };
+    }
+
+    try {
+      const auth = await ensureDnseAccessTokenForUser(args.userId);
+      if (!auth?.accessToken) {
+        return {
+          status: "approval_required",
+          intentId: args.intent.intentId,
+          submittedAt: null,
+          result: null,
+          warnings: ["dnse_oauth_connection_required"],
+          errors: ["approval_required"],
+          source: "safe-adapter",
+          deterministic: true,
+        };
+      }
+
+      const payload = await submitDnseOrderByUserToken({
+        accessToken: auth.accessToken,
+        submitUrl: oauthConfig.submitUrl,
+        payload: args.brokerPayload,
+      });
+
+      return {
+        status: "accepted",
+        brokerOrderId: extractBrokerOrderId(payload),
+        intentId: args.intent.intentId,
+        submittedAt: now,
+        result: payload && typeof payload === "object" ? (payload as JsonRecord) : { ok: true },
+        warnings: args.validation.warnings,
+        errors: [],
+        source: "dnse",
+        deterministic: true,
+      };
+    } catch (error) {
+      return {
+        status: "rejected",
+        brokerOrderId: null,
+        intentId: args.intent.intentId,
+        submittedAt: now,
+        result: null,
+        warnings: args.validation.warnings,
+        errors: [error instanceof Error ? error.message : "DNSE submit failed"],
+        source: "dnse",
+        deterministic: true,
+      };
+    }
   }
 
   const root = globalThis as unknown as Record<string | symbol, unknown>;

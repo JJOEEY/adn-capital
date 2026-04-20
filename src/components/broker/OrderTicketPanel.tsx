@@ -16,6 +16,7 @@ type Props = {
   recommendedNavPct?: number;
   totalNavValue?: number;
   defaultPrice?: number;
+  defaultAccountId?: string;
 };
 
 type PreviewResponse = {
@@ -63,9 +64,10 @@ export function OrderTicketPanel({
   recommendedNavPct,
   totalNavValue,
   defaultPrice,
+  defaultAccountId,
 }: Props) {
   const { data: session } = useSession();
-  const [accountId, setAccountId] = useState("");
+  const [accountId, setAccountId] = useState(defaultAccountId?.trim() ?? "");
   const [side, setSide] = useState<"BUY" | "SELL">("BUY");
   const [quantity, setQuantity] = useState(100);
   const [orderType, setOrderType] = useState<OrderType>("LO");
@@ -75,6 +77,7 @@ export function OrderTicketPanel({
   const [confirmChecked, setConfirmChecked] = useState(false);
   const [quantityTouched, setQuantityTouched] = useState(false);
   const [priceTouched, setPriceTouched] = useState(false);
+  const [roundingHint, setRoundingHint] = useState<string | null>(null);
 
   const [validation, setValidation] = useState<OrderValidationResult | null>(null);
   const [preview, setPreview] = useState<OrderExecutionPreview | null>(null);
@@ -83,7 +86,16 @@ export function OrderTicketPanel({
   const [loading, setLoading] = useState<"parse" | "preview" | "submit" | null>(null);
   const [errorText, setErrorText] = useState<string | null>(null);
 
+  const accountLocked = Boolean(defaultAccountId?.trim());
+
   useEffect(() => {
+    if (defaultAccountId?.trim()) {
+      setAccountId(defaultAccountId.trim());
+    }
+  }, [defaultAccountId]);
+
+  useEffect(() => {
+    if (accountLocked) return;
     let cancelled = false;
     const hydrate = async () => {
       try {
@@ -101,11 +113,12 @@ export function OrderTicketPanel({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [accountLocked]);
 
   useEffect(() => {
     setQuantityTouched(false);
     setPriceTouched(false);
+    setRoundingHint(null);
   }, [ticker]);
 
   const normalizedPrice = useMemo(() => {
@@ -144,6 +157,7 @@ export function OrderTicketPanel({
   useEffect(() => {
     if (!quantityTouched && suggestedLotQuantity != null && suggestedLotQuantity > 0) {
       setQuantity(suggestedLotQuantity);
+      setRoundingHint("Khối lượng đã được làm tròn theo lô 100.");
     }
   }, [quantityTouched, suggestedLotQuantity, ticker]);
 
@@ -213,12 +227,15 @@ export function OrderTicketPanel({
       if (!res.ok) throw new Error(data.error ?? "parse_failed");
       setPreviewMode(data.mode ?? "SAFE_EXECUTION_ADAPTER_MODE");
       if (data.intent) {
-        if (typeof data.intent.accountId === "string") setAccountId(data.intent.accountId);
+        if (typeof data.intent.accountId === "string" && !accountLocked) {
+          setAccountId(data.intent.accountId);
+        }
         if (data.intent.side === "BUY" || data.intent.side === "SELL") {
           setSide(data.intent.side);
         }
         if (typeof data.intent.quantity === "number") {
-          setQuantity(data.intent.quantity);
+          const rounded = roundDownLot(data.intent.quantity);
+          setQuantity(rounded > 0 ? rounded : data.intent.quantity);
           setQuantityTouched(true);
         }
         if (
@@ -306,6 +323,20 @@ export function OrderTicketPanel({
     if (suggestedLotQuantity && suggestedLotQuantity > 0) {
       setQuantity(suggestedLotQuantity);
       setQuantityTouched(true);
+      setRoundingHint("Đã áp dụng khối lượng theo tỷ trọng NAV và làm tròn lô 100.");
+    }
+  };
+
+  const handleQuantityBlur = () => {
+    if (!Number.isFinite(quantity) || quantity <= 0) return;
+    const rounded = roundDownLot(quantity);
+    if (rounded !== quantity) {
+      setQuantity(rounded);
+      setRoundingHint(
+        rounded > 0
+          ? `Khối lượng đã được làm tròn xuống ${rounded.toLocaleString("vi-VN")} cổ phiếu (bội số 100).`
+          : "Khối lượng chưa đủ 1 lô 100.",
+      );
     }
   };
 
@@ -320,18 +351,17 @@ export function OrderTicketPanel({
             className="text-sm font-black uppercase tracking-wider"
             style={{ color: "var(--text-primary)" }}
           >
-            DNSE Order Ticket
+            Phiếu lệnh DNSE
           </h3>
           <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-            Mode: <span className="font-semibold">{previewMode}</span> · Server-side deterministic
-            gate
+            Chế độ: <span className="font-semibold">{previewMode}</span> · Kiểm soát deterministic phía server
           </p>
         </div>
         <span
           className="rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase"
           style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
         >
-          Human confirm required
+          Bắt buộc xác nhận thủ công
         </span>
       </div>
 
@@ -340,7 +370,7 @@ export function OrderTicketPanel({
           className="rounded-xl border p-3 text-sm"
           style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
         >
-          Đăng nhập để sử dụng Order Ticket.
+          Đăng nhập để sử dụng phiếu lệnh DNSE.
         </div>
       ) : (
         <div className="space-y-3">
@@ -417,8 +447,9 @@ export function OrderTicketPanel({
             <input
               value={accountId}
               onChange={(event) => setAccountId(event.target.value)}
-              placeholder="DNSE account"
-              className="rounded-xl border px-3 py-2 text-sm"
+              readOnly={accountLocked}
+              placeholder="Tài khoản DNSE"
+              className="rounded-xl border px-3 py-2 text-sm read-only:opacity-80"
               style={{
                 borderColor: "var(--border)",
                 background: "var(--surface-2)",
@@ -445,8 +476,8 @@ export function OrderTicketPanel({
                 color: "var(--text-primary)",
               }}
             >
-              <option value="BUY">BUY</option>
-              <option value="SELL">SELL</option>
+              <option value="BUY">MUA</option>
+              <option value="SELL">BÁN</option>
             </select>
             <input
               type="number"
@@ -455,7 +486,9 @@ export function OrderTicketPanel({
               onChange={(event) => {
                 setQuantity(Number(event.target.value));
                 setQuantityTouched(true);
+                setRoundingHint(null);
               }}
+              onBlur={handleQuantityBlur}
               className="rounded-xl border px-3 py-2 text-sm"
               style={{
                 borderColor: "var(--border)",
@@ -488,7 +521,7 @@ export function OrderTicketPanel({
                 setPrice(event.target.value);
                 setPriceTouched(true);
               }}
-              placeholder="Price"
+              placeholder="Giá đặt"
               className="rounded-xl border px-3 py-2 text-sm disabled:opacity-60"
               style={{
                 borderColor: "var(--border)",
@@ -498,10 +531,16 @@ export function OrderTicketPanel({
             />
           </div>
 
+          {roundingHint ? (
+            <p className="text-xs" style={{ color: "#f59e0b" }}>
+              {roundingHint}
+            </p>
+          ) : null}
+
           <textarea
             value={rationale}
             onChange={(event) => setRationale(event.target.value)}
-            placeholder="Rationale (optional)"
+            placeholder="Ghi chú lý do vào lệnh (tuỳ chọn)"
             className="min-h-[62px] w-full rounded-xl border p-3 text-sm"
             style={{
               borderColor: "var(--border)",
@@ -517,7 +556,7 @@ export function OrderTicketPanel({
               className="rounded-xl border px-3 py-2 text-xs font-bold"
               style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
             >
-              {loading === "parse" ? "Đang parse..." : "Parse Intent"}
+              {loading === "parse" ? "Đang phân tích..." : "Phân tích lệnh"}
             </button>
             <button
               onClick={() => void runPreview()}
@@ -525,27 +564,27 @@ export function OrderTicketPanel({
               className="rounded-xl px-3 py-2 text-xs font-bold"
               style={{ background: "var(--primary)", color: "var(--on-primary)" }}
             >
-              {loading === "preview" ? "Đang preview..." : "Validate + Preview"}
+              {loading === "preview" ? "Đang kiểm tra..." : "Kiểm tra + Preview"}
             </button>
           </div>
           <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-            Mẹo: bạn có thể bỏ qua Parse Intent và bấm thẳng Validate + Preview.
+            Mẹo: có thể bỏ qua bước “Phân tích lệnh” và bấm thẳng “Kiểm tra + Preview”.
           </p>
 
           {validation ? (
             <div className="rounded-xl border p-3 text-xs" style={{ borderColor: "var(--border)" }}>
               <p className="font-semibold" style={{ color: statusTone(validation.status) }}>
-                Validation: {validation.status}
+                Trạng thái kiểm tra: {validation.status}
               </p>
               {validation.issues.length > 0 ? (
-                <p style={{ color: "var(--danger)" }}>Issues: {validation.issues.join(", ")}</p>
+                <p style={{ color: "var(--danger)" }}>Vấn đề: {validation.issues.join(", ")}</p>
               ) : null}
               {validation.warnings.length > 0 ? (
-                <p style={{ color: "#f59e0b" }}>Warnings: {validation.warnings.join(", ")}</p>
+                <p style={{ color: "#f59e0b" }}>Cảnh báo: {validation.warnings.join(", ")}</p>
               ) : null}
               <p style={{ color: "var(--text-muted)" }}>
-                Notional: {validation.estimatedNotional?.toLocaleString("vi-VN") ?? "--"} ·
-                Fees: {validation.estimatedFees?.toLocaleString("vi-VN") ?? "--"}
+                Giá trị lệnh: {validation.estimatedNotional?.toLocaleString("vi-VN") ?? "--"} ·
+                Phí ước tính: {validation.estimatedFees?.toLocaleString("vi-VN") ?? "--"}
               </p>
             </div>
           ) : null}
@@ -553,10 +592,10 @@ export function OrderTicketPanel({
           {preview?.previewId ? (
             <div className="space-y-2 rounded-xl border p-3" style={{ borderColor: "var(--border)" }}>
               <p className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
-                Preview ID: {preview.previewId}
+                Mã preview: {preview.previewId}
               </p>
               <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                Expires: {new Date(preview.expiresAt).toLocaleString("vi-VN")}
+                Hết hạn: {new Date(preview.expiresAt).toLocaleString("vi-VN")}
               </p>
               <label className="flex items-center gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
                 <input
@@ -564,7 +603,7 @@ export function OrderTicketPanel({
                   checked={confirmChecked}
                   onChange={(event) => setConfirmChecked(event.target.checked)}
                 />
-                Tôi xác nhận submit lệnh này (CONFIRM)
+                Tôi xác nhận gửi lệnh này (CONFIRM)
               </label>
               <button
                 onClick={() => void runSubmit()}
@@ -572,7 +611,7 @@ export function OrderTicketPanel({
                 className="rounded-xl px-3 py-2 text-xs font-bold disabled:opacity-60"
                 style={{ background: "var(--danger)", color: "white" }}
               >
-                {loading === "submit" ? "Đang submit..." : "Confirm Submit"}
+                {loading === "submit" ? "Đang gửi lệnh..." : "Xác nhận gửi lệnh"}
               </button>
             </div>
           ) : null}
@@ -580,21 +619,21 @@ export function OrderTicketPanel({
           {submitResult ? (
             <div className="rounded-xl border p-3 text-xs" style={{ borderColor: "var(--border)" }}>
               <p className="font-semibold" style={{ color: statusTone(submitResult.status) }}>
-                Submit: {submitResult.status}
+                Kết quả gửi lệnh: {submitResult.status}
               </p>
               {submitResult.brokerOrderId ? (
                 <p style={{ color: "var(--text-secondary)" }}>
-                  Broker Order ID: {submitResult.brokerOrderId}
+                  Mã lệnh môi giới: {submitResult.brokerOrderId}
                 </p>
               ) : null}
               {submitResult.warnings.length > 0 ? (
                 <p style={{ color: "#f59e0b" }}>
-                  Warnings: {submitResult.warnings.join(", ")}
+                  Cảnh báo: {submitResult.warnings.join(", ")}
                 </p>
               ) : null}
               {submitResult.errors.length > 0 ? (
                 <p style={{ color: "var(--danger)" }}>
-                  Errors: {submitResult.errors.join(", ")}
+                  Lỗi: {submitResult.errors.join(", ")}
                 </p>
               ) : null}
             </div>
@@ -613,4 +652,3 @@ export function OrderTicketPanel({
     </section>
   );
 }
-

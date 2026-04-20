@@ -7,6 +7,7 @@ export type ExecutionUserContext = {
   user: User;
   approvedConnectionId: string | null;
   dnseVerified: boolean;
+  oauthLinked: boolean;
 };
 
 export async function requireExecutionUserContext(): Promise<ExecutionUserContext | null> {
@@ -19,10 +20,20 @@ export async function requireExecutionUserContext(): Promise<ExecutionUserContex
   });
   if (!user) return null;
 
+  const connection = await prisma.dnseConnection.findUnique({
+    where: { userId },
+    select: { accountId: true, status: true },
+  });
+  const approvedConnectionId =
+    connection?.status === "ACTIVE"
+      ? connection.accountId.trim()
+      : (user.dnseId?.trim() || null);
+
   return {
     user,
-    approvedConnectionId: user.dnseId?.trim() || null,
+    approvedConnectionId,
     dnseVerified: Boolean(user.dnseVerified),
+    oauthLinked: Boolean(connection?.status === "ACTIVE"),
   };
 }
 
