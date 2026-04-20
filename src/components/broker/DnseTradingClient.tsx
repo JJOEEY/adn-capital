@@ -68,6 +68,61 @@ type BrokerOrdersTopic = {
   }>;
 };
 
+type BrokerAccountsTopic = {
+  connected: boolean;
+  reason?: string;
+  source?: string;
+  accounts?: Array<{
+    accountNo: string;
+    accountName: string | null;
+    custodyCode: string | null;
+    accountType: string;
+    status: string;
+  }>;
+};
+
+type BrokerLoanPackagesTopic = {
+  connected: boolean;
+  reason?: string;
+  source?: string;
+  loanPackages?: Array<{
+    loanPackageId: string;
+    loanPackageName: string;
+    interestRate?: number | null;
+    maxLoanRatio?: number | null;
+    minAmount?: number | null;
+    description?: string | null;
+  }>;
+};
+
+type BrokerOrderHistoryTopic = {
+  connected: boolean;
+  reason?: string;
+  source?: string;
+  orderHistory?: Array<{
+    ticker?: string | null;
+    side?: string | null;
+    quantity?: number | null;
+    price?: number | null;
+    status?: string | null;
+    submittedAt?: string | null;
+    brokerOrderId?: string | null;
+  }>;
+};
+
+type BrokerPpseTopic = {
+  connected: boolean;
+  reason?: string;
+  source?: string;
+  ppse?: {
+    symbol?: string | null;
+    buyingPower?: number | null;
+    sellingPower?: number | null;
+    maxBuyQty?: number | null;
+    maxSellQty?: number | null;
+  } | null;
+};
+
 type DnseConnectionStatus = {
   dnseId: string | null;
   dnseVerified: boolean;
@@ -163,14 +218,19 @@ export function DnseTradingClient() {
     }
   }, [dbUser?.initialJournalNAV, totalNavInput]);
 
+  const normalizedTicker = (ticker || queryTicker || "HPG").trim().toUpperCase();
   const topicKeys = useMemo(
     () => [
+      "broker:dnse:current-user:accounts",
       "broker:dnse:current-user:balance",
       "broker:dnse:current-user:holdings",
       "broker:dnse:current-user:positions",
       "broker:dnse:current-user:orders",
+      "broker:dnse:current-user:loan-packages",
+      "broker:dnse:current-user:order-history",
+      `broker:dnse:current-user:ppse:${normalizedTicker}`,
     ],
-    [],
+    [normalizedTicker],
   );
 
   const brokerTopics = useTopics(topicKeys, {
@@ -187,12 +247,33 @@ export function DnseTradingClient() {
     ?.value as BrokerHoldingsTopic | null | undefined;
   const ordersTopic = brokerTopics.byTopic.get("broker:dnse:current-user:orders")
     ?.value as BrokerOrdersTopic | null | undefined;
+  const accountsTopic = brokerTopics.byTopic.get("broker:dnse:current-user:accounts")
+    ?.value as BrokerAccountsTopic | null | undefined;
+  const loanPackagesTopic = brokerTopics.byTopic.get("broker:dnse:current-user:loan-packages")
+    ?.value as BrokerLoanPackagesTopic | null | undefined;
+  const orderHistoryTopic = brokerTopics.byTopic.get("broker:dnse:current-user:order-history")
+    ?.value as BrokerOrderHistoryTopic | null | undefined;
+  const ppseTopic = brokerTopics.byTopic.get(`broker:dnse:current-user:ppse:${normalizedTicker}`)
+    ?.value as BrokerPpseTopic | null | undefined;
 
   const holdings = useMemo(() => {
     const fromHoldings = holdingsTopic?.holdings ?? [];
     if (fromHoldings.length > 0) return fromHoldings;
     return holdingsTopic?.positions ?? positionsTopic?.positions ?? [];
   }, [holdingsTopic?.holdings, holdingsTopic?.positions, positionsTopic?.positions]);
+
+  const brokerAccounts = useMemo(
+    () => accountsTopic?.accounts ?? [],
+    [accountsTopic?.accounts],
+  );
+  const loanPackages = useMemo(
+    () => loanPackagesTopic?.loanPackages ?? [],
+    [loanPackagesTopic?.loanPackages],
+  );
+  const orderHistory = useMemo(
+    () => orderHistoryTopic?.orderHistory ?? [],
+    [orderHistoryTopic?.orderHistory],
+  );
 
   const totalNavValue = useMemo(() => {
     const brokerNav = Number(balanceTopic?.totalNav);
@@ -422,6 +503,41 @@ export function DnseTradingClient() {
                     <p className="md:col-span-2" style={{ color: "var(--danger)" }}>
                       Lỗi gần nhất: {connectionStatus.connection.lastError}
                     </p>
+                  ) : null}
+                  {brokerAccounts.length > 0 ? (
+                    <div className="md:col-span-2">
+                      <p
+                        className="mb-1 text-[11px] font-semibold uppercase tracking-wide"
+                        style={{ color: "var(--text-muted)" }}
+                      >
+                        Danh sách tài khoản giao dịch
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {brokerAccounts.map((account) => (
+                          <span
+                            key={account.accountNo}
+                            className="rounded-full border px-2 py-0.5 text-[11px] font-semibold"
+                            style={{
+                              borderColor:
+                                account.accountNo === connectionStatus?.connection?.accountId
+                                  ? "rgba(22,163,74,0.35)"
+                                  : "var(--border)",
+                              color:
+                                account.accountNo === connectionStatus?.connection?.accountId
+                                  ? "#15803d"
+                                  : "var(--text-secondary)",
+                              background:
+                                account.accountNo === connectionStatus?.connection?.accountId
+                                  ? "rgba(22,163,74,0.10)"
+                                  : "var(--surface-2)",
+                            }}
+                          >
+                            {account.accountNo}
+                            {account.accountType ? ` · ${account.accountType}` : ""}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
                   ) : null}
                 </div>
               ) : (

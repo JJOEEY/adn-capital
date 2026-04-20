@@ -418,7 +418,28 @@ async function loadResearchWorkbench(topicKey: string) {
   };
 }
 
-async function loadBrokerTopic(connectionId: string, channel: "positions" | "orders" | "balance" | "holdings", context: TopicContext) {
+type BrokerTopicChannel =
+  | "accounts"
+  | "positions"
+  | "orders"
+  | "balance"
+  | "holdings"
+  | "loan-packages"
+  | "ppse"
+  | "order-history";
+
+type BrokerTopicExtraParams = {
+  symbol?: string;
+  fromDate?: string;
+  toDate?: string;
+};
+
+async function loadBrokerTopic(
+  connectionId: string,
+  channel: BrokerTopicChannel,
+  context: TopicContext,
+  extraParams?: BrokerTopicExtraParams,
+) {
   if (!context.userId) {
     throw new Error("Unauthorized private broker topic");
   }
@@ -464,7 +485,19 @@ async function loadBrokerTopic(connectionId: string, channel: "positions" | "ord
         accessToken: oauthAuth.accessToken,
         accountId: connectionId,
         userId: context.userId,
+        symbol: extraParams?.symbol,
+        fromDate: extraParams?.fromDate,
+        toDate: extraParams?.toDate,
       });
+
+      if (channel === "accounts") {
+        return {
+          connected: true,
+          connectionId,
+          source: live.source,
+          accounts: live.accounts ?? [],
+        };
+      }
 
       if (channel === "positions") {
         return {
@@ -497,6 +530,15 @@ async function loadBrokerTopic(connectionId: string, channel: "positions" | "ord
         };
       }
 
+      if (channel === "order-history") {
+        return {
+          connected: true,
+          connectionId,
+          source: live.source,
+          orderHistory: live.orderHistory ?? [],
+        };
+      }
+
       if (channel === "balance") {
         const navAllocatedPct = positions.reduce((sum, row) => sum + (row.navAllocation ?? 0), 0);
         return {
@@ -510,6 +552,24 @@ async function loadBrokerTopic(connectionId: string, channel: "positions" | "ord
           buyingPower: live.buyingPower ?? null,
           cash: live.cash ?? null,
           debt: live.debt ?? null,
+        };
+      }
+
+      if (channel === "loan-packages") {
+        return {
+          connected: true,
+          connectionId,
+          source: live.source,
+          loanPackages: live.loanPackages ?? [],
+        };
+      }
+
+      if (channel === "ppse") {
+        return {
+          connected: true,
+          connectionId,
+          source: live.source,
+          ppse: live.ppse ?? null,
         };
       }
 
@@ -548,6 +608,20 @@ async function loadBrokerTopic(connectionId: string, channel: "positions" | "ord
           orders,
         };
       }
+      if (channel === "order-history") {
+        const orderHistory = await listDnseOrderHistory({
+          userId: context.userId,
+          connectionId,
+          limit: 80,
+        });
+        return {
+          connected: Boolean(currentUser?.dnseId && currentUser?.dnseVerified),
+          connectionId,
+          source: "dnse-execution-audit-fallback",
+          reason: fallbackReason,
+          orderHistory,
+        };
+      }
       if (channel === "balance") {
         const navAllocatedPct = positions.reduce((sum, row) => sum + (row.navAllocation ?? 0), 0);
         return {
@@ -558,6 +632,41 @@ async function loadBrokerTopic(connectionId: string, channel: "positions" | "ord
           navAllocatedPct: Number(navAllocatedPct.toFixed(2)),
           navRemainingPct: Number(Math.max(0, 100 - navAllocatedPct).toFixed(2)),
           maxActiveNavPct: 90,
+        };
+      }
+      if (channel === "accounts") {
+        return {
+          connected: Boolean(currentUser?.dnseId && currentUser?.dnseVerified),
+          connectionId,
+          source: "internal-connection-fallback",
+          reason: fallbackReason,
+          accounts: [
+            {
+              accountNo: connectionId,
+              accountName: null,
+              custodyCode: null,
+              accountType: "SPOT",
+              status: "ACTIVE",
+            },
+          ],
+        };
+      }
+      if (channel === "loan-packages") {
+        return {
+          connected: Boolean(currentUser?.dnseId && currentUser?.dnseVerified),
+          connectionId,
+          source: "internal-fallback",
+          reason: fallbackReason,
+          loanPackages: [],
+        };
+      }
+      if (channel === "ppse") {
+        return {
+          connected: Boolean(currentUser?.dnseId && currentUser?.dnseVerified),
+          connectionId,
+          source: "internal-fallback",
+          reason: fallbackReason,
+          ppse: null,
         };
       }
       return {
@@ -593,6 +702,20 @@ async function loadBrokerTopic(connectionId: string, channel: "positions" | "ord
     };
   }
 
+  if (channel === "order-history") {
+    const orderHistory = await listDnseOrderHistory({
+      userId: context.userId,
+      connectionId,
+      limit: 80,
+    });
+    return {
+      connected: Boolean(currentUser?.dnseId && currentUser?.dnseVerified),
+      connectionId,
+      source: "dnse-execution-audit",
+      orderHistory,
+    };
+  }
+
   if (channel === "balance") {
     const navAllocatedPct = positions.reduce((sum, row) => sum + (row.navAllocation ?? 0), 0);
     return {
@@ -602,6 +725,41 @@ async function loadBrokerTopic(connectionId: string, channel: "positions" | "ord
       navAllocatedPct: Number(navAllocatedPct.toFixed(2)),
       navRemainingPct: Number(Math.max(0, 100 - navAllocatedPct).toFixed(2)),
       maxActiveNavPct: 90,
+    };
+  }
+
+  if (channel === "accounts") {
+    return {
+      connected: Boolean(currentUser?.dnseId && currentUser?.dnseVerified),
+      connectionId,
+      source: "internal-connection",
+      accounts: [
+        {
+          accountNo: connectionId,
+          accountName: null,
+          custodyCode: null,
+          accountType: "SPOT",
+          status: "ACTIVE",
+        },
+      ],
+    };
+  }
+
+  if (channel === "loan-packages") {
+    return {
+      connected: Boolean(currentUser?.dnseId && currentUser?.dnseVerified),
+      connectionId,
+      source: "internal-fallback",
+      loanPackages: [],
+    };
+  }
+
+  if (channel === "ppse") {
+    return {
+      connected: Boolean(currentUser?.dnseId && currentUser?.dnseVerified),
+      connectionId,
+      source: "internal-fallback",
+      ppse: null,
     };
   }
 
@@ -616,8 +774,9 @@ async function loadBrokerTopic(connectionId: string, channel: "positions" | "ord
 async function loadBrokerTopicForUserAccount(
   targetUserId: string,
   accountId: string,
-  channel: "positions" | "orders" | "balance" | "holdings",
+  channel: BrokerTopicChannel,
   context: TopicContext,
+  extraParams?: BrokerTopicExtraParams,
 ) {
   if (!context.userId) {
     throw new Error("Unauthorized private broker topic");
@@ -625,7 +784,7 @@ async function loadBrokerTopicForUserAccount(
   if (context.userId !== targetUserId) {
     throw new Error("Forbidden private broker topic");
   }
-  return loadBrokerTopic(accountId, channel, context);
+  return loadBrokerTopic(accountId, channel, context, extraParams);
 }
 
 async function resolveCurrentBrokerConnectionId(userId: string): Promise<string> {
@@ -1310,6 +1469,77 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     resolve: async (_, context, params) => loadBrokerTopic(params.connectionId, "holdings", context),
   },
   {
+    id: "broker:dnse:{connectionId}:accounts",
+    ttlMs: 120_000,
+    minIntervalMs: 20_000,
+    source: "broker-sync",
+    version: "v1",
+    access: "private",
+    cacheScope: "user",
+    tags: ["broker", "dnse", "private", "accounts"],
+    match: (topicKey) => {
+      const match = topicKey.match(/^broker:dnse:([A-Za-z0-9_-]+):accounts$/);
+      return match ? { ok: true, params: { connectionId: match[1], channel: "accounts" } } : { ok: false };
+    },
+    resolve: async (_, context, params) => loadBrokerTopic(params.connectionId, "accounts", context),
+  },
+  {
+    id: "broker:dnse:{connectionId}:loan-packages",
+    ttlMs: 900_000,
+    minIntervalMs: 60_000,
+    source: "broker-sync",
+    version: "v1",
+    access: "private",
+    cacheScope: "user",
+    tags: ["broker", "dnse", "private", "margin", "loan"],
+    match: (topicKey) => {
+      const match = topicKey.match(/^broker:dnse:([A-Za-z0-9_-]+):loan-packages$/);
+      return match ? { ok: true, params: { connectionId: match[1], channel: "loan-packages" } } : { ok: false };
+    },
+    resolve: async (_, context, params) =>
+      loadBrokerTopic(params.connectionId, "loan-packages", context),
+  },
+  {
+    id: "broker:dnse:{connectionId}:order-history",
+    ttlMs: 120_000,
+    minIntervalMs: 20_000,
+    source: "broker-sync",
+    version: "v1",
+    access: "private",
+    cacheScope: "user",
+    tags: ["broker", "dnse", "private", "order-history"],
+    match: (topicKey) => {
+      const match = topicKey.match(/^broker:dnse:([A-Za-z0-9_-]+):order-history$/);
+      return match ? { ok: true, params: { connectionId: match[1], channel: "order-history" } } : { ok: false };
+    },
+    resolve: async (_, context, params) => loadBrokerTopic(params.connectionId, "order-history", context),
+  },
+  {
+    id: "broker:dnse:{connectionId}:ppse:{symbol}",
+    ttlMs: 15_000,
+    minIntervalMs: 5_000,
+    source: "broker-sync",
+    version: "v1",
+    access: "private",
+    cacheScope: "user",
+    tags: ["broker", "dnse", "private", "ppse"],
+    match: (topicKey) => {
+      const match = topicKey.match(/^broker:dnse:([A-Za-z0-9_-]+):ppse:([A-Z0-9._-]{1,12})$/);
+      return match
+        ? {
+            ok: true,
+            params: {
+              connectionId: match[1],
+              channel: "ppse",
+              symbol: match[2],
+            },
+          }
+        : { ok: false };
+    },
+    resolve: async (_, context, params) =>
+      loadBrokerTopic(params.connectionId, "ppse", context, { symbol: params.symbol }),
+  },
+  {
     id: "broker:dnse:current-user:positions",
     ttlMs: 45_000,
     minIntervalMs: 10_000,
@@ -1371,6 +1601,75 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
       if (!context.userId) throw new Error("Unauthorized user topic");
       const connectionId = await resolveCurrentBrokerConnectionId(context.userId);
       return loadBrokerTopic(connectionId, "holdings", context);
+    },
+  },
+  {
+    id: "broker:dnse:current-user:accounts",
+    ttlMs: 120_000,
+    minIntervalMs: 20_000,
+    source: "broker-sync",
+    version: "v1",
+    access: "private",
+    cacheScope: "user",
+    tags: ["broker", "dnse", "private", "accounts", "legacy-alias"],
+    match: (topicKey) => (topicKey === "broker:dnse:current-user:accounts" ? { ok: true } : { ok: false }),
+    resolve: async (_, context) => {
+      if (!context.userId) throw new Error("Unauthorized user topic");
+      const connectionId = await resolveCurrentBrokerConnectionId(context.userId);
+      return loadBrokerTopic(connectionId, "accounts", context);
+    },
+  },
+  {
+    id: "broker:dnse:current-user:loan-packages",
+    ttlMs: 900_000,
+    minIntervalMs: 60_000,
+    source: "broker-sync",
+    version: "v1",
+    access: "private",
+    cacheScope: "user",
+    tags: ["broker", "dnse", "private", "margin", "loan", "legacy-alias"],
+    match: (topicKey) =>
+      topicKey === "broker:dnse:current-user:loan-packages" ? { ok: true } : { ok: false },
+    resolve: async (_, context) => {
+      if (!context.userId) throw new Error("Unauthorized user topic");
+      const connectionId = await resolveCurrentBrokerConnectionId(context.userId);
+      return loadBrokerTopic(connectionId, "loan-packages", context);
+    },
+  },
+  {
+    id: "broker:dnse:current-user:order-history",
+    ttlMs: 120_000,
+    minIntervalMs: 20_000,
+    source: "broker-sync",
+    version: "v1",
+    access: "private",
+    cacheScope: "user",
+    tags: ["broker", "dnse", "private", "order-history", "legacy-alias"],
+    match: (topicKey) =>
+      topicKey === "broker:dnse:current-user:order-history" ? { ok: true } : { ok: false },
+    resolve: async (_, context) => {
+      if (!context.userId) throw new Error("Unauthorized user topic");
+      const connectionId = await resolveCurrentBrokerConnectionId(context.userId);
+      return loadBrokerTopic(connectionId, "order-history", context);
+    },
+  },
+  {
+    id: "broker:dnse:current-user:ppse:{symbol}",
+    ttlMs: 15_000,
+    minIntervalMs: 5_000,
+    source: "broker-sync",
+    version: "v1",
+    access: "private",
+    cacheScope: "user",
+    tags: ["broker", "dnse", "private", "ppse", "legacy-alias"],
+    match: (topicKey) => {
+      const match = topicKey.match(/^broker:dnse:current-user:ppse:([A-Z0-9._-]{1,12})$/);
+      return match ? { ok: true, params: { symbol: match[1] } } : { ok: false };
+    },
+    resolve: async (_, context, params) => {
+      if (!context.userId) throw new Error("Unauthorized user topic");
+      const connectionId = await resolveCurrentBrokerConnectionId(context.userId);
+      return loadBrokerTopic(connectionId, "ppse", context, { symbol: params.symbol });
     },
   },
   {

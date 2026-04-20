@@ -1,24 +1,50 @@
 import { invalidateTopics } from "@/lib/datahub/core";
 import { prisma } from "@/lib/prisma";
 
-export type DnseBrokerChannel = "positions" | "orders" | "balance" | "holdings";
+export type DnseBrokerChannel =
+  | "accounts"
+  | "positions"
+  | "orders"
+  | "balance"
+  | "holdings"
+  | "loan-packages"
+  | "order-history";
 
 export function buildDnseBrokerTopicKeys(connectionId: string): string[] {
-  const channels: DnseBrokerChannel[] = ["positions", "orders", "balance", "holdings"];
+  const channels: DnseBrokerChannel[] = [
+    "accounts",
+    "positions",
+    "orders",
+    "balance",
+    "holdings",
+    "loan-packages",
+    "order-history",
+  ];
   return channels.map((channel) => `broker:dnse:${connectionId}:${channel}`);
 }
 
 export function buildDnseBrokerTopicKeysV2(userId: string, accountId: string): string[] {
-  const channels: DnseBrokerChannel[] = ["positions", "orders", "balance", "holdings"];
+  const channels: DnseBrokerChannel[] = [
+    "accounts",
+    "positions",
+    "orders",
+    "balance",
+    "holdings",
+    "loan-packages",
+    "order-history",
+  ];
   return channels.map((channel) => `broker:dnse:${userId}:${accountId}:${channel}`);
 }
 
 export function buildDnseCurrentUserAliasTopicKeys(): string[] {
   return [
+    "broker:dnse:current-user:accounts",
     "broker:dnse:current-user:positions",
     "broker:dnse:current-user:orders",
     "broker:dnse:current-user:balance",
     "broker:dnse:current-user:holdings",
+    "broker:dnse:current-user:loan-packages",
+    "broker:dnse:current-user:order-history",
   ];
 }
 

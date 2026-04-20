@@ -19,11 +19,15 @@ export type DnseOAuthConfig = {
   clientSecret: string;
   redirectUri: string;
   scopes: string;
+  accountsUrl: string | null;
   accountProfileUrl: string | null;
   balanceUrl: string | null;
   holdingsUrl: string | null;
   positionsUrl: string | null;
   ordersUrl: string | null;
+  orderHistoryUrl: string | null;
+  loanPackagesUrl: string | null;
+  ppseUrl: string | null;
   submitUrl: string | null;
   apiKey: string | null;
   configured: boolean;
@@ -65,11 +69,15 @@ export function getDnseOAuthConfig(): DnseOAuthConfig {
     clientSecret,
     redirectUri,
     scopes,
+    accountsUrl: normalizeUrl(process.env.DNSE_BROKER_ACCOUNTS_URL),
     accountProfileUrl: normalizeUrl(process.env.DNSE_BROKER_ACCOUNT_PROFILE_URL),
     balanceUrl: normalizeUrl(process.env.DNSE_BROKER_BALANCE_URL),
     holdingsUrl: normalizeUrl(process.env.DNSE_BROKER_HOLDINGS_URL),
     positionsUrl: normalizeUrl(process.env.DNSE_BROKER_POSITIONS_URL),
     ordersUrl: normalizeUrl(process.env.DNSE_BROKER_ORDERS_URL),
+    orderHistoryUrl: normalizeUrl(process.env.DNSE_BROKER_ORDER_HISTORY_URL),
+    loanPackagesUrl: normalizeUrl(process.env.DNSE_BROKER_LOAN_PACKAGES_URL),
+    ppseUrl: normalizeUrl(process.env.DNSE_BROKER_PPSE_URL),
     submitUrl: normalizeUrl(process.env.DNSE_ORDER_SUBMIT_URL),
     apiKey: normalizeUrl(process.env.DNSE_API_KEY),
     configured: missing.length === 0,

@@ -50,9 +50,13 @@ function extractDataArray(payload: unknown): JsonRecord[] {
     root.items,
     root.rows,
     root.result,
+    root.list,
+    root.accounts,
     root.holdings,
     root.positions,
     root.orders,
+    root.orderHistory,
+    root.loanPackages,
   ];
   for (const item of candidate) {
     const arr = toArray(item)
@@ -99,9 +103,26 @@ async function requestDnseJson(args: {
   return payload;
 }
 
-function buildEndpoint(template: string | null, params: { accountId: string; userId: string }) {
+type DnseTemplateParams = {
+  accountId: string;
+  userId: string;
+  symbol?: string;
+  orderId?: string;
+};
+
+function buildEndpoint(template: string | null, params: DnseTemplateParams) {
   if (!template) return null;
   return resolveDnseUrlTemplate(template, params);
+}
+
+function appendQuery(url: string, query: Record<string, string | undefined | null>) {
+  const next = new URL(url);
+  Object.entries(query).forEach(([key, value]) => {
+    const trimmed = value?.trim();
+    if (!trimmed) return;
+    next.searchParams.set(key, trimmed);
+  });
+  return next.toString();
 }
 
 export type DnseAccountProfile = {
@@ -215,7 +236,11 @@ function normalizeOrders(payload: unknown) {
 }
 
 function normalizeBalance(payload: unknown) {
-  const row = toRecord(payload);
+  const direct = toRecord(payload);
+  const row =
+    direct && Object.keys(direct).length > 0
+      ? direct
+      : extractDataArray(payload)[0] ?? null;
   if (!row) return null;
   const totalNav = pickNumber(row, [
     "totalNav",
@@ -241,10 +266,103 @@ function normalizeBalance(payload: unknown) {
   };
 }
 
+function normalizeAccounts(payload: unknown, fallbackAccountId?: string) {
+  const rows = extractDataArray(payload);
+  const normalized = rows
+    .map((row) => {
+      const accountNo = pickString(row, [
+        "accountNo",
+        "accountId",
+        "account_id",
+        "subAccount",
+        "sub_account",
+      ]);
+      if (!accountNo) return null;
+      return {
+        accountNo,
+        accountName: pickString(row, ["accountName", "name", "ownerName", "fullName"]),
+        custodyCode: pickString(row, ["custodyCode", "subAccount", "sub_account"]),
+        accountType:
+          pickString(row, ["accountType", "type", "assetType"])?.toUpperCase() ?? "SPOT",
+        status: pickString(row, ["status", "state"])?.toUpperCase() ?? "ACTIVE",
+      };
+    })
+    .filter((row): row is NonNullable<typeof row> => row !== null);
+
+  if (normalized.length > 0) return normalized;
+  if (!fallbackAccountId) return [];
+  return [
+    {
+      accountNo: fallbackAccountId,
+      accountName: null,
+      custodyCode: null,
+      accountType: "SPOT",
+      status: "ACTIVE",
+    },
+  ];
+}
+
+function normalizeLoanPackages(payload: unknown) {
+  const rows = extractDataArray(payload);
+  return rows
+    .map((row) => {
+      const loanPackageId = pickString(row, ["loanPackageId", "id", "packageId", "code"]);
+      if (!loanPackageId) return null;
+      return {
+        loanPackageId,
+        loanPackageName:
+          pickString(row, ["loanPackageName", "name", "packageName", "title"]) ??
+          loanPackageId,
+        interestRate: pickNumber(row, ["interestRate", "rate", "yearlyRate"]),
+        maxLoanRatio: pickNumber(row, ["maxLoanRatio", "loanRatio", "maxRatio"]),
+        minAmount: pickNumber(row, ["minAmount", "minimumAmount", "minLoanAmount"]),
+        description: pickString(row, ["description", "note", "details"]),
+      };
+    })
+    .filter((row): row is NonNullable<typeof row> => row !== null);
+}
+
+function normalizePpse(payload: unknown, symbol: string | undefined) {
+  const direct = toRecord(payload);
+  const row = direct ?? extractDataArray(payload)[0] ?? null;
+  if (!row) return null;
+
+  const buyingPower = pickNumber(row, [
+    "buyingPower",
+    "powerBuy",
+    "cashAvailable",
+    "availableBuyValue",
+  ]);
+  const sellingPower = pickNumber(row, [
+    "sellingPower",
+    "powerSell",
+    "availableSellValue",
+  ]);
+  const maxBuyQty = pickNumber(row, ["maxBuyQty", "maxBuyQuantity", "maxBuyVolume"]);
+  const maxSellQty = pickNumber(row, ["maxSellQty", "maxSellQuantity", "maxSellVolume"]);
+
+  return {
+    symbol:
+      pickString(row, ["symbol", "ticker", "code"])?.toUpperCase() ??
+      (symbol?.toUpperCase() ?? null),
+    buyingPower,
+    sellingPower,
+    maxBuyQty,
+    maxSellQty,
+  };
+}
+
 export type DnseBrokerChannelData = {
   source: "dnse-oauth";
   connected: boolean;
   accountId: string;
+  accounts?: Array<{
+    accountNo: string;
+    accountName: string | null;
+    custodyCode: string | null;
+    accountType: string;
+    status: string;
+  }>;
   positions?: Array<{
     ticker: string;
     entryPrice: number | null;
@@ -270,6 +388,30 @@ export type DnseBrokerChannelData = {
     submittedAt: string | null;
     brokerOrderId: string | null;
   }>;
+  orderHistory?: Array<{
+    ticker: string | null;
+    side: string | null;
+    quantity: number | null;
+    price: number | null;
+    status: string | null;
+    submittedAt: string | null;
+    brokerOrderId: string | null;
+  }>;
+  loanPackages?: Array<{
+    loanPackageId: string;
+    loanPackageName: string;
+    interestRate: number | null;
+    maxLoanRatio: number | null;
+    minAmount: number | null;
+    description: string | null;
+  }>;
+  ppse?: {
+    symbol: string | null;
+    buyingPower: number | null;
+    sellingPower: number | null;
+    maxBuyQty: number | null;
+    maxSellQty: number | null;
+  } | null;
   totalNav?: number | null;
   buyingPower?: number | null;
   cash?: number | null;
@@ -277,23 +419,47 @@ export type DnseBrokerChannelData = {
 };
 
 export async function fetchDnseBrokerChannel(args: {
-  channel: "positions" | "orders" | "balance" | "holdings";
+  channel:
+    | "accounts"
+    | "positions"
+    | "orders"
+    | "balance"
+    | "holdings"
+    | "loan-packages"
+    | "ppse"
+    | "order-history";
   accessToken: string;
   accountId: string;
   userId: string;
+  symbol?: string;
+  fromDate?: string;
+  toDate?: string;
 }) {
   const config = getDnseOAuthConfig();
   const params = { accountId: args.accountId, userId: args.userId };
   const endpoints = {
+    accounts: buildEndpoint(config.accountsUrl, params),
     positions: buildEndpoint(config.positionsUrl, params),
     orders: buildEndpoint(config.ordersUrl, params),
     balance: buildEndpoint(config.balanceUrl, params),
     holdings: buildEndpoint(config.holdingsUrl, params),
+    "loan-packages": buildEndpoint(config.loanPackagesUrl, params),
+    ppse: buildEndpoint(config.ppseUrl, { ...params, symbol: args.symbol ?? "" }),
+    "order-history": buildEndpoint(config.orderHistoryUrl, params),
   };
 
-  const selectedUrl = endpoints[args.channel];
+  let selectedUrl = endpoints[args.channel];
   if (!selectedUrl) {
     throw new Error(`DNSE ${args.channel} endpoint not configured`);
+  }
+  if (args.channel === "ppse" && !args.symbol?.trim()) {
+    throw new Error("DNSE PPSE requires symbol");
+  }
+  if (args.channel === "order-history") {
+    selectedUrl = appendQuery(selectedUrl, {
+      fromDate: args.fromDate,
+      toDate: args.toDate,
+    });
   }
 
   const payload = await requestDnseJson({
@@ -301,12 +467,30 @@ export async function fetchDnseBrokerChannel(args: {
     accessToken: args.accessToken,
   });
 
+  if (args.channel === "accounts") {
+    return {
+      source: "dnse-oauth",
+      connected: true,
+      accountId: args.accountId,
+      accounts: normalizeAccounts(payload, args.accountId),
+    } satisfies DnseBrokerChannelData;
+  }
+
   if (args.channel === "orders") {
     return {
       source: "dnse-oauth",
       connected: true,
       accountId: args.accountId,
       orders: normalizeOrders(payload),
+    } satisfies DnseBrokerChannelData;
+  }
+
+  if (args.channel === "order-history") {
+    return {
+      source: "dnse-oauth",
+      connected: true,
+      accountId: args.accountId,
+      orderHistory: normalizeOrders(payload),
     } satisfies DnseBrokerChannelData;
   }
 
@@ -320,6 +504,24 @@ export async function fetchDnseBrokerChannel(args: {
       buyingPower: balance?.buyingPower ?? null,
       cash: balance?.cash ?? null,
       debt: balance?.debt ?? null,
+    } satisfies DnseBrokerChannelData;
+  }
+
+  if (args.channel === "loan-packages") {
+    return {
+      source: "dnse-oauth",
+      connected: true,
+      accountId: args.accountId,
+      loanPackages: normalizeLoanPackages(payload),
+    } satisfies DnseBrokerChannelData;
+  }
+
+  if (args.channel === "ppse") {
+    return {
+      source: "dnse-oauth",
+      connected: true,
+      accountId: args.accountId,
+      ppse: normalizePpse(payload, args.symbol),
     } satisfies DnseBrokerChannelData;
   }
 
