@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import {
   MessageSquare,
   Zap,
+  Wallet,
   ArrowRight,
   TrendingUp,
   Newspaper,
@@ -52,6 +53,25 @@ const services = [
       "Thông báo theo thời gian thực",
     ],
   },
+  {
+    href: "/dashboard/dnse-trading",
+    icon: Wallet,
+    iconStyle: { background: "rgba(59,130,246,0.10)", borderColor: "rgba(59,130,246,0.20)", color: "#3b82f6" },
+    badge: "NEW",
+    badgeStyle: { background: "rgba(59,130,246,0.15)", color: "#3b82f6", borderColor: "rgba(59,130,246,0.25)" },
+    bulletColor: "#3b82f6",
+    ctaColor: "#3b82f6",
+    title: "DNSE Trading",
+    subtitle: "Kết nối tài khoản & đặt lệnh",
+    desc: "Kết nối tài khoản DNSE chính để theo dõi NAV, danh mục đang nắm giữ và thực hiện đặt lệnh mua bán chủ động theo cơ chế an toàn của ADN Capital.",
+    features: [
+      "Kết nối tài khoản DNSE chính",
+      "Theo dõi NAV và danh mục nắm giữ",
+      "Xem lịch sử lệnh gần nhất",
+      "Đặt lệnh chủ động theo từng mã",
+    ],
+    adminOnly: true,
+  },
 ];
 
 export default function SanPhamPage() {
@@ -81,7 +101,7 @@ export default function SanPhamPage() {
 
         {/* ── Service Cards ────────────────────────────────────── */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {services.map((svc) => {
+          {services.filter((svc) => !svc.adminOnly || systemRole === "ADMIN").map((svc) => {
             const Icon = svc.icon;
             return (
               <Link key={svc.href} href={svc.href}>

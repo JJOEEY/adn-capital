@@ -16,6 +16,7 @@ export function AppHeader() {
     if (pathname === "/art") return "Sản phẩm · Chỉ báo ART";
     if (pathname === "/terminal") return "Sản phẩm · Tư vấn đầu tư";
     if (pathname === "/dashboard/signal-map") return "Sản phẩm · ADN AI Broker";
+    if (pathname === "/dashboard/dnse-trading") return "Sản phẩm · DNSE Trading";
     if (pathname === "/margin") return "Dịch vụ · Ký quỹ";
     if (pathname === "/journal") return "Dịch vụ · Nhật ký giao dịch";
     if (pathname === "/pricing") return "Khác · Bảng giá";
@@ -31,6 +32,7 @@ export function AppHeader() {
     if (pathname === "/art") return "Chỉ báo ART";
     if (pathname === "/terminal") return "Tư vấn đầu tư";
     if (pathname === "/dashboard/signal-map") return "ADN AI Broker";
+    if (pathname === "/dashboard/dnse-trading") return "DNSE Trading";
     if (pathname === "/margin") return "Ký quỹ Margin";
     if (pathname === "/journal") return "Nhật ký giao dịch";
     if (pathname === "/pricing") return "Bảng giá dịch vụ";

@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useState, useEffect } from "react";
 import { useTheme } from "@/components/providers/ThemeProvider";
+import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 import {
   LayoutDashboard,
   BarChart2,
@@ -17,6 +18,7 @@ import {
   X,
   Layers,
   Banknote,
+  Wallet,
   Sun,
   Moon,
 } from "lucide-react";
@@ -27,6 +29,7 @@ const navItems = [
   { href: "/journal", label: "Nhật Ký Giao Dịch", icon: BookOpen, badge: null },
   { href: "/terminal", label: "Chat AI", icon: MessageSquare, badge: "HOT" },
   { href: "/dashboard/signal-map", label: "ADN AI Broker", icon: Zap, badge: null },
+  { href: "/dashboard/dnse-trading", label: "DNSE Trading", icon: Wallet, badge: "MỚI", adminOnly: true },
   { href: "/art", label: "ART", icon: TrendingUp, badge: "MỚI" },
   { href: "/margin", label: "Ký Quỹ Margin", icon: Banknote, badge: "MỚI" },
   { href: "/pricing", label: "Bảng Giá", icon: DollarSign, badge: null },
@@ -57,6 +60,7 @@ interface MarketData {
 export function Sidebar() {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
+  const { isAdmin } = useCurrentDbUser();
   const isDark = theme === "dark";
   const [vnindex, setVnindex] = useState<MarketData | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -197,7 +201,7 @@ export function Sidebar() {
         >
           Menu
         </p>
-        {navItems.map((item) => {
+        {navItems.filter((item) => !item.adminOnly || isAdmin).map((item) => {
           const Icon = item.icon;
           const isActive =
             pathname === item.href || pathname.startsWith(item.href + "/");

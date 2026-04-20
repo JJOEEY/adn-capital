@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Zap, Clock, Target, TrendingUp, Bot, BarChart3 } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 import type { Signal } from "@/types";
@@ -9,6 +10,8 @@ type TierType = "LEADER" | "TRUNG_HAN" | "NGAN_HAN" | "TAM_NGAM";
 interface SignalCardProps {
   signal: Signal;
   index: number;
+  buyHref?: string;
+  showBuyAction?: boolean;
 }
 
 /* Design token colours per spec */
@@ -23,7 +26,7 @@ const TIER_CONFIG: Record<TierType, {
   TAM_NGAM: { icon: "🎯", label: "TẦM NGẮM",  navBarColor: "#7D8471" },
 };
 
-export function SignalCard({ signal }: SignalCardProps) {
+export function SignalCard({ signal, buyHref, showBuyAction = false }: SignalCardProps) {
   const tier = (signal.tier ?? "NGAN_HAN") as TierType;
   const cfg = TIER_CONFIG[tier] ?? TIER_CONFIG.NGAN_HAN;
 
@@ -335,6 +338,19 @@ export function SignalCard({ signal }: SignalCardProps) {
           </div>
         </div>
       )}
+
+      {showBuyAction && buyHref ? (
+        <div className="mx-3 mb-3">
+          <Link href={buyHref}>
+            <button
+              className="w-full rounded-xl px-3 py-2 text-xs font-black transition-all hover:opacity-90"
+              style={{ background: "var(--primary)", color: "var(--on-primary)" }}
+            >
+              Đặt lệnh mua
+            </button>
+          </Link>
+        </div>
+      ) : null}
     </div>
   );
 }

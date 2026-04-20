@@ -45,7 +45,13 @@ function FreshnessBadge({ freshness }: { freshness: string | null }) {
   );
 }
 
-export function SignalMapClient({ isPremium = false }: { isPremium?: boolean }) {
+export function SignalMapClient({
+  isPremium = false,
+  showExecutionActions = false,
+}: {
+  isPremium?: boolean;
+  showExecutionActions?: boolean;
+}) {
   const [tab, setTab] = useState<Tab>("RADAR");
   const [tierFilter, setTierFilter] = useState<TierFilter>("all");
   const [isScanning, setIsScanning] = useState(false);
@@ -281,7 +287,13 @@ export function SignalMapClient({ isPremium = false }: { isPremium?: boolean }) 
       ) : filtered.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {filtered.map((signal, index) => (
-            <SignalCard key={signal.id} signal={signal} index={index} />
+            <SignalCard
+              key={signal.id}
+              signal={signal}
+              index={index}
+              showBuyAction={showExecutionActions && tab === "RADAR"}
+              buyHref={`/dashboard/dnse-trading?ticker=${encodeURIComponent(signal.ticker)}`}
+            />
           ))}
         </div>
       ) : (
