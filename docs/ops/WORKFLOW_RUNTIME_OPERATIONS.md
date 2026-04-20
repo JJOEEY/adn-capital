@@ -72,3 +72,11 @@ The staging verifier checks:
   - cron route -> workflow trigger chain
   - webhook signal route -> workflow trigger chain
 - `CronLog` persistence shape (`actions`, `retries`, `warnings`, `triggerSource`, timestamps)
+
+## 7) Observability alignment (Phase 7)
+- Workflow runtime logs follow canonical observability schema via `src/lib/observability.ts`.
+- For operational correlation, read together:
+  - `/api/admin/system/workflows/runs`
+  - `/api/admin/system/cron-status`
+  - `/api/admin/system/topic-health`
+- Workflow runtime remains event-driven and cannot become scheduler owner.

@@ -7,6 +7,7 @@ import { savePreviewTicket } from "@/lib/brokers/dnse/preview-store";
 import { writeDnseExecutionAudit } from "@/lib/brokers/dnse/audit";
 import { invalidateDnseBrokerTopicsForUser } from "@/lib/brokers/dnse/topics";
 import { getDnseExecutionRolloutSnapshot } from "@/lib/brokers/dnse/rollout";
+import { emitObservabilityEvent, maskIdentifier } from "@/lib/observability";
 
 export const dynamic = "force-dynamic";
 
@@ -112,6 +113,21 @@ export async function POST(req: NextRequest) {
       mode: flags.mode,
       rollout,
       ticket,
+    },
+  });
+
+  emitObservabilityEvent({
+    domain: "broker",
+    event: "dnse_order_preview_created",
+    meta: {
+      mode: flags.mode,
+      userId: maskIdentifier(userContext.user.id),
+      accountId: maskIdentifier(validation.normalizedIntent.accountId),
+      ticker: validation.normalizedIntent.ticker,
+      side: validation.normalizedIntent.side,
+      validationStatus: validation.status,
+      previewCreated: Boolean(preview),
+      riskFlags: riskFlags.length,
     },
   });
 

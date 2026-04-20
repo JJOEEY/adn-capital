@@ -37,6 +37,7 @@ Last updated: 2026-04-20
 - Phase 5.3: Compliance-gated controlled pilot readiness.
 - Phase 5.4: Allowlist pilot runtime verification.
 - Phase 6: Workflow automation runtime (JSON-first, event-driven).
+- Phase 7: Hardening + observability + canonical cron/topic health operations.
 
 ## 5) Runtime Ownership Matrix
 | Domain | Owner | Notes |
@@ -166,6 +167,10 @@ Minimum operator visibility:
   - `GET /api/admin/system/workflows`
   - `GET /api/admin/system/workflows/runs`
   - `/admin/workflows`
+- cron/topic health control plane:
+  - `GET /api/admin/system/cron-status`
+  - `GET /api/admin/system/topic-health`
+  - `/admin/cron-health`
 
 ## 13) Superseded and Supporting Documents
 Superseded as primary architecture source:
@@ -180,3 +185,5 @@ Supporting phase records (not canonical alone):
 - [docs/ops/PHASE5_4_ALLOWLIST_PILOT.md](../ops/PHASE5_4_ALLOWLIST_PILOT.md)
 - [docs/ops/PHASE6_WORKFLOW_RUNTIME.md](../ops/PHASE6_WORKFLOW_RUNTIME.md)
 - [docs/ops/WORKFLOW_RUNTIME_OPERATIONS.md](../ops/WORKFLOW_RUNTIME_OPERATIONS.md)
+- [docs/ops/PHASE7_HARDENING_OBSERVABILITY.md](../ops/PHASE7_HARDENING_OBSERVABILITY.md)
+- [docs/ops/CRON_HEALTH_OPERATIONS.md](../ops/CRON_HEALTH_OPERATIONS.md)

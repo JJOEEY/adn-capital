@@ -6,6 +6,7 @@ import { getPythonBridgeUrl } from "@/lib/runtime-config";
 import { fetchFAData, fetchTAData } from "@/lib/stockData";
 import { resolveMarketTicker } from "@/lib/ticker-resolver";
 import { listDnseOrderHistory } from "@/lib/brokers/dnse/order-history";
+import { resolveTopicFamily, resolveTopicStaleWindowMs } from "./policy";
 import { TopicContext, TopicDefinition } from "./types";
 
 type JsonRecord = Record<string, unknown>;
@@ -1265,7 +1266,8 @@ export function listTopicDefinitions() {
     id: definition.id,
     ttlMs: definition.ttlMs,
     minIntervalMs: definition.minIntervalMs,
-    staleWhileRevalidateMs: definition.staleWhileRevalidateMs ?? 0,
+    staleWhileRevalidateMs: resolveTopicStaleWindowMs(definition),
+    family: resolveTopicFamily(definition),
     access: definition.access ?? "public",
     cacheScope: definition.cacheScope ?? "global",
     source: definition.source,

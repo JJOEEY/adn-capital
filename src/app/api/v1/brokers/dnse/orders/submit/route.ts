@@ -14,6 +14,7 @@ import { writeDnseExecutionAudit } from "@/lib/brokers/dnse/audit";
 import { invalidateDnseBrokerTopicsForUser } from "@/lib/brokers/dnse/topics";
 import { getDnseExecutionRolloutSnapshot } from "@/lib/brokers/dnse/rollout";
 import { isWithinVnTradingSession } from "@/lib/time";
+import { emitObservabilityEvent, maskIdentifier } from "@/lib/observability";
 import type { DnseExecutionResult } from "@/types/dnse-execution";
 
 export const dynamic = "force-dynamic";
@@ -126,6 +127,20 @@ export async function POST(req: NextRequest) {
         reason: args.error,
         warning: args.warning ?? null,
         status: result.status,
+      },
+    });
+    emitObservabilityEvent({
+      domain: "broker",
+      level: "warn",
+      event: "dnse_submit_blocked",
+      meta: {
+        mode: flags.mode,
+        userId: maskIdentifier(userContext.user.id),
+        accountId: maskIdentifier(ticket.intent.accountId),
+        ticker: ticket.intent.ticker,
+        side: ticket.intent.side,
+        status: result.status,
+        reason: args.error,
       },
     });
     return NextResponse.json(payload, { status: args.httpStatus ?? inferBlockedHttpStatus(result.status) });
@@ -272,6 +287,21 @@ export async function POST(req: NextRequest) {
     deterministic: true,
   };
   setIdempotentResult(idempotentCacheKey, responsePayload, result.status);
+  emitObservabilityEvent({
+    domain: "broker",
+    level: result.status === "accepted" ? "info" : "warn",
+    event: "dnse_submit_result",
+    meta: {
+      mode: flags.mode,
+      userId: maskIdentifier(userContext.user.id),
+      accountId: maskIdentifier(ticket.intent.accountId),
+      ticker: ticket.intent.ticker,
+      side: ticket.intent.side,
+      status: result.status,
+      source: result.source,
+      deterministic: result.deterministic,
+    },
+  });
 
   const statusCode =
     result.status === "accepted"

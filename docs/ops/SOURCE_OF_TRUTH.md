@@ -20,6 +20,8 @@ Decision records: [docs/architecture/ADR_INDEX.md](../architecture/ADR_INDEX.md)
   - [docs/ops/PHASE6_WORKFLOW_RUNTIME.md](./PHASE6_WORKFLOW_RUNTIME.md)
   - [docs/ops/WORKFLOW_RUNTIME_OPERATIONS.md](./WORKFLOW_RUNTIME_OPERATIONS.md)
   - [docs/ops/PHASE6_1_STAGING_VERIFICATION.md](./PHASE6_1_STAGING_VERIFICATION.md)
+  - [docs/ops/PHASE7_HARDENING_OBSERVABILITY.md](./PHASE7_HARDENING_OBSERVABILITY.md)
+  - [docs/ops/CRON_HEALTH_OPERATIONS.md](./CRON_HEALTH_OPERATIONS.md)
 
 ## 1) Runtime Ownership
 - `web` owns DataHub cache/topic APIs (`/api/hub/*`).
@@ -223,3 +225,32 @@ AI forbidden:
   - workflow runtime cannot become scheduler owner
   - workflow runtime cannot bypass DNSE compliance/allowlist/kill-switch guards
   - workflow runtime cannot enable real submit by itself
+
+## 12) Hardening & Observability (Phase 7)
+- Canonical observability helper:
+  - `src/lib/observability.ts`
+- Canonical cron health API:
+  - `GET /api/admin/system/cron-status`
+- Canonical topic freshness API:
+  - `GET /api/admin/system/topic-health`
+- Canonical admin view:
+  - `/admin/cron-health`
+- Canonical verification:
+  - `npm run verify:phase7:observability`
+
+Logging baseline (minimum):
+- DataHub:
+  - cache hit/miss/dedupe/refresh/error/invalidate
+- Cron:
+  - dispatch + persisted run summary + notification/report/webpush outcomes
+- Workflow runtime:
+  - trigger intake + persisted run status + error path
+- Provider runtime:
+  - manifest/run fallback paths
+- Broker execution:
+  - parse/validate/preview/submit decisions in safe/pilot mode
+
+Cron stale baseline:
+- evaluated against canonical slot schedule and grace window
+- trading-window-only staleness for type1/type2 jobs
+- alias rows are compatibility-only and surfaced as legacy usage, not source-of-truth

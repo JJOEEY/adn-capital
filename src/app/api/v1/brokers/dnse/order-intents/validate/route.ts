@@ -4,6 +4,7 @@ import { parseOrderIntentDraft, validateOrderIntent } from "@/lib/brokers/dnse/o
 import { parseIntentRequestBody, requireExecutionUserContext } from "@/lib/brokers/dnse/api";
 import { writeDnseExecutionAudit } from "@/lib/brokers/dnse/audit";
 import { getDnseExecutionRolloutSnapshot } from "@/lib/brokers/dnse/rollout";
+import { emitObservabilityEvent, maskIdentifier } from "@/lib/observability";
 
 export const dynamic = "force-dynamic";
 
@@ -74,6 +75,21 @@ export async function POST(req: NextRequest) {
       rollout,
       intent: validation.normalizedIntent,
       validation,
+    },
+  });
+
+  emitObservabilityEvent({
+    domain: "broker",
+    event: "dnse_intent_validated",
+    meta: {
+      mode: flags.mode,
+      userId: maskIdentifier(userContext.user.id),
+      accountId: maskIdentifier(validation.normalizedIntent.accountId),
+      ticker: validation.normalizedIntent.ticker,
+      side: validation.normalizedIntent.side,
+      validationStatus: validation.status,
+      issues: validation.issues.length,
+      warnings: validation.warnings.length,
     },
   });
 

@@ -98,3 +98,15 @@ Canonical references:
 - If compliance flow is still not approved:
   - submit remains blocked
   - this is expected and must be reported as non-public pilot state
+
+## 10) Observability alignment (Phase 7)
+- DNSE execution APIs emit structured observability logs (`domain=broker`) for:
+  - parse intent
+  - validate intent
+  - preview order
+  - submit blocked/result
+- Deterministic audit trail remains canonical in `Changelog(component=DNSE_EXECUTION)`.
+- Ops correlation path:
+  - `/api/admin/system/dnse-execution`
+  - `/api/admin/system/cron-status`
+  - `/api/admin/system/topic-health`

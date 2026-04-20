@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { emitWorkflowTrigger } from "@/lib/workflows";
+import { emitObservabilityEvent } from "@/lib/observability";
 import { WorkflowTriggerEvent, WorkflowTriggerType } from "@/lib/workflows/types";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +26,11 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 export async function POST(req: NextRequest) {
   if (!isAuthorized(req)) {
+    emitObservabilityEvent({
+      domain: "workflow",
+      level: "warn",
+      event: "workflow_trigger_unauthorized",
+    });
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -52,6 +58,16 @@ export async function POST(req: NextRequest) {
   };
 
   const result = await emitWorkflowTrigger(event);
+  emitObservabilityEvent({
+    domain: "workflow",
+    event: "workflow_trigger_api_dispatch",
+    meta: {
+      triggerType: event.type,
+      triggerSource: event.source,
+      accepted: result.accepted,
+      matchedCount: result.matchedWorkflowKeys.length,
+    },
+  });
   return NextResponse.json({
     ok: result.accepted,
     event: result.event,
@@ -60,4 +76,3 @@ export async function POST(req: NextRequest) {
     runs: result.runs,
   });
 }
-

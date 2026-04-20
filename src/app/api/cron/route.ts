@@ -41,6 +41,7 @@ import { invalidateTopics } from "@/lib/datahub/core";
 import { normalizeCronType, LEGACY_CRON_ALIASES } from "@/lib/cron-contracts";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
 import { emitWorkflowTrigger } from "@/lib/workflows";
+import { emitObservabilityEvent } from "@/lib/observability";
 
 export const maxDuration = 120;
 export const dynamic = "force-dynamic";
@@ -256,6 +257,18 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  emitObservabilityEvent({
+    domain: "cron",
+    event: "cron_dispatch_received",
+    meta: {
+      requestedType,
+      normalizedType: type,
+      sync,
+      forceRun,
+      legacyAliasUsed: Boolean(requestedType && requestedType !== type),
+    },
+  });
+
   if (sync) {
     if (type === "morning_brief") {
       return runCronHandlerWithWorkflowHook(type, () => handleMorningBrief(forceRun), "cron-dispatch:sync");
@@ -318,6 +331,18 @@ export async function GET(req: NextRequest) {
     queuedAt: queued.createdAt.toISOString(),
     type,
     requestedType,
+  });
+
+  emitObservabilityEvent({
+    domain: "cron",
+    event: "cron_dispatch_queued",
+    meta: {
+      requestedType,
+      normalizedType: type,
+      queuedId: queued.id,
+      sync,
+      forceRun,
+    },
   });
 }
 

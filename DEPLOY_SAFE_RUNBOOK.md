@@ -65,6 +65,8 @@ DIRECT_DATABASE_URL=postgresql://adnuser:***@db:5432/adncapital?schema=public
 - `web` container env satisfies DB URL contract.
 - `User` table count is greater than 0.
 - `/api/hub/topics` GET and POST return 200.
+- `/api/admin/system/cron-status` returns canonical cron matrix for admin sessions.
+- `/api/admin/system/topic-health` returns DataHub freshness summary for admin sessions.
 - Public routes do not return 5xx.
 - Canonical cron logs are present and not stale.
 - Deploy script captures rollback metadata before pull/build:
@@ -83,3 +85,4 @@ DIRECT_DATABASE_URL=postgresql://adnuser:***@db:5432/adncapital?schema=public
 - Safe deploy completed without `down`.
 - Postdeploy smoke PASS.
 - Operator can verify dashboard/terminal/notifications load without critical error.
+- Operator can verify `/admin/cron-health` surfaces canonical job freshness and topic stale summary.

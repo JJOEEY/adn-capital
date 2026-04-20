@@ -3,6 +3,7 @@ import { fallbackScannerProviders } from "@/lib/providers/fallback-manifests";
 import type { ScannerManifestResponse } from "@/types/provider-manifest";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
 import { normalizeManifestResponse } from "@/lib/providers/contracts";
+import { emitObservabilityEvent } from "@/lib/observability";
 
 export const dynamic = "force-dynamic";
 
@@ -33,10 +34,15 @@ export async function GET() {
     );
   }
 
-  console.warn(
-    "[providers.scanner.manifest] bridge unavailable, serving fallback manifest",
-    warnings.join(" | "),
-  );
+  emitObservabilityEvent({
+    domain: "provider",
+    level: "warn",
+    event: "scanner_manifest_fallback",
+    meta: {
+      source: "fallback",
+      warnings,
+    },
+  });
 
   return NextResponse.json(
     normalizeManifestResponse(

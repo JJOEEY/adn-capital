@@ -1,6 +1,8 @@
 import { buildTopicContext } from "./producer-context";
+import { resolveTopicFamily, resolveTopicStaleWindowMs } from "./policy";
 import { resolveTopicDefinition } from "./registry";
 import { TopicContext, TopicDefinition, TopicEnvelope, TopicError, TopicFreshness } from "./types";
+import { emitObservabilityEvent, maskIdentifier } from "@/lib/observability";
 
 type CacheEntry = {
   cacheKey: string;
@@ -12,6 +14,17 @@ type CacheEntry = {
   lastAttemptMs: number;
   tags: string[];
   inFlight?: Promise<TopicEnvelope>;
+};
+
+export type TopicCacheInspection = {
+  topic: string;
+  scopeUserId: string | null;
+  freshness: TopicFreshness;
+  source: string;
+  family: string;
+  updatedAt: string;
+  expiresAt: string;
+  tags: string[];
 };
 
 type GlobalState = {
@@ -60,7 +73,7 @@ function withFreshness(
   nowMs: number,
 ): TopicEnvelope {
   const expiresAtMs = new Date(envelope.expiresAt).getTime();
-  const staleWindowMs = definition.staleWhileRevalidateMs ?? 0;
+  const staleWindowMs = resolveTopicStaleWindowMs(definition);
   const freshness = Number.isFinite(expiresAtMs)
     ? computeFreshness(nowMs, expiresAtMs, staleWindowMs)
     : "error";
@@ -97,6 +110,14 @@ export async function getTopicEnvelope(topicKey: string, context?: TopicContext)
   const found = resolveTopicDefinition(normalizedTopic);
 
   if (!found) {
+    emitObservabilityEvent({
+      domain: "datahub",
+      level: "warn",
+      event: "topic_not_found",
+      meta: {
+        topic: normalizedTopic,
+      },
+    });
     return makeErrorEnvelope(
       normalizedTopic,
       "datahub",
@@ -107,8 +128,20 @@ export async function getTopicEnvelope(topicKey: string, context?: TopicContext)
   }
 
   const { definition, params } = found;
+  const family = resolveTopicFamily(definition);
   const scopedContext = await buildTopicContext(context);
   if (isPrivateTopicUnauthorized(definition, scopedContext)) {
+    emitObservabilityEvent({
+      domain: "datahub",
+      level: "warn",
+      event: "topic_unauthorized",
+      meta: {
+        topic: normalizedTopic,
+        source: definition.source,
+        family,
+        userId: maskIdentifier(scopedContext.userId),
+      },
+    });
     return makeErrorEnvelope(
       normalizedTopic,
       definition.source,
@@ -123,23 +156,60 @@ export async function getTopicEnvelope(topicKey: string, context?: TopicContext)
   const cached = state.cache.get(cacheKey);
 
   if (!force && cached?.inFlight) {
+    emitObservabilityEvent({
+      domain: "datahub",
+      event: "cache_inflight_dedupe",
+      meta: {
+        topic: normalizedTopic,
+        source: definition.source,
+        family,
+        userId: maskIdentifier(scopedContext.userId),
+      },
+    });
     return cached.inFlight;
   }
 
   if (!force && cached) {
     const cachedEnvelope = withFreshness(cached.envelope, definition, nowMs);
     if (cachedEnvelope.freshness === "fresh") {
+      emitObservabilityEvent({
+        domain: "datahub",
+        event: "cache_hit",
+        meta: {
+          topic: normalizedTopic,
+          source: definition.source,
+          family,
+          freshness: cachedEnvelope.freshness,
+          cacheScope: definition.cacheScope ?? "global",
+          userId: maskIdentifier(scopedContext.userId),
+        },
+      });
       return cachedEnvelope;
     }
 
     const elapsed = nowMs - cached.lastAttemptMs;
     if (elapsed < definition.minIntervalMs) {
+      emitObservabilityEvent({
+        domain: "datahub",
+        event: "cache_stale_min_interval",
+        meta: {
+          topic: normalizedTopic,
+          source: definition.source,
+          family,
+          freshness: cachedEnvelope.freshness,
+          minIntervalMs: definition.minIntervalMs,
+          elapsedMs: elapsed,
+          cacheScope: definition.cacheScope ?? "global",
+          userId: maskIdentifier(scopedContext.userId),
+        },
+      });
       return cachedEnvelope;
     }
   }
 
   const run = (async (): Promise<TopicEnvelope> => {
     const attemptMs = Date.now();
+    const refreshStartedAt = Date.now();
     try {
       const value = await definition.resolve(normalizedTopic, scopedContext, params);
       const envelope: TopicEnvelope = {
@@ -162,6 +232,22 @@ export async function getTopicEnvelope(topicKey: string, context?: TopicContext)
         lastAttemptMs: attemptMs,
         tags: definition.tags,
       });
+      emitObservabilityEvent({
+        domain: "datahub",
+        event: "refresh_success",
+        meta: {
+          topic: normalizedTopic,
+          source: definition.source,
+          family,
+          latencyMs: Date.now() - refreshStartedAt,
+          freshness: envelope.freshness,
+          ttlMs: definition.ttlMs,
+          staleWhileRevalidateMs: resolveTopicStaleWindowMs(definition),
+          cacheScope: definition.cacheScope ?? "global",
+          userId: maskIdentifier(scopedContext.userId),
+          force,
+        },
+      });
       return envelope;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -180,6 +266,23 @@ export async function getTopicEnvelope(topicKey: string, context?: TopicContext)
           envelope: staleEnvelope,
           lastAttemptMs: attemptMs,
         });
+        emitObservabilityEvent({
+          domain: "datahub",
+          level: "warn",
+          event: "refresh_failed_using_fallback",
+          meta: {
+            topic: normalizedTopic,
+            source: definition.source,
+            family,
+            latencyMs: Date.now() - refreshStartedAt,
+            freshness: staleEnvelope.freshness,
+            errorCode: err.code,
+            errorMessage: err.message,
+            cacheScope: definition.cacheScope ?? "global",
+            userId: maskIdentifier(scopedContext.userId),
+            force,
+          },
+        });
         return staleEnvelope;
       }
 
@@ -193,6 +296,22 @@ export async function getTopicEnvelope(topicKey: string, context?: TopicContext)
         expiresAtMs: attemptMs,
         lastAttemptMs: attemptMs,
         tags: definition.tags,
+      });
+      emitObservabilityEvent({
+        domain: "datahub",
+        level: "error",
+        event: "refresh_failed_no_fallback",
+        meta: {
+          topic: normalizedTopic,
+          source: definition.source,
+          family,
+          latencyMs: Date.now() - refreshStartedAt,
+          errorCode: err.code,
+          errorMessage: err.message,
+          cacheScope: definition.cacheScope ?? "global",
+          userId: maskIdentifier(scopedContext.userId),
+          force,
+        },
       });
       return empty;
     } finally {
@@ -261,8 +380,44 @@ export function invalidateTopics(input: {
     }
   }
 
+  emitObservabilityEvent({
+    domain: "datahub",
+    event: "invalidate_topics",
+    meta: {
+      removed,
+      remaining: state.cache.size,
+      topicsCount: topics.size,
+      tagsCount: tags.size,
+      prefixesCount: prefixes.length,
+    },
+  });
+
   return {
     removed,
     remaining: state.cache.size,
   };
+}
+
+export function getTopicCacheInspections(): TopicCacheInspection[] {
+  const nowMs = Date.now();
+  const state = getState();
+  const inspections: TopicCacheInspection[] = [];
+
+  for (const entry of state.cache.values()) {
+    const resolved = resolveTopicDefinition(entry.topic);
+    if (!resolved) continue;
+    const envelope = withFreshness(entry.envelope, resolved.definition, nowMs);
+    inspections.push({
+      topic: entry.topic,
+      scopeUserId: maskIdentifier(entry.scopeUserId),
+      freshness: envelope.freshness,
+      source: resolved.definition.source,
+      family: resolveTopicFamily(resolved.definition),
+      updatedAt: envelope.updatedAt,
+      expiresAt: envelope.expiresAt,
+      tags: resolved.definition.tags,
+    });
+  }
+
+  return inspections.sort((a, b) => a.topic.localeCompare(b.topic));
 }

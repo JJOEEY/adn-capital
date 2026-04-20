@@ -5,6 +5,7 @@
 
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { emitObservabilityEvent } from "@/lib/observability";
 import {
   getVnDateISO,
   getVnDateLabel,
@@ -40,7 +41,7 @@ export async function logCron(
   resultData?: unknown
 ) {
   try {
-    await prisma.cronLog.create({
+    const row = await prisma.cronLog.create({
       data: {
         cronName,
         status,
@@ -49,8 +50,29 @@ export async function logCron(
         resultData: resultData ? JSON.stringify(resultData) : null,
       },
     });
+    emitObservabilityEvent({
+      domain: "cron",
+      level: status === "error" ? "error" : status === "skipped" ? "warn" : "info",
+      event: "cron_log_persisted",
+      meta: {
+        cronName,
+        status,
+        durationMs: duration,
+        message,
+        cronLogId: row.id,
+      },
+    });
   } catch (err) {
-    console.error(`[CronLog] Failed to log ${cronName}:`, err);
+    emitObservabilityEvent({
+      domain: "cron",
+      level: "error",
+      event: "cron_log_failed",
+      meta: {
+        cronName,
+        status,
+        error: err instanceof Error ? err.message : String(err),
+      },
+    });
   }
 }
 
@@ -79,13 +101,30 @@ export async function pushNotification(
     const created = await prisma.notification.create({
       data: { type, title, content: safeContent },
     });
-    console.log(`[Notification] Đã tạo: ${type} — ${title}`);
+    emitObservabilityEvent({
+      domain: "cron",
+      event: "notification_created",
+      meta: {
+        notificationType: type,
+        title,
+        notificationId: created.id,
+      },
+    });
 
     // Gửi Web Push cho tất cả subscribers
     await sendWebPushToAll(title, safeContent.substring(0, 200));
     return created.id;
   } catch (err) {
-    console.error(`[Notification] Lỗi tạo ${type}:`, err);
+    emitObservabilityEvent({
+      domain: "cron",
+      level: "error",
+      event: "notification_create_failed",
+      meta: {
+        notificationType: type,
+        title,
+        error: err instanceof Error ? err.message : String(err),
+      },
+    });
     return null;
   }
 }
@@ -151,7 +190,11 @@ async function sendWebPushToAll(title: string, body: string) {
     const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
 
     if (!vapidPublicKey || !vapidPrivateKey) {
-      console.log("[WebPush] VAPID keys chưa cấu hình, bỏ qua web push");
+      emitObservabilityEvent({
+        domain: "cron",
+        level: "warn",
+        event: "webpush_skipped_missing_vapid",
+      });
       return;
     }
 
@@ -163,7 +206,11 @@ async function sendWebPushToAll(title: string, body: string) {
     try {
       webpush = await import("web-push");
     } catch {
-      console.log("[WebPush] web-push chưa cài, bỏ qua");
+      emitObservabilityEvent({
+        domain: "cron",
+        level: "warn",
+        event: "webpush_skipped_dependency_missing",
+      });
       return;
     }
 
@@ -210,13 +257,33 @@ async function sendWebPushToAll(title: string, body: string) {
       await prisma.pushSubscription.deleteMany({
         where: { endpoint: { in: expiredEndpoints } },
       });
-      console.log(`[WebPush] Xóa ${expiredEndpoints.length} subscription hết hạn`);
+      emitObservabilityEvent({
+        domain: "cron",
+        event: "webpush_expired_subscriptions_deleted",
+        meta: {
+          deletedCount: expiredEndpoints.length,
+        },
+      });
     }
 
     const sent = results.filter((r) => r.status === "fulfilled").length;
-    console.log(`[WebPush] Gửi ${sent}/${subscriptions.length} thành công`);
+    emitObservabilityEvent({
+      domain: "cron",
+      event: "webpush_send_summary",
+      meta: {
+        sent,
+        total: subscriptions.length,
+      },
+    });
   } catch (err) {
-    console.error("[WebPush] Lỗi gửi push:", err);
+    emitObservabilityEvent({
+      domain: "cron",
+      level: "error",
+      event: "webpush_send_failed",
+      meta: {
+        error: err instanceof Error ? err.message : String(err),
+      },
+    });
   }
 }
 
@@ -229,7 +296,7 @@ export async function saveMarketReport(
   metadata?: unknown
 ) {
   try {
-    return await prisma.marketReport.create({
+    const row = await prisma.marketReport.create({
       data: {
         type,
         title,
@@ -238,8 +305,25 @@ export async function saveMarketReport(
         metadata: metadata ? JSON.stringify(metadata) : null,
       },
     });
+    emitObservabilityEvent({
+      domain: "cron",
+      event: "market_report_saved",
+      meta: {
+        reportType: type,
+        reportId: row.id,
+      },
+    });
+    return row;
   } catch (err) {
-    console.error(`[MarketReport] Lỗi lưu ${type}:`, err);
+    emitObservabilityEvent({
+      domain: "cron",
+      level: "error",
+      event: "market_report_save_failed",
+      meta: {
+        reportType: type,
+        error: err instanceof Error ? err.message : String(err),
+      },
+    });
     return null;
   }
 }

@@ -1,5 +1,17 @@
 ﻿# ADN AI Broker - Full Workflow (Code-Driven)
 
+> Superseded notice (Phase 7):
+> - Canonical runtime contract for cron/env/deploy is maintained in:
+>   - `docs/ops/SOURCE_OF_TRUTH.md`
+>   - `docs/architecture/ADN_MASTER_ARCHITECTURE.md`
+> - Legacy cron aliases in this document (`signal_scan_5m`, `intraday`, `prop_trading`) are compatibility-only.
+> - Canonical cron names are:
+>   - `signal_scan_type1`
+>   - `market_stats_type2`
+>   - `morning_brief`
+>   - `close_brief_15h`
+>   - `eod_full_19h`
+
 ## 1. Scope va phien ban du an
 
 Tai lieu nay mo ta workflow van hanh thuc te cua **ADN AI Broker** dua tren code hien tai tai local project `D:\BOT\adn-ai-bot` (dong bo voi `origin/master`).

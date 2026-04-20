@@ -37,6 +37,8 @@ Reference:
   - `/api/hub/topics` GET/POST return 200
   - key public routes are not 5xx
   - canonical cron logs are not stale
+  - canonical cron status API is readable for admin (`/api/admin/system/cron-status`)
+  - DataHub topic health API is readable for admin (`/api/admin/system/topic-health`)
 
 ## 4) Rollback (if deploy/smoke fails)
 - Run:

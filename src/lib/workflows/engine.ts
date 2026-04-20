@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { emitObservabilityEvent } from "@/lib/observability";
 import { executeWorkflowAction } from "./actions";
 import { WORKFLOW_DEFINITIONS } from "./definitions";
 import { nowIso, resolveRetryPolicy, shouldRunConditions, sleep } from "./helpers";
@@ -66,13 +67,29 @@ export async function getWorkflowDefinitions() {
 
 async function persistExecution(record: WorkflowExecutionRecord) {
   const status: WorkflowExecutionStatus = record.status;
-  await prisma.cronLog.create({
+  const row = await prisma.cronLog.create({
     data: {
       cronName: `workflow:${record.workflowKey}`,
       status,
       message: `${record.triggerType} via ${record.triggerSource}`,
       duration: record.durationMs,
       resultData: JSON.stringify(record),
+    },
+  });
+  emitObservabilityEvent({
+    domain: "workflow",
+    level: status === "error" ? "error" : status === "skipped" ? "warn" : "info",
+    event: "workflow_run_persisted",
+    meta: {
+      workflowKey: record.workflowKey,
+      runId: record.runId,
+      cronLogId: row.id,
+      status,
+      triggerType: record.triggerType,
+      triggerSource: record.triggerSource,
+      durationMs: record.durationMs,
+      retries: record.retries,
+      actionsCount: record.actions.length,
     },
   });
 }
@@ -244,6 +261,18 @@ export async function runWorkflowsForTrigger(input: WorkflowTriggerEvent): Promi
   }
 
   const runs: WorkflowExecutionRecord[] = [];
+  emitObservabilityEvent({
+    domain: "workflow",
+    event: "workflow_trigger_received",
+    meta: {
+      triggerType: event.type,
+      triggerSource: event.source,
+      definitionsCount: definitions.length,
+      matchedCount: matched.length,
+      skippedCount: skippedKeys.length,
+    },
+  });
+
   for (const definition of matched) {
     try {
       const run = await runWorkflow(definition, event);
@@ -285,7 +314,16 @@ export async function emitWorkflowTrigger(event: WorkflowTriggerEvent) {
   try {
     return await runWorkflowsForTrigger(event);
   } catch (error) {
-    console.error("[workflows] emitWorkflowTrigger failed:", error);
+    emitObservabilityEvent({
+      domain: "workflow",
+      level: "error",
+      event: "workflow_trigger_failed",
+      meta: {
+        triggerType: event.type,
+        triggerSource: event.source,
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
     return {
       accepted: false,
       event,
@@ -319,4 +357,3 @@ export function getWorkflowRunWhereInput(filters?: { workflowKey?: string; statu
   }
   return where;
 }
-

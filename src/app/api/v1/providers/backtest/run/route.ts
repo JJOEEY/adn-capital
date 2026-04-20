@@ -6,6 +6,7 @@ import {
   normalizeRunResponse,
   parseProviderRunRequest,
 } from "@/lib/providers/contracts";
+import { emitObservabilityEvent } from "@/lib/observability";
 
 export const dynamic = "force-dynamic";
 
@@ -77,10 +78,15 @@ export async function POST(req: NextRequest) {
       { status: 502 },
     );
   } catch (error) {
-    console.warn(
-      `[providers.backtest.run] bridge run unavailable for provider=${parsedRequest.providerKey}`,
-      error,
-    );
+    emitObservabilityEvent({
+      domain: "provider",
+      level: "warn",
+      event: "backtest_run_bridge_unavailable",
+      meta: {
+        providerKey: parsedRequest.providerKey,
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
   }
 
   const allowDevStub = process.env.NODE_ENV !== "production" && process.env.PROVIDER_ALLOW_DEV_STUB === "1";
