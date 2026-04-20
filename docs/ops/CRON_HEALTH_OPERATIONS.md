@@ -7,6 +7,10 @@ Status: Canonical operational guide for cron/runtime staleness.
 - `GET /api/admin/system/topic-health` (admin)
 - `/admin/cron-health` (admin UI)
 
+Auth for API checks:
+- Admin session cookie, or
+- `x-internal-key` / `x-cron-secret` for internal ops smoke only.
+
 ## 2) Canonical cron matrix
 - `signal_scan_type1`
 - `market_stats_type2`

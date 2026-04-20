@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentDbUser } from "@/lib/current-user";
 import { CANONICAL_CRON_TYPES, CanonicalCronType, cronAliasesForCanonical, normalizeCronType } from "@/lib/cron-contracts";
@@ -6,6 +6,13 @@ import { emitObservabilityEvent } from "@/lib/observability";
 import { getVnNow, isVnTradingDay, isWithinVnTradingSession } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
+
+function isAuthorizedByInternalKey(req: NextRequest) {
+  const expected = (process.env.INTERNAL_API_KEY ?? process.env.CRON_SECRET ?? "").trim();
+  if (!expected) return false;
+  const provided = (req.headers.get("x-internal-key") ?? req.headers.get("x-cron-secret") ?? "").trim();
+  return provided === expected;
+}
 
 type CronJobPolicy = {
   slotsMinutes: number[];
@@ -107,10 +114,11 @@ function safeDuration(value: number | null) {
   return typeof value === "number" ? value : null;
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const dbUser = await getCurrentDbUser();
-    if (!dbUser || dbUser.systemRole !== "ADMIN") {
+    const internalAuthorized = isAuthorizedByInternalKey(req);
+    const dbUser = internalAuthorized ? null : await getCurrentDbUser();
+    if (!internalAuthorized && (!dbUser || dbUser.systemRole !== "ADMIN")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { isAdmin } from "@/lib/admin-check";
 import { getTopicCacheInspections } from "@/lib/datahub/core";
 import { listTopicDefinitions } from "@/lib/datahub/registry";
@@ -6,8 +6,16 @@ import { emitObservabilityEvent } from "@/lib/observability";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  const ok = await isAdmin();
+function isAuthorizedByInternalKey(req: NextRequest) {
+  const expected = (process.env.INTERNAL_API_KEY ?? process.env.CRON_SECRET ?? "").trim();
+  if (!expected) return false;
+  const provided = (req.headers.get("x-internal-key") ?? req.headers.get("x-cron-secret") ?? "").trim();
+  return provided === expected;
+}
+
+export async function GET(req: NextRequest) {
+  const internalAuthorized = isAuthorizedByInternalKey(req);
+  const ok = internalAuthorized ? true : await isAdmin();
   if (!ok) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
