@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { AlertTriangle, CheckCircle2, CircleOff, RefreshCw, Wallet, TrendingUp } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CircleOff, Link2, RefreshCw, TrendingUp, Wallet } from "lucide-react";
 import { OrderTicketPanel } from "@/components/broker/OrderTicketPanel";
 import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 import { useTopics } from "@/hooks/useTopics";
@@ -51,6 +51,8 @@ type BrokerOrdersTopic = {
     brokerOrderId?: string | null;
   }>;
 };
+
+const DNSE_LOGIN_URL = process.env.NEXT_PUBLIC_DNSE_LOGIN_URL || "https://banggia.dnse.com.vn/";
 
 function fmtPrice(value: number | null | undefined) {
   if (value == null || !Number.isFinite(value)) return "--";
@@ -136,12 +138,12 @@ export function DnseTradingClient() {
       });
       const payload = (await res.json()) as { message?: string; error?: string };
       if (!res.ok) {
-        throw new Error(payload.error ?? "Không thể lưu ID DNSE.");
+        throw new Error(payload.error ?? "Không thể liên kết ID DNSE.");
       }
-      setSubmitMessage(payload.message ?? "Đã cập nhật ID DNSE, chờ admin xác minh.");
+      setSubmitMessage(payload.message ?? "Đã gửi yêu cầu liên kết DNSE, chờ admin xác minh.");
       await brokerTopics.refresh(true);
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : "Không thể lưu ID DNSE.");
+      setSubmitError(error instanceof Error ? error.message : "Không thể liên kết ID DNSE.");
     } finally {
       setSubmitLoading(false);
     }
@@ -155,7 +157,7 @@ export function DnseTradingClient() {
             DNSE Trading
           </h1>
           <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-            Kết nối tài khoản chính, theo dõi NAV và danh mục nắm giữ, sau đó đặt lệnh mua chủ động.
+            Kết nối tài khoản DNSE của bạn để theo dõi NAV, danh mục nắm giữ và đặt lệnh an toàn.
           </p>
         </div>
         <button
@@ -173,7 +175,7 @@ export function DnseTradingClient() {
           <div className="mb-2 flex items-center gap-2">
             <Wallet className="h-4 w-4" style={{ color: "var(--primary)" }} />
             <h2 className="text-sm font-black uppercase tracking-wide" style={{ color: "var(--text-primary)" }}>
-              Tài khoản DNSE chính
+              Liên kết tài khoản DNSE
             </h2>
           </div>
 
@@ -193,17 +195,37 @@ export function DnseTradingClient() {
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold" style={{ borderColor: "rgba(245,158,11,0.25)", color: "#f59e0b", background: "rgba(245,158,11,0.10)" }}>
-                    <AlertTriangle className="h-3.5 w-3.5" /> Chưa xác minh
+                    <AlertTriangle className="h-3.5 w-3.5" /> Chờ xác minh
                   </span>
                 )}
               </div>
 
               {dbUser?.dnseVerified ? (
                 <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                  Tài khoản đã xác minh. Nếu cần đổi ID DNSE, vui lòng liên hệ admin để đảm bảo an toàn quyền đặt lệnh.
+                  Tài khoản DNSE đã xác minh. Bạn có thể đặt lệnh trong khu vực bên dưới theo các guard an toàn hệ thống.
                 </p>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-3">
+                  <div className="grid gap-2 rounded-xl border p-3 text-xs" style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-secondary)" }}>
+                    <p className="font-semibold" style={{ color: "var(--text-primary)" }}>Các bước kết nối DNSE</p>
+                    <p>1. Bấm “Đăng nhập DNSE” để đăng nhập tài khoản DNSE của bạn ở tab mới.</p>
+                    <p>2. Lấy mã tài khoản/tiểu khoản DNSE chính của bạn.</p>
+                    <p>3. Dán ID vào ô bên dưới và bấm “Liên kết DNSE”.</p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <a
+                      href={DNSE_LOGIN_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold"
+                      style={{ borderColor: "var(--border)", color: "var(--text-primary)", background: "var(--surface)" }}
+                    >
+                      <Link2 className="h-3.5 w-3.5" />
+                      Đăng nhập DNSE
+                    </a>
+                  </div>
+
                   <div className="flex flex-col gap-2 sm:flex-row">
                     <input
                       value={dnseIdInput}
@@ -218,11 +240,12 @@ export function DnseTradingClient() {
                       className="rounded-xl px-4 py-2 text-xs font-bold disabled:opacity-60"
                       style={{ background: "var(--primary)", color: "var(--on-primary)" }}
                     >
-                      {submitLoading ? "Đang lưu..." : "Lưu ID DNSE"}
+                      {submitLoading ? "Đang liên kết..." : "Liên kết DNSE"}
                     </button>
                   </div>
+
                   <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                    Sau khi lưu, admin cần xác minh để bật luồng đặt lệnh an toàn.
+                    Sau khi liên kết, admin xác minh để kích hoạt luồng đặt lệnh an toàn cho tài khoản của bạn.
                   </p>
                 </div>
               )}
@@ -265,7 +288,7 @@ export function DnseTradingClient() {
             </div>
           ) : (
             <div className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
-              <CircleOff className="h-3.5 w-3.5" /> Chưa có dữ liệu NAV do tài khoản chưa kết nối/xác minh.
+              <CircleOff className="h-3.5 w-3.5" /> Chưa có dữ liệu NAV vì tài khoản DNSE chưa xác minh.
             </div>
           )}
         </div>
@@ -278,7 +301,11 @@ export function DnseTradingClient() {
           </h2>
           {holdings.length === 0 ? (
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              Chưa có vị thế nắm giữ. Bạn có thể chọn mã từ <Link href="/dashboard/signal-map" style={{ color: "var(--primary)", fontWeight: 700 }}>ADN AI Broker</Link> để đặt lệnh.
+              Chưa có vị thế nắm giữ. Bạn có thể chọn mã từ{" "}
+              <Link href="/dashboard/signal-map" style={{ color: "var(--primary)", fontWeight: 700 }}>
+                ADN AI Broker
+              </Link>{" "}
+              để đặt lệnh.
             </p>
           ) : (
             <div className="grid gap-3 md:grid-cols-2">
@@ -295,7 +322,8 @@ export function DnseTradingClient() {
                     <div className="mb-1 flex items-center justify-between">
                       <p className="text-lg font-black" style={{ color: "var(--text-primary)" }}>{row.ticker}</p>
                       <span className="rounded-full border px-2 py-0.5 text-[11px] font-bold" style={{ color: tone.color, background: tone.bg, borderColor: tone.border }}>
-                        {pnl >= 0 ? "+" : ""}{pnl.toFixed(2)}%
+                        {pnl >= 0 ? "+" : ""}
+                        {pnl.toFixed(2)}%
                       </span>
                     </div>
                     <div className="space-y-1 text-xs" style={{ color: "var(--text-secondary)" }}>
@@ -342,7 +370,7 @@ export function DnseTradingClient() {
       <div className="rounded-2xl border p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-black uppercase tracking-wide" style={{ color: "var(--text-primary)" }}>
-            Đặt lệnh mua chủ động
+            Đặt lệnh chủ động
           </h2>
           <div className="flex items-center gap-2">
             <input

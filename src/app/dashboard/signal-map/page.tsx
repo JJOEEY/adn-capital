@@ -29,7 +29,7 @@ export default async function DashboardSignalMapPage() {
 
   return (
     <MainLayout>
-      {hasAccess ? <SignalMapClient isPremium={isPremium} showExecutionActions={isAdmin} /> : <UpgradeVIP />}
+      {hasAccess ? <SignalMapClient isPremium={isPremium} showExecutionActions={hasAccess} /> : <UpgradeVIP />}
     </MainLayout>
   );
 }

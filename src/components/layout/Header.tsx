@@ -59,7 +59,7 @@ const menuSections: MenuSection[] = [
       { href: "/art", label: "Chỉ báo ART", icon: Activity, badge: "MỚI" },
       { href: "/terminal", label: "Tư vấn đầu tư", icon: MessageSquare },
       { href: "/dashboard/signal-map", label: "ADN AI Broker", icon: Zap },
-      { href: "/dashboard/dnse-trading", label: "DNSE Trading", icon: Wallet, badge: "NEW", roles: ["ADMIN"] },
+      { href: "/dashboard/dnse-trading", label: "DNSE Trading", icon: Wallet, badge: "NEW" },
       { href: "/khac/tin-tuc", label: "Tin Tức", icon: Newspaper, badge: "BETA", roles: ["ADMIN", "WRITER"] },
     ],
   },

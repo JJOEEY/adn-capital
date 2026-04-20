@@ -70,7 +70,6 @@ const services = [
       "Xem lịch sử lệnh gần nhất",
       "Đặt lệnh chủ động theo từng mã",
     ],
-    adminOnly: true,
   },
 ];
 
@@ -101,7 +100,7 @@ export default function SanPhamPage() {
 
         {/* ── Service Cards ────────────────────────────────────── */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {services.filter((svc) => !svc.adminOnly || systemRole === "ADMIN").map((svc) => {
+          {services.map((svc) => {
             const Icon = svc.icon;
             return (
               <Link key={svc.href} href={svc.href}>

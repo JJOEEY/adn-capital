@@ -94,7 +94,32 @@ export function OrderTicketPanel({ ticker }: Props) {
     };
   }, [ticker, accountId, side, quantity, orderType, normalizedPrice, rationale]);
 
+  const validateManualInputs = (forParse: boolean) => {
+    if (!accountId.trim()) {
+      return "Vui lòng liên kết tài khoản DNSE trước khi đặt lệnh.";
+    }
+    if (!ticker.trim()) {
+      return "Vui lòng chọn mã cổ phiếu.";
+    }
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      return "Khối lượng phải lớn hơn 0.";
+    }
+    if (!forParse && orderType === "LO" && normalizedPrice == null) {
+      return "Lệnh LO cần nhập giá đặt.";
+    }
+    if (forParse && !naturalText.trim() && orderType === "LO" && normalizedPrice == null) {
+      return "Lệnh LO cần nhập giá đặt hoặc nhập câu lệnh tự nhiên đầy đủ.";
+    }
+    return null;
+  };
+
   const runParse = async () => {
+    const manualError = validateManualInputs(true);
+    if (manualError) {
+      setErrorText(manualError);
+      return;
+    }
+
     setLoading("parse");
     setErrorText(null);
     setSubmitResult(null);
@@ -131,6 +156,12 @@ export function OrderTicketPanel({ ticker }: Props) {
   };
 
   const runPreview = async () => {
+    const manualError = validateManualInputs(false);
+    if (manualError) {
+      setErrorText(manualError);
+      return;
+    }
+
     setLoading("preview");
     setErrorText(null);
     setSubmitResult(null);
@@ -199,14 +230,14 @@ export function OrderTicketPanel({ ticker }: Props) {
 
       {!session?.user?.id ? (
         <div className="rounded-xl border p-3 text-sm" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
-          Dang nhap de su dung Order Ticket.
+          Đăng nhập để sử dụng Order Ticket.
         </div>
       ) : (
         <div className="space-y-3">
           <textarea
             value={naturalText}
             onChange={(event) => setNaturalText(event.target.value)}
-            placeholder="Nhap lenh tu nhien (VD: Mua HPG 1000 gia 25.4)..."
+            placeholder="Nhập lệnh tự nhiên (VD: Mua HPG 1000 giá 25.4)..."
             className="min-h-[72px] w-full rounded-xl border p-3 text-sm"
             style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-primary)" }}
           />
@@ -281,7 +312,7 @@ export function OrderTicketPanel({ ticker }: Props) {
               className="rounded-xl border px-3 py-2 text-xs font-bold"
               style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
             >
-              {loading === "parse" ? "Dang parse..." : "Parse Intent"}
+              {loading === "parse" ? "Đang parse..." : "Parse Intent"}
             </button>
             <button
               onClick={() => void runPreview()}
@@ -289,9 +320,12 @@ export function OrderTicketPanel({ ticker }: Props) {
               className="rounded-xl px-3 py-2 text-xs font-bold"
               style={{ background: "var(--primary)", color: "var(--on-primary)" }}
             >
-              {loading === "preview" ? "Dang preview..." : "Validate + Preview"}
+              {loading === "preview" ? "Đang preview..." : "Validate + Preview"}
             </button>
           </div>
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+            Mẹo: bạn có thể bỏ qua Parse Intent và bấm thẳng Validate + Preview.
+          </p>
 
           {validation ? (
             <div className="rounded-xl border p-3 text-xs" style={{ borderColor: "var(--border)" }}>
@@ -325,7 +359,7 @@ export function OrderTicketPanel({ ticker }: Props) {
                   checked={confirmChecked}
                   onChange={(event) => setConfirmChecked(event.target.checked)}
                 />
-                Toi xac nhan submit lenh nay (CONFIRM)
+                Tôi xác nhận submit lệnh này (CONFIRM)
               </label>
               <button
                 onClick={() => void runSubmit()}
@@ -333,7 +367,7 @@ export function OrderTicketPanel({ ticker }: Props) {
                 className="rounded-xl px-3 py-2 text-xs font-bold disabled:opacity-60"
                 style={{ background: "var(--danger)", color: "white" }}
               >
-                {loading === "submit" ? "Dang submit..." : "Confirm Submit"}
+                {loading === "submit" ? "Đang submit..." : "Confirm Submit"}
               </button>
             </div>
           ) : null}
