@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * GET /api/user/dnse/link/accounts
- * Lay danh sach tai khoan DNSE tu phien dang nhap DNSE hien tai cua user.
+ * Lấy danh sách tài khoản DNSE từ phiên đăng nhập DNSE hiện tại của user.
  */
 export async function GET() {
   const session = await auth();
@@ -24,7 +24,7 @@ export async function GET() {
       {
         success: false,
         code: "dnse_login_required",
-        error: "Ban can dang nhap DNSE truoc khi chon tai khoan.",
+        error: "Bạn cần đăng nhập DNSE trước khi chọn tài khoản.",
         accounts: [],
         source: "dnse_session",
       },
@@ -40,7 +40,7 @@ export async function GET() {
   try {
     const accounts = await client.getAccounts();
     if (accounts.length === 0) {
-      throw new Error("Danh sach tai khoan DNSE rong.");
+      throw new Error("Danh sách tài khoản DNSE rỗng.");
     }
     return NextResponse.json({
       success: true,
@@ -50,7 +50,7 @@ export async function GET() {
     });
   } catch (error) {
     const rawMessage =
-      error instanceof Error ? error.message : "Khong the tai danh sach tai khoan DNSE";
+      error instanceof Error ? error.message : "Không thể tải danh sách tài khoản DNSE";
     const message = rawMessage.replace(/\s+@\s+https?:\/\/\S+/g, "");
     const looksLikeAuthError = /401|unauthorized|forbidden|token|jwt/i.test(message);
     const looksLikeRouteMismatch = /no route matched|HTTP_404/i.test(message);
@@ -64,10 +64,10 @@ export async function GET() {
             ? "dnse_endpoint_mismatch"
             : "dnse_accounts_fetch_failed",
         error: looksLikeAuthError
-          ? "Phien dang nhap DNSE da het han hoac khong hop le. Vui long dang nhap lai DNSE."
+          ? "Phiên đăng nhập DNSE đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại DNSE."
           : looksLikeRouteMismatch
-            ? "Khong doc duoc danh sach tai khoan DNSE (endpoint khong hop le). Vui long kiem tra cau hinh DNSE base URL/API key."
-            : `Khong the doc danh sach tai khoan DNSE: ${message}`,
+            ? "Không đọc được danh sách tài khoản DNSE do endpoint chưa đúng. Vui lòng liên hệ admin kiểm tra cấu hình API DNSE."
+            : `Không thể đọc danh sách tài khoản DNSE: ${message}`,
         accounts: [],
         source: "dnse_session",
       },
@@ -75,4 +75,3 @@ export async function GET() {
     );
   }
 }
-

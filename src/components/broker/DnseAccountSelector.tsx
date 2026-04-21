@@ -54,14 +54,14 @@ export function DnseAccountSelector({
 
         if (!response.ok) {
           if (payload?.code === "dnse_login_required") {
-            throw new Error("Ban can dang nhap DNSE truoc khi chon tai khoan.");
+            throw new Error("Bạn cần đăng nhập DNSE trước khi chọn tài khoản.");
           }
           if (payload?.code === "dnse_endpoint_mismatch") {
             throw new Error(
-              "Endpoint DNSE hien tai khong hop le (route mismatch). Vui long lien he admin de kiem tra cau hinh API DNSE.",
+              "Không thể đọc danh sách tài khoản từ DNSE. Vui lòng liên hệ admin kiểm tra endpoint/API key.",
             );
           }
-          throw new Error(payload?.error ?? "Khong the tai danh sach tai khoan DNSE.");
+          throw new Error(payload?.error ?? "Không thể tải danh sách tài khoản DNSE.");
         }
 
         const rows = Array.isArray(payload?.accounts) ? payload.accounts : [];
@@ -71,7 +71,9 @@ export function DnseAccountSelector({
       } catch (err) {
         if (!cancelled) {
           setServerAccounts([]);
-          setServerError(err instanceof Error ? err.message : "Khong the tai danh sach tai khoan DNSE.");
+          setServerError(
+            err instanceof Error ? err.message : "Không thể tải danh sách tài khoản DNSE.",
+          );
         }
       } finally {
         if (!cancelled) {
@@ -91,7 +93,7 @@ export function DnseAccountSelector({
   async function linkAccount(accountNoRaw: string) {
     const accountNo = normalizeAccountNo(accountNoRaw);
     if (accountNo.length < 3) {
-      setError("Vui long chon tai khoan DNSE hop le.");
+      setError("Vui lòng chọn tài khoản DNSE hợp lệ.");
       return;
     }
 
@@ -103,15 +105,13 @@ export function DnseAccountSelector({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ accountNo }),
       });
-      const payload = (await response.json().catch(() => null)) as
-        | { error?: string }
-        | null;
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
       if (!response.ok) {
-        throw new Error(payload?.error ?? "Lien ket tai khoan DNSE that bai.");
+        throw new Error(payload?.error ?? "Liên kết tài khoản DNSE thất bại.");
       }
       onSuccess(accountNo);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Lien ket tai khoan DNSE that bai.");
+      setError(err instanceof Error ? err.message : "Liên kết tài khoản DNSE thất bại.");
     } finally {
       setLinking(false);
     }
@@ -129,17 +129,17 @@ export function DnseAccountSelector({
         >
           <div>
             <h3 className="text-base font-black" style={{ color: "var(--text-primary)" }}>
-              Chon tai khoan DNSE de lien ket
+              Chọn tài khoản DNSE để liên kết
             </h3>
             <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-              Chi lien ket tai khoan da xac thuc tu may chu. Khong cho nhap tay de tranh gia mao.
+              Chỉ liên kết tài khoản đã xác thực từ máy chủ. Không cho nhập tay để tránh giả mạo.
             </p>
           </div>
           <button
             onClick={onCancel}
             className="rounded-lg border p-2"
             style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
-            aria-label="Dong"
+            aria-label="Đóng"
           >
             <X className="h-4 w-4" />
           </button>
@@ -155,7 +155,7 @@ export function DnseAccountSelector({
                 background: "var(--surface-2)",
               }}
             >
-              Dang tai danh sach tai khoan DNSE tu server...
+              Đang tải danh sách tài khoản DNSE từ máy chủ...
             </div>
           ) : null}
 
@@ -178,7 +178,7 @@ export function DnseAccountSelector({
                 className="text-xs font-semibold uppercase tracking-wide"
                 style={{ color: "var(--text-muted)" }}
               >
-                Tai khoan kha dung
+                Tài khoản khả dụng
               </p>
 
               <div className="grid gap-2 md:grid-cols-2">
@@ -199,15 +199,15 @@ export function DnseAccountSelector({
                     }}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-black" style={{ color: "var(--text-primary)" }}>
-                        {account.accountNo}
-                      </span>
+                <span className="text-sm font-black" style={{ color: "var(--text-primary)" }}>
+                  {account.accountNo}
+                </span>
                       {selectedAccountNo === account.accountNo ? (
                         <CheckCircle2 className="h-4 w-4" style={{ color: "#16a34a" }} />
                       ) : null}
                     </div>
                     <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                      {account.accountName || "Tai khoan DNSE"}
+                      {account.accountName || "Tài khoản DNSE"}
                     </p>
                     <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
                       {account.accountType || "SPOT"}
@@ -223,7 +223,7 @@ export function DnseAccountSelector({
                 className="rounded-xl px-4 py-2 text-sm font-bold disabled:opacity-60"
                 style={{ background: "var(--primary)", color: "var(--on-primary)" }}
               >
-                {linking ? "Dang lien ket..." : "Lien ket tai khoan da chon"}
+                {linking ? "Đang liên kết..." : "Liên kết tài khoản đã chọn"}
               </button>
             </div>
           ) : (
@@ -236,8 +236,8 @@ export function DnseAccountSelector({
               }}
             >
               {serverError
-                ? "Khong doc duoc danh sach tai khoan DNSE da xac thuc. Vui long dang nhap DNSE va thu lai."
-                : "Chua co tai khoan DNSE kha dung tu phien dang nhap hien tai."}
+                ? "Không đọc được danh sách tài khoản DNSE đã xác thực. Vui lòng đăng nhập DNSE và thử lại."
+                : "Chưa có tài khoản DNSE khả dụng từ phiên đăng nhập hiện tại."}
             </div>
           )}
 
@@ -259,4 +259,3 @@ export function DnseAccountSelector({
     </div>
   );
 }
-

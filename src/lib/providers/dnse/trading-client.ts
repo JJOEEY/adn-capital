@@ -305,6 +305,7 @@ export class DnseTradingClient {
       ...envBaseUrls,
       ...(baseFromEnv ? [baseFromEnv] : []),
       "https://api.dnse.com.vn",
+      "https://openapi.dnse.com.vn",
     ]
       .map((base) => base.trim())
       .filter(Boolean)
@@ -315,12 +316,14 @@ export class DnseTradingClient {
     const headers: HeadersInit = {
       Accept: "application/json",
       "Content-Type": "application/json",
-      "X-API-KEY": this.apiKey,
-      "x-api-key": this.apiKey,
     };
-    headers.Authorization = this.userJwtToken
-      ? `Bearer ${this.userJwtToken}`
-      : `Bearer ${this.apiKey}`;
+    if (this.userJwtToken) {
+      headers.Authorization = `Bearer ${this.userJwtToken}`;
+    } else {
+      headers.Authorization = `Bearer ${this.apiKey}`;
+      headers["X-API-KEY"] = this.apiKey;
+      headers["x-api-key"] = this.apiKey;
+    }
     const response = await fetch(url, {
       method,
       cache: "no-store",
@@ -378,12 +381,16 @@ export class DnseTradingClient {
     const payload = await this.requestFromCandidates([
       ...(direct ? [{ path: direct, method: "GET" as const }] : []),
       ...(broker ? [{ path: broker, method: "GET" as const }] : []),
-      { path: "/user-service/api/accounts", method: "GET" },
-      { path: "/user-service/accounts", method: "GET" },
       { path: "/order-service/v2/accounts", method: "GET" },
       { path: "/order-service/v2/accounts/list", method: "GET" },
       { path: "/order-service/accounts", method: "GET" },
       { path: "/order-service/api/accounts", method: "GET" },
+      { path: "/user-service/api/get-all-account", method: "GET" },
+      { path: "/user-service/api/accounts", method: "GET" },
+      { path: "/user-service/accounts", method: "GET" },
+      { path: "/accounts", method: "GET" },
+      { path: "/api/accounts", method: "GET" },
+      { path: "/api/v1/accounts", method: "GET" },
     ]);
     const accounts = normalizeAccounts(payload);
     if (accounts.length === 0) {
