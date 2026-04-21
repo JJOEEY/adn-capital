@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { invalidateDnseBrokerTopicsForUser } from "@/lib/brokers/dnse/topics";
 import { unlinkDnseConnectionForUser } from "@/lib/brokers/dnse/connection";
+import { getDnseTradingClient } from "@/lib/providers/dnse/trading-client";
 
 export const dynamic = "force-dynamic";
 
@@ -92,6 +93,30 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: "accountNo is required" },
       { status: 400 },
+    );
+  }
+
+  let dnseAccounts: Array<{ accountNo: string }> = [];
+  try {
+    dnseAccounts = await getDnseTradingClient().getAccounts();
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Failed to verify DNSE account by API key";
+    return NextResponse.json(
+      { error: `Cannot verify account at DNSE: ${message}` },
+      { status: 502 },
+    );
+  }
+
+  const existsOnDnse = dnseAccounts.some(
+    (item) => item.accountNo.trim().toUpperCase() === accountNo,
+  );
+  if (!existsOnDnse) {
+    return NextResponse.json(
+      { error: `Account ${accountNo} not found in DNSE` },
+      { status: 404 },
     );
   }
 
