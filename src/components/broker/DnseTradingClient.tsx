@@ -7,6 +7,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   CircleOff,
+  LogIn,
   RefreshCw,
   ShieldCheck,
   TrendingUp,
@@ -201,6 +202,8 @@ export function DnseTradingClient() {
       : null;
   const queryEntryPrice =
     Number.isFinite(queryEntryRaw) && queryEntryRaw > 0 ? queryEntryRaw : null;
+  const dnseLoginUrl =
+    process.env.NEXT_PUBLIC_DNSE_LOGIN_URL?.trim() || "https://entradex.dnse.com.vn";
 
   const [ticker, setTicker] = useState(queryTicker || "HPG");
   const [totalNavInput, setTotalNavInput] = useState("");
@@ -361,20 +364,39 @@ export function DnseTradingClient() {
             Kết nối tài khoản DNSE thật để đồng bộ NAV, danh mục nắm giữ và đặt lệnh trong pilot an toàn.
           </p>
         </div>
-        <button
-          onClick={() => void brokerTopics.refresh(true)}
-          className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold"
-          style={{
-            borderColor: "var(--border)",
-            color: "var(--text-secondary)",
-            background: "var(--surface)",
-          }}
-        >
-          <RefreshCw
-            className={`h-3.5 w-3.5 ${brokerTopics.isValidating ? "animate-spin" : ""}`}
-          />
-          Làm mới dữ liệu
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {!isConnected ? (
+            <a
+              href={dnseLoginUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold"
+              style={{
+                borderColor: "rgba(37,99,235,0.25)",
+                color: "#1d4ed8",
+                background: "rgba(37,99,235,0.10)",
+              }}
+            >
+              <LogIn className="h-3.5 w-3.5" />
+              Đăng nhập DNSE
+            </a>
+          ) : null}
+
+          <button
+            onClick={() => void brokerTopics.refresh(true)}
+            className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold"
+            style={{
+              borderColor: "var(--border)",
+              color: "var(--text-secondary)",
+              background: "var(--surface)",
+            }}
+          >
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${brokerTopics.isValidating ? "animate-spin" : ""}`}
+            />
+            Làm mới dữ liệu
+          </button>
+        </div>
       </div>
 
       <div className="grid gap-3 md:grid-cols-3">
@@ -509,6 +531,26 @@ export function DnseTradingClient() {
                 </div>
               ) : (
                 <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <a
+                      href={dnseLoginUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold"
+                      style={{
+                        borderColor: "rgba(37,99,235,0.25)",
+                        color: "#1d4ed8",
+                        background: "rgba(37,99,235,0.10)",
+                      }}
+                    >
+                      <LogIn className="h-3.5 w-3.5" />
+                      Đăng nhập DNSE
+                    </a>
+                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                      Đăng nhập trên DNSE trước, sau đó quay lại để đồng bộ tài khoản.
+                    </span>
+                  </div>
+
                   <div
                     className="grid gap-2 rounded-xl border p-3 text-xs"
                     style={{
