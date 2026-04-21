@@ -18,8 +18,21 @@ type DnseAccountSelectorProps = {
   onSuccess: (accountNo: string) => void;
 };
 
+type ApiErrorPayload = {
+  code?: string;
+  error?: string;
+};
+
 function normalizeAccountNo(value: string) {
   return value.trim().toUpperCase();
+}
+
+function toUiError(payload: ApiErrorPayload | null, fallback: string) {
+  const code = payload?.code?.trim();
+  const message = payload?.error?.trim();
+  if (message) return message;
+  if (!code) return fallback;
+  return `${fallback} (mã lỗi: ${code})`;
 }
 
 export function DnseAccountSelector({
@@ -58,10 +71,10 @@ export function DnseAccountSelector({
           }
           if (payload?.code === "dnse_endpoint_mismatch") {
             throw new Error(
-              "Không thể đọc danh sách tài khoản từ DNSE. Vui lòng liên hệ admin kiểm tra endpoint/API key.",
+              "Không đọc được danh sách tài khoản từ DNSE. Vui lòng liên hệ admin kiểm tra endpoint/API key.",
             );
           }
-          throw new Error(payload?.error ?? "Không thể tải danh sách tài khoản DNSE.");
+          throw new Error(toUiError(payload, "Không thể tải danh sách tài khoản DNSE."));
         }
 
         const rows = Array.isArray(payload?.accounts) ? payload.accounts : [];
@@ -105,9 +118,9 @@ export function DnseAccountSelector({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ accountNo }),
       });
-      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      const payload = (await response.json().catch(() => null)) as ApiErrorPayload | null;
       if (!response.ok) {
-        throw new Error(payload?.error ?? "Liên kết tài khoản DNSE thất bại.");
+        throw new Error(toUiError(payload, "Liên kết tài khoản DNSE thất bại."));
       }
       onSuccess(accountNo);
     } catch (err) {
@@ -199,9 +212,9 @@ export function DnseAccountSelector({
                     }}
                   >
                     <div className="flex items-center justify-between">
-                <span className="text-sm font-black" style={{ color: "var(--text-primary)" }}>
-                  {account.accountNo}
-                </span>
+                      <span className="text-sm font-black" style={{ color: "var(--text-primary)" }}>
+                        {account.accountNo}
+                      </span>
                       {selectedAccountNo === account.accountNo ? (
                         <CheckCircle2 className="h-4 w-4" style={{ color: "#16a34a" }} />
                       ) : null}
