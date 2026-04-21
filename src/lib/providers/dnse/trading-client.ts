@@ -84,7 +84,9 @@ function getCandidateEndpoints(baseUrl: string) {
   return [
     direct,
     broker,
+    `${baseUrl}/user-service/api/accounts`,
     `${baseUrl}/user-service/accounts`,
+    `${baseUrl}/order-service/accounts`,
     `${baseUrl}/accounts`,
   ].filter((item): item is string => Boolean(item));
 }
@@ -162,4 +164,3 @@ export function getDnseTradingClient() {
   }
   return singleton;
 }
-

@@ -78,6 +78,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const allowManualLink =
+    (process.env.DNSE_ALLOW_INSECURE_MANUAL_LINK ?? "").trim().toLowerCase() === "true";
+  if (!allowManualLink) {
+    return NextResponse.json(
+      {
+        error:
+          "Đã tắt liên kết thủ công bằng số tài khoản. Vui lòng dùng luồng xác thực DNSE người dùng (OAuth/JWT+OTP) để liên kết an toàn.",
+      },
+      { status: 403 },
+    );
+  }
+
   if (!process.env.DNSE_API_KEY?.trim()) {
     return NextResponse.json(
       { error: "DNSE_API_KEY is not configured on server" },

@@ -138,6 +138,11 @@ export function DnseAccountSelector({
     }
   }
 
+  const manualLinkEnabled =
+    (process.env.NEXT_PUBLIC_DNSE_ALLOW_INSECURE_MANUAL_LINK ?? "")
+      .trim()
+      .toLowerCase() === "true";
+
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/45 p-3">
       <div
@@ -250,36 +255,49 @@ export function DnseAccountSelector({
                 background: "rgba(245,158,11,0.10)",
               }}
             >
-              Không đọc được danh sách tài khoản tự động. Bạn vẫn có thể nhập số tài khoản DNSE để liên kết thủ công.
+              Không đọc được danh sách tài khoản đã xác thực từ DNSE. Vui lòng đăng nhập/xác thực DNSE trước khi liên kết.
             </div>
           )}
 
-          <div className="space-y-2 rounded-xl border p-3" style={{ borderColor: "var(--border)" }}>
-            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
-              Liên kết thủ công
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-              <input
-                value={manualAccountNo}
-                onChange={(event) => setManualAccountNo(event.target.value.toUpperCase())}
-                placeholder="Ví dụ: 0001386718"
-                className="min-w-[220px] flex-1 rounded-xl border px-3 py-2 text-sm"
-                style={{
-                  borderColor: "var(--border)",
-                  background: "var(--surface-2)",
-                  color: "var(--text-primary)",
-                }}
-              />
-              <button
-                onClick={() => void linkAccount(manualAccountNo)}
-                disabled={linking}
-                className="rounded-xl border px-4 py-2 text-sm font-bold disabled:opacity-60"
-                style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
-              >
-                {linking ? "Đang liên kết..." : "Liên kết thủ công"}
-              </button>
+          {manualLinkEnabled ? (
+            <div className="space-y-2 rounded-xl border p-3" style={{ borderColor: "var(--border)" }}>
+              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+                Liên kết thủ công (không khuyến nghị)
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  value={manualAccountNo}
+                  onChange={(event) => setManualAccountNo(event.target.value.toUpperCase())}
+                  placeholder="Ví dụ: 0001386718"
+                  className="min-w-[220px] flex-1 rounded-xl border px-3 py-2 text-sm"
+                  style={{
+                    borderColor: "var(--border)",
+                    background: "var(--surface-2)",
+                    color: "var(--text-primary)",
+                  }}
+                />
+                <button
+                  onClick={() => void linkAccount(manualAccountNo)}
+                  disabled={linking}
+                  className="rounded-xl border px-4 py-2 text-sm font-bold disabled:opacity-60"
+                  style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
+                >
+                  {linking ? "Đang liên kết..." : "Liên kết thủ công"}
+                </button>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div
+              className="rounded-xl border px-3 py-2 text-xs"
+              style={{
+                borderColor: "rgba(192,57,43,0.25)",
+                color: "var(--danger)",
+                background: "rgba(192,57,43,0.08)",
+              }}
+            >
+              Đã tắt liên kết thủ công theo số tài khoản vì lý do bảo mật. Hệ thống chỉ cho phép liên kết qua luồng xác thực DNSE.
+            </div>
+          )}
 
           {error ? (
             <div
