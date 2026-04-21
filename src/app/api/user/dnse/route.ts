@@ -1,19 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getDnseOAuthConfig } from "@/lib/brokers/dnse/oauth";
 
 export const dynamic = "force-dynamic";
 
 /**
  * GET /api/user/dnse
- * Trả trạng thái kết nối DNSE theo user hiện tại.
+ * Tra trang thai ket noi DNSE theo user hien tai.
  */
 export async function GET() {
   const session = await auth();
   const userId = session?.user?.id;
   if (!userId) {
-    return NextResponse.json({ error: "Chưa đăng nhập" }, { status: 401 });
+    return NextResponse.json({ error: "Chua dang nhap" }, { status: 401 });
   }
 
   const [user, connection] = await Promise.all([
@@ -43,23 +42,35 @@ export async function GET() {
   ]);
 
   if (!user) {
-    return NextResponse.json({ error: "Không tìm thấy tài khoản" }, { status: 404 });
+    return NextResponse.json({ error: "Khong tim thay tai khoan" }, { status: 404 });
   }
 
-  const oauthConfig = getDnseOAuthConfig();
+  const apiKeyConfigured = Boolean(process.env.DNSE_API_KEY?.trim());
+  const authConfigured = apiKeyConfigured;
+  const connectionLinked = Boolean(
+    user.dnseVerified && (connection?.status === "ACTIVE" || user.dnseId),
+  );
+
   return NextResponse.json({
     dnseId: user.dnseId,
     dnseVerified: user.dnseVerified,
     dnseAppliedAt: user.dnseAppliedAt,
+    auth: {
+      mode: apiKeyConfigured ? "api_key" : "unconfigured",
+      configured: authConfigured,
+      requiresOAuth: false,
+      hasApiKey: apiKeyConfigured,
+    },
     oauth: {
-      configured: oauthConfig.configured,
-      missing: oauthConfig.missing,
+      // Giu key "oauth" de tuong thich voi UI/clients cu.
+      configured: authConfigured,
+      missing: authConfigured ? [] : ["DNSE_API_KEY"],
       startUrl: "/api/user/dnse/oauth/start",
       disconnectUrl: "/api/user/dnse/oauth/disconnect",
     },
     connection: connection
       ? {
-          linked: connection.status === "ACTIVE",
+          linked: connectionLinked,
           accountId: connection.accountId,
           accountName: connection.accountName,
           subAccountId: connection.subAccountId,
@@ -70,10 +81,10 @@ export async function GET() {
           lastSyncedAt: connection.lastSyncedAt,
           lastError: connection.lastError,
           updatedAt: connection.updatedAt,
-          source: "oauth",
+          source: connection.status === "ACTIVE" ? "api_key" : "api_key_manual",
         }
       : {
-          linked: false,
+          linked: connectionLinked,
           accountId: user.dnseId,
           accountName: null,
           subAccountId: null,
@@ -84,28 +95,29 @@ export async function GET() {
           lastSyncedAt: null,
           lastError: null,
           updatedAt: null,
-          source: "legacy_manual",
+          source: "api_key_manual",
         },
   });
 }
 
 /**
  * POST /api/user/dnse
- * Fallback tương thích cũ: lưu DNSE ID thủ công.
- * Lưu ý: luồng khuyến nghị là OAuth /api/user/dnse/oauth/start.
+ * Luu DNSE ID thu cong cho user hien tai.
+ * Luong khuyen nghi hien tai la API key + trading token.
+ * OAuth route van duoc giu de tuong thich nguoc.
  */
 export async function POST(req: NextRequest) {
   const session = await auth();
   const userId = session?.user?.id;
   if (!userId) {
-    return NextResponse.json({ error: "Chưa đăng nhập" }, { status: 401 });
+    return NextResponse.json({ error: "Chua dang nhap" }, { status: 401 });
   }
 
   const body = (await req.json().catch(() => null)) as { dnseId?: unknown } | null;
   const dnseIdRaw = typeof body?.dnseId === "string" ? body.dnseId : "";
   const dnseId = dnseIdRaw.trim().toUpperCase();
   if (dnseId.length < 3) {
-    return NextResponse.json({ error: "ID DNSE không hợp lệ" }, { status: 400 });
+    return NextResponse.json({ error: "ID DNSE khong hop le" }, { status: 400 });
   }
 
   const [user, existing] = await Promise.all([
@@ -120,11 +132,11 @@ export async function POST(req: NextRequest) {
   ]);
 
   if (!user) {
-    return NextResponse.json({ error: "Không tìm thấy tài khoản" }, { status: 404 });
+    return NextResponse.json({ error: "Khong tim thay tai khoan" }, { status: 404 });
   }
   if (existing && existing.id !== user.id) {
     return NextResponse.json(
-      { error: "ID DNSE này đã thuộc tài khoản khác" },
+      { error: "ID DNSE nay da thuoc tai khoan khac" },
       { status: 409 },
     );
   }
@@ -132,7 +144,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "Tài khoản DNSE đã xác minh. Vui lòng ngắt kết nối hiện tại hoặc liên hệ admin để đổi tài khoản.",
+          "Tai khoan DNSE da xac minh. Vui long lien he admin neu can doi tai khoan.",
       },
       { status: 403 },
     );
@@ -154,7 +166,7 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     message:
-      "Đã ghi nhận ID DNSE thủ công. Khuyến nghị chuyển sang kết nối OAuth để đồng bộ NAV và danh mục realtime.",
+      "Da ghi nhan ID DNSE. He thong se dung API key/trading token de dong bo NAV va danh muc.",
     ...updated,
   });
 }

@@ -261,10 +261,6 @@ async function buildRuntimeDependencyAudit(args: {
     ),
     DNSE_API_KEY: Boolean(env.DNSE_API_KEY),
     DNSE_TOKEN_ENCRYPTION_KEY: Boolean(env.DNSE_TOKEN_ENCRYPTION_KEY),
-    DNSE_OAUTH_AUTHORIZE_URL: Boolean(env.DNSE_OAUTH_AUTHORIZE_URL),
-    DNSE_OAUTH_TOKEN_URL: Boolean(env.DNSE_OAUTH_TOKEN_URL),
-    DNSE_OAUTH_CLIENT_ID: Boolean(env.DNSE_OAUTH_CLIENT_ID),
-    DNSE_OAUTH_CLIENT_SECRET: Boolean(env.DNSE_OAUTH_CLIENT_SECRET),
     DNSE_BROKER_BALANCE_URL: Boolean(env.DNSE_BROKER_BALANCE_URL),
     DNSE_BROKER_HOLDINGS_URL: Boolean(env.DNSE_BROKER_HOLDINGS_URL),
     DNSE_BROKER_ORDERS_URL: Boolean(env.DNSE_BROKER_ORDERS_URL),
@@ -280,10 +276,6 @@ async function buildRuntimeDependencyAudit(args: {
   if (!dependencies.AUTH_TRUST_HOST) blockers.push("missing_AUTH_TRUST_HOST_for_local_or_proxy_runtime");
   if (!dependencies.DNSE_API_KEY) warnings.push("missing_DNSE_API_KEY");
   if (!dependencies.DNSE_TOKEN_ENCRYPTION_KEY) blockers.push("missing_DNSE_TOKEN_ENCRYPTION_KEY");
-  if (!dependencies.DNSE_OAUTH_AUTHORIZE_URL) blockers.push("missing_DNSE_OAUTH_AUTHORIZE_URL");
-  if (!dependencies.DNSE_OAUTH_TOKEN_URL) blockers.push("missing_DNSE_OAUTH_TOKEN_URL");
-  if (!dependencies.DNSE_OAUTH_CLIENT_ID) blockers.push("missing_DNSE_OAUTH_CLIENT_ID");
-  if (!dependencies.DNSE_OAUTH_CLIENT_SECRET) blockers.push("missing_DNSE_OAUTH_CLIENT_SECRET");
   if (!dependencies.DNSE_BROKER_BALANCE_URL) warnings.push("missing_DNSE_BROKER_BALANCE_URL");
   if (!dependencies.DNSE_BROKER_HOLDINGS_URL) warnings.push("missing_DNSE_BROKER_HOLDINGS_URL");
   if (!dependencies.DNSE_BROKER_ORDERS_URL) warnings.push("missing_DNSE_BROKER_ORDERS_URL");

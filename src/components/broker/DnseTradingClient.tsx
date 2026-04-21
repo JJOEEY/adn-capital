@@ -7,11 +7,9 @@ import {
   AlertTriangle,
   CheckCircle2,
   CircleOff,
-  Link2,
   RefreshCw,
   ShieldCheck,
   TrendingUp,
-  Unlink,
   Wallet,
 } from "lucide-react";
 import { OrderTicketPanel } from "@/components/broker/OrderTicketPanel";
@@ -127,6 +125,12 @@ type DnseConnectionStatus = {
   dnseId: string | null;
   dnseVerified: boolean;
   dnseAppliedAt: string | null;
+  auth?: {
+    mode?: "api_key" | "unconfigured";
+    configured?: boolean;
+    requiresOAuth?: boolean;
+    hasApiKey?: boolean;
+  };
   oauth: {
     configured: boolean;
     missing: string[];
@@ -145,7 +149,7 @@ type DnseConnectionStatus = {
     lastSyncedAt: string | null;
     lastError: string | null;
     updatedAt: string | null;
-    source: "oauth" | "legacy_manual";
+    source: "api_key" | "api_key_manual" | "legacy_manual";
   };
 };
 
@@ -190,8 +194,6 @@ export function DnseTradingClient() {
   const queryTicker = (searchParams.get("ticker") ?? "").trim().toUpperCase();
   const queryNavPctRaw = Number(searchParams.get("navPct") ?? "");
   const queryEntryRaw = Number(searchParams.get("entry") ?? "");
-  const oauthStatus = (searchParams.get("oauth") ?? "").trim().toLowerCase();
-  const oauthMessage = (searchParams.get("message") ?? "").trim();
 
   const queryNavPct =
     Number.isFinite(queryNavPctRaw) && queryNavPctRaw > 0
@@ -204,7 +206,6 @@ export function DnseTradingClient() {
   const [totalNavInput, setTotalNavInput] = useState("");
   const [connectionStatus, setConnectionStatus] = useState<DnseConnectionStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(true);
-  const [submitLoading, setSubmitLoading] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -275,6 +276,26 @@ export function DnseTradingClient() {
     [orderHistoryTopic?.orderHistory],
   );
 
+  const primaryBrokerAccountId = useMemo(
+    () => brokerAccounts.find((item) => item.accountNo?.trim())?.accountNo?.trim() ?? null,
+    [brokerAccounts],
+  );
+
+  const fallbackAccountId = useMemo(
+    () => connectionStatus?.connection?.accountId?.trim() || null,
+    [connectionStatus?.connection?.accountId],
+  );
+
+  const selectedAccountId = useMemo(() => {
+    if (primaryBrokerAccountId) return primaryBrokerAccountId;
+    if (fallbackAccountId && /^\d+$/.test(fallbackAccountId)) return fallbackAccountId;
+    return null;
+  }, [fallbackAccountId, primaryBrokerAccountId]);
+  const hasApiKeyConfigured = Boolean(
+    connectionStatus?.auth?.hasApiKey ??
+      connectionStatus?.auth?.configured,
+  );
+
   const totalNavValue = useMemo(() => {
     const brokerNav = Number(balanceTopic?.totalNav);
     if (Number.isFinite(brokerNav) && brokerNav > 0) {
@@ -323,40 +344,11 @@ export function DnseTradingClient() {
   }, []);
 
   const isConnected = Boolean(
-    connectionStatus?.connection?.linked &&
-      connectionStatus.connection.source === "oauth" &&
-      connectionStatus.dnseVerified,
+    hasApiKeyConfigured &&
+      connectionStatus?.connection?.linked &&
+      connectionStatus.dnseVerified &&
+      selectedAccountId,
   );
-
-  async function handleDisconnect() {
-    if (!connectionStatus?.oauth?.disconnectUrl) return;
-    const ok = window.confirm("Bạn muốn ngắt kết nối DNSE cho tài khoản này?");
-    if (!ok) return;
-
-    setSubmitLoading(true);
-    setSubmitMessage(null);
-    setSubmitError(null);
-    try {
-      const response = await fetch(connectionStatus.oauth.disconnectUrl, {
-        method: "POST",
-      });
-      const payload = (await response.json().catch(() => null)) as
-        | { message?: string; error?: string }
-        | null;
-      if (!response.ok) {
-        throw new Error(payload?.error ?? "Không thể ngắt kết nối DNSE");
-      }
-      setSubmitMessage(payload?.message ?? "Đã ngắt kết nối DNSE");
-      const refreshed = await fetch("/api/user/dnse", { cache: "no-store" });
-      const refreshedPayload = (await refreshed.json()) as DnseConnectionStatus;
-      setConnectionStatus(refreshedPayload);
-      await brokerTopics.refresh(true);
-    } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : "Không thể ngắt kết nối DNSE");
-    } finally {
-      setSubmitLoading(false);
-    }
-  }
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-4 p-4 md:p-6">
@@ -385,31 +377,6 @@ export function DnseTradingClient() {
         </button>
       </div>
 
-      {oauthStatus === "ok" ? (
-        <div
-          className="rounded-xl border px-3 py-2 text-sm"
-          style={{
-            borderColor: "rgba(22,163,74,0.25)",
-            background: "rgba(22,163,74,0.10)",
-            color: "#166534",
-          }}
-        >
-          {oauthMessage || "Kết nối DNSE thành công."}
-        </div>
-      ) : null}
-      {oauthStatus === "error" ? (
-        <div
-          className="rounded-xl border px-3 py-2 text-sm"
-          style={{
-            borderColor: "rgba(192,57,43,0.25)",
-            background: "rgba(192,57,43,0.10)",
-            color: "var(--danger)",
-          }}
-        >
-          {oauthMessage || "Kết nối DNSE thất bại."}
-        </div>
-      ) : null}
-
       <div className="grid gap-3 md:grid-cols-3">
         <div
           className="rounded-2xl border p-4 md:col-span-2"
@@ -436,7 +403,7 @@ export function DnseTradingClient() {
                   className="rounded-full border px-2 py-1 text-xs font-semibold"
                   style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
                 >
-                  ID: {connectionStatus?.connection?.accountId ?? "--"}
+                  ID: {selectedAccountId ?? "--"}
                 </span>
                 {isConnected ? (
                   <span
@@ -447,7 +414,7 @@ export function DnseTradingClient() {
                       background: "rgba(22,163,74,0.10)",
                     }}
                   >
-                    <CheckCircle2 className="h-3.5 w-3.5" /> Đã liên kết OAuth
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Đã liên kết tài khoản
                   </span>
                 ) : (
                   <span
@@ -458,7 +425,7 @@ export function DnseTradingClient() {
                       background: "rgba(245,158,11,0.10)",
                     }}
                   >
-                    <AlertTriangle className="h-3.5 w-3.5" /> Chưa liên kết OAuth
+                    <AlertTriangle className="h-3.5 w-3.5" /> Chưa liên kết tài khoản
                   </span>
                 )}
                 <span
@@ -519,15 +486,15 @@ export function DnseTradingClient() {
                             className="rounded-full border px-2 py-0.5 text-[11px] font-semibold"
                             style={{
                               borderColor:
-                                account.accountNo === connectionStatus?.connection?.accountId
+                                account.accountNo === selectedAccountId
                                   ? "rgba(22,163,74,0.35)"
                                   : "var(--border)",
                               color:
-                                account.accountNo === connectionStatus?.connection?.accountId
+                                account.accountNo === selectedAccountId
                                   ? "#15803d"
                                   : "var(--text-secondary)",
                               background:
-                                account.accountNo === connectionStatus?.connection?.accountId
+                                account.accountNo === selectedAccountId
                                   ? "rgba(22,163,74,0.10)"
                                   : "var(--surface-2)",
                             }}
@@ -551,27 +518,14 @@ export function DnseTradingClient() {
                     }}
                   >
                     <p className="font-semibold" style={{ color: "var(--text-primary)" }}>
-                      Cách kết nối OAuth DNSE
+                      Trạng thái kết nối DNSE
                     </p>
-                    <p>1. Bấm “Kết nối DNSE OAuth”.</p>
-                    <p>2. Đăng nhập và ủy quyền trên trang DNSE.</p>
-                    <p>3. Hệ thống tự callback, lưu token an toàn và bật đồng bộ NAV/holdings realtime.</p>
+                    <p>1. Hệ thống đang chạy theo chế độ API key + tài khoản DNSE đã liên kết.</p>
+                    <p>2. Khi DNSE ID được xác minh, dữ liệu NAV/holdings sẽ tự đồng bộ qua broker topics.</p>
+                    <p>3. Nếu chưa có dữ liệu realtime, kiểm tra lại account DNSE đã liên kết và trạng thái sync.</p>
                   </div>
 
-                  {connectionStatus?.oauth?.configured ? (
-                    <a
-                      href={connectionStatus.oauth.startUrl}
-                      className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold"
-                      style={{
-                        borderColor: "var(--border)",
-                        color: "var(--text-primary)",
-                        background: "var(--surface)",
-                      }}
-                    >
-                      <Link2 className="h-3.5 w-3.5" />
-                      Kết nối DNSE OAuth
-                    </a>
-                  ) : (
+                  {!hasApiKeyConfigured ? (
                     <div
                       className="rounded-xl border px-3 py-2 text-xs"
                       style={{
@@ -580,32 +534,13 @@ export function DnseTradingClient() {
                         background: "rgba(192,57,43,0.08)",
                       }}
                     >
-                      OAuth DNSE chưa cấu hình đủ:{" "}
-                      {connectionStatus?.oauth?.missing?.join(", ") || "thiếu biến môi trường"}
+                      DNSE API chưa cấu hình đủ: thiếu DNSE_API_KEY.
                     </div>
-                  )}
+                  ) : null}
                 </div>
               )}
             </>
           )}
-
-          {isConnected ? (
-            <div className="mt-3">
-              <button
-                onClick={() => void handleDisconnect()}
-                disabled={submitLoading}
-                className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold disabled:opacity-60"
-                style={{
-                  borderColor: "rgba(192,57,43,0.25)",
-                  color: "var(--danger)",
-                  background: "rgba(192,57,43,0.08)",
-                }}
-              >
-                <Unlink className="h-3.5 w-3.5" />
-                {submitLoading ? "Đang ngắt kết nối..." : "Ngắt kết nối DNSE"}
-              </button>
-            </div>
-          ) : null}
 
           {submitMessage ? (
             <div
@@ -696,7 +631,7 @@ export function DnseTradingClient() {
               className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold"
               style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
             >
-              <CircleOff className="h-3.5 w-3.5" /> Chưa có dữ liệu NAV realtime vì tài khoản DNSE chưa liên kết OAuth.
+              <CircleOff className="h-3.5 w-3.5" /> Chưa có dữ liệu NAV realtime do tài khoản DNSE chưa liên kết hoặc chưa đồng bộ.
             </div>
           )}
 
@@ -886,7 +821,7 @@ export function DnseTradingClient() {
               color: "#92400e",
             }}
           >
-            Bạn cần liên kết OAuth DNSE trước khi đặt lệnh.
+            Bạn cần liên kết tài khoản DNSE hợp lệ trước khi đặt lệnh.
           </div>
         ) : null}
 
@@ -895,7 +830,7 @@ export function DnseTradingClient() {
           recommendedNavPct={queryNavPct ?? undefined}
           totalNavValue={totalNavValue ?? undefined}
           defaultPrice={queryEntryPrice ?? undefined}
-          defaultAccountId={connectionStatus?.connection?.accountId ?? undefined}
+          defaultAccountId={selectedAccountId ?? undefined}
         />
       </div>
     </div>
