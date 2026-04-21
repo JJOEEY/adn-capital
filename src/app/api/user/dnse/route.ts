@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { DNSE_SESSION_EXP_COOKIE, DNSE_SESSION_TOKEN_COOKIE } from "@/lib/brokers/dnse/session";
 
 export const dynamic = "force-dynamic";
 
 /**
  * GET /api/user/dnse
- * Trả trạng thái kết nối DNSE của user hiện tại.
- * Luồng chuẩn: API key + liên kết tài khoản DNSE đã xác minh.
+ * Trả trạng thái kết nối DNSE hiện tại của user.
  */
 export async function GET() {
   const session = await auth();
@@ -16,52 +17,80 @@ export async function GET() {
     return NextResponse.json({ error: "Chưa đăng nhập" }, { status: 401 });
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      dnseId: true,
-      dnseVerified: true,
-      dnseAppliedAt: true,
-    },
-  });
+  const [user, connection] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        dnseId: true,
+        dnseVerified: true,
+        dnseAppliedAt: true,
+      },
+    }),
+    prisma.dnseConnection.findUnique({
+      where: { userId },
+      select: {
+        accountId: true,
+        accountName: true,
+        subAccountId: true,
+        status: true,
+        scope: true,
+        accessTokenExpiresAt: true,
+        refreshTokenExpiresAt: true,
+        lastSyncedAt: true,
+        lastError: true,
+        updatedAt: true,
+      },
+    }),
+  ]);
 
   if (!user) {
     return NextResponse.json({ error: "Không tìm thấy tài khoản" }, { status: 404 });
   }
 
-  const apiKeyConfigured = Boolean(process.env.DNSE_API_KEY?.trim());
-  const accountId = user.dnseId?.trim() || null;
-  const connectionLinked = Boolean(user.dnseVerified && accountId);
+  const store = await cookies();
+  const token = store.get(DNSE_SESSION_TOKEN_COOKIE)?.value?.trim() || "";
+  const expiresAtRaw = store.get(DNSE_SESSION_EXP_COOKIE)?.value?.trim() || "";
+  const expiresAt = expiresAtRaw ? new Date(expiresAtRaw) : null;
+  const hasSession =
+    Boolean(token) &&
+    Boolean(expiresAt) &&
+    !Number.isNaN(expiresAt?.getTime() ?? NaN) &&
+    (expiresAt?.getTime() ?? 0) > Date.now();
+
+  const accountId = connection?.accountId ?? user.dnseId ?? null;
+  const linked = Boolean(user.dnseVerified && accountId);
 
   return NextResponse.json({
     dnseId: user.dnseId,
     dnseVerified: user.dnseVerified,
     dnseAppliedAt: user.dnseAppliedAt,
     auth: {
-      mode: apiKeyConfigured ? "api_key" : "unconfigured",
-      configured: apiKeyConfigured,
-      hasApiKey: apiKeyConfigured,
+      mode: "dnse_user_session",
+      configured: Boolean(process.env.DNSE_API_KEY?.trim()),
+      hasApiKey: Boolean(process.env.DNSE_API_KEY?.trim()),
+      hasSession,
+      sessionExpiresAt: hasSession && expiresAt ? expiresAt.toISOString() : null,
     },
     connection: {
-      linked: connectionLinked,
+      linked,
       accountId,
-      accountName: null,
-      subAccountId: null,
-      status: user.dnseVerified ? "ACTIVE" : "PENDING",
-      scope: null,
-      accessTokenExpiresAt: null,
-      refreshTokenExpiresAt: null,
-      lastSyncedAt: null,
-      lastError: null,
-      updatedAt: user.dnseAppliedAt,
-      source: "api_key_linked",
+      accountName: connection?.accountName ?? null,
+      subAccountId: connection?.subAccountId ?? null,
+      status: linked ? connection?.status ?? "ACTIVE" : "PENDING",
+      scope: connection?.scope ?? null,
+      accessTokenExpiresAt: connection?.accessTokenExpiresAt ?? null,
+      refreshTokenExpiresAt: connection?.refreshTokenExpiresAt ?? null,
+      lastSyncedAt: connection?.lastSyncedAt ?? null,
+      lastError: connection?.lastError ?? null,
+      updatedAt: connection?.updatedAt ?? user.dnseAppliedAt ?? null,
+      source: "dnse_user_session",
     },
   });
 }
 
 /**
  * POST /api/user/dnse
- * Lưu DNSE ID cho user hiện tại.
+ * Dự phòng cho luồng cũ nhập ID DNSE giảm giá.
  */
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -92,10 +121,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Không tìm thấy tài khoản" }, { status: 404 });
   }
   if (existing && existing.id !== user.id) {
-    return NextResponse.json(
-      { error: "ID DNSE này đã thuộc tài khoản khác" },
-      { status: 409 },
-    );
+    return NextResponse.json({ error: "ID DNSE này đã thuộc tài khoản khác" }, { status: 409 });
   }
   if (user.dnseVerified) {
     return NextResponse.json(
@@ -123,7 +149,7 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     message:
-      "Đã ghi nhận ID DNSE. Vui lòng đăng nhập DNSE rồi bấm liên kết để hệ thống đồng bộ NAV/danh mục.",
+      "Đã ghi nhận ID DNSE. Vui lòng đăng nhập DNSE và bấm liên kết để đồng bộ tài khoản thật.",
     ...updated,
   });
 }

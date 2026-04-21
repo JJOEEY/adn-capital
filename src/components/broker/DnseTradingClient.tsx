@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { OrderTicketPanel } from "@/components/broker/OrderTicketPanel";
 import { DnseAccountSelector } from "@/components/broker/DnseAccountSelector";
+import { DnseLoginModal } from "@/components/broker/DnseLoginModal";
 import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 import { useTopics } from "@/hooks/useTopics";
 
@@ -196,15 +197,13 @@ export function DnseTradingClient() {
       : null;
   const queryEntryPrice =
     Number.isFinite(queryEntryRaw) && queryEntryRaw > 0 ? queryEntryRaw : null;
-  const dnseLoginUrl =
-    process.env.NEXT_PUBLIC_DNSE_LOGIN_URL?.trim() || "https://entradex.dnse.com.vn";
-
   const [ticker, setTicker] = useState(queryTicker || "HPG");
   const [totalNavInput, setTotalNavInput] = useState("");
   const [connectionStatus, setConnectionStatus] = useState<DnseConnectionStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(true);
   const [statusReloadKey, setStatusReloadKey] = useState(0);
   const [showAccountSelector, setShowAccountSelector] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -363,10 +362,8 @@ export function DnseTradingClient() {
         <div className="flex flex-wrap items-center gap-2">
           {!isConnected ? (
             <>
-              <a
-                href={dnseLoginUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                onClick={() => setShowLoginModal(true)}
                 className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold"
                 style={{
                   borderColor: "rgba(37,99,235,0.25)",
@@ -376,7 +373,7 @@ export function DnseTradingClient() {
               >
                 <LogIn className="h-3.5 w-3.5" />
                 Đăng nhập DNSE
-              </a>
+              </button>
               <button
                 onClick={() => setShowAccountSelector(true)}
                 className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold"
@@ -542,10 +539,8 @@ export function DnseTradingClient() {
               ) : (
                 <div className="space-y-3">
                   <div className="flex flex-wrap items-center gap-2">
-                    <a
-                      href={dnseLoginUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      onClick={() => setShowLoginModal(true)}
                       className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold"
                       style={{
                         borderColor: "rgba(37,99,235,0.25)",
@@ -555,7 +550,7 @@ export function DnseTradingClient() {
                     >
                       <LogIn className="h-3.5 w-3.5" />
                       Đăng nhập DNSE
-                    </a>
+                    </button>
                     <button
                       onClick={() => setShowAccountSelector(true)}
                       className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold"
@@ -900,7 +895,6 @@ export function DnseTradingClient() {
 
       <DnseAccountSelector
         open={showAccountSelector}
-        accounts={brokerAccounts}
         defaultAccountNo={selectedAccountId}
         onCancel={() => setShowAccountSelector(false)}
         onSuccess={(accountNo) => {
@@ -909,6 +903,17 @@ export function DnseTradingClient() {
           setSubmitMessage(`Đã liên kết tài khoản DNSE: ${accountNo}`);
           setStatusReloadKey((prev) => prev + 1);
           void brokerTopics.refresh(true);
+        }}
+      />
+
+      <DnseLoginModal
+        open={showLoginModal}
+        onCancel={() => setShowLoginModal(false)}
+        onSuccess={() => {
+          setShowLoginModal(false);
+          setSubmitError(null);
+          setSubmitMessage("Đăng nhập DNSE thành công. Hãy bấm Liên kết tài khoản DNSE.");
+          setStatusReloadKey((prev) => prev + 1);
         }}
       />
     </div>

@@ -1,17 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { encryptDnseToken } from "@/lib/brokers/dnse/crypto";
+import {
+  DNSE_SESSION_EXP_COOKIE,
+  DNSE_SESSION_TOKEN_COOKIE,
+  clearDnseSessionCookies,
+} from "@/lib/brokers/dnse/session";
 import { getDnseTradingClient } from "@/lib/providers/dnse/trading-client";
 
 function normalizeAccountNo(value: string) {
   return value.trim().toUpperCase();
 }
 
+function resolveSessionExpiry(store: Awaited<ReturnType<typeof cookies>>) {
+  const raw = store.get(DNSE_SESSION_EXP_COOKIE)?.value?.trim() || "";
+  if (raw) {
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  return new Date(Date.now() + 8 * 60 * 60 * 1_000);
+}
+
 export const dynamic = "force-dynamic";
 
 /**
  * GET /api/user/dnse/link
- * Trả trạng thái liên kết tài khoản DNSE hiện tại của user.
+ * Lay trang thai lien ket tai khoan DNSE cua user.
  */
 export async function GET() {
   const session = await auth();
@@ -20,67 +36,64 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      dnseId: true,
-      dnseVerified: true,
-      dnseAppliedAt: true,
-    },
-  });
+  const [user, connection] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        dnseId: true,
+        dnseVerified: true,
+        dnseAppliedAt: true,
+      },
+    }),
+    prisma.dnseConnection.findUnique({
+      where: { userId },
+      select: {
+        accountId: true,
+        accountName: true,
+        subAccountId: true,
+        status: true,
+        scope: true,
+        accessTokenExpiresAt: true,
+        refreshTokenExpiresAt: true,
+        lastSyncedAt: true,
+        lastError: true,
+        updatedAt: true,
+      },
+    }),
+  ]);
 
   if (!user) {
-    return NextResponse.json({ error: "Không tìm thấy tài khoản" }, { status: 404 });
+    return NextResponse.json({ error: "Khong tim thay tai khoan" }, { status: 404 });
   }
 
-  const accountNo = normalizeAccountNo(user.dnseId ?? "");
-  if (!user.dnseVerified || !accountNo) {
-    return NextResponse.json({
-      linked: false,
-      connection: null,
-    });
-  }
-
-  let accountName: string | null = null;
-  let custodyCode: string | null = null;
-  let accountType = "SPOT";
-  let status = "ACTIVE";
-  let source: "api_key_verified" | "api_key_cached" = "api_key_cached";
-
-  try {
-    const client = getDnseTradingClient();
-    const accounts = await client.getAccounts();
-    const matched = accounts.find((row) => normalizeAccountNo(row.accountNo) === accountNo);
-    if (matched) {
-      accountName = matched.accountName;
-      custodyCode = matched.custodyCode;
-      accountType = matched.accountType || "SPOT";
-      status = matched.status || "ACTIVE";
-      source = "api_key_verified";
-    }
-  } catch {
-    // Keep cached user-link state even if DNSE API is temporarily unavailable.
-  }
-
+  const linked = Boolean(connection && connection.status === "ACTIVE" && user.dnseVerified);
   return NextResponse.json({
-    linked: true,
-    connection: {
-      accountNo,
-      accountId: accountNo,
-      accountName,
-      custodyCode,
-      subAccountId: custodyCode,
-      accountType,
-      status,
-      linkedAt: user.dnseAppliedAt,
-      source,
-    },
+    linked,
+    connection: linked
+      ? {
+          accountNo: connection?.accountId ?? user.dnseId ?? null,
+          accountId: connection?.accountId ?? user.dnseId ?? null,
+          accountName: connection?.accountName ?? null,
+          custodyCode: connection?.subAccountId ?? null,
+          subAccountId: connection?.subAccountId ?? null,
+          accountType: "SPOT",
+          status: connection?.status ?? "ACTIVE",
+          linkedAt: user.dnseAppliedAt,
+          scope: connection?.scope ?? null,
+          accessTokenExpiresAt: connection?.accessTokenExpiresAt ?? null,
+          refreshTokenExpiresAt: connection?.refreshTokenExpiresAt ?? null,
+          lastSyncedAt: connection?.lastSyncedAt ?? null,
+          lastError: connection?.lastError ?? null,
+          updatedAt: connection?.updatedAt ?? user.dnseAppliedAt ?? null,
+          source: "dnse_user_session",
+        }
+      : null,
   });
 }
 
 /**
  * POST /api/user/dnse/link
- * Liên kết user với tài khoản DNSE đã xác thực từ server-side API key.
+ * Lien ket user voi tai khoan DNSE da xac thuc tu phien dang nhap DNSE.
  */
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -96,54 +109,85 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "accountNo is required" }, { status: 400 });
   }
 
-  if (!process.env.DNSE_API_KEY?.trim()) {
+  const store = await cookies();
+  const dnseSessionToken = store.get(DNSE_SESSION_TOKEN_COOKIE)?.value?.trim() || "";
+  if (!dnseSessionToken) {
     return NextResponse.json(
-      { error: "DNSE_API_KEY chưa cấu hình trên server" },
-      { status: 500 },
+      { error: "Ban can dang nhap DNSE truoc khi lien ket tai khoan." },
+      { status: 401 },
     );
   }
+  const sessionExpiresAt = resolveSessionExpiry(store);
 
-  let matched:
-    | {
+  const client = getDnseTradingClient({
+    userJwtToken: dnseSessionToken,
+    isolated: true,
+  });
+
+  let accounts:
+    | Array<{
         accountNo: string;
         accountName: string | null;
         custodyCode: string | null;
         accountType: string;
         status: string;
-      }
+      }>
     | null = null;
 
   try {
-    const client = getDnseTradingClient();
-    const accounts = await client.getAccounts();
-    matched =
-      accounts.find((row) => normalizeAccountNo(row.accountNo) === accountNo) ?? null;
+    accounts = await client.getAccounts();
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Không thể xác minh tài khoản tại DNSE";
+      error instanceof Error ? error.message.replace(/\s+@\s+https?:\/\/\S+/g, "") : "Loi khong xac dinh";
+    const looksLikeAuthError = /401|unauthorized|forbidden|token|jwt/i.test(message);
+    const looksLikeRouteMismatch = /no route matched|HTTP_404/i.test(message);
+
     return NextResponse.json(
-      { error: `Cannot verify account at DNSE: ${message}` },
-      { status: 502 },
+      {
+        error: looksLikeAuthError
+          ? "Phien dang nhap DNSE da het han hoac khong hop le. Vui long dang nhap lai."
+          : looksLikeRouteMismatch
+            ? "Khong xac minh duoc danh sach tai khoan DNSE do endpoint khong hop le. Vui long kiem tra DNSE base URL/API key."
+            : `Khong the xac minh danh sach tai khoan DNSE: ${message}`,
+      },
+      { status: looksLikeAuthError ? 401 : 502 },
     );
   }
 
+  const matched = accounts.find((row) => normalizeAccountNo(row.accountNo) === accountNo) ?? null;
   if (!matched) {
     return NextResponse.json(
-      { error: `Account ${accountNo} not found in DNSE` },
-      { status: 404 },
+      {
+        error:
+          "Tai khoan khong nam trong danh sach DNSE vua xac thuc. Vui long dang nhap dung tai khoan DNSE va thu lai.",
+      },
+      { status: 403 },
     );
   }
 
-  const existing = await prisma.user.findUnique({
+  const existingUserWithDnse = await prisma.user.findUnique({
     where: { dnseId: accountNo },
-    select: { id: true, email: true },
+    select: { id: true },
   });
-  if (existing && existing.id !== userId) {
+  if (existingUserWithDnse && existingUserWithDnse.id !== userId) {
     return NextResponse.json(
-      { error: "Tài khoản DNSE này đã liên kết với user khác" },
+      { error: "Tai khoan DNSE nay da lien ket voi user khac." },
       { status: 409 },
     );
   }
+
+  const existingConnectionWithAccount = await prisma.dnseConnection.findUnique({
+    where: { accountId: accountNo },
+    select: { userId: true },
+  });
+  if (existingConnectionWithAccount && existingConnectionWithAccount.userId !== userId) {
+    return NextResponse.json(
+      { error: "Tai khoan DNSE nay da duoc lien ket boi tai khoan khac." },
+      { status: 409 },
+    );
+  }
+
+  const encryptedToken = encryptDnseToken(dnseSessionToken);
 
   await prisma.$transaction(async (tx) => {
     await tx.user.update({
@@ -154,7 +198,41 @@ export async function POST(req: NextRequest) {
         dnseAppliedAt: new Date(),
       },
     });
-    await tx.dnseConnection.deleteMany({ where: { userId } });
+
+    await tx.dnseConnection.upsert({
+      where: { userId },
+      create: {
+        userId,
+        provider: "DNSE",
+        accountId: accountNo,
+        accountName: matched.accountName ?? null,
+        subAccountId: matched.custodyCode ?? null,
+        status: "ACTIVE",
+        accessTokenEnc: encryptedToken,
+        tokenType: "Bearer",
+        scope: "lightspeed",
+        accessTokenExpiresAt: sessionExpiresAt,
+        metadata: JSON.stringify({
+          linkedVia: "dnse_user_session",
+          linkedAt: new Date().toISOString(),
+        }),
+      },
+      update: {
+        accountId: accountNo,
+        accountName: matched.accountName ?? null,
+        subAccountId: matched.custodyCode ?? null,
+        status: "ACTIVE",
+        accessTokenEnc: encryptedToken,
+        tokenType: "Bearer",
+        scope: "lightspeed",
+        accessTokenExpiresAt: sessionExpiresAt,
+        lastError: null,
+        metadata: JSON.stringify({
+          linkedVia: "dnse_user_session",
+          linkedAt: new Date().toISOString(),
+        }),
+      },
+    });
   });
 
   return NextResponse.json({
@@ -168,14 +246,14 @@ export async function POST(req: NextRequest) {
       accountType: matched.accountType || "SPOT",
       status: matched.status || "ACTIVE",
       linkedAt: new Date().toISOString(),
-      source: "api_key_verified",
+      source: "dnse_user_session",
     },
   });
 }
 
 /**
  * DELETE /api/user/dnse/link
- * Gỡ liên kết DNSE của user hiện tại.
+ * Go lien ket DNSE cua user hien tai.
  */
 export async function DELETE() {
   const session = await auth();
@@ -196,8 +274,11 @@ export async function DELETE() {
     await tx.dnseConnection.deleteMany({ where: { userId } });
   });
 
-  return NextResponse.json({
+  const next = NextResponse.json({
     success: true,
-    message: "Đã gỡ liên kết tài khoản DNSE",
+    message: "Da go lien ket tai khoan DNSE.",
   });
+  clearDnseSessionCookies(next);
+  return next;
 }
+

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, X } from "lucide-react";
 
 type BrokerAccount = {
@@ -13,7 +13,6 @@ type BrokerAccount = {
 
 type DnseAccountSelectorProps = {
   open: boolean;
-  accounts: BrokerAccount[];
   defaultAccountNo?: string | null;
   onCancel: () => void;
   onSuccess: (accountNo: string) => void;
@@ -25,7 +24,6 @@ function normalizeAccountNo(value: string) {
 
 export function DnseAccountSelector({
   open,
-  accounts,
   defaultAccountNo,
   onCancel,
   onSuccess,
@@ -51,11 +49,21 @@ export function DnseAccountSelector({
           cache: "no-store",
         });
         const payload = (await response.json().catch(() => null)) as
-          | { accounts?: BrokerAccount[]; error?: string }
+          | { code?: string; accounts?: BrokerAccount[]; error?: string }
           | null;
+
         if (!response.ok) {
-          throw new Error(payload?.error ?? "Không thể tải danh sách tài khoản DNSE.");
+          if (payload?.code === "dnse_login_required") {
+            throw new Error("Ban can dang nhap DNSE truoc khi chon tai khoan.");
+          }
+          if (payload?.code === "dnse_endpoint_mismatch") {
+            throw new Error(
+              "Endpoint DNSE hien tai khong hop le (route mismatch). Vui long lien he admin de kiem tra cau hinh API DNSE.",
+            );
+          }
+          throw new Error(payload?.error ?? "Khong the tai danh sach tai khoan DNSE.");
         }
+
         const rows = Array.isArray(payload?.accounts) ? payload.accounts : [];
         if (!cancelled) {
           setServerAccounts(rows);
@@ -63,11 +71,7 @@ export function DnseAccountSelector({
       } catch (err) {
         if (!cancelled) {
           setServerAccounts([]);
-          setServerError(
-            err instanceof Error
-              ? err.message
-              : "Không thể tải danh sách tài khoản DNSE.",
-          );
+          setServerError(err instanceof Error ? err.message : "Khong the tai danh sach tai khoan DNSE.");
         }
       } finally {
         if (!cancelled) {
@@ -82,36 +86,12 @@ export function DnseAccountSelector({
     };
   }, [open]);
 
-  const mergedAccounts = useMemo(() => {
-    const merged = new Map<string, BrokerAccount>();
-    [...serverAccounts, ...accounts].forEach((item) => {
-      const key = normalizeAccountNo(item.accountNo);
-      if (!key) return;
-      if (!merged.has(key)) {
-        merged.set(key, { ...item, accountNo: key });
-      }
-    });
-    return Array.from(merged.values());
-  }, [accounts, serverAccounts]);
-
-  const sortedAccounts = useMemo(() => {
-    const unique = new Map<string, BrokerAccount>();
-    mergedAccounts.forEach((item) => {
-      const key = normalizeAccountNo(item.accountNo);
-      if (!key) return;
-      if (!unique.has(key)) {
-        unique.set(key, { ...item, accountNo: key });
-      }
-    });
-    return Array.from(unique.values());
-  }, [mergedAccounts]);
-
   if (!open) return null;
 
   async function linkAccount(accountNoRaw: string) {
     const accountNo = normalizeAccountNo(accountNoRaw);
     if (accountNo.length < 3) {
-      setError("Vui lòng chọn tài khoản DNSE hợp lệ.");
+      setError("Vui long chon tai khoan DNSE hop le.");
       return;
     }
 
@@ -127,13 +107,11 @@ export function DnseAccountSelector({
         | { error?: string }
         | null;
       if (!response.ok) {
-        throw new Error(payload?.error ?? "Liên kết tài khoản DNSE thất bại.");
+        throw new Error(payload?.error ?? "Lien ket tai khoan DNSE that bai.");
       }
       onSuccess(accountNo);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Liên kết tài khoản DNSE thất bại.",
-      );
+      setError(err instanceof Error ? err.message : "Lien ket tai khoan DNSE that bai.");
     } finally {
       setLinking(false);
     }
@@ -151,17 +129,17 @@ export function DnseAccountSelector({
         >
           <div>
             <h3 className="text-base font-black" style={{ color: "var(--text-primary)" }}>
-              Chọn tài khoản DNSE để liên kết
+              Chon tai khoan DNSE de lien ket
             </h3>
             <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-              Chỉ liên kết tài khoản DNSE được xác minh từ máy chủ. Không cho nhập tay số tài khoản.
+              Chi lien ket tai khoan da xac thuc tu may chu. Khong cho nhap tay de tranh gia mao.
             </p>
           </div>
           <button
             onClick={onCancel}
             className="rounded-lg border p-2"
             style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
-            aria-label="Đóng"
+            aria-label="Dong"
           >
             <X className="h-4 w-4" />
           </button>
@@ -177,7 +155,7 @@ export function DnseAccountSelector({
                 background: "var(--surface-2)",
               }}
             >
-              Đang tải danh sách tài khoản DNSE từ máy chủ...
+              Dang tai danh sach tai khoan DNSE tu server...
             </div>
           ) : null}
 
@@ -194,17 +172,17 @@ export function DnseAccountSelector({
             </div>
           ) : null}
 
-          {sortedAccounts.length > 0 ? (
+          {serverAccounts.length > 0 ? (
             <div className="space-y-2">
               <p
                 className="text-xs font-semibold uppercase tracking-wide"
                 style={{ color: "var(--text-muted)" }}
               >
-                Tài khoản có sẵn
+                Tai khoan kha dung
               </p>
 
               <div className="grid gap-2 md:grid-cols-2">
-                {sortedAccounts.map((account) => (
+                {serverAccounts.map((account) => (
                   <button
                     key={account.accountNo}
                     onClick={() => setSelectedAccountNo(account.accountNo)}
@@ -221,10 +199,7 @@ export function DnseAccountSelector({
                     }}
                   >
                     <div className="flex items-center justify-between">
-                      <span
-                        className="text-sm font-black"
-                        style={{ color: "var(--text-primary)" }}
-                      >
+                      <span className="text-sm font-black" style={{ color: "var(--text-primary)" }}>
                         {account.accountNo}
                       </span>
                       {selectedAccountNo === account.accountNo ? (
@@ -232,7 +207,7 @@ export function DnseAccountSelector({
                       ) : null}
                     </div>
                     <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                      {account.accountName || "Tài khoản DNSE"}
+                      {account.accountName || "Tai khoan DNSE"}
                     </p>
                     <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
                       {account.accountType || "SPOT"}
@@ -248,7 +223,7 @@ export function DnseAccountSelector({
                 className="rounded-xl px-4 py-2 text-sm font-bold disabled:opacity-60"
                 style={{ background: "var(--primary)", color: "var(--on-primary)" }}
               >
-                {linking ? "Đang liên kết..." : "Liên kết tài khoản đã chọn"}
+                {linking ? "Dang lien ket..." : "Lien ket tai khoan da chon"}
               </button>
             </div>
           ) : (
@@ -260,7 +235,9 @@ export function DnseAccountSelector({
                 background: "rgba(192,57,43,0.08)",
               }}
             >
-              Không đọc được danh sách tài khoản DNSE đã xác thực. Vui lòng đăng nhập DNSE và kiểm tra lại API key/endpoint.
+              {serverError
+                ? "Khong doc duoc danh sach tai khoan DNSE da xac thuc. Vui long dang nhap DNSE va thu lai."
+                : "Chua co tai khoan DNSE kha dung tu phien dang nhap hien tai."}
             </div>
           )}
 

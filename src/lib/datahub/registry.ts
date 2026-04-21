@@ -6,6 +6,7 @@ import { getPythonBridgeUrl } from "@/lib/runtime-config";
 import { fetchFAData, fetchTAData } from "@/lib/stockData";
 import { resolveMarketTicker } from "@/lib/ticker-resolver";
 import { listDnseOrderHistory } from "@/lib/brokers/dnse/order-history";
+import { decryptDnseToken } from "@/lib/brokers/dnse/crypto";
 import { getDnseTradingClient } from "@/lib/providers/dnse/trading-client";
 import { resolveTopicFamily, resolveTopicStaleWindowMs } from "./policy";
 import { TopicContext, TopicDefinition } from "./types";
@@ -450,7 +451,12 @@ async function loadBrokerTopic(
     }),
     prisma.dnseConnection.findUnique({
       where: { userId: context.userId },
-      select: { accountId: true, status: true },
+      select: {
+        accountId: true,
+        status: true,
+        accessTokenEnc: true,
+        accessTokenExpiresAt: true,
+      },
     }),
   ]);
 
@@ -479,9 +485,15 @@ async function loadBrokerTopic(
   const connected = Boolean(currentUser?.dnseId && currentUser?.dnseVerified);
   const hasApiKey = Boolean(process.env.DNSE_API_KEY?.trim());
 
-  if (connected && hasApiKey) {
+  const hasValidDnseSession =
+    Boolean(connection?.accessTokenEnc) &&
+    (!connection?.accessTokenExpiresAt ||
+      connection.accessTokenExpiresAt.getTime() > Date.now());
+
+  if (connected && hasApiKey && hasValidDnseSession) {
     try {
-      const client = getDnseTradingClient();
+      const userJwtToken = decryptDnseToken(connection!.accessTokenEnc);
+      const client = getDnseTradingClient({ userJwtToken, isolated: true });
 
       if (channel === "accounts") {
         return {
