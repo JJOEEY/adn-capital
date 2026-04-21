@@ -16,7 +16,6 @@ import {
 import { OrderTicketPanel } from "@/components/broker/OrderTicketPanel";
 import { DnseAccountSelector } from "@/components/broker/DnseAccountSelector";
 import { DnseLoginModal } from "@/components/broker/DnseLoginModal";
-import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 import { useTopics } from "@/hooks/useTopics";
 
 type BrokerPosition = {
@@ -154,13 +153,6 @@ function fmtPrice(value: number | null | undefined) {
   return value.toLocaleString("vi-VN");
 }
 
-function parseNavInput(value: string): number | null {
-  if (!value) return null;
-  const normalized = value.replace(/[^\d.,]/g, "").replace(/,/g, "");
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-}
-
 function pnlTone(value: number | null | undefined) {
   const num = Number(value ?? 0);
   if (num >= 0) {
@@ -185,7 +177,6 @@ function fmtDateTime(value: string | null | undefined) {
 }
 
 export function DnseTradingClient() {
-  const { dbUser, isLoading } = useCurrentDbUser();
   const searchParams = useSearchParams();
   const queryTicker = (searchParams.get("ticker") ?? "").trim().toUpperCase();
   const queryNavPctRaw = Number(searchParams.get("navPct") ?? "");
@@ -198,7 +189,6 @@ export function DnseTradingClient() {
   const queryEntryPrice =
     Number.isFinite(queryEntryRaw) && queryEntryRaw > 0 ? queryEntryRaw : null;
   const [ticker, setTicker] = useState(queryTicker || "HPG");
-  const [totalNavInput, setTotalNavInput] = useState("");
   const [connectionStatus, setConnectionStatus] = useState<DnseConnectionStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(true);
   const [statusReloadKey, setStatusReloadKey] = useState(0);
@@ -210,12 +200,6 @@ export function DnseTradingClient() {
   useEffect(() => {
     if (queryTicker) setTicker(queryTicker);
   }, [queryTicker]);
-
-  useEffect(() => {
-    if (dbUser?.initialJournalNAV && !totalNavInput) {
-      setTotalNavInput(String(Math.round(dbUser.initialJournalNAV)));
-    }
-  }, [dbUser?.initialJournalNAV, totalNavInput]);
 
   const normalizedTicker = (ticker || queryTicker || "HPG").trim().toUpperCase();
   const topicKeys = useMemo(
@@ -296,11 +280,8 @@ export function DnseTradingClient() {
 
   const totalNavValue = useMemo(() => {
     const brokerNav = Number(balanceTopic?.totalNav);
-    if (Number.isFinite(brokerNav) && brokerNav > 0) {
-      return brokerNav;
-    }
-    return parseNavInput(totalNavInput);
-  }, [balanceTopic?.totalNav, totalNavInput]);
+    return Number.isFinite(brokerNav) && brokerNav > 0 ? brokerNav : null;
+  }, [balanceTopic?.totalNav]);
 
   const suggestedNotional = useMemo(() => {
     if (!queryNavPct || !totalNavValue) return null;
@@ -421,7 +402,7 @@ export function DnseTradingClient() {
             </h2>
           </div>
 
-          {isLoading || statusLoading ? (
+          {statusLoading ? (
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>
               Đang tải thông tin kết nối DNSE...
             </p>
@@ -694,37 +675,25 @@ export function DnseTradingClient() {
             </div>
           )}
 
-          <div
-            className="mt-3 rounded-xl border p-3"
-            style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
-          >
-            <p className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
-              NAV tổng để tính khuyến nghị đặt lệnh
-            </p>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <input
-                value={totalNavInput}
-                onChange={(event) => setTotalNavInput(event.target.value)}
-                placeholder="Ví dụ: 450000000"
-                className="w-full rounded-xl border px-3 py-2 text-sm sm:w-52"
-                style={{
-                  borderColor: "var(--border)",
-                  background: "var(--surface)",
-                  color: "var(--text-primary)",
-                }}
-              />
-              {queryNavPct ? (
-                <span className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
-                  Tỷ trọng từ thẻ AI Broker: {queryNavPct.toFixed(2)}%
-                </span>
-              ) : null}
-            </div>
-            {suggestedNotional ? (
-              <p className="mt-2 text-xs font-semibold" style={{ color: "var(--primary)" }}>
-                Giá trị lệnh gợi ý: {Math.round(suggestedNotional).toLocaleString("vi-VN")} VND
+          {queryNavPct ? (
+            <div
+              className="mt-3 rounded-xl border p-3"
+              style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
+            >
+              <p className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
+                Tỷ trọng từ thẻ AI Broker: {queryNavPct.toFixed(2)}%
               </p>
-            ) : null}
-          </div>
+              {suggestedNotional ? (
+                <p className="mt-2 text-xs font-semibold" style={{ color: "var(--primary)" }}>
+                  Giá trị lệnh gợi ý: {Math.round(suggestedNotional).toLocaleString("vi-VN")} VND
+                </p>
+              ) : (
+                <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
+                  Chưa tính được giá trị lệnh vì chưa có NAV realtime từ DNSE.
+                </p>
+              )}
+            </div>
+          ) : null}
         </div>
       </div>
 
