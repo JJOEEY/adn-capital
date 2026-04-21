@@ -116,9 +116,11 @@ AI forbidden:
   - Workspace currently has DNSE identity verification (`dnseId`, `dnseVerified`) but does not contain a compliance-approved end-user OTP/Trading-Token partner flow for auto submit.
   - Real order execution must remain server-side and deterministic-first with explicit human confirmation.
 - Canonical endpoints:
-  - `GET /api/user/dnse/oauth/start`
-  - `GET /api/user/dnse/oauth/callback`
-  - `POST /api/user/dnse/oauth/disconnect`
+  - `GET /api/user/dnse`
+  - `GET /api/user/dnse/link`
+  - `POST /api/user/dnse/link`
+  - `DELETE /api/user/dnse/link`
+  - `GET /api/user/dnse/link/accounts`
   - `POST /api/v1/brokers/dnse/order-intents/parse`
   - `POST /api/v1/brokers/dnse/order-intents/validate`
   - `POST /api/v1/brokers/dnse/orders/preview`
@@ -133,10 +135,8 @@ AI forbidden:
   - `broker:dnse:current-user:{channel}`
 - Production-safe defaults:
   - `DNSE_TOKEN_ENCRYPTION_KEY=<required>`
-  - `DNSE_OAUTH_AUTHORIZE_URL=<required>`
-  - `DNSE_OAUTH_TOKEN_URL=<required>`
-  - `DNSE_OAUTH_CLIENT_ID=<required>`
-  - `DNSE_OAUTH_CLIENT_SECRET=<required>`
+  - `DNSE_API_KEY=<required>`
+  - `DNSE_TRADING_BASE_URL=<required>`
   - `DNSE_BROKER_BALANCE_URL=<required for realtime NAV>`
   - `DNSE_BROKER_HOLDINGS_URL=<required for realtime holdings>`
   - `DNSE_BROKER_ORDERS_URL=<required for realtime order book>`

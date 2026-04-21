@@ -7,7 +7,7 @@ export type ExecutionUserContext = {
   user: User;
   approvedConnectionId: string | null;
   dnseVerified: boolean;
-  oauthLinked: boolean;
+  dnseLinked: boolean;
 };
 
 export async function requireExecutionUserContext(): Promise<ExecutionUserContext | null> {
@@ -33,7 +33,7 @@ export async function requireExecutionUserContext(): Promise<ExecutionUserContex
     user,
     approvedConnectionId,
     dnseVerified: Boolean(user.dnseVerified),
-    oauthLinked: Boolean(connection?.status === "ACTIVE"),
+    dnseLinked: Boolean(approvedConnectionId),
   };
 }
 

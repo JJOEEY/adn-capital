@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * GET /api/user/dnse/link/accounts
- * Read available DNSE accounts in API-key mode for account selector.
+ * Lấy danh sách tài khoản DNSE từ API server-side (API key), dùng để liên kết account.
  */
 export async function GET() {
   const session = await auth();
@@ -17,13 +17,19 @@ export async function GET() {
 
   if (!process.env.DNSE_API_KEY?.trim()) {
     return NextResponse.json(
-      { error: "DNSE_API_KEY is not configured on server" },
+      {
+        success: false,
+        error: "DNSE_API_KEY chưa cấu hình trên server",
+        accounts: [],
+        source: "dnse_api_key",
+      },
       { status: 500 },
     );
   }
 
   try {
-    const accounts = await getDnseTradingClient().getAccounts();
+    const client = getDnseTradingClient();
+    const accounts = await client.getAccounts();
     return NextResponse.json({
       success: true,
       accounts,
@@ -32,9 +38,16 @@ export async function GET() {
     });
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Failed to fetch DNSE accounts";
+      error instanceof Error
+        ? error.message
+        : "Không thể tải danh sách tài khoản DNSE";
     return NextResponse.json(
-      { error: message, accounts: [], source: "dnse_api_key" },
+      {
+        success: false,
+        error: `DNSE accounts request failed: ${message}`,
+        accounts: [],
+        source: "dnse_api_key",
+      },
       { status: 502 },
     );
   }

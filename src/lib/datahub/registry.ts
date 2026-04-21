@@ -6,8 +6,7 @@ import { getPythonBridgeUrl } from "@/lib/runtime-config";
 import { fetchFAData, fetchTAData } from "@/lib/stockData";
 import { resolveMarketTicker } from "@/lib/ticker-resolver";
 import { listDnseOrderHistory } from "@/lib/brokers/dnse/order-history";
-import { ensureDnseAccessTokenForUser } from "@/lib/brokers/dnse/connection";
-import { fetchDnseBrokerChannel } from "@/lib/brokers/dnse/client";
+import { getDnseTradingClient } from "@/lib/providers/dnse/trading-client";
 import { resolveTopicFamily, resolveTopicStaleWindowMs } from "./policy";
 import { TopicContext, TopicDefinition } from "./types";
 
@@ -464,7 +463,7 @@ async function loadBrokerTopic(
   }
 
   const activeSignals = await loadSignalList("ACTIVE");
-  const positions = activeSignals.map((row) => ({
+  const signalPositions = activeSignals.map((row) => ({
     ticker: row.ticker,
     entryPrice: row.entryPrice,
     currentPrice: row.currentPrice ?? row.entryPrice,
@@ -477,112 +476,33 @@ async function loadBrokerTopic(
     updatedAt: row.updatedAt,
   }));
 
-  const oauthAuth = await ensureDnseAccessTokenForUser(context.userId).catch(() => null);
-  if (oauthAuth?.connection?.accountId === connectionId) {
+  const connected = Boolean(currentUser?.dnseId && currentUser?.dnseVerified);
+  const hasApiKey = Boolean(process.env.DNSE_API_KEY?.trim());
+
+  if (connected && hasApiKey) {
     try {
-      const live = await fetchDnseBrokerChannel({
-        channel,
-        accessToken: oauthAuth.accessToken,
-        accountId: connectionId,
-        userId: context.userId,
-        symbol: extraParams?.symbol,
-        fromDate: extraParams?.fromDate,
-        toDate: extraParams?.toDate,
-      });
+      const client = getDnseTradingClient();
 
       if (channel === "accounts") {
         return {
           connected: true,
           connectionId,
-          source: live.source,
-          accounts: live.accounts ?? [],
+          source: "dnse_api_key",
+          accounts: await client.getAccounts(),
         };
       }
 
       if (channel === "positions") {
+        const livePositions = await client.getPositions(connectionId);
         return {
           connected: true,
           connectionId,
-          source: live.source,
-          positions:
-            live.positions?.map((row) => ({
-              ticker: row.ticker,
-              entryPrice: row.entryPrice,
-              currentPrice: row.currentPrice ?? row.entryPrice,
-              pnlPercent: row.pnlPercent ?? 0,
-              target: null,
-              stoploss: null,
-              navAllocation: null,
-              type: null,
-              tier: null,
-              quantity: row.quantity,
-              marketValue: row.marketValue,
-            })) ?? [],
-        };
-      }
-
-      if (channel === "orders") {
-        return {
-          connected: true,
-          connectionId,
-          source: live.source,
-          orders: live.orders ?? [],
-        };
-      }
-
-      if (channel === "order-history") {
-        return {
-          connected: true,
-          connectionId,
-          source: live.source,
-          orderHistory: live.orderHistory ?? [],
-        };
-      }
-
-      if (channel === "balance") {
-        const navAllocatedPct = positions.reduce((sum, row) => sum + (row.navAllocation ?? 0), 0);
-        return {
-          connected: true,
-          connectionId,
-          source: live.source,
-          navAllocatedPct: Number(navAllocatedPct.toFixed(2)),
-          navRemainingPct: Number(Math.max(0, 100 - navAllocatedPct).toFixed(2)),
-          maxActiveNavPct: 90,
-          totalNav: live.totalNav ?? null,
-          buyingPower: live.buyingPower ?? null,
-          cash: live.cash ?? null,
-          debt: live.debt ?? null,
-        };
-      }
-
-      if (channel === "loan-packages") {
-        return {
-          connected: true,
-          connectionId,
-          source: live.source,
-          loanPackages: live.loanPackages ?? [],
-        };
-      }
-
-      if (channel === "ppse") {
-        return {
-          connected: true,
-          connectionId,
-          source: live.source,
-          ppse: live.ppse ?? null,
-        };
-      }
-
-      return {
-        connected: true,
-        connectionId,
-        source: live.source,
-        holdings:
-          live.holdings?.map((row) => ({
-            ticker: row.ticker,
-            entryPrice: row.entryPrice,
-            currentPrice: row.currentPrice ?? row.entryPrice,
-            pnlPercent: row.pnlPercent ?? 0,
+          source: "dnse_api_key",
+          positions: livePositions.map((row) => ({
+            ticker: row.symbol,
+            entryPrice: row.avgPrice,
+            currentPrice: row.lastPrice ?? row.avgPrice,
+            pnlPercent: row.totalPLPct ?? 0,
             target: null,
             stoploss: null,
             navAllocation: null,
@@ -590,10 +510,96 @@ async function loadBrokerTopic(
             tier: null,
             quantity: row.quantity,
             marketValue: row.marketValue,
-          })) ?? [],
+          })),
+        };
+      }
+
+      if (channel === "orders") {
+        return {
+          connected: true,
+          connectionId,
+          source: "dnse_api_key",
+          orders: await client.getOrders(connectionId),
+        };
+      }
+
+      if (channel === "order-history") {
+        return {
+          connected: true,
+          connectionId,
+          source: "dnse_api_key",
+          orderHistory: await client.getOrders(connectionId),
+        };
+      }
+
+      if (channel === "balance") {
+        const liveBalance = await client.getBalance(connectionId);
+        const navAllocatedPct = signalPositions.reduce(
+          (sum, row) => sum + (row.navAllocation ?? 0),
+          0,
+        );
+        return {
+          connected: true,
+          connectionId,
+          source: "dnse_api_key",
+          navAllocatedPct: Number(navAllocatedPct.toFixed(2)),
+          navRemainingPct: Number(Math.max(0, 100 - navAllocatedPct).toFixed(2)),
+          maxActiveNavPct: 90,
+          totalNav: liveBalance.totalNav ?? null,
+          buyingPower: liveBalance.buyingPower ?? null,
+          cash: liveBalance.cash ?? null,
+          debt: liveBalance.debt ?? null,
+        };
+      }
+
+      if (channel === "loan-packages") {
+        return {
+          connected: true,
+          connectionId,
+          source: "dnse_api_key",
+          loanPackages: await client.getLoanPackages(connectionId),
+        };
+      }
+
+      if (channel === "ppse") {
+        if (!extraParams?.symbol) {
+          return {
+            connected: true,
+            connectionId,
+            source: "dnse_api_key",
+            ppse: null,
+          };
+        }
+        return {
+          connected: true,
+          connectionId,
+          source: "dnse_api_key",
+          ppse: await client.getPPSE(connectionId, extraParams.symbol),
+        };
+      }
+
+      const liveHoldings = await client.getPositions(connectionId);
+      return {
+        connected: true,
+        connectionId,
+        source: "dnse_api_key",
+        holdings: liveHoldings.map((row) => ({
+          ticker: row.symbol,
+          entryPrice: row.avgPrice,
+          currentPrice: row.lastPrice ?? row.avgPrice,
+          pnlPercent: row.totalPLPct ?? 0,
+          target: null,
+          stoploss: null,
+          navAllocation: null,
+          type: null,
+          tier: null,
+          quantity: row.quantity,
+          marketValue: row.marketValue,
+        })),
       };
     } catch (error) {
-      const fallbackReason = error instanceof Error ? error.message : "dnse_oauth_fetch_failed";
+      const fallbackReason =
+        error instanceof Error ? error.message : "dnse_api_key_fetch_failed";
       if (channel === "orders") {
         const orders = await listDnseOrderHistory({
           userId: context.userId,
@@ -601,7 +607,7 @@ async function loadBrokerTopic(
           limit: 80,
         });
         return {
-          connected: Boolean(currentUser?.dnseId && currentUser?.dnseVerified),
+          connected,
           connectionId,
           source: "dnse-execution-audit-fallback",
           reason: fallbackReason,
@@ -615,7 +621,7 @@ async function loadBrokerTopic(
           limit: 80,
         });
         return {
-          connected: Boolean(currentUser?.dnseId && currentUser?.dnseVerified),
+          connected,
           connectionId,
           source: "dnse-execution-audit-fallback",
           reason: fallbackReason,
@@ -623,9 +629,12 @@ async function loadBrokerTopic(
         };
       }
       if (channel === "balance") {
-        const navAllocatedPct = positions.reduce((sum, row) => sum + (row.navAllocation ?? 0), 0);
+        const navAllocatedPct = signalPositions.reduce(
+          (sum, row) => sum + (row.navAllocation ?? 0),
+          0,
+        );
         return {
-          connected: Boolean(currentUser?.dnseId && currentUser?.dnseVerified),
+          connected,
           connectionId,
           source: "internal-estimate-fallback",
           reason: fallbackReason,
@@ -636,7 +645,7 @@ async function loadBrokerTopic(
       }
       if (channel === "accounts") {
         return {
-          connected: Boolean(currentUser?.dnseId && currentUser?.dnseVerified),
+          connected,
           connectionId,
           source: "internal-connection-fallback",
           reason: fallbackReason,
@@ -653,7 +662,7 @@ async function loadBrokerTopic(
       }
       if (channel === "loan-packages") {
         return {
-          connected: Boolean(currentUser?.dnseId && currentUser?.dnseVerified),
+          connected,
           connectionId,
           source: "internal-fallback",
           reason: fallbackReason,
@@ -662,7 +671,7 @@ async function loadBrokerTopic(
       }
       if (channel === "ppse") {
         return {
-          connected: Boolean(currentUser?.dnseId && currentUser?.dnseVerified),
+          connected,
           connectionId,
           source: "internal-fallback",
           reason: fallbackReason,
@@ -670,21 +679,21 @@ async function loadBrokerTopic(
         };
       }
       return {
-        connected: Boolean(currentUser?.dnseId && currentUser?.dnseVerified),
+        connected,
         connectionId,
         source: "internal-merged-fallback",
         reason: fallbackReason,
-        [channel === "positions" ? "positions" : "holdings"]: positions,
+        [channel === "positions" ? "positions" : "holdings"]: signalPositions,
       };
     }
   }
 
   if (channel === "positions") {
     return {
-      connected: Boolean(currentUser?.dnseId && currentUser?.dnseVerified),
+      connected,
       connectionId,
       source: "internal-merged",
-      positions,
+      positions: signalPositions,
     };
   }
 
@@ -695,7 +704,7 @@ async function loadBrokerTopic(
       limit: 80,
     });
     return {
-      connected: Boolean(currentUser?.dnseId && currentUser?.dnseVerified),
+      connected,
       connectionId,
       source: "dnse-execution-audit",
       orders,
@@ -709,7 +718,7 @@ async function loadBrokerTopic(
       limit: 80,
     });
     return {
-      connected: Boolean(currentUser?.dnseId && currentUser?.dnseVerified),
+      connected,
       connectionId,
       source: "dnse-execution-audit",
       orderHistory,
@@ -717,9 +726,9 @@ async function loadBrokerTopic(
   }
 
   if (channel === "balance") {
-    const navAllocatedPct = positions.reduce((sum, row) => sum + (row.navAllocation ?? 0), 0);
+    const navAllocatedPct = signalPositions.reduce((sum, row) => sum + (row.navAllocation ?? 0), 0);
     return {
-      connected: Boolean(currentUser?.dnseId && currentUser?.dnseVerified),
+      connected,
       connectionId,
       source: "internal-estimate",
       navAllocatedPct: Number(navAllocatedPct.toFixed(2)),
@@ -730,7 +739,7 @@ async function loadBrokerTopic(
 
   if (channel === "accounts") {
     return {
-      connected: Boolean(currentUser?.dnseId && currentUser?.dnseVerified),
+      connected,
       connectionId,
       source: "internal-connection",
       accounts: [
@@ -747,7 +756,7 @@ async function loadBrokerTopic(
 
   if (channel === "loan-packages") {
     return {
-      connected: Boolean(currentUser?.dnseId && currentUser?.dnseVerified),
+      connected,
       connectionId,
       source: "internal-fallback",
       loanPackages: [],
@@ -756,7 +765,7 @@ async function loadBrokerTopic(
 
   if (channel === "ppse") {
     return {
-      connected: Boolean(currentUser?.dnseId && currentUser?.dnseVerified),
+      connected,
       connectionId,
       source: "internal-fallback",
       ppse: null,
@@ -764,10 +773,10 @@ async function loadBrokerTopic(
   }
 
   return {
-    connected: Boolean(currentUser?.dnseId && currentUser?.dnseVerified),
+    connected,
     connectionId,
     source: "internal-merged",
-    holdings: positions,
+    holdings: signalPositions,
   };
 }
 

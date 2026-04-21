@@ -32,7 +32,6 @@ export function DnseAccountSelector({
 }: DnseAccountSelectorProps) {
   const [linking, setLinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [manualAccountNo, setManualAccountNo] = useState("");
   const [serverAccounts, setServerAccounts] = useState<BrokerAccount[]>([]);
   const [serverError, setServerError] = useState<string | null>(null);
   const [loadingServerAccounts, setLoadingServerAccounts] = useState(false);
@@ -112,7 +111,7 @@ export function DnseAccountSelector({
   async function linkAccount(accountNoRaw: string) {
     const accountNo = normalizeAccountNo(accountNoRaw);
     if (accountNo.length < 3) {
-      setError("Vui lòng nhập/chọn tài khoản DNSE hợp lệ.");
+      setError("Vui lòng chọn tài khoản DNSE hợp lệ.");
       return;
     }
 
@@ -132,16 +131,13 @@ export function DnseAccountSelector({
       }
       onSuccess(accountNo);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Liên kết tài khoản DNSE thất bại.");
+      setError(
+        err instanceof Error ? err.message : "Liên kết tài khoản DNSE thất bại.",
+      );
     } finally {
       setLinking(false);
     }
   }
-
-  const manualLinkEnabled =
-    (process.env.NEXT_PUBLIC_DNSE_ALLOW_INSECURE_MANUAL_LINK ?? "")
-      .trim()
-      .toLowerCase() === "true";
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/45 p-3">
@@ -158,7 +154,7 @@ export function DnseAccountSelector({
               Chọn tài khoản DNSE để liên kết
             </h3>
             <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-              Sau khi liên kết, hệ thống sẽ dùng tài khoản này để đồng bộ NAV/holdings và tạo phiếu lệnh.
+              Chỉ liên kết tài khoản DNSE được xác minh từ máy chủ. Không cho nhập tay số tài khoản.
             </p>
           </div>
           <button
@@ -184,6 +180,7 @@ export function DnseAccountSelector({
               Đang tải danh sách tài khoản DNSE từ máy chủ...
             </div>
           ) : null}
+
           {serverError ? (
             <div
               className="rounded-xl border px-3 py-2 text-xs"
@@ -199,9 +196,13 @@ export function DnseAccountSelector({
 
           {sortedAccounts.length > 0 ? (
             <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+              <p
+                className="text-xs font-semibold uppercase tracking-wide"
+                style={{ color: "var(--text-muted)" }}
+              >
                 Tài khoản có sẵn
               </p>
+
               <div className="grid gap-2 md:grid-cols-2">
                 {sortedAccounts.map((account) => (
                   <button
@@ -220,7 +221,10 @@ export function DnseAccountSelector({
                     }}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-black" style={{ color: "var(--text-primary)" }}>
+                      <span
+                        className="text-sm font-black"
+                        style={{ color: "var(--text-primary)" }}
+                      >
                         {account.accountNo}
                       </span>
                       {selectedAccountNo === account.accountNo ? (
@@ -237,6 +241,7 @@ export function DnseAccountSelector({
                   </button>
                 ))}
               </div>
+
               <button
                 onClick={() => void linkAccount(selectedAccountNo ?? "")}
                 disabled={!selectedAccountNo || linking}
@@ -250,52 +255,12 @@ export function DnseAccountSelector({
             <div
               className="rounded-xl border px-3 py-2 text-xs"
               style={{
-                borderColor: "rgba(245,158,11,0.25)",
-                color: "#92400e",
-                background: "rgba(245,158,11,0.10)",
-              }}
-            >
-              Không đọc được danh sách tài khoản đã xác thực từ DNSE. Vui lòng đăng nhập/xác thực DNSE trước khi liên kết.
-            </div>
-          )}
-
-          {manualLinkEnabled ? (
-            <div className="space-y-2 rounded-xl border p-3" style={{ borderColor: "var(--border)" }}>
-              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
-                Liên kết thủ công (không khuyến nghị)
-              </p>
-              <div className="flex flex-wrap items-center gap-2">
-                <input
-                  value={manualAccountNo}
-                  onChange={(event) => setManualAccountNo(event.target.value.toUpperCase())}
-                  placeholder="Ví dụ: 0001386718"
-                  className="min-w-[220px] flex-1 rounded-xl border px-3 py-2 text-sm"
-                  style={{
-                    borderColor: "var(--border)",
-                    background: "var(--surface-2)",
-                    color: "var(--text-primary)",
-                  }}
-                />
-                <button
-                  onClick={() => void linkAccount(manualAccountNo)}
-                  disabled={linking}
-                  className="rounded-xl border px-4 py-2 text-sm font-bold disabled:opacity-60"
-                  style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
-                >
-                  {linking ? "Đang liên kết..." : "Liên kết thủ công"}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div
-              className="rounded-xl border px-3 py-2 text-xs"
-              style={{
                 borderColor: "rgba(192,57,43,0.25)",
                 color: "var(--danger)",
                 background: "rgba(192,57,43,0.08)",
               }}
             >
-              Đã tắt liên kết thủ công theo số tài khoản vì lý do bảo mật. Hệ thống chỉ cho phép liên kết qua luồng xác thực DNSE.
+              Không đọc được danh sách tài khoản DNSE đã xác thực. Vui lòng đăng nhập DNSE và kiểm tra lại API key/endpoint.
             </div>
           )}
 
@@ -317,3 +282,4 @@ export function DnseAccountSelector({
     </div>
   );
 }
+

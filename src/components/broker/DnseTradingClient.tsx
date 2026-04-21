@@ -130,14 +130,7 @@ type DnseConnectionStatus = {
   auth?: {
     mode?: "api_key" | "unconfigured";
     configured?: boolean;
-    requiresOAuth?: boolean;
     hasApiKey?: boolean;
-  };
-  oauth: {
-    configured: boolean;
-    missing: string[];
-    startUrl: string;
-    disconnectUrl: string;
   };
   connection: {
     linked: boolean;
@@ -151,7 +144,7 @@ type DnseConnectionStatus = {
     lastSyncedAt: string | null;
     lastError: string | null;
     updatedAt: string | null;
-    source: "api_key" | "api_key_manual" | "legacy_manual";
+    source: string;
   };
 };
 
