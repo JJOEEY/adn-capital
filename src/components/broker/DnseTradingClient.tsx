@@ -14,6 +14,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { OrderTicketPanel } from "@/components/broker/OrderTicketPanel";
+import { DnseAccountSelector } from "@/components/broker/DnseAccountSelector";
 import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 import { useTopics } from "@/hooks/useTopics";
 
@@ -209,6 +210,8 @@ export function DnseTradingClient() {
   const [totalNavInput, setTotalNavInput] = useState("");
   const [connectionStatus, setConnectionStatus] = useState<DnseConnectionStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(true);
+  const [statusReloadKey, setStatusReloadKey] = useState(0);
+  const [showAccountSelector, setShowAccountSelector] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -344,7 +347,7 @@ export function DnseTradingClient() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [statusReloadKey]);
 
   const isConnected = Boolean(
     hasApiKeyConfigured &&
@@ -366,20 +369,34 @@ export function DnseTradingClient() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {!isConnected ? (
-            <a
-              href={dnseLoginUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold"
-              style={{
-                borderColor: "rgba(37,99,235,0.25)",
-                color: "#1d4ed8",
-                background: "rgba(37,99,235,0.10)",
-              }}
-            >
-              <LogIn className="h-3.5 w-3.5" />
-              Đăng nhập DNSE
-            </a>
+            <>
+              <a
+                href={dnseLoginUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold"
+                style={{
+                  borderColor: "rgba(37,99,235,0.25)",
+                  color: "#1d4ed8",
+                  background: "rgba(37,99,235,0.10)",
+                }}
+              >
+                <LogIn className="h-3.5 w-3.5" />
+                Đăng nhập DNSE
+              </a>
+              <button
+                onClick={() => setShowAccountSelector(true)}
+                className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold"
+                style={{
+                  borderColor: "rgba(22,163,74,0.25)",
+                  color: "#15803d",
+                  background: "rgba(22,163,74,0.10)",
+                }}
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Liên kết tài khoản DNSE
+              </button>
+            </>
           ) : null}
 
           <button
@@ -546,6 +563,18 @@ export function DnseTradingClient() {
                       <LogIn className="h-3.5 w-3.5" />
                       Đăng nhập DNSE
                     </a>
+                    <button
+                      onClick={() => setShowAccountSelector(true)}
+                      className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold"
+                      style={{
+                        borderColor: "rgba(22,163,74,0.25)",
+                        color: "#15803d",
+                        background: "rgba(22,163,74,0.10)",
+                      }}
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      Liên kết tài khoản DNSE
+                    </button>
                     <span className="text-xs" style={{ color: "var(--text-muted)" }}>
                       Đăng nhập trên DNSE trước, sau đó quay lại để đồng bộ tài khoản.
                     </span>
@@ -875,6 +904,20 @@ export function DnseTradingClient() {
           defaultAccountId={selectedAccountId ?? undefined}
         />
       </div>
+
+      <DnseAccountSelector
+        open={showAccountSelector}
+        accounts={brokerAccounts}
+        defaultAccountNo={selectedAccountId}
+        onCancel={() => setShowAccountSelector(false)}
+        onSuccess={(accountNo) => {
+          setShowAccountSelector(false);
+          setSubmitError(null);
+          setSubmitMessage(`Đã liên kết tài khoản DNSE: ${accountNo}`);
+          setStatusReloadKey((prev) => prev + 1);
+          void brokerTopics.refresh(true);
+        }}
+      />
     </div>
   );
 }
