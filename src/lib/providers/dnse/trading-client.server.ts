@@ -84,6 +84,7 @@ function normalizeBaseUrls(baseUrl?: string) {
     ...(baseUrl?.trim() ? [baseUrl.trim()] : []),
     ...envBaseUrls,
     ...(baseFromEnv ? [baseFromEnv] : []),
+    "https://services.entrade.com.vn",
     "https://api.dnse.com.vn",
     "https://openapi.dnse.com.vn",
   ]
@@ -99,6 +100,10 @@ function isOpenApiHost(baseUrl: string) {
 
 function isApiHost(baseUrl: string) {
   return /api\.dnse\.com\.vn$/i.test(baseUrl);
+}
+
+function isServiceHost(baseUrl: string) {
+  return /services\.entrade\.com\.vn$/i.test(baseUrl);
 }
 
 function pad2(value: number) {
@@ -256,15 +261,17 @@ export class DnseTradingClient {
 
     // DNSE api host (auth-service/order-service) ưu tiên JWT phiên người dùng.
     // Tránh gửi thêm x-api-key ở luồng JWT để không bị OA-400 do gateway hiểu sai kiểu auth.
-    const isApiJwtFlow = Boolean(baseUrl && isApiHost(baseUrl) && includeAuthorization);
+    const isApiJwtFlow = Boolean(
+      baseUrl && (isApiHost(baseUrl) || isServiceHost(baseUrl)) && includeAuthorization,
+    );
     if (this.apiKey && !isApiJwtFlow) {
       headers["x-api-key"] = this.apiKey;
       headers["X-API-Key"] = this.apiKey;
     }
 
-    if (baseUrl && isApiHost(baseUrl)) {
-      // auth-service/order-service trên api.dnse.com.vn ưu tiên JWT session;
-      // không ép OpenAPI signature để tránh mismatch header ở một số endpoint.
+    if (baseUrl && (isApiHost(baseUrl) || isServiceHost(baseUrl))) {
+      // auth-service/order-service trên api/services ưu tiên JWT session.
+      // Không ép OpenAPI signature để tránh mismatch header.
       return headers;
     }
 
@@ -284,7 +291,7 @@ export class DnseTradingClient {
       includeBody?: boolean;
       label?: string;
       includeAuthorization?: boolean;
-      baseFilter?: "all" | "api" | "openapi";
+      baseFilter?: "all" | "api" | "openapi" | "service";
       debugTag?: string;
     },
   ) {
@@ -293,6 +300,7 @@ export class DnseTradingClient {
     for (const baseUrl of this.baseUrls) {
       if (options?.baseFilter === "api" && !isApiHost(baseUrl)) continue;
       if (options?.baseFilter === "openapi" && !isOpenApiHost(baseUrl)) continue;
+      if (options?.baseFilter === "service" && !isServiceHost(baseUrl)) continue;
       for (const path of pathCandidates) {
         const url = `${baseUrl}${path.startsWith("/") ? path : `/${path}`}`;
         try {
@@ -401,16 +409,13 @@ export class DnseTradingClient {
       const sessionPayloadApi = await this.requestFirstSuccess(
         "GET",
         [
-          "/auth-service/api/get-accounts",
-          "/auth-service/get-accounts",
-          "/order-service/accounts",
-          "/order-service/api/accounts",
-          "/accounts",
+          "/dnse-order-service/accounts",
+          "/dnse-order-service/api/accounts",
         ],
         {
           label: "Failed to get accounts",
           includeAuthorization: true,
-          baseFilter: "api",
+          baseFilter: "service",
           debugTag: "getAccounts",
         },
       );

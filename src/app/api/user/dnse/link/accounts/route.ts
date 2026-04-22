@@ -30,7 +30,6 @@ export async function GET() {
     logError(reqId, "auth_failed");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  logInfo(reqId, "start", { userId });
 
   const store = await cookies();
   const dnseSessionToken = store.get(DNSE_SESSION_TOKEN_COOKIE)?.value?.trim() || "";
@@ -47,6 +46,13 @@ export async function GET() {
       { status: 401 },
     );
   }
+
+  logInfo(reqId, "start", {
+    userId,
+    hasSessionToken: true,
+    tokenLength: dnseSessionToken.length,
+    tokenPrefix: dnseSessionToken.slice(0, 16),
+  });
 
   const client = getDnseTradingClient({
     userJwtToken: dnseSessionToken,
@@ -105,4 +111,3 @@ export async function GET() {
     );
   }
 }
-

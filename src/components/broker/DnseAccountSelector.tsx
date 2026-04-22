@@ -28,7 +28,7 @@ function normalizeAccountNo(value: string) {
 }
 
 function normalizeApiError(message: string) {
-  if (/authorization field missing|oa-400|unauthorized|token|jwt/i.test(message)) {
+  if (/authorization field missing|oa-400|unauthorized|forbidden|token|jwt/i.test(message)) {
     return "Phiên đăng nhập DNSE không hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập DNSE lại rồi thử liên kết.";
   }
   if (/no route matched|endpoint|http_404|not found/i.test(message)) {
@@ -114,7 +114,7 @@ export function DnseAccountSelector({
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, selectedAccountNo]);
 
   if (!open) return null;
 
