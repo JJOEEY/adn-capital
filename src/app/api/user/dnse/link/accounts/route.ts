@@ -52,8 +52,10 @@ export async function GET() {
     const rawMessage =
       error instanceof Error ? error.message : "Không thể tải danh sách tài khoản DNSE";
     const message = rawMessage.replace(/\s+@\s+https?:\/\/\S+/g, "");
-    const looksLikeAuthError = /401|unauthorized|forbidden|token|jwt/i.test(message);
-    const looksLikeRouteMismatch = /no route matched|HTTP_404/i.test(message);
+    const looksLikeAuthError = /401|unauthorized|forbidden|token|jwt|authorization|oa-400/i.test(
+      message,
+    );
+    const looksLikeRouteMismatch = /no route matched|HTTP_404|not found/i.test(message);
 
     return NextResponse.json(
       {

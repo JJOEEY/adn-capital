@@ -27,10 +27,20 @@ function normalizeAccountNo(value: string) {
   return value.trim().toUpperCase();
 }
 
+function normalizeApiError(message: string) {
+  if (/authorization field missing|oa-400/i.test(message)) {
+    return "Phiên đăng nhập DNSE không hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập DNSE lại rồi thử liên kết.";
+  }
+  if (/no route matched/i.test(message)) {
+    return "Endpoint DNSE chưa đúng cấu hình. Vui lòng liên hệ admin kiểm tra cấu hình API DNSE.";
+  }
+  return message;
+}
+
 function toUiError(payload: ApiErrorPayload | null, fallback: string) {
   const code = payload?.code?.trim();
   const message = payload?.error?.trim();
-  if (message) return message;
+  if (message) return normalizeApiError(message);
   if (!code) return fallback;
   return `${fallback} (mã lỗi: ${code})`;
 }
@@ -71,7 +81,7 @@ export function DnseAccountSelector({
           }
           if (payload?.code === "dnse_endpoint_mismatch") {
             throw new Error(
-              "Không đọc được danh sách tài khoản từ DNSE. Vui lòng liên hệ admin kiểm tra endpoint/API key.",
+              "Không đọc được danh sách tài khoản từ DNSE do endpoint chưa đúng. Vui lòng liên hệ admin kiểm tra lại.",
             );
           }
           throw new Error(toUiError(payload, "Không thể tải danh sách tài khoản DNSE."));
@@ -85,7 +95,9 @@ export function DnseAccountSelector({
         if (!cancelled) {
           setServerAccounts([]);
           setServerError(
-            err instanceof Error ? err.message : "Không thể tải danh sách tài khoản DNSE.",
+            err instanceof Error
+              ? normalizeApiError(err.message)
+              : "Không thể tải danh sách tài khoản DNSE.",
           );
         }
       } finally {
@@ -124,7 +136,11 @@ export function DnseAccountSelector({
       }
       onSuccess(accountNo);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Liên kết tài khoản DNSE thất bại.");
+      setError(
+        err instanceof Error
+          ? normalizeApiError(err.message)
+          : "Liên kết tài khoản DNSE thất bại.",
+      );
     } finally {
       setLinking(false);
     }

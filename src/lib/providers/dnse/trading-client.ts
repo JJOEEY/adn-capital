@@ -8,6 +8,6 @@ export type {
   DnseOrder as DnseTradingOrder,
 } from "./trading-client.server";
 
-export function getDnseTradingClient(_options?: { userJwtToken?: string | null; isolated?: boolean }) {
-  return getServerDnseTradingClient();
+export function getDnseTradingClient(options?: { userJwtToken?: string | null; isolated?: boolean }) {
+  return getServerDnseTradingClient(options);
 }
