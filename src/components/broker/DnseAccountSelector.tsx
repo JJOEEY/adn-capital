@@ -28,11 +28,11 @@ function normalizeAccountNo(value: string) {
 }
 
 function normalizeApiError(message: string) {
-  if (/authorization field missing|oa-400/i.test(message)) {
+  if (/authorization field missing|oa-400|unauthorized|token|jwt/i.test(message)) {
     return "Phiên đăng nhập DNSE không hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập DNSE lại rồi thử liên kết.";
   }
-  if (/no route matched/i.test(message)) {
-    return "Endpoint DNSE chưa đúng cấu hình. Vui lòng liên hệ admin kiểm tra cấu hình API DNSE.";
+  if (/no route matched|endpoint|http_404|not found/i.test(message)) {
+    return "Endpoint DNSE chưa đúng cấu hình. Vui lòng liên hệ admin kiểm tra lại.";
   }
   return message;
 }

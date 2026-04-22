@@ -6,20 +6,36 @@ import { getDnseTradingClient } from "@/lib/providers/dnse/trading-client";
 
 export const dynamic = "force-dynamic";
 
+function createReqId() {
+  return `dnse-link-accounts-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function logInfo(reqId: string, stage: string, payload?: Record<string, unknown>) {
+  console.info(`[DNSE_LINK_ACCOUNTS][${reqId}] ${stage}`, payload ?? {});
+}
+
+function logError(reqId: string, stage: string, payload?: Record<string, unknown>) {
+  console.error(`[DNSE_LINK_ACCOUNTS][${reqId}] ${stage}`, payload ?? {});
+}
+
 /**
  * GET /api/user/dnse/link/accounts
  * Lấy danh sách tài khoản DNSE từ phiên đăng nhập DNSE hiện tại của user.
  */
 export async function GET() {
+  const reqId = createReqId();
   const session = await auth();
   const userId = session?.user?.id;
   if (!userId) {
+    logError(reqId, "auth_failed");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  logInfo(reqId, "start", { userId });
 
   const store = await cookies();
   const dnseSessionToken = store.get(DNSE_SESSION_TOKEN_COOKIE)?.value?.trim() || "";
   if (!dnseSessionToken) {
+    logError(reqId, "dnse_session_missing");
     return NextResponse.json(
       {
         success: false,
@@ -39,9 +55,15 @@ export async function GET() {
 
   try {
     const accounts = await client.getAccounts();
+    logInfo(reqId, "accounts_loaded", {
+      count: accounts.length,
+      accountNos: accounts.map((item) => item.accountNo),
+    });
+
     if (accounts.length === 0) {
       throw new Error("Danh sách tài khoản DNSE rỗng.");
     }
+
     return NextResponse.json({
       success: true,
       accounts,
@@ -55,7 +77,13 @@ export async function GET() {
     const looksLikeAuthError = /401|unauthorized|forbidden|token|jwt|authorization|oa-400/i.test(
       message,
     );
-    const looksLikeRouteMismatch = /no route matched|HTTP_404|not found/i.test(message);
+    const looksLikeRouteMismatch = /no route matched|http_404|not found/i.test(message);
+
+    logError(reqId, "accounts_fetch_failed", {
+      message,
+      looksLikeAuthError,
+      looksLikeRouteMismatch,
+    });
 
     return NextResponse.json(
       {
@@ -68,7 +96,7 @@ export async function GET() {
         error: looksLikeAuthError
           ? "Phiên đăng nhập DNSE đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại DNSE."
           : looksLikeRouteMismatch
-            ? "Không đọc được danh sách tài khoản DNSE do endpoint chưa đúng. Vui lòng liên hệ admin kiểm tra cấu hình API DNSE."
+            ? "Không đọc được danh sách tài khoản DNSE do endpoint chưa đúng. Vui lòng liên hệ admin kiểm tra lại."
             : `Không thể đọc danh sách tài khoản DNSE: ${message}`,
         accounts: [],
         source: "dnse_session",
@@ -77,3 +105,4 @@ export async function GET() {
     );
   }
 }
+
