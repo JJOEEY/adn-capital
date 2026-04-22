@@ -20,9 +20,12 @@ type BrokerAccount = {
 type DnseAccountInfoProps = {
   loading: boolean;
   linked: boolean;
+  hasActiveSession: boolean;
+  needsRelogin: boolean;
   accountId?: string | null;
   accountName?: string | null;
   subAccountId?: string | null;
+  sessionExpiresAt?: string | null;
   accessTokenExpiresAt?: string | null;
   lastSyncedAt?: string | null;
   lastError?: string | null;
@@ -43,9 +46,12 @@ function fmtDateTime(value: string | null | undefined) {
 export function DnseAccountInfo({
   loading,
   linked,
+  hasActiveSession,
+  needsRelogin,
   accountId,
   accountName,
   subAccountId,
+  sessionExpiresAt,
   accessTokenExpiresAt,
   lastSyncedAt,
   lastError,
@@ -57,6 +63,7 @@ export function DnseAccountInfo({
 }: DnseAccountInfoProps) {
   const [unlinking, setUnlinking] = useState(false);
   const [unlinkError, setUnlinkError] = useState<string | null>(null);
+
   const tokenExpired =
     Boolean(accessTokenExpiresAt) &&
     !Number.isNaN(new Date(accessTokenExpiresAt as string).getTime()) &&
@@ -75,9 +82,11 @@ export function DnseAccountInfo({
       const payload = (await response.json().catch(() => null)) as
         | { error?: string; success?: boolean }
         | null;
+
       if (!response.ok || !payload?.success) {
         throw new Error(payload?.error ?? "Không thể đổi tài khoản DNSE.");
       }
+
       onChangedAccount();
     } catch (error) {
       setUnlinkError(
@@ -103,20 +112,38 @@ export function DnseAccountInfo({
             Tài khoản DNSE chính
           </h2>
         </div>
+
         {linked ? (
-          <button
-            onClick={() => void handleChangeAccount()}
-            disabled={unlinking}
-            className="rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-60"
-            style={{
-              borderColor: "rgba(37,99,235,0.25)",
-              color: "#1d4ed8",
-              background: "rgba(37,99,235,0.08)",
-            }}
-            title="Gỡ liên kết và chọn tài khoản DNSE khác"
-          >
-            {unlinking ? "Đang xử lý..." : "Đổi tài khoản"}
-          </button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {needsRelogin ? (
+              <button
+                onClick={onOpenLogin}
+                className="rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors"
+                style={{
+                  borderColor: "rgba(245,158,11,0.25)",
+                  color: "#b45309",
+                  background: "rgba(245,158,11,0.08)",
+                }}
+                title="Đăng nhập lại DNSE để làm mới phiên và dữ liệu NAV"
+              >
+                Đăng nhập lại DNSE
+              </button>
+            ) : null}
+
+            <button
+              onClick={() => void handleChangeAccount()}
+              disabled={unlinking}
+              className="rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+              style={{
+                borderColor: "rgba(37,99,235,0.25)",
+                color: "#1d4ed8",
+                background: "rgba(37,99,235,0.08)",
+              }}
+              title="Gỡ liên kết và chọn tài khoản DNSE khác"
+            >
+              {unlinking ? "Đang xử lý..." : "Đổi tài khoản"}
+            </button>
+          </div>
         ) : null}
       </div>
 
@@ -133,6 +160,7 @@ export function DnseAccountInfo({
             >
               ID: {accountId ?? "--"}
             </span>
+
             {linked ? (
               <span
                 className="inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold"
@@ -156,6 +184,7 @@ export function DnseAccountInfo({
                 <AlertTriangle className="h-3.5 w-3.5" /> Chưa liên kết tài khoản
               </span>
             )}
+
             <span
               className="inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold"
               style={{
@@ -169,7 +198,10 @@ export function DnseAccountInfo({
           </div>
 
           {linked ? (
-            <div className="grid gap-2 text-xs md:grid-cols-2" style={{ color: "var(--text-secondary)" }}>
+            <div
+              className="grid gap-2 text-xs md:grid-cols-2"
+              style={{ color: "var(--text-secondary)" }}
+            >
               <p>
                 Chủ tài khoản:{" "}
                 <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
@@ -189,21 +221,37 @@ export function DnseAccountInfo({
                 </span>
               </p>
               <p>
+                Phiên đăng nhập DNSE:{" "}
+                <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
+                  {hasActiveSession ? fmtDateTime(sessionExpiresAt) : "Đã hết hạn"}
+                </span>
+              </p>
+              <p>
                 Đồng bộ gần nhất:{" "}
                 <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
                   {fmtDateTime(lastSyncedAt)}
                 </span>
               </p>
-              {tokenExpired ? (
+              <p>
+                Fallback OpenAPI:{" "}
+                <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
+                  {hasApiKeyConfigured ? "Đã cấu hình" : "Chưa cấu hình"}
+                </span>
+              </p>
+
+              {tokenExpired || needsRelogin ? (
                 <p className="md:col-span-2" style={{ color: "var(--danger)" }}>
-                  Phiên DNSE đã hết hạn. Vui lòng đăng nhập DNSE lại để làm mới NAV, sức mua và danh mục.
+                  Phiên DNSE đã hết hạn hoặc không còn hiệu lực trong trình duyệt. Vui lòng bấm
+                  {" "}"Đăng nhập lại DNSE" để làm mới NAV, sức mua và danh mục.
                 </p>
               ) : null}
+
               {lastError ? (
                 <p className="md:col-span-2" style={{ color: "var(--danger)" }}>
                   Lỗi gần nhất: {lastError}
                 </p>
               ) : null}
+
               {accounts.length > 0 ? (
                 <div className="md:col-span-2">
                   <p
@@ -267,47 +315,62 @@ export function DnseAccountInfo({
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   Liên kết tài khoản DNSE
                 </button>
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  Đăng nhập trên DNSE trước, sau đó quay lại để đồng bộ tài khoản.
+                </span>
               </div>
 
               <div
-                className="rounded-xl border p-3 text-sm"
+                className="grid gap-2 rounded-xl border p-3 text-xs"
                 style={{
                   borderColor: "var(--border)",
-                  color: "var(--text-secondary)",
                   background: "var(--surface-2)",
+                  color: "var(--text-secondary)",
                 }}
               >
                 <p className="font-semibold" style={{ color: "var(--text-primary)" }}>
                   Trạng thái kết nối DNSE
                 </p>
-                <ol className="mt-2 list-decimal space-y-1 pl-4">
-                  <li>Bấm “Đăng nhập DNSE” để lấy phiên đăng nhập hợp lệ.</li>
-                  <li>Bấm “Liên kết tài khoản DNSE” để chọn đúng tài khoản giao dịch thật.</li>
-                  <li>Sau khi liên kết xong, NAV, sức mua và danh mục sẽ tự đồng bộ.</li>
-                </ol>
-                {!hasApiKeyConfigured ? (
-                  <p className="mt-2" style={{ color: "var(--danger)" }}>
-                    DNSE API key chưa được cấu hình đầy đủ trên máy chủ.
-                  </p>
-                ) : null}
+                <p>1. Hệ thống đang chạy theo chế độ API key + tài khoản DNSE đã liên kết.</p>
+                <p>2. Khi DNSE ID được xác minh, dữ liệu NAV/holdings sẽ tự động đồng bộ qua broker topics.</p>
+                <p>3. Nếu chưa có dữ liệu realtime, kiểm tra lại account DNSE đã liên kết và trạng thái sync.</p>
               </div>
+
+              {!hasApiKeyConfigured ? (
+                <div
+                  className="rounded-xl border px-3 py-2 text-xs"
+                  style={{
+                    borderColor: "rgba(192,57,43,0.25)",
+                    color: "var(--danger)",
+                    background: "rgba(192,57,43,0.08)",
+                  }}
+                >
+                  DNSE API chưa cấu hình đủ: thiếu DNSE_API_KEY.
+                </div>
+              ) : null}
             </div>
           )}
-
-          {unlinkError ? (
-            <div
-              className="mt-3 rounded-xl border px-3 py-2 text-xs"
-              style={{
-                borderColor: "rgba(192,57,43,0.25)",
-                color: "var(--danger)",
-                background: "rgba(192,57,43,0.08)",
-              }}
-            >
-              {unlinkError}
-            </div>
-          ) : null}
         </>
       )}
+
+      {submitSessionMessage(unlinkError)}
+    </div>
+  );
+}
+
+function submitSessionMessage(unlinkError: string | null) {
+  if (!unlinkError) return null;
+
+  return (
+    <div
+      className="mt-3 rounded-xl border px-3 py-2 text-xs"
+      style={{
+        borderColor: "rgba(192,57,43,0.25)",
+        color: "var(--danger)",
+        background: "rgba(192,57,43,0.10)",
+      }}
+    >
+      {unlinkError}
     </div>
   );
 }

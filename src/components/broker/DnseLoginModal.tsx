@@ -25,6 +25,7 @@ export function DnseLoginModal({ open, onCancel, onSuccess }: DnseLoginModalProp
 
     setSubmitting(true);
     setError(null);
+
     try {
       const response = await fetch("/api/user/dnse/session", {
         method: "POST",
@@ -34,12 +35,15 @@ export function DnseLoginModal({ open, onCancel, onSuccess }: DnseLoginModalProp
           password,
         }),
       });
+
       const payload = (await response.json().catch(() => null)) as
         | { error?: string; success?: boolean }
         | null;
+
       if (!response.ok || !payload?.success) {
         throw new Error(payload?.error ?? "Đăng nhập DNSE thất bại.");
       }
+
       setPassword("");
       onSuccess();
     } catch (err) {

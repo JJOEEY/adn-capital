@@ -129,9 +129,11 @@ type DnseConnectionStatus = {
   dnseVerified: boolean;
   dnseAppliedAt: string | null;
   auth?: {
-    mode?: "api_key" | "unconfigured";
+    mode?: "api_key" | "unconfigured" | "dnse_user_session";
     configured?: boolean;
     hasApiKey?: boolean;
+    hasSession?: boolean;
+    sessionExpiresAt?: string | null;
   };
   connection: {
     linked: boolean;
@@ -175,6 +177,44 @@ function fmtDateTime(value: string | null | undefined) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "--";
   return date.toLocaleString("vi-VN");
+}
+
+function hasFutureDate(value: string | null | undefined) {
+  if (!value) return false;
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) && timestamp > Date.now();
+}
+
+function normalizeDnseReason(reason: string | null | undefined) {
+  if (!reason) return null;
+  const normalized = reason.trim();
+  const lower = normalized.toLowerCase();
+
+  if (
+    /token expired|authorization|unauthorized|forbidden|jwt|dnse_login_required|dnse_login_expired/.test(
+      lower,
+    )
+  ) {
+    return "Phiên DNSE đã hết hạn. Vui lòng bấm “Đăng nhập lại DNSE” để làm mới NAV và danh mục.";
+  }
+
+  if (/api key not found in storage|oa-401|oa-400/.test(lower)) {
+    return "Máy chủ chưa lấy được dữ liệu fallback từ DNSE OpenAPI. Cần kiểm tra lại API key/secret.";
+  }
+
+  if (
+    /token expired|authorization|unauthorized|forbidden|jwt|dnse_login_required|dnse_login_expired/.test(
+      lower,
+    )
+  ) {
+    return "Phiên DNSE đã hết hạn. Vui lòng bấm “Đăng nhập lại DNSE” để làm mới NAV và danh mục.";
+  }
+
+  if (/api key not found in storage|oa-401|oa-400/.test(lower)) {
+    return "Máy chủ chưa lấy được dữ liệu fallback từ DNSE OpenAPI. Cần kiểm tra lại API key/secret.";
+  }
+
+  return normalized;
 }
 
 export function DnseTradingClient() {
@@ -223,22 +263,23 @@ export function DnseTradingClient() {
     dedupingInterval: 10_000,
   });
 
-  const balanceTopic = brokerTopics.byTopic.get("broker:dnse:current-user:balance")
-    ?.value as BrokerBalanceTopic | null | undefined;
-  const holdingsTopic = brokerTopics.byTopic.get("broker:dnse:current-user:holdings")
-    ?.value as BrokerHoldingsTopic | null | undefined;
-  const positionsTopic = brokerTopics.byTopic.get("broker:dnse:current-user:positions")
-    ?.value as BrokerHoldingsTopic | null | undefined;
-  const ordersTopic = brokerTopics.byTopic.get("broker:dnse:current-user:orders")
-    ?.value as BrokerOrdersTopic | null | undefined;
-  const accountsTopic = brokerTopics.byTopic.get("broker:dnse:current-user:accounts")
-    ?.value as BrokerAccountsTopic | null | undefined;
-  const loanPackagesTopic = brokerTopics.byTopic.get("broker:dnse:current-user:loan-packages")
-    ?.value as BrokerLoanPackagesTopic | null | undefined;
-  const orderHistoryTopic = brokerTopics.byTopic.get("broker:dnse:current-user:order-history")
-    ?.value as BrokerOrderHistoryTopic | null | undefined;
-  const ppseTopic = brokerTopics.byTopic.get(`broker:dnse:current-user:ppse:${normalizedTicker}`)
-    ?.value as BrokerPpseTopic | null | undefined;
+  const balanceEnvelope = brokerTopics.byTopic.get("broker:dnse:current-user:balance");
+  const holdingsEnvelope = brokerTopics.byTopic.get("broker:dnse:current-user:holdings");
+  const positionsEnvelope = brokerTopics.byTopic.get("broker:dnse:current-user:positions");
+  const ordersEnvelope = brokerTopics.byTopic.get("broker:dnse:current-user:orders");
+  const accountsEnvelope = brokerTopics.byTopic.get("broker:dnse:current-user:accounts");
+  const loanPackagesEnvelope = brokerTopics.byTopic.get("broker:dnse:current-user:loan-packages");
+  const orderHistoryEnvelope = brokerTopics.byTopic.get("broker:dnse:current-user:order-history");
+  const ppseEnvelope = brokerTopics.byTopic.get(`broker:dnse:current-user:ppse:${normalizedTicker}`);
+
+  const balanceTopic = balanceEnvelope?.value as BrokerBalanceTopic | null | undefined;
+  const holdingsTopic = holdingsEnvelope?.value as BrokerHoldingsTopic | null | undefined;
+  const positionsTopic = positionsEnvelope?.value as BrokerHoldingsTopic | null | undefined;
+  const ordersTopic = ordersEnvelope?.value as BrokerOrdersTopic | null | undefined;
+  const accountsTopic = accountsEnvelope?.value as BrokerAccountsTopic | null | undefined;
+  const loanPackagesTopic = loanPackagesEnvelope?.value as BrokerLoanPackagesTopic | null | undefined;
+  const orderHistoryTopic = orderHistoryEnvelope?.value as BrokerOrderHistoryTopic | null | undefined;
+  const ppseTopic = ppseEnvelope?.value as BrokerPpseTopic | null | undefined;
 
   const holdings = useMemo(() => {
     const fromHoldings = holdingsTopic?.holdings ?? [];
@@ -278,6 +319,55 @@ export function DnseTradingClient() {
     connectionStatus?.auth?.hasApiKey ??
       connectionStatus?.auth?.configured,
   );
+  const isLinkedAccount = Boolean(
+    connectionStatus?.connection?.linked &&
+      connectionStatus?.dnseVerified &&
+      selectedAccountId,
+  );
+  const hasActiveDnseSession = Boolean(connectionStatus?.auth?.hasSession) ||
+    hasFutureDate(connectionStatus?.connection?.accessTokenExpiresAt);
+  const needsRelogin = isLinkedAccount && !hasActiveDnseSession;
+  const hasNavData =
+    Number.isFinite(Number(balanceTopic?.totalNav)) && Number(balanceTopic?.totalNav) > 0;
+  const hasBuyingPowerData =
+    Number.isFinite(Number(balanceTopic?.buyingPower)) &&
+    Number(balanceTopic?.buyingPower) >= 0;
+  const hasHoldingsData = holdings.length > 0;
+  const hasOrdersData = Array.isArray(ordersTopic?.orders) && ordersTopic.orders.length > 0;
+  const hasBrokerData = hasNavData || hasBuyingPowerData || hasHoldingsData || hasOrdersData;
+  const balanceHint =
+    normalizeDnseReason(balanceTopic?.reason) ??
+    normalizeDnseReason(balanceEnvelope?.error?.message) ??
+    (needsRelogin
+      ? "Phiên DNSE đã hết hạn. Vui lòng đăng nhập lại để đồng bộ NAV và danh mục."
+      : null);
+  const holdingsHint =
+    normalizeDnseReason(holdingsTopic?.reason) ??
+    normalizeDnseReason(positionsTopic?.reason) ??
+    normalizeDnseReason(holdingsEnvelope?.error?.message) ??
+    normalizeDnseReason(positionsEnvelope?.error?.message) ??
+    (needsRelogin
+      ? "Phiên DNSE đã hết hạn nên chưa đọc được danh mục nắm giữ."
+      : null);
+  const ordersHint =
+    normalizeDnseReason(ordersTopic?.reason) ??
+    normalizeDnseReason(ordersEnvelope?.error?.message) ??
+    (needsRelogin
+      ? "Phiên DNSE đã hết hạn nên chưa đọc được lệnh gần nhất."
+      : null);
+
+  const balanceDisplayHint =
+    needsRelogin && !balanceTopic?.totalNav
+      ? "Phiên DNSE đã hết hạn. Vui lòng đăng nhập lại để đồng bộ NAV và sức mua."
+      : balanceHint;
+  const holdingsDisplayHint =
+    needsRelogin && holdings.length === 0
+      ? "Phiên DNSE đã hết hạn nên hệ thống chưa thể đọc danh mục nắm giữ."
+      : holdingsHint;
+  const ordersDisplayHint =
+    needsRelogin && !ordersTopic?.orders?.length
+      ? "Phiên DNSE đã hết hạn nên hệ thống chưa thể đọc lệnh gần nhất."
+      : ordersHint;
 
   const totalNavValue = useMemo(() => {
     const brokerNav = Number(balanceTopic?.totalNav);
@@ -323,12 +413,11 @@ export function DnseTradingClient() {
     };
   }, [statusReloadKey]);
 
-  const isConnected = Boolean(
-    hasApiKeyConfigured &&
-      connectionStatus?.connection?.linked &&
-      connectionStatus.dnseVerified &&
-      selectedAccountId,
-  );
+  const isConnected = isLinkedAccount && (hasActiveDnseSession || hasBrokerData);
+  const canTrade = isLinkedAccount && hasActiveDnseSession;
+  const loginSuccessMessage = isLinkedAccount
+    ? "Đăng nhập lại DNSE thành công. Hệ thống đang làm mới NAV và danh mục."
+    : "Đăng nhập DNSE thành công. Hãy bấm Liên kết tài khoản DNSE.";
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-4 p-4 md:p-6">
@@ -342,7 +431,7 @@ export function DnseTradingClient() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {!isConnected ? (
+          {!isLinkedAccount ? (
             <>
               <button
                 onClick={() => setShowLoginModal(true)}
@@ -371,6 +460,21 @@ export function DnseTradingClient() {
             </>
           ) : null}
 
+          {needsRelogin ? (
+            <button
+              onClick={() => setShowLoginModal(true)}
+              className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold"
+              style={{
+                borderColor: "rgba(245,158,11,0.25)",
+                color: "#b45309",
+                background: "rgba(245,158,11,0.10)",
+              }}
+            >
+              <LogIn className="h-3.5 w-3.5" />
+              Đăng nhập lại DNSE
+            </button>
+          ) : null}
+
           <button
             onClick={() => void brokerTopics.refresh(true)}
             className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold"
@@ -392,10 +496,13 @@ export function DnseTradingClient() {
         <div className="space-y-3 md:col-span-2">
           <DnseAccountInfo
             loading={statusLoading}
-            linked={isConnected}
+            linked={isLinkedAccount}
+            hasActiveSession={hasActiveDnseSession}
+            needsRelogin={needsRelogin}
             accountId={selectedAccountId}
             accountName={connectionStatus?.connection?.accountName ?? null}
             subAccountId={connectionStatus?.connection?.subAccountId ?? null}
+            sessionExpiresAt={connectionStatus?.auth?.sessionExpiresAt ?? null}
             accessTokenExpiresAt={connectionStatus?.connection?.accessTokenExpiresAt ?? null}
             lastSyncedAt={connectionStatus?.connection?.lastSyncedAt ?? null}
             lastError={connectionStatus?.connection?.lastError ?? null}
@@ -725,6 +832,12 @@ export function DnseTradingClient() {
             </div>
           )}
 
+          {!isConnected && balanceDisplayHint ? (
+            <p className="mt-2 text-xs" style={{ color: "var(--danger)" }}>
+              {balanceDisplayHint}
+            </p>
+          ) : null}
+
           {queryNavPct ? (
             <div
               className="mt-3 rounded-xl border p-3"
@@ -827,6 +940,11 @@ export function DnseTradingClient() {
               })}
             </div>
           )}
+          {holdings.length === 0 && holdingsDisplayHint ? (
+            <p className="mt-2 text-xs" style={{ color: "var(--danger)" }}>
+              {holdingsDisplayHint}
+            </p>
+          ) : null}
         </div>
 
         <div
@@ -864,6 +982,12 @@ export function DnseTradingClient() {
               Chưa có lịch sử lệnh từ DNSE execution audit.
             </p>
           )}
+          {(!Array.isArray(ordersTopic?.orders) || ordersTopic.orders.length === 0) &&
+          ordersDisplayHint ? (
+            <p className="mt-2 text-xs" style={{ color: "var(--danger)" }}>
+              {ordersDisplayHint}
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -890,7 +1014,7 @@ export function DnseTradingClient() {
           </div>
         </div>
 
-        {!isConnected ? (
+        {!canTrade ? (
           <div
             className="rounded-xl border px-3 py-2 text-sm"
             style={{
@@ -901,6 +1025,12 @@ export function DnseTradingClient() {
           >
             Bạn cần liên kết tài khoản DNSE hợp lệ trước khi đặt lệnh.
           </div>
+        ) : null}
+
+        {!canTrade && needsRelogin ? (
+          <p className="mt-2 text-xs" style={{ color: "var(--danger)" }}>
+            Phiên DNSE đã hết hạn. Vui lòng đăng nhập lại trước khi kiểm tra NAV hoặc đặt lệnh.
+          </p>
         ) : null}
 
         <OrderTicketPanel
