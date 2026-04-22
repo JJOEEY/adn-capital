@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { getDnseTradingClient } from "@/lib/providers/dnse/trading-client";
 import {
   DNSE_SESSION_EXP_COOKIE,
   DNSE_SESSION_TOKEN_COOKIE,
@@ -26,12 +27,17 @@ function readString(row: JsonRecord, keys: string[]) {
   return null;
 }
 
+function normalizeBearerToken(token: string) {
+  return token.trim().replace(/^Bearer\s+/i, "").trim();
+}
+
 function getDnseBaseUrls() {
   const envBaseUrls = (process.env.DNSE_TRADING_BASE_URLS ?? "")
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
   const baseFromEnv = process.env.DNSE_TRADING_BASE_URL?.trim();
+
   return [
     ...envBaseUrls,
     ...(baseFromEnv ? [baseFromEnv] : []),
@@ -65,7 +71,6 @@ export async function GET(req: NextRequest) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
   return NextResponse.json(getSessionShape(req));
 }
 
@@ -95,9 +100,10 @@ export async function POST(req: NextRequest) {
       `${base}/auth-service/api/login`,
     ]),
   ].filter(Boolean) as string[];
-  const apiKey = process.env.DNSE_API_KEY?.trim() || "";
 
+  const apiKey = process.env.DNSE_API_KEY?.trim() || "";
   let lastError = "Không thể đăng nhập DNSE.";
+
   for (const url of loginUrls) {
     try {
       const response = await fetch(url, {
@@ -114,16 +120,28 @@ export async function POST(req: NextRequest) {
 
       const payload = (await response.json().catch(() => null)) as unknown;
       if (!response.ok) {
-        const reason =
+        lastError =
           readString(toRecord(payload) ?? {}, ["message", "error", "detail", "msg"]) ??
           `HTTP_${response.status}`;
-        lastError = reason;
         continue;
       }
 
-      const token = extractDnseAccessToken(payload);
+      const rawToken = extractDnseAccessToken(payload);
+      const token = rawToken ? normalizeBearerToken(rawToken) : "";
       if (!token) {
         lastError = "DNSE không trả access token hợp lệ.";
+        continue;
+      }
+
+      // Verify token thật ngay lúc đăng nhập để tránh false-success rồi lỗi OA-400 ở bước liên kết.
+      try {
+        const verifyClient = getDnseTradingClient({ userJwtToken: token, isolated: true });
+        await verifyClient.getAccounts();
+      } catch (verifyError) {
+        lastError =
+          verifyError instanceof Error
+            ? `Phiên DNSE không hợp lệ: ${verifyError.message}`
+            : "Phiên DNSE không hợp lệ.";
         continue;
       }
 
@@ -141,9 +159,7 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json(
-    {
-      error: `Đăng nhập DNSE thất bại: ${lastError}`,
-    },
+    { error: `Đăng nhập DNSE thất bại: ${lastError}` },
     { status: 502 },
   );
 }
@@ -157,3 +173,4 @@ export async function DELETE() {
   clearDnseSessionCookies(next);
   return next;
 }
+

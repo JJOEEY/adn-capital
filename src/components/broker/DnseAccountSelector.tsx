@@ -259,28 +259,28 @@ export function DnseAccountSelector({
             <div
               className="rounded-xl border px-3 py-2 text-xs"
               style={{
-                borderColor: "rgba(192,57,43,0.25)",
-                color: "var(--danger)",
-                background: "rgba(192,57,43,0.08)",
+                borderColor: "rgba(245,158,11,0.25)",
+                color: "#92400e",
+                background: "rgba(245,158,11,0.10)",
               }}
             >
-              {serverError
-                ? "Không đọc được danh sách tài khoản DNSE đã xác thực. Vui lòng đăng nhập DNSE và thử lại."
-                : "Chưa có tài khoản DNSE khả dụng từ phiên đăng nhập hiện tại."}
+              Không đọc được danh sách tài khoản DNSE đã xác thực. Vui lòng đăng nhập DNSE và thử lại.
             </div>
           )}
 
           {error ? (
             <div
-              className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs"
+              className="rounded-xl border px-3 py-2 text-xs"
               style={{
                 borderColor: "rgba(192,57,43,0.25)",
                 color: "var(--danger)",
                 background: "rgba(192,57,43,0.08)",
               }}
             >
-              <AlertTriangle className="h-3.5 w-3.5" />
-              {error}
+              <div className="inline-flex items-center gap-1.5">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                <span>{error}</span>
+              </div>
             </div>
           ) : null}
         </div>
@@ -288,3 +288,4 @@ export function DnseAccountSelector({
     </div>
   );
 }
+
