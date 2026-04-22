@@ -311,7 +311,8 @@ export class DnseTradingClient {
             Boolean(options?.includeAuthorization),
             baseUrl,
           );
-          if (options?.debugTag === "getAccounts") {
+          if (options?.debugTag) {
+            const debugLabel = `[DNSE ${options.debugTag}]`;
             const logHeaders = { ...headers };
             if (logHeaders.Authorization) {
               const token = logHeaders.Authorization;
@@ -319,24 +320,23 @@ export class DnseTradingClient {
                 token.length > 24 ? `${token.slice(0, 24)}...` : "***";
             }
             const auxDate = new Date().toISOString();
-            const signaturePreview = this.generateOpenApiSignature(
+            const signaturePreview = this.apiSecret
+              ? this.generateOpenApiSignature(
               method,
               path.startsWith("/") ? path : `/${path}`,
               formatDateHeader(new Date()),
               crypto.randomUUID().replace(/-/g, ""),
-            );
-            console.log("[DNSE getAccounts] URL:", url);
+                )
+              : "";
+            console.log(`${debugLabel} URL:`, url);
             console.log(
-              "[DNSE getAccounts] API Key (first 20 chars):",
+              `${debugLabel} API Key (first 20 chars):`,
               this.apiKey ? this.apiKey.substring(0, 20) : "(missing)",
             );
-            console.log("[DNSE getAccounts] API Secret exists:", !!this.apiSecret);
-            console.log("[DNSE getAccounts] Aux-Date:", auxDate);
-            console.log(
-              "[DNSE getAccounts] Signature (first 20 chars):",
-              signaturePreview.substring(0, 20),
-            );
-            console.log("[DNSE getAccounts] Headers:", JSON.stringify(logHeaders, null, 2));
+            console.log(`${debugLabel} API Secret exists:`, !!this.apiSecret);
+            console.log(`${debugLabel} Aux-Date:`, auxDate);
+            console.log(`${debugLabel} Signature (first 20 chars):`, signaturePreview.substring(0, 20));
+            console.log(`${debugLabel} Headers:`, JSON.stringify(logHeaders, null, 2));
           }
           const response = await fetch(url, {
             method,
@@ -347,17 +347,18 @@ export class DnseTradingClient {
           });
 
           const responseText = await response.text();
-          if (options?.debugTag === "getAccounts") {
-            console.log("[DNSE getAccounts] Response status:", response.status);
+          if (options?.debugTag) {
+            const debugLabel = `[DNSE ${options.debugTag}]`;
+            console.log(`${debugLabel} Response status:`, response.status);
             console.log(
-              "[DNSE getAccounts] Response headers:",
+              `${debugLabel} Response headers:`,
               JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2),
             );
-            console.log("[DNSE getAccounts] Response body:", responseText);
+            console.log(`${debugLabel} Response body:`, responseText);
           }
 
           if (response.ok) {
-            if (process.env.DNSE_DEBUG === "true" && options?.debugTag !== "getAccounts") {
+            if (process.env.DNSE_DEBUG === "true" && !options?.debugTag) {
               console.info("[DNSE_CLIENT] request_ok", { method, baseUrl, path });
             }
             if (!responseText.trim()) return {} as JsonRecord;
@@ -370,7 +371,7 @@ export class DnseTradingClient {
 
           const normalized = normalizeErrorMessage(responseText);
           lastError = `${response.status} ${normalized || responseText || response.statusText}`;
-          if (process.env.DNSE_DEBUG === "true" && options?.debugTag !== "getAccounts") {
+          if (process.env.DNSE_DEBUG === "true" && !options?.debugTag) {
             console.warn("[DNSE_CLIENT] request_failed", {
               method,
               baseUrl,
@@ -453,13 +454,19 @@ export class DnseTradingClient {
   }
 
   async getBalance(accountNo: string): Promise<DnseBalance> {
+    console.log("[DNSE getBalance] Account:", accountNo);
     const payload = await this.requestFirstSuccess(
       "GET",
       [
         `/accounts/${accountNo}/balances`,
         `/account-service/accounts/${accountNo}/balances`,
       ],
-      { label: "Failed to get balance", includeAuthorization: false, baseFilter: "openapi" },
+      {
+        label: "Failed to get balance",
+        includeAuthorization: false,
+        baseFilter: "openapi",
+        debugTag: "getBalance",
+      },
     );
     const root = toRecord(payload) ?? {};
     const balance = (toRecord(root.data) ?? root) as unknown as DnseBalance;
@@ -474,13 +481,19 @@ export class DnseTradingClient {
   }
 
   async getPositions(accountNo: string): Promise<DnsePosition[]> {
+    console.log("[DNSE getPositions] Account:", accountNo);
     const payload = await this.requestFirstSuccess(
       "GET",
       [
         `/accounts/${accountNo}/positions`,
         `/account-service/accounts/${accountNo}/positions`,
       ],
-      { label: "Failed to get positions", includeAuthorization: false, baseFilter: "openapi" },
+      {
+        label: "Failed to get positions",
+        includeAuthorization: false,
+        baseFilter: "openapi",
+        debugTag: "getPositions",
+      },
     );
     const positions = extractArrayPayload(payload) as Array<Record<string, unknown>>;
     const totalMarketValue = positions.reduce(
@@ -509,37 +522,55 @@ export class DnseTradingClient {
   }
 
   async getOrders(accountNo: string): Promise<DnseOrder[]> {
+    console.log("[DNSE getOrders] Account:", accountNo);
     const payload = await this.requestFirstSuccess(
       "GET",
       [
         `/accounts/${accountNo}/orders`,
         `/order-service/accounts/${accountNo}/orders`,
       ],
-      { label: "Failed to get orders", includeAuthorization: false, baseFilter: "openapi" },
+      {
+        label: "Failed to get orders",
+        includeAuthorization: false,
+        baseFilter: "openapi",
+        debugTag: "getOrders",
+      },
     );
     return extractArrayPayload(payload) as DnseOrder[];
   }
 
   async getLoanPackages(accountNo: string): Promise<JsonRecord[]> {
+    console.log("[DNSE getLoanPackages] Account:", accountNo);
     const payload = await this.requestFirstSuccess(
       "GET",
       [
         `/accounts/${accountNo}/loan-packages`,
         `/loan-service/accounts/${accountNo}/loan-packages`,
       ],
-      { label: "Failed to get loan packages", includeAuthorization: false, baseFilter: "openapi" },
+      {
+        label: "Failed to get loan packages",
+        includeAuthorization: false,
+        baseFilter: "openapi",
+        debugTag: "getLoanPackages",
+      },
     );
     return extractArrayPayload(payload) as JsonRecord[];
   }
 
   async getPPSE(accountNo: string, symbol: string): Promise<JsonRecord | null> {
+    console.log("[DNSE getPPSE] Account:", accountNo, "Symbol:", symbol);
     const payload = await this.requestFirstSuccess(
       "GET",
       [
         `/accounts/${accountNo}/ppse?symbol=${encodeURIComponent(symbol)}`,
         `/account-service/accounts/${accountNo}/ppse?symbol=${encodeURIComponent(symbol)}`,
       ],
-      { label: "Failed to get PPSE", includeAuthorization: false, baseFilter: "openapi" },
+      {
+        label: "Failed to get PPSE",
+        includeAuthorization: false,
+        baseFilter: "openapi",
+        debugTag: "getPPSE",
+      },
     );
     return (toRecord(payload)?.data as JsonRecord) ?? toRecord(payload);
   }

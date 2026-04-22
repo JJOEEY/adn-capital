@@ -9,12 +9,21 @@ export const dynamic = "force-dynamic";
  * Lấy lịch sử lệnh DNSE theo tài khoản liên kết.
  */
 export async function GET() {
-  const resolved = await requireDnseAccountContext();
-  if (!resolved.ok) return resolved.response;
-
   try {
+    console.log("[DNSE Orders API] Start");
+
+    const resolved = await requireDnseAccountContext();
+    if (!resolved.ok) {
+      console.warn("[DNSE Orders API] Context failed");
+      return resolved.response;
+    }
+
+    console.log("[DNSE Orders API] Context account:", resolved.context.accountNo);
+
     const client = getDnseTradingClient();
     const orders = await client.getOrders(resolved.context.accountNo);
+
+    console.log("[DNSE Orders API] Orders count:", Array.isArray(orders) ? orders.length : -1);
 
     return NextResponse.json({
       success: true,
@@ -24,7 +33,11 @@ export async function GET() {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Không thể lấy lịch sử lệnh DNSE";
-    console.error("[DNSE_ORDERS_ROUTE] error", { message });
+    console.error("[DNSE Orders API] Error:", message);
+    if (error instanceof Error) {
+      console.error("[DNSE Orders API] Stack:", error.stack);
+    }
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }
+

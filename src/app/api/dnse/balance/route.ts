@@ -9,12 +9,21 @@ export const dynamic = "force-dynamic";
  * Lấy số dư/NAV tài khoản DNSE đã liên kết.
  */
 export async function GET() {
-  const resolved = await requireDnseAccountContext();
-  if (!resolved.ok) return resolved.response;
-
   try {
+    console.log("[DNSE Balance API] Start");
+
+    const resolved = await requireDnseAccountContext();
+    if (!resolved.ok) {
+      console.warn("[DNSE Balance API] Context failed");
+      return resolved.response;
+    }
+
+    console.log("[DNSE Balance API] Context account:", resolved.context.accountNo);
+
     const client = getDnseTradingClient();
     const balance = await client.getBalance(resolved.context.accountNo);
+
+    console.log("[DNSE Balance API] Balance result:", balance);
 
     return NextResponse.json({
       success: true,
@@ -33,7 +42,11 @@ export async function GET() {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Không thể lấy dữ liệu số dư DNSE";
-    console.error("[DNSE_BALANCE_ROUTE] error", { message });
+    console.error("[DNSE Balance API] Error:", message);
+    if (error instanceof Error) {
+      console.error("[DNSE Balance API] Stack:", error.stack);
+    }
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }
+

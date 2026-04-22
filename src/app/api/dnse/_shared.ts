@@ -16,9 +16,12 @@ function normalizeAccountNo(value: string | null | undefined) {
 }
 
 export async function requireDnseAccountContext(): Promise<DnseAccountContextResult> {
+  console.log("[DNSE Shared] Resolving account context");
+
   const session = await auth();
   const userId = session?.user?.id;
   if (!userId) {
+    console.warn("[DNSE Shared] Unauthorized (no session user)");
     return {
       ok: false,
       response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
@@ -43,6 +46,7 @@ export async function requireDnseAccountContext(): Promise<DnseAccountContextRes
   ]);
 
   if (!user) {
+    console.error("[DNSE Shared] User not found", { userId });
     return {
       ok: false,
       response: NextResponse.json({ error: "Không tìm thấy tài khoản" }, { status: 404 }),
@@ -54,23 +58,26 @@ export async function requireDnseAccountContext(): Promise<DnseAccountContextRes
   const fallbackUserAccountNo = normalizeAccountNo(user.dnseId);
   const accountNo = activeConnectionAccountNo || fallbackUserAccountNo;
 
+  console.log("[DNSE Shared] Context data", {
+    userId,
+    activeConnectionAccountNo,
+    fallbackUserAccountNo,
+    accountNo,
+    dnseVerified: user.dnseVerified,
+    connectionStatus: connection?.status ?? null,
+  });
+
   if (!accountNo) {
     return {
       ok: false,
-      response: NextResponse.json(
-        { error: "Chưa liên kết tài khoản DNSE" },
-        { status: 404 },
-      ),
+      response: NextResponse.json({ error: "Chưa liên kết tài khoản DNSE" }, { status: 404 }),
     };
   }
 
   if (!user.dnseVerified && !activeConnectionAccountNo) {
     return {
       ok: false,
-      response: NextResponse.json(
-        { error: "Tài khoản DNSE chưa xác minh" },
-        { status: 403 },
-      ),
+      response: NextResponse.json({ error: "Tài khoản DNSE chưa xác minh" }, { status: 403 }),
     };
   }
 
@@ -82,3 +89,4 @@ export async function requireDnseAccountContext(): Promise<DnseAccountContextRes
     },
   };
 }
+
