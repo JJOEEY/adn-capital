@@ -16,6 +16,7 @@ import {
 import { OrderTicketPanel } from "@/components/broker/OrderTicketPanel";
 import { DnseAccountSelector } from "@/components/broker/DnseAccountSelector";
 import { DnseLoginModal } from "@/components/broker/DnseLoginModal";
+import { DnseAccountInfo } from "@/components/broker/DnseAccountInfo";
 import { useTopics } from "@/hooks/useTopics";
 
 type BrokerPosition = {
@@ -388,8 +389,57 @@ export function DnseTradingClient() {
       </div>
 
       <div className="grid gap-3 md:grid-cols-3">
+        <div className="space-y-3 md:col-span-2">
+          <DnseAccountInfo
+            loading={statusLoading}
+            linked={isConnected}
+            accountId={selectedAccountId}
+            accountName={connectionStatus?.connection?.accountName ?? null}
+            subAccountId={connectionStatus?.connection?.subAccountId ?? null}
+            accessTokenExpiresAt={connectionStatus?.connection?.accessTokenExpiresAt ?? null}
+            lastSyncedAt={connectionStatus?.connection?.lastSyncedAt ?? null}
+            lastError={connectionStatus?.connection?.lastError ?? null}
+            hasApiKeyConfigured={hasApiKeyConfigured}
+            accounts={brokerAccounts}
+            onOpenLogin={() => setShowLoginModal(true)}
+            onOpenLinkSelector={() => setShowAccountSelector(true)}
+            onChangedAccount={() => {
+              setSubmitError(null);
+              setSubmitMessage("Đã đổi tài khoản. Vui lòng chọn tài khoản DNSE mới để liên kết lại.");
+              setStatusReloadKey((prev) => prev + 1);
+              void brokerTopics.refresh(true);
+              setShowAccountSelector(true);
+            }}
+          />
+
+          {submitMessage ? (
+            <div
+              className="rounded-xl border px-3 py-2 text-xs"
+              style={{
+                borderColor: "rgba(22,163,74,0.25)",
+                color: "#16a34a",
+                background: "rgba(22,163,74,0.10)",
+              }}
+            >
+              {submitMessage}
+            </div>
+          ) : null}
+          {submitError ? (
+            <div
+              className="rounded-xl border px-3 py-2 text-xs"
+              style={{
+                borderColor: "rgba(192,57,43,0.25)",
+                color: "var(--danger)",
+                background: "rgba(192,57,43,0.10)",
+              }}
+            >
+              {submitError}
+            </div>
+          ) : null}
+        </div>
+
         <div
-          className="rounded-2xl border p-4 md:col-span-2"
+          className="hidden rounded-2xl border p-4 md:col-span-2"
           style={{ background: "var(--surface)", borderColor: "var(--border)" }}
         >
           <div className="mb-2 flex items-center gap-2">
