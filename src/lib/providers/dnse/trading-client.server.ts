@@ -285,6 +285,7 @@ export class DnseTradingClient {
       label?: string;
       includeAuthorization?: boolean;
       baseFilter?: "all" | "api" | "openapi";
+      debugTag?: string;
     },
   ) {
     let lastError = "Unknown DNSE error";
@@ -295,31 +296,73 @@ export class DnseTradingClient {
       for (const path of pathCandidates) {
         const url = `${baseUrl}${path.startsWith("/") ? path : `/${path}`}`;
         try {
-          const response = await fetch(url, {
+          const headers = this.buildHeaders(
             method,
-            headers: this.buildHeaders(
+            path.startsWith("/") ? path : `/${path}`,
+            Boolean(options?.includeBody),
+            Boolean(options?.includeAuthorization),
+            baseUrl,
+          );
+          if (options?.debugTag === "getAccounts") {
+            const logHeaders = { ...headers };
+            if (logHeaders.Authorization) {
+              const token = logHeaders.Authorization;
+              logHeaders.Authorization =
+                token.length > 24 ? `${token.slice(0, 24)}...` : "***";
+            }
+            const auxDate = new Date().toISOString();
+            const signaturePreview = this.generateOpenApiSignature(
               method,
               path.startsWith("/") ? path : `/${path}`,
-              Boolean(options?.includeBody),
-              Boolean(options?.includeAuthorization),
-              baseUrl,
-            ),
+              formatDateHeader(new Date()),
+              crypto.randomUUID().replace(/-/g, ""),
+            );
+            console.log("[DNSE getAccounts] URL:", url);
+            console.log(
+              "[DNSE getAccounts] API Key (first 20 chars):",
+              this.apiKey ? this.apiKey.substring(0, 20) : "(missing)",
+            );
+            console.log("[DNSE getAccounts] API Secret exists:", !!this.apiSecret);
+            console.log("[DNSE getAccounts] Aux-Date:", auxDate);
+            console.log(
+              "[DNSE getAccounts] Signature (first 20 chars):",
+              signaturePreview.substring(0, 20),
+            );
+            console.log("[DNSE getAccounts] Headers:", JSON.stringify(logHeaders, null, 2));
+          }
+          const response = await fetch(url, {
+            method,
+            headers,
             body: options?.body,
             cache: "no-store",
             signal: AbortSignal.timeout(15_000),
           });
 
-          if (response.ok) {
-            if (process.env.DNSE_DEBUG === "true") {
-              console.info("[DNSE_CLIENT] request_ok", { method, baseUrl, path });
-            }
-            return await response.json();
+          const responseText = await response.text();
+          if (options?.debugTag === "getAccounts") {
+            console.log("[DNSE getAccounts] Response status:", response.status);
+            console.log(
+              "[DNSE getAccounts] Response headers:",
+              JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2),
+            );
+            console.log("[DNSE getAccounts] Response body:", responseText);
           }
 
-          const raw = await response.text();
-          const normalized = normalizeErrorMessage(raw);
-          lastError = `${response.status} ${normalized || raw || response.statusText}`;
-          if (process.env.DNSE_DEBUG === "true") {
+          if (response.ok) {
+            if (process.env.DNSE_DEBUG === "true" && options?.debugTag !== "getAccounts") {
+              console.info("[DNSE_CLIENT] request_ok", { method, baseUrl, path });
+            }
+            if (!responseText.trim()) return {} as JsonRecord;
+            try {
+              return JSON.parse(responseText) as unknown;
+            } catch {
+              throw new Error(`DNSE response is not valid JSON: ${responseText}`);
+            }
+          }
+
+          const normalized = normalizeErrorMessage(responseText);
+          lastError = `${response.status} ${normalized || responseText || response.statusText}`;
+          if (process.env.DNSE_DEBUG === "true" && options?.debugTag !== "getAccounts") {
             console.warn("[DNSE_CLIENT] request_failed", {
               method,
               baseUrl,
@@ -368,6 +411,7 @@ export class DnseTradingClient {
           label: "Failed to get accounts",
           includeAuthorization: true,
           baseFilter: "api",
+          debugTag: "getAccounts",
         },
       );
       const accountsFromApi = normalizeAccounts(extractArrayPayload(sessionPayloadApi));
