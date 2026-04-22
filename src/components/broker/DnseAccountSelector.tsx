@@ -90,6 +90,9 @@ export function DnseAccountSelector({
         const rows = Array.isArray(payload?.accounts) ? payload.accounts : [];
         if (!cancelled) {
           setServerAccounts(rows);
+          if (!selectedAccountNo && rows.length > 0) {
+            setSelectedAccountNo(rows[0].accountNo);
+          }
         }
       } catch (err) {
         if (!cancelled) {
@@ -264,7 +267,8 @@ export function DnseAccountSelector({
                 background: "rgba(245,158,11,0.10)",
               }}
             >
-              Không đọc được danh sách tài khoản DNSE đã xác thực. Vui lòng đăng nhập DNSE và thử lại.
+              Không đọc được danh sách tài khoản DNSE đã xác thực. Vui lòng đăng nhập DNSE và thử
+              lại.
             </div>
           )}
 
@@ -288,4 +292,3 @@ export function DnseAccountSelector({
     </div>
   );
 }
-

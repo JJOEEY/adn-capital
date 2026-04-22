@@ -254,7 +254,10 @@ export class DnseTradingClient {
       headers.Authorization = `Bearer ${this.userJwtToken}`;
     }
 
-    if (this.apiKey) {
+    // DNSE api host (auth-service/order-service) ưu tiên JWT phiên người dùng.
+    // Tránh gửi thêm x-api-key ở luồng JWT để không bị OA-400 do gateway hiểu sai kiểu auth.
+    const isApiJwtFlow = Boolean(baseUrl && isApiHost(baseUrl) && includeAuthorization);
+    if (this.apiKey && !isApiJwtFlow) {
       headers["x-api-key"] = this.apiKey;
       headers["X-API-Key"] = this.apiKey;
     }
@@ -285,7 +288,7 @@ export class DnseTradingClient {
     },
   ) {
     let lastError = "Unknown DNSE error";
-    let fatalAuthError: Error | null = null;
+    let lastAuthError: string | null = null;
     for (const baseUrl of this.baseUrls) {
       if (options?.baseFilter === "api" && !isApiHost(baseUrl)) continue;
       if (options?.baseFilter === "openapi" && !isOpenApiHost(baseUrl)) continue;
@@ -307,52 +310,58 @@ export class DnseTradingClient {
           });
 
           if (response.ok) {
+            if (process.env.DNSE_DEBUG === "true") {
+              console.info("[DNSE_CLIENT] request_ok", { method, baseUrl, path });
+            }
             return await response.json();
           }
 
           const raw = await response.text();
           const normalized = normalizeErrorMessage(raw);
           lastError = `${response.status} ${normalized || raw || response.statusText}`;
+          if (process.env.DNSE_DEBUG === "true") {
+            console.warn("[DNSE_CLIENT] request_failed", {
+              method,
+              baseUrl,
+              path,
+              status: response.status,
+              error: lastError,
+            });
+          }
 
           if (looksLikeRouteMismatch(response.status, lastError)) {
             continue;
           }
           if (looksLikeAuthError(response.status, lastError)) {
-            fatalAuthError = new Error(lastError);
-            break;
+            lastAuthError = lastError;
+            continue;
           }
         } catch (error) {
           lastError = error instanceof Error ? error.message : "Unknown fetch failure";
           if (looksLikeAuthError(0, lastError)) {
-            fatalAuthError = new Error(lastError);
-            break;
+            lastAuthError = lastError;
+            continue;
           }
         }
       }
-      if (fatalAuthError) {
-        break;
-      }
     }
-    if (fatalAuthError) {
-      throw fatalAuthError;
+    if (lastAuthError) {
+      throw new Error(lastAuthError);
     }
     throw new Error(`${options?.label ?? "DNSE request failed"}: ${lastError}`);
   }
 
   async getAccounts(): Promise<DnseAccount[]> {
-    // Luồng user-session: chỉ dùng JWT để gọi API account, không fallback qua API key.
+    // Luồng user-session: chỉ dùng JWT để gọi account list theo endpoint DNSE auth/order.
+    // Không fallback qua API key nhằm tránh link nhầm account.
     if (this.userJwtToken) {
       const sessionPayloadApi = await this.requestFirstSuccess(
         "GET",
         [
-          "/order-service/accounts",
           "/auth-service/api/get-accounts",
           "/auth-service/get-accounts",
+          "/order-service/accounts",
           "/order-service/api/accounts",
-          "/account-service/accounts",
-          "/account-service/api/accounts",
-          "/account-service/api/get-accounts",
-          "/account-service/get-accounts",
           "/accounts",
         ],
         {
@@ -366,56 +375,6 @@ export class DnseTradingClient {
         return accountsFromApi;
       }
       throw new Error("Failed to get accounts: empty account list from DNSE session");
-    }
-    // Ưu tiên lấy theo phiên user DNSE (JWT) ở cả api/openapi.
-    if (this.userJwtToken) {
-      try {
-        const sessionPayloadApi = await this.requestFirstSuccess(
-          "GET",
-          [
-            "/accounts",
-            "/order-service/accounts",
-            "/order-service/api/accounts",
-            "/account-service/accounts",
-            "/account-service/api/accounts",
-            "/account-service/api/get-accounts",
-            "/account-service/get-accounts",
-          ],
-          {
-            label: "Failed to get accounts",
-            includeAuthorization: true,
-            baseFilter: "api",
-          },
-        );
-        const accountsFromApi = normalizeAccounts(extractArrayPayload(sessionPayloadApi));
-        if (accountsFromApi.length > 0) {
-          return accountsFromApi;
-        }
-      } catch {
-        // thử tiếp OpenAPI theo JWT
-      }
-
-      try {
-        const sessionPayloadOpenApi = await this.requestFirstSuccess(
-          "GET",
-          ["/accounts"],
-          {
-            label: "Failed to get accounts",
-            includeAuthorization: true,
-            baseFilter: "openapi",
-          },
-        );
-        const root = toRecord(sessionPayloadOpenApi);
-        const rows = Array.isArray(root?.accounts)
-          ? root.accounts
-          : extractArrayPayload(sessionPayloadOpenApi);
-        const accountsFromOpenApi = normalizeAccounts(rows);
-        if (accountsFromOpenApi.length > 0) {
-          return accountsFromOpenApi;
-        }
-      } catch {
-        // fallback cuối cùng: OpenAPI HMAC
-      }
     }
 
     // Fallback chuẩn SDK DNSE: OpenAPI HMAC, không gửi Authorization bearer.

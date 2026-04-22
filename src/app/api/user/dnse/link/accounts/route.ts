@@ -96,7 +96,7 @@ export async function GET() {
         error: looksLikeAuthError
           ? "Phiên đăng nhập DNSE đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại DNSE."
           : looksLikeRouteMismatch
-            ? "Không đọc được danh sách tài khoản DNSE do endpoint chưa đúng. Vui lòng liên hệ admin kiểm tra lại."
+            ? "Không đọc được danh sách tài khoản từ DNSE do endpoint chưa đúng. Vui lòng liên hệ admin kiểm tra lại."
             : `Không thể đọc danh sách tài khoản DNSE: ${message}`,
         accounts: [],
         source: "dnse_session",
