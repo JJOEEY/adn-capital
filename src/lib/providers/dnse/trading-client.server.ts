@@ -415,6 +415,46 @@ export class DnseTradingClient {
     throw new Error(`${options?.label ?? "DNSE request failed"}: ${lastError}`);
   }
 
+  private async requestLinkedUserFirst(
+    method: string,
+    apiPath: string,
+    servicePath: string | null,
+    label: string,
+    debugTag: string,
+  ) {
+    if (!this.userJwtToken) return null;
+
+    try {
+      return await this.requestFirstSuccess(method, [apiPath], {
+        label,
+        includeAuthorization: true,
+        baseFilter: "api",
+        debugTag: `${debugTag}Session`,
+      });
+    } catch (apiError) {
+      console.warn(`[DNSE ${debugTag}] session api-host failed, trying fallback`, {
+        message: apiError instanceof Error ? apiError.message : "unknown_error",
+      });
+    }
+
+    if (!servicePath) return null;
+
+    try {
+      return await this.requestFirstSuccess(method, [servicePath], {
+        label,
+        includeAuthorization: true,
+        baseFilter: "service",
+        debugTag: `${debugTag}Session`,
+      });
+    } catch (serviceError) {
+      console.warn(`[DNSE ${debugTag}] session service-host failed, trying openapi fallback`, {
+        message: serviceError instanceof Error ? serviceError.message : "unknown_error",
+      });
+    }
+
+    return null;
+  }
+
   async getAccounts(): Promise<DnseAccount[]> {
     // Luồng user-session: chỉ dùng JWT để gọi account list theo endpoint DNSE auth/order.
     // Không fallback qua API key nhằm tránh link nhầm account.
@@ -484,6 +524,27 @@ export class DnseTradingClient {
   }
   async getBalance(accountNo: string): Promise<DnseBalance> {
     console.log("[DNSE getBalance] Account:", accountNo);
+    const sessionPayload = await this.requestLinkedUserFirst(
+      "GET",
+      `/order-service/accounts/${accountNo}/balances`,
+      `/dnse-order-service/accounts/${accountNo}/balances`,
+      "Failed to get balance",
+      "getBalance",
+    );
+    if (sessionPayload) {
+      const rootSession = toRecord(sessionPayload) ?? {};
+      const balanceSession = (toRecord(rootSession.data) ?? rootSession) as unknown as DnseBalance;
+      return {
+        ...balanceSession,
+        accountNo: balanceSession.accountNo || accountNo,
+        cash: balanceSession.cash ?? balanceSession.cashBalance ?? balanceSession.cashAvailable ?? 0,
+        buyingPower: balanceSession.buyingPower ?? balanceSession.cashAvailable ?? 0,
+        totalNav:
+          balanceSession.totalNav ?? balanceSession.netAssetValue ?? balanceSession.totalAsset ?? 0,
+        debt: balanceSession.debt ?? balanceSession.totalDebt ?? 0,
+      };
+    }
+
     const payload = await this.requestFirstSuccess(
       "GET",
       [`/accounts/${accountNo}/balances`],
@@ -508,6 +569,48 @@ export class DnseTradingClient {
 
   async getPositions(accountNo: string, marketType = DEFAULT_MARKET_TYPE): Promise<DnsePosition[]> {
     console.log("[DNSE getPositions] Account:", accountNo);
+    const sessionPath = buildPathWithQuery(`/order-service/accounts/${accountNo}/positions`, {
+      marketType,
+    });
+    const sessionServicePath = buildPathWithQuery(
+      `/dnse-order-service/accounts/${accountNo}/positions`,
+      { marketType },
+    );
+    const sessionPayload = await this.requestLinkedUserFirst(
+      "GET",
+      sessionPath,
+      sessionServicePath,
+      "Failed to get positions",
+      "getPositions",
+    );
+    if (sessionPayload) {
+      const positionsSession = extractArrayPayload(sessionPayload) as Array<Record<string, unknown>>;
+      const totalMarketValueSession = positionsSession.reduce(
+        (sum, p) => sum + Number(p.marketValue ?? 0),
+        0,
+      );
+
+      return positionsSession.map((p) => {
+        const avgPrice = Number(p.avgPrice ?? 0);
+        const lastPrice = Number(p.lastPrice ?? avgPrice);
+        const marketValue = Number(p.marketValue ?? 0);
+        return {
+          accountNo: String(p.accountNo ?? accountNo),
+          symbol: String(p.symbol ?? p.ticker ?? ""),
+          ticker: String(p.ticker ?? p.symbol ?? ""),
+          quantity: Number(p.quantity ?? 0),
+          availableQty: Number(p.availableQty ?? 0),
+          avgPrice,
+          lastPrice,
+          marketValue,
+          totalPL: Number(p.totalPL ?? p.pl ?? 0),
+          totalPLPct:
+            Number(p.totalPLPct ?? 0) || (avgPrice > 0 ? ((lastPrice - avgPrice) / avgPrice) * 100 : 0),
+          weight: totalMarketValueSession > 0 ? (marketValue / totalMarketValueSession) * 100 : 0,
+        };
+      });
+    }
+
     const path = buildPathWithQuery(`/accounts/${accountNo}/positions`, { marketType });
     const payload = await this.requestFirstSuccess(
       "GET",
@@ -551,6 +654,44 @@ export class DnseTradingClient {
     orderCategory = DEFAULT_ORDER_CATEGORY,
   ): Promise<DnseOrder[]> {
     console.log("[DNSE getOrders] Account:", accountNo);
+    const sessionPath = buildPathWithQuery(`/order-service/accounts/${accountNo}/orders`, {
+      marketType,
+      orderCategory,
+    });
+    const sessionServicePath = buildPathWithQuery(
+      `/dnse-order-service/accounts/${accountNo}/orders`,
+      {
+        marketType,
+        orderCategory,
+      },
+    );
+    const sessionPayload = await this.requestLinkedUserFirst(
+      "GET",
+      sessionPath,
+      sessionServicePath,
+      "Failed to get orders",
+      "getOrders",
+    );
+    if (sessionPayload) {
+      return extractArrayPayload(sessionPayload).map((item) => {
+        const row = toRecord(item) ?? {};
+        return {
+          orderId: readString(row, ["orderId", "id"]) ?? "",
+          accountNo: readString(row, ["accountNo"]) ?? accountNo,
+          symbol: readString(row, ["symbol", "ticker"]) ?? "",
+          side: (readString(row, ["side"])?.toUpperCase() as "BUY" | "SELL") || "BUY",
+          orderType: readString(row, ["orderType", "type"]) ?? "",
+          price: Number(row.price ?? 0),
+          quantity: Number(row.quantity ?? 0),
+          filledQty: Number(row.filledQty ?? row.filledQuantity ?? 0),
+          remainingQty: Number(row.remainingQty ?? row.remainingQuantity ?? 0),
+          status: readString(row, ["status", "orderStatus"]) ?? "",
+          createdAt: readString(row, ["createdAt", "createdTime", "submittedAt"]) ?? "",
+          updatedAt: readString(row, ["updatedAt", "updatedTime"]) ?? "",
+        };
+      });
+    }
+
     const path = buildPathWithQuery(`/accounts/${accountNo}/orders`, {
       marketType,
       orderCategory,
@@ -574,6 +715,21 @@ export class DnseTradingClient {
     symbol?: string | null,
   ): Promise<JsonRecord[]> {
     console.log("[DNSE getLoanPackages] Account:", accountNo);
+    const sessionPath = buildPathWithQuery(`/order-service/accounts/${accountNo}/loan-packages`, {
+      marketType,
+      symbol: symbol ?? undefined,
+    });
+    const sessionPayload = await this.requestLinkedUserFirst(
+      "GET",
+      sessionPath,
+      null,
+      "Failed to get loan packages",
+      "getLoanPackages",
+    );
+    if (sessionPayload) {
+      return extractArrayPayload(sessionPayload) as JsonRecord[];
+    }
+
     const path = buildPathWithQuery(`/accounts/${accountNo}/loan-packages`, {
       marketType,
       symbol: symbol ?? undefined,
@@ -601,6 +757,23 @@ export class DnseTradingClient {
     },
   ): Promise<JsonRecord | null> {
     console.log("[DNSE getPPSE] Account:", accountNo, "Symbol:", symbol);
+    const sessionPath = buildPathWithQuery(`/order-service/accounts/${accountNo}/ppse`, {
+      marketType: params?.marketType ?? DEFAULT_MARKET_TYPE,
+      symbol,
+      price: params?.price ?? undefined,
+      loanPackageId: params?.loanPackageId ?? undefined,
+    });
+    const sessionPayload = await this.requestLinkedUserFirst(
+      "GET",
+      sessionPath,
+      null,
+      "Failed to get PPSE",
+      "getPPSE",
+    );
+    if (sessionPayload) {
+      return (toRecord(sessionPayload)?.data as JsonRecord) ?? toRecord(sessionPayload);
+    }
+
     const path = buildPathWithQuery(`/accounts/${accountNo}/ppse`, {
       marketType: params?.marketType ?? DEFAULT_MARKET_TYPE,
       symbol,
@@ -721,6 +894,10 @@ export function getDnseTradingClient(options?: {
   const apiSecret = process.env.DNSE_API_SECRET?.trim() ?? "";
   const baseUrl = process.env.DNSE_TRADING_BASE_URL?.trim() || "https://openapi.dnse.com.vn";
   const userJwtToken = options?.userJwtToken?.trim() || null;
+
+  if (userJwtToken) {
+    return new DnseTradingClient(apiKey, apiSecret, baseUrl, { userJwtToken });
+  }
 
   if (options?.isolated || userJwtToken) {
     if (!apiKey) {

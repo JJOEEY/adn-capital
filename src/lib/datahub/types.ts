@@ -26,6 +26,8 @@ export interface TopicContext {
   userId?: string | null;
   userRole?: string | null;
   systemRole?: string | null;
+  dnseSessionToken?: string | null;
+  dnseSessionExpiresAt?: string | null;
 }
 
 export interface TopicDefinition {

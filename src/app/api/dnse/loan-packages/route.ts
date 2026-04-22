@@ -20,7 +20,10 @@ export async function GET() {
 
     console.log("[DNSE LoanPackages API] Context account:", resolved.context.accountNo);
 
-    const client = getDnseTradingClient({ isolated: true });
+    const client = getDnseTradingClient({
+      userJwtToken: resolved.context.userJwtToken,
+      isolated: true,
+    });
     const packages = await client.getLoanPackages(resolved.context.accountNo);
 
     console.log(

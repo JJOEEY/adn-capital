@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { encryptDnseToken } from "@/lib/brokers/dnse/crypto";
 import { getDnseTradingClient } from "@/lib/providers/dnse/trading-client";
 import {
   DNSE_SESSION_EXP_COOKIE,
@@ -146,6 +148,36 @@ export async function POST(req: NextRequest) {
       }
 
       const expiresAt = extractDnseTokenExpiry(payload);
+      try {
+        const existingConnection = await prisma.dnseConnection.findUnique({
+          where: { userId: session.user.id },
+          select: {
+            userId: true,
+            accountId: true,
+            status: true,
+          },
+        });
+
+        if (existingConnection?.accountId && existingConnection.status === "ACTIVE") {
+          const encryptedToken = encryptDnseToken(token);
+          await prisma.dnseConnection.update({
+            where: { userId: session.user.id },
+            data: {
+              accessTokenEnc: encryptedToken,
+              tokenType: "Bearer",
+              scope: "lightspeed",
+              accessTokenExpiresAt: expiresAt,
+              lastError: null,
+            },
+          });
+        }
+      } catch (syncError) {
+        console.warn("[DNSE Session] unable to refresh stored linked token", {
+          userId: session.user.id,
+          message: syncError instanceof Error ? syncError.message : "unknown_error",
+        });
+      }
+
       const next = NextResponse.json({
         success: true,
         active: true,
@@ -173,4 +205,3 @@ export async function DELETE() {
   clearDnseSessionCookies(next);
   return next;
 }
-

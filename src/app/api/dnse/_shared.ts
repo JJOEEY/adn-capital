@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { decryptDnseToken } from "@/lib/brokers/dnse/crypto";
+import {
+  DNSE_SESSION_EXP_COOKIE,
+  DNSE_SESSION_TOKEN_COOKIE,
+} from "@/lib/brokers/dnse/session";
 
 export type DnseAccountContext = {
   userId: string;
@@ -99,6 +104,26 @@ export async function requireDnseAccountContext(): Promise<DnseAccountContextRes
         accountNo,
         message: error instanceof Error ? error.message : "unknown_error",
       });
+    }
+  }
+
+  if (!userJwtToken) {
+    try {
+      const store = await cookies();
+      const dnseSessionToken = store.get(DNSE_SESSION_TOKEN_COOKIE)?.value?.trim() || "";
+      const expiresAtRaw = store.get(DNSE_SESSION_EXP_COOKIE)?.value?.trim() || "";
+      const expiresAt = expiresAtRaw ? new Date(expiresAtRaw) : null;
+      const hasValidCookieSession =
+        Boolean(dnseSessionToken) &&
+        Boolean(expiresAt) &&
+        !Number.isNaN(expiresAt?.getTime() ?? Number.NaN) &&
+        (expiresAt?.getTime() ?? 0) > Date.now();
+
+      if (hasValidCookieSession) {
+        userJwtToken = dnseSessionToken;
+      }
+    } catch {
+      // No request cookie context available.
     }
   }
 

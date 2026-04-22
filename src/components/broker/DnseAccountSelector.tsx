@@ -267,8 +267,7 @@ export function DnseAccountSelector({
                 background: "rgba(245,158,11,0.10)",
               }}
             >
-              Không đọc được danh sách tài khoản DNSE đã xác thực. Vui lòng đăng nhập DNSE và thử
-              lại.
+              Không đọc được danh sách tài khoản DNSE đã xác thực. Vui lòng đăng nhập DNSE và thử lại.
             </div>
           )}
 

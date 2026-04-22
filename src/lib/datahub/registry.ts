@@ -484,22 +484,39 @@ async function loadBrokerTopic(
 
   const connected = Boolean(currentUser?.dnseId && currentUser?.dnseVerified);
   const hasApiKey = Boolean(process.env.DNSE_API_KEY?.trim());
+  const cookieSessionToken = context.dnseSessionToken?.trim() || null;
+  const hasValidCookieSession =
+    Boolean(cookieSessionToken) &&
+    Boolean(context.dnseSessionExpiresAt) &&
+    !Number.isNaN(new Date(context.dnseSessionExpiresAt as string).getTime()) &&
+    new Date(context.dnseSessionExpiresAt as string).getTime() > Date.now();
 
-  const hasValidDnseSession =
+  const hasValidStoredDnseSession =
     Boolean(connection?.accessTokenEnc) &&
     (!connection?.accessTokenExpiresAt ||
       connection.accessTokenExpiresAt.getTime() > Date.now());
+  const storedSessionToken =
+    hasValidStoredDnseSession && connection?.accessTokenEnc
+      ? decryptDnseToken(connection.accessTokenEnc)
+      : null;
+  const effectiveSessionToken = cookieSessionToken || storedSessionToken;
+  const hasValidDnseSession = Boolean(
+    (hasValidCookieSession && cookieSessionToken) ||
+      (hasValidStoredDnseSession && storedSessionToken),
+  );
 
   const isAccountListingChannel = channel === "accounts";
-  const canLoadLivePortfolio = connected && hasApiKey;
-  const canLoadAccountsFromSession = isAccountListingChannel && connected && hasApiKey && hasValidDnseSession;
+  const canLoadAccountsFromSession = isAccountListingChannel && connected && hasValidDnseSession;
+  const canLoadPortfolioFromSession = connected && hasValidDnseSession;
+  const canLoadPortfolioFromOpenApi = connected && hasApiKey;
+  const canLoadLivePortfolio = canLoadPortfolioFromSession || canLoadPortfolioFromOpenApi;
 
   if (canLoadLivePortfolio || canLoadAccountsFromSession) {
     try {
       const client =
-        isAccountListingChannel && canLoadAccountsFromSession
+        canLoadPortfolioFromSession || (isAccountListingChannel && canLoadAccountsFromSession)
           ? getDnseTradingClient({
-              userJwtToken: decryptDnseToken(connection!.accessTokenEnc),
+              userJwtToken: effectiveSessionToken,
               isolated: true,
             })
           : getDnseTradingClient({ isolated: true });
@@ -518,7 +535,7 @@ async function loadBrokerTopic(
         return {
           connected: true,
           connectionId,
-          source: "dnse_openapi",
+          source: canLoadPortfolioFromSession ? "dnse_user_session" : "dnse_openapi",
           positions: livePositions.map((row) => ({
             ticker: row.symbol,
             entryPrice: row.avgPrice,
@@ -539,7 +556,7 @@ async function loadBrokerTopic(
         return {
           connected: true,
           connectionId,
-          source: "dnse_openapi",
+          source: canLoadPortfolioFromSession ? "dnse_user_session" : "dnse_openapi",
           orders: await client.getOrders(connectionId),
         };
       }
@@ -548,7 +565,7 @@ async function loadBrokerTopic(
         return {
           connected: true,
           connectionId,
-          source: "dnse_openapi",
+          source: canLoadPortfolioFromSession ? "dnse_user_session" : "dnse_openapi",
           orderHistory: await client.getOrders(connectionId),
         };
       }
@@ -562,7 +579,7 @@ async function loadBrokerTopic(
         return {
           connected: true,
           connectionId,
-          source: "dnse_openapi",
+          source: canLoadPortfolioFromSession ? "dnse_user_session" : "dnse_openapi",
           navAllocatedPct: Number(navAllocatedPct.toFixed(2)),
           navRemainingPct: Number(Math.max(0, 100 - navAllocatedPct).toFixed(2)),
           maxActiveNavPct: 90,
@@ -577,7 +594,7 @@ async function loadBrokerTopic(
         return {
           connected: true,
           connectionId,
-          source: "dnse_openapi",
+          source: canLoadPortfolioFromSession ? "dnse_user_session" : "dnse_openapi",
           loanPackages: await client.getLoanPackages(connectionId),
         };
       }
@@ -587,14 +604,14 @@ async function loadBrokerTopic(
           return {
             connected: true,
             connectionId,
-            source: "dnse_openapi",
+            source: canLoadPortfolioFromSession ? "dnse_user_session" : "dnse_openapi",
             ppse: null,
           };
         }
         return {
           connected: true,
           connectionId,
-          source: "dnse_openapi",
+          source: canLoadPortfolioFromSession ? "dnse_user_session" : "dnse_openapi",
           ppse: await client.getPPSE(connectionId, extraParams.symbol),
         };
       }
@@ -603,7 +620,7 @@ async function loadBrokerTopic(
       return {
         connected: true,
         connectionId,
-        source: "dnse_openapi",
+        source: canLoadPortfolioFromSession ? "dnse_user_session" : "dnse_openapi",
         holdings: liveHoldings.map((row) => ({
           ticker: row.symbol,
           entryPrice: row.avgPrice,

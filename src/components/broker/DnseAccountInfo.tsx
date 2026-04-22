@@ -57,6 +57,10 @@ export function DnseAccountInfo({
 }: DnseAccountInfoProps) {
   const [unlinking, setUnlinking] = useState(false);
   const [unlinkError, setUnlinkError] = useState<string | null>(null);
+  const tokenExpired =
+    Boolean(accessTokenExpiresAt) &&
+    !Number.isNaN(new Date(accessTokenExpiresAt as string).getTime()) &&
+    new Date(accessTokenExpiresAt as string).getTime() <= Date.now();
 
   async function handleChangeAccount() {
     const confirmed = window.confirm(
@@ -190,6 +194,11 @@ export function DnseAccountInfo({
                   {fmtDateTime(lastSyncedAt)}
                 </span>
               </p>
+              {tokenExpired ? (
+                <p className="md:col-span-2" style={{ color: "var(--danger)" }}>
+                  Phiên DNSE đã hết hạn. Vui lòng đăng nhập DNSE lại để làm mới NAV, sức mua và danh mục.
+                </p>
+              ) : null}
               {lastError ? (
                 <p className="md:col-span-2" style={{ color: "var(--danger)" }}>
                   Lỗi gần nhất: {lastError}
@@ -258,56 +267,47 @@ export function DnseAccountInfo({
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   Liên kết tài khoản DNSE
                 </button>
-                <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                  Đăng nhập DNSE trước, sau đó quay lại để đồng bộ tài khoản.
-                </span>
               </div>
 
               <div
-                className="grid gap-2 rounded-xl border p-3 text-xs"
+                className="rounded-xl border p-3 text-sm"
                 style={{
                   borderColor: "var(--border)",
-                  background: "var(--surface-2)",
                   color: "var(--text-secondary)",
+                  background: "var(--surface-2)",
                 }}
               >
                 <p className="font-semibold" style={{ color: "var(--text-primary)" }}>
                   Trạng thái kết nối DNSE
                 </p>
-                <p>1. Hệ thống đang chạy theo chế độ API key + tài khoản DNSE đã liên kết.</p>
-                <p>2. Khi DNSE ID được xác minh, dữ liệu NAV/holdings sẽ tự đồng bộ qua broker topics.</p>
-                <p>3. Nếu chưa có dữ liệu realtime, kiểm tra lại account DNSE đã liên kết và trạng thái sync.</p>
+                <ol className="mt-2 list-decimal space-y-1 pl-4">
+                  <li>Bấm “Đăng nhập DNSE” để lấy phiên đăng nhập hợp lệ.</li>
+                  <li>Bấm “Liên kết tài khoản DNSE” để chọn đúng tài khoản giao dịch thật.</li>
+                  <li>Sau khi liên kết xong, NAV, sức mua và danh mục sẽ tự đồng bộ.</li>
+                </ol>
+                {!hasApiKeyConfigured ? (
+                  <p className="mt-2" style={{ color: "var(--danger)" }}>
+                    DNSE API key chưa được cấu hình đầy đủ trên máy chủ.
+                  </p>
+                ) : null}
               </div>
-
-              {!hasApiKeyConfigured ? (
-                <div
-                  className="rounded-xl border px-3 py-2 text-xs"
-                  style={{
-                    borderColor: "rgba(192,57,43,0.25)",
-                    color: "var(--danger)",
-                    background: "rgba(192,57,43,0.08)",
-                  }}
-                >
-                  DNSE API chưa cấu hình đủ: thiếu DNSE_API_KEY.
-                </div>
-              ) : null}
             </div>
           )}
+
+          {unlinkError ? (
+            <div
+              className="mt-3 rounded-xl border px-3 py-2 text-xs"
+              style={{
+                borderColor: "rgba(192,57,43,0.25)",
+                color: "var(--danger)",
+                background: "rgba(192,57,43,0.08)",
+              }}
+            >
+              {unlinkError}
+            </div>
+          ) : null}
         </>
       )}
-
-      {unlinkError ? (
-        <div
-          className="mt-3 rounded-xl border px-3 py-2 text-xs"
-          style={{
-            borderColor: "rgba(192,57,43,0.25)",
-            color: "var(--danger)",
-            background: "rgba(192,57,43,0.10)",
-          }}
-        >
-          {unlinkError}
-        </div>
-      ) : null}
     </div>
   );
 }

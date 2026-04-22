@@ -933,6 +933,7 @@ export function DnseTradingClient() {
           setSubmitError(null);
           setSubmitMessage("Đăng nhập DNSE thành công. Hãy bấm Liên kết tài khoản DNSE.");
           setStatusReloadKey((prev) => prev + 1);
+          void brokerTopics.refresh(true);
         }}
       />
     </div>

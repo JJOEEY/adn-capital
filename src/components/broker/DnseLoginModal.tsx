@@ -64,7 +64,7 @@ export function DnseLoginModal({ open, onCancel, onSuccess }: DnseLoginModalProp
               Đăng nhập DNSE
             </h3>
             <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-              Đăng nhập tài khoản DNSE để lấy danh sách tài khoản thật và liên kết an toàn.
+              Đăng nhập tài khoản DNSE để lấy danh sách tài khoản thật và làm mới phiên đồng bộ.
             </p>
           </div>
           <button

@@ -20,7 +20,10 @@ export async function GET() {
 
     console.log("[DNSE Orders API] Context account:", resolved.context.accountNo);
 
-    const client = getDnseTradingClient({ isolated: true });
+    const client = getDnseTradingClient({
+      userJwtToken: resolved.context.userJwtToken,
+      isolated: true,
+    });
     const orders = await client.getOrders(resolved.context.accountNo);
 
     console.log("[DNSE Orders API] Orders count:", Array.isArray(orders) ? orders.length : -1);
