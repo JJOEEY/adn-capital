@@ -20,10 +20,7 @@ export async function GET() {
 
     console.log("[DNSE Positions API] Context account:", resolved.context.accountNo);
 
-    const client = getDnseTradingClient({
-      userJwtToken: resolved.context.userJwtToken,
-      isolated: true,
-    });
+    const client = getDnseTradingClient({ isolated: true });
     const positions = await client.getPositions(resolved.context.accountNo);
 
     console.log(

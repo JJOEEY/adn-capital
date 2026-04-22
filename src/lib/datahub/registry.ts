@@ -490,16 +490,25 @@ async function loadBrokerTopic(
     (!connection?.accessTokenExpiresAt ||
       connection.accessTokenExpiresAt.getTime() > Date.now());
 
-  if (connected && hasApiKey && hasValidDnseSession) {
+  const isAccountListingChannel = channel === "accounts";
+  const canLoadLivePortfolio = connected && hasApiKey;
+  const canLoadAccountsFromSession = isAccountListingChannel && connected && hasApiKey && hasValidDnseSession;
+
+  if (canLoadLivePortfolio || canLoadAccountsFromSession) {
     try {
-      const userJwtToken = decryptDnseToken(connection!.accessTokenEnc);
-      const client = getDnseTradingClient({ userJwtToken, isolated: true });
+      const client =
+        isAccountListingChannel && canLoadAccountsFromSession
+          ? getDnseTradingClient({
+              userJwtToken: decryptDnseToken(connection!.accessTokenEnc),
+              isolated: true,
+            })
+          : getDnseTradingClient({ isolated: true });
 
       if (channel === "accounts") {
         return {
           connected: true,
           connectionId,
-          source: "dnse_api_key",
+          source: canLoadAccountsFromSession ? "dnse_user_session" : "dnse_openapi",
           accounts: await client.getAccounts(),
         };
       }
@@ -509,7 +518,7 @@ async function loadBrokerTopic(
         return {
           connected: true,
           connectionId,
-          source: "dnse_api_key",
+          source: "dnse_openapi",
           positions: livePositions.map((row) => ({
             ticker: row.symbol,
             entryPrice: row.avgPrice,
@@ -530,7 +539,7 @@ async function loadBrokerTopic(
         return {
           connected: true,
           connectionId,
-          source: "dnse_api_key",
+          source: "dnse_openapi",
           orders: await client.getOrders(connectionId),
         };
       }
@@ -539,7 +548,7 @@ async function loadBrokerTopic(
         return {
           connected: true,
           connectionId,
-          source: "dnse_api_key",
+          source: "dnse_openapi",
           orderHistory: await client.getOrders(connectionId),
         };
       }
@@ -553,7 +562,7 @@ async function loadBrokerTopic(
         return {
           connected: true,
           connectionId,
-          source: "dnse_api_key",
+          source: "dnse_openapi",
           navAllocatedPct: Number(navAllocatedPct.toFixed(2)),
           navRemainingPct: Number(Math.max(0, 100 - navAllocatedPct).toFixed(2)),
           maxActiveNavPct: 90,
@@ -568,7 +577,7 @@ async function loadBrokerTopic(
         return {
           connected: true,
           connectionId,
-          source: "dnse_api_key",
+          source: "dnse_openapi",
           loanPackages: await client.getLoanPackages(connectionId),
         };
       }
@@ -578,14 +587,14 @@ async function loadBrokerTopic(
           return {
             connected: true,
             connectionId,
-            source: "dnse_api_key",
+            source: "dnse_openapi",
             ppse: null,
           };
         }
         return {
           connected: true,
           connectionId,
-          source: "dnse_api_key",
+          source: "dnse_openapi",
           ppse: await client.getPPSE(connectionId, extraParams.symbol),
         };
       }
@@ -594,7 +603,7 @@ async function loadBrokerTopic(
       return {
         connected: true,
         connectionId,
-        source: "dnse_api_key",
+        source: "dnse_openapi",
         holdings: liveHoldings.map((row) => ({
           ticker: row.symbol,
           entryPrice: row.avgPrice,

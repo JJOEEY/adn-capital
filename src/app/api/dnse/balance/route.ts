@@ -20,10 +20,7 @@ export async function GET() {
 
     console.log("[DNSE Balance API] Context account:", resolved.context.accountNo);
 
-    const client = getDnseTradingClient({
-      userJwtToken: resolved.context.userJwtToken,
-      isolated: true,
-    });
+    const client = getDnseTradingClient({ isolated: true });
     const balance = await client.getBalance(resolved.context.accountNo);
 
     console.log("[DNSE Balance API] Balance result:", balance);

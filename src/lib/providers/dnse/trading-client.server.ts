@@ -59,6 +59,9 @@ type ClientOptions = {
   userJwtToken?: string | null;
 };
 
+const DEFAULT_MARKET_TYPE = "STOCK";
+const DEFAULT_ORDER_CATEGORY = "NORMAL";
+
 function toRecord(value: unknown): JsonRecord | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   return value as JsonRecord;
@@ -208,6 +211,20 @@ function normalizeAccounts(rows: unknown[]): DnseAccount[] {
     }
   }
   return Array.from(dedup.values());
+}
+
+function buildPathWithQuery(
+  path: string,
+  query?: Record<string, string | number | null | undefined>,
+) {
+  if (!query) return path;
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value == null || value === "") continue;
+    search.set(key, String(value));
+  }
+  const queryString = search.toString();
+  return queryString ? `${path}?${queryString}` : path;
 }
 
 export class DnseTradingClient {
@@ -467,22 +484,13 @@ export class DnseTradingClient {
   }
   async getBalance(accountNo: string): Promise<DnseBalance> {
     console.log("[DNSE getBalance] Account:", accountNo);
-    const useLinkedSession = Boolean(this.userJwtToken);
     const payload = await this.requestFirstSuccess(
       "GET",
-      [
-        `/accounts/${accountNo}/balances`,
-        `/accounts/${accountNo}/balance`,
-        `/order-service/accounts/${accountNo}/balances`,
-        `/order-service/api/accounts/${accountNo}/balances`,
-        `/account-service/accounts/${accountNo}/balances`,
-        `/account-service/api/accounts/${accountNo}/balances`,
-        `/dnse-order-service/accounts/${accountNo}/balances`,
-      ],
+      [`/accounts/${accountNo}/balances`],
       {
         label: "Failed to get balance",
-        includeAuthorization: useLinkedSession,
-        baseFilter: useLinkedSession ? "all" : "openapi",
+        includeAuthorization: false,
+        baseFilter: "openapi",
         debugTag: "getBalance",
       },
     );
@@ -498,24 +506,16 @@ export class DnseTradingClient {
     };
   }
 
-  async getPositions(accountNo: string): Promise<DnsePosition[]> {
+  async getPositions(accountNo: string, marketType = DEFAULT_MARKET_TYPE): Promise<DnsePosition[]> {
     console.log("[DNSE getPositions] Account:", accountNo);
-    const useLinkedSession = Boolean(this.userJwtToken);
+    const path = buildPathWithQuery(`/accounts/${accountNo}/positions`, { marketType });
     const payload = await this.requestFirstSuccess(
       "GET",
-      [
-        `/accounts/${accountNo}/positions`,
-        `/accounts/${accountNo}/holdings`,
-        `/order-service/accounts/${accountNo}/positions`,
-        `/order-service/api/accounts/${accountNo}/positions`,
-        `/account-service/accounts/${accountNo}/positions`,
-        `/account-service/api/accounts/${accountNo}/positions`,
-        `/dnse-order-service/accounts/${accountNo}/positions`,
-      ],
+      [path],
       {
         label: "Failed to get positions",
-        includeAuthorization: useLinkedSession,
-        baseFilter: useLinkedSession ? "all" : "openapi",
+        includeAuthorization: false,
+        baseFilter: "openapi",
         debugTag: "getPositions",
       },
     );
@@ -545,63 +545,75 @@ export class DnseTradingClient {
     });
   }
 
-  async getOrders(accountNo: string): Promise<DnseOrder[]> {
+  async getOrders(
+    accountNo: string,
+    marketType = DEFAULT_MARKET_TYPE,
+    orderCategory = DEFAULT_ORDER_CATEGORY,
+  ): Promise<DnseOrder[]> {
     console.log("[DNSE getOrders] Account:", accountNo);
-    const useLinkedSession = Boolean(this.userJwtToken);
+    const path = buildPathWithQuery(`/accounts/${accountNo}/orders`, {
+      marketType,
+      orderCategory,
+    });
     const payload = await this.requestFirstSuccess(
       "GET",
-      [
-        `/accounts/${accountNo}/orders`,
-        `/accounts/${accountNo}/orders?assetType=STOCK`,
-        `/order-service/accounts/${accountNo}/orders`,
-        `/order-service/api/accounts/${accountNo}/orders`,
-      ],
+      [path],
       {
         label: "Failed to get orders",
-        includeAuthorization: useLinkedSession,
-        baseFilter: useLinkedSession ? "all" : "openapi",
+        includeAuthorization: false,
+        baseFilter: "openapi",
         debugTag: "getOrders",
       },
     );
     return extractArrayPayload(payload) as DnseOrder[];
   }
 
-  async getLoanPackages(accountNo: string): Promise<JsonRecord[]> {
+  async getLoanPackages(
+    accountNo: string,
+    marketType = DEFAULT_MARKET_TYPE,
+    symbol?: string | null,
+  ): Promise<JsonRecord[]> {
     console.log("[DNSE getLoanPackages] Account:", accountNo);
-    const useLinkedSession = Boolean(this.userJwtToken);
+    const path = buildPathWithQuery(`/accounts/${accountNo}/loan-packages`, {
+      marketType,
+      symbol: symbol ?? undefined,
+    });
     const payload = await this.requestFirstSuccess(
       "GET",
-      [
-        `/accounts/${accountNo}/loan-packages`,
-        `/order-service/accounts/${accountNo}/loan-packages`,
-        `/order-service/api/accounts/${accountNo}/loan-packages`,
-        `/loan-service/accounts/${accountNo}/loan-packages`,
-      ],
+      [path],
       {
         label: "Failed to get loan packages",
-        includeAuthorization: useLinkedSession,
-        baseFilter: useLinkedSession ? "all" : "openapi",
+        includeAuthorization: false,
+        baseFilter: "openapi",
         debugTag: "getLoanPackages",
       },
     );
     return extractArrayPayload(payload) as JsonRecord[];
   }
 
-  async getPPSE(accountNo: string, symbol: string): Promise<JsonRecord | null> {
+  async getPPSE(
+    accountNo: string,
+    symbol: string,
+    params?: {
+      marketType?: string;
+      price?: number | null;
+      loanPackageId?: string | number | null;
+    },
+  ): Promise<JsonRecord | null> {
     console.log("[DNSE getPPSE] Account:", accountNo, "Symbol:", symbol);
-    const useLinkedSession = Boolean(this.userJwtToken);
+    const path = buildPathWithQuery(`/accounts/${accountNo}/ppse`, {
+      marketType: params?.marketType ?? DEFAULT_MARKET_TYPE,
+      symbol,
+      price: params?.price ?? undefined,
+      loanPackageId: params?.loanPackageId ?? undefined,
+    });
     const payload = await this.requestFirstSuccess(
       "GET",
-      [
-        `/accounts/${accountNo}/ppse?symbol=${encodeURIComponent(symbol)}`,
-        `/order-service/accounts/${accountNo}/ppse?symbol=${encodeURIComponent(symbol)}`,
-        `/order-service/api/accounts/${accountNo}/ppse?symbol=${encodeURIComponent(symbol)}`,
-        `/account-service/accounts/${accountNo}/ppse?symbol=${encodeURIComponent(symbol)}`,
-      ],
+      [path],
       {
         label: "Failed to get PPSE",
-        includeAuthorization: useLinkedSession,
-        baseFilter: useLinkedSession ? "all" : "openapi",
+        includeAuthorization: false,
+        baseFilter: "openapi",
         debugTag: "getPPSE",
       },
     );
