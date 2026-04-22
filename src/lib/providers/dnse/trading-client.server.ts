@@ -406,6 +406,13 @@ export class DnseTradingClient {
     // Luồng user-session: chỉ dùng JWT để gọi account list theo endpoint DNSE auth/order.
     // Không fallback qua API key nhằm tránh link nhầm account.
     if (this.userJwtToken) {
+      console.log("[DNSE getAccounts] mode=user-jwt");
+      console.log("[DNSE getAccounts] baseUrls:", JSON.stringify(this.baseUrls));
+      console.log("[DNSE getAccounts] apiSecretExists:", !!this.apiSecret);
+      console.log(
+        "[DNSE getAccounts] jwtPreview:",
+        this.userJwtToken.length > 20 ? `${this.userJwtToken.slice(0, 20)}...` : "***",
+      );
       const sessionPayloadApi = await this.requestFirstSuccess(
         "GET",
         [
@@ -420,6 +427,7 @@ export class DnseTradingClient {
         },
       );
       const accountsFromApi = normalizeAccounts(extractArrayPayload(sessionPayloadApi));
+      console.log("[DNSE getAccounts] parsedAccounts:", accountsFromApi.length);
       if (accountsFromApi.length > 0) {
         return accountsFromApi;
       }
@@ -427,6 +435,13 @@ export class DnseTradingClient {
     }
 
     // Fallback chuẩn SDK DNSE: OpenAPI HMAC, không gửi Authorization bearer.
+    console.log("[DNSE getAccounts] mode=openapi-hmac");
+    console.log("[DNSE getAccounts] baseUrls:", JSON.stringify(this.baseUrls));
+    console.log(
+      "[DNSE getAccounts] apiKeyPreview:",
+      this.apiKey ? `${this.apiKey.slice(0, 20)}...` : "(missing)",
+    );
+    console.log("[DNSE getAccounts] apiSecretExists:", !!this.apiSecret);
     const payload = await this.requestFirstSuccess("GET", ["/accounts"], {
       label: "Failed to get accounts",
       includeAuthorization: false,
