@@ -266,6 +266,8 @@ export class DnseTradingClient {
     const payload = await this.requestFirstSuccess(
       "GET",
       [
+        "/order-service/accounts",
+        "/order-service/api/accounts",
         "/accounts",
         "/account-service/accounts",
         "/account-service/api/accounts",
