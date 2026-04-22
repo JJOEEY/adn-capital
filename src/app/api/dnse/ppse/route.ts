@@ -26,7 +26,10 @@ export async function GET(request: NextRequest) {
 
     console.log("[DNSE PPSE API] Context account:", resolved.context.accountNo, "symbol:", symbol);
 
-    const client = getDnseTradingClient();
+    const client = getDnseTradingClient({
+      userJwtToken: resolved.context.userJwtToken,
+      isolated: true,
+    });
     const ppse = await client.getPPSE(resolved.context.accountNo, symbol);
 
     console.log("[DNSE PPSE API] Result:", ppse);
@@ -46,4 +49,3 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }
-

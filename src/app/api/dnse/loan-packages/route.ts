@@ -20,7 +20,10 @@ export async function GET() {
 
     console.log("[DNSE LoanPackages API] Context account:", resolved.context.accountNo);
 
-    const client = getDnseTradingClient();
+    const client = getDnseTradingClient({
+      userJwtToken: resolved.context.userJwtToken,
+      isolated: true,
+    });
     const packages = await client.getLoanPackages(resolved.context.accountNo);
 
     console.log(
@@ -43,4 +46,3 @@ export async function GET() {
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }
-

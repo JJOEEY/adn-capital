@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { decryptDnseToken } from "@/lib/brokers/dnse/crypto";
 
 export type DnseAccountContext = {
   userId: string;
   accountNo: string;
+  userJwtToken: string | null;
 };
 
 type DnseAccountContextResult =
@@ -41,6 +43,8 @@ export async function requireDnseAccountContext(): Promise<DnseAccountContextRes
       select: {
         accountId: true,
         status: true,
+        accessTokenEnc: true,
+        accessTokenExpiresAt: true,
       },
     }),
   ]);
@@ -81,12 +85,29 @@ export async function requireDnseAccountContext(): Promise<DnseAccountContextRes
     };
   }
 
+  let userJwtToken: string | null = null;
+  const hasActiveLinkedToken =
+    Boolean(connection?.accessTokenEnc) &&
+    (!connection?.accessTokenExpiresAt || connection.accessTokenExpiresAt.getTime() > Date.now());
+
+  if (hasActiveLinkedToken && connection?.accessTokenEnc) {
+    try {
+      userJwtToken = decryptDnseToken(connection.accessTokenEnc);
+    } catch (error) {
+      console.warn("[DNSE Shared] Failed to decrypt linked DNSE token", {
+        userId,
+        accountNo,
+        message: error instanceof Error ? error.message : "unknown_error",
+      });
+    }
+  }
+
   return {
     ok: true,
     context: {
       userId,
       accountNo,
+      userJwtToken,
     },
   };
 }
-

@@ -257,21 +257,16 @@ export class DnseTradingClient {
 
     if (includeAuthorization && this.userJwtToken) {
       headers.Authorization = `Bearer ${this.userJwtToken}`;
+      return headers;
     }
 
-    // DNSE api host (auth-service/order-service) ưu tiên JWT phiên người dùng.
-    // Tránh gửi thêm x-api-key ở luồng JWT để không bị OA-400 do gateway hiểu sai kiểu auth.
-    const isApiJwtFlow = Boolean(
-      baseUrl && (isApiHost(baseUrl) || isServiceHost(baseUrl)) && includeAuthorization,
-    );
-    if (this.apiKey && !isApiJwtFlow) {
+    if (this.apiKey) {
       headers["x-api-key"] = this.apiKey;
       headers["X-API-Key"] = this.apiKey;
     }
 
     if (baseUrl && (isApiHost(baseUrl) || isServiceHost(baseUrl))) {
-      // auth-service/order-service trên api/services ưu tiên JWT session.
-      // Không ép OpenAPI signature để tránh mismatch header.
+      // auth-service/order-service trên api/services chỉ cần x-api-key khi không có JWT linked-user.
       return headers;
     }
 
@@ -414,12 +409,30 @@ export class DnseTradingClient {
         "[DNSE getAccounts] jwtPreview:",
         this.userJwtToken.length > 20 ? `${this.userJwtToken.slice(0, 20)}...` : "***",
       );
-      const sessionPayloadApi = await this.requestFirstSuccess(
+
+      try {
+        const payloadApi = await this.requestFirstSuccess(
+          "GET",
+          ["/order-service/accounts", "/order-service/api/accounts"],
+          {
+            label: "Failed to get accounts",
+            includeAuthorization: true,
+            baseFilter: "api",
+            debugTag: "getAccounts",
+          },
+        );
+        const accountsApi = normalizeAccounts(extractArrayPayload(payloadApi));
+        console.log("[DNSE getAccounts] parsedAccounts(api):", accountsApi.length);
+        if (accountsApi.length > 0) return accountsApi;
+      } catch (apiError) {
+        console.warn("[DNSE getAccounts] api-host failed, trying service-host", {
+          message: apiError instanceof Error ? apiError.message : "unknown_error",
+        });
+      }
+
+      const payloadService = await this.requestFirstSuccess(
         "GET",
-        [
-          "/dnse-order-service/accounts",
-          "/dnse-order-service/api/accounts",
-        ],
+        ["/dnse-order-service/accounts", "/dnse-order-service/api/accounts", "/order-service/accounts"],
         {
           label: "Failed to get accounts",
           includeAuthorization: true,
@@ -427,10 +440,10 @@ export class DnseTradingClient {
           debugTag: "getAccounts",
         },
       );
-      const accountsFromApi = normalizeAccounts(extractArrayPayload(sessionPayloadApi));
-      console.log("[DNSE getAccounts] parsedAccounts:", accountsFromApi.length);
-      if (accountsFromApi.length > 0) {
-        return accountsFromApi;
+      const accountsService = normalizeAccounts(extractArrayPayload(payloadService));
+      console.log("[DNSE getAccounts] parsedAccounts(service):", accountsService.length);
+      if (accountsService.length > 0) {
+        return accountsService;
       }
       throw new Error("Failed to get accounts: empty account list from DNSE session");
     }
@@ -452,19 +465,24 @@ export class DnseTradingClient {
     const rows = Array.isArray(root?.accounts) ? root.accounts : extractArrayPayload(payload);
     return normalizeAccounts(rows);
   }
-
   async getBalance(accountNo: string): Promise<DnseBalance> {
     console.log("[DNSE getBalance] Account:", accountNo);
+    const useLinkedSession = Boolean(this.userJwtToken);
     const payload = await this.requestFirstSuccess(
       "GET",
       [
         `/accounts/${accountNo}/balances`,
+        `/accounts/${accountNo}/balance`,
+        `/order-service/accounts/${accountNo}/balances`,
+        `/order-service/api/accounts/${accountNo}/balances`,
         `/account-service/accounts/${accountNo}/balances`,
+        `/account-service/api/accounts/${accountNo}/balances`,
+        `/dnse-order-service/accounts/${accountNo}/balances`,
       ],
       {
         label: "Failed to get balance",
-        includeAuthorization: false,
-        baseFilter: "openapi",
+        includeAuthorization: useLinkedSession,
+        baseFilter: useLinkedSession ? "all" : "openapi",
         debugTag: "getBalance",
       },
     );
@@ -482,16 +500,22 @@ export class DnseTradingClient {
 
   async getPositions(accountNo: string): Promise<DnsePosition[]> {
     console.log("[DNSE getPositions] Account:", accountNo);
+    const useLinkedSession = Boolean(this.userJwtToken);
     const payload = await this.requestFirstSuccess(
       "GET",
       [
         `/accounts/${accountNo}/positions`,
+        `/accounts/${accountNo}/holdings`,
+        `/order-service/accounts/${accountNo}/positions`,
+        `/order-service/api/accounts/${accountNo}/positions`,
         `/account-service/accounts/${accountNo}/positions`,
+        `/account-service/api/accounts/${accountNo}/positions`,
+        `/dnse-order-service/accounts/${accountNo}/positions`,
       ],
       {
         label: "Failed to get positions",
-        includeAuthorization: false,
-        baseFilter: "openapi",
+        includeAuthorization: useLinkedSession,
+        baseFilter: useLinkedSession ? "all" : "openapi",
         debugTag: "getPositions",
       },
     );
@@ -523,16 +547,19 @@ export class DnseTradingClient {
 
   async getOrders(accountNo: string): Promise<DnseOrder[]> {
     console.log("[DNSE getOrders] Account:", accountNo);
+    const useLinkedSession = Boolean(this.userJwtToken);
     const payload = await this.requestFirstSuccess(
       "GET",
       [
         `/accounts/${accountNo}/orders`,
+        `/accounts/${accountNo}/orders?assetType=STOCK`,
         `/order-service/accounts/${accountNo}/orders`,
+        `/order-service/api/accounts/${accountNo}/orders`,
       ],
       {
         label: "Failed to get orders",
-        includeAuthorization: false,
-        baseFilter: "openapi",
+        includeAuthorization: useLinkedSession,
+        baseFilter: useLinkedSession ? "all" : "openapi",
         debugTag: "getOrders",
       },
     );
@@ -541,16 +568,19 @@ export class DnseTradingClient {
 
   async getLoanPackages(accountNo: string): Promise<JsonRecord[]> {
     console.log("[DNSE getLoanPackages] Account:", accountNo);
+    const useLinkedSession = Boolean(this.userJwtToken);
     const payload = await this.requestFirstSuccess(
       "GET",
       [
         `/accounts/${accountNo}/loan-packages`,
+        `/order-service/accounts/${accountNo}/loan-packages`,
+        `/order-service/api/accounts/${accountNo}/loan-packages`,
         `/loan-service/accounts/${accountNo}/loan-packages`,
       ],
       {
         label: "Failed to get loan packages",
-        includeAuthorization: false,
-        baseFilter: "openapi",
+        includeAuthorization: useLinkedSession,
+        baseFilter: useLinkedSession ? "all" : "openapi",
         debugTag: "getLoanPackages",
       },
     );
@@ -559,16 +589,19 @@ export class DnseTradingClient {
 
   async getPPSE(accountNo: string, symbol: string): Promise<JsonRecord | null> {
     console.log("[DNSE getPPSE] Account:", accountNo, "Symbol:", symbol);
+    const useLinkedSession = Boolean(this.userJwtToken);
     const payload = await this.requestFirstSuccess(
       "GET",
       [
         `/accounts/${accountNo}/ppse?symbol=${encodeURIComponent(symbol)}`,
+        `/order-service/accounts/${accountNo}/ppse?symbol=${encodeURIComponent(symbol)}`,
+        `/order-service/api/accounts/${accountNo}/ppse?symbol=${encodeURIComponent(symbol)}`,
         `/account-service/accounts/${accountNo}/ppse?symbol=${encodeURIComponent(symbol)}`,
       ],
       {
         label: "Failed to get PPSE",
-        includeAuthorization: false,
-        baseFilter: "openapi",
+        includeAuthorization: useLinkedSession,
+        baseFilter: useLinkedSession ? "all" : "openapi",
         debugTag: "getPPSE",
       },
     );
@@ -699,3 +732,4 @@ export function getDnseTradingClient(options?: {
 
   return clientInstance;
 }
+
