@@ -456,6 +456,31 @@ export class DnseTradingClient {
     return null;
   }
 
+  private mapOrders(rows: unknown[], fallbackAccountNo: string): DnseOrder[] {
+    return rows.map((item) => {
+      const row = toRecord(item) ?? {};
+      return {
+        orderId: readString(row, ["orderId", "id", "orderNumber"]) ?? "",
+        accountNo: readString(row, ["accountNo", "account", "subAccount"]) ?? fallbackAccountNo,
+        symbol: readString(row, ["symbol", "ticker", "code"]) ?? "",
+        side: (readString(row, ["side", "orderSide"])?.toUpperCase() as "BUY" | "SELL") || "BUY",
+        orderType: readString(row, ["orderType", "type", "priceType"]) ?? "",
+        price: Number(row.price ?? row.orderPrice ?? 0),
+        quantity: Number(row.quantity ?? row.orderQty ?? 0),
+        filledQty: Number(row.filledQty ?? row.filledQuantity ?? row.matchQty ?? 0),
+        remainingQty: Number(
+          row.remainingQty ?? row.remainingQuantity ?? row.leaveQty ?? row.unfilledQty ?? 0,
+        ),
+        status: readString(row, ["status", "orderStatus", "state"]) ?? "",
+        createdAt:
+          readString(row, ["createdAt", "createdTime", "submittedAt", "orderDate", "tradingDate"]) ??
+          "",
+        updatedAt:
+          readString(row, ["updatedAt", "updatedTime", "modifiedAt", "lastUpdatedAt"]) ?? "",
+      };
+    });
+  }
+
   async getAccounts(): Promise<DnseAccount[]> {
     // Luồng user-session: chỉ dùng JWT để gọi account list theo endpoint DNSE auth/order.
     // Không fallback qua API key nhằm tránh link nhầm account.
@@ -708,25 +733,7 @@ export class DnseTradingClient {
       "Failed to get orders",
       "getOrders",
     );
-    if (sessionPayload) {
-      return extractArrayPayload(sessionPayload).map((item) => {
-        const row = toRecord(item) ?? {};
-        return {
-          orderId: readString(row, ["orderId", "id"]) ?? "",
-          accountNo: readString(row, ["accountNo"]) ?? accountNo,
-          symbol: readString(row, ["symbol", "ticker"]) ?? "",
-          side: (readString(row, ["side"])?.toUpperCase() as "BUY" | "SELL") || "BUY",
-          orderType: readString(row, ["orderType", "type"]) ?? "",
-          price: Number(row.price ?? 0),
-          quantity: Number(row.quantity ?? 0),
-          filledQty: Number(row.filledQty ?? row.filledQuantity ?? 0),
-          remainingQty: Number(row.remainingQty ?? row.remainingQuantity ?? 0),
-          status: readString(row, ["status", "orderStatus"]) ?? "",
-          createdAt: readString(row, ["createdAt", "createdTime", "submittedAt"]) ?? "",
-          updatedAt: readString(row, ["updatedAt", "updatedTime"]) ?? "",
-        };
-      });
-    }
+    if (sessionPayload) return this.mapOrders(extractArrayPayload(sessionPayload), accountNo);
 
     const path = buildPathWithQuery(`/accounts/${accountNo}/orders`, {
       marketType,
@@ -742,7 +749,79 @@ export class DnseTradingClient {
         debugTag: "getOrders",
       },
     );
-    return extractArrayPayload(payload) as DnseOrder[];
+    return this.mapOrders(extractArrayPayload(payload), accountNo);
+  }
+
+  async getOrdersHistory(
+    accountNo: string,
+    options?: { fromDate?: string | null; toDate?: string | null; page?: number | null; size?: number | null },
+  ): Promise<DnseOrder[]> {
+    console.log("[DNSE getOrdersHistory] Account:", accountNo);
+
+    const query = {
+      fromDate: options?.fromDate ?? undefined,
+      toDate: options?.toDate ?? undefined,
+      page: options?.page ?? undefined,
+      size: options?.size ?? undefined,
+    };
+
+    const sessionPathAccount = buildPathWithQuery(`/order-service/accounts/${accountNo}/order-history`, query);
+    const sessionPathAccountAlt = buildPathWithQuery(
+      `/order-service/accounts/${accountNo}/orders-history`,
+      query,
+    );
+    const sessionPathByAccount = buildPathWithQuery(`/order-service/order-history`, {
+      accountNo,
+      ...query,
+    });
+    const sessionPathByAccountAlt = buildPathWithQuery(`/order-service/orders-history`, {
+      accountNo,
+      ...query,
+    });
+
+    const sessionServicePathAccount = buildPathWithQuery(
+      `/dnse-order-service/accounts/${accountNo}/order-history`,
+      query,
+    );
+    const sessionServicePathAccountAlt = buildPathWithQuery(
+      `/dnse-order-service/accounts/${accountNo}/orders-history`,
+      query,
+    );
+    const sessionServicePathByAccount = buildPathWithQuery(`/dnse-order-service/order-history`, {
+      accountNo,
+      ...query,
+    });
+    const sessionServicePathByAccountAlt = buildPathWithQuery(`/dnse-order-service/orders-history`, {
+      accountNo,
+      ...query,
+    });
+
+    const sessionPayload = await this.requestLinkedUserFirst(
+      "GET",
+      [sessionPathAccount, sessionPathAccountAlt, sessionPathByAccount, sessionPathByAccountAlt],
+      [
+        sessionServicePathAccount,
+        sessionServicePathAccountAlt,
+        sessionServicePathByAccount,
+        sessionServicePathByAccountAlt,
+      ],
+      "Failed to get order history",
+      "getOrdersHistory",
+    );
+
+    if (sessionPayload) return this.mapOrders(extractArrayPayload(sessionPayload), accountNo);
+
+    const openApiPath = buildPathWithQuery(`/accounts/${accountNo}/order-history`, query);
+    const openApiPathAlt = buildPathWithQuery(`/accounts/${accountNo}/orders-history`, query);
+    const openApiPathV2 = buildPathWithQuery(`/accounts/${accountNo}/orders/history`, query);
+    const payload = await this.requestFirstSuccess("GET", [openApiPath, openApiPathAlt, openApiPathV2], {
+      label: "Failed to get order history",
+      includeAuthorization: false,
+      baseFilter: "openapi",
+      debugTag: "getOrdersHistory",
+    });
+
+    return this.mapOrders(extractArrayPayload(payload), accountNo);
   }
 
   async getLoanPackages(
