@@ -273,11 +273,12 @@ export class DnseTradingClient {
     }
 
     if (includeAuthorization && this.userJwtToken) {
-      // DNSE session endpoints may require BOTH Authorization + x-api-key.
       headers.Authorization = `Bearer ${this.userJwtToken}`;
     }
 
-    if (this.apiKey) {
+    const includeApiKeyForSession = process.env.DNSE_SESSION_INCLUDE_API_KEY === "true";
+    const shouldAttachApiKey = Boolean(this.apiKey) && (!includeAuthorization || includeApiKeyForSession);
+    if (shouldAttachApiKey) {
       headers["x-api-key"] = this.apiKey;
       headers["X-API-Key"] = this.apiKey;
     }
@@ -417,15 +418,15 @@ export class DnseTradingClient {
 
   private async requestLinkedUserFirst(
     method: string,
-    apiPath: string,
-    servicePath: string | null,
+    apiPaths: string[],
+    servicePaths: string[],
     label: string,
     debugTag: string,
   ) {
     if (!this.userJwtToken) return null;
 
     try {
-      return await this.requestFirstSuccess(method, [apiPath], {
+      return await this.requestFirstSuccess(method, apiPaths, {
         label,
         includeAuthorization: true,
         baseFilter: "api",
@@ -437,10 +438,10 @@ export class DnseTradingClient {
       });
     }
 
-    if (!servicePath) return null;
+    if (!servicePaths.length) return null;
 
     try {
-      return await this.requestFirstSuccess(method, [servicePath], {
+      return await this.requestFirstSuccess(method, servicePaths, {
         label,
         includeAuthorization: true,
         baseFilter: "service",
@@ -524,10 +525,20 @@ export class DnseTradingClient {
   }
   async getBalance(accountNo: string): Promise<DnseBalance> {
     console.log("[DNSE getBalance] Account:", accountNo);
+    const sessionApiPaths = [
+      `/order-service/account-balances/${accountNo}`,
+      `/order-service/accounts/${accountNo}/balances`,
+      `/order-service/api/accounts/${accountNo}/balances`,
+    ];
+    const sessionServicePaths = [
+      `/dnse-order-service/account-balances/${accountNo}`,
+      `/dnse-order-service/accounts/${accountNo}/balances`,
+      `/dnse-order-service/api/accounts/${accountNo}/balances`,
+    ];
     const sessionPayload = await this.requestLinkedUserFirst(
       "GET",
-      `/order-service/accounts/${accountNo}/balances`,
-      `/dnse-order-service/accounts/${accountNo}/balances`,
+      sessionApiPaths,
+      sessionServicePaths,
       "Failed to get balance",
       "getBalance",
     );
@@ -572,14 +583,29 @@ export class DnseTradingClient {
     const sessionPath = buildPathWithQuery(`/order-service/accounts/${accountNo}/positions`, {
       marketType,
     });
+    const sessionPathAccountPositions = buildPathWithQuery(
+      `/order-service/account-positions/${accountNo}`,
+      { marketType },
+    );
+    const sessionPathStockPositions = buildPathWithQuery(`/order-service/stock-positions/${accountNo}`, {
+      marketType,
+    });
     const sessionServicePath = buildPathWithQuery(
       `/dnse-order-service/accounts/${accountNo}/positions`,
       { marketType },
     );
+    const sessionServicePathAccountPositions = buildPathWithQuery(
+      `/dnse-order-service/account-positions/${accountNo}`,
+      { marketType },
+    );
+    const sessionServicePathStockPositions = buildPathWithQuery(
+      `/dnse-order-service/stock-positions/${accountNo}`,
+      { marketType },
+    );
     const sessionPayload = await this.requestLinkedUserFirst(
       "GET",
-      sessionPath,
-      sessionServicePath,
+      [sessionPath, sessionPathAccountPositions, sessionPathStockPositions],
+      [sessionServicePath, sessionServicePathAccountPositions, sessionServicePathStockPositions],
       "Failed to get positions",
       "getPositions",
     );
@@ -658,6 +684,11 @@ export class DnseTradingClient {
       marketType,
       orderCategory,
     });
+    const sessionPathOrdersByAccount = buildPathWithQuery(`/order-service/orders`, {
+      accountNo,
+      marketType,
+      orderCategory,
+    });
     const sessionServicePath = buildPathWithQuery(
       `/dnse-order-service/accounts/${accountNo}/orders`,
       {
@@ -665,10 +696,15 @@ export class DnseTradingClient {
         orderCategory,
       },
     );
+    const sessionServicePathOrdersByAccount = buildPathWithQuery(`/dnse-order-service/orders`, {
+      accountNo,
+      marketType,
+      orderCategory,
+    });
     const sessionPayload = await this.requestLinkedUserFirst(
       "GET",
-      sessionPath,
-      sessionServicePath,
+      [sessionPath, sessionPathOrdersByAccount],
+      [sessionServicePath, sessionServicePathOrdersByAccount],
       "Failed to get orders",
       "getOrders",
     );
@@ -719,10 +755,15 @@ export class DnseTradingClient {
       marketType,
       symbol: symbol ?? undefined,
     });
+    const sessionPathByAccount = buildPathWithQuery(`/order-service/loan-packages`, {
+      accountNo,
+      marketType,
+      symbol: symbol ?? undefined,
+    });
     const sessionPayload = await this.requestLinkedUserFirst(
       "GET",
-      sessionPath,
-      null,
+      [sessionPath, sessionPathByAccount],
+      [],
       "Failed to get loan packages",
       "getLoanPackages",
     );
@@ -763,10 +804,17 @@ export class DnseTradingClient {
       price: params?.price ?? undefined,
       loanPackageId: params?.loanPackageId ?? undefined,
     });
+    const sessionPathByAccount = buildPathWithQuery(`/order-service/ppse`, {
+      accountNo,
+      marketType: params?.marketType ?? DEFAULT_MARKET_TYPE,
+      symbol,
+      price: params?.price ?? undefined,
+      loanPackageId: params?.loanPackageId ?? undefined,
+    });
     const sessionPayload = await this.requestLinkedUserFirst(
       "GET",
-      sessionPath,
-      null,
+      [sessionPath, sessionPathByAccount],
+      [],
       "Failed to get PPSE",
       "getPPSE",
     );
