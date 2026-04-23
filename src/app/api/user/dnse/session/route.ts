@@ -34,16 +34,23 @@ function normalizeBearerToken(token: string) {
 }
 
 function getDnseBaseUrls() {
+  const canonicalize = (raw: string) =>
+    raw
+      .trim()
+      .replace(/^https?:\/\/api\.dnse\.com\.vn(?=\/|$)/i, "https://openapi.dnse.com.vn")
+      .replace(/\/openapi(?=\/|$)/i, "")
+      .replace(/\/+$/, "");
   const envBaseUrls = (process.env.DNSE_TRADING_BASE_URLS ?? "")
     .split(",")
-    .map((item) => item.trim())
+    .map((item) => canonicalize(item))
     .filter(Boolean);
-  const baseFromEnv = process.env.DNSE_TRADING_BASE_URL?.trim();
+  const baseFromEnv = process.env.DNSE_TRADING_BASE_URL
+    ? canonicalize(process.env.DNSE_TRADING_BASE_URL)
+    : undefined;
 
   return [
     ...envBaseUrls,
     ...(baseFromEnv ? [baseFromEnv] : []),
-    "https://api.dnse.com.vn",
     "https://openapi.dnse.com.vn",
   ]
     .map((base) => base.replace(/\/+$/, ""))

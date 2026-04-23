@@ -78,20 +78,26 @@ function readString(row: JsonRecord, keys: string[]) {
 }
 
 function normalizeBaseUrls(baseUrl?: string) {
+  const canonicalize = (raw: string) =>
+    raw
+      .trim()
+      .replace(/^https?:\/\/api\.dnse\.com\.vn(?=\/|$)/i, "https://openapi.dnse.com.vn")
+      .replace(/\/openapi(?=\/|$)/i, "")
+      .replace(/\/+$/, "");
   const envBaseUrls = (process.env.DNSE_TRADING_BASE_URLS ?? "")
     .split(",")
-    .map((item) => item.trim())
+    .map((item) => canonicalize(item))
     .filter(Boolean);
-  const baseFromEnv = process.env.DNSE_TRADING_BASE_URL?.trim();
+  const baseFromEnv = process.env.DNSE_TRADING_BASE_URL
+    ? canonicalize(process.env.DNSE_TRADING_BASE_URL)
+    : undefined;
   const all = [
-    ...(baseUrl?.trim() ? [baseUrl.trim()] : []),
+    ...(baseUrl?.trim() ? [canonicalize(baseUrl)] : []),
     ...envBaseUrls,
     ...(baseFromEnv ? [baseFromEnv] : []),
     "https://services.entrade.com.vn",
-    "https://api.dnse.com.vn",
     "https://openapi.dnse.com.vn",
   ]
-    .map((base) => base.replace(/\/+$/, ""))
     .filter(Boolean);
 
   return all.filter((value, index, arr) => arr.indexOf(value) === index);
@@ -110,7 +116,7 @@ function isOpenApiHost(baseUrl: string) {
 }
 
 function isApiHost(baseUrl: string) {
-  return getHostname(baseUrl) === "api.dnse.com.vn";
+  return getHostname(baseUrl) === "openapi.dnse.com.vn";
 }
 
 function isServiceHost(baseUrl: string) {
@@ -246,7 +252,7 @@ export class DnseTradingClient {
   constructor(
     apiKey: string,
     apiSecret: string,
-    baseUrl = "https://api.dnse.com.vn",
+    baseUrl = "https://openapi.dnse.com.vn",
     options?: ClientOptions,
   ) {
     this.apiKey = apiKey.trim();
@@ -589,6 +595,10 @@ export class DnseTradingClient {
       };
     }
 
+    if (this.userJwtToken) {
+      throw new Error("DNSE session API failed for balance (session-only mode).");
+    }
+
     const payload = await this.requestFirstSuccess(
       "GET",
       [`/accounts/${accountNo}/balances`],
@@ -670,6 +680,10 @@ export class DnseTradingClient {
       });
     }
 
+    if (this.userJwtToken) {
+      throw new Error("DNSE session API failed for positions (session-only mode).");
+    }
+
     const path = buildPathWithQuery(`/accounts/${accountNo}/positions`, { marketType });
     const payload = await this.requestFirstSuccess(
       "GET",
@@ -742,6 +756,10 @@ export class DnseTradingClient {
       "getOrders",
     );
     if (sessionPayload) return this.mapOrders(extractArrayPayload(sessionPayload), accountNo);
+
+    if (this.userJwtToken) {
+      throw new Error("DNSE session API failed for orders (session-only mode).");
+    }
 
     const path = buildPathWithQuery(`/accounts/${accountNo}/orders`, {
       marketType,
@@ -819,6 +837,10 @@ export class DnseTradingClient {
 
     if (sessionPayload) return this.mapOrders(extractArrayPayload(sessionPayload), accountNo);
 
+    if (this.userJwtToken) {
+      throw new Error("DNSE session API failed for order history (session-only mode).");
+    }
+
     const openApiPath = buildPathWithQuery(`/accounts/${accountNo}/order-history`, query);
     const openApiPathAlt = buildPathWithQuery(`/accounts/${accountNo}/orders-history`, query);
     const openApiPathV2 = buildPathWithQuery(`/accounts/${accountNo}/orders/history`, query);
@@ -856,6 +878,10 @@ export class DnseTradingClient {
     );
     if (sessionPayload) {
       return extractArrayPayload(sessionPayload) as JsonRecord[];
+    }
+
+    if (this.userJwtToken) {
+      throw new Error("DNSE session API failed for loan packages (session-only mode).");
     }
 
     const path = buildPathWithQuery(`/accounts/${accountNo}/loan-packages`, {
@@ -907,6 +933,10 @@ export class DnseTradingClient {
     );
     if (sessionPayload) {
       return (toRecord(sessionPayload)?.data as JsonRecord) ?? toRecord(sessionPayload);
+    }
+
+    if (this.userJwtToken) {
+      throw new Error("DNSE session API failed for PPSE (session-only mode).");
     }
 
     const path = buildPathWithQuery(`/accounts/${accountNo}/ppse`, {
