@@ -18,13 +18,17 @@ export async function GET() {
       return resolved.response;
     }
 
-    console.log("[DNSE Orders API] Context account:", resolved.context.accountNo);
+    console.log("[DNSE Orders API] Context account:", {
+      accountNo: resolved.context.accountNo,
+      brokerAccountNo: resolved.context.brokerAccountNo,
+      subAccountId: resolved.context.subAccountId,
+    });
 
     const client = getDnseTradingClient({
       userJwtToken: resolved.context.userJwtToken,
       isolated: true,
     });
-    const orders = await client.getOrders(resolved.context.accountNo);
+    const orders = await client.getOrders(resolved.context.brokerAccountNo);
 
     console.log("[DNSE Orders API] Orders count:", Array.isArray(orders) ? orders.length : -1);
 

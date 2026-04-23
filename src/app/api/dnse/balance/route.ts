@@ -18,13 +18,17 @@ export async function GET() {
       return resolved.response;
     }
 
-    console.log("[DNSE Balance API] Context account:", resolved.context.accountNo);
+    console.log("[DNSE Balance API] Context account:", {
+      accountNo: resolved.context.accountNo,
+      brokerAccountNo: resolved.context.brokerAccountNo,
+      subAccountId: resolved.context.subAccountId,
+    });
 
     const client = getDnseTradingClient({
       userJwtToken: resolved.context.userJwtToken,
       isolated: true,
     });
-    const balance = await client.getBalance(resolved.context.accountNo);
+    const balance = await client.getBalance(resolved.context.brokerAccountNo);
 
     console.log("[DNSE Balance API] Balance result:", balance);
 

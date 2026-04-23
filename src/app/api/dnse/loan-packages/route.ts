@@ -18,13 +18,17 @@ export async function GET() {
       return resolved.response;
     }
 
-    console.log("[DNSE LoanPackages API] Context account:", resolved.context.accountNo);
+    console.log("[DNSE LoanPackages API] Context account:", {
+      accountNo: resolved.context.accountNo,
+      brokerAccountNo: resolved.context.brokerAccountNo,
+      subAccountId: resolved.context.subAccountId,
+    });
 
     const client = getDnseTradingClient({
       userJwtToken: resolved.context.userJwtToken,
       isolated: true,
     });
-    const packages = await client.getLoanPackages(resolved.context.accountNo);
+    const packages = await client.getLoanPackages(resolved.context.brokerAccountNo);
 
     console.log(
       "[DNSE LoanPackages API] Packages count:",

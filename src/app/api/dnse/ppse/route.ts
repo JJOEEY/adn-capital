@@ -24,13 +24,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Thiếu mã cổ phiếu (symbol)" }, { status: 400 });
     }
 
-    console.log("[DNSE PPSE API] Context account:", resolved.context.accountNo, "symbol:", symbol);
+    console.log("[DNSE PPSE API] Context account:", {
+      accountNo: resolved.context.accountNo,
+      brokerAccountNo: resolved.context.brokerAccountNo,
+      subAccountId: resolved.context.subAccountId,
+      symbol,
+    });
 
     const client = getDnseTradingClient({
       userJwtToken: resolved.context.userJwtToken,
       isolated: true,
     });
-    const ppse = await client.getPPSE(resolved.context.accountNo, symbol);
+    const ppse = await client.getPPSE(resolved.context.brokerAccountNo, symbol);
 
     console.log("[DNSE PPSE API] Result:", ppse);
 

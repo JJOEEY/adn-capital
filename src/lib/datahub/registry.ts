@@ -437,6 +437,8 @@ type BrokerTopicExtraParams = {
 type ResolvedDnseBrokerState = {
   userId: string;
   connectionId: string | null;
+  portfolioConnectionId: string | null;
+  allowedConnectionIds: string[];
   connected: boolean;
   currentUser: {
     dnseId: string | null;
@@ -444,6 +446,7 @@ type ResolvedDnseBrokerState = {
   } | null;
   connection: {
     accountId: string;
+    subAccountId: string | null;
     status: string;
     accessTokenEnc: string | null;
     accessTokenExpiresAt: Date | null;
@@ -464,6 +467,7 @@ async function resolveDnseBrokerState(userId: string): Promise<ResolvedDnseBroke
       where: { userId },
       select: {
         accountId: true,
+        subAccountId: true,
         status: true,
         accessTokenEnc: true,
         accessTokenExpiresAt: true,
@@ -473,17 +477,31 @@ async function resolveDnseBrokerState(userId: string): Promise<ResolvedDnseBroke
 
   const activeConnectionAccountNo =
     connection?.status === "ACTIVE" ? connection.accountId.trim() : "";
+  const activeConnectionSubAccountNo =
+    connection?.status === "ACTIVE" ? connection.subAccountId?.trim() ?? "" : "";
   const fallbackUserAccountNo = currentUser?.dnseId?.trim() || "";
-  const connectionId = activeConnectionAccountNo || fallbackUserAccountNo || null;
+  const connectionId = activeConnectionAccountNo || fallbackUserAccountNo || activeConnectionSubAccountNo || null;
+  const portfolioConnectionId =
+    activeConnectionSubAccountNo || activeConnectionAccountNo || fallbackUserAccountNo || null;
+  const allowedConnectionIds = Array.from(
+    new Set(
+      [activeConnectionAccountNo, activeConnectionSubAccountNo, fallbackUserAccountNo]
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  );
 
   return {
     userId,
     connectionId,
+    portfolioConnectionId,
+    allowedConnectionIds,
     connected: Boolean(currentUser?.dnseId && currentUser?.dnseVerified),
     currentUser,
     connection: connection
       ? {
           accountId: connection.accountId.trim(),
+          subAccountId: connection.subAccountId?.trim() || null,
           status: connection.status,
           accessTokenEnc: connection.accessTokenEnc ?? null,
           accessTokenExpiresAt: connection.accessTokenExpiresAt ?? null,
@@ -499,7 +517,8 @@ async function loadBrokerTopicWithResolvedState(
   extraParams?: BrokerTopicExtraParams,
 ) {
   const connectionId = state.connectionId;
-  if (!connectionId) {
+  const portfolioConnectionId = state.portfolioConnectionId ?? state.connectionId;
+  if (!connectionId || !portfolioConnectionId) {
     throw new Error("Broker connection not found for current user");
   }
 
@@ -560,16 +579,18 @@ async function loadBrokerTopicWithResolvedState(
         return {
           connected: true,
           connectionId,
+          portfolioConnectionId,
           source: canLoadAccountsFromSession ? "dnse_user_session" : "dnse_openapi",
           accounts: await client.getAccounts(),
         };
       }
 
       if (channel === "positions") {
-        const livePositions = await client.getPositions(connectionId);
+        const livePositions = await client.getPositions(portfolioConnectionId);
         return {
           connected: true,
           connectionId,
+          portfolioConnectionId,
           source: canLoadPortfolioFromSession ? "dnse_user_session" : "dnse_openapi",
           positions: livePositions.map((row) => ({
             ticker: row.symbol,
@@ -591,8 +612,9 @@ async function loadBrokerTopicWithResolvedState(
         return {
           connected: true,
           connectionId,
+          portfolioConnectionId,
           source: canLoadPortfolioFromSession ? "dnse_user_session" : "dnse_openapi",
-          orders: await client.getOrders(connectionId),
+          orders: await client.getOrders(portfolioConnectionId),
         };
       }
 
@@ -600,13 +622,14 @@ async function loadBrokerTopicWithResolvedState(
         return {
           connected: true,
           connectionId,
+          portfolioConnectionId,
           source: canLoadPortfolioFromSession ? "dnse_user_session" : "dnse_openapi",
-          orderHistory: await client.getOrders(connectionId),
+          orderHistory: await client.getOrders(portfolioConnectionId),
         };
       }
 
       if (channel === "balance") {
-        const liveBalance = await client.getBalance(connectionId);
+        const liveBalance = await client.getBalance(portfolioConnectionId);
         const navAllocatedPct = signalPositions.reduce(
           (sum, row) => sum + (row.navAllocation ?? 0),
           0,
@@ -614,6 +637,7 @@ async function loadBrokerTopicWithResolvedState(
         return {
           connected: true,
           connectionId,
+          portfolioConnectionId,
           source: canLoadPortfolioFromSession ? "dnse_user_session" : "dnse_openapi",
           navAllocatedPct: Number(navAllocatedPct.toFixed(2)),
           navRemainingPct: Number(Math.max(0, 100 - navAllocatedPct).toFixed(2)),
@@ -629,8 +653,9 @@ async function loadBrokerTopicWithResolvedState(
         return {
           connected: true,
           connectionId,
+          portfolioConnectionId,
           source: canLoadPortfolioFromSession ? "dnse_user_session" : "dnse_openapi",
-          loanPackages: await client.getLoanPackages(connectionId),
+          loanPackages: await client.getLoanPackages(portfolioConnectionId),
         };
       }
 
@@ -646,15 +671,17 @@ async function loadBrokerTopicWithResolvedState(
         return {
           connected: true,
           connectionId,
+          portfolioConnectionId,
           source: canLoadPortfolioFromSession ? "dnse_user_session" : "dnse_openapi",
-          ppse: await client.getPPSE(connectionId, extraParams.symbol),
+          ppse: await client.getPPSE(portfolioConnectionId, extraParams.symbol),
         };
       }
 
-      const liveHoldings = await client.getPositions(connectionId);
+      const liveHoldings = await client.getPositions(portfolioConnectionId);
       return {
         connected: true,
         connectionId,
+        portfolioConnectionId,
         source: canLoadPortfolioFromSession ? "dnse_user_session" : "dnse_openapi",
         holdings: liveHoldings.map((row) => ({
           ticker: row.symbol,
@@ -865,13 +892,16 @@ async function loadBrokerTopic(
 
   const state = await resolveDnseBrokerState(context.userId);
   const normalizedRequested = normalizeBrokerConnectionId(connectionId);
-  const normalizedAllowed = normalizeBrokerConnectionId(state.connectionId);
+  const normalizedAllowed = state.allowedConnectionIds
+    .map((value) => normalizeBrokerConnectionId(value))
+    .filter(Boolean);
 
-  if (!normalizedAllowed || normalizedRequested !== normalizedAllowed) {
+  if (!normalizedRequested || !normalizedAllowed.length || !normalizedAllowed.includes(normalizedRequested)) {
     console.warn("[DataHub DNSE] broker topic ownership mismatch", {
       userId: context.userId,
       requestedConnectionId: connectionId,
       allowedConnectionId: state.connectionId,
+      allowedConnectionIds: state.allowedConnectionIds,
       normalizedRequested,
       normalizedAllowed,
       channel,
@@ -909,14 +939,17 @@ async function loadBrokerTopicForUserAccount(
   }
   const state = await resolveDnseBrokerState(context.userId);
   const normalizedRequested = normalizeBrokerConnectionId(accountId);
-  const normalizedAllowed = normalizeBrokerConnectionId(state.connectionId);
+  const normalizedAllowed = state.allowedConnectionIds
+    .map((value) => normalizeBrokerConnectionId(value))
+    .filter(Boolean);
 
-  if (!normalizedAllowed || normalizedRequested !== normalizedAllowed) {
+  if (!normalizedRequested || !normalizedAllowed.length || !normalizedAllowed.includes(normalizedRequested)) {
     console.warn("[DataHub DNSE] user-account topic ownership mismatch", {
       userId: context.userId,
       targetUserId,
       requestedAccountId: accountId,
       allowedConnectionId: state.connectionId,
+      allowedConnectionIds: state.allowedConnectionIds,
       normalizedRequested,
       normalizedAllowed,
       channel,
@@ -929,10 +962,10 @@ async function loadBrokerTopicForUserAccount(
 
 async function resolveCurrentBrokerConnectionId(userId: string): Promise<string> {
   const state = await resolveDnseBrokerState(userId);
-  if (!state.connectionId || !state.currentUser?.dnseVerified) {
+  if ((!state.portfolioConnectionId && !state.connectionId) || !state.currentUser?.dnseVerified) {
     throw new Error("DNSE connection is not verified for current user");
   }
-  return state.connectionId;
+  return state.portfolioConnectionId ?? state.connectionId!;
 }
 
 const TOPIC_DEFINITIONS: TopicDefinition[] = [

@@ -11,6 +11,8 @@ import {
 export type DnseAccountContext = {
   userId: string;
   accountNo: string;
+  brokerAccountNo: string;
+  subAccountId: string | null;
   userJwtToken: string | null;
 };
 
@@ -47,6 +49,7 @@ export async function requireDnseAccountContext(): Promise<DnseAccountContextRes
       where: { userId },
       select: {
         accountId: true,
+        subAccountId: true,
         status: true,
         accessTokenEnc: true,
         accessTokenExpiresAt: true,
@@ -64,19 +67,25 @@ export async function requireDnseAccountContext(): Promise<DnseAccountContextRes
 
   const activeConnectionAccountNo =
     connection?.status === "ACTIVE" ? normalizeAccountNo(connection.accountId) : "";
+  const activeConnectionSubAccountNo =
+    connection?.status === "ACTIVE" ? normalizeAccountNo(connection.subAccountId) : "";
   const fallbackUserAccountNo = normalizeAccountNo(user.dnseId);
   const accountNo = activeConnectionAccountNo || fallbackUserAccountNo;
+  const brokerAccountNo =
+    activeConnectionSubAccountNo || activeConnectionAccountNo || fallbackUserAccountNo;
 
   console.log("[DNSE Shared] Context data", {
     userId,
     activeConnectionAccountNo,
+    activeConnectionSubAccountNo,
     fallbackUserAccountNo,
     accountNo,
+    brokerAccountNo,
     dnseVerified: user.dnseVerified,
     connectionStatus: connection?.status ?? null,
   });
 
-  if (!accountNo) {
+  if (!accountNo || !brokerAccountNo) {
     return {
       ok: false,
       response: NextResponse.json({ error: "Chưa liên kết tài khoản DNSE" }, { status: 404 }),
@@ -102,6 +111,7 @@ export async function requireDnseAccountContext(): Promise<DnseAccountContextRes
       console.warn("[DNSE Shared] Failed to decrypt linked DNSE token", {
         userId,
         accountNo,
+        brokerAccountNo,
         message: error instanceof Error ? error.message : "unknown_error",
       });
     }
@@ -132,6 +142,8 @@ export async function requireDnseAccountContext(): Promise<DnseAccountContextRes
     context: {
       userId,
       accountNo,
+      brokerAccountNo,
+      subAccountId: connection?.subAccountId?.trim() || null,
       userJwtToken,
     },
   };
