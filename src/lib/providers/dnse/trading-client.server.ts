@@ -273,8 +273,8 @@ export class DnseTradingClient {
     }
 
     if (includeAuthorization && this.userJwtToken) {
+      // DNSE session endpoints may require BOTH Authorization + x-api-key.
       headers.Authorization = `Bearer ${this.userJwtToken}`;
-      return headers;
     }
 
     if (this.apiKey) {
