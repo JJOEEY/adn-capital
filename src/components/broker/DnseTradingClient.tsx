@@ -190,6 +190,14 @@ function normalizeDnseReason(reason: string | null | undefined) {
   const normalized = reason.trim();
   const lower = normalized.toLowerCase();
 
+  if (/broker connection not found for current user/.test(lower)) {
+    return "Hệ thống chưa đọc được kết nối DNSE của phiên hiện tại. Vui lòng làm mới dữ liệu hoặc đăng nhập lại DNSE.";
+  }
+
+  if (/dnse connection is not verified for current user/.test(lower)) {
+    return "Tài khoản DNSE hiện chưa ở trạng thái xác minh hợp lệ cho phiên này.";
+  }
+
   if (
     /token expired|authorization|unauthorized|forbidden|jwt|dnse_login_required|dnse_login_expired/.test(
       lower,

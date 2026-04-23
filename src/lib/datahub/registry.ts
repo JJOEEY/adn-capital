@@ -434,23 +434,34 @@ type BrokerTopicExtraParams = {
   toDate?: string;
 };
 
-async function loadBrokerTopic(
-  connectionId: string,
-  channel: BrokerTopicChannel,
-  context: TopicContext,
-  extraParams?: BrokerTopicExtraParams,
-) {
-  if (!context.userId) {
-    throw new Error("Unauthorized private broker topic");
-  }
+type ResolvedDnseBrokerState = {
+  userId: string;
+  connectionId: string | null;
+  connected: boolean;
+  currentUser: {
+    dnseId: string | null;
+    dnseVerified: boolean;
+  } | null;
+  connection: {
+    accountId: string;
+    status: string;
+    accessTokenEnc: string | null;
+    accessTokenExpiresAt: Date | null;
+  } | null;
+};
 
+function normalizeBrokerConnectionId(value: string | null | undefined) {
+  return (value ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+async function resolveDnseBrokerState(userId: string): Promise<ResolvedDnseBrokerState> {
   const [currentUser, connection] = await Promise.all([
     prisma.user.findUnique({
-      where: { id: context.userId },
+      where: { id: userId },
       select: { dnseId: true, dnseVerified: true },
     }),
     prisma.dnseConnection.findUnique({
-      where: { userId: context.userId },
+      where: { userId },
       select: {
         accountId: true,
         status: true,
@@ -460,11 +471,35 @@ async function loadBrokerTopic(
     }),
   ]);
 
-  const allowedConnectionId =
-    connection?.status === "ACTIVE"
-      ? connection.accountId.trim()
-      : (currentUser?.dnseId?.trim() || null);
-  if (!allowedConnectionId || connectionId !== allowedConnectionId) {
+  const activeConnectionAccountNo =
+    connection?.status === "ACTIVE" ? connection.accountId.trim() : "";
+  const fallbackUserAccountNo = currentUser?.dnseId?.trim() || "";
+  const connectionId = activeConnectionAccountNo || fallbackUserAccountNo || null;
+
+  return {
+    userId,
+    connectionId,
+    connected: Boolean(currentUser?.dnseId && currentUser?.dnseVerified),
+    currentUser,
+    connection: connection
+      ? {
+          accountId: connection.accountId.trim(),
+          status: connection.status,
+          accessTokenEnc: connection.accessTokenEnc ?? null,
+          accessTokenExpiresAt: connection.accessTokenExpiresAt ?? null,
+        }
+      : null,
+  };
+}
+
+async function loadBrokerTopicWithResolvedState(
+  state: ResolvedDnseBrokerState,
+  channel: BrokerTopicChannel,
+  context: TopicContext,
+  extraParams?: BrokerTopicExtraParams,
+) {
+  const connectionId = state.connectionId;
+  if (!connectionId) {
     throw new Error("Broker connection not found for current user");
   }
 
@@ -482,7 +517,7 @@ async function loadBrokerTopic(
     updatedAt: row.updatedAt,
   }));
 
-  const connected = Boolean(currentUser?.dnseId && currentUser?.dnseVerified);
+  const connected = state.connected;
   const hasApiKey = Boolean(process.env.DNSE_API_KEY?.trim());
   const cookieSessionToken = context.dnseSessionToken?.trim() || null;
   const hasValidCookieSession =
@@ -492,16 +527,16 @@ async function loadBrokerTopic(
     new Date(context.dnseSessionExpiresAt as string).getTime() > Date.now();
 
   const hasValidStoredDnseSession =
-    Boolean(connection?.accessTokenEnc) &&
-    (!connection?.accessTokenExpiresAt ||
-      connection.accessTokenExpiresAt.getTime() > Date.now());
+    Boolean(state.connection?.accessTokenEnc) &&
+    (!state.connection?.accessTokenExpiresAt ||
+      state.connection.accessTokenExpiresAt.getTime() > Date.now());
   const storedSessionToken =
-    hasValidStoredDnseSession && connection?.accessTokenEnc
-      ? decryptDnseToken(connection.accessTokenEnc)
+    hasValidStoredDnseSession && state.connection?.accessTokenEnc
+      ? decryptDnseToken(state.connection.accessTokenEnc)
       : null;
   const effectiveSessionToken = cookieSessionToken || storedSessionToken;
   const hasValidDnseSession = Boolean(
-    (hasValidCookieSession && cookieSessionToken) ||
+      (hasValidCookieSession && cookieSessionToken) ||
       (hasValidStoredDnseSession && storedSessionToken),
   );
 
@@ -640,7 +675,7 @@ async function loadBrokerTopic(
         error instanceof Error ? error.message : "dnse_api_key_fetch_failed";
       if (channel === "orders") {
         const orders = await listDnseOrderHistory({
-          userId: context.userId,
+          userId: state.userId,
           connectionId,
           limit: 80,
         });
@@ -654,7 +689,7 @@ async function loadBrokerTopic(
       }
       if (channel === "order-history") {
         const orderHistory = await listDnseOrderHistory({
-          userId: context.userId,
+          userId: state.userId,
           connectionId,
           limit: 80,
         });
@@ -737,7 +772,7 @@ async function loadBrokerTopic(
 
   if (channel === "orders") {
     const orders = await listDnseOrderHistory({
-      userId: context.userId,
+      userId: state.userId,
       connectionId,
       limit: 80,
     });
@@ -751,7 +786,7 @@ async function loadBrokerTopic(
 
   if (channel === "order-history") {
     const orderHistory = await listDnseOrderHistory({
-      userId: context.userId,
+      userId: state.userId,
       connectionId,
       limit: 80,
     });
@@ -818,6 +853,47 @@ async function loadBrokerTopic(
   };
 }
 
+async function loadBrokerTopic(
+  connectionId: string,
+  channel: BrokerTopicChannel,
+  context: TopicContext,
+  extraParams?: BrokerTopicExtraParams,
+) {
+  if (!context.userId) {
+    throw new Error("Unauthorized private broker topic");
+  }
+
+  const state = await resolveDnseBrokerState(context.userId);
+  const normalizedRequested = normalizeBrokerConnectionId(connectionId);
+  const normalizedAllowed = normalizeBrokerConnectionId(state.connectionId);
+
+  if (!normalizedAllowed || normalizedRequested !== normalizedAllowed) {
+    console.warn("[DataHub DNSE] broker topic ownership mismatch", {
+      userId: context.userId,
+      requestedConnectionId: connectionId,
+      allowedConnectionId: state.connectionId,
+      normalizedRequested,
+      normalizedAllowed,
+      channel,
+    });
+    throw new Error("Broker connection not found for current user");
+  }
+
+  return loadBrokerTopicWithResolvedState(state, channel, context, extraParams);
+}
+
+async function loadCurrentUserBrokerTopic(
+  channel: BrokerTopicChannel,
+  context: TopicContext,
+  extraParams?: BrokerTopicExtraParams,
+) {
+  if (!context.userId) {
+    throw new Error("Unauthorized private broker topic");
+  }
+  const state = await resolveDnseBrokerState(context.userId);
+  return loadBrokerTopicWithResolvedState(state, channel, context, extraParams);
+}
+
 async function loadBrokerTopicForUserAccount(
   targetUserId: string,
   accountId: string,
@@ -831,28 +907,32 @@ async function loadBrokerTopicForUserAccount(
   if (context.userId !== targetUserId) {
     throw new Error("Forbidden private broker topic");
   }
-  return loadBrokerTopic(accountId, channel, context, extraParams);
+  const state = await resolveDnseBrokerState(context.userId);
+  const normalizedRequested = normalizeBrokerConnectionId(accountId);
+  const normalizedAllowed = normalizeBrokerConnectionId(state.connectionId);
+
+  if (!normalizedAllowed || normalizedRequested !== normalizedAllowed) {
+    console.warn("[DataHub DNSE] user-account topic ownership mismatch", {
+      userId: context.userId,
+      targetUserId,
+      requestedAccountId: accountId,
+      allowedConnectionId: state.connectionId,
+      normalizedRequested,
+      normalizedAllowed,
+      channel,
+    });
+    throw new Error("Broker connection not found for current user");
+  }
+
+  return loadBrokerTopicWithResolvedState(state, channel, context, extraParams);
 }
 
 async function resolveCurrentBrokerConnectionId(userId: string): Promise<string> {
-  const [user, connection] = await Promise.all([
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: { dnseId: true, dnseVerified: true },
-    }),
-    prisma.dnseConnection.findUnique({
-      where: { userId },
-      select: { accountId: true, status: true },
-    }),
-  ]);
-  const connectionId =
-    connection?.status === "ACTIVE"
-      ? connection.accountId.trim()
-      : (user?.dnseId?.trim() ?? "");
-  if (!connectionId || !user?.dnseVerified) {
+  const state = await resolveDnseBrokerState(userId);
+  if (!state.connectionId || !state.currentUser?.dnseVerified) {
     throw new Error("DNSE connection is not verified for current user");
   }
-  return connectionId;
+  return state.connectionId;
 }
 
 const TOPIC_DEFINITIONS: TopicDefinition[] = [
@@ -1597,9 +1677,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     tags: ["broker", "dnse", "private", "positions", "legacy-alias"],
     match: (topicKey) => (topicKey === "broker:dnse:current-user:positions" ? { ok: true } : { ok: false }),
     resolve: async (_, context) => {
-      if (!context.userId) throw new Error("Unauthorized user topic");
-      const connectionId = await resolveCurrentBrokerConnectionId(context.userId);
-      return loadBrokerTopic(connectionId, "positions", context);
+      return loadCurrentUserBrokerTopic("positions", context);
     },
   },
   {
@@ -1613,9 +1691,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     tags: ["broker", "dnse", "private", "orders", "legacy-alias"],
     match: (topicKey) => (topicKey === "broker:dnse:current-user:orders" ? { ok: true } : { ok: false }),
     resolve: async (_, context) => {
-      if (!context.userId) throw new Error("Unauthorized user topic");
-      const connectionId = await resolveCurrentBrokerConnectionId(context.userId);
-      return loadBrokerTopic(connectionId, "orders", context);
+      return loadCurrentUserBrokerTopic("orders", context);
     },
   },
   {
@@ -1629,9 +1705,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     tags: ["broker", "dnse", "private", "balance", "legacy-alias"],
     match: (topicKey) => (topicKey === "broker:dnse:current-user:balance" ? { ok: true } : { ok: false }),
     resolve: async (_, context) => {
-      if (!context.userId) throw new Error("Unauthorized user topic");
-      const connectionId = await resolveCurrentBrokerConnectionId(context.userId);
-      return loadBrokerTopic(connectionId, "balance", context);
+      return loadCurrentUserBrokerTopic("balance", context);
     },
   },
   {
@@ -1645,9 +1719,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     tags: ["broker", "dnse", "private", "holdings", "legacy-alias"],
     match: (topicKey) => (topicKey === "broker:dnse:current-user:holdings" ? { ok: true } : { ok: false }),
     resolve: async (_, context) => {
-      if (!context.userId) throw new Error("Unauthorized user topic");
-      const connectionId = await resolveCurrentBrokerConnectionId(context.userId);
-      return loadBrokerTopic(connectionId, "holdings", context);
+      return loadCurrentUserBrokerTopic("holdings", context);
     },
   },
   {
@@ -1661,9 +1733,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     tags: ["broker", "dnse", "private", "accounts", "legacy-alias"],
     match: (topicKey) => (topicKey === "broker:dnse:current-user:accounts" ? { ok: true } : { ok: false }),
     resolve: async (_, context) => {
-      if (!context.userId) throw new Error("Unauthorized user topic");
-      const connectionId = await resolveCurrentBrokerConnectionId(context.userId);
-      return loadBrokerTopic(connectionId, "accounts", context);
+      return loadCurrentUserBrokerTopic("accounts", context);
     },
   },
   {
@@ -1678,9 +1748,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     match: (topicKey) =>
       topicKey === "broker:dnse:current-user:loan-packages" ? { ok: true } : { ok: false },
     resolve: async (_, context) => {
-      if (!context.userId) throw new Error("Unauthorized user topic");
-      const connectionId = await resolveCurrentBrokerConnectionId(context.userId);
-      return loadBrokerTopic(connectionId, "loan-packages", context);
+      return loadCurrentUserBrokerTopic("loan-packages", context);
     },
   },
   {
@@ -1695,9 +1763,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     match: (topicKey) =>
       topicKey === "broker:dnse:current-user:order-history" ? { ok: true } : { ok: false },
     resolve: async (_, context) => {
-      if (!context.userId) throw new Error("Unauthorized user topic");
-      const connectionId = await resolveCurrentBrokerConnectionId(context.userId);
-      return loadBrokerTopic(connectionId, "order-history", context);
+      return loadCurrentUserBrokerTopic("order-history", context);
     },
   },
   {
@@ -1714,9 +1780,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
       return match ? { ok: true, params: { symbol: match[1] } } : { ok: false };
     },
     resolve: async (_, context, params) => {
-      if (!context.userId) throw new Error("Unauthorized user topic");
-      const connectionId = await resolveCurrentBrokerConnectionId(context.userId);
-      return loadBrokerTopic(connectionId, "ppse", context, { symbol: params.symbol });
+      return loadCurrentUserBrokerTopic("ppse", context, { symbol: params.symbol });
     },
   },
   {
