@@ -28,11 +28,38 @@ export async function GET() {
       userJwtToken: resolved.context.userJwtToken,
       isolated: true,
     });
-    const packages = await client.getLoanPackages(resolved.context.brokerAccountNo);
+    const candidates = resolved.context.accountCandidates.length
+      ? resolved.context.accountCandidates
+      : [resolved.context.brokerAccountNo];
+
+    let packages: Awaited<ReturnType<typeof client.getLoanPackages>> = [];
+    let usedAccountNo: string | null = null;
+    let lastError: Error | null = null;
+
+    for (const accountNo of candidates) {
+      try {
+        const rows = await client.getLoanPackages(accountNo);
+        if (rows.length > 0 || accountNo === candidates[candidates.length - 1]) {
+          packages = rows;
+          usedAccountNo = accountNo;
+          break;
+        }
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error("unknown_loan_packages_error");
+        console.warn("[DNSE LoanPackages API] Candidate failed", {
+          accountNo,
+          message: lastError.message,
+        });
+      }
+    }
+
+    if (!usedAccountNo) {
+      throw lastError ?? new Error("Không thể lấy danh sách gói vay DNSE cho các tài khoản đã liên kết.");
+    }
 
     console.log(
-      "[DNSE LoanPackages API] Packages count:",
-      Array.isArray(packages) ? packages.length : -1,
+      "[DNSE LoanPackages API] Packages result:",
+      { usedAccountNo, count: Array.isArray(packages) ? packages.length : -1 },
     );
 
     return NextResponse.json({

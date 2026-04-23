@@ -151,6 +151,87 @@ type DnseConnectionStatus = {
   };
 };
 
+type DnseApiBalanceResponse = {
+  success?: boolean;
+  source?: string;
+  balance?: {
+    accountNo?: string | null;
+    cashBalance?: number | null;
+    cashAvailable?: number | null;
+    cashWithdrawable?: number | null;
+    totalAsset?: number | null;
+    totalDebt?: number | null;
+    netAssetValue?: number | null;
+    buyingPower?: number | null;
+  } | null;
+  error?: string;
+};
+
+type DnseApiPositionsResponse = {
+  success?: boolean;
+  source?: string;
+  positions?: Array<{
+    symbol?: string | null;
+    ticker?: string | null;
+    quantity?: number | null;
+    avgPrice?: number | null;
+    lastPrice?: number | null;
+    marketValue?: number | null;
+    totalPLPct?: number | null;
+  }>;
+  error?: string;
+};
+
+type DnseApiOrdersResponse = {
+  success?: boolean;
+  source?: string;
+  orders?: Array<{
+    symbol?: string | null;
+    ticker?: string | null;
+    side?: string | null;
+    quantity?: number | null;
+    price?: number | null;
+    status?: string | null;
+    createdAt?: string | null;
+    updatedAt?: string | null;
+    orderId?: string | null;
+  }>;
+  error?: string;
+};
+
+type DnseApiAccountsResponse = {
+  success?: boolean;
+  source?: string;
+  accounts?: Array<{
+    accountNo: string;
+    accountName: string | null;
+    custodyCode: string | null;
+    accountType: string;
+    status: string;
+  }>;
+  error?: string;
+};
+
+type DirectDnseState = {
+  loading: boolean;
+  accounts: BrokerAccountsTopic | null;
+  balance: BrokerBalanceTopic | null;
+  holdings: BrokerHoldingsTopic | null;
+  orders: BrokerOrdersTopic | null;
+  resolved: {
+    accounts: boolean;
+    balance: boolean;
+    holdings: boolean;
+    orders: boolean;
+  };
+  errors: {
+    accounts: string | null;
+    balance: string | null;
+    holdings: string | null;
+    orders: string | null;
+  };
+};
+
 function fmtPrice(value: number | null | undefined) {
   if (value == null || !Number.isFinite(value)) return "--";
   return value.toLocaleString("vi-VN");
@@ -225,6 +306,98 @@ function normalizeDnseReason(reason: string | null | undefined) {
   return normalized;
 }
 
+function normalizeDnseReasonVi(reason: string | null | undefined) {
+  if (!reason) return null;
+  const normalized = reason.trim();
+  const lower = normalized.toLowerCase();
+
+  if (/broker connection not found for current user/.test(lower)) {
+    return "Hệ thống chưa đọc được kết nối DNSE của phiên hiện tại. Vui lòng làm mới dữ liệu hoặc đăng nhập lại DNSE.";
+  }
+
+  if (/dnse connection is not verified for current user/.test(lower)) {
+    return "Tài khoản DNSE hiện chưa ở trạng thái xác minh hợp lệ cho phiên này.";
+  }
+
+  if (
+    /token expired|authorization|unauthorized|forbidden|jwt|dnse_login_required|dnse_login_expired/.test(
+      lower,
+    )
+  ) {
+    return "Phiên DNSE đã hết hạn. Vui lòng bấm “Đăng nhập lại DNSE” để làm mới NAV và danh mục.";
+  }
+
+  if (/api key not found in storage|oa-401|oa-400/.test(lower)) {
+    return "Máy chủ chưa lấy được dữ liệu fallback từ DNSE OpenAPI. Cần kiểm tra lại API key/secret.";
+  }
+
+  return normalized;
+}
+
+function toDirectAccountsTopic(
+  payload: DnseApiAccountsResponse | null,
+): BrokerAccountsTopic | null {
+  if (!payload?.success || !Array.isArray(payload.accounts)) return null;
+  return {
+    connected: true,
+    source: payload.source ?? "dnse_api",
+    accounts: payload.accounts,
+  };
+}
+
+function toDirectHoldingsTopic(
+  payload: DnseApiPositionsResponse | null,
+  totalNav: number | null,
+): BrokerHoldingsTopic | null {
+  if (!payload?.success || !Array.isArray(payload.positions)) return null;
+
+  const positions: BrokerPosition[] = payload.positions.map((row) => {
+    const marketValue = Number(row.marketValue ?? 0);
+    const entryPrice = Number(row.avgPrice ?? 0);
+    const currentPrice = Number(row.lastPrice ?? 0);
+    const navAllocation =
+      totalNav && totalNav > 0 && marketValue > 0 ? (marketValue / totalNav) * 100 : null;
+
+    return {
+      ticker: String(row.ticker ?? row.symbol ?? "").trim().toUpperCase(),
+      entryPrice: Number.isFinite(entryPrice) && entryPrice > 0 ? entryPrice : null,
+      currentPrice: Number.isFinite(currentPrice) && currentPrice > 0 ? currentPrice : null,
+      pnlPercent: Number.isFinite(Number(row.totalPLPct)) ? Number(row.totalPLPct) : null,
+      target: null,
+      stoploss: null,
+      navAllocation,
+      type: null,
+      tier: null,
+      quantity: Number.isFinite(Number(row.quantity)) ? Number(row.quantity) : null,
+      marketValue: Number.isFinite(marketValue) ? marketValue : null,
+    };
+  });
+
+  return {
+    connected: true,
+    source: payload.source ?? "dnse_api",
+    holdings: positions,
+    positions,
+  };
+}
+
+function toDirectOrdersTopic(payload: DnseApiOrdersResponse | null): BrokerOrdersTopic | null {
+  if (!payload?.success || !Array.isArray(payload.orders)) return null;
+  return {
+    connected: true,
+    source: payload.source ?? "dnse_api",
+    orders: payload.orders.map((order) => ({
+      ticker: String(order.ticker ?? order.symbol ?? "").trim().toUpperCase() || undefined,
+      side: order.side ?? undefined,
+      quantity: Number.isFinite(Number(order.quantity)) ? Number(order.quantity) : undefined,
+      price: Number.isFinite(Number(order.price)) ? Number(order.price) : null,
+      status: order.status ?? undefined,
+      submittedAt: order.createdAt ?? order.updatedAt ?? null,
+      brokerOrderId: order.orderId ?? null,
+    })),
+  };
+}
+
 export function DnseTradingClient() {
   const searchParams = useSearchParams();
   const queryTicker = (searchParams.get("ticker") ?? "").trim().toUpperCase();
@@ -245,6 +418,25 @@ export function DnseTradingClient() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [directDnse, setDirectDnse] = useState<DirectDnseState>({
+    loading: false,
+    accounts: null,
+    balance: null,
+    holdings: null,
+    orders: null,
+    resolved: {
+      accounts: false,
+      balance: false,
+      holdings: false,
+      orders: false,
+    },
+    errors: {
+      accounts: null,
+      balance: null,
+      holdings: null,
+      orders: null,
+    },
+  });
 
   useEffect(() => {
     if (queryTicker) setTicker(queryTicker);
@@ -266,6 +458,7 @@ export function DnseTradingClient() {
   );
 
   const brokerTopics = useTopics(topicKeys, {
+    enabled: !statusLoading && Boolean(connectionStatus?.connection?.linked),
     refreshInterval: 45_000,
     revalidateOnFocus: false,
     dedupingInterval: 10_000,
@@ -289,15 +482,165 @@ export function DnseTradingClient() {
   const orderHistoryTopic = orderHistoryEnvelope?.value as BrokerOrderHistoryTopic | null | undefined;
   const ppseTopic = ppseEnvelope?.value as BrokerPpseTopic | null | undefined;
 
+  async function fetchJson<T>(url: string): Promise<T> {
+    const response = await fetch(url, {
+      cache: "no-store",
+      credentials: "include",
+    });
+    const payload = (await response.json().catch(() => null)) as T | { error?: string } | null;
+    if (!response.ok) {
+      const errorMessage =
+        payload && typeof payload === "object" && "error" in payload && payload.error
+          ? payload.error
+          : `Request failed: ${response.status}`;
+      throw new Error(errorMessage);
+    }
+    return payload as T;
+  }
+
+  async function refreshDirectDnseData() {
+    if (!connectionStatus?.connection?.linked) {
+      setDirectDnse((prev) => ({
+        ...prev,
+        loading: false,
+        accounts: null,
+        balance: null,
+        holdings: null,
+        orders: null,
+        resolved: {
+          accounts: false,
+          balance: false,
+          holdings: false,
+          orders: false,
+        },
+        errors: {
+          accounts: null,
+          balance: null,
+          holdings: null,
+          orders: null,
+        },
+      }));
+      return;
+    }
+
+    setDirectDnse((prev) => ({ ...prev, loading: true }));
+
+    const results = await Promise.allSettled([
+      fetchJson<DnseApiAccountsResponse>("/api/dnse/accounts"),
+      fetchJson<DnseApiBalanceResponse>("/api/dnse/balance"),
+      fetchJson<DnseApiPositionsResponse>("/api/dnse/positions"),
+      fetchJson<DnseApiOrdersResponse>("/api/dnse/orders"),
+    ]);
+
+    const accountsResult = results[0];
+    const balanceResult = results[1];
+    const positionsResult = results[2];
+    const ordersResult = results[3];
+
+    const accountsPayload =
+      accountsResult.status === "fulfilled" ? accountsResult.value : null;
+    const balancePayload =
+      balanceResult.status === "fulfilled" ? balanceResult.value : null;
+    const positionsPayload =
+      positionsResult.status === "fulfilled" ? positionsResult.value : null;
+    const ordersPayload =
+      ordersResult.status === "fulfilled" ? ordersResult.value : null;
+
+    const totalNavRaw = Number(
+      balancePayload?.balance?.totalAsset ??
+        balancePayload?.balance?.netAssetValue ??
+        0,
+    );
+    const totalNav =
+      Number.isFinite(totalNavRaw) && totalNavRaw > 0 ? totalNavRaw : null;
+
+    const directHoldingsTopic = toDirectHoldingsTopic(positionsPayload, totalNav);
+    const allocatedValue =
+      directHoldingsTopic?.holdings?.reduce(
+        (sum, item) => sum + Number(item.marketValue ?? 0),
+        0,
+      ) ?? 0;
+    const allocatedPct =
+      totalNav && totalNav > 0 ? Math.min(100, (allocatedValue / totalNav) * 100) : 0;
+    const remainingPct = Math.max(0, 100 - allocatedPct);
+
+    const directBalanceTopic: BrokerBalanceTopic | null =
+      balancePayload?.success && balancePayload.balance
+        ? {
+            connected: true,
+            source: balancePayload.source ?? "dnse_api",
+            totalNav,
+            buyingPower: Number(
+              balancePayload.balance.buyingPower ??
+                balancePayload.balance.cashAvailable ??
+                0,
+            ),
+            cash: Number(
+              balancePayload.balance.cashBalance ??
+                balancePayload.balance.cashWithdrawable ??
+                0,
+            ),
+            debt: Number(balancePayload.balance.totalDebt ?? 0),
+            navAllocatedPct: allocatedPct,
+            navRemainingPct: remainingPct,
+            maxActiveNavPct: Number(balanceTopic?.maxActiveNavPct ?? 90),
+          }
+        : null;
+
+    setDirectDnse({
+      loading: false,
+      accounts: toDirectAccountsTopic(accountsPayload),
+      balance: directBalanceTopic,
+      holdings: directHoldingsTopic,
+      orders: toDirectOrdersTopic(ordersPayload),
+      resolved: {
+        accounts: accountsResult.status === "fulfilled",
+        balance: balanceResult.status === "fulfilled",
+        holdings: positionsResult.status === "fulfilled",
+        orders: ordersResult.status === "fulfilled",
+      },
+      errors: {
+        accounts:
+          accountsResult.status === "rejected" ? accountsResult.reason?.message ?? "Không thể đọc tài khoản DNSE." : null,
+        balance:
+          balanceResult.status === "rejected" ? balanceResult.reason?.message ?? "Không thể đọc NAV DNSE." : null,
+        holdings:
+          positionsResult.status === "rejected" ? positionsResult.reason?.message ?? "Không thể đọc danh mục DNSE." : null,
+        orders:
+          ordersResult.status === "rejected" ? ordersResult.reason?.message ?? "Không thể đọc lịch sử lệnh DNSE." : null,
+      },
+    });
+  }
+
+  function refreshDnseViews(forceTopics = true) {
+    if (connectionStatus?.connection?.linked) {
+      void brokerTopics.refresh(forceTopics);
+    }
+    void refreshDirectDnseData();
+  }
+
+  const effectiveAccountsTopic = directDnse.resolved.accounts
+    ? directDnse.accounts
+    : (directDnse.accounts ?? accountsTopic);
+  const effectiveBalanceTopic = directDnse.resolved.balance
+    ? directDnse.balance
+    : (directDnse.balance ?? balanceTopic);
+  const effectiveHoldingsTopic = directDnse.resolved.holdings
+    ? directDnse.holdings
+    : (directDnse.holdings ?? holdingsTopic ?? positionsTopic);
+  const effectiveOrdersTopic = directDnse.resolved.orders
+    ? directDnse.orders
+    : (directDnse.orders ?? ordersTopic);
+
   const holdings = useMemo(() => {
-    const fromHoldings = holdingsTopic?.holdings ?? [];
+    const fromHoldings = effectiveHoldingsTopic?.holdings ?? [];
     if (fromHoldings.length > 0) return fromHoldings;
-    return holdingsTopic?.positions ?? positionsTopic?.positions ?? [];
-  }, [holdingsTopic?.holdings, holdingsTopic?.positions, positionsTopic?.positions]);
+    return effectiveHoldingsTopic?.positions ?? [];
+  }, [effectiveHoldingsTopic?.holdings, effectiveHoldingsTopic?.positions]);
 
   const brokerAccounts = useMemo(
-    () => accountsTopic?.accounts ?? [],
-    [accountsTopic?.accounts],
+    () => effectiveAccountsTopic?.accounts ?? [],
+    [effectiveAccountsTopic?.accounts],
   );
   const loanPackages = useMemo(
     () => loanPackagesTopic?.loanPackages ?? [],
@@ -336,36 +679,46 @@ export function DnseTradingClient() {
     hasFutureDate(connectionStatus?.connection?.accessTokenExpiresAt);
   const needsRelogin = isLinkedAccount && !hasActiveDnseSession;
   const hasNavData =
-    Number.isFinite(Number(balanceTopic?.totalNav)) && Number(balanceTopic?.totalNav) > 0;
+    Number.isFinite(Number(effectiveBalanceTopic?.totalNav)) &&
+    Number(effectiveBalanceTopic?.totalNav) > 0;
   const hasBuyingPowerData =
-    Number.isFinite(Number(balanceTopic?.buyingPower)) &&
-    Number(balanceTopic?.buyingPower) >= 0;
+    Number.isFinite(Number(effectiveBalanceTopic?.buyingPower)) &&
+    Number(effectiveBalanceTopic?.buyingPower) >= 0;
   const hasHoldingsData = holdings.length > 0;
-  const hasOrdersData = Array.isArray(ordersTopic?.orders) && ordersTopic.orders.length > 0;
+  const hasOrdersData =
+    Array.isArray(effectiveOrdersTopic?.orders) && effectiveOrdersTopic.orders.length > 0;
   const hasBrokerData = hasNavData || hasBuyingPowerData || hasHoldingsData || hasOrdersData;
+  const canUseTopicBalanceHint =
+    !connectionStatus?.connection?.linked && !directDnse.resolved.balance;
+  const canUseTopicHoldingsHint =
+    !connectionStatus?.connection?.linked && !directDnse.resolved.holdings;
+  const canUseTopicOrdersHint =
+    !connectionStatus?.connection?.linked && !directDnse.resolved.orders;
   const balanceHint =
-    normalizeDnseReason(balanceTopic?.reason) ??
-    normalizeDnseReason(balanceEnvelope?.error?.message) ??
+    normalizeDnseReasonVi(directDnse.errors.balance) ??
+    (canUseTopicBalanceHint ? normalizeDnseReasonVi(effectiveBalanceTopic?.reason) : null) ??
+    (canUseTopicBalanceHint ? normalizeDnseReasonVi(balanceEnvelope?.error?.message) : null) ??
     (needsRelogin
       ? "Phiên DNSE đã hết hạn. Vui lòng đăng nhập lại để đồng bộ NAV và danh mục."
       : null);
   const holdingsHint =
-    normalizeDnseReason(holdingsTopic?.reason) ??
-    normalizeDnseReason(positionsTopic?.reason) ??
-    normalizeDnseReason(holdingsEnvelope?.error?.message) ??
-    normalizeDnseReason(positionsEnvelope?.error?.message) ??
+    normalizeDnseReasonVi(directDnse.errors.holdings) ??
+    (canUseTopicHoldingsHint ? normalizeDnseReasonVi(effectiveHoldingsTopic?.reason) : null) ??
+    (canUseTopicHoldingsHint ? normalizeDnseReasonVi(holdingsEnvelope?.error?.message) : null) ??
+    (canUseTopicHoldingsHint ? normalizeDnseReasonVi(positionsEnvelope?.error?.message) : null) ??
     (needsRelogin
       ? "Phiên DNSE đã hết hạn nên chưa đọc được danh mục nắm giữ."
       : null);
   const ordersHint =
-    normalizeDnseReason(ordersTopic?.reason) ??
-    normalizeDnseReason(ordersEnvelope?.error?.message) ??
+    normalizeDnseReasonVi(directDnse.errors.orders) ??
+    (canUseTopicOrdersHint ? normalizeDnseReasonVi(effectiveOrdersTopic?.reason) : null) ??
+    (canUseTopicOrdersHint ? normalizeDnseReasonVi(ordersEnvelope?.error?.message) : null) ??
     (needsRelogin
       ? "Phiên DNSE đã hết hạn nên chưa đọc được lệnh gần nhất."
       : null);
 
   const balanceDisplayHint =
-    needsRelogin && !balanceTopic?.totalNav
+    needsRelogin && !effectiveBalanceTopic?.totalNav
       ? "Phiên DNSE đã hết hạn. Vui lòng đăng nhập lại để đồng bộ NAV và sức mua."
       : balanceHint;
   const holdingsDisplayHint =
@@ -373,14 +726,14 @@ export function DnseTradingClient() {
       ? "Phiên DNSE đã hết hạn nên hệ thống chưa thể đọc danh mục nắm giữ."
       : holdingsHint;
   const ordersDisplayHint =
-    needsRelogin && !ordersTopic?.orders?.length
+    needsRelogin && !effectiveOrdersTopic?.orders?.length
       ? "Phiên DNSE đã hết hạn nên hệ thống chưa thể đọc lệnh gần nhất."
       : ordersHint;
 
   const totalNavValue = useMemo(() => {
-    const brokerNav = Number(balanceTopic?.totalNav);
+    const brokerNav = Number(effectiveBalanceTopic?.totalNav);
     return Number.isFinite(brokerNav) && brokerNav > 0 ? brokerNav : null;
-  }, [balanceTopic?.totalNav]);
+  }, [effectiveBalanceTopic?.totalNav]);
 
   const suggestedNotional = useMemo(() => {
     if (!queryNavPct || !totalNavValue) return null;
@@ -398,7 +751,10 @@ export function DnseTradingClient() {
     async function loadConnectionStatus() {
       setStatusLoading(true);
       try {
-        const response = await fetch("/api/user/dnse", { cache: "no-store" });
+        const response = await fetch("/api/user/dnse", {
+          cache: "no-store",
+          credentials: "include",
+        });
         const payload = (await response.json()) as DnseConnectionStatus & { error?: string };
         if (!cancelled && response.ok) {
           setConnectionStatus(payload);
@@ -420,6 +776,17 @@ export function DnseTradingClient() {
       cancelled = true;
     };
   }, [statusReloadKey]);
+
+  useEffect(() => {
+    if (statusLoading) return;
+    void refreshDirectDnseData();
+  }, [
+    statusLoading,
+    statusReloadKey,
+    connectionStatus?.connection?.linked,
+    connectionStatus?.connection?.accountId,
+    connectionStatus?.connection?.accessTokenExpiresAt,
+  ]);
 
   const isConnected = isLinkedAccount && (hasActiveDnseSession || hasBrokerData);
   const canTrade = isLinkedAccount && hasActiveDnseSession;
@@ -484,7 +851,9 @@ export function DnseTradingClient() {
           ) : null}
 
           <button
-            onClick={() => void brokerTopics.refresh(true)}
+            onClick={() => {
+              refreshDnseViews(true);
+            }}
             className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold"
             style={{
               borderColor: "var(--border)",
@@ -493,7 +862,9 @@ export function DnseTradingClient() {
             }}
           >
             <RefreshCw
-              className={`h-3.5 w-3.5 ${brokerTopics.isValidating ? "animate-spin" : ""}`}
+              className={`h-3.5 w-3.5 ${
+                brokerTopics.isValidating || directDnse.loading ? "animate-spin" : ""
+              }`}
             />
             Làm mới dữ liệu
           </button>
@@ -522,7 +893,7 @@ export function DnseTradingClient() {
               setSubmitError(null);
               setSubmitMessage("Đã đổi tài khoản. Vui lòng chọn tài khoản DNSE mới để liên kết lại.");
               setStatusReloadKey((prev) => prev + 1);
-              void brokerTopics.refresh(true);
+              refreshDnseViews(true);
               setShowAccountSelector(true);
             }}
           />
@@ -799,35 +1170,35 @@ export function DnseTradingClient() {
               <p style={{ color: "var(--text-secondary)" }}>
                 Sức mua khả dụng:{" "}
                 <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
-                  {balanceTopic?.buyingPower != null
-                    ? `${Math.round(balanceTopic.buyingPower).toLocaleString("vi-VN")} VND`
+                  {effectiveBalanceTopic?.buyingPower != null
+                    ? `${Math.round(effectiveBalanceTopic.buyingPower).toLocaleString("vi-VN")} VND`
                     : "--"}
                 </span>
               </p>
               <p style={{ color: "var(--text-secondary)" }}>
                 NAV đã phân bổ:{" "}
                 <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
-                  {Number(balanceTopic?.navAllocatedPct ?? 0).toFixed(2)}%
+                  {Number(effectiveBalanceTopic?.navAllocatedPct ?? 0).toFixed(2)}%
                 </span>
               </p>
               <p style={{ color: "var(--text-secondary)" }}>
                 NAV còn lại:{" "}
                 <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
-                  {Number(balanceTopic?.navRemainingPct ?? 0).toFixed(2)}%
+                  {Number(effectiveBalanceTopic?.navRemainingPct ?? 0).toFixed(2)}%
                 </span>
               </p>
               <p style={{ color: "var(--text-secondary)" }}>
                 Trần NAV active:{" "}
                 <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
-                  {Number(balanceTopic?.maxActiveNavPct ?? 90).toFixed(0)}%
+                  {Number(effectiveBalanceTopic?.maxActiveNavPct ?? 90).toFixed(0)}%
                 </span>
               </p>
               <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                Nguồn: {balanceTopic?.source ?? "N/A"}
+                Nguồn: {effectiveBalanceTopic?.source ?? "N/A"}
               </p>
-              {balanceTopic?.reason ? (
+              {effectiveBalanceTopic?.reason ? (
                 <p className="text-xs" style={{ color: "#f59e0b" }}>
-                  Ghi chú: {balanceTopic.reason}
+                  Ghi chú: {effectiveBalanceTopic.reason}
                 </p>
               ) : null}
             </div>
@@ -840,7 +1211,7 @@ export function DnseTradingClient() {
             </div>
           )}
 
-          {!isConnected && balanceDisplayHint ? (
+          {(!hasNavData || !hasBuyingPowerData) && balanceDisplayHint ? (
             <p className="mt-2 text-xs" style={{ color: "var(--danger)" }}>
               {balanceDisplayHint}
             </p>
@@ -965,9 +1336,9 @@ export function DnseTradingClient() {
           >
             Lệnh gần nhất
           </h2>
-          {Array.isArray(ordersTopic?.orders) && ordersTopic.orders.length > 0 ? (
+          {Array.isArray(effectiveOrdersTopic?.orders) && effectiveOrdersTopic.orders.length > 0 ? (
             <div className="space-y-2">
-              {ordersTopic.orders.slice(0, 6).map((order, index) => (
+              {effectiveOrdersTopic.orders.slice(0, 6).map((order, index) => (
                 <div
                   key={`${order.brokerOrderId ?? order.ticker ?? "order"}-${index}`}
                   className="rounded-xl border px-3 py-2 text-xs"
@@ -990,7 +1361,8 @@ export function DnseTradingClient() {
               Chưa có lịch sử lệnh từ DNSE execution audit.
             </p>
           )}
-          {(!Array.isArray(ordersTopic?.orders) || ordersTopic.orders.length === 0) &&
+          {(!Array.isArray(effectiveOrdersTopic?.orders) ||
+            effectiveOrdersTopic.orders.length === 0) &&
           ordersDisplayHint ? (
             <p className="mt-2 text-xs" style={{ color: "var(--danger)" }}>
               {ordersDisplayHint}
@@ -1059,7 +1431,7 @@ export function DnseTradingClient() {
           setSubmitError(null);
           setSubmitMessage(`Đã liên kết tài khoản DNSE: ${accountNo}`);
           setStatusReloadKey((prev) => prev + 1);
-          void brokerTopics.refresh(true);
+          refreshDnseViews(true);
         }}
       />
 
@@ -1069,9 +1441,9 @@ export function DnseTradingClient() {
         onSuccess={() => {
           setShowLoginModal(false);
           setSubmitError(null);
-          setSubmitMessage("Đăng nhập DNSE thành công. Hãy bấm Liên kết tài khoản DNSE.");
+          setSubmitMessage(loginSuccessMessage);
           setStatusReloadKey((prev) => prev + 1);
-          void brokerTopics.refresh(true);
+          refreshDnseViews(true);
         }}
       />
     </div>

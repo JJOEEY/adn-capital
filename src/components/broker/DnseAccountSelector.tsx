@@ -28,11 +28,16 @@ function normalizeAccountNo(value: string) {
 }
 
 function normalizeApiError(message: string) {
-  if (/authorization field missing|oa-400|unauthorized|forbidden|token|jwt/i.test(message)) {
+  const lower = message.toLowerCase();
+  if (
+    /authorization field missing|authorization|unauthorized|forbidden|token|jwt|oa-400/.test(
+      lower,
+    )
+  ) {
     return "Phiên đăng nhập DNSE không hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập DNSE lại rồi thử liên kết.";
   }
-  if (/no route matched|endpoint|http_404|not found/i.test(message)) {
-    return "Endpoint DNSE chưa đúng cấu hình. Vui lòng liên hệ admin kiểm tra lại.";
+  if (/no route matched|endpoint|http_404|not found/.test(lower)) {
+    return "Endpoint DNSE đang chưa đúng cấu hình. Vui lòng liên hệ admin để kiểm tra.";
   }
   return message;
 }
@@ -62,6 +67,11 @@ export function DnseAccountSelector({
 
   useEffect(() => {
     if (!open) return;
+    setSelectedAccountNo(defaultAccountNo?.trim() || null);
+  }, [defaultAccountNo, open]);
+
+  useEffect(() => {
+    if (!open) return;
     let cancelled = false;
 
     async function loadAccountsFromServer() {
@@ -70,6 +80,7 @@ export function DnseAccountSelector({
       try {
         const response = await fetch("/api/user/dnse/link/accounts", {
           cache: "no-store",
+          credentials: "include",
         });
         const payload = (await response.json().catch(() => null)) as
           | { code?: string; accounts?: BrokerAccount[]; error?: string }
@@ -114,7 +125,7 @@ export function DnseAccountSelector({
     return () => {
       cancelled = true;
     };
-  }, [open, selectedAccountNo]);
+  }, [open]);
 
   if (!open) return null;
 
@@ -131,6 +142,7 @@ export function DnseAccountSelector({
       const response = await fetch("/api/user/dnse/link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ accountNo }),
       });
       const payload = (await response.json().catch(() => null)) as ApiErrorPayload | null;

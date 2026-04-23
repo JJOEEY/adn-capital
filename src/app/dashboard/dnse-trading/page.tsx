@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { getCurrentDbUser } from "@/lib/current-user";
 import { DnseTradingClient } from "@/components/broker/DnseTradingClient";
-import { DnseTradingExtendedPanels } from "@/components/broker/DnseTradingExtendedPanels";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +18,6 @@ export default async function DnseTradingPage() {
   return (
     <MainLayout>
       <DnseTradingClient />
-      <DnseTradingExtendedPanels />
     </MainLayout>
   );
 }

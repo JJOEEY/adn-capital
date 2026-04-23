@@ -13,6 +13,7 @@ export type DnseAccountContext = {
   accountNo: string;
   brokerAccountNo: string;
   subAccountId: string | null;
+  accountCandidates: string[];
   userJwtToken: string | null;
 };
 
@@ -22,6 +23,15 @@ type DnseAccountContextResult =
 
 function normalizeAccountNo(value: string | null | undefined) {
   return (value ?? "").trim().toUpperCase();
+}
+
+function uniqueAccountCandidates(values: Array<string | null | undefined>) {
+  const set = new Set<string>();
+  for (const value of values) {
+    const normalized = normalizeAccountNo(value);
+    if (normalized) set.add(normalized);
+  }
+  return Array.from(set);
 }
 
 export async function requireDnseAccountContext(): Promise<DnseAccountContextResult> {
@@ -71,8 +81,15 @@ export async function requireDnseAccountContext(): Promise<DnseAccountContextRes
     connection?.status === "ACTIVE" ? normalizeAccountNo(connection.subAccountId) : "";
   const fallbackUserAccountNo = normalizeAccountNo(user.dnseId);
   const accountNo = activeConnectionAccountNo || fallbackUserAccountNo;
-  const brokerAccountNo =
-    activeConnectionSubAccountNo || activeConnectionAccountNo || fallbackUserAccountNo;
+  // DNSE portfolio/balance/orders currently resolve correctly from the primary account number.
+  // Keep subAccountId alongside the context for display/debug, but do not prefer it for reads.
+  const brokerAccountNo = activeConnectionAccountNo || fallbackUserAccountNo;
+  const accountCandidates = uniqueAccountCandidates([
+    brokerAccountNo,
+    activeConnectionSubAccountNo,
+    accountNo,
+    fallbackUserAccountNo,
+  ]);
 
   console.log("[DNSE Shared] Context data", {
     userId,
@@ -81,11 +98,12 @@ export async function requireDnseAccountContext(): Promise<DnseAccountContextRes
     fallbackUserAccountNo,
     accountNo,
     brokerAccountNo,
+    accountCandidates,
     dnseVerified: user.dnseVerified,
     connectionStatus: connection?.status ?? null,
   });
 
-  if (!accountNo || !brokerAccountNo) {
+  if (!accountNo || !brokerAccountNo || accountCandidates.length === 0) {
     return {
       ok: false,
       response: NextResponse.json({ error: "Chưa liên kết tài khoản DNSE" }, { status: 404 }),
@@ -144,6 +162,7 @@ export async function requireDnseAccountContext(): Promise<DnseAccountContextRes
       accountNo,
       brokerAccountNo,
       subAccountId: connection?.subAccountId?.trim() || null,
+      accountCandidates,
       userJwtToken,
     },
   };

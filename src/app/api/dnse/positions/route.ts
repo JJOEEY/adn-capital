@@ -28,11 +28,38 @@ export async function GET() {
       userJwtToken: resolved.context.userJwtToken,
       isolated: true,
     });
-    const positions = await client.getPositions(resolved.context.brokerAccountNo);
+    const candidates = resolved.context.accountCandidates.length
+      ? resolved.context.accountCandidates
+      : [resolved.context.brokerAccountNo];
+
+    let positions: Awaited<ReturnType<typeof client.getPositions>> = [];
+    let usedAccountNo: string | null = null;
+    let lastError: Error | null = null;
+
+    for (const accountNo of candidates) {
+      try {
+        const rows = await client.getPositions(accountNo);
+        if (rows.length > 0 || accountNo === candidates[candidates.length - 1]) {
+          positions = rows;
+          usedAccountNo = accountNo;
+          break;
+        }
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error("unknown_positions_error");
+        console.warn("[DNSE Positions API] Candidate failed", {
+          accountNo,
+          message: lastError.message,
+        });
+      }
+    }
+
+    if (!usedAccountNo) {
+      throw lastError ?? new Error("Không thể lấy danh mục DNSE cho các tài khoản đã liên kết.");
+    }
 
     console.log(
-      "[DNSE Positions API] Positions count:",
-      Array.isArray(positions) ? positions.length : -1,
+      "[DNSE Positions API] Positions result:",
+      { usedAccountNo, count: Array.isArray(positions) ? positions.length : -1 },
     );
 
     return NextResponse.json({

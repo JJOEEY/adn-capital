@@ -35,9 +35,35 @@ export async function GET(request: NextRequest) {
       userJwtToken: resolved.context.userJwtToken,
       isolated: true,
     });
-    const ppse = await client.getPPSE(resolved.context.brokerAccountNo, symbol);
+    const candidates = resolved.context.accountCandidates.length
+      ? resolved.context.accountCandidates
+      : [resolved.context.brokerAccountNo];
+    let ppse: Awaited<ReturnType<typeof client.getPPSE>> = null;
+    let usedAccountNo: string | null = null;
+    let lastError: Error | null = null;
 
-    console.log("[DNSE PPSE API] Result:", ppse);
+    for (const accountNo of candidates) {
+      try {
+        const row = await client.getPPSE(accountNo, symbol);
+        if (row || accountNo === candidates[candidates.length - 1]) {
+          ppse = row;
+          usedAccountNo = accountNo;
+          break;
+        }
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error("unknown_ppse_error");
+        console.warn("[DNSE PPSE API] Candidate failed", {
+          accountNo,
+          message: lastError.message,
+        });
+      }
+    }
+
+    if (!usedAccountNo) {
+      throw lastError ?? new Error("Không thể lấy dữ liệu PPSE cho các tài khoản đã liên kết.");
+    }
+
+    console.log("[DNSE PPSE API] Result:", { usedAccountNo, hasData: Boolean(ppse) });
 
     return NextResponse.json({
       success: true,
