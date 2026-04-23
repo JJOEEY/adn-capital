@@ -97,16 +97,24 @@ function normalizeBaseUrls(baseUrl?: string) {
   return all.filter((value, index, arr) => arr.indexOf(value) === index);
 }
 
+function getHostname(baseUrl: string) {
+  try {
+    return new URL(baseUrl).hostname.toLowerCase();
+  } catch {
+    return baseUrl.toLowerCase().replace(/^https?:\/\//, "").replace(/\/+$/, "");
+  }
+}
+
 function isOpenApiHost(baseUrl: string) {
-  return /openapi\.dnse\.com\.vn$/i.test(baseUrl);
+  return getHostname(baseUrl) === "openapi.dnse.com.vn";
 }
 
 function isApiHost(baseUrl: string) {
-  return /api\.dnse\.com\.vn$/i.test(baseUrl);
+  return getHostname(baseUrl) === "api.dnse.com.vn";
 }
 
 function isServiceHost(baseUrl: string) {
-  return /services\.entrade\.com\.vn$/i.test(baseUrl);
+  return getHostname(baseUrl) === "services.entrade.com.vn";
 }
 
 function pad2(value: number) {
