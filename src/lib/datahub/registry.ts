@@ -1545,7 +1545,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     cacheScope: "user",
     tags: ["broker", "dnse", "private", "positions"],
     match: (topicKey) => {
-      const match = topicKey.match(/^broker:dnse:([A-Za-z0-9_-]+):positions$/);
+      const match = topicKey.match(/^broker:dnse:(?!current-user:)([A-Za-z0-9_-]+):positions$/);
       return match ? { ok: true, params: { connectionId: match[1], channel: "positions" } } : { ok: false };
     },
     resolve: async (_, context, params) => loadBrokerTopic(params.connectionId, "positions", context),
@@ -1560,7 +1560,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     cacheScope: "user",
     tags: ["broker", "dnse", "private", "orders"],
     match: (topicKey) => {
-      const match = topicKey.match(/^broker:dnse:([A-Za-z0-9_-]+):orders$/);
+      const match = topicKey.match(/^broker:dnse:(?!current-user:)([A-Za-z0-9_-]+):orders$/);
       return match ? { ok: true, params: { connectionId: match[1], channel: "orders" } } : { ok: false };
     },
     resolve: async (_, context, params) => loadBrokerTopic(params.connectionId, "orders", context),
@@ -1575,7 +1575,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     cacheScope: "user",
     tags: ["broker", "dnse", "private", "balance"],
     match: (topicKey) => {
-      const match = topicKey.match(/^broker:dnse:([A-Za-z0-9_-]+):balance$/);
+      const match = topicKey.match(/^broker:dnse:(?!current-user:)([A-Za-z0-9_-]+):balance$/);
       return match ? { ok: true, params: { connectionId: match[1], channel: "balance" } } : { ok: false };
     },
     resolve: async (_, context, params) => loadBrokerTopic(params.connectionId, "balance", context),
@@ -1590,7 +1590,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     cacheScope: "user",
     tags: ["broker", "dnse", "private", "holdings"],
     match: (topicKey) => {
-      const match = topicKey.match(/^broker:dnse:([A-Za-z0-9_-]+):holdings$/);
+      const match = topicKey.match(/^broker:dnse:(?!current-user:)([A-Za-z0-9_-]+):holdings$/);
       return match ? { ok: true, params: { connectionId: match[1], channel: "holdings" } } : { ok: false };
     },
     resolve: async (_, context, params) => loadBrokerTopic(params.connectionId, "holdings", context),
@@ -1605,7 +1605,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     cacheScope: "user",
     tags: ["broker", "dnse", "private", "accounts"],
     match: (topicKey) => {
-      const match = topicKey.match(/^broker:dnse:([A-Za-z0-9_-]+):accounts$/);
+      const match = topicKey.match(/^broker:dnse:(?!current-user:)([A-Za-z0-9_-]+):accounts$/);
       return match ? { ok: true, params: { connectionId: match[1], channel: "accounts" } } : { ok: false };
     },
     resolve: async (_, context, params) => loadBrokerTopic(params.connectionId, "accounts", context),
@@ -1620,7 +1620,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     cacheScope: "user",
     tags: ["broker", "dnse", "private", "margin", "loan"],
     match: (topicKey) => {
-      const match = topicKey.match(/^broker:dnse:([A-Za-z0-9_-]+):loan-packages$/);
+      const match = topicKey.match(/^broker:dnse:(?!current-user:)([A-Za-z0-9_-]+):loan-packages$/);
       return match ? { ok: true, params: { connectionId: match[1], channel: "loan-packages" } } : { ok: false };
     },
     resolve: async (_, context, params) =>
@@ -1636,7 +1636,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     cacheScope: "user",
     tags: ["broker", "dnse", "private", "order-history"],
     match: (topicKey) => {
-      const match = topicKey.match(/^broker:dnse:([A-Za-z0-9_-]+):order-history$/);
+      const match = topicKey.match(/^broker:dnse:(?!current-user:)([A-Za-z0-9_-]+):order-history$/);
       return match ? { ok: true, params: { connectionId: match[1], channel: "order-history" } } : { ok: false };
     },
     resolve: async (_, context, params) => loadBrokerTopic(params.connectionId, "order-history", context),
@@ -1651,7 +1651,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     cacheScope: "user",
     tags: ["broker", "dnse", "private", "ppse"],
     match: (topicKey) => {
-      const match = topicKey.match(/^broker:dnse:([A-Za-z0-9_-]+):ppse:([A-Z0-9._-]{1,12})$/);
+      const match = topicKey.match(/^broker:dnse:(?!current-user:)([A-Za-z0-9_-]+):ppse:([A-Z0-9._-]{1,12})$/);
       return match
         ? {
             ok: true,
