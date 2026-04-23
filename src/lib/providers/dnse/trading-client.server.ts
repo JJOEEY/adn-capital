@@ -596,7 +596,7 @@ export class DnseTradingClient {
     }
 
     if (this.userJwtToken) {
-      throw new Error("DNSE session API failed for balance (session-only mode).");
+      console.warn("[DNSE getBalance] Session API failed, fallback to OpenAPI.");
     }
 
     const payload = await this.requestFirstSuccess(
@@ -681,7 +681,7 @@ export class DnseTradingClient {
     }
 
     if (this.userJwtToken) {
-      throw new Error("DNSE session API failed for positions (session-only mode).");
+      console.warn("[DNSE getPositions] Session API failed, fallback to OpenAPI.");
     }
 
     const path = buildPathWithQuery(`/accounts/${accountNo}/positions`, { marketType });
@@ -758,7 +758,7 @@ export class DnseTradingClient {
     if (sessionPayload) return this.mapOrders(extractArrayPayload(sessionPayload), accountNo);
 
     if (this.userJwtToken) {
-      throw new Error("DNSE session API failed for orders (session-only mode).");
+      console.warn("[DNSE getOrders] Session API failed, fallback to OpenAPI.");
     }
 
     const path = buildPathWithQuery(`/accounts/${accountNo}/orders`, {
@@ -838,7 +838,7 @@ export class DnseTradingClient {
     if (sessionPayload) return this.mapOrders(extractArrayPayload(sessionPayload), accountNo);
 
     if (this.userJwtToken) {
-      throw new Error("DNSE session API failed for order history (session-only mode).");
+      console.warn("[DNSE getOrdersHistory] Session API failed, fallback to OpenAPI.");
     }
 
     const openApiPath = buildPathWithQuery(`/accounts/${accountNo}/order-history`, query);
@@ -881,7 +881,7 @@ export class DnseTradingClient {
     }
 
     if (this.userJwtToken) {
-      throw new Error("DNSE session API failed for loan packages (session-only mode).");
+      console.warn("[DNSE getLoanPackages] Session API failed, fallback to OpenAPI.");
     }
 
     const path = buildPathWithQuery(`/accounts/${accountNo}/loan-packages`, {
@@ -936,7 +936,7 @@ export class DnseTradingClient {
     }
 
     if (this.userJwtToken) {
-      throw new Error("DNSE session API failed for PPSE (session-only mode).");
+      console.warn("[DNSE getPPSE] Session API failed, fallback to OpenAPI.");
     }
 
     const path = buildPathWithQuery(`/accounts/${accountNo}/ppse`, {
