@@ -11,6 +11,11 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     console.log("[DNSE Orders API] Start");
+    const now = new Date();
+    const fromDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    const toDate = now.toISOString().slice(0, 10);
 
     const resolved = await requireDnseAccountContext();
     if (!resolved.ok) {
@@ -32,13 +37,22 @@ export async function GET() {
       ? resolved.context.accountCandidates
       : [resolved.context.brokerAccountNo];
 
-    let orders: Awaited<ReturnType<typeof client.getOrders>> = [];
+    let orders: Awaited<ReturnType<typeof client.getOrdersHistory>> = [];
     let usedAccountNo: string | null = null;
     let lastError: Error | null = null;
 
     for (const accountNo of candidates) {
       try {
-        const rows = await client.getOrders(accountNo);
+        let rows = await client.getOrdersHistory(accountNo, {
+          fromDate,
+          toDate,
+          size: 100,
+        });
+        if (!rows.length) {
+          rows = await client.getOrdersHistory(accountNo, {
+            size: 100,
+          });
+        }
         if (rows.length > 0 || accountNo === candidates[candidates.length - 1]) {
           orders = rows;
           usedAccountNo = accountNo;

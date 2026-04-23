@@ -212,23 +212,43 @@ type DnseApiAccountsResponse = {
   error?: string;
 };
 
+type DnseApiLoanPackagesResponse = {
+  success?: boolean;
+  source?: string;
+  packages?: Array<{
+    id?: string | number | null;
+    code?: string | null;
+    name?: string | null;
+    description?: string | null;
+    maxLoanRatio?: number | null;
+    interestRate?: number | null;
+    minLoanRate?: number | null;
+    maxLoanRate?: number | null;
+    [key: string]: unknown;
+  }>;
+  error?: string;
+};
+
 type DirectDnseState = {
   loading: boolean;
   accounts: BrokerAccountsTopic | null;
   balance: BrokerBalanceTopic | null;
   holdings: BrokerHoldingsTopic | null;
   orders: BrokerOrdersTopic | null;
+  loanPackages: BrokerLoanPackagesTopic | null;
   resolved: {
     accounts: boolean;
     balance: boolean;
     holdings: boolean;
     orders: boolean;
+    loanPackages: boolean;
   };
   errors: {
     accounts: string | null;
     balance: string | null;
     holdings: string | null;
     orders: string | null;
+    loanPackages?: string | null;
   };
 };
 
@@ -334,6 +354,11 @@ function normalizeDnseReasonVi(reason: string | null | undefined) {
   return normalized;
 }
 
+function isDnseLiveSource(source: string | null | undefined) {
+  if (!source) return false;
+  return /dnse_api|dnse_openapi|dnse_user_session/i.test(source);
+}
+
 function toDirectAccountsTopic(
   payload: DnseApiAccountsResponse | null,
 ): BrokerAccountsTopic | null {
@@ -398,6 +423,34 @@ function toDirectOrdersTopic(payload: DnseApiOrdersResponse | null): BrokerOrder
   };
 }
 
+function toDirectLoanPackagesTopic(
+  payload: DnseApiLoanPackagesResponse | null,
+): BrokerLoanPackagesTopic | null {
+  if (!payload?.success || !Array.isArray(payload.packages)) return null;
+  return {
+    connected: true,
+    source: payload.source ?? "dnse_api",
+    loanPackages: payload.packages.map((pkg, index) => ({
+      loanPackageId:
+        String(pkg.id ?? pkg.code ?? pkg.name ?? `loan-package-${index}`).trim() ||
+        `loan-package-${index}`,
+      loanPackageName:
+        String(pkg.name ?? pkg.code ?? `Gói vay ${index + 1}`).trim() ||
+        `Gói vay ${index + 1}`,
+      interestRate:
+        Number.isFinite(Number(pkg.interestRate)) ? Number(pkg.interestRate) : null,
+      maxLoanRatio:
+        Number.isFinite(Number(pkg.maxLoanRatio)) ? Number(pkg.maxLoanRatio) : null,
+      minAmount:
+        Number.isFinite(Number(pkg.minLoanRate)) ? Number(pkg.minLoanRate) : null,
+      description:
+        typeof pkg.description === "string" && pkg.description.trim()
+          ? pkg.description.trim()
+          : null,
+    })),
+  };
+}
+
 export function DnseTradingClient() {
   const searchParams = useSearchParams();
   const queryTicker = (searchParams.get("ticker") ?? "").trim().toUpperCase();
@@ -424,17 +477,20 @@ export function DnseTradingClient() {
     balance: null,
     holdings: null,
     orders: null,
+    loanPackages: null,
     resolved: {
       accounts: false,
       balance: false,
       holdings: false,
       orders: false,
+      loanPackages: false,
     },
     errors: {
       accounts: null,
       balance: null,
       holdings: null,
       orders: null,
+      loanPackages: null,
     },
   });
 
@@ -507,17 +563,20 @@ export function DnseTradingClient() {
         balance: null,
         holdings: null,
         orders: null,
+        loanPackages: null,
         resolved: {
           accounts: false,
           balance: false,
           holdings: false,
           orders: false,
+          loanPackages: false,
         },
         errors: {
           accounts: null,
           balance: null,
           holdings: null,
           orders: null,
+          loanPackages: null,
         },
       }));
       return;
@@ -530,12 +589,14 @@ export function DnseTradingClient() {
       fetchJson<DnseApiBalanceResponse>("/api/dnse/balance"),
       fetchJson<DnseApiPositionsResponse>("/api/dnse/positions"),
       fetchJson<DnseApiOrdersResponse>("/api/dnse/orders"),
+      fetchJson<DnseApiLoanPackagesResponse>("/api/dnse/loan-packages"),
     ]);
 
     const accountsResult = results[0];
     const balanceResult = results[1];
     const positionsResult = results[2];
     const ordersResult = results[3];
+    const loanPackagesResult = results[4];
 
     const accountsPayload =
       accountsResult.status === "fulfilled" ? accountsResult.value : null;
@@ -545,6 +606,8 @@ export function DnseTradingClient() {
       positionsResult.status === "fulfilled" ? positionsResult.value : null;
     const ordersPayload =
       ordersResult.status === "fulfilled" ? ordersResult.value : null;
+    const loanPackagesPayload =
+      loanPackagesResult.status === "fulfilled" ? loanPackagesResult.value : null;
 
     const totalNavRaw = Number(
       balancePayload?.balance?.totalAsset ??
@@ -593,11 +656,13 @@ export function DnseTradingClient() {
       balance: directBalanceTopic,
       holdings: directHoldingsTopic,
       orders: toDirectOrdersTopic(ordersPayload),
+      loanPackages: toDirectLoanPackagesTopic(loanPackagesPayload),
       resolved: {
         accounts: accountsResult.status === "fulfilled",
         balance: balanceResult.status === "fulfilled",
         holdings: positionsResult.status === "fulfilled",
         orders: ordersResult.status === "fulfilled",
+        loanPackages: loanPackagesResult.status === "fulfilled",
       },
       errors: {
         accounts:
@@ -608,6 +673,10 @@ export function DnseTradingClient() {
           positionsResult.status === "rejected" ? positionsResult.reason?.message ?? "Không thể đọc danh mục DNSE." : null,
         orders:
           ordersResult.status === "rejected" ? ordersResult.reason?.message ?? "Không thể đọc lịch sử lệnh DNSE." : null,
+        loanPackages:
+          loanPackagesResult.status === "rejected"
+            ? loanPackagesResult.reason?.message ?? "Không thể đọc danh sách gói vay DNSE."
+            : null,
       },
     });
   }
@@ -619,18 +688,32 @@ export function DnseTradingClient() {
     void refreshDirectDnseData();
   }
 
+  const strictLinkedMode = Boolean(connectionStatus?.connection?.linked);
+
   const effectiveAccountsTopic = directDnse.resolved.accounts
     ? directDnse.accounts
     : (directDnse.accounts ?? accountsTopic);
-  const effectiveBalanceTopic = directDnse.resolved.balance
-    ? directDnse.balance
-    : (directDnse.balance ?? balanceTopic);
-  const effectiveHoldingsTopic = directDnse.resolved.holdings
+  const effectiveBalanceTopic = strictLinkedMode
+    ? (directDnse.balance ??
+      (isDnseLiveSource(balanceTopic?.source) ? balanceTopic : null))
+    : (directDnse.resolved.balance
+      ? directDnse.balance
+      : (directDnse.balance ?? balanceTopic));
+  const effectiveHoldingsTopic = strictLinkedMode
     ? directDnse.holdings
-    : (directDnse.holdings ?? holdingsTopic ?? positionsTopic);
-  const effectiveOrdersTopic = directDnse.resolved.orders
+    : (directDnse.resolved.holdings
+      ? directDnse.holdings
+      : (directDnse.holdings ?? holdingsTopic ?? positionsTopic));
+  const effectiveOrdersTopic = strictLinkedMode
     ? directDnse.orders
-    : (directDnse.orders ?? ordersTopic);
+    : (directDnse.resolved.orders
+      ? directDnse.orders
+      : (directDnse.orders ?? ordersTopic));
+  const effectiveLoanPackagesTopic = strictLinkedMode
+    ? directDnse.loanPackages
+    : (directDnse.resolved.loanPackages
+      ? directDnse.loanPackages
+      : (directDnse.loanPackages ?? loanPackagesTopic));
 
   const holdings = useMemo(() => {
     const fromHoldings = effectiveHoldingsTopic?.holdings ?? [];
@@ -638,19 +721,42 @@ export function DnseTradingClient() {
     return effectiveHoldingsTopic?.positions ?? [];
   }, [effectiveHoldingsTopic?.holdings, effectiveHoldingsTopic?.positions]);
 
-  const brokerAccounts = useMemo(
-    () => effectiveAccountsTopic?.accounts ?? [],
-    [effectiveAccountsTopic?.accounts],
-  );
-  const loanPackages = useMemo(
-    () => loanPackagesTopic?.loanPackages ?? [],
-    [loanPackagesTopic?.loanPackages],
-  );
   const orderHistory = useMemo(
     () => orderHistoryTopic?.orderHistory ?? [],
     [orderHistoryTopic?.orderHistory],
   );
 
+  const latestOrders = useMemo(() => {
+    const topicOrders = Array.isArray(effectiveOrdersTopic?.orders)
+      ? effectiveOrdersTopic.orders
+      : [];
+    if (topicOrders.length > 0) return topicOrders;
+
+    if (strictLinkedMode) {
+      return [];
+    }
+
+    return Array.isArray(orderHistory)
+      ? orderHistory.map((row) => ({
+          ticker: row.ticker ?? undefined,
+          side: row.side ?? undefined,
+          quantity: row.quantity ?? undefined,
+          price: row.price ?? null,
+          status: row.status ?? undefined,
+          submittedAt: row.submittedAt ?? null,
+          brokerOrderId: row.brokerOrderId ?? null,
+        }))
+      : [];
+  }, [effectiveOrdersTopic?.orders, orderHistory, orderHistoryTopic?.source, strictLinkedMode]);
+
+  const brokerAccounts = useMemo(
+    () => effectiveAccountsTopic?.accounts ?? [],
+    [effectiveAccountsTopic?.accounts],
+  );
+  const loanPackages = useMemo(
+    () => effectiveLoanPackagesTopic?.loanPackages ?? [],
+    [effectiveLoanPackagesTopic?.loanPackages],
+  );
   const primaryBrokerAccountId = useMemo(
     () => brokerAccounts.find((item) => item.accountNo?.trim())?.accountNo?.trim() ?? null,
     [brokerAccounts],
@@ -685,8 +791,7 @@ export function DnseTradingClient() {
     Number.isFinite(Number(effectiveBalanceTopic?.buyingPower)) &&
     Number(effectiveBalanceTopic?.buyingPower) >= 0;
   const hasHoldingsData = holdings.length > 0;
-  const hasOrdersData =
-    Array.isArray(effectiveOrdersTopic?.orders) && effectiveOrdersTopic.orders.length > 0;
+  const hasOrdersData = latestOrders.length > 0;
   const hasBrokerData = hasNavData || hasBuyingPowerData || hasHoldingsData || hasOrdersData;
   const canUseTopicBalanceHint =
     !connectionStatus?.connection?.linked && !directDnse.resolved.balance;
@@ -729,6 +834,7 @@ export function DnseTradingClient() {
     needsRelogin && !effectiveOrdersTopic?.orders?.length
       ? "Phiên DNSE đã hết hạn nên hệ thống chưa thể đọc lệnh gần nhất."
       : ordersHint;
+  const loanPackagesDisplayHint = normalizeDnseReasonVi(directDnse.errors.loanPackages);
 
   const totalNavValue = useMemo(() => {
     const brokerNav = Number(effectiveBalanceTopic?.totalNav);
@@ -1193,9 +1299,6 @@ export function DnseTradingClient() {
                   {Number(effectiveBalanceTopic?.maxActiveNavPct ?? 90).toFixed(0)}%
                 </span>
               </p>
-              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                Nguồn: {effectiveBalanceTopic?.source ?? "N/A"}
-              </p>
               {effectiveBalanceTopic?.reason ? (
                 <p className="text-xs" style={{ color: "#f59e0b" }}>
                   Ghi chú: {effectiveBalanceTopic.reason}
@@ -1307,12 +1410,6 @@ export function DnseTradingClient() {
                             : "--"}
                         </span>
                       </p>
-                      <p>
-                        Target / SL:{" "}
-                        <span style={{ color: "var(--text-primary)" }}>
-                          {fmtPrice(row.target)} / {fmtPrice(row.stoploss)}
-                        </span>
-                      </p>
                     </div>
                   </button>
                 );
@@ -1336,9 +1433,9 @@ export function DnseTradingClient() {
           >
             Lệnh gần nhất
           </h2>
-          {Array.isArray(effectiveOrdersTopic?.orders) && effectiveOrdersTopic.orders.length > 0 ? (
+          {latestOrders.length > 0 ? (
             <div className="space-y-2">
-              {effectiveOrdersTopic.orders.slice(0, 6).map((order, index) => (
+              {latestOrders.slice(0, 6).map((order, index) => (
                 <div
                   key={`${order.brokerOrderId ?? order.ticker ?? "order"}-${index}`}
                   className="rounded-xl border px-3 py-2 text-xs"
@@ -1361,13 +1458,53 @@ export function DnseTradingClient() {
               Chưa có lịch sử lệnh từ DNSE execution audit.
             </p>
           )}
-          {(!Array.isArray(effectiveOrdersTopic?.orders) ||
-            effectiveOrdersTopic.orders.length === 0) &&
-          ordersDisplayHint ? (
+          {latestOrders.length === 0 && ordersDisplayHint ? (
             <p className="mt-2 text-xs" style={{ color: "var(--danger)" }}>
               {ordersDisplayHint}
             </p>
           ) : null}
+
+          <div className="mt-4 border-t pt-3" style={{ borderColor: "var(--border)" }}>
+            <h3
+              className="mb-2 text-xs font-black uppercase tracking-wide"
+              style={{ color: "var(--text-primary)" }}
+            >
+              Gói vay khả dụng
+            </h3>
+            {loanPackages.length > 0 ? (
+              <div className="space-y-2">
+                {loanPackages.slice(0, 4).map((pkg) => (
+                  <div
+                    key={pkg.loanPackageId}
+                    className="rounded-xl border px-3 py-2 text-xs"
+                    style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
+                  >
+                    <p style={{ color: "var(--text-primary)", fontWeight: 700 }}>
+                      {pkg.loanPackageName}
+                    </p>
+                    <p style={{ color: "var(--text-secondary)" }}>
+                      Mã: {pkg.loanPackageId}
+                      {pkg.maxLoanRatio != null
+                        ? ` · Tỷ lệ vay tối đa: ${Number(pkg.maxLoanRatio).toFixed(0)}%`
+                        : ""}
+                      {pkg.interestRate != null
+                        ? ` · Lãi suất: ${Number(pkg.interestRate).toFixed(2)}%`
+                        : ""}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                Chưa có dữ liệu gói vay từ DNSE.
+              </p>
+            )}
+            {loanPackages.length === 0 && loanPackagesDisplayHint ? (
+              <p className="mt-2 text-xs" style={{ color: "var(--danger)" }}>
+                {loanPackagesDisplayHint}
+              </p>
+            ) : null}
+          </div>
         </div>
       </div>
 
