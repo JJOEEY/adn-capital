@@ -67,11 +67,9 @@ export async function GET() {
     for (const accountNo of candidates) {
       try {
         const rows = await client.getPositions(accountNo);
-        if (rows.length > 0 || accountNo === candidates[candidates.length - 1]) {
-          positions = rows;
-          usedAccountNo = accountNo;
-          break;
-        }
+        positions = rows;
+        usedAccountNo = accountNo;
+        break;
       } catch (error) {
         lastError = error instanceof Error ? error : new Error("unknown_positions_error");
         console.warn("[DNSE Positions API] Candidate failed", {
@@ -93,7 +91,6 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       positions,
-      source: "dnse_api",
     });
   } catch (error) {
     const message =

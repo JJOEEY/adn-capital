@@ -55,11 +55,9 @@ export async function GET(req: NextRequest) {
     for (const accountNo of candidates) {
       try {
         const rows = await client.getLoanPackages(accountNo, undefined, symbol);
-        if (rows.length > 0 || accountNo === candidates[candidates.length - 1]) {
-          packages = rows;
-          usedAccountNo = accountNo;
-          break;
-        }
+        packages = rows;
+        usedAccountNo = accountNo;
+        break;
       } catch (error) {
         lastError = error instanceof Error ? error : new Error("unknown_loan_packages_error");
         console.warn("[DNSE LoanPackages API] Candidate failed", {
@@ -81,7 +79,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       success: true,
       packages,
-      source: "dnse_api",
     });
   } catch (error) {
     const message =

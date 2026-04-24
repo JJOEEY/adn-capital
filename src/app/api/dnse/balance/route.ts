@@ -4,6 +4,66 @@ import { requireDnseAccountContext } from "@/app/api/dnse/_shared";
 
 export const dynamic = "force-dynamic";
 
+function numberValue(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value.replace(/,/g, "").trim());
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+function pickBestNumber(row: Record<string, unknown>, keys: string[], fallback = 0) {
+  const values = keys
+    .map((key) => numberValue(row[key]))
+    .filter((value): value is number => value != null);
+  const positive = values.find((value) => value > 0);
+  return positive ?? values[0] ?? fallback;
+}
+
+const NAV_KEYS = [
+  "totalNav",
+  "netAssetValue",
+  "totalAsset",
+  "totalAssets",
+  "nav",
+  "asset",
+  "totalValue",
+  "accountValue",
+  "equity",
+];
+
+const BUYING_POWER_KEYS = [
+  "buyingPower",
+  "purchasingPower",
+  "cashAvailable",
+  "availableCash",
+  "cashWithdrawable",
+  "withdrawableCash",
+  "availableBalance",
+  "availableAmount",
+  "maxBuyAmount",
+  "maxBuyValue",
+  "buyingPowerValue",
+  "pp",
+  "PP",
+  "ppse",
+  "PPSE",
+];
+
+const CASH_KEYS = [
+  "cash",
+  "cashBalance",
+  "cashAvailable",
+  "availableCash",
+  "cashWithdrawable",
+  "withdrawableCash",
+  "availableBalance",
+  "availableAmount",
+];
+
+const DEBT_KEYS = ["debt", "totalDebt", "marginDebt", "loan", "totalLoan"];
+
 /**
  * GET /api/dnse/balance
  * Lấy số dư/NAV tài khoản DNSE đã liên kết.
@@ -39,8 +99,8 @@ export async function GET() {
     for (const accountNo of candidates) {
       try {
         const row = await client.getBalance(accountNo);
-        const totalNav = Number(row.totalNav ?? row.netAssetValue ?? row.totalAsset ?? 0);
-        const buyingPower = Number(row.buyingPower ?? row.cashAvailable ?? row.cashBalance ?? 0);
+        const totalNav = pickBestNumber(row as unknown as Record<string, unknown>, NAV_KEYS, 0);
+        const buyingPower = pickBestNumber(row as unknown as Record<string, unknown>, BUYING_POWER_KEYS, 0);
         const hasUsableValue = totalNav > 0 || buyingPower > 0;
         if (hasUsableValue || accountNo === candidates[candidates.length - 1]) {
           balance = row;
@@ -60,26 +120,31 @@ export async function GET() {
       throw lastError ?? new Error("Không thể lấy NAV/số dư từ DNSE cho các tài khoản đã liên kết.");
     }
 
+    const balanceRow = balance as unknown as Record<string, unknown>;
+    const totalNav = pickBestNumber(balanceRow, NAV_KEYS, 0);
+    const buyingPower = pickBestNumber(balanceRow, BUYING_POWER_KEYS, 0);
+    const cash = pickBestNumber(balanceRow, CASH_KEYS, buyingPower);
+    const debt = pickBestNumber(balanceRow, DEBT_KEYS, 0);
+
     console.log("[DNSE Balance API] Balance result:", {
       usedAccountNo,
       accountNo: balance.accountNo,
-      totalNav: balance.totalNav ?? balance.netAssetValue ?? balance.totalAsset ?? 0,
-      buyingPower: balance.buyingPower ?? balance.cashAvailable ?? balance.cashBalance ?? 0,
+      totalNav,
+      buyingPower,
     });
 
     return NextResponse.json({
       success: true,
       balance: {
         accountNo: usedAccountNo,
-        cashBalance: balance.cash ?? 0,
-        cashAvailable: balance.buyingPower ?? 0,
-        cashWithdrawable: balance.cash ?? 0,
-        totalAsset: balance.totalNav ?? 0,
-        totalDebt: balance.debt ?? 0,
-        netAssetValue: balance.totalNav ?? 0,
-        buyingPower: balance.buyingPower ?? 0,
+        cashBalance: pickBestNumber(balanceRow, ["cashBalance", ...CASH_KEYS], cash),
+        cashAvailable: pickBestNumber(balanceRow, ["cashAvailable", ...BUYING_POWER_KEYS], buyingPower),
+        cashWithdrawable: pickBestNumber(balanceRow, ["cashWithdrawable", "withdrawableCash", ...CASH_KEYS], cash),
+        totalAsset: pickBestNumber(balanceRow, ["totalAsset", ...NAV_KEYS], totalNav),
+        totalDebt: pickBestNumber(balanceRow, ["totalDebt", ...DEBT_KEYS], debt),
+        netAssetValue: pickBestNumber(balanceRow, ["netAssetValue", ...NAV_KEYS], totalNav),
+        buyingPower,
       },
-      source: "dnse_api",
     });
   } catch (error) {
     const message =

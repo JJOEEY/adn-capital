@@ -278,7 +278,7 @@ export function OrderTicketPanel({
           source: naturalText.trim() ? "hybrid" : "manual",
         }),
       });
-      const data = (await res.json()) as PreviewResponse & { error?: string };
+      const data = (await res.json().catch(() => ({ error: "preview_response_invalid" }))) as PreviewResponse & { error?: string };
       if (!res.ok || !data.ticket) throw new Error(data.error ?? "preview_failed");
       setPreviewMode(data.mode ?? "SAFE_EXECUTION_ADAPTER_MODE");
       setValidation(data.ticket.validation);

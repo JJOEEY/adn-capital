@@ -67,11 +67,9 @@ export async function GET() {
             size: 100,
           });
         }
-        if (rows.length > 0 || accountNo === candidates[candidates.length - 1]) {
-          orders = rows;
-          usedAccountNo = accountNo;
-          break;
-        }
+        orders = rows;
+        usedAccountNo = accountNo;
+        break;
       } catch (error) {
         lastError = error instanceof Error ? error : new Error("unknown_orders_error");
         console.warn("[DNSE Orders API] Candidate failed", {
@@ -93,7 +91,6 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       orders,
-      source: "dnse_api",
     });
   } catch (error) {
     const message =

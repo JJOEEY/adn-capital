@@ -14,6 +14,7 @@ export const dynamic = "force-dynamic";
 const PREVIEW_TTL_MS = 5 * 60 * 1000;
 
 export async function POST(req: NextRequest) {
+  try {
   const userContext = await requireExecutionUserContext();
   if (!userContext) {
     emitObservabilityEvent({
@@ -149,4 +150,18 @@ export async function POST(req: NextRequest) {
     confirmationPhrase: "CONFIRM",
     previewOnly: !flags.realOrderSubmitEnabled,
   });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "preview_failed";
+    console.error("[DNSE Preview API] Error:", message);
+    if (error instanceof Error) {
+      console.error("[DNSE Preview API] Stack:", error.stack);
+    }
+    return NextResponse.json(
+      {
+        error: message,
+        deterministic: true,
+      },
+      { status: 500 },
+    );
+  }
 }

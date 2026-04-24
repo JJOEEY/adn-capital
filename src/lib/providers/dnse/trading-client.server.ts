@@ -91,6 +91,91 @@ function readNumber(row: JsonRecord, keys: string[], fallback = 0) {
   return fallback;
 }
 
+function readNumberValue(row: JsonRecord, key: string): number | null {
+  const raw = row[key];
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  if (typeof raw === "string") {
+    const normalized = raw.replace(/,/g, "").trim();
+    if (!normalized) return null;
+    const parsed = Number(normalized);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+function readBestNumber(row: JsonRecord, keys: string[], fallback = 0) {
+  const values = keys
+    .map((key) => readNumberValue(row, key))
+    .filter((value): value is number => value != null);
+  const positive = values.find((value) => value > 0);
+  return positive ?? values[0] ?? fallback;
+}
+
+const BALANCE_CASH_KEYS = [
+  "cash",
+  "cashBalance",
+  "cashAvailable",
+  "availableCash",
+  "cashWithdrawable",
+  "withdrawableCash",
+  "availableBalance",
+  "availableAmount",
+];
+
+const BALANCE_BUYING_POWER_KEYS = [
+  "buyingPower",
+  "purchasingPower",
+  "cashAvailable",
+  "availableCash",
+  "cashWithdrawable",
+  "withdrawableCash",
+  "availableBalance",
+  "availableAmount",
+  "maxBuyAmount",
+  "maxBuyValue",
+  "buyingPowerValue",
+  "pp",
+  "PP",
+  "ppse",
+  "PPSE",
+];
+
+const BALANCE_NAV_KEYS = [
+  "totalNav",
+  "netAssetValue",
+  "totalAsset",
+  "totalAssets",
+  "nav",
+  "asset",
+  "totalValue",
+  "accountValue",
+  "equity",
+];
+
+const BALANCE_DEBT_KEYS = ["debt", "totalDebt", "marginDebt", "loan", "totalLoan"];
+
+function normalizeBalance(row: JsonRecord, accountNo: string): DnseBalance {
+  const totalNav = readBestNumber(row, BALANCE_NAV_KEYS, 0);
+  const buyingPower = readBestNumber(row, BALANCE_BUYING_POWER_KEYS, 0);
+  const cash = readBestNumber(row, BALANCE_CASH_KEYS, buyingPower);
+  const debt = readBestNumber(row, BALANCE_DEBT_KEYS, 0);
+
+  return {
+    ...(row as Partial<DnseBalance>),
+    accountNo: readString(row, ["accountNo", "accountId", "account", "id"]) ?? accountNo,
+    cash,
+    buyingPower,
+    totalNav,
+    debt,
+    cashBalance: readBestNumber(row, ["cashBalance", ...BALANCE_CASH_KEYS], cash),
+    cashAvailable: readBestNumber(row, ["cashAvailable", ...BALANCE_BUYING_POWER_KEYS], buyingPower),
+    cashWithdrawable: readBestNumber(row, ["cashWithdrawable", "withdrawableCash", ...BALANCE_CASH_KEYS], cash),
+    totalAsset: readBestNumber(row, ["totalAsset", ...BALANCE_NAV_KEYS], totalNav),
+    totalDebt: readBestNumber(row, ["totalDebt", ...BALANCE_DEBT_KEYS], debt),
+    netAssetValue: readBestNumber(row, ["netAssetValue", ...BALANCE_NAV_KEYS], totalNav),
+  };
+}
+
 function normalizeBaseUrls(baseUrl?: string) {
   const canonicalize = (raw: string) =>
     raw
@@ -685,16 +770,8 @@ export class DnseTradingClient {
     );
     if (sessionPayload) {
       const rootSession = toRecord(sessionPayload) ?? {};
-      const balanceSession = (toRecord(rootSession.data) ?? rootSession) as unknown as DnseBalance;
-      return {
-        ...balanceSession,
-        accountNo: balanceSession.accountNo || accountNo,
-        cash: balanceSession.cash ?? balanceSession.cashBalance ?? balanceSession.cashAvailable ?? 0,
-        buyingPower: balanceSession.buyingPower ?? balanceSession.cashAvailable ?? 0,
-        totalNav:
-          balanceSession.totalNav ?? balanceSession.netAssetValue ?? balanceSession.totalAsset ?? 0,
-        debt: balanceSession.debt ?? balanceSession.totalDebt ?? 0,
-      };
+      const balanceSession = toRecord(rootSession.data) ?? rootSession;
+      return normalizeBalance(balanceSession, accountNo);
     }
 
     if (this.userJwtToken) {
@@ -712,15 +789,8 @@ export class DnseTradingClient {
       },
     );
     const root = toRecord(payload) ?? {};
-    const balance = (toRecord(root.data) ?? root) as unknown as DnseBalance;
-    return {
-      ...balance,
-      accountNo: balance.accountNo || accountNo,
-      cash: balance.cash ?? balance.cashBalance ?? balance.cashAvailable ?? 0,
-      buyingPower: balance.buyingPower ?? balance.cashAvailable ?? 0,
-      totalNav: balance.totalNav ?? balance.netAssetValue ?? balance.totalAsset ?? 0,
-      debt: balance.debt ?? balance.totalDebt ?? 0,
-    };
+    const balance = toRecord(root.data) ?? root;
+    return normalizeBalance(balance, accountNo);
   }
 
   async getPositions(accountNo: string, marketType = DEFAULT_MARKET_TYPE): Promise<DnsePosition[]> {

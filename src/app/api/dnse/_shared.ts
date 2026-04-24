@@ -86,7 +86,6 @@ export async function requireDnseAccountContext(): Promise<DnseAccountContextRes
   const brokerAccountNo = activeConnectionAccountNo || fallbackUserAccountNo;
   const accountCandidates = uniqueAccountCandidates([
     brokerAccountNo,
-    activeConnectionSubAccountNo,
     accountNo,
     fallbackUserAccountNo,
   ]);
