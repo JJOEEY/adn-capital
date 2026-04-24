@@ -10,6 +10,7 @@ import {
   fetchMarketOverview,
   fetchRSRatingList,
   fetchPropTrading,
+  fetchIntradaySnapshot,
   fetchMarketBreadth,
   fetchInvestorTrading,
   fetchRealtimeTradingData,
@@ -691,10 +692,16 @@ function extractExchange(row: JsonRecord): "HOSE" | "HNX" | "UPCOM" | null {
 
 function readLiquidityValue(row: JsonRecord): number | null {
   return pickNumber(row, [
+    "liquidity",
+    "Liquidity",
     "totalValue",
     "total_value",
     "totalTradingValue",
     "total_trading_value",
+    "TotalMatchValue",
+    "totalMatchValue",
+    "TotalDealValue",
+    "totalDealValue",
     "matchValue",
     "match_value",
     "trading_value",
@@ -704,6 +711,143 @@ function readLiquidityValue(row: JsonRecord): number | null {
     "gtgd",
     "gtgd_ty",
   ]);
+}
+
+function readBreadthGroup(row: JsonRecord | null | undefined): BreadthGroup | null {
+  if (!row) return null;
+  const group: BreadthGroup = {
+    up:
+      pickNumber(row, ["up", "totalStockUpPrice", "TotalStockUpPrice", "stockUp", "stock_up"]) ?? 0,
+    down:
+      pickNumber(row, ["down", "totalStockDownPrice", "TotalStockDownPrice", "stockDown", "stock_down"]) ?? 0,
+    unchanged:
+      pickNumber(row, [
+        "unchanged",
+        "noChange",
+        "totalStockNoChangePrice",
+        "TotalStockNoChangePrice",
+        "stockNoChange",
+        "stock_no_change",
+      ]) ?? 0,
+    ceiling:
+      pickNumber(row, [
+        "ceiling",
+        "ceil",
+        "totalStockOverCeiling",
+        "TotalStockOverCeiling",
+        "stockCeiling",
+        "stock_ceiling",
+      ]) ?? 0,
+    floor:
+      pickNumber(row, [
+        "floor",
+        "totalStockUnderFloor",
+        "TotalStockUnderFloor",
+        "stockFloor",
+        "stock_floor",
+      ]) ?? 0,
+  };
+  return group.up + group.down + group.unchanged + group.ceiling + group.floor > 0 ? group : null;
+}
+
+function findExchangeRecord(root: JsonRecord | null | undefined, exchange: "HOSE" | "HNX" | "UPCOM"): JsonRecord | null {
+  if (!root) return null;
+  const aliases: Record<typeof exchange, string[]> = {
+    HOSE: ["HOSE", "hose", "HSX", "hsx", "VNINDEX", "VNIndex", "vnindex"],
+    HNX: ["HNX", "hnx", "HNXINDEX", "HNXIndex", "hnxindex"],
+    UPCOM: ["UPCOM", "upcom", "UPCoM", "UPCOMINDEX", "UpcomIndex", "upcomindex"],
+  };
+  for (const key of aliases[exchange]) {
+    const value = root[key];
+    if (isRecord(value)) return value;
+  }
+  return null;
+}
+
+function normalizeBridgeSnapshot(raw: unknown): AlternativeSnapshot | null {
+  if (!isRecord(raw)) return null;
+  const payload = isRecord(raw.snapshot) ? (raw.snapshot as JsonRecord) : raw;
+  const indices = parseAlternativeIndices(payload);
+
+  const liquidityRoot =
+    pickRecord(payload, ["liquidityByExchange", "liquidity_by_exchange", "marketLiquidity", "liquidity"]) ??
+    payload;
+  const indexLiquidity = new Map<string, number>();
+  for (const row of indices ?? []) {
+    if (row.symbol && row.liquidity != null && Number.isFinite(row.liquidity)) {
+      indexLiquidity.set(row.symbol.toUpperCase(), row.liquidity);
+    }
+  }
+
+  const hose = toBillion(
+    pickNumber(liquidityRoot, ["HOSE", "hose", "HSX", "hsx", "hoseValue", "liquidity_hose"]) ??
+      indexLiquidity.get("VNINDEX") ??
+      null,
+  );
+  const hnx = toBillion(
+    pickNumber(liquidityRoot, ["HNX", "hnx", "hnxValue", "liquidity_hnx"]) ??
+      indexLiquidity.get("HNXINDEX") ??
+      null,
+  );
+  const upcom = toBillion(
+    pickNumber(liquidityRoot, ["UPCOM", "upcom", "UPCoM", "upcomValue", "liquidity_upcom"]) ??
+      indexLiquidity.get("UPCOMINDEX") ??
+      null,
+  );
+  const total =
+    toBillion(pickNumber(liquidityRoot, ["total", "totalValue", "liquidity_total", "all"])) ??
+    ((hose ?? 0) + (hnx ?? 0) + (upcom ?? 0) > 0 ? (hose ?? 0) + (hnx ?? 0) + (upcom ?? 0) : null);
+
+  const breadthRoot = pickRecord(payload, ["breadth", "marketBreadth", "market_breadth"]) ?? payload;
+  const breadthByExchangeRoot =
+    pickRecord(breadthRoot, ["byExchange", "by_exchange", "exchange"]) ??
+    pickRecord(payload, ["breadthByExchange", "breadth_by_exchange"]);
+  const totalBreadth =
+    readBreadthGroup(pickRecord(breadthRoot, ["total", "TOTAL", "all"])) ?? readBreadthGroup(breadthRoot);
+  const breadthByExchange = breadthByExchangeRoot
+    ? {
+        HOSE: readBreadthGroup(findExchangeRecord(breadthByExchangeRoot, "HOSE")),
+        HNX: readBreadthGroup(findExchangeRecord(breadthByExchangeRoot, "HNX")),
+        UPCOM: readBreadthGroup(findExchangeRecord(breadthByExchangeRoot, "UPCOM")),
+      }
+    : null;
+
+  const investorRoot = pickRecord(payload, ["investorTrading", "investorFlow", "investor"]) ?? payload;
+  const timestampRaw = payload.timestamp ?? payload.updatedAt ?? payload.time;
+  const timestamp =
+    typeof timestampRaw === "number"
+      ? timestampRaw
+      : typeof timestampRaw === "string"
+        ? Date.parse(timestampRaw)
+        : undefined;
+
+  if (!indices?.length && hose == null && hnx == null && upcom == null && !totalBreadth) return null;
+
+  return {
+    indices,
+    breadth: {
+      total: totalBreadth,
+      byExchange: breadthByExchange,
+    },
+    liquidityByExchange: {
+      HOSE: hose,
+      HNX: hnx,
+      UPCOM: upcom,
+      total,
+    },
+    investorTrading: {
+      foreignNet: toBillion(
+        pickNumber(investorRoot, ["foreignNet", "foreign_net", "foreign", "netForeign", "foreignNetValue"]),
+      ),
+      proprietaryNet: toBillion(
+        pickNumber(investorRoot, ["proprietaryNet", "proprietary_net", "selfTradingNet", "tuDoanhNet"]),
+      ),
+      retailNet: toBillion(pickNumber(investorRoot, ["retailNet", "retail_net", "individualNet", "caNhanNet"])),
+    },
+    source: typeof payload.source === "string" ? payload.source : "fiinquantx",
+    timestamp: Number.isFinite(timestamp) ? timestamp : undefined,
+    freshness: payload.freshness === "stale" ? "stale" : "fresh",
+  };
 }
 
 function readBuySellNet(row: JsonRecord): { buy: number | null; sell: number | null; net: number | null } {
@@ -1218,6 +1362,7 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
 
     const [
       overview,
+      intradaySnapshotRaw,
       investorRawByDate,
       breadthFeed,
       realtimeVnindex,
@@ -1231,6 +1376,7 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
       tcbsSnapshot,
     ] = await Promise.all([
       fetchMarketOverview(),
+      fetchIntradaySnapshot(),
       fetchInvestorTrading({
         fromDate: requestDateVN,
         toDate: requestDateVN,
@@ -1261,6 +1407,17 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
       providerDiagnostics.push({
         provider: "FiinQuant",
         endpoint: "/api/v1/market-breadth",
+        requestDateVN,
+        httpStatus: null,
+        error: "No data",
+        fallbackUsed: true,
+      });
+    }
+    const fiinBridgeSnapshot = normalizeBridgeSnapshot(intradaySnapshotRaw);
+    if (!fiinBridgeSnapshot) {
+      providerDiagnostics.push({
+        provider: "FiinQuant",
+        endpoint: "/api/v1/market-snapshot",
         requestDateVN,
         httpStatus: null,
         error: "No data",
@@ -1330,7 +1487,7 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
     if (upcomindex) dchartIndexMap.set("UPCOMINDEX", upcomindex);
     if (vn30) dchartIndexMap.set("VN30", vn30);
 
-    const fiinIndexMap = new Map<string, IndexData>();
+    const fiinIndexMap = normalizeDnseIndexRows(fiinBridgeSnapshot);
     if (overview?.ticker && String(overview.ticker).toUpperCase().includes("VNINDEX")) {
       const priceRecord =
         typeof overview.price === "object" && overview.price !== null
@@ -1347,7 +1504,7 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
         const fiinChangePct =
           toNumber(priceRecord?.change_pct) ??
           0;
-        fiinIndexMap.set("VNINDEX", {
+        if (!fiinIndexMap.has("VNINDEX")) fiinIndexMap.set("VNINDEX", {
           ticker: "VNINDEX",
           value: fiinValue,
           change: fiinChange,
@@ -1393,21 +1550,21 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
     const liquiditySourceByExchange = {
       HOSE: pickProvider(providerOrder, {
         dnse: dnseSnapshot?.liquidityByExchange.HOSE ?? null,
-        fiin: parsedInvestor.liquidityByExchange.HOSE,
+        fiin: fiinBridgeSnapshot?.liquidityByExchange.HOSE ?? parsedInvestor.liquidityByExchange.HOSE,
         vnstock: vnstockSnapshot?.liquidityByExchange.HOSE ?? null,
         vnd: null,
         tcbs: tcbsSnapshot?.liquidityByExchange.HOSE ?? null,
       }),
       HNX: pickProvider(providerOrder, {
         dnse: dnseSnapshot?.liquidityByExchange.HNX ?? null,
-        fiin: parsedInvestor.liquidityByExchange.HNX,
+        fiin: fiinBridgeSnapshot?.liquidityByExchange.HNX ?? parsedInvestor.liquidityByExchange.HNX,
         vnstock: vnstockSnapshot?.liquidityByExchange.HNX ?? null,
         vnd: null,
         tcbs: tcbsSnapshot?.liquidityByExchange.HNX ?? null,
       }),
       UPCOM: pickProvider(providerOrder, {
         dnse: dnseSnapshot?.liquidityByExchange.UPCOM ?? null,
-        fiin: parsedInvestor.liquidityByExchange.UPCOM,
+        fiin: fiinBridgeSnapshot?.liquidityByExchange.UPCOM ?? parsedInvestor.liquidityByExchange.UPCOM,
         vnstock: vnstockSnapshot?.liquidityByExchange.UPCOM ?? null,
         vnd: null,
         tcbs: tcbsSnapshot?.liquidityByExchange.UPCOM ?? null,
@@ -1416,21 +1573,21 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
 
     parsedInvestor.liquidityByExchange.HOSE = pickRoundRobinValue(providerOrder, {
       dnse: dnseSnapshot?.liquidityByExchange.HOSE ?? null,
-      fiin: parsedInvestor.liquidityByExchange.HOSE,
+      fiin: fiinBridgeSnapshot?.liquidityByExchange.HOSE ?? parsedInvestor.liquidityByExchange.HOSE,
       vnstock: vnstockSnapshot?.liquidityByExchange.HOSE ?? null,
       vnd: null,
       tcbs: tcbsSnapshot?.liquidityByExchange.HOSE ?? null,
     });
     parsedInvestor.liquidityByExchange.HNX = pickRoundRobinValue(providerOrder, {
       dnse: dnseSnapshot?.liquidityByExchange.HNX ?? null,
-      fiin: parsedInvestor.liquidityByExchange.HNX,
+      fiin: fiinBridgeSnapshot?.liquidityByExchange.HNX ?? parsedInvestor.liquidityByExchange.HNX,
       vnstock: vnstockSnapshot?.liquidityByExchange.HNX ?? null,
       vnd: null,
       tcbs: tcbsSnapshot?.liquidityByExchange.HNX ?? null,
     });
     parsedInvestor.liquidityByExchange.UPCOM = pickRoundRobinValue(providerOrder, {
       dnse: dnseSnapshot?.liquidityByExchange.UPCOM ?? null,
-      fiin: parsedInvestor.liquidityByExchange.UPCOM,
+      fiin: fiinBridgeSnapshot?.liquidityByExchange.UPCOM ?? parsedInvestor.liquidityByExchange.UPCOM,
       vnstock: vnstockSnapshot?.liquidityByExchange.UPCOM ?? null,
       vnd: null,
       tcbs: tcbsSnapshot?.liquidityByExchange.UPCOM ?? null,
@@ -1439,21 +1596,21 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
     const investorSource = {
       foreign: pickProvider(providerOrder, {
         dnse: dnseSnapshot?.investorTrading.foreignNet ?? null,
-        fiin: parsedInvestor.investorTrading.foreign.net,
+        fiin: fiinBridgeSnapshot?.investorTrading.foreignNet ?? parsedInvestor.investorTrading.foreign.net,
         vnstock: vnstockSnapshot?.investorTrading.foreignNet ?? null,
         vnd: null,
         tcbs: tcbsSnapshot?.investorTrading.foreignNet ?? null,
       }),
       proprietary: pickProvider(providerOrder, {
         dnse: dnseSnapshot?.investorTrading.proprietaryNet ?? null,
-        fiin: parsedInvestor.investorTrading.proprietary.net,
+        fiin: fiinBridgeSnapshot?.investorTrading.proprietaryNet ?? parsedInvestor.investorTrading.proprietary.net,
         vnstock: vnstockSnapshot?.investorTrading.proprietaryNet ?? null,
         vnd: null,
         tcbs: tcbsSnapshot?.investorTrading.proprietaryNet ?? null,
       }),
       retail: pickProvider(providerOrder, {
         dnse: dnseSnapshot?.investorTrading.retailNet ?? null,
-        fiin: parsedInvestor.investorTrading.retail.net,
+        fiin: fiinBridgeSnapshot?.investorTrading.retailNet ?? parsedInvestor.investorTrading.retail.net,
         vnstock: vnstockSnapshot?.investorTrading.retailNet ?? null,
         vnd: null,
         tcbs: tcbsSnapshot?.investorTrading.retailNet ?? null,
@@ -1462,21 +1619,21 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
 
     parsedInvestor.investorTrading.foreign.net = pickRoundRobinValue(providerOrder, {
       dnse: dnseSnapshot?.investorTrading.foreignNet ?? null,
-      fiin: parsedInvestor.investorTrading.foreign.net,
+      fiin: fiinBridgeSnapshot?.investorTrading.foreignNet ?? parsedInvestor.investorTrading.foreign.net,
       vnstock: vnstockSnapshot?.investorTrading.foreignNet ?? null,
       vnd: null,
       tcbs: tcbsSnapshot?.investorTrading.foreignNet ?? null,
     });
     parsedInvestor.investorTrading.proprietary.net = pickRoundRobinValue(providerOrder, {
       dnse: dnseSnapshot?.investorTrading.proprietaryNet ?? null,
-      fiin: parsedInvestor.investorTrading.proprietary.net,
+      fiin: fiinBridgeSnapshot?.investorTrading.proprietaryNet ?? parsedInvestor.investorTrading.proprietary.net,
       vnstock: vnstockSnapshot?.investorTrading.proprietaryNet ?? null,
       vnd: null,
       tcbs: tcbsSnapshot?.investorTrading.proprietaryNet ?? null,
     });
     parsedInvestor.investorTrading.retail.net = pickRoundRobinValue(providerOrder, {
       dnse: dnseSnapshot?.investorTrading.retailNet ?? null,
-      fiin: parsedInvestor.investorTrading.retail.net,
+      fiin: fiinBridgeSnapshot?.investorTrading.retailNet ?? parsedInvestor.investorTrading.retail.net,
       vnstock: vnstockSnapshot?.investorTrading.retailNet ?? null,
       vnd: null,
       tcbs: tcbsSnapshot?.investorTrading.retailNet ?? null,
@@ -1526,13 +1683,33 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
             UPCOM: toStrictBreadthGroup(dnseSnapshot.breadth.byExchange.UPCOM),
           }
         : null;
+    const breadthFromFiinSnapshot = fiinBridgeSnapshot?.breadth?.total
+      ? {
+          up: fiinBridgeSnapshot.breadth.total.up ?? 0,
+          down: fiinBridgeSnapshot.breadth.total.down ?? 0,
+          unchanged: fiinBridgeSnapshot.breadth.total.unchanged ?? 0,
+        }
+      : null;
+    const breadthByExchangeFromFiinSnapshot =
+      fiinBridgeSnapshot?.breadth?.byExchange
+        ? {
+            HOSE: toStrictBreadthGroup(fiinBridgeSnapshot.breadth.byExchange.HOSE),
+            HNX: toStrictBreadthGroup(fiinBridgeSnapshot.breadth.byExchange.HNX),
+            UPCOM: toStrictBreadthGroup(fiinBridgeSnapshot.breadth.byExchange.UPCOM),
+          }
+        : null;
 
     const breadthFromFeed = parseBreadthFromFeed(breadthFeed);
     const breadthByExchangeFromFeed = parseBreadthByExchangeFromFeed(breadthFeed);
-    const breadth = breadthFromDnse ?? breadthFromFeed ?? (overview ? parseBreadth(overview.market_breadth) : null);
-    const breadthByExchange = breadthByExchangeFromDnse ?? breadthByExchangeFromFeed;
+    const breadth =
+      breadthFromDnse ??
+      breadthFromFiinSnapshot ??
+      breadthFromFeed ??
+      (overview ? parseBreadth(overview.market_breadth) : null);
+    const breadthByExchange =
+      breadthByExchangeFromDnse ?? breadthByExchangeFromFiinSnapshot ?? breadthByExchangeFromFeed;
     const breadthSource: ProviderId | "none" =
-      breadthFromDnse ? "dnse" : breadthFromFeed ? "fiin" : "none";
+      breadthFromDnse ? "dnse" : breadthFromFiinSnapshot || breadthFromFeed ? "fiin" : "none";
 
     const supplyDemand = parseRealtimeSupplyDemand(realtimeVnindex);
 
@@ -1600,7 +1777,7 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
           : "none",
     } as const;
 
-    const freshnessBaseTimestamp = dnseSnapshot?.timestamp ?? Date.now();
+    const freshnessBaseTimestamp = dnseSnapshot?.timestamp ?? fiinBridgeSnapshot?.timestamp ?? Date.now();
     const freshnessAgeMs = Date.now() - freshnessBaseTimestamp;
     let freshness: "fresh" | "stale" | "degraded" =
       freshnessAgeMs <= 120_000 ? "fresh" : "stale";

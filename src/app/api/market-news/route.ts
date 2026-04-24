@@ -1439,46 +1439,48 @@ async function buildLiveEodFallbackPayload(): Promise<EodPayload | null> {
     }
 
     const snapshot = await getMarketSnapshot();
-    if (!snapshot.publish) return null;
     const vnindex = snapshot.indices.find((item) => item.ticker === "VNINDEX");
     if (vnindex && snapshot.liquidity != null && snapshot.liquidity > 0) {
       const investorLines = getInvestorTradingText(snapshot, "full19");
       const foreignLine = investorLines.find((line) => normalizeForCheck(line).includes("khoi ngoai")) ?? "";
       const otherLines = investorLines.filter((line) => line !== foreignLine).join(" | ");
-      const snapshotExchangeLiquidity: ExchangeLiquidity = {
+      const snapshotExchangeLiquidity: ExchangeLiquidity = normalizeExchangeLiquidity({
         HOSE: snapshot.liquidityByExchange.HOSE ?? null,
         HNX: snapshot.liquidityByExchange.HNX ?? null,
         UPCOM: snapshot.liquidityByExchange.UPCOM ?? null,
-      };
-
-      candidates.push({
-      date: toViDate(new Date(snapshot.timestamp)),
-      vnindex: vnindex.value,
-      change_pct: vnindex.changePct,
-      liquidity: snapshot.liquidity,
-      liquidity_by_exchange: snapshotExchangeLiquidity,
-      breadth: {
+      });
+      const snapshotBreadth = {
         up: snapshot.breadth?.up ?? 0,
         down: snapshot.breadth?.down ?? 0,
         unchanged: snapshot.breadth?.unchanged ?? 0,
         total: (snapshot.breadth?.up ?? 0) + (snapshot.breadth?.down ?? 0) + (snapshot.breadth?.unchanged ?? 0),
-      },
-      session_summary: `Bản tin EOD tạm thời từ snapshot trực tiếp (${snapshot.requestDateVN}).`,
-      liquidity_detail: buildLiquidityDetail(snapshot.liquidity, snapshotExchangeLiquidity),
-      foreign_flow: foreignLine || "",
-      notable_trades: otherLines,
-      outlook: snapshot.marketOverview?.action_message ?? "",
-      sub_indices: [],
-      foreign_top_buy: [],
-      foreign_top_sell: [],
-      prop_trading_top_buy: [],
-      prop_trading_top_sell: [],
-      sector_gainers: [],
-      sector_losers: [],
-      buy_signals: [],
-      sell_signals: [],
-      top_breakout: [],
-      });
+      };
+
+      if (hasFullExchangeLiquidity(snapshotExchangeLiquidity) && snapshotBreadth.total > 0) {
+        candidates.push({
+          date: toViDate(new Date(snapshot.timestamp)),
+          vnindex: vnindex.value,
+          change_pct: vnindex.changePct,
+          liquidity: snapshot.liquidity,
+          liquidity_by_exchange: snapshotExchangeLiquidity,
+          breadth: snapshotBreadth,
+          session_summary: `Bản tin EOD tạm thời từ snapshot trực tiếp (${snapshot.requestDateVN}).`,
+          liquidity_detail: buildLiquidityDetail(snapshot.liquidity, snapshotExchangeLiquidity),
+          foreign_flow: foreignLine || "",
+          notable_trades: otherLines,
+          outlook: snapshot.marketOverview?.action_message ?? "",
+          sub_indices: [],
+          foreign_top_buy: [],
+          foreign_top_sell: [],
+          prop_trading_top_buy: [],
+          prop_trading_top_sell: [],
+          sector_gainers: [],
+          sector_losers: [],
+          buy_signals: [],
+          sell_signals: [],
+          top_breakout: [],
+        });
+      }
     }
 
     if (candidates.length === 0) return null;
