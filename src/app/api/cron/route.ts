@@ -144,7 +144,6 @@ function hasRequiredClose15Data(snapshot: Awaited<ReturnType<typeof getMarketSna
     hasMeaningfulLiquidity(snapshot) &&
     hasFullExchangeLiquidity(snapshot) &&
     hasMeaningfulBreadth(snapshot) &&
-    hasFullExchangeBreadth(snapshot) &&
     snapshot.investorTrading.availability.foreign
   );
 }
@@ -156,7 +155,6 @@ function hasRequiredFull19Data(snapshot: Awaited<ReturnType<typeof getMarketSnap
     hasMeaningfulLiquidity(snapshot) &&
     hasFullExchangeLiquidity(snapshot) &&
     hasMeaningfulBreadth(snapshot) &&
-    hasFullExchangeBreadth(snapshot) &&
     snapshot.investorTrading.availability.foreign &&
     snapshot.investorTrading.availability.proprietary &&
     snapshot.investorTrading.availability.retail

@@ -2,7 +2,7 @@
  * API Cron: Close Brief 15:00 (Mon-Fri)
  *
  * Public rule: publish only when the report has market index, liquidity for
- * HoSE/HNX/UPCoM, market breadth by exchange, and foreign trading flow.
+ * HoSE/HNX/UPCoM, total market breadth, and foreign trading flow.
  */
 import { NextRequest, NextResponse } from "next/server";
 import {
@@ -32,15 +32,6 @@ function hasFullExchangeLiquidity(snapshot: MarketSnapshot): boolean {
   });
 }
 
-function hasFullExchangeBreadth(snapshot: MarketSnapshot): boolean {
-  const byExchange = snapshot.breadthByExchange;
-  if (!byExchange) return false;
-  return EXCHANGES.every((exchange) => {
-    const breadth = byExchange[exchange];
-    return !!breadth && breadth.up + breadth.down + breadth.unchanged > 0;
-  });
-}
-
 function hasRequiredCloseData(snapshot: MarketSnapshot): boolean {
   const hasMainIndex = snapshot.indices.some((item) => item.ticker === "VNINDEX");
   const breadth = snapshot.breadth;
@@ -51,7 +42,6 @@ function hasRequiredCloseData(snapshot: MarketSnapshot): boolean {
     hasTotalLiquidity &&
     hasFullExchangeLiquidity(snapshot) &&
     hasTotalBreadth &&
-    hasFullExchangeBreadth(snapshot) &&
     snapshot.investorTrading.availability.foreign
   );
 }
