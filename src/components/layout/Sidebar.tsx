@@ -23,13 +23,19 @@ import {
   Moon,
 } from "lucide-react";
 
-const navItems = [
+const navItems: Array<{
+  href: string;
+  label: string;
+  icon: React.ComponentType<any>;
+  badge: string | null;
+  adminOnly?: boolean;
+}> = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, badge: null },
   { href: "/san-pham", label: "Sản Phẩm & Dịch Vụ", icon: Layers, badge: null },
   { href: "/journal", label: "Nhật Ký Giao Dịch", icon: BookOpen, badge: null },
   { href: "/terminal", label: "Chat AI", icon: MessageSquare, badge: "HOT" },
   { href: "/dashboard/signal-map", label: "ADN AI Broker", icon: Zap, badge: null },
-  { href: "/dashboard/dnse-trading", label: "DNSE Trading", icon: Wallet, badge: "MỚI" },
+  { href: "/dashboard/dnse-trading", label: "DNSE Trading", icon: Wallet, badge: "MỚI", adminOnly: true },
   { href: "/art", label: "ART", icon: TrendingUp, badge: "MỚI" },
   { href: "/margin", label: "Ký Quỹ Margin", icon: Banknote, badge: "MỚI" },
   { href: "/pricing", label: "Bảng Giá", icon: DollarSign, badge: null },
@@ -201,7 +207,7 @@ export function Sidebar() {
         >
           Menu
         </p>
-        {navItems.map((item) => {
+        {navItems.filter((item) => !item.adminOnly || isAdmin).map((item) => {
           const Icon = item.icon;
           const isActive =
             pathname === item.href || pathname.startsWith(item.href + "/");
