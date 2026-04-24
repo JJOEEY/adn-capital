@@ -427,7 +427,6 @@ export default function TEIPage() {
               </div>
               <span className="ml-auto text-xs" style={{ color: "var(--text-muted)" }}>
                 Đang xem: <span className="font-bold" style={{ color: "var(--text-primary)" }}>{ticker}</span>
-                {rawData && <span className="ml-1">({rawData.count} phiên)</span>}
               </span>
             </div>
           </div>
@@ -442,6 +441,12 @@ export default function TEIPage() {
                   <p className="text-4xl font-black tabular-nums" style={{ color: "var(--text-primary)" }}>
                     {currentTEI.toFixed(2)}{" "}
                     <span className="text-lg font-bold" style={{ color: "var(--text-muted)" }}>ĐIỂM</span>
+                  </p>
+                  <p
+                    className="mt-1 text-sm font-black tracking-[0.28em]"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    {ticker}
                   </p>
                   <p className="text-xl font-black mt-1" style={{ color: classification.color }}>
                     {classification.label}

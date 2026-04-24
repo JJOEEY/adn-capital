@@ -22,6 +22,10 @@ import { getVnDateISO } from "@/lib/time";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
 
 const FIINQUANT_BRIDGE = getPythonBridgeUrl();
+const CHAT_BRIDGE_AI_TIMEOUT_MS = 5_500;
+const CHAT_BRIDGE_CONTEXT_TIMEOUT_MS = 5_000;
+const CHAT_BRIDGE_LIGHT_CONTEXT_TIMEOUT_MS = 4_000;
+const CHAT_AI_FALLBACK_TIMEOUT_MS = 16_000;
 
 // ─── Knowledge Base Cache ─────────────────────────────────────
 let knowledgeCache: { content: string; ts: number } | null = null;
@@ -116,7 +120,7 @@ interface TASummary {
   recentCandles: Record<string, unknown>[];
 }
 
-async function fetchTASummary(ticker: string, timeoutMs = 12000): Promise<TASummary | null> {
+async function fetchTASummary(ticker: string, timeoutMs = CHAT_BRIDGE_CONTEXT_TIMEOUT_MS): Promise<TASummary | null> {
   try {
     const url = `${FIINQUANT_BRIDGE}/api/v1/ta-summary/${ticker}`;
     console.log(`[Chat /ta] Fetching TA Summary: ${url}`);
@@ -162,7 +166,7 @@ async function fetchBridgeAI(
   endpoint: "ta" | "fa" | "tamly",
   ticker: string,
   context: string = "",
-  timeoutMs = 8_000,
+  timeoutMs = CHAT_BRIDGE_AI_TIMEOUT_MS,
 ): Promise<AIAnalysisResult | null> {
   try {
     const url = `${FIINQUANT_BRIDGE}/api/v1/ai/${endpoint}/${ticker}?context=${encodeURIComponent(context)}`;
@@ -202,7 +206,7 @@ async function fetchBridgeTickerNews(ticker: string): Promise<BridgeNewsItem[]> 
   try {
     const url = `${FIINQUANT_BRIDGE}/api/v1/news/${ticker}?limit=5`;
     const res = await fetch(url, {
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(CHAT_BRIDGE_CONTEXT_TIMEOUT_MS),
       cache: "no-store",
     });
     if (!res.ok) return [];
@@ -237,7 +241,7 @@ interface MarketOverviewData {
 async function fetchMarketOverview(): Promise<MarketOverviewData | null> {
   try {
     const res = await fetch(`${FIINQUANT_BRIDGE}/api/v1/market-overview`, {
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(CHAT_BRIDGE_CONTEXT_TIMEOUT_MS),
       cache: "no-store",
     });
     if (!res.ok) return null;
@@ -1070,7 +1074,7 @@ function fmtVolRaw(value: number | null | undefined): string {
 async function fetchTamlyRealtimeContext(ticker: string): Promise<string> {
   try {
     const res = await fetch(`${FIINQUANT_BRIDGE}/api/v1/realtime/${ticker}?timeframe=5m`, {
-      signal: AbortSignal.timeout(8_000),
+      signal: AbortSignal.timeout(CHAT_BRIDGE_LIGHT_CONTEXT_TIMEOUT_MS),
       cache: "no-store",
     });
     if (!res.ok) return "";
@@ -1441,7 +1445,7 @@ export async function POST(req: NextRequest) {
       try {
         responseText = await withTimeout(
           executeAIRequest(buildNewsPrompt(stock, journalCtx), INTENT.NEWS),
-          20_000,
+          CHAT_AI_FALLBACK_TIMEOUT_MS,
           "news-ai"
         );
       } catch (error) {
@@ -1466,7 +1470,7 @@ export async function POST(req: NextRequest) {
         try {
           responseText = await withTimeout(
             executeAIRequest(buildTamlyPrompt(stock, taData, journalCtx, realtimeFlowCtx), INTENT.TAMLY),
-            20_000,
+            CHAT_AI_FALLBACK_TIMEOUT_MS,
             "tamly-ai"
           );
         } catch (error) {
@@ -1483,7 +1487,7 @@ export async function POST(req: NextRequest) {
           const [ta, fa, summary] = await Promise.all([
             fetchTAData(ticker),
             fetchFAData(ticker),
-            fetchTASummary(ticker, 10_000),
+            fetchTASummary(ticker, CHAT_BRIDGE_CONTEXT_TIMEOUT_MS),
           ]);
           return { ticker, ta, fa, summary };
         }),
@@ -1506,14 +1510,14 @@ export async function POST(req: NextRequest) {
 
         [overview, vnindexTA] = await Promise.all([
           fetchMarketOverview(),
-          fetchTASummary("VNINDEX", 10_000),
+          fetchTASummary("VNINDEX", CHAT_BRIDGE_CONTEXT_TIMEOUT_MS),
         ]);
 
         if (tickers.length > 0) {
           console.log(`[Chat General] Detected tickers: ${tickers.join(", ")}`);
           const taResults = await Promise.all(
             tickers.map(async (t) => {
-              const ta = await fetchTASummary(t, 8_000);
+              const ta = await fetchTASummary(t, CHAT_BRIDGE_LIGHT_CONTEXT_TIMEOUT_MS);
               return ta ? { ticker: t, ta } : null;
             })
           );
