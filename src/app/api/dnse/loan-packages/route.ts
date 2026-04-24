@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { getDnseTradingClient } from "@/lib/providers/dnse/trading-client";
 import { requireDnseAccountContext } from "@/app/api/dnse/_shared";
 
@@ -22,9 +23,10 @@ function normalizeLoanPackagesError(raw: string) {
  * GET /api/dnse/loan-packages
  * Lấy danh sách gói vay margin theo tài khoản DNSE đã liên kết.
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     console.log("[DNSE LoanPackages API] Start");
+    const symbol = req.nextUrl.searchParams.get("symbol")?.trim().toUpperCase() || null;
 
     const resolved = await requireDnseAccountContext();
     if (!resolved.ok) {
@@ -52,7 +54,7 @@ export async function GET() {
 
     for (const accountNo of candidates) {
       try {
-        const rows = await client.getLoanPackages(accountNo);
+        const rows = await client.getLoanPackages(accountNo, undefined, symbol);
         if (rows.length > 0 || accountNo === candidates[candidates.length - 1]) {
           packages = rows;
           usedAccountNo = accountNo;

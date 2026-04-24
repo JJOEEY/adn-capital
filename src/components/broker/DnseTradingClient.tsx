@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import Link from "next/link";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -597,7 +596,9 @@ export function DnseTradingClient() {
       fetchJson<DnseApiBalanceResponse>("/api/dnse/balance"),
       fetchJson<DnseApiPositionsResponse>("/api/dnse/positions"),
       fetchJson<DnseApiOrdersResponse>("/api/dnse/orders"),
-      fetchJson<DnseApiLoanPackagesResponse>("/api/dnse/loan-packages"),
+      fetchJson<DnseApiLoanPackagesResponse>(
+        `/api/dnse/loan-packages?symbol=${encodeURIComponent(normalizedTicker || "HPG")}`,
+      ),
     ]);
 
     const accountsResult = results[0];
@@ -900,6 +901,7 @@ export function DnseTradingClient() {
     connectionStatus?.connection?.linked,
     connectionStatus?.connection?.accountId,
     connectionStatus?.connection?.accessTokenExpiresAt,
+    normalizedTicker,
   ]);
 
   const isConnected = isLinkedAccount && (hasActiveDnseSession || hasBrokerData);
@@ -1363,11 +1365,7 @@ export function DnseTradingClient() {
           </h2>
           {holdings.length === 0 ? (
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              Chưa có vị thế nắm giữ. Bạn có thể chọn mã từ{" "}
-              <Link href="/dashboard/signal-map" style={{ color: "var(--primary)", fontWeight: 700 }}>
-                ADN AI Broker
-              </Link>{" "}
-              để đặt lệnh.
+              Chưa có vị thế nắm giữ từ tài khoản DNSE đã liên kết.
             </p>
           ) : (
             <div className="grid gap-3 md:grid-cols-2">

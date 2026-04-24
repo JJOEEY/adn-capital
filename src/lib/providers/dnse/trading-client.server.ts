@@ -256,6 +256,11 @@ function buildPathWithQuery(
   return queryString ? `${path}?${queryString}` : path;
 }
 
+function getPathnameForSignature(path: string) {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return normalizedPath.split("?")[0] || "/";
+}
+
 export class DnseTradingClient {
   private readonly apiKey: string;
   private readonly apiSecret: string;
@@ -344,11 +349,13 @@ export class DnseTradingClient {
       if (options?.baseFilter === "openapi" && !isOpenApiHost(baseUrl)) continue;
       if (options?.baseFilter === "service" && !isServiceHost(baseUrl)) continue;
       for (const path of pathCandidates) {
-        const url = `${baseUrl}${path.startsWith("/") ? path : `/${path}`}`;
+        const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+        const signedPath = getPathnameForSignature(normalizedPath);
+        const url = `${baseUrl}${normalizedPath}`;
         try {
           const headers = this.buildHeaders(
             method,
-            path.startsWith("/") ? path : `/${path}`,
+            signedPath,
             Boolean(options?.includeBody),
             Boolean(options?.includeAuthorization),
             baseUrl,
@@ -365,7 +372,7 @@ export class DnseTradingClient {
             const signaturePreview = this.apiSecret
               ? this.generateOpenApiSignature(
               method,
-              path.startsWith("/") ? path : `/${path}`,
+              signedPath,
               formatDateHeader(new Date()),
               crypto.randomUUID().replace(/-/g, ""),
                 )
@@ -850,10 +857,11 @@ export class DnseTradingClient {
     console.log("[DNSE getOrdersHistory] Account:", accountNo);
 
     const query = {
-      fromDate: options?.fromDate ?? undefined,
-      toDate: options?.toDate ?? undefined,
-      page: options?.page ?? undefined,
-      size: options?.size ?? undefined,
+      from: options?.fromDate ?? undefined,
+      to: options?.toDate ?? undefined,
+      pageIndex: options?.page ?? 1,
+      pageSize: options?.size ?? undefined,
+      marketType: DEFAULT_MARKET_TYPE,
     };
 
     const sessionPathAccount = buildPathWithQuery(`/order-service/accounts/${accountNo}/order-history`, query);
@@ -927,10 +935,8 @@ export class DnseTradingClient {
       console.warn("[DNSE getOrdersHistory] Session API failed, fallback to OpenAPI.");
     }
 
-    const openApiPath = buildPathWithQuery(`/accounts/${accountNo}/order-history`, query);
-    const openApiPathAlt = buildPathWithQuery(`/accounts/${accountNo}/orders-history`, query);
-    const openApiPathV2 = buildPathWithQuery(`/accounts/${accountNo}/orders/history`, query);
-    const payload = await this.requestFirstSuccess("GET", [openApiPath, openApiPathAlt, openApiPathV2], {
+    const openApiPath = buildPathWithQuery(`/accounts/${accountNo}/orders/history`, query);
+    const payload = await this.requestFirstSuccess("GET", [openApiPath], {
       label: "Failed to get order history",
       includeAuthorization: false,
       baseFilter: "openapi",
