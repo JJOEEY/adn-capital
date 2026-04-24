@@ -33,30 +33,39 @@ function normalizeBearerToken(token: string) {
   return token.trim().replace(/^Bearer\s+/i, "").trim();
 }
 
-function getDnseBaseUrls() {
-  const canonicalize = (raw: string) =>
-    raw
-      .trim()
-      .replace(/^https:\/\/api\.dnse\.com\.vn/i, "https://openapi.dnse.com.vn")
-      .replace(/^http:\/\/api\.dnse\.com\.vn/i, "https://openapi.dnse.com.vn")
-      .replace(/\/openapi(?=\/|$)/i, "")
-      .replace(/\/+$/, "");
-  const envBaseUrls = (process.env.DNSE_TRADING_BASE_URLS ?? "")
-    .split(",")
-    .map((item) => canonicalize(item))
-    .filter(Boolean);
-  const baseFromEnv = process.env.DNSE_TRADING_BASE_URL
-    ? canonicalize(process.env.DNSE_TRADING_BASE_URL)
-    : undefined;
-
-  return [
-    ...envBaseUrls,
-    ...(baseFromEnv ? [baseFromEnv] : []),
-    "https://services.entrade.com.vn",
-    "https://openapi.dnse.com.vn",
-  ]
-    .map((base) => base.replace(/\/+$/, ""))
+function uniqueStrings(values: Array<string | undefined | null>) {
+  return values
+    .map((value) => value?.trim())
+    .filter((value): value is string => Boolean(value))
     .filter((value, index, arr) => arr.indexOf(value) === index);
+}
+
+function normalizeBaseUrl(raw: string) {
+  return raw.trim().replace(/\/+$/, "");
+}
+
+function getDnseAuthLoginUrls() {
+  const envAuthBaseUrls = (
+    process.env.DNSE_AUTH_BASE_URLS ??
+    process.env.DNSE_AUTH_BASE_URL ??
+    ""
+  )
+    .split(",")
+    .map((item) => normalizeBaseUrl(item))
+    .filter(Boolean);
+
+  return uniqueStrings([
+    process.env.DNSE_AUTH_LOGIN_URL,
+    ...envAuthBaseUrls.flatMap((base) => [
+      `${base}/auth-service/login`,
+      `${base}/auth-service/api/login`,
+    ]),
+    // Login/password uses DNSE auth-service. OpenAPI is for HMAC trading APIs.
+    "https://api.dnse.com.vn/auth-service/login",
+    "https://api.dnse.com.vn/auth-service/api/login",
+    "https://services.entrade.com.vn/auth-service/login",
+    "https://services.entrade.com.vn/auth-service/api/login",
+  ]);
 }
 
 function getSessionShape(req: NextRequest) {
@@ -104,14 +113,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const loginUrls = [
-    process.env.DNSE_AUTH_LOGIN_URL?.trim(),
-    ...getDnseBaseUrls().flatMap((base) => [
-      `${base}/auth-service/login`,
-      `${base}/auth-service/api/login`,
-    ]),
-  ].filter(Boolean) as string[];
-
+  const loginUrls = getDnseAuthLoginUrls();
   const apiKey = process.env.DNSE_API_KEY?.trim() || "";
   let lastError = "Không thể đăng nhập DNSE.";
 
@@ -134,6 +136,12 @@ export async function POST(req: NextRequest) {
         lastError =
           readString(toRecord(payload) ?? {}, ["message", "error", "detail", "msg"]) ??
           `HTTP_${response.status}`;
+        console.warn("[DNSE Session] login endpoint failed", {
+          host: new URL(url).host,
+          path: new URL(url).pathname,
+          status: response.status,
+          message: lastError,
+        });
         continue;
       }
 
@@ -144,7 +152,7 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      // Verify token thật ngay lúc đăng nhập để tránh false-success rồi lỗi OA-400 ở bước liên kết.
+      // Verify token immediately to avoid false-success before the account-link step.
       try {
         const verifyClient = getDnseTradingClient({ userJwtToken: token, isolated: true });
         await verifyClient.getAccounts();

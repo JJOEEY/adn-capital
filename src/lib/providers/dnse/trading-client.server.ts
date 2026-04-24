@@ -95,8 +95,6 @@ function normalizeBaseUrls(baseUrl?: string) {
   const canonicalize = (raw: string) =>
     raw
       .trim()
-      .replace(/^https:\/\/api\.dnse\.com\.vn/i, "https://openapi.dnse.com.vn")
-      .replace(/^http:\/\/api\.dnse\.com\.vn/i, "https://openapi.dnse.com.vn")
       .replace(/\/openapi(?=\/|$)/i, "")
       .replace(/\/+$/, "");
   const envBaseUrls = (process.env.DNSE_TRADING_BASE_URLS ?? "")
@@ -110,6 +108,7 @@ function normalizeBaseUrls(baseUrl?: string) {
     ...(baseUrl?.trim() ? [canonicalize(baseUrl)] : []),
     ...envBaseUrls,
     ...(baseFromEnv ? [baseFromEnv] : []),
+    "https://api.dnse.com.vn",
     "https://services.entrade.com.vn",
     "https://openapi.dnse.com.vn",
   ]
