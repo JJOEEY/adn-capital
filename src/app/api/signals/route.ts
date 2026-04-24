@@ -1,8 +1,100 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getBatchPrices } from "@/lib/PriceCache";
+import { fetchTAData } from "@/lib/stockData";
 
 export const dynamic = "force-dynamic";
+
+type LivePriceMap = Record<string, { close: number }>;
+
+function isValidPrice(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
+function hasValidLivePrice(livePriceMap: LivePriceMap, ticker: string): boolean {
+  return isValidPrice(livePriceMap[ticker]?.close);
+}
+
+async function hydrateMissingLivePrices(
+  tickers: string[],
+  livePriceMap: LivePriceMap,
+): Promise<LivePriceMap> {
+  const missingTickers = tickers.filter((ticker) => !hasValidLivePrice(livePriceMap, ticker));
+
+  if (missingTickers.length === 0) {
+    return livePriceMap;
+  }
+
+  const settled = await Promise.allSettled(
+    missingTickers.map(async (ticker) => {
+      const ta = await fetchTAData(ticker);
+      if (!ta || !isValidPrice(ta.currentPrice)) {
+        return null;
+      }
+      return [ticker, { close: ta.currentPrice }] as const;
+    }),
+  );
+
+  const hydrated: LivePriceMap = { ...livePriceMap };
+  for (const result of settled) {
+    if (result.status === "fulfilled" && result.value) {
+      const [ticker, price] = result.value;
+      hydrated[ticker] = price;
+    }
+  }
+
+  const hydratedCount = Object.keys(hydrated).filter((ticker) =>
+    missingTickers.includes(ticker),
+  ).length;
+  console.log(
+    `[/api/signals] hydrated ${hydratedCount}/${missingTickers.length} missing live prices from TA fallback`,
+  );
+
+  return hydrated;
+}
+
+async function persistLivePrices(
+  signals: Array<{
+    id: string;
+    ticker: string;
+    status: string;
+    entryPrice: number;
+    currentPrice: number | null;
+  }>,
+  liveStatuses: Set<string>,
+  livePriceMap: LivePriceMap,
+) {
+  const updates = signals
+    .filter((signal) => liveStatuses.has(signal.status))
+    .map((signal) => {
+      const currentPrice = livePriceMap[signal.ticker]?.close;
+      if (!isValidPrice(currentPrice) || signal.entryPrice <= 0) {
+        return null;
+      }
+
+      const currentPnl = +(((currentPrice - signal.entryPrice) / signal.entryPrice) * 100).toFixed(2);
+      const existingPrice = signal.currentPrice ?? 0;
+      if (Math.abs(existingPrice - currentPrice) < 0.0001) {
+        return null;
+      }
+
+      return prisma.signal.update({
+        where: { id: signal.id },
+        data: { currentPrice, currentPnl },
+      });
+    })
+    .filter(Boolean);
+
+  if (updates.length === 0) {
+    return;
+  }
+
+  const settled = await Promise.allSettled(updates);
+  const failed = settled.filter((result) => result.status === "rejected").length;
+  if (failed > 0) {
+    console.error(`[/api/signals] failed to persist ${failed}/${updates.length} live price updates`);
+  }
+}
 
 /**
  * GET /api/signals?days=7&status=RADAR
@@ -44,6 +136,8 @@ export async function GET(request: NextRequest) {
     if (liveTickers.length > 0) {
       try {
         livePriceMap = await getBatchPrices(liveTickers);
+        livePriceMap = await hydrateMissingLivePrices(liveTickers, livePriceMap);
+        await persistLivePrices(signals, liveStatuses, livePriceMap);
       } catch (error) {
         console.error("[/api/signals] live price fallback to DB:", error);
       }
