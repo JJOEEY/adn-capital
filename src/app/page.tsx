@@ -150,13 +150,13 @@ function LandingHeader() {
           onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
           Đăng nhập
         </Link>
-        <a href="https://s.dnse.vn/AhkV3Y" target="_blank" rel="noopener noreferrer"
+        <Link href="/auth"
           className="hidden sm:inline-flex items-center px-5 py-2 rounded-[10px] text-[14px] font-semibold transition-all"
           style={{ background: "var(--primary)", color: "var(--on-primary)" }}
           onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--primary-hover)"; }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--primary)"; }}>
-          Mở TK
-        </a>
+          Dùng thử
+        </Link>
         <button onClick={toggleTheme}
           className="w-9 h-9 rounded-full flex items-center justify-center transition-all"
           style={{ color: "var(--text-secondary)" }}
@@ -182,9 +182,9 @@ function LandingHeader() {
               <Link href="/auth" onClick={() => setMenuOpen(false)}
                 className="flex-1 text-center py-2 rounded-[10px] text-[14px] font-medium"
                 style={{ color: "var(--text-primary)", border: "1px solid var(--border)" }}>Đăng nhập</Link>
-              <a href="https://s.dnse.vn/AhkV3Y" target="_blank" rel="noopener noreferrer"
+              <Link href="/auth" onClick={() => setMenuOpen(false)}
                 className="flex-1 text-center py-2 rounded-[10px] text-[14px] font-semibold"
-                style={{ background: "var(--primary)", color: "var(--on-primary)" }}>Mở TK</a>
+                style={{ background: "var(--primary)", color: "var(--on-primary)" }}>Dùng thử</Link>
             </div>
           </nav>
         </div>
@@ -202,10 +202,11 @@ export default function HomePage() {
       <PwaEntryRedirect />
       <LandingHeader />
       <div className="space-y-0">
-        <HeroSection />
+        <HeroSectionV2 />
         <SocialProofTicker />
-        <StatsSection />
+        <WorkflowProofSection />
         <FeaturesSection />
+        <BrokerConnectedSection />
         <PerformanceSection />
         <ProcessSection />
         <TestimonialsSection />
@@ -221,6 +222,242 @@ export default function HomePage() {
 /* ─────────────────────────────────────────────────────────────────────────────
    1. HERO SECTION
 ───────────────────────────────────────────────────────────────────────────── */
+const HERO_TRUST_CHIPS = [
+  "Dashboard thị trường",
+  "AI Broker workflow",
+  "ART đảo chiều xu hướng",
+  "Brief & tin tức",
+  "Preview hành động an toàn",
+];
+
+function HeroSectionV2() {
+  return (
+    <section className="relative overflow-hidden px-5 md:px-12 py-20 md:py-28">
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background:
+            "radial-gradient(circle at 18% 8%, rgba(46, 92, 69, 0.16), transparent 34%), radial-gradient(circle at 86% 22%, rgba(238, 169, 81, 0.12), transparent 30%)",
+        }}
+      />
+      <div className="relative max-w-7xl mx-auto grid lg:grid-cols-[1fr_0.95fr] gap-12 lg:gap-16 items-center">
+        <FadeIn>
+          <SectionLabel>ADN Capital Broker-First Platform</SectionLabel>
+          <h1
+            className="max-w-4xl text-[44px] sm:text-[60px] lg:text-[74px] leading-[0.95] font-black tracking-[-0.06em]"
+            style={{ color: "var(--text-primary)" }}
+          >
+            AI phân tích thị trường, broker workflow kiểm soát hành động.
+          </h1>
+          <p
+            className="mt-7 max-w-2xl text-[18px] sm:text-[20px] leading-relaxed"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            ADN gom tín hiệu, dữ liệu thị trường, brief, danh mục và trạng thái tài khoản vào một luồng vận hành thống nhất để nhà đầu tư ra quyết định có kiểm chứng hơn.
+          </p>
+          <div className="mt-9 flex flex-col sm:flex-row gap-3">
+            <Link
+              href="/auth"
+              className="group inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-[12px] font-semibold text-[15px] transition-all hover:scale-[1.02] active:scale-[0.98]"
+              style={{ background: "var(--primary)", color: "var(--on-primary)" }}
+            >
+              Dùng thử dashboard
+              <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
+            </Link>
+            <a
+              href="#broker-workflow"
+              className="group inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-[12px] font-semibold text-[15px] transition-all"
+              style={{ border: "1px solid var(--border-strong)", color: "var(--text-primary)", background: "var(--surface)" }}
+            >
+              Xem workflow broker
+              <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
+            </a>
+          </div>
+          <div className="mt-8 flex flex-wrap gap-2">
+            {HERO_TRUST_CHIPS.map((chip) => (
+              <span
+                key={chip}
+                className="rounded-full px-3.5 py-2 text-[13px] font-semibold"
+                style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}
+              >
+                {chip}
+              </span>
+            ))}
+          </div>
+        </FadeIn>
+
+        <FadeIn delay={0.12}>
+          <BrokerHeroPreview />
+        </FadeIn>
+      </div>
+    </section>
+  );
+}
+
+function BrokerHeroPreview() {
+  const rows = [
+    { label: "Tín hiệu mới", value: "Upsert vào DataHub", tone: "var(--success)" },
+    { label: "Danh mục", value: "Đọc cùng source broker", tone: "var(--primary)" },
+    { label: "Phiếu lệnh", value: "Preview trước khi xác nhận", tone: "var(--warning)" },
+  ];
+
+  return (
+    <div
+      className="relative rounded-[28px] p-4 sm:p-5 shadow-2xl"
+      style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
+    >
+      <div
+        className="absolute -top-6 -right-6 h-24 w-24 rounded-full blur-2xl"
+        style={{ background: "rgba(46, 92, 69, 0.22)" }}
+      />
+      <div className="relative rounded-[22px] p-5" style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-[12px] font-bold uppercase tracking-[0.16em]" style={{ color: "var(--text-muted)" }}>
+              ADN AI Broker
+            </p>
+            <h3 className="mt-2 text-2xl font-black tracking-[-0.04em]" style={{ color: "var(--text-primary)" }}>
+              Quyết định từ dữ liệu thật
+            </h3>
+          </div>
+          <div className="rounded-2xl p-3" style={{ background: "var(--primary-light)", color: "var(--primary)" }}>
+            <Activity className="w-6 h-6" />
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-3">
+          {rows.map((row) => (
+            <div
+              key={row.label}
+              className="flex items-center justify-between rounded-2xl px-4 py-3"
+              style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
+            >
+              <span className="text-[14px]" style={{ color: "var(--text-secondary)" }}>{row.label}</span>
+              <span className="text-[14px] font-bold" style={{ color: row.tone }}>{row.value}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-5 grid sm:grid-cols-2 gap-3">
+          <div className="rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+            <p className="text-[12px] font-bold uppercase tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>NAV khuyến nghị</p>
+            <p className="mt-3 text-3xl font-black" style={{ color: "var(--text-primary)" }}>10%</p>
+            <p className="mt-1 text-[13px]" style={{ color: "var(--text-secondary)" }}>Liên kết với quy mô danh mục khi preview lệnh.</p>
+          </div>
+          <div className="rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+            <p className="text-[12px] font-bold uppercase tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>Guardrail</p>
+            <p className="mt-3 text-3xl font-black" style={{ color: "var(--success)" }}>SAFE</p>
+            <p className="mt-1 text-[13px]" style={{ color: "var(--text-secondary)" }}>AI chỉ giải thích; lifecycle và rủi ro là deterministic.</p>
+          </div>
+        </div>
+
+        <p className="mt-5 text-[12px]" style={{ color: "var(--text-muted)" }}>
+          Minh họa public, không phải dữ liệu tài khoản thật và không tự động đặt lệnh.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+const WORKFLOW_PROOFS = [
+  {
+    title: "Một nguồn sự thật",
+    body: "Dashboard, ADN AI Broker, brief và notification đọc từ cùng record/topic thay vì mỗi nơi tự tính một kiểu.",
+    Icon: BarChart3,
+  },
+  {
+    title: "AI không sinh tín hiệu gốc",
+    body: "Scanner, lifecycle, risk và broker truth chạy deterministic; AI chỉ giải thích, tóm tắt và cá nhân hóa.",
+    Icon: CheckCircle2,
+  },
+  {
+    title: "Broker workflow có kiểm soát",
+    body: "Kết nối tài khoản, NAV, vị thế và preview hành động được đặt sau guardrails, không mở real submit đại trà.",
+    Icon: Banknote,
+  },
+];
+
+function WorkflowProofSection() {
+  return (
+    <section className="px-5 md:px-12 py-16">
+      <div className="max-w-7xl mx-auto grid md:grid-cols-3 gap-4">
+        {WORKFLOW_PROOFS.map(({ title, body, Icon }, idx) => (
+          <FadeIn key={title} delay={idx * 0.08}>
+            <div
+              className="h-full rounded-[24px] p-6 transition-transform hover:-translate-y-1"
+              style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
+            >
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: "var(--primary-light)", color: "var(--primary)" }}>
+                <Icon className="w-5 h-5" />
+              </div>
+              <h3 className="mt-5 text-xl font-black tracking-[-0.03em]" style={{ color: "var(--text-primary)" }}>{title}</h3>
+              <p className="mt-3 text-[15px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>{body}</p>
+            </div>
+          </FadeIn>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function BrokerConnectedSection() {
+  return (
+    <section id="broker-workflow" className="px-5 md:px-12 py-20">
+      <div className="max-w-7xl mx-auto grid lg:grid-cols-[0.9fr_1.1fr] gap-10 items-center">
+        <FadeIn>
+          <SectionLabel>Broker-Connected Workflow</SectionLabel>
+          <h2 className="text-[34px] sm:text-[48px] font-black tracking-[-0.05em] leading-tight" style={{ color: "var(--text-primary)" }}>
+            Không chỉ xem tín hiệu. ADN đặt tín hiệu vào bối cảnh danh mục.
+          </h2>
+          <p className="mt-5 text-[17px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+            Khi tài khoản được kết nối, workflow có thể đối chiếu NAV, vị thế, sức mua và tỷ trọng khuyến nghị trước khi tạo phiếu preview. Người dùng vẫn là người xác nhận hành động cuối cùng.
+          </p>
+          <div className="mt-7 grid gap-3">
+            {[
+              "Đọc tín hiệu từ DataHub, không gửi Telegram từ raw scanner.",
+              "Tính tỷ trọng theo NAV và làm tròn lô giao dịch theo rule thị trường.",
+              "Tách preview, xác nhận thủ công và real-submit governance.",
+            ].map((item) => (
+              <div key={item} className="flex gap-3 text-[15px]" style={{ color: "var(--text-secondary)" }}>
+                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" style={{ color: "var(--success)" }} />
+                <span>{item}</span>
+              </div>
+            ))}
+          </div>
+        </FadeIn>
+
+        <FadeIn delay={0.12}>
+          <div className="rounded-[28px] p-5" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="rounded-2xl p-5" style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}>
+                <p className="text-[12px] font-bold uppercase tracking-[0.14em]" style={{ color: "var(--text-muted)" }}>Tài khoản liên kết</p>
+                <p className="mt-4 text-2xl font-black" style={{ color: "var(--text-primary)" }}>NAV 450 triệu</p>
+                <p className="mt-2 text-[14px]" style={{ color: "var(--text-secondary)" }}>Ví dụ minh họa: thẻ broker khuyến nghị 10% NAV.</p>
+              </div>
+              <div className="rounded-2xl p-5" style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}>
+                <p className="text-[12px] font-bold uppercase tracking-[0.14em]" style={{ color: "var(--text-muted)" }}>Phiếu preview</p>
+                <p className="mt-4 text-2xl font-black" style={{ color: "var(--text-primary)" }}>45 triệu</p>
+                <p className="mt-2 text-[14px]" style={{ color: "var(--text-secondary)" }}>Khối lượng được làm tròn theo bội số 100 trước khi xác nhận.</p>
+              </div>
+            </div>
+            <div className="mt-4 rounded-2xl p-5" style={{ background: "var(--primary-light)", border: "1px solid var(--border)" }}>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <p className="text-[13px] font-bold uppercase tracking-[0.12em]" style={{ color: "var(--primary)" }}>Trạng thái thực thi</p>
+                  <p className="mt-2 text-xl font-black" style={{ color: "var(--text-primary)" }}>Safe / Allowlist / Compliance-gated</p>
+                </div>
+                <span className="rounded-full px-4 py-2 text-[13px] font-bold" style={{ background: "var(--surface)", color: "var(--primary)", border: "1px solid var(--border)" }}>
+                  Không public real submit
+                </span>
+              </div>
+            </div>
+          </div>
+        </FadeIn>
+      </div>
+    </section>
+  );
+}
+
 function HeroSection() {
   return (
     <section
@@ -355,12 +592,12 @@ function HeroSection() {
    2. SOCIAL PROOF TICKER TAPE
 ───────────────────────────────────────────────────────────────────────────── */
 const PARTNERS = [
-  "DNSE Securities", "VN-Index 1,200+", "Market AI 24/7",
-  "Backtest 2015→2025", "Win Rate 60%+", "ADN AI Broker",
-  "Signal Map Real-time", "RS Rating System", "ART Indicator",
-  "DNSE Securities", "VN-Index 1,200+", "Market AI 24/7",
-  "Backtest 2015→2025", "Win Rate 60%+", "ADN AI Broker",
-  "Signal Map Real-time", "RS Rating System", "ART Indicator",
+  "Dashboard thị trường", "ADN AI Broker", "Chỉ báo ART",
+  "Signal Map", "Morning Brief", "EOD Brief",
+  "Broker preview", "DataHub canonical", "Guardrails",
+  "Dashboard thị trường", "ADN AI Broker", "Chỉ báo ART",
+  "Signal Map", "Morning Brief", "EOD Brief",
+  "Broker preview", "DataHub canonical", "Guardrails",
 ];
 
 function SocialProofTicker() {
@@ -543,14 +780,14 @@ function FeaturesSection() {
               className="text-[32px] sm:text-[40px] font-bold leading-[1.2] mb-3"
               style={{ color: "var(--text-primary)" }}
             >
-              Sản phẩm &amp; Dịch vụ
+              Bộ công cụ vận hành đầu tư
             </h2>
             <p
               className="text-[17px] max-w-[520px]"
               style={{ color: "var(--text-secondary)" }}
             >
-              Hệ sinh thái công cụ đầu tư chứng khoán toàn diện — từ phân tích
-              kỹ thuật, AI hỗ trợ đến tín hiệu giao dịch.
+              Các module chính được đặt trong cùng workflow: thị trường, tín hiệu,
+              broker insight, ART, backtest và quản trị danh mục.
             </p>
           </div>
         </FadeIn>
