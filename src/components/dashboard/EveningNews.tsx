@@ -76,7 +76,7 @@ function normalizeSubIndices(
 }
 
 export function EveningNews() {
-  const eodTopic = useTopic<EodData>("news:eod:latest", {
+  const eodTopic = useTopic<EodData>("brief:eod:latest", {
     pollMs: 300_000,
     revalidateOnFocus: false,
     dedupingInterval: 60_000,

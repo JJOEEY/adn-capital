@@ -123,7 +123,7 @@ export function MorningNews() {
  *  EOD Flash Note — Tổng hợp cuối ngày lúc 19h
  * ═══════════════════════════════════════════════════════════════════════════ */
 export function EODSummary() {
-  const eodTopic = useTopic<any>("news:eod:latest", {
+  const eodTopic = useTopic<any>("brief:eod:latest", {
     refreshInterval: 300_000,
     revalidateOnFocus: false,
     dedupingInterval: 60_000,

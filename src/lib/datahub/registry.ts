@@ -1183,19 +1183,11 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     id: "brief:eod:latest",
     ttlMs: 300_000,
     minIntervalMs: 30_000,
-    source: "db:market-report",
+    source: "api:market-news",
     version: "v1",
-    tags: ["brief", "eod-brief", "public"],
+    tags: ["brief", "eod-brief", "news", "dashboard", "public"],
     match: (topicKey) => (topicKey === "brief:eod:latest" ? { ok: true } : { ok: false }),
-    resolve: async () => {
-      const row = await prisma.marketReport.findFirst({
-        where: { type: "eod_full_19h" },
-        orderBy: { createdAt: "desc" },
-        select: { id: true, type: true, title: true, content: true, rawData: true, metadata: true, createdAt: true },
-      });
-      if (!row) return null;
-      return { ...row, rawData: safeParseJson(row.rawData), metadata: safeParseJson(row.metadata) };
-    },
+    resolve: async () => loadNews("eod"),
   },
   {
     id: "brief:eod:{date}:19h",

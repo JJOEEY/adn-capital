@@ -181,7 +181,7 @@ export default function DashboardPage() {
     revalidateOnFocus: false,
     dedupingInterval: 60_000,
   });
-  const eodTopic = useTopic<EodBriefData>("news:eod:latest", {
+  const eodTopic = useTopic<EodBriefData>("brief:eod:latest", {
     refreshInterval: 300_000,
     revalidateOnFocus: false,
     dedupingInterval: 60_000,

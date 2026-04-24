@@ -872,11 +872,12 @@ function parseExchangeLiquidityFromContent(content: string): ExchangeLiquidity {
   };
 }
 
-function hasMissingSecondaryExchangeLiquidity(exchanges: ExchangeLiquidity | undefined): boolean {
-  if (!exchanges) return true;
-  const hnx = exchanges.HNX ?? 0;
-  const upcom = exchanges.UPCOM ?? 0;
-  return hnx <= 0 && upcom <= 0;
+function hasFullExchangeLiquidity(exchanges: ExchangeLiquidity | undefined): boolean {
+  if (!exchanges) return false;
+  return ["HOSE", "HNX", "UPCOM"].every((exchange) => {
+    const value = exchanges[exchange as keyof ExchangeLiquidity];
+    return value != null && Number.isFinite(value) && value > 0;
+  });
 }
 
 function buildLiquidityDetail(totalLiquidityRaw: number, exchanges: ExchangeLiquidity): string {
@@ -1283,12 +1284,8 @@ function backfillEodPayload(base: EodPayload, history: EodPayload[]): EodPayload
       result.liquidity_by_exchange = source.liquidity_by_exchange;
     }
   }
-  if (hasMissingSecondaryExchangeLiquidity(result.liquidity_by_exchange)) {
-    const source = history.find(
-      (payload) =>
-        payload.liquidity_by_exchange &&
-        ((payload.liquidity_by_exchange.HNX ?? 0) > 0 || (payload.liquidity_by_exchange.UPCOM ?? 0) > 0),
-    );
+  if (!hasFullExchangeLiquidity(result.liquidity_by_exchange)) {
+    const source = history.find((payload) => hasFullExchangeLiquidity(payload.liquidity_by_exchange));
     if (source?.liquidity_by_exchange) {
       result.liquidity_by_exchange = source.liquidity_by_exchange;
     }
@@ -1373,23 +1370,24 @@ function hasValidEodPayload(payload: EodPayload): boolean {
   const hasVni = Number.isFinite(payload.vnindex) && payload.vnindex > 0;
   const hasBreadth = payload.breadth.total > 0;
   const hasLiquidity = Number.isFinite(payload.liquidity) && payload.liquidity > 0;
-  const hasForeign = payload.foreign_flow.length > 0 && !isUnavailableText(payload.foreign_flow);
-  const hasTrades = payload.notable_trades.length > 0 && !isUnavailableText(payload.notable_trades);
+  const hasExchangeLiquidity = hasFullExchangeLiquidity(payload.liquidity_by_exchange);
   const hasSummary = payload.session_summary.length > 0 && !isUnavailableText(payload.session_summary);
-  return hasVni && hasLiquidity && (hasBreadth || hasForeign || hasTrades) && hasSummary;
+  return hasVni && hasLiquidity && hasExchangeLiquidity && hasBreadth && hasSummary;
 }
 
 function shouldUseBridgeEod(payload: EodPayload): boolean {
   const lowLiquidity = !Number.isFinite(payload.liquidity) || payload.liquidity <= 0 || payload.liquidity < 1_000;
   const weakBreadth = !payload.breadth || payload.breadth.total <= 0;
+  const missingExchangeLiquidity = !hasFullExchangeLiquidity(payload.liquidity_by_exchange);
   const missingFlows = isUnavailableText(payload.foreign_flow) && isUnavailableText(payload.notable_trades);
-  return lowLiquidity || weakBreadth || missingFlows || !hasValidEodPayload(payload);
+  return lowLiquidity || weakBreadth || missingExchangeLiquidity || missingFlows || !hasValidEodPayload(payload);
 }
 
 function eodPayloadScore(payload: EodPayload): number {
   let score = 0;
   if (Number.isFinite(payload.vnindex) && payload.vnindex > 0) score += 20;
   if (Number.isFinite(payload.liquidity) && payload.liquidity > 0) score += 40;
+  if (hasFullExchangeLiquidity(payload.liquidity_by_exchange)) score += 30;
   if (payload.breadth.total > 0) score += 20;
   if (payload.foreign_flow.length > 0 && !isUnavailableText(payload.foreign_flow)) score += 10;
   if (payload.notable_trades.length > 0 && !isUnavailableText(payload.notable_trades)) score += 10;
@@ -1558,14 +1556,14 @@ export async function GET(request: NextRequest) {
   let selected = [...sameDatePayloads].sort((a, b) => eodPayloadScore(b) - eodPayloadScore(a))[0] ?? orderedPayloads[0];
   selected = backfillEodPayload(selected, orderedPayloads);
 
-  if (shouldUseBridgeEod(selected) || hasMissingSecondaryExchangeLiquidity(selected.liquidity_by_exchange)) {
+  if (shouldUseBridgeEod(selected) || !hasFullExchangeLiquidity(selected.liquidity_by_exchange)) {
     const bridgeEod = await fetchEodNews().catch(() => null);
     if (bridgeEod) {
       selected = backfillEodPayload(fromBridgeEodPayload(bridgeEod), [selected, ...orderedPayloads]);
     }
   }
 
-  if (!hasValidEodPayload(selected) || hasMissingSecondaryExchangeLiquidity(selected.liquidity_by_exchange)) {
+  if (!hasValidEodPayload(selected) || !hasFullExchangeLiquidity(selected.liquidity_by_exchange)) {
     const liveFallback = await buildLiveEodFallbackPayload();
     if (liveFallback) selected = backfillEodPayload(selected, [liveFallback]);
   }
@@ -1579,8 +1577,8 @@ export async function GET(request: NextRequest) {
     });
 
     const shouldFillExchange =
-      hasMissingSecondaryExchangeLiquidity(selected.liquidity_by_exchange) &&
-      ((snapshotLiquidityByExchange.HNX ?? 0) > 0 || (snapshotLiquidityByExchange.UPCOM ?? 0) > 0);
+      !hasFullExchangeLiquidity(selected.liquidity_by_exchange) &&
+      hasFullExchangeLiquidity(snapshotLiquidityByExchange);
     if (shouldFillExchange) {
       selected.liquidity_by_exchange = snapshotLiquidityByExchange;
     }

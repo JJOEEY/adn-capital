@@ -1,5 +1,8 @@
 /**
  * API Cron: Close Brief 15:00 (Mon-Fri)
+ *
+ * Public rule: publish only when the report has market index, liquidity for
+ * HoSE/HNX/UPCoM, market breadth by exchange, and foreign trading flow.
  */
 import { NextRequest, NextResponse } from "next/server";
 import {
@@ -18,23 +21,56 @@ import { emitWorkflowTrigger } from "@/lib/workflows";
 export const maxDuration = 60;
 
 type MarketSnapshot = Awaited<ReturnType<typeof getMarketSnapshot>>;
+type ExchangeKey = "HOSE" | "HNX" | "UPCOM";
+
+const EXCHANGES: ExchangeKey[] = ["HOSE", "HNX", "UPCOM"];
+
+function hasFullExchangeLiquidity(snapshot: MarketSnapshot): boolean {
+  return EXCHANGES.every((exchange) => {
+    const value = snapshot.liquidityByExchange[exchange];
+    return value != null && Number.isFinite(value) && value > 0;
+  });
+}
+
+function hasFullExchangeBreadth(snapshot: MarketSnapshot): boolean {
+  const byExchange = snapshot.breadthByExchange;
+  if (!byExchange) return false;
+  return EXCHANGES.every((exchange) => {
+    const breadth = byExchange[exchange];
+    return !!breadth && breadth.up + breadth.down + breadth.unchanged > 0;
+  });
+}
 
 function hasRequiredCloseData(snapshot: MarketSnapshot): boolean {
   const hasMainIndex = snapshot.indices.some((item) => item.ticker === "VNINDEX");
   const breadth = snapshot.breadth;
-  const hasBreadth = !!breadth && breadth.up + breadth.down + breadth.unchanged > 0;
-  const hasLiquidity =
-    snapshot.liquidity != null &&
-    snapshot.liquidity > 0 &&
-    snapshot.liquidityByExchange.HOSE != null &&
-    snapshot.liquidityByExchange.HOSE > 0;
-
-  return hasMainIndex && hasLiquidity && hasBreadth && snapshot.investorTrading.availability.foreign;
+  const hasTotalBreadth = !!breadth && breadth.up + breadth.down + breadth.unchanged > 0;
+  const hasTotalLiquidity = snapshot.liquidity != null && snapshot.liquidity > 0;
+  return (
+    hasMainIndex &&
+    hasTotalLiquidity &&
+    hasFullExchangeLiquidity(snapshot) &&
+    hasTotalBreadth &&
+    hasFullExchangeBreadth(snapshot) &&
+    snapshot.investorTrading.availability.foreign
+  );
 }
 
 function formatTy(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return "chưa cập nhật";
   return `${Math.abs(value).toLocaleString("vi-VN", { maximumFractionDigits: 0 })} tỷ`;
+}
+
+function formatPct(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "chưa cập nhật";
+  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+}
+
+function formatIndex(
+  index: { value: number; changePct: number } | undefined,
+): string {
+  if (!index) return "chưa cập nhật";
+  return `${index.value.toLocaleString("vi-VN", { maximumFractionDigits: 2 })} (${formatPct(index.changePct)})`;
 }
 
 function formatBreadthGroup(
@@ -51,12 +87,11 @@ function formatBreadthGroup(
 }
 
 function buildLiquiditySection(snapshot: MarketSnapshot): string {
-  const exchangeValue = (value: number | null) => (value == null ? "?" : formatTy(value));
   return [
-    `• Thanh khoản tổng: ${formatTy(snapshot.liquidity)}`,
-    `• HoSE/HNX/UPCoM: ${exchangeValue(snapshot.liquidityByExchange.HOSE)} | ${exchangeValue(
-      snapshot.liquidityByExchange.HNX,
-    )} | ${exchangeValue(snapshot.liquidityByExchange.UPCOM)}`,
+    `• Tổng: ${formatTy(snapshot.liquidity)}`,
+    `• HoSE: ${formatTy(snapshot.liquidityByExchange.HOSE)}`,
+    `• HNX: ${formatTy(snapshot.liquidityByExchange.HNX)}`,
+    `• UPCoM: ${formatTy(snapshot.liquidityByExchange.UPCOM)}`,
   ].join("\n");
 }
 
@@ -71,9 +106,8 @@ function buildBreadthSection(snapshot: MarketSnapshot): string {
 }
 
 function buildClose15Report(today: string, snapshot: MarketSnapshot) {
-  const vnidx = snapshot.indices.find((i) => i.ticker === "VNINDEX");
-  const vn30 = snapshot.indices.find((i) => i.ticker === "VN30");
-
+  const vnindex = snapshot.indices.find((item) => item.ticker === "VNINDEX");
+  const vn30 = snapshot.indices.find((item) => item.ticker === "VN30");
   const investorLines = getInvestorTradingText(snapshot, "close15");
   const investorSection =
     investorLines.length > 0
@@ -81,28 +115,28 @@ function buildClose15Report(today: string, snapshot: MarketSnapshot) {
       : "• Khối ngoại: chưa cập nhật";
 
   const verdictText =
-    (vnidx?.changePct ?? 0) >= 0
-      ? "ĐẠT - Tìm cơ hội có chọn lọc."
-      : "KHÔNG ĐẠT - Ưu tiên phòng thủ.";
+    (vnindex?.changePct ?? 0) >= 0
+      ? "Đạt - tìm cơ hội có chọn lọc."
+      : "Không đạt - ưu tiên phòng thủ.";
 
-  return `🌆 *BẢN TIN KẾT PHIÊN — ${today}*
+  return `🌆 *BẢN TIN KẾT PHIÊN 15:00 — ${today}*
 
-📊 *KẾT QUẢ CHỈ SỐ:*
-🇻🇳 VN-INDEX: ${vnidx ? `${vnidx.value} | ${vnidx.changePct >= 0 ? "+" : ""}${vnidx.changePct}%` : "chưa cập nhật"}
-💎 VN30: ${vn30 ? `${vn30.value} | ${vn30.changePct >= 0 ? "+" : ""}${vn30.changePct}%` : "chưa cập nhật"}
+📊 *CHỈ SỐ CHÍNH*
+• VN-INDEX: ${formatIndex(vnindex)}
+• VN30: ${formatIndex(vn30)}
 
-📈 *ĐỘ RỘNG THỊ TRƯỜNG:*
-${buildBreadthSection(snapshot)}
-
-💧 *THANH KHOẢN:*
+💧 *THANH KHOẢN THEO SÀN*
 ${buildLiquiditySection(snapshot)}
 
-🏦 *DÒNG TIỀN NĐT:*
+📈 *ĐỘ RỘNG THỊ TRƯỜNG*
+${buildBreadthSection(snapshot)}
+
+🏦 *DÒNG TIỀN NHÀ ĐẦU TƯ*
 ${investorSection}
 
-🎯 *VERDICT & KẾ HOẠCH:*
+🎯 *NHẬN ĐỊNH*
 • Trạng thái: ${verdictText}
-• Nhận định: Ưu tiên kỷ luật điểm mua, kiểm soát tỷ trọng theo biến động chỉ số.
+• Ưu tiên kỷ luật điểm mua và kiểm soát tỷ trọng theo biến động chỉ số.
 
 _Powered by ADN Capital AI_`;
 }
@@ -148,14 +182,14 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const safeReport = buildClose15Report(today, snapshot);
-    const vnidx = snapshot.indices.find((i) => i.ticker === "VNINDEX");
-    const isGood = (vnidx?.changePct ?? 0) >= 0;
+    const report = buildClose15Report(today, snapshot);
+    const vnindex = snapshot.indices.find((item) => item.ticker === "VNINDEX");
+    const isGood = (vnindex?.changePct ?? 0) >= 0;
 
     await saveMarketReport(
       "close_brief_15h",
-      `Bản tin kết phiên ${today}`,
-      safeReport,
+      `Bản tin kết phiên 15:00 ${today}`,
+      report,
       { snapshot },
       {
         verdict: isGood ? "GOOD" : "BAD",
@@ -169,15 +203,15 @@ export async function GET(req: NextRequest) {
       },
     );
 
-    await pushNotification("close_brief_15h", `🌆 Bản tin kết phiên ${today}`, safeReport);
+    await pushNotification("close_brief_15h", `🌆 Bản tin kết phiên 15:00 ${today}`, report);
     invalidateTopics({ tags: ["news", "brief", "dashboard", "market"] });
     await emitWorkflowTrigger({
       type: "brief_ready",
       source: "cron:close_brief_15h",
       payload: {
         reportType: "close_brief_15h",
-        title: `Bản tin kết phiên ${today}`,
-        content: safeReport,
+        title: `Bản tin kết phiên 15:00 ${today}`,
+        content: report,
         dateLabel: today,
       },
     });
@@ -193,7 +227,7 @@ export async function GET(req: NextRequest) {
       type: "close_brief_15h",
       timestamp: getVnNow().toISOString(),
       verdict: isGood ? "GOOD" : "BAD",
-      report: safeReport,
+      report,
     });
   } catch (error) {
     const duration = Date.now() - startTime;

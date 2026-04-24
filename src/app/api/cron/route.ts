@@ -130,7 +130,9 @@ function hasRequiredStatsData(snapshot: Awaited<ReturnType<typeof getMarketSnaps
   return (
     hasMainIndex &&
     hasMeaningfulLiquidity(snapshot) &&
+    hasFullExchangeLiquidity(snapshot) &&
     hasMeaningfulBreadth(snapshot) &&
+    hasFullExchangeBreadth(snapshot) &&
     snapshot.investorTrading.availability.foreign
   );
 }
@@ -140,7 +142,9 @@ function hasRequiredClose15Data(snapshot: Awaited<ReturnType<typeof getMarketSna
   return (
     hasMainIndex &&
     hasMeaningfulLiquidity(snapshot) &&
+    hasFullExchangeLiquidity(snapshot) &&
     hasMeaningfulBreadth(snapshot) &&
+    hasFullExchangeBreadth(snapshot) &&
     snapshot.investorTrading.availability.foreign
   );
 }
@@ -436,6 +440,85 @@ export async function GET(req: NextRequest) {
 //  1. EOD FULL 19:00 — Ngoại + Tự doanh + Cá nhân
 // ═══════════════════════════════════════════════════════════════
 
+function formatTyPublic(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "chưa cập nhật";
+  return `${Math.abs(value).toLocaleString("vi-VN", { maximumFractionDigits: 0 })} tỷ`;
+}
+
+function formatPctPublic(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "chưa cập nhật";
+  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+}
+
+function formatIndexPublic(index: { value: number; changePct: number } | undefined): string {
+  if (!index) return "chưa cập nhật";
+  return `${index.value.toLocaleString("vi-VN", { maximumFractionDigits: 2 })} (${formatPctPublic(index.changePct)})`;
+}
+
+function formatBreadthPublic(
+  breadth:
+    | { up: number; down: number; unchanged: number; ceiling?: number; floor?: number }
+    | null
+    | undefined,
+): string {
+  if (!breadth) return "chưa cập nhật";
+  const ceiling = Number(breadth.ceiling ?? 0);
+  const floor = Number(breadth.floor ?? 0);
+  const limitText = ceiling > 0 || floor > 0 ? ` | Trần ${ceiling} | Sàn ${floor}` : "";
+  return `Tăng ${breadth.up} | Giảm ${breadth.down} | Đứng ${breadth.unchanged}${limitText}`;
+}
+
+function buildFull19PublicReport(today: string, snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>) {
+  const vnindex = snapshot.indices.find((item) => item.ticker === "VNINDEX");
+  const vn30 = snapshot.indices.find((item) => item.ticker === "VN30");
+  const investorLines = getInvestorTradingText(snapshot, "full19");
+  const investorSection =
+    investorLines.length > 0
+      ? investorLines.map((line) => `• ${line}`).join("\n")
+      : "• Khối ngoại: chưa cập nhật\n• Tự doanh: chưa cập nhật\n• Cá nhân: chưa cập nhật";
+  const byExchange = snapshot.breadthByExchange;
+  const foreignNet = snapshot.investorTrading.foreign.net ?? 0;
+  const indexDirection =
+    (vnindex?.changePct ?? 0) > 0
+      ? "Thị trường duy trì sắc xanh, ưu tiên lọc nhóm giữ nền tích cực."
+      : (vnindex?.changePct ?? 0) < 0
+        ? "Thị trường chịu áp lực điều chỉnh, ưu tiên quản trị rủi ro."
+        : "Thị trường đi ngang, chờ xác nhận dòng tiền mới.";
+  const flowNote =
+    foreignNet > 0
+      ? "Khối ngoại mua ròng, hỗ trợ tâm lý ngắn hạn."
+      : foreignNet < 0
+        ? "Khối ngoại bán ròng, cần kiểm soát tỷ trọng và điểm dừng lỗ."
+        : "Dòng tiền khối ngoại trung tính.";
+
+  return `🌙 *BẢN TIN TỔNG HỢP 19:00 — ${today}*
+
+📊 *CHỈ SỐ CHÍNH*
+• VN-INDEX: ${formatIndexPublic(vnindex)}
+• VN30: ${formatIndexPublic(vn30)}
+
+💧 *THANH KHOẢN THEO SÀN*
+• Tổng: ${formatTyPublic(snapshot.liquidity)}
+• HoSE: ${formatTyPublic(snapshot.liquidityByExchange.HOSE)}
+• HNX: ${formatTyPublic(snapshot.liquidityByExchange.HNX)}
+• UPCoM: ${formatTyPublic(snapshot.liquidityByExchange.UPCOM)}
+
+📈 *ĐỘ RỘNG THỊ TRƯỜNG*
+• Toàn thị trường: ${formatBreadthPublic(snapshot.breadth)}
+• HoSE: ${formatBreadthPublic(byExchange?.HOSE)}
+• HNX: ${formatBreadthPublic(byExchange?.HNX)}
+• UPCoM: ${formatBreadthPublic(byExchange?.UPCOM)}
+
+🏦 *DÒNG TIỀN NHÀ ĐẦU TƯ*
+${investorSection}
+
+💡 *NHẬN ĐỊNH SMART MONEY*
+• ${indexDirection}
+• ${flowNote}
+
+_Powered by ADN Capital AI_`;
+}
+
 async function handlePropTrading(forceRun = false): Promise<NextResponse> {
   const startTime = Date.now();
   if (!forceRun && !isTradingDay()) {
@@ -456,12 +539,15 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
         "skipped",
         "Thiếu dữ liệu bắt buộc cho bản tin 19:00, không publish công khai",
         duration,
-        {
-          availability: snapshot.investorTrading.availability,
-          liquidity: snapshot.liquidity,
-          indices: snapshot.indices.map((item) => item.ticker),
-          providerDiagnostics: snapshot.providerDiagnostics,
-        },
+          {
+            availability: snapshot.investorTrading.availability,
+            liquidity: snapshot.liquidity,
+            liquidityByExchange: snapshot.liquidityByExchange,
+            breadth: snapshot.breadth,
+            breadthByExchange: snapshot.breadthByExchange,
+            indices: snapshot.indices.map((item) => item.ticker),
+            providerDiagnostics: snapshot.providerDiagnostics,
+          },
       );
       return NextResponse.json({
         type: "eod_full_19h",
@@ -493,7 +579,7 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
       });
     }
 
-    const safeReport = buildPropTradingReport(today, snapshot);
+    const safeReport = buildFull19PublicReport(today, snapshot);
 
     await saveMarketReport(
       "eod_full_19h",
