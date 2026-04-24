@@ -15,18 +15,21 @@ function hasValidLivePrice(livePriceMap: LivePriceMap, ticker: string): boolean 
   return isValidPrice(livePriceMap[ticker]?.close);
 }
 
-async function hydrateMissingLivePrices(
+async function hydrateLivePrices(
   tickers: string[],
   livePriceMap: LivePriceMap,
+  refreshAll = false,
 ): Promise<LivePriceMap> {
-  const missingTickers = tickers.filter((ticker) => !hasValidLivePrice(livePriceMap, ticker));
+  const refreshTickers = refreshAll
+    ? tickers
+    : tickers.filter((ticker) => !hasValidLivePrice(livePriceMap, ticker));
 
-  if (missingTickers.length === 0) {
+  if (refreshTickers.length === 0) {
     return livePriceMap;
   }
 
   const settled = await Promise.allSettled(
-    missingTickers.map(async (ticker) => {
+    refreshTickers.map(async (ticker) => {
       const ta = await fetchTAData(ticker);
       if (!ta || !isValidPrice(ta.currentPrice)) {
         return null;
@@ -44,10 +47,10 @@ async function hydrateMissingLivePrices(
   }
 
   const hydratedCount = Object.keys(hydrated).filter((ticker) =>
-    missingTickers.includes(ticker),
+    refreshTickers.includes(ticker),
   ).length;
   console.log(
-    `[/api/signals] hydrated ${hydratedCount}/${missingTickers.length} missing live prices from TA fallback`,
+    `[/api/signals] hydrated ${hydratedCount}/${refreshTickers.length} live prices from TA fallback`,
   );
 
   return hydrated;
@@ -60,10 +63,14 @@ async function persistLivePrices(
     status: string;
     entryPrice: number;
     currentPrice: number | null;
+    stoploss: number | null;
   }>,
   liveStatuses: Set<string>,
   livePriceMap: LivePriceMap,
 ) {
+  let updatedCount = 0;
+  let closedCount = 0;
+
   const updates = signals
     .filter((signal) => liveStatuses.has(signal.status))
     .map((signal) => {
@@ -73,11 +80,30 @@ async function persistLivePrices(
       }
 
       const currentPnl = +(((currentPrice - signal.entryPrice) / signal.entryPrice) * 100).toFixed(2);
+      const stoploss = signal.stoploss;
+      if (isValidPrice(stoploss) && currentPrice <= stoploss) {
+        updatedCount++;
+        closedCount++;
+        return prisma.signal.update({
+          where: { id: signal.id },
+          data: {
+            status: "CLOSED",
+            closePrice: currentPrice,
+            currentPrice,
+            currentPnl,
+            pnl: currentPnl,
+            closedReason: `Cắt lỗ tự động: giá ${currentPrice.toLocaleString("vi-VN")} <= stoploss ${stoploss.toLocaleString("vi-VN")} (${currentPnl}%)`,
+            closedAt: new Date(),
+          },
+        });
+      }
+
       const existingPrice = signal.currentPrice ?? 0;
       if (Math.abs(existingPrice - currentPrice) < 0.0001) {
         return null;
       }
 
+      updatedCount++;
       return prisma.signal.update({
         where: { id: signal.id },
         data: { currentPrice, currentPnl },
@@ -86,7 +112,7 @@ async function persistLivePrices(
     .filter(Boolean);
 
   if (updates.length === 0) {
-    return;
+    return { updatedCount, closedCount };
   }
 
   const settled = await Promise.allSettled(updates);
@@ -94,6 +120,11 @@ async function persistLivePrices(
   if (failed > 0) {
     console.error(`[/api/signals] failed to persist ${failed}/${updates.length} live price updates`);
   }
+  if (closedCount > 0) {
+    console.log(`[/api/signals] auto-closed ${closedCount} signals due to stoploss breach`);
+  }
+
+  return { updatedCount, closedCount };
 }
 
 /**
@@ -119,7 +150,7 @@ export async function GET(request: NextRequest) {
       where.status = statusFilter;
     }
 
-    const signals = await prisma.signal.findMany({
+    let signals = await prisma.signal.findMany({
       where,
       orderBy: { createdAt: "desc" },
     });
@@ -136,8 +167,14 @@ export async function GET(request: NextRequest) {
     if (liveTickers.length > 0) {
       try {
         livePriceMap = await getBatchPrices(liveTickers);
-        livePriceMap = await hydrateMissingLivePrices(liveTickers, livePriceMap);
-        await persistLivePrices(signals, liveStatuses, livePriceMap);
+        livePriceMap = await hydrateLivePrices(liveTickers, livePriceMap, true);
+        const liveUpdate = await persistLivePrices(signals, liveStatuses, livePriceMap);
+        if ((liveUpdate?.closedCount ?? 0) > 0) {
+          signals = await prisma.signal.findMany({
+            where,
+            orderBy: { createdAt: "desc" },
+          });
+        }
       } catch (error) {
         console.error("[/api/signals] live price fallback to DB:", error);
       }

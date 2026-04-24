@@ -89,15 +89,34 @@ export function SignalMapClient({
     ? tabSignals
     : tabSignals.filter((s) => (s.tier ?? "NGAN_HAN") === tierFilter);
 
+  const activePnlSignals = allSignals.filter(
+    (s) =>
+      (s.status === "ACTIVE" || s.status === "HOLD_TO_DIE") &&
+      typeof s.currentPnl === "number" &&
+      Number.isFinite(s.currentPnl),
+  );
+  const closedPnlSignals = allSignals.filter(
+    (s) => s.status === "CLOSED" && typeof s.pnl === "number" && Number.isFinite(s.pnl),
+  );
+  const activeNavWeight = activePnlSignals.reduce((sum, s) => sum + Math.max(s.navAllocation ?? 0, 0), 0);
+  const activeWeightedPnl = activePnlSignals.length > 0
+    ? activeNavWeight > 0
+      ? activePnlSignals.reduce(
+          (sum, s) => sum + (s.currentPnl ?? 0) * Math.max(s.navAllocation ?? 0, 0),
+          0,
+        ) / activeNavWeight
+      : activePnlSignals.reduce((sum, s) => sum + (s.currentPnl ?? 0), 0) / activePnlSignals.length
+    : 0;
+  const closedTotalPnl = closedPnlSignals.reduce((sum, s) => sum + (s.pnl ?? 0), 0);
+  const displayedPnlSignals = activePnlSignals.length > 0 ? activePnlSignals : closedPnlSignals;
+
   const stats = {
     radar:  allSignals.filter((s) => (s.status ?? "RADAR") === "RADAR").length,
     active: allSignals.filter((s) => s.status === "ACTIVE" || s.status === "HOLD_TO_DIE").length,
     closed: allSignals.filter((s) => s.status === "CLOSED").length,
-    totalPnl: allSignals
-      .filter((s) => s.status === "CLOSED" && s.pnl != null)
-      .reduce((sum, s) => sum + (s.pnl ?? 0), 0),
-    winCount:  allSignals.filter((s) => s.status === "CLOSED" && (s.pnl ?? 0) > 0).length,
-    loseCount: allSignals.filter((s) => s.status === "CLOSED" && (s.pnl ?? 0) <= 0).length,
+    totalPnl: activePnlSignals.length > 0 ? activeWeightedPnl : closedTotalPnl,
+    winCount: displayedPnlSignals.filter((s) => ((s.status === "CLOSED" ? s.pnl : s.currentPnl) ?? 0) > 0).length,
+    loseCount: displayedPnlSignals.filter((s) => ((s.status === "CLOSED" ? s.pnl : s.currentPnl) ?? 0) <= 0).length,
   };
 
   const tierCounts = {

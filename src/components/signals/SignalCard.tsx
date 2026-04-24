@@ -46,6 +46,12 @@ export function SignalCard({ signal, buyHref, showBuyAction = false }: SignalCar
   const createdDate = new Date(signal.createdAt);
   const dateStr = createdDate.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" });
   const isExpired = signal.status === "RADAR" && daysInSignal >= 7;
+  const isLiveSignal = signal.status === "ACTIVE" || signal.status === "HOLD_TO_DIE";
+  const isStoplossBreached =
+    isLiveSignal &&
+    signal.currentPrice != null &&
+    stoplossPrice != null &&
+    signal.currentPrice <= stoplossPrice;
 
   /* PnL colour helper */
   const pnlColor = (val: number) => (val >= 0 ? "#16a34a" : "var(--danger)");
@@ -126,6 +132,18 @@ export function SignalCard({ signal, buyHref, showBuyAction = false }: SignalCar
                   }}
                 >
                   {signal.currentPnl >= 0 ? "+" : ""}{signal.currentPnl.toFixed(1)}%
+                </span>
+              )}
+              {isStoplossBreached && (
+                <span
+                  className="text-[12px] font-bold px-1.5 py-0.5 rounded"
+                  style={{
+                    background: "rgba(192,57,43,0.10)",
+                    color: "var(--danger)",
+                    border: "1px solid rgba(192,57,43,0.30)",
+                  }}
+                >
+                  VI PHẠM SL
                 </span>
               )}
             </>
@@ -229,6 +247,18 @@ export function SignalCard({ signal, buyHref, showBuyAction = false }: SignalCar
                 {(signal.currentPnl ?? 0) >= 0 ? "+" : ""}{(signal.currentPnl ?? 0).toFixed(1)}%
               </span>
             </div>
+          </div>
+        )}
+        {isStoplossBreached && (
+          <div
+            className="rounded-lg p-2 mb-3 text-[12px] font-medium"
+            style={{
+              background: "rgba(192,57,43,0.08)",
+              border: "1px solid rgba(192,57,43,0.25)",
+              color: "var(--danger)",
+            }}
+          >
+            Giá hiện tại đã chạm hoặc thấp hơn stoploss. Hệ thống sẽ chuyển mã này sang trạng thái đã đóng khi dữ liệu được đồng bộ.
           </div>
         )}
 
