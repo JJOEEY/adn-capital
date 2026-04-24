@@ -10,6 +10,8 @@ const APP_UPDATES_ALLOWED_TYPES = [
   "signal_10h",
   "signal_1030",
   "signal_14h",
+  "signal_1425",
+  // Legacy alias only; kept so old notification rows remain visible.
   "signal_1420",
   "signal_1130",
   "signal_1445",

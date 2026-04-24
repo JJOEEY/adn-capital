@@ -3,7 +3,7 @@
  *
  * Smart Cron Schedule (VN Market Hours):
  * - Chỉ quét tại 4 mốc cố định để bảo toàn quota FiinQuant:
- *   10:00, 10:30, 14:00, 14:20
+ *   10:00, 10:30, 14:00, 14:25
  *
  * Endpoints:
  * - GET /api/cron?type=prop_trading     → 19:00 T2-T6
@@ -30,19 +30,13 @@ import {
   getPropTradingData,
 } from "@/lib/marketDataFetcher";
 import { fetchAllCafefNews, buildCafefContext } from "@/lib/cafefScraper";
-import { processSignals } from "@/lib/UltimateSignalEngine";
 import { getVnNow } from "@/lib/time";
-import {
-  getAiBrokerRuntimeConfig,
-  shouldAutoActivateSignal,
-  rebalanceActiveBasketNav,
-} from "@/lib/aiBroker";
 import { invalidateTopics } from "@/lib/datahub/core";
 import { normalizeCronType, LEGACY_CRON_ALIASES } from "@/lib/cron-contracts";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
 import { emitWorkflowTrigger } from "@/lib/workflows";
 import { emitObservabilityEvent } from "@/lib/observability";
-import { claimSignalNotifications } from "@/lib/signals/notification-dedupe";
+import { SIGNAL_SCAN_SLOT_SET, ingestSignalScanBatch } from "@/lib/signals/ingest";
 
 export const maxDuration = 120;
 export const dynamic = "force-dynamic";
@@ -544,7 +538,7 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  2. INTRADAY — 10:00, 10:30, 14:00, 14:20
+//  2. INTRADAY — 10:00, 10:30, 14:00, 14:25
 //     Format Dashboard chuyên nghiệp
 // ═══════════════════════════════════════════════════════════════
 
@@ -664,13 +658,213 @@ interface PythonScanSignal {
   reason?: string;
 }
 
-const FIXED_SCAN_SLOTS = new Set(["10:00", "10:30", "14:00", "14:20"]);
+async function handleSignalScan5m(): Promise<NextResponse> {
+  const startTime = Date.now();
+  if (!isTradingDay()) {
+    await logCron("signal_scan_type1", "skipped", "Không phải ngày giao dịch", 0);
+    return NextResponse.json({ message: "Skipped" });
+  }
 
-function toSignalKey(ticker: string, type: string): string {
-  return `${ticker.toUpperCase().trim()}|${type}`;
+  const vnNow = getVnNow();
+  const hour = vnNow.hour();
+  const min = vnNow.minute();
+  const timeKey = `${hour}:${min.toString().padStart(2, "0")}`;
+
+  if (!SIGNAL_SCAN_SLOT_SET.has(timeKey)) {
+    return NextResponse.json({ message: `Fixed Gate: skip ${timeKey}` });
+  }
+
+  try {
+    const todayISO = getVNDateISO();
+    const windowInfo = getSignalWindowInfo(vnNow.toDate());
+    const res = await fetch(`${PYTHON_BRIDGE}/api/v1/scan-now`, {
+      method: "POST",
+      signal: AbortSignal.timeout(90_000),
+    });
+    if (!res.ok) throw new Error(`Python scanner HTTP ${res.status}`);
+
+    const scanResult: { detected?: number; signals?: PythonScanSignal[] } = await res.json();
+    const signals = Array.isArray(scanResult.signals) ? scanResult.signals : [];
+    const ingestResult = await ingestSignalScanBatch({
+      signals,
+      detected: Number.isFinite(scanResult.detected) ? Number(scanResult.detected) : signals.length,
+      tradingDate: todayISO,
+      slot: timeKey,
+      slotLabel: windowInfo.label,
+      source: "cron",
+      scannedAt: new Date(),
+    });
+
+    const webNotifySignals = ingestResult.artifact.notifiedSignals;
+    if (webNotifySignals.length > 0) {
+      const signalText = webNotifySignals
+        .map((signal) => `• ${signal.ticker}: ${signal.entryPrice.toLocaleString("vi-VN")} VNĐ${signal.reason ? ` — ${signal.reason}` : ""}`)
+        .join("\n");
+      await pushNotification(
+        windowInfo.type,
+        `⚡ ${windowInfo.label} — ${webNotifySignals.length} tín hiệu mới`,
+        `## TÍN HIỆU MỚI (${windowInfo.label})\n\n${signalText}`,
+      );
+    }
+
+    if (ingestResult.activatedSignals.length > 0) {
+      await Promise.all(
+        ingestResult.activatedSignals.map((signal) =>
+          emitWorkflowTrigger({
+            type: "signal_status_changed",
+            source: "cron:signal_scan_type1",
+            payload: signal,
+          }),
+        ),
+      );
+    }
+
+    invalidateTopics({ tags: ["signal", "signal-scan", "broker", "portfolio"] });
+
+    const duration = Date.now() - startTime;
+    await logCron(
+      "signal_scan_type1",
+      "success",
+      `Python scan: ${ingestResult.detected} phát hiện, tạo ${ingestResult.created}, cập nhật ${ingestResult.updated}, notify ${ingestResult.notified.length}`,
+      duration,
+      {
+        scanned: ingestResult.detected,
+        accepted: ingestResult.accepted,
+        processed: ingestResult.processed.length,
+        created: ingestResult.created,
+        updated: ingestResult.updated,
+        notified: ingestResult.notified.length,
+        reconciledWebOnly: 0,
+        scanArtifact: ingestResult.artifact,
+      },
+    );
+
+    const totalSignaledToday = await prisma.signalHistory.count({ where: { sentDate: todayISO } });
+
+    return NextResponse.json({
+      type: "signal_scan_type1",
+      timestamp: new Date().toISOString(),
+      batchId: ingestResult.artifact.batchId,
+      message:
+        ingestResult.created + ingestResult.updated > 0
+          ? `Đồng bộ ${ingestResult.created + ingestResult.updated} tín hiệu (mới ${ingestResult.created}, cập nhật ${ingestResult.updated})`
+          : "Không có tín hiệu cần đồng bộ",
+      created: ingestResult.created,
+      updated: ingestResult.updated,
+      notified: ingestResult.notified.length,
+      reconciledWebOnly: 0,
+      totalSignaledToday,
+    });
+  } catch (error) {
+    await logCron("signal_scan_type1", "error", String(error), Date.now() - startTime);
+    return NextResponse.json({ error: "Lỗi quét tín hiệu" }, { status: 500 });
+  }
 }
 
-async function handleSignalScan5m(): Promise<NextResponse> {
+async function handleSignalScan5mWithMojibakeRetired(): Promise<NextResponse> {
+  const startTime = Date.now();
+  if (!isTradingDay()) {
+    await logCron("signal_scan_type1", "skipped", "KhÃ´ng pháº£i ngÃ y giao dá»‹ch", 0);
+    return NextResponse.json({ message: "Skipped" });
+  }
+
+  const vnNow = getVnNow();
+  const hour = vnNow.hour();
+  const min = vnNow.minute();
+  const timeKey = `${hour}:${min.toString().padStart(2, "0")}`;
+
+  if (!SIGNAL_SCAN_SLOT_SET.has(timeKey)) {
+    return NextResponse.json({ message: `Fixed Gate: skip ${timeKey}` });
+  }
+
+  try {
+    const todayISO = getVNDateISO();
+    const windowInfo = getSignalWindowInfo(vnNow.toDate());
+    const res = await fetch(`${PYTHON_BRIDGE}/api/v1/scan-now`, {
+      method: "POST",
+      signal: AbortSignal.timeout(90_000),
+    });
+    if (!res.ok) throw new Error(`Python scanner HTTP ${res.status}`);
+
+    const scanResult: { detected?: number; signals?: PythonScanSignal[] } = await res.json();
+    const signals = Array.isArray(scanResult.signals) ? scanResult.signals : [];
+    const ingestResult = await ingestSignalScanBatch({
+      signals,
+      detected: Number.isFinite(scanResult.detected) ? Number(scanResult.detected) : signals.length,
+      tradingDate: todayISO,
+      slot: timeKey,
+      slotLabel: windowInfo.label,
+      source: "cron",
+      scannedAt: new Date(),
+    });
+
+    const webNotifySignals = ingestResult.artifact.notifiedSignals;
+    if (webNotifySignals.length > 0) {
+      const signalText = webNotifySignals
+        .map((signal) => `â€¢ ${signal.ticker}: ${signal.entryPrice.toLocaleString("vi-VN")} VNÄ${signal.reason ? ` â€” ${signal.reason}` : ""}`)
+        .join("\n");
+      await pushNotification(
+        windowInfo.type,
+        `âš¡ ${windowInfo.label} â€” ${webNotifySignals.length} tÃ­n hiá»‡u má»›i`,
+        `## TÃN HIá»†U Má»šI (${windowInfo.label})\n\n${signalText}`,
+      );
+    }
+
+    if (ingestResult.activatedSignals.length > 0) {
+      await Promise.all(
+        ingestResult.activatedSignals.map((signal) =>
+          emitWorkflowTrigger({
+            type: "signal_status_changed",
+            source: "cron:signal_scan_type1",
+            payload: signal,
+          }),
+        ),
+      );
+    }
+
+    invalidateTopics({ tags: ["signal", "signal-scan", "broker", "portfolio"] });
+
+    const duration = Date.now() - startTime;
+    await logCron(
+      "signal_scan_type1",
+      "success",
+      `Python scan: ${ingestResult.detected} phÃ¡t hiá»‡n, táº¡o ${ingestResult.created}, cáº­p nháº­t ${ingestResult.updated}, notify ${ingestResult.notified.length}`,
+      duration,
+      {
+        scanned: ingestResult.detected,
+        accepted: ingestResult.accepted,
+        processed: ingestResult.processed.length,
+        created: ingestResult.created,
+        updated: ingestResult.updated,
+        notified: ingestResult.notified.length,
+        reconciledWebOnly: 0,
+        scanArtifact: ingestResult.artifact,
+      },
+    );
+
+    const totalSignaledToday = await prisma.signalHistory.count({ where: { sentDate: todayISO } });
+
+    return NextResponse.json({
+      type: "signal_scan_type1",
+      timestamp: new Date().toISOString(),
+      batchId: ingestResult.artifact.batchId,
+      message:
+        ingestResult.created + ingestResult.updated > 0
+          ? `Äá»“ng bá»™ ${ingestResult.created + ingestResult.updated} tÃ­n hiá»‡u (má»›i ${ingestResult.created}, cáº­p nháº­t ${ingestResult.updated})`
+          : "KhÃ´ng cÃ³ tÃ­n hiá»‡u cáº§n Ä‘á»“ng bá»™",
+      created: ingestResult.created,
+      updated: ingestResult.updated,
+      notified: ingestResult.notified.length,
+      reconciledWebOnly: 0,
+      totalSignaledToday,
+    });
+  } catch (error) {
+    await logCron("signal_scan_type1", "error", String(error), Date.now() - startTime);
+    return NextResponse.json({ error: "Lá»—i quÃ©t tÃ­n hiá»‡u" }, { status: 500 });
+  }
+}
+/* legacy signal scanner retired after DataHub ingest split.
+async function handleSignalScan5mLegacy(): Promise<NextResponse> {
   const startTime = Date.now();
   if (!isTradingDay()) {
     await logCron("signal_scan_type1", "skipped", "Không phải ngày giao dịch", 0);
@@ -684,9 +878,9 @@ async function handleSignalScan5m(): Promise<NextResponse> {
 
   // ── Fixed Gate ─────────────────────────────────────────────────────
   //  Chỉ cho phép quét đúng 4 mốc:
-  //  10:00, 10:30, 14:00, 14:20
+  //  10:00, 10:30, 14:00, 14:25
   // ──────────────────────────────────────────────────────────────────
-  if (!FIXED_SCAN_SLOTS.has(timeKey)) {
+  if (!SIGNAL_SCAN_SLOT_SET.has(timeKey)) {
     return NextResponse.json({ message: `Fixed Gate: skip ${timeKey}` });
   }
 
@@ -904,3 +1098,4 @@ async function handleSignalScan5m(): Promise<NextResponse> {
     return NextResponse.json({ error: "Lỗi quét tín hiệu" }, { status: 500 });
   }
 }
+*/

@@ -8,10 +8,15 @@ import { resolveMarketTicker } from "@/lib/ticker-resolver";
 import { listDnseOrderHistory } from "@/lib/brokers/dnse/order-history";
 import { decryptDnseToken } from "@/lib/brokers/dnse/crypto";
 import { getDnseTradingClient } from "@/lib/providers/dnse/trading-client";
+import type { SignalScanArtifact } from "@/lib/signals/ingest";
 import { resolveTopicFamily, resolveTopicStaleWindowMs } from "./policy";
 import { TopicContext, TopicDefinition } from "./types";
 
 type JsonRecord = Record<string, unknown>;
+type PersistedSignalScanArtifact = SignalScanArtifact & {
+  cronLogId: string;
+  persistedAt: Date;
+};
 
 function safeParseJson(value: string | null) {
   if (!value) return null;
@@ -968,6 +973,75 @@ async function resolveCurrentBrokerConnectionId(userId: string): Promise<string>
   return state.portfolioConnectionId ?? state.connectionId!;
 }
 
+function normalizeSignalScanSlot(slotRaw: string): string {
+  const slot = slotRaw.trim();
+  if (/^\d{4}$/.test(slot)) return `${slot.slice(0, 2)}:${slot.slice(2)}`;
+  return slot;
+}
+
+function extractSignalScanArtifact(row: {
+  id: string;
+  resultData: string | null;
+  createdAt: Date;
+}): PersistedSignalScanArtifact | null {
+  const parsed = safeParseJson(row.resultData);
+  if (!parsed || typeof parsed !== "object") return null;
+  const record = parsed as JsonRecord;
+  const artifact = record.scanArtifact && typeof record.scanArtifact === "object" ? (record.scanArtifact as JsonRecord) : record;
+  if (typeof artifact.batchId !== "string") return null;
+  if (artifact.kind !== "signal_scan" || artifact.version !== "v1") return null;
+  if (typeof artifact.tradingDate !== "string" || typeof artifact.slot !== "string") return null;
+
+  return {
+    ...(artifact as unknown as SignalScanArtifact),
+    cronLogId: row.id,
+    persistedAt: row.createdAt,
+  };
+}
+
+async function loadLatestSignalScanArtifact() {
+  const rows = await prisma.cronLog.findMany({
+    where: {
+      cronName: "signal_scan_type1",
+      status: "success",
+    },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+    select: { id: true, resultData: true, createdAt: true },
+  });
+
+  for (const row of rows) {
+    const artifact = extractSignalScanArtifact(row);
+    if (artifact) return artifact;
+  }
+  return null;
+}
+
+async function loadSignalScanArtifactByDateSlot(dateKey: string, slotRaw: string) {
+  const slot = normalizeSignalScanSlot(slotRaw);
+  const { start, end } = parseVnDayRange(dateKey);
+  const rows = await prisma.cronLog.findMany({
+    where: {
+      cronName: "signal_scan_type1",
+      status: "success",
+      createdAt: {
+        gte: start,
+        lt: end,
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+    select: { id: true, resultData: true, createdAt: true },
+  });
+
+  for (const row of rows) {
+    const artifact = extractSignalScanArtifact(row);
+    if (!artifact) continue;
+    if (artifact.tradingDate === dateKey && artifact.slot === slot) return artifact;
+  }
+  return null;
+}
+
 const TOPIC_DEFINITIONS: TopicDefinition[] = [
   {
     id: "vn:index:overview",
@@ -1185,6 +1259,29 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     tags: ["signal", "public", "dashboard"],
     match: (topicKey) => (topicKey === "signal:map:latest" ? { ok: true } : { ok: false }),
     resolve: async () => loadSignalMapLatest(),
+  },
+  {
+    id: "signal:scan:latest",
+    ttlMs: 60_000,
+    minIntervalMs: 10_000,
+    source: "db:cron-log",
+    version: "v1",
+    tags: ["signal", "signal-scan", "public", "dashboard"],
+    match: (topicKey) => (topicKey === "signal:scan:latest" ? { ok: true } : { ok: false }),
+    resolve: async () => loadLatestSignalScanArtifact(),
+  },
+  {
+    id: "signal:scan:{date}:{slot}",
+    ttlMs: 24 * 60 * 60 * 1000,
+    minIntervalMs: 60_000,
+    source: "db:cron-log",
+    version: "v1",
+    tags: ["signal", "signal-scan", "public", "dashboard"],
+    match: (topicKey) => {
+      const match = topicKey.match(/^signal:scan:(\d{4}-\d{2}-\d{2}):(\d{2}:?\d{2})$/);
+      return match ? { ok: true, params: { date: match[1], slot: match[2] } } : { ok: false };
+    },
+    resolve: async (_, __, params) => loadSignalScanArtifactByDateSlot(params.date, params.slot),
   },
   {
     id: "portfolio:user:{userId}:overview",

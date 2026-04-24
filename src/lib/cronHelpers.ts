@@ -18,6 +18,8 @@ export type SignalWindowType =
   | "signal_10h"
   | "signal_1030"
   | "signal_14h"
+  | "signal_1425"
+  // Legacy alias only. Do not schedule as a real scan slot.
   | "signal_1420"
   | "signal_scan"
   | "stats_10h"
@@ -172,12 +174,12 @@ export function getSignalWindowInfo(
     return { type: "signal_1030", label: "10:30" };
   }
   // 14:00
-  if (totalMinutes >= 14 * 60 && totalMinutes < 14 * 60 + 20) {
+  if (totalMinutes >= 14 * 60 && totalMinutes < 14 * 60 + 25) {
     return { type: "signal_14h", label: "14:00" };
   }
-  // 14:20
-  if (totalMinutes >= 14 * 60 + 20 && totalMinutes <= 15 * 60 + 30) {
-    return { type: "signal_1420", label: "14:20" };
+  // 14:25
+  if (totalMinutes >= 14 * 60 + 25 && totalMinutes <= 15 * 60 + 30) {
+    return { type: "signal_1425", label: "14:25" };
   }
 
   return { type: "signal_scan", label: `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}` };

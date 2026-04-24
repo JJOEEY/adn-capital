@@ -31,11 +31,11 @@ cat > "${CRON_FILE}" <<EOF
 # Type 3 - Morning brief (08:00 VN)
 ${CRON_MORNING_SCHEDULE:-0 1 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_MORNING:-morning_brief}" >> ${LOG_DIR}/morning_brief.log 2>&1
 
-# Type 1 - Signal scan (10:00, 10:30, 14:00, 14:20 VN)
+# Type 1 - Signal scan (10:00, 10:30, 14:00, 14:25 VN)
 ${CRON_SIGNAL_1000_SCHEDULE:-0 3 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_SIGNAL_TYPE1:-signal_scan_type1}" >> ${LOG_DIR}/signal_type1.log 2>&1
 ${CRON_SIGNAL_1030_SCHEDULE:-30 3 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_SIGNAL_TYPE1:-signal_scan_type1}" >> ${LOG_DIR}/signal_type1.log 2>&1
 ${CRON_SIGNAL_1400_SCHEDULE:-0 7 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_SIGNAL_TYPE1:-signal_scan_type1}" >> ${LOG_DIR}/signal_type1.log 2>&1
-${CRON_SIGNAL_1420_SCHEDULE:-20 7 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_SIGNAL_TYPE1:-signal_scan_type1}" >> ${LOG_DIR}/signal_type1.log 2>&1
+${CRON_SIGNAL_1425_SCHEDULE:-25 7 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_SIGNAL_TYPE1:-signal_scan_type1}" >> ${LOG_DIR}/signal_type1.log 2>&1
 
 # Type 2 - Market stats (10:00, 11:30, 14:00, 14:45 VN)
 ${CRON_MARKET_1000_SCHEDULE:-0 3 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_MARKET_TYPE2:-market_stats_type2}" >> ${LOG_DIR}/market_type2.log 2>&1

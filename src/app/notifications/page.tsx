@@ -111,12 +111,19 @@ const typeConfig: Record<
     border: "rgba(16,185,129,0.20)",
     label: "CẬP NHẬT 14:00",
   },
+  signal_1425: {
+    icon: TrendingUp,
+    colorHex: "#10b981",
+    bg: "rgba(16,185,129,0.10)",
+    border: "rgba(16,185,129,0.20)",
+    label: "CẬP NHẬT 14:25",
+  },
   signal_1420: {
     icon: TrendingUp,
     colorHex: "#10b981",
     bg: "rgba(16,185,129,0.10)",
     border: "rgba(16,185,129,0.20)",
-    label: "CẬP NHẬT 14:20",
+    label: "CẬP NHẬT 14:20 (LEGACY)",
   },
   signal_1130: {
     icon: Zap,
@@ -762,7 +769,7 @@ export default function NotificationsPage() {
                   { label: "10:30", color: "#eab308", bg: "rgba(234,179,8,0.10)", border: "rgba(234,179,8,0.20)" },
                   { label: "11:30", color: "#eab308", bg: "rgba(234,179,8,0.10)", border: "rgba(234,179,8,0.20)" },
                   { label: "14:00", color: "#10b981", bg: "rgba(16,185,129,0.10)", border: "rgba(16,185,129,0.20)" },
-                  { label: "14:20", color: "#10b981", bg: "rgba(16,185,129,0.10)", border: "rgba(16,185,129,0.20)" },
+                  { label: "14:25", color: "#10b981", bg: "rgba(16,185,129,0.10)", border: "rgba(16,185,129,0.20)" },
                   { label: "14:45", color: "#10b981", bg: "rgba(16,185,129,0.10)", border: "rgba(16,185,129,0.20)" },
                 ].map((s) => (
                   <span key={s.label} className="text-[11px] font-bold px-2 py-1 rounded-lg border" style={{ color: s.color, background: s.bg, borderColor: s.border }}>
@@ -801,7 +808,7 @@ export default function NotificationsPage() {
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-12 text-center">
                 <Clock className="w-12 h-12 text-neutral-700 mx-auto mb-3" />
                 <p className="text-sm text-neutral-500">Chưa có thông báo nào</p>
-                <p className="text-xs text-neutral-600 mt-1">Feed chỉ hiển thị 2 nhóm: scan mã cổ phiếu và scan thị trường theo các mốc 10:00, 10:30, 11:30, 14:00, 14:20, 14:45.</p>
+                <p className="text-xs text-neutral-600 mt-1">Feed chỉ hiển thị 2 nhóm: scan mã cổ phiếu và scan thị trường theo các mốc 10:00, 10:30, 11:30, 14:00, 14:25, 14:45.</p>
               </div>
             ) : (
               Object.entries(grouped).map(([dateStr, items]) => (

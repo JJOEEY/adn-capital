@@ -53,8 +53,8 @@
     },
     {
       "path": "/api/cron?type=signal_scan_type1",
-      "schedule": "20 7 * * 1-5",
-      "comment": "14:20 VN (07:20 UTC) - Type 1 signal scan"
+      "schedule": "25 7 * * 1-5",
+      "comment": "14:25 VN (07:25 UTC) - Type 1 signal scan"
     },
     {
       "path": "/api/cron/signal-lifecycle",
