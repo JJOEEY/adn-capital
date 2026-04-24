@@ -291,6 +291,10 @@ function normalizeDnseReason(reason: string | null | undefined) {
   const normalized = reason.trim();
   const lower = normalized.toLowerCase();
 
+  if (/session-only mode|session api failed/.test(lower)) {
+    return "DNSE chưa trả về dữ liệu cho phiên hiện tại. Vui lòng làm mới dữ liệu hoặc đăng nhập lại DNSE.";
+  }
+
   if (/broker connection not found for current user/.test(lower)) {
     return "Hệ thống chưa đọc được kết nối DNSE của phiên hiện tại. Vui lòng làm mới dữ liệu hoặc đăng nhập lại DNSE.";
   }
@@ -330,6 +334,10 @@ function normalizeDnseReasonVi(reason: string | null | undefined) {
   if (!reason) return null;
   const normalized = reason.trim();
   const lower = normalized.toLowerCase();
+
+  if (/session-only mode|session api failed/.test(lower)) {
+    return "DNSE chưa trả về dữ liệu cho phiên hiện tại. Vui lòng làm mới dữ liệu hoặc đăng nhập lại DNSE.";
+  }
 
   if (/broker connection not found for current user/.test(lower)) {
     return "Hệ thống chưa đọc được kết nối DNSE của phiên hiện tại. Vui lòng làm mới dữ liệu hoặc đăng nhập lại DNSE.";
@@ -1455,7 +1463,7 @@ export function DnseTradingClient() {
             </div>
           ) : (
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              Chưa có lịch sử lệnh từ DNSE execution audit.
+              Chưa có lịch sử lệnh từ DNSE.
             </p>
           )}
           {latestOrders.length === 0 && ordersDisplayHint ? (

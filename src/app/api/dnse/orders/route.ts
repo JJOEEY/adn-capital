@@ -4,6 +4,20 @@ import { requireDnseAccountContext } from "@/app/api/dnse/_shared";
 
 export const dynamic = "force-dynamic";
 
+function normalizeOrdersError(raw: string) {
+  const lower = raw.toLowerCase();
+  if (/session-only mode|session api failed|failed to get order history|failed to get orders|remote_server_error/.test(lower)) {
+    return "Không lấy được lịch sử lệnh từ DNSE trong phiên hiện tại. Vui lòng làm mới dữ liệu hoặc đăng nhập lại DNSE.";
+  }
+  if (/authorization|unauthorized|forbidden|jwt|token expired/.test(lower)) {
+    return "Phiên đăng nhập DNSE đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại DNSE.";
+  }
+  if (/no route matched|not found|404/.test(lower)) {
+    return "Endpoint lịch sử lệnh DNSE chưa khớp với cấu hình hiện tại. Vui lòng kiểm tra lại cấu hình OpenAPI.";
+  }
+  return raw;
+}
+
 /**
  * GET /api/dnse/orders
  * Lấy lịch sử lệnh DNSE theo tài khoản liên kết.
@@ -88,6 +102,6 @@ export async function GET() {
     if (error instanceof Error) {
       console.error("[DNSE Orders API] Stack:", error.stack);
     }
-    return NextResponse.json({ error: message }, { status: 502 });
+    return NextResponse.json({ error: normalizeOrdersError(message) }, { status: 502 });
   }
 }
