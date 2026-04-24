@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { Suspense, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import { motion } from "framer-motion";
 import {
@@ -375,9 +375,10 @@ function urlBase64ToUint8Array(base64String: string) {
   return outputArray;
 }
 
-export default function NotificationsPage() {
+function NotificationsContent() {
   const { status } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [subTab, setSubTab] = useState<SubTab>("updates");
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -410,17 +411,24 @@ export default function NotificationsPage() {
   );
 
   useEffect(() => {
-    const syncTabFromUrl = () => {
-      const tab = new URLSearchParams(window.location.search).get("tab");
-      if (tab === "updates" || tab === "chatbot") {
-        setSubTab(tab);
-      }
-    };
+    const tab = searchParams.get("tab");
+    const ticker = searchParams.get("ticker")?.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
 
-    syncTabFromUrl();
-    window.addEventListener("popstate", syncTabFromUrl);
-    return () => window.removeEventListener("popstate", syncTabFromUrl);
-  }, []);
+    if (tab === "updates" || tab === "chatbot") {
+      setSubTab(tab);
+    }
+
+    if (tab === "chatbot" && ticker && TICKER_PATTERN.test(ticker)) {
+      setChatInput((current) => {
+        const trimmed = current.trim();
+        if (!trimmed || /^Phân tích [A-Z0-9]{2,5}$/.test(trimmed)) {
+          return `Phân tích ${ticker}`;
+        }
+        return current;
+      });
+      setTimeout(() => inputRef.current?.focus(), 80);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     setPushBlockedReason(getPushBlockedReason());
@@ -1116,5 +1124,13 @@ export default function NotificationsPage() {
         )}
       </div>
     </MainLayout>
+  );
+}
+
+export default function NotificationsPage() {
+  return (
+    <Suspense fallback={null}>
+      <NotificationsContent />
+    </Suspense>
   );
 }

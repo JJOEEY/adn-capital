@@ -1,9 +1,9 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import {
   LogIn,
@@ -25,6 +25,9 @@ import {
   ChevronRight,
   Crown,
   Newspaper,
+  Bell,
+  Bot,
+  Search,
 } from "lucide-react";
 import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 import { useTheme } from "@/components/providers/ThemeProvider";
@@ -329,9 +332,18 @@ function SidebarContent() {
 }
 
 export function Header() {
+  const router = useRouter();
   const { theme, toggleTheme } = useTheme();
   const { collapsed } = useSidebarStore();
+  const [tickerQuery, setTickerQuery] = useState("");
   const isDark = theme === "dark";
+
+  const handleTickerSearch = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const ticker = tickerQuery.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const suffix = ticker ? `&ticker=${encodeURIComponent(ticker)}` : "";
+    router.push(`/notifications?tab=chatbot${suffix}`);
+  };
 
   return (
     <>
@@ -348,20 +360,79 @@ export function Header() {
       </aside>
 
       <header
-        className="fixed top-0 left-0 right-0 z-50 h-14 lg:hidden"
-        style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)" }}
+        className="fixed top-0 left-0 right-0 z-50 lg:hidden"
+        style={{
+          background: "var(--surface)",
+          borderBottom: "1px solid var(--border)",
+          paddingTop: "env(safe-area-inset-top, 0px)",
+        }}
       >
-        <div className="flex items-center justify-between h-full px-3">
-          <Link href="/" className="flex items-center gap-2">
-            <Image src="/logo.jpg" alt="ADN" width={28} height={28} className="rounded-lg" />
-            <span className="text-[14px] font-bold" style={{ color: "var(--text-primary)" }}>
-              ADN AI System
-            </span>
+        <div className="flex h-16 items-center gap-2 px-3">
+          <form
+            onSubmit={handleTickerSearch}
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-full border px-3"
+            style={{
+              height: 40,
+              background: "var(--surface-2)",
+              borderColor: "var(--border)",
+              color: "var(--text-primary)",
+            }}
+          >
+            <input
+              value={tickerQuery}
+              onChange={(event) => setTickerQuery(event.target.value)}
+              aria-label="Tìm mã cổ phiếu để tư vấn"
+              placeholder="Tìm mã để tư vấn"
+              autoCapitalize="characters"
+              autoCorrect="off"
+              className="min-w-0 flex-1 bg-transparent text-[13px] font-semibold uppercase outline-none placeholder:normal-case"
+              style={{ color: "var(--text-primary)" }}
+            />
+            <button
+              type="submit"
+              aria-label="Mở tư vấn đầu tư cho mã cổ phiếu"
+              className="shrink-0 rounded-full p-1"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              <Search className="h-4 w-4" />
+            </button>
+          </form>
+
+          <Link
+            href="/notifications?tab=updates"
+            aria-label="Thông báo"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-all"
+            style={{
+              background: "var(--surface-2)",
+              borderColor: "var(--border)",
+              color: "var(--text-primary)",
+            }}
+          >
+            <Bell className="h-4 w-4" />
           </Link>
+
+          <Link
+            href="/notifications?tab=chatbot"
+            aria-label="Tư vấn đầu tư"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-all"
+            style={{
+              background: "var(--primary-light)",
+              borderColor: "var(--border)",
+              color: "var(--primary)",
+            }}
+          >
+            <Bot className="h-4 w-4" />
+          </Link>
+
           <button
             onClick={toggleTheme}
-            className="p-2 rounded-xl transition-all"
-            style={{ color: "var(--text-secondary)" }}
+            aria-label={isDark ? "Chuyển sang giao diện sáng" : "Chuyển sang giao diện tối"}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-all"
+            style={{
+              background: "var(--surface-2)",
+              borderColor: "var(--border)",
+              color: "var(--text-secondary)",
+            }}
           >
             {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </button>
