@@ -340,8 +340,13 @@ export function Header() {
 
   const handleTickerSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const ticker = tickerQuery.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
-    const suffix = ticker ? `&ticker=${encodeURIComponent(ticker)}` : "";
+    const query = tickerQuery.trim();
+    const ticker = query.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const suffix = /^[A-Z0-9]{2,5}$/.test(ticker)
+      ? `&ticker=${encodeURIComponent(ticker)}`
+      : query
+        ? `&q=${encodeURIComponent(query)}`
+        : "";
     router.push(`/notifications?tab=chatbot${suffix}`);
   };
 
