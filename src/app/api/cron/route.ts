@@ -42,6 +42,7 @@ import { normalizeCronType, LEGACY_CRON_ALIASES } from "@/lib/cron-contracts";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
 import { emitWorkflowTrigger } from "@/lib/workflows";
 import { emitObservabilityEvent } from "@/lib/observability";
+import { claimSignalNotifications } from "@/lib/signals/notification-dedupe";
 
 export const maxDuration = 120;
 export const dynamic = "force-dynamic";
@@ -111,6 +112,25 @@ function hasMeaningfulLiquidity(snapshot: Awaited<ReturnType<typeof getMarketSna
   return total != null && total > 0 && hose != null && hose > 0;
 }
 
+function hasFullExchangeLiquidity(snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>): boolean {
+  const liq = snapshot.liquidityByExchange;
+  return ["HOSE", "HNX", "UPCOM"].every((exchange) => {
+    const value = liq[exchange as keyof typeof liq];
+    return value != null && Number.isFinite(value) && value > 0;
+  });
+}
+
+function hasFullExchangeBreadth(snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>): boolean {
+  const byExchange = snapshot.breadthByExchange;
+  if (!byExchange) return false;
+
+  return ["HOSE", "HNX", "UPCOM"].every((exchange) => {
+    const breadth = byExchange[exchange as keyof typeof byExchange];
+    if (!breadth) return false;
+    return breadth.up + breadth.down + breadth.unchanged > 0;
+  });
+}
+
 function hasRequiredStatsData(snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>): boolean {
   const hasMainIndex = snapshot.indices.some((item) => item.ticker === "VNINDEX");
   return (
@@ -136,7 +156,9 @@ function hasRequiredFull19Data(snapshot: Awaited<ReturnType<typeof getMarketSnap
   return (
     hasMainIndex &&
     hasMeaningfulLiquidity(snapshot) &&
+    hasFullExchangeLiquidity(snapshot) &&
     hasMeaningfulBreadth(snapshot) &&
+    hasFullExchangeBreadth(snapshot) &&
     snapshot.investorTrading.availability.foreign &&
     snapshot.investorTrading.availability.proprietary &&
     snapshot.investorTrading.availability.retail
@@ -179,9 +201,79 @@ function formatTy(value: number | null | undefined): string {
   return `${Math.abs(value).toLocaleString("vi-VN", { maximumFractionDigits: 0 })} tỷ`;
 }
 
+function formatBreadthGroup(
+  breadth:
+    | { up: number; down: number; unchanged: number; ceiling?: number; floor?: number }
+    | null
+    | undefined,
+): string {
+  if (!breadth) return "chưa cập nhật";
+  const ceiling = Number(breadth.ceiling ?? 0);
+  const floor = Number(breadth.floor ?? 0);
+  const extra = ceiling > 0 || floor > 0 ? ` | Trần ${ceiling} | Sàn ${floor}` : "";
+  return `Tăng ${breadth.up} | Giảm ${breadth.down} | Đứng ${breadth.unchanged}${extra}`;
+}
+
+function buildBreadthSection(snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>): string {
+  const byExchange = snapshot.breadthByExchange;
+  return [
+    "📊 *ĐỘ RỘNG THỊ TRƯỜNG:*",
+    `• Toàn thị trường: ${formatBreadthGroup(snapshot.breadth)}`,
+    `• HoSE: ${formatBreadthGroup(byExchange?.HOSE)}`,
+    `• HNX: ${formatBreadthGroup(byExchange?.HNX)}`,
+    `• UPCoM: ${formatBreadthGroup(byExchange?.UPCOM)}`,
+  ].join("\n");
+}
+
 function buildPropTradingReport(today: string, snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>) {
-  const vnindex = snapshot.indices.find((item) => item.ticker === "VNINDEX");
-  const vn30 = snapshot.indices.find((item) => item.ticker === "VN30");
+  {
+    const idx = snapshot.indices.find((item) => item.ticker === "VNINDEX");
+    const vn30Index = snapshot.indices.find((item) => item.ticker === "VN30");
+    const investorLines = getInvestorTradingText(snapshot, "full19");
+    const investorSection =
+      investorLines.length > 0
+        ? investorLines.map((line) => `• ${line}`).join("\n")
+        : "• Khối ngoại: chưa cập nhật\n• Tự doanh: chưa cập nhật\n• Cá nhân: chưa cập nhật";
+    const exchangeValue = (value: number | null) => (value == null ? "?" : formatTy(value));
+    const totalLiquidity = snapshot.liquidity != null ? formatTy(snapshot.liquidity) : "chưa cập nhật";
+    const indexDirection =
+      (idx?.changePct ?? 0) > 0
+        ? "Thị trường duy trì sắc xanh."
+        : (idx?.changePct ?? 0) < 0
+        ? "Thị trường chịu áp lực điều chỉnh."
+        : "Thị trường đi ngang, chưa hình thành xu hướng rõ.";
+    const foreignNet = snapshot.investorTrading.foreign.net ?? 0;
+    const flowNote =
+      foreignNet > 0
+        ? "Khối ngoại đang hỗ trợ xu hướng ngắn hạn."
+        : foreignNet < 0
+        ? "Khối ngoại vẫn bán ròng, cần quản trị rủi ro chặt chẽ."
+        : "Dòng tiền khối ngoại trung tính.";
+
+    return `🌙 *BẢN TIN TỔNG HỢP 19:00 — ${today}*
+
+📊 *KẾT QUẢ CHỈ SỐ:*
+🇻🇳 VN-INDEX: ${idx ? `${idx.value} | ${idx.changePct >= 0 ? "+" : ""}${idx.changePct}%` : "chưa cập nhật"}
+💎 VN30: ${vn30Index ? `${vn30Index.value} | ${vn30Index.changePct >= 0 ? "+" : ""}${vn30Index.changePct}%` : "chưa cập nhật"}
+
+💧 *THANH KHOẢN:*
+• Tổng: ${totalLiquidity}
+• HoSE/HNX/UPCoM: ${exchangeValue(snapshot.liquidityByExchange.HOSE)} | ${exchangeValue(snapshot.liquidityByExchange.HNX)} | ${exchangeValue(snapshot.liquidityByExchange.UPCOM)}
+
+${buildBreadthSection(snapshot)}
+
+🏦 *DÒNG TIỀN NHÀ ĐẦU TƯ:*
+${investorSection}
+
+💡 *NHẬN ĐỊNH SMART MONEY:*
+• ${indexDirection}
+• ${flowNote}
+
+_Powered by ADN Capital AI_`;
+  }
+
+  const vnindex = snapshot.indices.find((item) => item.ticker === "VNINDEX")!;
+  const vn30 = snapshot.indices.find((item) => item.ticker === "VN30")!;
   const investorLines = getInvestorTradingText(snapshot, "full19");
   const investorSection =
     investorLines.length > 0
@@ -416,7 +508,12 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
       { snapshot, propData },
       {
         investorAvailability: snapshot.investorTrading.availability,
+        liquidity: snapshot.liquidity,
         liquidityByExchange: snapshot.liquidityByExchange,
+        breadth: snapshot.breadth,
+        breadthByExchange: snapshot.breadthByExchange,
+        source: snapshot.source,
+        publishBlockers: snapshot.publishBlockers,
       }
     );
     await pushNotification("eod_full_19h", `🌙 Bản tin tổng hợp 19:00 ${today}`, safeReport);
@@ -621,7 +718,7 @@ async function handleSignalScan5m(): Promise<NextResponse> {
     const startOfDay = getVnNow().startOf("day").toDate();
     const todaySignals = await prisma.signal.findMany({
       where: { createdAt: { gte: startOfDay } },
-      select: { id: true, ticker: true, type: true, status: true },
+      select: { id: true, ticker: true, type: true, status: true, entryPrice: true },
     });
     const existingMap = new Map(todaySignals.map((s) => [toSignalKey(s.ticker, s.type), s]));
 
@@ -669,16 +766,23 @@ async function handleSignalScan5m(): Promise<NextResponse> {
             reason: s.reason ?? null,
           });
         }
-        const activePayload =
-          existing.status !== "ACTIVE" && nextStatus === "ACTIVE"
-            ? { currentPrice: s.entryPrice, currentPnl: 0 }
+        const isExistingLive = existing.status === "ACTIVE" || existing.status === "HOLD_TO_DIE";
+        const isNextLive = nextStatus === "ACTIVE" || nextStatus === "HOLD_TO_DIE";
+        const effectiveEntryPrice =
+          isExistingLive && isNextLive && existing.entryPrice > 0 ? existing.entryPrice : s.entryPrice;
+        const livePayload =
+          isNextLive && s.entryPrice > 0 && effectiveEntryPrice > 0
+            ? {
+                currentPrice: s.entryPrice,
+                currentPnl: +(((s.entryPrice - effectiveEntryPrice) / effectiveEntryPrice) * 100).toFixed(2),
+              }
             : {};
 
         return prisma.signal.update({
           where: { id: existing.id },
           data: {
             status: nextStatus,
-            entryPrice: s.entryPrice,
+            entryPrice: effectiveEntryPrice,
             tier: s.tier,
             navAllocation: s.navAllocation,
             target: s.target,
@@ -689,7 +793,7 @@ async function handleSignalScan5m(): Promise<NextResponse> {
             winRate: s.winRate,
             sharpeRatio: s.sharpeRatio,
             rrRatio: s.rrRatio,
-            ...activePayload,
+            ...livePayload,
           },
         });
       }
@@ -742,50 +846,8 @@ async function handleSignalScan5m(): Promise<NextResponse> {
       await rebalanceActiveBasketNav(aiBrokerConfig.maxTotalNav);
     }
 
-    const notifySignals = createCandidatesForNotify.filter(
-      (s) => !alreadySent.has(toSignalKey(s.ticker, s.type))
-    );
-    const backfillCandidates = createCandidatesForNotify.filter(
-      (s) => alreadySent.has(toSignalKey(s.ticker, s.type))
-    );
-
-    if (notifySignals.length > 0) {
-      await prisma.signalHistory.createMany({
-        data: notifySignals.map((s) => ({
-          ticker: s.ticker,
-          signalType: s.type,
-          sentDate: todayISO,
-        })),
-        skipDuplicates: true,
-      });
-    }
-
-    const reconciliationCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const recentSignalNotifications = await prisma.notification.findMany({
-      where: {
-        type: {
-          in: [
-            "signal_10h",
-            "signal_1030",
-            "signal_14h",
-            "signal_1420",
-            "signal_1130", // legacy
-            "signal_1445", // legacy
-            "signal_scan",
-          ],
-        },
-        createdAt: { gte: reconciliationCutoff },
-      },
-      select: { content: true },
-    });
-    const recentContent = recentSignalNotifications.map((n) => n.content).join("\n");
-    const missingOnWeb = backfillCandidates.filter((s) => !recentContent.includes(s.ticker));
-
-    const webNotifySignals = Array.from(
-      new Map(
-        [...notifySignals, ...missingOnWeb].map((s) => [toSignalKey(s.ticker, s.type), s]),
-      ).values(),
-    );
+    const notifySignals = await claimSignalNotifications(createCandidatesForNotify, todayISO);
+    const webNotifySignals = notifySignals;
 
     if (webNotifySignals.length > 0) {
       const signalText = webNotifySignals
@@ -820,7 +882,7 @@ async function handleSignalScan5m(): Promise<NextResponse> {
         created: createdCount,
         updated: updatedCount,
         notified: notifySignals.length,
-        reconciledWebOnly: missingOnWeb.length,
+        reconciledWebOnly: 0,
       }
     );
 
@@ -834,7 +896,7 @@ async function handleSignalScan5m(): Promise<NextResponse> {
       created: createdCount,
       updated: updatedCount,
       notified: notifySignals.length,
-      reconciledWebOnly: missingOnWeb.length,
+      reconciledWebOnly: 0,
       totalSignaledToday: alreadySent.size + notifySignals.length,
     });
   } catch (error) {

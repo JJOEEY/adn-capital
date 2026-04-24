@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { createHash } from "crypto";
 import { getTopicEnvelope, invalidateTopics } from "@/lib/datahub/core";
 import { pushNotification, saveMarketReport } from "@/lib/cronHelpers";
 import { resolveTemplateString } from "./helpers";
@@ -223,6 +224,32 @@ const sendTelegramAction: ActionHandler = async (action, context) => {
       context.event,
     ) || `Workflow ${context.workflow.workflowKey}`;
 
+  const textHash = createHash("sha256").update(text).digest("hex").slice(0, 32);
+  const dedupeWindowMinutes =
+    Number(action.params?.dedupeWindowMinutes) ||
+    (context.workflow.workflowKey === "signal-active-notify" ? 24 * 60 : 30);
+  const dedupeCutoff = new Date(Date.now() - dedupeWindowMinutes * 60_000);
+  const dedupeCronName = `telegram:${context.workflow.workflowKey}`;
+  const existingSend = await prisma.cronLog.findFirst({
+    where: {
+      cronName: dedupeCronName,
+      status: "success",
+      createdAt: { gte: dedupeCutoff },
+      resultData: { contains: textHash },
+    },
+    select: { id: true },
+  });
+
+  if (existingSend) {
+    return {
+      status: "skipped",
+      retryable: false,
+      deterministic: true,
+      warning: "telegram_duplicate_suppressed",
+      data: { textHash, dedupeWindowMinutes },
+    };
+  }
+
   const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -250,6 +277,21 @@ const sendTelegramAction: ActionHandler = async (action, context) => {
       data: payload && typeof payload === "object" ? (payload as Record<string, unknown>) : null,
     };
   }
+
+  await prisma.cronLog.create({
+    data: {
+      cronName: dedupeCronName,
+      status: "success",
+      message: "telegram_sent",
+      duration: 0,
+      resultData: JSON.stringify({
+        textHash,
+        workflowKey: context.workflow.workflowKey,
+        triggerType: context.event.type,
+        triggerSource: context.event.source,
+      }),
+    },
+  });
 
   return {
     status: "success",
@@ -379,4 +421,3 @@ export async function executeWorkflowAction(action: WorkflowActionDefinition, co
   }
   return handler(action, context);
 }
-

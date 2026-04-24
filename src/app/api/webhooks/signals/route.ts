@@ -15,6 +15,8 @@ import {
 } from "@/lib/aiBroker";
 import { getVnNow } from "@/lib/time";
 import { emitWorkflowTrigger } from "@/lib/workflows";
+import { invalidateTopics } from "@/lib/datahub/core";
+import { claimSignalNotifications } from "@/lib/signals/notification-dedupe";
 
 // Secret chia sẻ giữa Python scanner và Next.js
 const WEBHOOK_SECRET = process.env.SCANNER_SECRET ?? "adn-scanner-secret-key";
@@ -62,20 +64,15 @@ export async function POST(req: NextRequest) {
 
     const todaySignals = await prisma.signal.findMany({
       where: { createdAt: { gte: startOfDay } },
-      select: { id: true, ticker: true, type: true, status: true },
+      select: { id: true, ticker: true, type: true, status: true, entryPrice: true },
     });
 
-    const existingMap = new Map<string, { id: string; status: string }>();
+    const existingMap = new Map<string, { id: string; status: string; entryPrice: number }>();
     for (const s of todaySignals) {
-      existingMap.set(`${s.ticker}|${s.type}`, { id: s.id, status: s.status });
+      existingMap.set(`${s.ticker}|${s.type}`, { id: s.id, status: s.status, entryPrice: s.entryPrice });
     }
 
     const todayISO = getVNDateISO();
-    const sentHistory = await prisma.signalHistory.findMany({
-      where: { sentDate: todayISO },
-      select: { ticker: true, signalType: true },
-    });
-    const sentSet = new Set(sentHistory.map((s) => `${s.ticker}|${s.signalType}`));
 
     // ── 4. Upsert: update nếu đã có, create nếu chưa ───────────────────
     let created = 0;
@@ -122,16 +119,23 @@ export async function POST(req: NextRequest) {
             reason: s.reason ?? null,
           });
         }
-        const activePayload =
-          existing.status !== "ACTIVE" && nextStatus === "ACTIVE"
-            ? { currentPrice: s.entryPrice, currentPnl: 0 }
+        const isExistingLive = existing.status === "ACTIVE" || existing.status === "HOLD_TO_DIE";
+        const isNextLive = nextStatus === "ACTIVE" || nextStatus === "HOLD_TO_DIE";
+        const effectiveEntryPrice =
+          isExistingLive && isNextLive && existing.entryPrice > 0 ? existing.entryPrice : s.entryPrice;
+        const livePayload =
+          isNextLive && s.entryPrice > 0 && effectiveEntryPrice > 0
+            ? {
+                currentPrice: s.entryPrice,
+                currentPnl: +(((s.entryPrice - effectiveEntryPrice) / effectiveEntryPrice) * 100).toFixed(2),
+              }
             : {};
 
         return prisma.signal.update({
           where: { id: existing.id },
           data: {
             status: nextStatus,
-            entryPrice: s.entryPrice,
+            entryPrice: effectiveEntryPrice,
             tier: s.tier,
             navAllocation: s.navAllocation,
             target: s.target,
@@ -142,7 +146,7 @@ export async function POST(req: NextRequest) {
             winRate: s.winRate,
             sharpeRatio: s.sharpeRatio,
             rrRatio: s.rrRatio,
-            ...activePayload,
+            ...livePayload,
           },
         });
       } else {
@@ -193,64 +197,14 @@ export async function POST(req: NextRequest) {
     await prisma.$transaction(operations);
     await rebalanceActiveBasketNav(aiBrokerConfig.maxTotalNav);
 
-    const newSignalsForNotification = createdSignalsForNotify.filter(
-      (s) => !sentSet.has(`${s.ticker}|${s.type}`)
-    );
-    const backfillCandidates = createdSignalsForNotify.filter(
-      (s) => sentSet.has(`${s.ticker}|${s.type}`)
-    );
+    const webNotifySignals = await claimSignalNotifications(createdSignalsForNotify, todayISO);
 
-    const reconciliationCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const recentSignalNotifications = await prisma.notification.findMany({
-      where: {
-        type: {
-          in: [
-            "signal_10h",
-            "signal_1030",
-            "signal_14h",
-            "signal_1420",
-            "signal_1130", // legacy
-            "signal_1445", // legacy
-            "signal_scan",
-          ],
-        },
-        createdAt: { gte: reconciliationCutoff },
-      },
-      select: { content: true },
-    });
-    const recentContent = recentSignalNotifications.map((n) => n.content).join("\n");
-    const missingOnWeb = backfillCandidates.filter((s) => !recentContent.includes(s.ticker));
-    const webNotifySignals = Array.from(
-      new Map(
-        [...newSignalsForNotification, ...missingOnWeb].map((s) => [`${s.ticker}|${s.type}`, s]),
-      ).values(),
-    );
-
-    if (newSignalsForNotification.length > 0) {
-      const windowInfo = getSignalWindowInfo();
-      await prisma.signalHistory.createMany({
-        data: newSignalsForNotification.map((s) => ({
-          ticker: s.ticker,
-          signalType: s.type,
-          sentDate: todayISO,
-        })),
-        skipDuplicates: true,
-      });
-
-      const signalText = webNotifySignals
-        .map((s) => `• ${s.ticker}: ${s.entryPrice.toLocaleString("vi-VN")} VNĐ${s.reason ? ` — ${s.reason}` : ""}`)
-        .join("\n");
-
-      await pushNotification(
-        windowInfo.type,
-        `⚡ ${windowInfo.label} — ${webNotifySignals.length} tín hiệu mới`,
-        `## TÍN HIỆU MỚI (${windowInfo.label})\n\n${signalText}`
-      );
-    } else if (webNotifySignals.length > 0) {
+    if (webNotifySignals.length > 0) {
       const windowInfo = getSignalWindowInfo();
       const signalText = webNotifySignals
         .map((s) => `• ${s.ticker}: ${s.entryPrice.toLocaleString("vi-VN")} VNĐ${s.reason ? ` — ${s.reason}` : ""}`)
         .join("\n");
+
       await pushNotification(
         windowInfo.type,
         `⚡ ${windowInfo.label} — ${webNotifySignals.length} tín hiệu mới`,
@@ -268,6 +222,7 @@ export async function POST(req: NextRequest) {
         ),
       );
     }
+    invalidateTopics({ tags: ["signal", "broker", "portfolio"] });
 
     console.log(
       `[Webhook] ${created} tín hiệu mới, ${updated} cập nhật giá, tổng ${processed.length} xử lý (UltimateEngine)`
@@ -276,7 +231,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       saved: created,
       updated,
-      reconciledWebOnly: missingOnWeb.length,
+      reconciledWebOnly: 0,
       tickers: processed.map((s) => s.ticker),
       message: `${created} mới, ${updated} cập nhật (UltimateEngine)`,
     });

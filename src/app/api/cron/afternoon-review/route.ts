@@ -17,7 +17,9 @@ import { emitWorkflowTrigger } from "@/lib/workflows";
 
 export const maxDuration = 60;
 
-function hasRequiredCloseData(snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>): boolean {
+type MarketSnapshot = Awaited<ReturnType<typeof getMarketSnapshot>>;
+
+function hasRequiredCloseData(snapshot: MarketSnapshot): boolean {
   const hasMainIndex = snapshot.indices.some((item) => item.ticker === "VNINDEX");
   const breadth = snapshot.breadth;
   const hasBreadth = !!breadth && breadth.up + breadth.down + breadth.unchanged > 0;
@@ -26,6 +28,7 @@ function hasRequiredCloseData(snapshot: Awaited<ReturnType<typeof getMarketSnaps
     snapshot.liquidity > 0 &&
     snapshot.liquidityByExchange.HOSE != null &&
     snapshot.liquidityByExchange.HOSE > 0;
+
   return hasMainIndex && hasLiquidity && hasBreadth && snapshot.investorTrading.availability.foreign;
 }
 
@@ -34,10 +37,42 @@ function formatTy(value: number | null | undefined): string {
   return `${Math.abs(value).toLocaleString("vi-VN", { maximumFractionDigits: 0 })} tỷ`;
 }
 
-function buildClose15Report(today: string, snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>) {
+function formatBreadthGroup(
+  breadth:
+    | { up: number; down: number; unchanged: number; ceiling?: number; floor?: number }
+    | null
+    | undefined,
+): string {
+  if (!breadth) return "chưa cập nhật";
+  const ceiling = Number(breadth.ceiling ?? 0);
+  const floor = Number(breadth.floor ?? 0);
+  const extra = ceiling > 0 || floor > 0 ? ` | Trần ${ceiling} | Sàn ${floor}` : "";
+  return `Tăng ${breadth.up} | Giảm ${breadth.down} | Đứng ${breadth.unchanged}${extra}`;
+}
+
+function buildLiquiditySection(snapshot: MarketSnapshot): string {
+  const exchangeValue = (value: number | null) => (value == null ? "?" : formatTy(value));
+  return [
+    `• Thanh khoản tổng: ${formatTy(snapshot.liquidity)}`,
+    `• HoSE/HNX/UPCoM: ${exchangeValue(snapshot.liquidityByExchange.HOSE)} | ${exchangeValue(
+      snapshot.liquidityByExchange.HNX,
+    )} | ${exchangeValue(snapshot.liquidityByExchange.UPCOM)}`,
+  ].join("\n");
+}
+
+function buildBreadthSection(snapshot: MarketSnapshot): string {
+  const byExchange = snapshot.breadthByExchange;
+  return [
+    `• Toàn thị trường: ${formatBreadthGroup(snapshot.breadth)}`,
+    `• HoSE: ${formatBreadthGroup(byExchange?.HOSE)}`,
+    `• HNX: ${formatBreadthGroup(byExchange?.HNX)}`,
+    `• UPCoM: ${formatBreadthGroup(byExchange?.UPCOM)}`,
+  ].join("\n");
+}
+
+function buildClose15Report(today: string, snapshot: MarketSnapshot) {
   const vnidx = snapshot.indices.find((i) => i.ticker === "VNINDEX");
   const vn30 = snapshot.indices.find((i) => i.ticker === "VN30");
-  const breadth = snapshot.breadth;
 
   const investorLines = getInvestorTradingText(snapshot, "close15");
   const investorSection =
@@ -46,7 +81,9 @@ function buildClose15Report(today: string, snapshot: Awaited<ReturnType<typeof g
       : "• Khối ngoại: chưa cập nhật";
 
   const verdictText =
-    (vnidx?.changePct ?? 0) >= 0 ? "ĐẠT - Tìm cơ hội có chọn lọc." : "KHÔNG ĐẠT - Ưu tiên phòng thủ.";
+    (vnidx?.changePct ?? 0) >= 0
+      ? "ĐẠT - Tìm cơ hội có chọn lọc."
+      : "KHÔNG ĐẠT - Ưu tiên phòng thủ.";
 
   return `🌆 *BẢN TIN KẾT PHIÊN — ${today}*
 
@@ -54,10 +91,13 @@ function buildClose15Report(today: string, snapshot: Awaited<ReturnType<typeof g
 🇻🇳 VN-INDEX: ${vnidx ? `${vnidx.value} | ${vnidx.changePct >= 0 ? "+" : ""}${vnidx.changePct}%` : "chưa cập nhật"}
 💎 VN30: ${vn30 ? `${vn30.value} | ${vn30.changePct >= 0 ? "+" : ""}${vn30.changePct}%` : "chưa cập nhật"}
 
-📈 *DIỄN BIẾN THỊ TRƯỜNG:*
-• Độ rộng: ${breadth?.up ?? "?"} Tăng | ${breadth?.down ?? "?"} Giảm | ${breadth?.unchanged ?? "?"} Đứng
-• Thanh khoản: ${formatTy(snapshot.liquidity)}
-• Dòng tiền NĐT:
+📈 *ĐỘ RỘNG THỊ TRƯỜNG:*
+${buildBreadthSection(snapshot)}
+
+💧 *THANH KHOẢN:*
+${buildLiquiditySection(snapshot)}
+
+🏦 *DÒNG TIỀN NĐT:*
 ${investorSection}
 
 🎯 *VERDICT & KẾ HOẠCH:*
@@ -93,6 +133,9 @@ export async function GET(req: NextRequest) {
         duration,
         {
           liquidity: snapshot.liquidity,
+          liquidityByExchange: snapshot.liquidityByExchange,
+          breadth: snapshot.breadth,
+          breadthByExchange: snapshot.breadthByExchange,
           investorAvailability: snapshot.investorTrading.availability,
           indices: snapshot.indices.map((item) => item.ticker),
           providerDiagnostics: snapshot.providerDiagnostics,
@@ -118,6 +161,11 @@ export async function GET(req: NextRequest) {
         verdict: isGood ? "GOOD" : "BAD",
         indices: snapshot.indices,
         marketScore: snapshot.marketOverview?.score,
+        liquidity: snapshot.liquidity,
+        liquidityByExchange: snapshot.liquidityByExchange,
+        breadth: snapshot.breadth,
+        breadthByExchange: snapshot.breadthByExchange,
+        source: snapshot.source,
       },
     );
 
