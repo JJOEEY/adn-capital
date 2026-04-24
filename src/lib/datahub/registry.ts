@@ -48,12 +48,19 @@ async function loadCompositeLive() {
   return res.json();
 }
 
-async function loadNews(type: "morning" | "eod") {
+async function loadNews(type: "morning" | "eod" | "close") {
   const mod = await import("@/app/api/market-news/route");
-  const req = new NextRequest(`http://localhost/api/market-news?type=${type}`);
+  const newsType = type === "close" ? "eod" : type;
+  const req = new NextRequest(`http://localhost/api/market-news?type=${newsType}`);
   const res = await mod.GET(req);
-  if (!res.ok) throw new Error(`market-news ${type} HTTP ${res.status}`);
-  return res.json();
+  if (!res.ok) throw new Error(`market-news ${newsType} HTTP ${res.status}`);
+  const payload = await res.json();
+  if (type !== "close") return payload;
+  return {
+    ...payload,
+    reportType: "close_brief_15h",
+    source: "live_market_snapshot_fallback",
+  };
 }
 
 function parseVnDayRange(dateKey: string) {
@@ -106,6 +113,58 @@ async function loadBriefByTypeAndDate(type: "morning_brief" | "close_brief_15h" 
     rawData: safeParseJson(report.rawData),
     metadata: safeParseJson(report.metadata),
   };
+}
+
+function readPositiveNumber(value: unknown) {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) && numberValue > 0 ? numberValue : null;
+}
+
+function hasCompleteBriefMarketFields(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const record = value as JsonRecord;
+  const rawData = record.rawData && typeof record.rawData === "object" ? (record.rawData as JsonRecord) : null;
+  const metadata = record.metadata && typeof record.metadata === "object" ? (record.metadata as JsonRecord) : null;
+  const snapshot =
+    rawData?.snapshot && typeof rawData.snapshot === "object"
+      ? (rawData.snapshot as JsonRecord)
+      : record.snapshot && typeof record.snapshot === "object"
+        ? (record.snapshot as JsonRecord)
+        : null;
+  const liquidityByExchange =
+    record.liquidity_by_exchange ??
+    record.liquidityByExchange ??
+    metadata?.liquidityByExchange ??
+    snapshot?.liquidityByExchange;
+  const liquidityRecord =
+    liquidityByExchange && typeof liquidityByExchange === "object" ? (liquidityByExchange as JsonRecord) : null;
+  const hasExchangeLiquidity =
+    readPositiveNumber(liquidityRecord?.HOSE) != null &&
+    readPositiveNumber(liquidityRecord?.HNX) != null &&
+    readPositiveNumber(liquidityRecord?.UPCOM) != null;
+
+  const breadth = record.breadth ?? metadata?.breadth ?? snapshot?.breadth;
+  const breadthRecord = breadth && typeof breadth === "object" ? (breadth as JsonRecord) : null;
+  const breadthTotal =
+    readPositiveNumber(breadthRecord?.total) ??
+    readPositiveNumber(
+      Number(breadthRecord?.up ?? 0) + Number(breadthRecord?.down ?? 0) + Number(breadthRecord?.unchanged ?? 0),
+    );
+
+  return hasExchangeLiquidity && breadthTotal != null;
+}
+
+async function loadLatestCloseBrief() {
+  const row = await prisma.marketReport.findFirst({
+    where: { type: "close_brief_15h" },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, type: true, title: true, content: true, rawData: true, metadata: true, createdAt: true },
+  });
+  const parsed = row
+    ? { ...row, rawData: safeParseJson(row.rawData), metadata: safeParseJson(row.metadata) }
+    : null;
+  if (hasCompleteBriefMarketFields(parsed)) return parsed;
+  return loadNews("close");
 }
 
 async function loadSignalMapLatest() {
@@ -1156,15 +1215,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     version: "v1",
     tags: ["brief", "close-brief", "public"],
     match: (topicKey) => (topicKey === "brief:close:latest" ? { ok: true } : { ok: false }),
-    resolve: async () => {
-      const row = await prisma.marketReport.findFirst({
-        where: { type: "close_brief_15h" },
-        orderBy: { createdAt: "desc" },
-        select: { id: true, type: true, title: true, content: true, rawData: true, metadata: true, createdAt: true },
-      });
-      if (!row) return null;
-      return { ...row, rawData: safeParseJson(row.rawData), metadata: safeParseJson(row.metadata) };
-    },
+    resolve: async () => loadLatestCloseBrief(),
   },
   {
     id: "brief:close:{date}:15h",
