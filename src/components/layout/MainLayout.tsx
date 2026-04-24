@@ -7,6 +7,7 @@ import { Footer } from "./Footer";
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { useSidebarStore } from "@/store/sidebarStore";
 import { BottomTabBar } from "@/components/pwa/BottomTabBar";
+import { PwaFloatingActions } from "@/components/pwa/PwaFloatingActions";
 import { SplashScreen } from "@/components/pwa/SplashScreen";
 import { useSwipeNavigation } from "@/hooks/useSwipeNavigation";
 
@@ -52,18 +53,23 @@ export function MainLayout({ children, disableSwipe = false }: MainLayoutProps) 
       <Header />
 
       {/* Mobile: show bottom tab bar */}
-      {isMobile && <BottomTabBar />}
+      {isMobile && (
+        <>
+          <PwaFloatingActions />
+          <BottomTabBar />
+        </>
+      )}
 
       <div
         {...touchProps}
         className={`flex-1 min-w-0 flex flex-col min-h-screen transition-all duration-300 ${
           isMobile
-            ? "pt-14 pb-20"
+            ? "pt-14 pb-28"
             : collapsed
             ? "pl-[68px]"
             : "pl-[240px]"
         }`}
-        style={isMobile ? { paddingBottom: "calc(64px + env(safe-area-inset-bottom, 0px))" } : undefined}
+        style={isMobile ? { paddingBottom: "calc(96px + env(safe-area-inset-bottom, 0px))" } : undefined}
       >
         {/* In-app Header strip */}
         {!isMobile && <AppHeader />}

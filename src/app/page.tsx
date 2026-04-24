@@ -6,6 +6,7 @@ import Image from "next/image";
 import dynamic from "next/dynamic";
 import Pricing from "@/components/landing/Pricing";
 import { Footer } from "@/components/layout/Footer";
+import { PwaEntryRedirect } from "@/components/pwa/PwaEntryRedirect";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import {
   TrendingUp,
@@ -198,6 +199,7 @@ function LandingHeader() {
 export default function HomePage() {
   return (
     <div style={{ background: "var(--bg-page)" }}>
+      <PwaEntryRedirect />
       <LandingHeader />
       <div className="space-y-0">
         <HeroSection />

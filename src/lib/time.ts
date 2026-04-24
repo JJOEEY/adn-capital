@@ -46,6 +46,32 @@ export function getVnTimeLabel(input?: string | number | Date | Dayjs | null): s
   return toVnTime(input).format("HH:mm");
 }
 
+export function formatVnDate(
+  input: string | Date | number,
+  options?: Intl.DateTimeFormatOptions,
+): string {
+  return new Intl.DateTimeFormat("vi-VN", {
+    timeZone: VN_TIMEZONE,
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    ...options,
+  }).format(new Date(input));
+}
+
+export function formatVnTime(
+  input: string | Date | number,
+  options?: Intl.DateTimeFormatOptions,
+): string {
+  return new Intl.DateTimeFormat("vi-VN", {
+    timeZone: VN_TIMEZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    ...options,
+  }).format(new Date(input));
+}
+
 export function isVnTradingDay(input?: string | number | Date | Dayjs | null): boolean {
   const current = toVnTime(input);
   const day = current.day();

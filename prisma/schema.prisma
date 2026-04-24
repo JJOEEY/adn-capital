@@ -86,6 +86,7 @@ model User {
   tradingJournal TradingJournal[]
   pushSubscriptions PushSubscription[]
   notifications  Notification[]
+  notificationPreferences NotificationPreference[]
   articles       Article[]
   dnseConnections DnseConnection[]
   dnseOAuthStates DnseOAuthState[]
@@ -94,6 +95,20 @@ model User {
   chatDailyUsages   ChatUsageDaily[]
   chatQuotaOverride AdminChatQuotaOverride[] @relation("ChatQuotaTargetUser")
   updatedQuotaOverrideBy AdminChatQuotaOverride[] @relation("ChatQuotaUpdatedBy")
+}
+
+model NotificationPreference {
+  id        String   @id @default(cuid())
+  userId    String
+  key       String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@index([key, enabled])
 }
 
 model DnseConnection {

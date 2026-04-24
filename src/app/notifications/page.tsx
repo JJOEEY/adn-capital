@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import { motion } from "framer-motion";
 import {
@@ -21,7 +22,7 @@ import {
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { StockChart } from "@/components/chat/StockChart";
-import { formatLocalDeviceDate, formatLocalDeviceTime } from "@/lib/time";
+import { formatVnDate, formatVnTime } from "@/lib/time";
 
 interface NotificationItem {
   id: string;
@@ -376,6 +377,7 @@ function urlBase64ToUint8Array(base64String: string) {
 
 export default function NotificationsPage() {
   const { status } = useSession();
+  const router = useRouter();
   const [subTab, setSubTab] = useState<SubTab>("updates");
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -398,6 +400,27 @@ export default function NotificationsPage() {
   );
 
   const notifications = data?.notifications ?? [];
+
+  const selectSubTab = useCallback(
+    (tab: SubTab) => {
+      setSubTab(tab);
+      router.replace(`/notifications?tab=${tab}`, { scroll: false });
+    },
+    [router]
+  );
+
+  useEffect(() => {
+    const syncTabFromUrl = () => {
+      const tab = new URLSearchParams(window.location.search).get("tab");
+      if (tab === "updates" || tab === "chatbot") {
+        setSubTab(tab);
+      }
+    };
+
+    syncTabFromUrl();
+    window.addEventListener("popstate", syncTabFromUrl);
+    return () => window.removeEventListener("popstate", syncTabFromUrl);
+  }, []);
 
   useEffect(() => {
     setPushBlockedReason(getPushBlockedReason());
@@ -483,7 +506,7 @@ export default function NotificationsPage() {
   const grouped = useMemo(
     () =>
       notifications.reduce<Record<string, NotificationItem[]>>((acc, n) => {
-        const dateKey = formatLocalDeviceDate(n.createdAt, {
+        const dateKey = formatVnDate(n.createdAt, {
           weekday: "short",
           day: "2-digit",
           month: "2-digit",
@@ -719,10 +742,51 @@ export default function NotificationsPage() {
   return (
     <MainLayout disableSwipe={subTab === "chatbot"}>
       <div className="flex flex-col min-h-0" style={{ height: chatPanelHeight }}>
-        <div className="shrink-0 px-4 pt-3 pb-2">
+        <div
+          className="shrink-0 border-b px-4 py-3"
+          style={{
+            background: "color-mix(in srgb, var(--surface) 94%, transparent)",
+            borderColor: "var(--border)",
+            backdropFilter: "blur(18px)",
+          }}
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <div
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
+                style={{ background: "var(--primary-light)", color: "var(--primary)" }}
+              >
+                {subTab === "updates" ? <Bell className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
+              </div>
+              <div className="min-w-0">
+                <h1 className="truncate text-base font-black" style={{ color: "var(--text-primary)" }}>
+                  {subTab === "updates" ? "Thông báo" : "Tư vấn đầu tư"}
+                </h1>
+                <p className="truncate text-xs" style={{ color: "var(--text-muted)" }}>
+                  {subTab === "updates"
+                    ? "Cập nhật scan tín hiệu và thị trường"
+                    : chatLoading
+                      ? "ADN AI đang phân tích"
+                      : "ADN AI Broker đang sẵn sàng"}
+                </p>
+              </div>
+            </div>
+            {subTab === "chatbot" && (
+              <button
+                type="button"
+                onClick={() => selectSubTab("updates")}
+                className="rounded-full border px-3 py-2 text-xs font-bold"
+                style={{ borderColor: "var(--border)", color: "var(--text-secondary)", background: "var(--surface-2)" }}
+              >
+                Đóng
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="hidden">
           <div className="flex gap-1.5 bg-[var(--surface)] rounded-xl p-1 border border-[var(--border)]">
             <button
-              onClick={() => setSubTab("updates")}
+              onClick={() => selectSubTab("updates")}
               className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer"
               style={
                 subTab === "updates"
@@ -734,7 +798,7 @@ export default function NotificationsPage() {
               Cập nhật thông tin
             </button>
             <button
-              onClick={() => setSubTab("chatbot")}
+              onClick={() => selectSubTab("chatbot")}
               className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer"
               style={
                 subTab === "chatbot"
@@ -821,7 +885,7 @@ export default function NotificationsPage() {
                   {items.map((n, idx) => {
                     const cfg = getConfig(n.type);
                     const Icon = cfg.icon;
-                    const time = formatLocalDeviceTime(n.createdAt, { hour: "2-digit", minute: "2-digit" });
+                    const time = formatVnTime(n.createdAt, { hour: "2-digit", minute: "2-digit" });
                     const safeTitle = n.title?.trim() ? n.title : "Bản tin thị trường";
                     const safeContent = n.content?.trim() ? n.content : "Dữ liệu đang cập nhật. Vui lòng kiểm tra lại sau ít phút.";
                     return (

@@ -37,7 +37,7 @@ self.addEventListener('push', (event) => {
       vibrate: [200, 100, 200],
       tag: data.tag || 'adn-notification',
       renotify: true,
-      data: { url: data.url || '/notifications' },
+      data: { url: data.url || '/notifications?tab=updates' },
     };
 
     event.waitUntil(
@@ -52,7 +52,7 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  const url = event.notification.data?.url || '/notifications';
+  const url = event.notification.data?.url || '/notifications?tab=updates';
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {

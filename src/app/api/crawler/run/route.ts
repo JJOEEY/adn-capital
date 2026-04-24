@@ -20,6 +20,8 @@ interface CrawledItem {
   excerpt: string;
   content: string;
   sourceUrl: string;
+  sourceName: string;
+  trustedSource: boolean;
   imageUrl: string | null;
   pdfUrl: string | null;
   categorySlug: string;
@@ -52,10 +54,17 @@ function generateSlug(title: string): string {
 // ── Step 1: VnExpress RSS Crawler ──
 async function crawlNews(): Promise<CrawledItem[]> {
   const RSS_FEEDS = [
-    { url: "https://vnexpress.net/rss/chung-khoan.rss", category: "thi-truong" },
-    { url: "https://vnexpress.net/rss/kinh-doanh.rss", category: "doanh-nghiep" },
-    { url: "https://vnexpress.net/rss/kinh-doanh/vi-mo.rss", category: "vi-mo" },
-    { url: "https://vnexpress.net/rss/kinh-doanh/quoc-te.rss", category: "quoc-te" },
+    { source: "CafeF", url: "https://cafef.vn/thi-truong-chung-khoan.rss", category: "thi-truong" },
+    { source: "VnExpress", url: "https://vnexpress.net/rss/chung-khoan.rss", category: "thi-truong" },
+    { source: "VnExpress", url: "https://vnexpress.net/rss/kinh-doanh.rss", category: "doanh-nghiep" },
+    { source: "Người Lao Động", url: "https://nld.com.vn/rss/kinh-te.rss", category: "vi-mo" },
+    { source: "VnEconomy", url: "https://vneconomy.vn/chung-khoan.rss", category: "thi-truong" },
+    { source: "Đầu Tư Chứng Khoán", url: "https://www.tinnhanhchungkhoan.vn/rss/home.rss", category: "thi-truong" },
+    { source: "Vietstock", url: "https://vietstock.vn/rss/chung-khoan.rss", category: "thi-truong" },
+    { source: "Tuổi Trẻ", url: "https://tuoitre.vn/rss/kinh-doanh.rss", category: "vi-mo" },
+    { source: "Thanh Niên", url: "https://thanhnien.vn/rss/kinh-te.rss", category: "vi-mo" },
+    { source: "Dân Trí", url: "https://dantri.com.vn/rss/kinh-doanh.rss", category: "vi-mo" },
+    { source: "VietnamNet", url: "https://vietnamnet.vn/rss/kinh-doanh.rss", category: "vi-mo" },
   ];
 
   const items: CrawledItem[] = [];
@@ -93,6 +102,8 @@ async function crawlNews(): Promise<CrawledItem[]> {
             excerpt: cleanHtml(description).slice(0, 300),
             content: `<p>${cleanHtml(description)}</p>`,
             sourceUrl: link.trim(),
+            sourceName: feed.source,
+            trustedSource: true,
             imageUrl: imgMatch?.[1]?.replace(/&amp;/g, "&") ?? null,
             pdfUrl: null,
             categorySlug: feed.category,
@@ -263,11 +274,12 @@ async function saveArticle(
       sentiment: aiResult.sentiment,
       categoryId: category?.id ?? null,
       authorId: adminUserId,
-      status: "PENDING_APPROVAL",
+      status: item.trustedSource ? "PUBLISHED" : "PENDING_APPROVAL",
+      publishedAt: item.trustedSource ? new Date() : null,
     },
   });
 
-  return { id: article.id, title: article.title, status: "PENDING_APPROVAL" };
+  return { id: article.id, title: article.title, status: article.status };
 }
 
 // ── Helpers ──
@@ -344,11 +356,13 @@ export async function POST(request: Request) {
       results.push(saved);
     }
 
-    const created = results.filter((r) => r.status === "PENDING_APPROVAL").length;
+    const created = results.filter((r) => r.status === "PENDING_APPROVAL" || r.status === "PUBLISHED").length;
+    const published = results.filter((r) => r.status === "PUBLISHED").length;
     const skipped = results.filter((r) => r.status === "SKIPPED").length;
 
     return NextResponse.json({
       success: true,
+      published,
       message: `Crawled ${allItems.length} bài, tạo ${created} mới, bỏ qua ${skipped} trùng`,
       results,
     });
