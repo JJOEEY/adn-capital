@@ -3,6 +3,9 @@ const CACHE_NAME = 'adn-capital-v3';
 const STATIC_ASSETS = [
   '/icons/icon-192x192.png',
   '/icons/icon-512x512.png',
+  '/brand/favicon.png',
+  '/brand/logo-dark.jpg',
+  '/brand/logo-light.jpg',
   '/logo.jpg',
 ];
 

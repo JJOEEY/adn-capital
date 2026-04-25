@@ -3,199 +3,250 @@
 import { MainLayout } from "@/components/layout/MainLayout";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
+import type { ComponentType } from "react";
 import {
-  MessageSquare,
-  Zap,
-  Wallet,
   ArrowRight,
-  TrendingUp,
+  BarChart3,
+  BookOpen,
+  Bot,
+  FlaskConical,
   Newspaper,
+  ShieldCheck,
+  Sparkles,
+  WalletCards,
+  Zap,
 } from "lucide-react";
 
-/* ═══════════════════════════════════════════════════════════════════════════
- *  SẢN PHẨM DỊCH VỤ — Tổng quan các tính năng ADN Capital
- * ═══════════════════════════════════════════════════════════════════════════ */
+type ProductCard = {
+  href: string;
+  title: string;
+  eyebrow: string;
+  description: string;
+  bullets: string[];
+  icon: ComponentType<{ className?: string }>;
+  badge?: string;
+};
 
-const services = [
+const productGroups: { title: string; description: string; items: ProductCard[] }[] = [
   {
-    href: "/terminal",
-    icon: MessageSquare,
-    iconStyle: { background: "rgba(16,185,129,0.10)", borderColor: "rgba(16,185,129,0.20)", color: "#10b981" },
-    badge: "HOT",
-    badgeStyle: { background: "rgba(16,185,129,0.15)", color: "#10b981", borderColor: "rgba(16,185,129,0.25)" },
-    bulletColor: "#10b981",
-    ctaColor: "#10b981",
-    title: "Chat AI",
-    subtitle: "Trợ lý đầu tư thông minh",
-    desc: "Hỏi đáp phân tích kỹ thuật, cơ bản, vĩ mô với AI chuyên sâu về thị trường chứng khoán Việt Nam. Phân tích cổ phiếu, đọc báo cáo tài chính nhanh chóng.",
-    features: [
-      "Phân tích kỹ thuật theo yêu cầu",
-      "Tóm tắt báo cáo tài chính",
-      "Market sentiment & vĩ mô",
-      "Luận điểm Long / Short",
+    title: "Theo dõi thị trường mỗi ngày",
+    description: "Các màn hình giúp khách hàng nắm bức tranh chung trước khi ra quyết định.",
+    items: [
+      {
+        href: "/dashboard",
+        title: "Dashboard thị trường",
+        eyebrow: "Tổng quan",
+        description: "Theo dõi chỉ số, thanh khoản, độ rộng thị trường và các bản tin quan trọng trong ngày.",
+        bullets: ["Một nơi để xem nhanh trạng thái thị trường", "Đọc cùng dữ liệu với web và PWA", "Không dùng số liệu placeholder"],
+        icon: BarChart3,
+      },
+      {
+        href: "/khac/tin-tuc",
+        title: "Tin tức",
+        eyebrow: "Cập nhật",
+        description: "Tổng hợp tin tài chính từ các nguồn chính thống để khách hàng đọc nhanh hơn.",
+        bullets: ["Bài viết được gom theo nguồn", "Tóm tắt nội dung chính", "Phù hợp cho người mới theo dõi thị trường"],
+        icon: Newspaper,
+      },
     ],
   },
   {
-    href: "/dashboard/signal-map",
-    icon: Zap,
-    iconStyle: { background: "rgba(234,179,8,0.10)", borderColor: "rgba(234,179,8,0.20)", color: "#eab308" },
-    badge: null,
-    badgeStyle: null,
-    bulletColor: "#eab308",
-    ctaColor: "#eab308",
-    title: "ADN AI Broker",
-    subtitle: "Trợ lý đồng hành khuyến nghị đầu tư",
-    desc: "Nhận tín hiệu mua/bán theo hệ thống Quant Trading của ADN Capital — bộ lọc đa chiều, tối ưu cho thị trường Việt Nam với tỷ lệ thắng thực chiến cao.",
-    features: [
-      "Tín hiệu mua/bán tự động",
-      "Bộ lọc Volume & sức mạnh cùng lúc",
-      "Lịch sử tín hiệu đầy đủ",
-      "Thông báo theo thời gian thực",
+    title: "Tìm cơ hội và kiểm tra rủi ro",
+    description: "Ngôn ngữ hiển thị tập trung vào hành động dễ hiểu, không ép khách hàng đọc thuật ngữ kỹ thuật.",
+    items: [
+      {
+        href: "/dashboard/signal-map",
+        title: "ADN AI Broker",
+        eyebrow: "Gợi ý cơ hội",
+        description: "Hiển thị các mã đang được hệ thống theo dõi, trạng thái nắm giữ và điểm quản trị rủi ro.",
+        bullets: ["Tách rõ mã đang quan sát, mã đang nắm giữ và mã đã kết thúc", "Có vùng mua, mục tiêu và cắt lỗ", "AI chỉ giải thích, không tự sinh tín hiệu gốc"],
+        icon: Zap,
+      },
+      {
+        href: "/art",
+        title: "Chỉ báo ART",
+        eyebrow: "Đảo chiều xu hướng",
+        description: "Đo mức độ hưng phấn hoặc hoảng loạn của thị trường, nhóm ngành hoặc từng mã.",
+        bullets: ["Dễ đọc bằng đồng hồ điểm", "Có lịch sử để so sánh", "Không lộ công thức vận hành nội bộ"],
+        icon: ShieldCheck,
+      },
+      {
+        href: "/terminal",
+        title: "Tư vấn đầu tư",
+        eyebrow: "Chat AI",
+        description: "Hỏi đáp về cổ phiếu, thị trường và kịch bản hành động bằng tiếng Việt có dấu.",
+        bullets: ["Trả lời theo dữ liệu đang có", "Không khẳng định khi thiếu dữ liệu", "Phù hợp để kiểm tra thêm trước khi hành động"],
+        icon: Bot,
+      },
     ],
   },
   {
-    href: "/dashboard/dnse-trading",
-    icon: Wallet,
-    iconStyle: { background: "rgba(59,130,246,0.10)", borderColor: "rgba(59,130,246,0.20)", color: "#3b82f6" },
-    badge: "NEW",
-    badgeStyle: { background: "rgba(59,130,246,0.15)", color: "#3b82f6", borderColor: "rgba(59,130,246,0.25)" },
-    bulletColor: "#3b82f6",
-    ctaColor: "#3b82f6",
-    title: "DNSE Trading",
-    subtitle: "Kết nối tài khoản & đặt lệnh",
-    desc: "Kết nối tài khoản DNSE chính để theo dõi NAV, danh mục đang nắm giữ và thực hiện đặt lệnh mua bán chủ động theo cơ chế an toàn của ADN Capital.",
-    features: [
-      "Kết nối tài khoản DNSE chính",
-      "Theo dõi NAV và danh mục nắm giữ",
-      "Xem lịch sử lệnh gần nhất",
-      "Đặt lệnh chủ động theo từng mã",
+    title: "Kiểm chứng và học cách dùng",
+    description: "Nhóm công cụ giúp khách hàng hiểu phương pháp trước khi dùng tiền thật.",
+    items: [
+      {
+        href: "/backtest",
+        title: "Backtest",
+        eyebrow: "Kiểm chứng",
+        description: "Mô phỏng phương pháp trên dữ liệu quá khứ để xem điểm mạnh, điểm yếu và rủi ro.",
+        bullets: ["Không hứa lợi nhuận tương lai", "Giải thích drawdown và kỷ luật vốn", "Phù hợp để học quy trình ADN"],
+        icon: FlaskConical,
+      },
+      {
+        href: "/hdsd",
+        title: "Hướng dẫn sử dụng",
+        eyebrow: "Onboarding",
+        description: "Tài liệu thao tác từng bước cho khách hàng mới bắt đầu dùng hệ thống.",
+        bullets: ["Hướng dẫn theo từng sản phẩm", "Giải thích các khái niệm chính", "Giảm phụ thuộc vào hỗ trợ thủ công"],
+        icon: BookOpen,
+      },
+      {
+        href: "/pricing",
+        title: "Bảng giá",
+        eyebrow: "Gói dịch vụ",
+        description: "Chọn gói theo mức độ sử dụng: theo dõi thị trường, nhận gợi ý và dùng AI tư vấn.",
+        bullets: ["Chỉ gồm các tính năng đang mở công khai", "Nêu rõ phạm vi từng gói", "Có hướng dẫn kích hoạt sau thanh toán"],
+        icon: Sparkles,
+      },
     ],
   },
 ];
 
+const adminOnlyProducts: ProductCard[] = [
+  {
+    href: "/dashboard/dnse-trading",
+    title: "DNSE Trading",
+    eyebrow: "Admin pilot",
+    description: "Màn hình thử nghiệm kết nối tài khoản giao dịch. Chỉ hiển thị cho admin cho tới khi pilot ổn định.",
+    bullets: ["Không public cho khách hàng thường", "Dùng để kiểm tra NAV và vị thế thật", "Mọi thao tác giao dịch vẫn theo quy trình kiểm soát riêng"],
+    icon: WalletCards,
+    badge: "ADMIN",
+  },
+];
+
+function ProductCardView({ item }: { item: ProductCard }) {
+  const Icon = item.icon;
+
+  return (
+    <Link href={item.href} className="group block h-full">
+      <article
+        className="flex h-full flex-col rounded-[1.5rem] border p-5 transition duration-200 hover:-translate-y-1"
+        style={{
+          background: "var(--surface)",
+          borderColor: "var(--border)",
+          boxShadow: "0 18px 50px rgba(12, 24, 18, 0.06)",
+        }}
+      >
+        <div className="mb-5 flex items-start justify-between gap-3">
+          <span
+            className="flex h-12 w-12 items-center justify-center rounded-2xl border"
+            style={{
+              background: "var(--primary-light)",
+              borderColor: "var(--border)",
+              color: "var(--primary)",
+            }}
+          >
+            <Icon className="h-5 w-5" />
+          </span>
+          {item.badge ? (
+            <span
+              className="rounded-full border px-2.5 py-1 text-[11px] font-black"
+              style={{ borderColor: "var(--border)", color: "var(--primary)" }}
+            >
+              {item.badge}
+            </span>
+          ) : null}
+        </div>
+
+        <p className="text-xs font-black uppercase tracking-[0.18em]" style={{ color: "var(--text-muted)" }}>
+          {item.eyebrow}
+        </p>
+        <h3 className="mt-2 text-xl font-black tracking-[-0.02em]" style={{ color: "var(--text-primary)" }}>
+          {item.title}
+        </h3>
+        <p className="mt-3 flex-1 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
+          {item.description}
+        </p>
+
+        <ul className="mt-5 space-y-2">
+          {item.bullets.map((bullet) => (
+            <li key={bullet} className="flex gap-2 text-sm leading-5" style={{ color: "var(--text-secondary)" }}>
+              <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: "var(--primary)" }} />
+              <span>{bullet}</span>
+            </li>
+          ))}
+        </ul>
+
+        <div className="mt-6 inline-flex items-center gap-2 text-sm font-black" style={{ color: "var(--primary)" }}>
+          Mở sản phẩm
+          <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
+        </div>
+      </article>
+    </Link>
+  );
+}
+
 export default function SanPhamPage() {
   const { data: session } = useSession();
   const systemRole = (session?.user as { systemRole?: string } | undefined)?.systemRole;
-  const isAdminOrWriter = systemRole === "ADMIN" || systemRole === "WRITER";
+  const isAdmin = systemRole === "ADMIN";
 
   return (
     <MainLayout>
-      <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-8">
-
-        {/* ── Header ──────────────────────────────────────────── */}
-        <div className="rounded-2xl overflow-hidden border border-[var(--border)] bg-gradient-to-br from-neutral-900 via-neutral-900 to-blue-950/20 p-6 sm:p-8">
-          <span className="inline-block text-[12px] font-bold text-blue-400 uppercase tracking-[0.3em] mb-3 bg-blue-500/10 border border-blue-500/20 px-3 py-1 rounded-full">
-            ADN Capital Platform
-          </span>
-          <h1 className="text-3xl sm:text-4xl font-black text-white mb-2">
-            Sản Phẩm &{" "}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
-              Dịch Vụ
-            </span>
-          </h1>
-          <p className="text-neutral-400 text-sm sm:text-base max-w-2xl">
-            Hệ sinh thái công cụ đầu tư chứng khoán toàn diện — từ phân tích kỹ thuật, AI hỗ trợ đến tín hiệu giao dịch theo thời gian thực.
-          </p>
-        </div>
-
-        {/* ── Service Cards ────────────────────────────────────── */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {services.map((svc) => {
-            const Icon = svc.icon;
-            return (
-              <Link key={svc.href} href={svc.href}>
-                <div className="group relative h-full border rounded-2xl p-5 transition-all duration-200 hover:-translate-y-1 hover:shadow-xl cursor-pointer" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-                  {/* Badge */}
-                  {svc.badge && (
-                    <span className="absolute top-4 right-4 text-[11px] font-black px-2 py-0.5 rounded-full tracking-widest border" style={svc.badgeStyle ?? {}}>
-                      {svc.badge}
-                    </span>
-                  )}
-
-                  {/* Icon */}
-                  <div className="w-12 h-12 rounded-2xl border flex items-center justify-center mb-4 transition-transform group-hover:scale-110 duration-200" style={svc.iconStyle}>
-                    <Icon className="w-6 h-6" />
-                  </div>
-
-                  {/* Title */}
-                  <h2 className="text-lg font-black mb-0.5" style={{ color: "var(--text-primary)" }}>{svc.title}</h2>
-                  <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>{svc.subtitle}</p>
-
-                  {/* Desc */}
-                  <p className="text-sm leading-relaxed mb-5" style={{ color: "var(--text-secondary)" }}>{svc.desc}</p>
-
-                  {/* Feature list */}
-                  <ul className="space-y-2 mb-5">
-                    {svc.features.map((f) => (
-                      <li key={f} className="flex items-center gap-2 text-xs" style={{ color: "var(--text-muted)" }}>
-                        <span className="w-1 h-1 rounded-full flex-shrink-0" style={{ background: svc.bulletColor }} />
-                        {f}
-                      </li>
-                    ))}
-                  </ul>
-
-                  {/* CTA */}
-                  <div className="flex items-center gap-1 text-xs font-bold group-hover:gap-2 transition-all" style={{ color: svc.ctaColor }}>
-                    Xem ngay <ArrowRight className="w-3 h-3" />
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
-
-          {/* ── Tin Tức Tài Chính (ADMIN / WRITER only) ── */}
-          {isAdminOrWriter && (
-            <Link href="/khac/tin-tuc">
-              <div className="group relative h-full border rounded-2xl p-5 transition-all duration-200 hover:-translate-y-1 hover:shadow-xl cursor-pointer" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-                <span className="absolute top-4 right-4 text-[11px] font-black px-2 py-0.5 rounded-full tracking-widest border" style={{ background: "rgba(245,158,11,0.15)", color: "#f59e0b", borderColor: "rgba(245,158,11,0.25)" }}>
-                  BETA
-                </span>
-
-                <div className="w-12 h-12 rounded-2xl border flex items-center justify-center mb-4 transition-transform group-hover:scale-110 duration-200" style={{ background: "rgba(59,130,246,0.10)", borderColor: "rgba(59,130,246,0.20)", color: "#3b82f6" }}>
-                  <Newspaper className="w-6 h-6" />
-                </div>
-
-                <h2 className="text-lg font-black mb-0.5" style={{ color: "var(--text-primary)" }}>Tin Tức Tài Chính</h2>
-                <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>CMS — Quản trị nội dung AI</p>
-
-                <p className="text-sm leading-relaxed mb-5" style={{ color: "var(--text-secondary)" }}>
-                  Hệ thống tin tức tài chính tích hợp AI tóm tắt. Đọc tin theo chuyên mục, phân tích sentiment tự động, luồng duyệt bài chuyên nghiệp.
-                </p>
-
-                <ul className="space-y-2 mb-5">
-                  {["AI tóm tắt bài viết", "Phân tích Tích cực / Tiêu cực", "Luồng duyệt bài WRITER → ADMIN", "Giao diện CafeF / VNExpress"].map((f) => (
-                    <li key={f} className="flex items-center gap-2 text-xs" style={{ color: "var(--text-muted)" }}>
-                      <span className="w-1 h-1 rounded-full flex-shrink-0" style={{ background: "#3b82f6" }} />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-
-                <div className="flex items-center gap-1 text-xs font-bold group-hover:gap-2 transition-all" style={{ color: "#3b82f6" }}>
-                  Xem ngay <ArrowRight className="w-3 h-3" />
-                </div>
-              </div>
-            </Link>
-          )}
-        </div>
-
-        {/* ── Margin CTA ───────────────────────────────────────── */}
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-          <div className="w-10 h-10 flex-shrink-0 rounded-xl border flex items-center justify-center" style={{ background: "rgba(16,185,129,0.10)", borderColor: "rgba(16,185,129,0.20)", color: "#10b981" }}>
-            <TrendingUp className="w-5 h-5" />
+      <main className="mx-auto max-w-7xl space-y-8 px-4 py-6 sm:px-6 lg:px-8">
+        <section
+          className="overflow-hidden rounded-[2rem] border p-6 sm:p-8 lg:p-10"
+          style={{
+            background: "linear-gradient(135deg, var(--surface), var(--surface-2))",
+            borderColor: "var(--border)",
+          }}
+        >
+          <div className="max-w-3xl">
+            <p className="text-xs font-black uppercase tracking-[0.24em]" style={{ color: "var(--primary)" }}>
+              ADN Capital Platform
+            </p>
+            <h1 className="mt-4 text-3xl font-black leading-tight tracking-[-0.04em] sm:text-5xl">
+              Một bộ công cụ đầu tư, dùng cùng một nguồn dữ liệu.
+            </h1>
+            <p className="mt-4 text-base leading-7" style={{ color: "var(--text-secondary)" }}>
+              Trang này gom các sản phẩm chính của ADN theo đúng hành trình sử dụng: theo dõi thị trường, tìm cơ hội,
+              kiểm tra rủi ro và học cách vận hành. Các tính năng thử nghiệm nội bộ được ẩn khỏi khách hàng thường.
+            </p>
           </div>
-          <div className="flex-1">
-            <h3 className="text-sm font-black mb-0.5" style={{ color: "var(--text-primary)" }}>Ký Quỹ Margin</h3>
-            <p className="text-xs" style={{ color: "var(--text-muted)" }}>Lãi suất từ 5,99%/năm — Tư vấn miễn phí, phản hồi trong 2 giờ.</p>
-          </div>
-          <Link href="/margin">
-            <button className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer" style={{ background: "#10b981", color: "#000" }}>
-              Đăng ký tư vấn <ArrowRight className="w-3 h-3" />
-            </button>
-          </Link>
-        </div>
+        </section>
 
-      </div>
+        {productGroups.map((group) => (
+          <section key={group.title} className="space-y-4">
+            <div>
+              <h2 className="text-2xl font-black tracking-[-0.03em]">{group.title}</h2>
+              <p className="mt-2 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
+                {group.description}
+              </p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {group.items.map((item) => (
+                <ProductCardView key={item.href} item={item} />
+              ))}
+            </div>
+          </section>
+        ))}
+
+        {isAdmin ? (
+          <section className="space-y-4">
+            <div>
+              <h2 className="text-2xl font-black tracking-[-0.03em]">Khu vực admin pilot</h2>
+              <p className="mt-2 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
+                Các tính năng này chưa public. Chỉ admin thấy để kiểm tra trước khi mở cho khách hàng.
+              </p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {adminOnlyProducts.map((item) => (
+                <ProductCardView key={item.href} item={item} />
+              ))}
+            </div>
+          </section>
+        ) : null}
+      </main>
     </MainLayout>
   );
 }

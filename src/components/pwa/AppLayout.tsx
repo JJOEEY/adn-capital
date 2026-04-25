@@ -2,31 +2,23 @@
 
 import { useEffect, useState } from "react";
 import { BottomTabBar } from "@/components/pwa/BottomTabBar";
+import { PwaTopBar } from "@/components/pwa/PwaTopBar";
 import { SplashScreen } from "@/components/pwa/SplashScreen";
-import { useSwipeNavigation } from "@/hooks/useSwipeNavigation";
+import { useNativeBackButton } from "@/hooks/useNativeBackButton";
+import { isStandaloneAppRuntime } from "@/lib/mobileRuntime";
 
 /**
- * AppLayout — PWA app layout wrapper.
- * - Hiển thị SplashScreen lần đầu mở app
- * - Hiển thị BottomTabBar
- * - Swipe gestures giữa các tab
- * - Safe area insets cho iPhone notch
+ * AppLayout is kept for mobile-only surfaces that do not use MainLayout.
+ * Navigation is explicit through the top bar and bottom tabs; horizontal swipe
+ * is intentionally disabled to match native app behavior.
  */
 export function AppLayout({ children }: { children: React.ReactNode }) {
-  const [isStandalone, setIsStandalone] = useState(false);
   const [showSplash, setShowSplash] = useState(false);
-  const swipeHandlers = useSwipeNavigation();
+
+  useNativeBackButton();
 
   useEffect(() => {
-    // Detect PWA standalone mode
-    const standalone =
-      window.matchMedia("(display-mode: standalone)").matches ||
-      (window.navigator as any).standalone === true;
-
-    setIsStandalone(standalone);
-
-    // Show splash only on first load in standalone mode
-    if (standalone && !sessionStorage.getItem("adn_splash_shown")) {
+    if (isStandaloneAppRuntime() && !sessionStorage.getItem("adn_splash_shown")) {
       setShowSplash(true);
       sessionStorage.setItem("adn_splash_shown", "1");
     }
@@ -35,11 +27,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
       {showSplash && <SplashScreen />}
+      <PwaTopBar />
 
       <div
-        {...swipeHandlers}
-        className="min-h-screen pb-20"
-        style={{ background: "#050505", color: "var(--text-primary)", paddingBottom: "env(safe-area-inset-bottom, 80px)" }}
+        className="min-h-screen"
+        style={{
+          background: "var(--bg-page)",
+          color: "var(--text-primary)",
+          paddingTop: "calc(76px + env(safe-area-inset-top, 0px))",
+          paddingBottom: "calc(96px + env(safe-area-inset-bottom, 0px))",
+        }}
       >
         {children}
       </div>

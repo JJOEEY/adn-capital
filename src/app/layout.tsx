@@ -1,6 +1,15 @@
 import type { Metadata } from "next";
 import { AuthProvider } from "@/components/providers/AuthProvider";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
+import { JsonLd } from "@/components/seo/JsonLd";
+import {
+  absoluteUrl,
+  DEFAULT_DESCRIPTION,
+  DEFAULT_KEYWORDS,
+  DEFAULT_OG_IMAGE,
+  SITE_NAME,
+  SITE_URL,
+} from "@/lib/seo";
 import localFont from "next/font/local";
 import "./globals.css";
 
@@ -29,15 +38,86 @@ const orbitron = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "ADN Capital - Trợ lý Chứng khoán Việt Nam",
-  description:
-    "Hệ thống AI phân tích chứng khoán Việt Nam chuyên nghiệp. Phân tích kỹ thuật, cơ bản, tín hiệu giao dịch.",
-  keywords: ["chứng khoán", "AI", "phân tích kỹ thuật", "Vietnam stock", "ADN AI"],
+  metadataBase: new URL(SITE_URL),
+  applicationName: SITE_NAME,
+  title: {
+    default: "ADN Capital - Trợ lý chứng khoán Việt Nam",
+    template: `%s | ${SITE_NAME}`,
+  },
+  description: DEFAULT_DESCRIPTION,
+  keywords: DEFAULT_KEYWORDS,
+  authors: [{ name: SITE_NAME, url: SITE_URL }],
+  creator: SITE_NAME,
+  publisher: SITE_NAME,
+  category: "finance",
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    locale: "vi_VN",
+    url: "/",
+    siteName: SITE_NAME,
+    title: "ADN Capital - Trợ lý chứng khoán Việt Nam",
+    description: DEFAULT_DESCRIPTION,
+    images: [
+      {
+        url: absoluteUrl(DEFAULT_OG_IMAGE),
+        width: 512,
+        height: 512,
+        alt: SITE_NAME,
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "ADN Capital - Trợ lý chứng khoán Việt Nam",
+    description: DEFAULT_DESCRIPTION,
+    images: [absoluteUrl(DEFAULT_OG_IMAGE)],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
   icons: {
-    icon: "/logo.jpg",
-    apple: "/logo.jpg",
+    icon: [
+      { url: "/brand/favicon.png", type: "image/png" },
+      { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
+    ],
+    shortcut: "/brand/favicon.png",
+    apple: "/icons/icon-192x192.png",
   },
 };
+
+const rootJsonLd = [
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "@id": absoluteUrl("/#organization"),
+    name: SITE_NAME,
+    url: SITE_URL,
+    logo: absoluteUrl("/brand/logo-light.jpg"),
+    email: "admin@adncapital.vn",
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "@id": absoluteUrl("/#website"),
+    name: SITE_NAME,
+    url: SITE_URL,
+    inLanguage: "vi-VN",
+    publisher: {
+      "@id": absoluteUrl("/#organization"),
+    },
+  },
+];
 
 const hydrationFixScript = `
 (function(){
@@ -65,19 +145,36 @@ const themeScript = `
 })();
 `;
 
+const mobileRuntimeScript = `
+(function(){
+  try{
+    var ua=navigator.userAgent||'';
+    var nativeApp=ua.indexOf('ADNCapitalAndroid')>-1;
+    if(nativeApp){
+      document.documentElement.classList.add('adn-native-app');
+    }
+  }catch(e){}
+})();
+`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="vi" suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+        />
         <meta name="theme-color" content="#F8F7F2" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="ADN Capital" />
         <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+        <JsonLd data={rootJsonLd} />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <script dangerouslySetInnerHTML={{ __html: mobileRuntimeScript }} />
         <script dangerouslySetInnerHTML={{ __html: hydrationFixScript }} />
         <script
           dangerouslySetInnerHTML={{
@@ -95,7 +192,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
       </head>
-      <body className={`${manrope.variable} ${orbitron.variable} antialiased min-h-screen text-base leading-relaxed`} suppressHydrationWarning>
+      <body
+        className={`${manrope.variable} ${orbitron.variable} antialiased min-h-screen text-base leading-relaxed`}
+        suppressHydrationWarning
+      >
         <AuthProvider>
           <ThemeProvider>{children}</ThemeProvider>
         </AuthProvider>

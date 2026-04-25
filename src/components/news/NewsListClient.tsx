@@ -31,6 +31,11 @@ interface Category {
   slug: string;
 }
 
+interface NewsListClientProps {
+  initialArticles?: Article[];
+  initialCategories?: Category[];
+}
+
 // ── Image with Fallback ── renders gradient placeholder on error
 function ImgWithFallback({
   src,
@@ -229,24 +234,36 @@ function ResearchPdfCard({ article }: { article: Article }) {
 // ═══════════════════════════════════════════════════════════
 //  MAIN COMPONENT — Grid 7:3 CafeF Style
 // ═══════════════════════════════════════════════════════════
-export function NewsListClient() {
+export function NewsListClient({
+  initialArticles = [],
+  initialCategories = [],
+}: NewsListClientProps) {
   const [activeCategory, setActiveCategory] = useState<string>("tat-ca");
-  const [articles, setArticles] = useState<Article[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [articles, setArticles] = useState<Article[]>(initialArticles);
+  const [categories, setCategories] = useState<Category[]>(initialCategories);
+  const [loading, setLoading] = useState(initialArticles.length === 0);
   const { isWriter } = useCurrentDbUser();
 
   useEffect(() => {
+    let active = true;
+
     Promise.all([
       fetch("/api/articles?status=PUBLISHED&limit=50").then((r) => r.json()),
       fetch("/api/categories").then((r) => r.json()),
     ])
       .then(([artRes, catRes]) => {
+        if (!active) return;
         setArticles(artRes.articles ?? []);
         setCategories(catRes.categories ?? []);
       })
       .catch(console.error)
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const filtered = useMemo(() => {

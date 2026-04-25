@@ -54,12 +54,11 @@ interface ChatMessage {
 const GUEST_CHAT_STORAGE_KEY = "adn-notifications-chat-v2";
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 const TICKER_PATTERN = /^[A-Z]{2,5}$/;
-const TICKER_TOKEN_PATTERN = /\b[A-Z]{2,5}\b/g;
 const TICKER_STOP_WORDS = new Set([
   "VA", "VOI", "CHO", "CON", "MA", "CP", "THE", "NAY", "NHU", "MUA", "BAN", "GIU", "HOLD",
   "NEU", "DUOC", "SAO", "ROI", "TOI", "MINH", "LAM", "KHI", "NEN", "XEM", "PHAN",
   "TICH", "NHAN", "DINH", "CO", "PHIEU", "TICKER", "TIN", "TUC", "HOM", "VND", "PH",
-  "THI", "TRUONG", "NAO", "VE", "DAU", "TU", "NGAY",
+  "THI", "TRUONG", "NAO", "VE", "DAU", "TU", "NGAY", "SO", "SANH",
 ]);
 
 const CARD_OPTIONS: Array<{
@@ -293,24 +292,7 @@ function detectTicker(input: string): string | null {
   const normalizedUpper = stripDiacritics(trimmed).toUpperCase();
   if (TICKER_PATTERN.test(normalizedUpper) && !TICKER_STOP_WORDS.has(normalizedUpper)) return normalizedUpper;
 
-  const candidates: string[] = [];
-
-  const commandRegex = /^\/(?:TA|FA|TAMLY|NEWS)\s+([A-Z0-9]{2,5})\b/;
-  const commandMatch = normalizedUpper.match(commandRegex);
-  if (commandMatch?.[1]) candidates.push(commandMatch[1]);
-
-  const contextRegex = /\b(?:MA|CO PHIEU|CP|TICKER|XEM|PHAN TICH|NHAN DINH)\s*[:\-]?\s*([A-Z0-9]{2,5})\b/g;
-  for (const match of normalizedUpper.matchAll(contextRegex)) {
-    candidates.push(match[1]);
-  }
-
-  const trailingContextRegex = /\b([A-Z0-9]{2,5})\s+(?:HOM NAY|THE NAO|RA SAO|MUA|BAN|GIU|OK|ON|DUOC KHONG)\b/g;
-  for (const match of normalizedUpper.matchAll(trailingContextRegex)) {
-    candidates.push(match[1]);
-  }
-
-  const deduped = [...new Set(candidates)];
-  return deduped.find((code) => TICKER_PATTERN.test(code) && !TICKER_STOP_WORDS.has(code)) ?? null;
+  return null;
 }
 
 function isDirectChatCommand(input: string): boolean {

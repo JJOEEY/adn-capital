@@ -8,7 +8,8 @@ import { useSidebarStore } from "@/store/sidebarStore";
 import { BottomTabBar } from "@/components/pwa/BottomTabBar";
 import { SplashScreen } from "@/components/pwa/SplashScreen";
 import { AppUpdateNotice } from "@/components/pwa/AppUpdateNotice";
-import { useSwipeNavigation } from "@/hooks/useSwipeNavigation";
+import { PwaTopBar } from "@/components/pwa/PwaTopBar";
+import { useNativeBackButton } from "@/hooks/useNativeBackButton";
 import { isStandaloneAppRuntime } from "@/lib/mobileRuntime";
 
 interface MainLayoutProps {
@@ -16,12 +17,13 @@ interface MainLayoutProps {
   disableSwipe?: boolean;
 }
 
-export function MainLayout({ children, disableSwipe = false }: MainLayoutProps) {
+export function MainLayout({ children }: MainLayoutProps) {
   const { collapsed } = useSidebarStore();
-  const swipeHandlers = useSwipeNavigation();
 
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState<boolean | null>(null);
   const [showSplash, setShowSplash] = useState(false);
+
+  useNativeBackButton();
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 1024);
@@ -36,46 +38,51 @@ export function MainLayout({ children, disableSwipe = false }: MainLayoutProps) 
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  // Only attach swipe handlers on mobile when not disabled (e.g. chatbot input)
-  const touchProps = isMobile && !disableSwipe ? swipeHandlers : {};
+  const mobile = isMobile === true;
+  const desktop = isMobile === false;
 
   return (
     <div className="min-h-screen flex" style={{ background: "var(--bg-page)" }}>
       {showSplash && <SplashScreen />}
 
       {/* Sidebar (fixed on desktop) */}
-      <Header />
+      {desktop && <Header />}
 
-      {/* Mobile: show bottom tab bar */}
-      {isMobile && <BottomTabBar />}
+      {mobile && (
+        <>
+          <PwaTopBar />
+          <BottomTabBar />
+        </>
+      )}
 
       <div
-        {...touchProps}
         className={`flex-1 min-w-0 flex flex-col min-h-screen transition-all duration-300 ${
-          isMobile
+          mobile
             ? "pb-28"
-            : collapsed
+            : desktop && collapsed
             ? "pl-[68px]"
-            : "pl-[240px]"
+            : desktop
+            ? "pl-[240px]"
+            : ""
         }`}
         style={
-          isMobile
+          mobile
             ? {
-                paddingTop: "calc(64px + env(safe-area-inset-top, 0px))",
+                paddingTop: "calc(76px + env(safe-area-inset-top, 0px))",
                 paddingBottom: "calc(96px + env(safe-area-inset-bottom, 0px))",
               }
             : undefined
         }
       >
         {/* In-app Header strip */}
-        {!isMobile && <AppHeader />}
+        {desktop && <AppHeader />}
 
         <main className="flex-1 min-w-0 overflow-y-auto">
-          {isMobile && <AppUpdateNotice />}
+          {mobile && <AppUpdateNotice />}
           {children}
         </main>
         
-        {!isMobile && <Footer />}
+        {desktop && <Footer />}
       </div>
     </div>
   );

@@ -40,7 +40,7 @@ const INTENT_USE_SEARCH: Record<Intent, boolean> = {
   PTCB: true,
   NEWS: true,
   TAMLY: false,
-  GENERAL: true,
+  GENERAL: false,
   COMPARE: false,
 };
 

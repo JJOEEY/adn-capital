@@ -72,6 +72,48 @@ html, body {
   min-width: 0; /* prevent flex/grid overflow */
 }
 
+html.adn-native-app,
+html.adn-native-app body {
+  min-height: 100%;
+  overscroll-behavior-y: none;
+  background: var(--bg-page);
+}
+
+@keyframes adnSplashIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+[data-dot="0"],
+[data-dot="1"],
+[data-dot="2"] {
+  animation: adnSplashDot 1s ease-in-out infinite;
+}
+
+[data-dot="1"] {
+  animation-delay: 0.2s;
+}
+
+[data-dot="2"] {
+  animation-delay: 0.4s;
+}
+
+@keyframes adnSplashDot {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 body {
   color: var(--fg);
   background: var(--bg);

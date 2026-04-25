@@ -130,7 +130,7 @@ function LandingHeader() {
       style={{ background: "var(--bg-surface)", borderBottom: "1px solid var(--border)" }}
     >
       <Link href="/" className="flex items-center gap-2.5">
-        <Image src="/logo.jpg" alt="ADN" width={32} height={32} className="rounded-lg" />
+        <Image src="/brand/favicon.png" alt="ADN" width={32} height={32} className="rounded-lg" />
         <span className="text-[15px] font-bold" style={{ color: "var(--text-primary)" }}>ADN Capital</span>
       </Link>
 
@@ -150,13 +150,13 @@ function LandingHeader() {
           onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
           Đăng nhập
         </Link>
-        <a href="https://s.dnse.vn/AhkV3Y" target="_blank" rel="noopener noreferrer"
+        <Link href="/auth"
           className="hidden sm:inline-flex items-center px-5 py-2 rounded-[10px] text-[14px] font-semibold transition-all"
           style={{ background: "var(--primary)", color: "var(--on-primary)" }}
           onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--primary-hover)"; }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--primary)"; }}>
-          Mở TK
-        </a>
+          Dùng thử
+        </Link>
         <button onClick={toggleTheme}
           className="w-9 h-9 rounded-full flex items-center justify-center transition-all"
           style={{ color: "var(--text-secondary)" }}
@@ -182,9 +182,9 @@ function LandingHeader() {
               <Link href="/auth" onClick={() => setMenuOpen(false)}
                 className="flex-1 text-center py-2 rounded-[10px] text-[14px] font-medium"
                 style={{ color: "var(--text-primary)", border: "1px solid var(--border)" }}>Đăng nhập</Link>
-              <a href="https://s.dnse.vn/AhkV3Y" target="_blank" rel="noopener noreferrer"
+              <Link href="/auth" onClick={() => setMenuOpen(false)}
                 className="flex-1 text-center py-2 rounded-[10px] text-[14px] font-semibold"
-                style={{ background: "var(--primary)", color: "var(--on-primary)" }}>Mở TK</a>
+                style={{ background: "var(--primary)", color: "var(--on-primary)" }}>Dùng thử</Link>
             </div>
           </nav>
         </div>
@@ -198,29 +198,208 @@ function LandingHeader() {
 ───────────────────────────────────────────────────────────────────────────── */
 export default function HomePage() {
   return (
-    <div style={{ background: "var(--bg-page)" }}>
-      <PwaEntryRedirect />
-      <LandingHeader />
-      <div className="space-y-0">
-        <HeroSection />
-        <SocialProofTicker />
-        <StatsSection />
-        <FeaturesSection />
-        <PerformanceSection />
-        <ProcessSection />
-        <TestimonialsSection />
-        <Pricing />
-        <FAQSection />
-        <CTASection />
+    <PwaEntryRedirect>
+      <div style={{ background: "var(--bg-page)" }}>
+        <LandingHeader />
+        <div className="space-y-0">
+          <HeroSectionV2 />
+          <SocialProofTicker />
+          <WorkflowProofSection />
+          <FeaturesSection />
+          <PerformanceSection />
+          <ProcessSection />
+          <TestimonialsSection />
+          <Pricing />
+          <FAQSection />
+          <CTASection />
+        </div>
+        <Footer />
       </div>
-      <Footer />
-    </div>
+    </PwaEntryRedirect>
   );
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
    1. HERO SECTION
 ───────────────────────────────────────────────────────────────────────────── */
+const HERO_TRUST_CHIPS = [
+  "Dashboard thị trường",
+  "Gợi ý cổ phiếu",
+  "ART đảo chiều xu hướng",
+  "Bản tin thị trường",
+  "Quản trị rủi ro",
+];
+
+function HeroSectionV2() {
+  return (
+    <section className="relative overflow-hidden px-5 md:px-12 py-20 md:py-28">
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background:
+            "radial-gradient(circle at 18% 8%, rgba(46, 92, 69, 0.16), transparent 34%), radial-gradient(circle at 86% 22%, rgba(238, 169, 81, 0.12), transparent 30%)",
+        }}
+      />
+      <div className="relative max-w-7xl mx-auto grid lg:grid-cols-[1fr_0.95fr] gap-12 lg:gap-16 items-center">
+        <FadeIn>
+          <SectionLabel>ADN Capital AI Investment Platform</SectionLabel>
+          <h1
+            className="max-w-4xl text-[44px] sm:text-[60px] lg:text-[74px] leading-[0.95] font-black tracking-[-0.06em]"
+            style={{ color: "var(--text-primary)" }}
+          >
+            AI hỗ trợ đọc thị trường, bạn chủ động quyết định hành động.
+          </h1>
+          <p
+            className="mt-7 max-w-2xl text-[18px] sm:text-[20px] leading-relaxed"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            ADN gom dữ liệu thị trường, tin tức, tín hiệu cổ phiếu và cảnh báo rủi ro vào một màn hình dễ hiểu để nhà đầu tư theo dõi nhanh hơn, kỷ luật hơn.
+          </p>
+          <div className="mt-9 flex flex-col sm:flex-row gap-3">
+            <Link
+              href="/auth"
+              className="group inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-[12px] font-semibold text-[15px] transition-all hover:scale-[1.02] active:scale-[0.98]"
+              style={{ background: "var(--primary)", color: "var(--on-primary)" }}
+            >
+              Dùng thử dashboard
+              <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
+            </Link>
+            <a
+              href="#workflow-proof"
+              className="group inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-[12px] font-semibold text-[15px] transition-all"
+              style={{ border: "1px solid var(--border-strong)", color: "var(--text-primary)", background: "var(--surface)" }}
+            >
+              Xem cách ADN hỗ trợ bạn
+              <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
+            </a>
+          </div>
+          <div className="mt-8 flex flex-wrap gap-2">
+            {HERO_TRUST_CHIPS.map((chip) => (
+              <span
+                key={chip}
+                className="rounded-full px-3.5 py-2 text-[13px] font-semibold"
+                style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}
+              >
+                {chip}
+              </span>
+            ))}
+          </div>
+        </FadeIn>
+
+        <FadeIn delay={0.12}>
+          <BrokerHeroPreview />
+        </FadeIn>
+      </div>
+    </section>
+  );
+}
+
+function BrokerHeroPreview() {
+  const rows = [
+    { label: "Cổ phiếu đáng chú ý", value: "Có mã mới sẽ hiện ngay", tone: "var(--success)" },
+    { label: "Cổ phiếu bạn quan tâm", value: "Tách rõ đang quan sát và đang giữ", tone: "var(--primary)" },
+    { label: "Xem trước quyết định", value: "Có lý do, vùng giá và rủi ro", tone: "var(--warning)" },
+  ];
+
+  return (
+    <div
+      className="relative rounded-[28px] p-4 sm:p-5 shadow-2xl"
+      style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
+    >
+      <div
+        className="absolute -top-6 -right-6 h-24 w-24 rounded-full blur-2xl"
+        style={{ background: "rgba(46, 92, 69, 0.22)" }}
+      />
+      <div className="relative rounded-[22px] p-5" style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-[12px] font-bold uppercase tracking-[0.16em]" style={{ color: "var(--text-muted)" }}>
+              ADN AI Broker
+            </p>
+            <h3 className="mt-2 text-2xl font-black tracking-[-0.04em]" style={{ color: "var(--text-primary)" }}>
+              Gợi ý rõ ràng, dễ kiểm tra
+            </h3>
+          </div>
+          <div className="rounded-2xl p-3" style={{ background: "var(--primary-light)", color: "var(--primary)" }}>
+            <Activity className="w-6 h-6" />
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-3">
+          {rows.map((row) => (
+            <div
+              key={row.label}
+              className="flex items-center justify-between rounded-2xl px-4 py-3"
+              style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
+            >
+              <span className="text-[14px]" style={{ color: "var(--text-secondary)" }}>{row.label}</span>
+              <span className="text-[14px] font-bold" style={{ color: row.tone }}>{row.value}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-5 grid sm:grid-cols-2 gap-3">
+          <div className="rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+            <p className="text-[12px] font-bold uppercase tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>Tỷ trọng tham khảo</p>
+            <p className="mt-3 text-3xl font-black" style={{ color: "var(--text-primary)" }}>10%</p>
+            <p className="mt-1 text-[13px]" style={{ color: "var(--text-secondary)" }}>Gợi ý để tránh dồn vốn quá mức vào một mã.</p>
+          </div>
+          <div className="rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+            <p className="text-[12px] font-bold uppercase tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>Kỷ luật rủi ro</p>
+            <p className="mt-3 text-3xl font-black" style={{ color: "var(--success)" }}>RÕ</p>
+            <p className="mt-1 text-[13px]" style={{ color: "var(--text-secondary)" }}>Có điểm mua tham khảo, mục tiêu và vùng cắt lỗ.</p>
+          </div>
+        </div>
+
+        <p className="mt-5 text-[12px]" style={{ color: "var(--text-muted)" }}>
+          Minh họa public, không phải dữ liệu tài khoản thật và không tự động đặt lệnh.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+const WORKFLOW_PROOFS = [
+  {
+    title: "Dữ liệu thống nhất",
+    body: "Dashboard, ADN AI Broker, bản tin và thông báo dùng cùng một nguồn dữ liệu để tránh mỗi nơi hiển thị một kiểu.",
+    Icon: BarChart3,
+  },
+  {
+    title: "AI chỉ hỗ trợ phân tích",
+    body: "Tín hiệu và rủi ro được tính theo quy tắc cố định; AI chỉ giải thích, tóm tắt và giúp bạn đọc dữ liệu dễ hơn.",
+    Icon: CheckCircle2,
+  },
+  {
+    title: "Bạn luôn là người quyết định",
+    body: "ADN đưa ra góc nhìn tham khảo, vùng giá và cảnh báo rủi ro; quyết định mua bán cuối cùng vẫn thuộc về nhà đầu tư.",
+    Icon: Banknote,
+  },
+];
+
+function WorkflowProofSection() {
+  return (
+    <section id="workflow-proof" className="px-5 md:px-12 py-16">
+      <div className="max-w-7xl mx-auto grid md:grid-cols-3 gap-4">
+        {WORKFLOW_PROOFS.map(({ title, body, Icon }, idx) => (
+          <FadeIn key={title} delay={idx * 0.08}>
+            <div
+              className="h-full rounded-[24px] p-6 transition-transform hover:-translate-y-1"
+              style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
+            >
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: "var(--primary-light)", color: "var(--primary)" }}>
+                <Icon className="w-5 h-5" />
+              </div>
+              <h3 className="mt-5 text-xl font-black tracking-[-0.03em]" style={{ color: "var(--text-primary)" }}>{title}</h3>
+              <p className="mt-3 text-[15px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>{body}</p>
+            </div>
+          </FadeIn>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function HeroSection() {
   return (
     <section
@@ -355,12 +534,12 @@ function HeroSection() {
    2. SOCIAL PROOF TICKER TAPE
 ───────────────────────────────────────────────────────────────────────────── */
 const PARTNERS = [
-  "DNSE Securities", "VN-Index 1,200+", "Market AI 24/7",
-  "Backtest 2015→2025", "Win Rate 60%+", "ADN AI Broker",
-  "Signal Map Real-time", "RS Rating System", "ART Indicator",
-  "DNSE Securities", "VN-Index 1,200+", "Market AI 24/7",
-  "Backtest 2015→2025", "Win Rate 60%+", "ADN AI Broker",
-  "Signal Map Real-time", "RS Rating System", "ART Indicator",
+  "Dashboard thị trường", "ADN AI Broker", "Chỉ báo ART",
+  "Bản đồ tín hiệu", "Bản tin sáng", "Bản tin cuối ngày",
+  "Cảnh báo rủi ro", "Tin tức thị trường", "Theo dõi danh mục",
+  "Dashboard thị trường", "ADN AI Broker", "Chỉ báo ART",
+  "Bản đồ tín hiệu", "Bản tin sáng", "Bản tin cuối ngày",
+  "Cảnh báo rủi ro", "Tin tức thị trường", "Theo dõi danh mục",
 ];
 
 function SocialProofTicker() {
@@ -479,9 +658,9 @@ const DEFAULT_LANDING_PRODUCTS: LandingProductCardUI[] = [
   {
     id: "landing-broker",
     title: "ADN AI Broker",
-    subtitle: "Tín hiệu mua/bán tự động",
-    description: "Nhận tín hiệu Mua/Bán theo hệ thống Quant Trading của ADN Capital — bộ lọc đa chiều, tối ưu cho VN.",
-    bullets: ["Tín hiệu mua/bán tự động", "Bộ lọc Volume & RS cùng lúc", "Lịch sử tín hiệu đầy đủ", "Thông báo Real-time"],
+    subtitle: "Gợi ý cổ phiếu dễ theo dõi",
+    description: "Theo dõi các cổ phiếu đáng chú ý, vùng giá tham khảo và cảnh báo rủi ro theo hệ thống ADN Capital.",
+    bullets: ["Danh sách cổ phiếu đáng chú ý", "Lý do xuất hiện tín hiệu", "Vùng giá tham khảo", "Thông báo khi có cập nhật mới"],
     href: "/dashboard/signal-map",
     imageUrl: "/logo.jpg",
     imageAlt: "AI Broker mockup",
@@ -543,14 +722,14 @@ function FeaturesSection() {
               className="text-[32px] sm:text-[40px] font-bold leading-[1.2] mb-3"
               style={{ color: "var(--text-primary)" }}
             >
-              Sản phẩm &amp; Dịch vụ
+              Bộ công cụ vận hành đầu tư
             </h2>
             <p
               className="text-[17px] max-w-[520px]"
               style={{ color: "var(--text-secondary)" }}
             >
-              Hệ sinh thái công cụ đầu tư chứng khoán toàn diện — từ phân tích
-              kỹ thuật, AI hỗ trợ đến tín hiệu giao dịch.
+              Các công cụ chính được gom trong một trải nghiệm thống nhất:
+              thị trường, gợi ý cổ phiếu, ART, backtest và quản trị rủi ro.
             </p>
           </div>
         </FadeIn>
