@@ -4,6 +4,9 @@ const STATIC_ASSETS = [
   '/icons/icon-192x192.png',
   '/icons/icon-512x512.png',
   '/logo.jpg',
+  '/brand/favicon.png',
+  '/brand/logo-dark.jpg',
+  '/brand/logo-light.jpg',
 ];
 
 // Install — pre-cache only images, NOT pages

@@ -130,7 +130,7 @@ function LandingHeader() {
       style={{ background: "var(--bg-surface)", borderBottom: "1px solid var(--border)" }}
     >
       <Link href="/" className="flex items-center gap-2.5">
-        <Image src="/logo.jpg" alt="ADN" width={32} height={32} className="rounded-lg" />
+        <Image src="/brand/favicon.png" alt="ADN" width={32} height={32} className="rounded-lg" />
         <span className="text-[15px] font-bold" style={{ color: "var(--text-primary)" }}>ADN Capital</span>
       </Link>
 

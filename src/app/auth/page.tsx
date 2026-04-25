@@ -70,7 +70,7 @@ function AuthPageShell({ children }: { children: React.ReactNode }) {
             }}
           >
             <div className="mb-8 flex items-center gap-3">
-              <Image src="/logo.jpg" alt="ADN Capital" width={56} height={56} className="rounded-2xl" priority />
+              <Image src="/brand/favicon.png" alt="ADN Capital" width={56} height={56} className="rounded-2xl" priority />
               <div>
                 <p className="text-sm font-bold tracking-[0.28em]" style={{ color: "var(--primary)" }}>
                   ADN CAPITAL

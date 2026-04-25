@@ -38,10 +38,10 @@ export function SplashScreen() {
             className="relative z-10 flex flex-col items-center gap-4"
           >
             <Image
-              src="/logo.jpg"
+              src="/brand/logo-dark.jpg"
               alt="ADN Capital"
-              width={80}
-              height={80}
+              width={128}
+              height={128}
               className="rounded-2xl shadow-[0_0_40px_rgba(16,185,129,0.2)]"
               style={{ outline: "2px solid rgba(22,163,74,0.30)" }}
             />
