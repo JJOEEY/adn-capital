@@ -7,7 +7,9 @@ import { Footer } from "./Footer";
 import { useSidebarStore } from "@/store/sidebarStore";
 import { BottomTabBar } from "@/components/pwa/BottomTabBar";
 import { SplashScreen } from "@/components/pwa/SplashScreen";
+import { AppUpdateNotice } from "@/components/pwa/AppUpdateNotice";
 import { useSwipeNavigation } from "@/hooks/useSwipeNavigation";
+import { isStandaloneAppRuntime } from "@/lib/mobileRuntime";
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -26,11 +28,7 @@ export function MainLayout({ children, disableSwipe = false }: MainLayoutProps) 
     checkMobile();
     window.addEventListener("resize", checkMobile);
 
-    // Show splash on first load in standalone mode
-    const isStandalone =
-      window.matchMedia("(display-mode: standalone)").matches ||
-      (window.navigator as any).standalone === true;
-    if (isStandalone && !sessionStorage.getItem("adn_splash_shown")) {
+    if (isStandaloneAppRuntime() && !sessionStorage.getItem("adn_splash_shown")) {
       setShowSplash(true);
       sessionStorage.setItem("adn_splash_shown", "1");
     }
@@ -73,6 +71,7 @@ export function MainLayout({ children, disableSwipe = false }: MainLayoutProps) 
         {!isMobile && <AppHeader />}
 
         <main className="flex-1 min-w-0 overflow-y-auto">
+          {isMobile && <AppUpdateNotice />}
           {children}
         </main>
         
