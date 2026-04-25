@@ -1,72 +1,154 @@
 import { NextResponse } from "next/server";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
 
-/**
- * RS Rating API — Proxy → Python FastAPI /api/v1/rs-rating
- * Dữ liệu tính từ FiinQuantX (200 mã), xếp hạng percentile CANSLIM.
- * Cache 15 phút.
- */
+type BridgeRsItem = Record<string, unknown>;
 
-const BACKEND = getPythonBridgeUrl();
+type NormalizedRsStock = {
+  symbol: string;
+  name: string;
+  sector: string;
+  price: number;
+  change: number;
+  changePercent: number;
+  volume: number;
+  rsScore: number;
+  rsRating: number;
+  rsRaw: number | null;
+  rm: number | null;
+  phase: string | null;
+  benchmark: string;
+  source: "fiinquant_bridge";
+};
 
+const CACHE_TTL = 15 * 60 * 1000;
 let cache: { data: unknown; ts: number } | null = null;
-const CACHE_TTL = 15 * 60 * 1000; // 15 phút
+
+function readString(item: BridgeRsItem, keys: string[], fallback = "") {
+  for (const key of keys) {
+    const value = item[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  }
+  return fallback;
+}
+
+function readNumber(item: BridgeRsItem, keys: string[], fallback = 0) {
+  for (const key of keys) {
+    const raw = item[key];
+    const value = typeof raw === "string" ? Number(raw.replace(/,/g, "")) : Number(raw);
+    if (Number.isFinite(value)) return value;
+  }
+  return fallback;
+}
+
+function readNullableNumber(item: BridgeRsItem, keys: string[]) {
+  const value = readNumber(item, keys, Number.NaN);
+  return Number.isFinite(value) ? value : null;
+}
+
+function clampScore(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100, Math.round(value * 100) / 100));
+}
+
+function normalizeRsStock(item: BridgeRsItem, defaultBenchmark: string): NormalizedRsStock | null {
+  const symbol = readString(item, ["ticker", "symbol", "code"]).toUpperCase();
+  if (!symbol) return null;
+
+  const price = readNumber(item, ["close", "price", "lastPrice", "last_price"], 0);
+  const prevClose = readNumber(item, ["prev_close", "prevClose", "refPrice", "referencePrice"], price);
+  const change = Number.isFinite(price - prevClose) ? Math.round((price - prevClose) * 100) / 100 : 0;
+  const changePercent = prevClose > 0 ? Math.round((change / prevClose) * 10_000) / 100 : 0;
+  const rsRating = clampScore(readNumber(item, ["rs_rating", "rsRating", "rs_score", "rsScore"], 0));
+  const rsRaw = readNullableNumber(item, ["rs", "relative_strength", "relativeStrength"]);
+
+  return {
+    symbol,
+    name: readString(item, ["name", "companyName", "company_name"], symbol),
+    sector: readString(item, ["sector", "industry", "icbName"], "Khac"),
+    price,
+    change,
+    changePercent,
+    volume: readNumber(item, ["volume", "matchVolume", "totalVolume"], 0),
+    rsScore: rsRating,
+    rsRating,
+    rsRaw,
+    rm: readNullableNumber(item, ["rm", "relative_momentum", "relativeMomentum"]),
+    phase: readString(item, ["phase", "rrgPhase"], "") || null,
+    benchmark: readString(item, ["benchmark", "base"], defaultBenchmark),
+    source: "fiinquant_bridge",
+  };
+}
+
+function getRawItems(payload: Record<string, unknown>) {
+  const candidates = [payload.data, payload.stocks, payload.items, payload.results];
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate as BridgeRsItem[];
+  }
+  return [];
+}
 
 export async function GET() {
-  /* Cache hit */
   if (cache && Date.now() - cache.ts < CACHE_TTL) {
     return NextResponse.json(cache.data);
   }
 
+  const backend = getPythonBridgeUrl();
+
   try {
-    const res = await fetch(`${BACKEND}/api/v1/rs-rating`, {
+    const res = await fetch(`${backend}/api/v1/rs-rating`, {
       cache: "no-store",
       signal: AbortSignal.timeout(60_000),
     });
 
+    const responseText = await res.text();
     if (!res.ok) {
-      const text = await res.text();
-      console.error("[/api/rs-rating] Backend error:", res.status, text);
+      console.error("[/api/rs-rating] FiinQuant bridge error:", res.status, responseText.slice(0, 800));
       return NextResponse.json(
-        { error: "Không lấy được dữ liệu RS Rating" },
+        {
+          error: "Khong lay duoc du lieu RS tu FiinQuant bridge",
+          source: "fiinquant_bridge",
+          publish: false,
+        },
         { status: 502 },
       );
     }
 
-    const json = await res.json();
-    const rawStocks: {
-      ticker: string;
-      sector: string;
-      close: number;
-      prev_close?: number;
-      rs_rating: number;
-    }[] = json.data ?? [];
+    const parsed = JSON.parse(responseText) as unknown;
+    const json =
+      Array.isArray(parsed)
+        ? { data: parsed }
+        : parsed && typeof parsed === "object"
+          ? (parsed as Record<string, unknown>)
+          : {};
+    const benchmark = readString(json, ["benchmark", "base"], "VNINDEX");
+    const stocks = getRawItems(json)
+      .map((item) => normalizeRsStock(item, benchmark))
+      .filter((item): item is NormalizedRsStock => Boolean(item));
 
-    /* Map sang format frontend cần */
-    const stocks = rawStocks.map((s) => {
-      const change = s.prev_close ? +(s.close - s.prev_close).toFixed(2) : 0;
-      const changePercent =
-        s.prev_close && s.prev_close > 0
-          ? +((change / s.prev_close) * 100).toFixed(2)
-          : 0;
-
-      return {
-        symbol: s.ticker,
-        name: s.ticker,
-        sector: s.sector,
-        price: s.close,
-        change,
-        changePercent,
-        volume: 0,
-        rsScore: 0,
-        rsRating: s.rs_rating,
-      };
-    });
+    if (stocks.length === 0) {
+      return NextResponse.json(
+        {
+          error: "FiinQuant bridge khong tra ve danh sach RS hop le",
+          source: "fiinquant_bridge",
+          publish: false,
+          updatedAt: new Date().toISOString(),
+          stocks: [],
+        },
+        { status: 502 },
+      );
+    }
 
     const response = {
       stocks,
+      count: stocks.length,
       cached: false,
-      updatedAt: json.updated_at ?? new Date().toISOString(),
+      publish: true,
+      source: "fiinquant_bridge",
+      provider: "FiinQuant",
+      calculation: "bridge_rs_calculator",
+      benchmark,
+      updatedAt: readString(json, ["updated_at", "updatedAt", "timestamp"], new Date().toISOString()),
     };
 
     cache = { data: response, ts: Date.now() };
@@ -74,7 +156,11 @@ export async function GET() {
   } catch (err) {
     console.error("[/api/rs-rating] Fetch error:", err);
     return NextResponse.json(
-      { error: "Backend không phản hồi" },
+      {
+        error: "FiinQuant bridge khong phan hoi",
+        source: "fiinquant_bridge",
+        publish: false,
+      },
       { status: 502 },
     );
   }

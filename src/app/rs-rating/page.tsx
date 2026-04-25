@@ -43,7 +43,7 @@ function FreshnessBadge({ freshness }: { freshness: string | null }) {
 
 export default function RSRatingPage() {
   const { isRsRatingLocked } = useSubscription();
-  const rsTopic = useTopic<RsRatingPayload>("scan:rs-rating:list", {
+  const rsTopic = useTopic<RsRatingPayload>("research:rs-rating:list", {
     refreshInterval: 900_000,
     revalidateOnFocus: false,
     dedupingInterval: 60_000,

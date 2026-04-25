@@ -1957,13 +1957,16 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     },
   },
   {
-    id: "scan:rs-rating:list",
+    id: "research:rs-rating:list",
     ttlMs: 900_000,
     minIntervalMs: 60_000,
     source: "api:rs-rating",
     version: "v1",
-    tags: ["research", "rs-rating"],
-    match: (topicKey) => (topicKey === "scan:rs-rating:list" ? { ok: true } : { ok: false }),
+    tags: ["research", "rs-rating", "fiinquant", "legacy-alias"],
+    match: (topicKey) =>
+      ["research:rs-rating:list", "market:rs:latest", "scan:rs-rating:list"].includes(topicKey)
+        ? { ok: true }
+        : { ok: false },
     resolve: async () => loadRsRatingList(),
   },
 ];

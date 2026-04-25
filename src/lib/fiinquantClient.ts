@@ -90,6 +90,11 @@ export interface FiinRSRating {
   volume: number;
   rsScore: number;
   rsRating: number;
+  rsRaw?: number | null;
+  rm?: number | null;
+  phase?: string | null;
+  benchmark?: string;
+  source?: string;
   // Raw fields from API (may be present)
   ticker?: string;
   close?: number;
@@ -269,8 +274,8 @@ export async function fetchTASummary(ticker: string): Promise<FiinTASummary | nu
 
 /** RS-Rating danh sách cổ phiếu */
 export async function fetchRSRatingList(): Promise<FiinRSRating[] | null> {
-  // API trả về { count, data: [{ticker, sector, close, prev_close, rs_rating}] }
-  const raw = await fiinFetch<{ data?: unknown[]; stocks?: FiinRSRating[] }>("/api/v1/rs-rating");
+  // Bridge returns FiinQuant RS rating, with optional RRG fields (rs/rm/phase).
+  const raw = await fiinFetch<{ data?: unknown[]; stocks?: FiinRSRating[]; benchmark?: string }>("/api/v1/rs-rating");
   if (!raw) return null;
 
   const items = raw.data ?? raw.stocks ?? [];
@@ -281,6 +286,7 @@ export async function fetchRSRatingList(): Promise<FiinRSRating[] | null> {
     const close = Number(s.close ?? s.price ?? 0);
     const prevClose = Number(s.prev_close ?? s.prevClose ?? close);
     const changePct = prevClose > 0 ? ((close - prevClose) / prevClose) * 100 : 0;
+    const rsRating = Number(s.rs_rating ?? s.rsRating ?? s.rs_score ?? s.rsScore ?? 0);
     return {
       symbol: String(s.ticker ?? s.symbol ?? ""),
       ticker: String(s.ticker ?? s.symbol ?? ""),
@@ -292,9 +298,14 @@ export async function fetchRSRatingList(): Promise<FiinRSRating[] | null> {
       change: close - prevClose,
       changePercent: Math.round(changePct * 100) / 100,
       volume: Number(s.volume ?? 0),
-      rsScore: Number(s.rs_score ?? s.rsScore ?? 0),
-      rsRating: Number(s.rs_rating ?? s.rsRating ?? 0),
-      rs_rating: Number(s.rs_rating ?? s.rsRating ?? 0),
+      rsScore: rsRating,
+      rsRating,
+      rsRaw: Number.isFinite(Number(s.rs)) ? Number(s.rs) : null,
+      rm: Number.isFinite(Number(s.rm)) ? Number(s.rm) : null,
+      phase: typeof s.phase === "string" ? s.phase : null,
+      benchmark: String(s.benchmark ?? raw.benchmark ?? "VNINDEX"),
+      source: String(s.source ?? "fiinquant_bridge"),
+      rs_rating: rsRating,
     } as FiinRSRating;
   });
 }
