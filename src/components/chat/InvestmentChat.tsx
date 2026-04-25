@@ -40,7 +40,8 @@ const TICKER_STOP_WORDS = new Set([
   "VA", "VOI", "CHO", "CON", "MA", "CP", "THE", "NAY", "NHU", "MUA", "BAN", "GIU", "HOLD",
   "NEU", "DUOC", "SAO", "ROI", "TOI", "MINH", "BAN", "LAM", "KHI", "NEN", "XEM", "PHAN",
   "TICH", "NHAN", "DINH", "CO", "PHIEU", "TICKER", "TIN", "TUC", "HOM", "NAY", "VND",
-  "SO", "SANH",
+  "SO", "SANH", "NH", "NGAN", "HANG", "NGANH", "NHOM", "BANK", "BANKS", "CK", "CTCK",
+  "BDS", "NHA", "NUOC", "CHUNG", "KHOAN", "CONG", "TY", "DOANH", "NGHIEP",
 ]);
 
 function stripDiacritics(text: string): string {

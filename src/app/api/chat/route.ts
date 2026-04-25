@@ -254,16 +254,7 @@ async function fetchMarketOverview(): Promise<MarketOverviewData | null> {
 
 // ─── Detect stock tickers trong tin nhắn tự do ────────────────────
 function detectTickers(msg: string): string[] {
-  const upperMsg = msg.toUpperCase();
-  const normalizedUpper = msg.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
-  const matches = upperMsg.match(/\b[A-Z]{2,5}\b/g) ?? [];
-  const normalizedMatches = normalizedUpper.match(/\b[A-Z]{2,5}\b/g) ?? [];
-  const contextMatches = [...normalizedUpper.matchAll(/\b(?:MA|CO PHIEU|CP|TICKER)\s*[:\-]?\s*([A-Z]{2,5})\b/g)].map(
-    (match) => match[1],
-  );
-
-  const all = [...new Set([...matches, ...normalizedMatches, ...contextMatches])];
-  return all.filter((ticker) => isLikelyTicker(ticker)).slice(0, 3);
+  return extractTickerCandidates(msg).slice(0, 3);
 }
 
 function shouldFetchMarketContext(msg: string): boolean {
@@ -463,32 +454,55 @@ const TICKER_STOP_WORDS = new Set([
   "TAT", "BAT", "MAU", "DAU", "BAN", "MUA", "LAM", "SAU", "ROI", "NEN", "KHI", "TAI",
   "VUA", "DAY", "HAY", "NHO", "TOI", "BOT", "SO", "SANH", "VA", "GIUA", "CO", "PHIEU",
   "XEM", "PHAN", "TICH", "NHAN", "DINH", "HOLD", "STOP", "LOSS", "TARGET", "TICKER",
+  "NH", "NGAN", "HANG", "NGANH", "NHOM", "BANK", "BANKS", "CK", "CTCK", "BDS", "BATDONG",
+  "NHA", "NUOC", "CHUNG", "KHOAN", "CONG", "TY", "DOANH", "NGHIEP", "THEP", "DAUKHI",
+  "DAU", "KHI", "BANLE", "LE", "SO", "VO", "VON", "DONG", "TIEN",
 ]);
 
+function stripTickerDiacritics(text: string): string {
+  return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function normalizeTickerCandidate(raw: string): string {
+  return stripTickerDiacritics(raw).toUpperCase().replace(/[^A-Z0-9._-]/g, "");
+}
+
 function isLikelyTicker(code: string): boolean {
-  const upper = code.toUpperCase();
+  const upper = normalizeTickerCandidate(code);
   if (!/^[A-Z]{2,5}$/.test(upper)) return false;
   if (KNOWN_TICKERS.has(upper)) return true;
   return !TICKER_STOP_WORDS.has(upper);
 }
 
-function extractTickerCandidates(msg: string): string[] {
-  const upper = msg.toUpperCase();
-  const normalizedUpper = msg.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
-  const candidates = [
-    ...(upper.match(/\b[A-Z]{2,5}\b/g) ?? []),
-    ...(normalizedUpper.match(/\b[A-Z]{2,5}\b/g) ?? []),
-  ];
-  const contextMatches = [...normalizedUpper.matchAll(/\b(?:MA|CO PHIEU|CP|TICKER|XEM|PHAN TICH|NHAN DINH)\s*[:\-]?\s*([A-Z]{2,5})\b/g)].map(
-    (match) => match[1],
-  );
+function keepTickerCandidate(raw: string, opts: { allowLowercaseContext?: boolean } = {}): string | null {
+  const code = normalizeTickerCandidate(raw);
+  if (!isLikelyTicker(code)) return null;
+  if (KNOWN_TICKERS.has(code)) return code;
 
-  const all = [...new Set([...candidates, ...contextMatches])];
-  return all.filter((code) => isLikelyTicker(code)).slice(0, 5);
+  // Free-form chat has many Vietnamese abbreviations after accent stripping.
+  // Unknown tickers are only accepted when the user typed them as explicit uppercase,
+  // or immediately after a ticker-intent keyword such as "mã"/"cổ phiếu".
+  if (opts.allowLowercaseContext) return code;
+  return raw === raw.toUpperCase() ? code : null;
+}
+
+function extractTickerCandidates(msg: string): string[] {
+  const directMatches = [...msg.matchAll(/\b[A-Za-z0-9._-]{2,12}\b/g)]
+    .map((match) => keepTickerCandidate(match[0]))
+    .filter((code): code is string => Boolean(code));
+
+  const normalized = stripTickerDiacritics(msg);
+  const contextMatches = [
+    ...normalized.matchAll(/\b(?:ma|co phieu|cp|ticker|xem ma|phan tich ma|nhan dinh ma)\s*[:\-]?\s*([A-Za-z0-9._-]{2,12})\b/gi),
+  ]
+    .map((match) => keepTickerCandidate(match[1], { allowLowercaseContext: true }))
+    .filter((code): code is string => Boolean(code));
+
+  return [...new Set([...directMatches, ...contextMatches])].slice(0, 5);
 }
 
 async function filterValidTickers(codes: string[], limit = 5): Promise<string[]> {
-  const unique = [...new Set(codes.map((code) => code.toUpperCase()))]
+  const unique = [...new Set(codes.map((code) => normalizeTickerCandidate(code)))]
     .filter((code) => /^[A-Z0-9._-]{2,12}$/.test(code))
     .filter((code) => !TICKER_STOP_WORDS.has(code))
     .slice(0, 12);
@@ -550,7 +564,7 @@ async function detectIntent(msg: string): Promise<{ intent: "CHAT_GENERAL" | "AN
 
   const hasAnalysisKeyword = analysisKeywords.some((kw) => normalized.includes(kw));
   if (hasAnalysisKeyword) {
-    const candidates = upper.match(/\b([A-Z]{2,5})\b/g) ?? [];
+    const candidates = extractTickerCandidates(msg);
     const validated = await filterValidTickers(candidates, 1);
     if (validated.length > 0) {
       return { intent: "ANALYZE_TICKER", ticker: validated[0] };
@@ -574,7 +588,7 @@ function parseCommand(msg: string): { cmd: string | null; stock: string | null; 
   if (newsMatch) return { cmd: "/news", stock: newsMatch[1].toUpperCase(), compareStocks: [] };
   if (tamlyMatch) return { cmd: "/tamly", stock: tamlyMatch[1].toUpperCase(), compareStocks: [] };
   if (compareMatch) {
-    const compareStocks = (compareMatch[1].toUpperCase().match(/\b[A-Z]{2,5}\b/g) ?? [])
+    const compareStocks = extractTickerCandidates(compareMatch[1])
       .filter((ticker, idx, arr) => arr.indexOf(ticker) === idx)
       .filter((ticker) => !TICKER_STOP_WORDS.has(ticker))
       .slice(0, 5);
