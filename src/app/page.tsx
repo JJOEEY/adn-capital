@@ -206,7 +206,6 @@ export default function HomePage() {
         <SocialProofTicker />
         <WorkflowProofSection />
         <FeaturesSection />
-        <BrokerConnectedSection />
         <PerformanceSection />
         <ProcessSection />
         <TestimonialsSection />
@@ -224,10 +223,10 @@ export default function HomePage() {
 ───────────────────────────────────────────────────────────────────────────── */
 const HERO_TRUST_CHIPS = [
   "Dashboard thị trường",
-  "AI Broker workflow",
+  "Gợi ý cổ phiếu",
   "ART đảo chiều xu hướng",
-  "Brief & tin tức",
-  "Preview hành động an toàn",
+  "Bản tin thị trường",
+  "Quản trị rủi ro",
 ];
 
 function HeroSectionV2() {
@@ -242,18 +241,18 @@ function HeroSectionV2() {
       />
       <div className="relative max-w-7xl mx-auto grid lg:grid-cols-[1fr_0.95fr] gap-12 lg:gap-16 items-center">
         <FadeIn>
-          <SectionLabel>ADN Capital Broker-First Platform</SectionLabel>
+          <SectionLabel>ADN Capital AI Investment Platform</SectionLabel>
           <h1
             className="max-w-4xl text-[44px] sm:text-[60px] lg:text-[74px] leading-[0.95] font-black tracking-[-0.06em]"
             style={{ color: "var(--text-primary)" }}
           >
-            AI phân tích thị trường, broker workflow kiểm soát hành động.
+            AI hỗ trợ đọc thị trường, bạn chủ động quyết định hành động.
           </h1>
           <p
             className="mt-7 max-w-2xl text-[18px] sm:text-[20px] leading-relaxed"
             style={{ color: "var(--text-secondary)" }}
           >
-            ADN gom tín hiệu, dữ liệu thị trường, brief, danh mục và trạng thái tài khoản vào một luồng vận hành thống nhất để nhà đầu tư ra quyết định có kiểm chứng hơn.
+            ADN gom dữ liệu thị trường, tin tức, tín hiệu cổ phiếu và cảnh báo rủi ro vào một màn hình dễ hiểu để nhà đầu tư theo dõi nhanh hơn, kỷ luật hơn.
           </p>
           <div className="mt-9 flex flex-col sm:flex-row gap-3">
             <Link
@@ -265,11 +264,11 @@ function HeroSectionV2() {
               <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
             </Link>
             <a
-              href="#broker-workflow"
+              href="#workflow-proof"
               className="group inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-[12px] font-semibold text-[15px] transition-all"
               style={{ border: "1px solid var(--border-strong)", color: "var(--text-primary)", background: "var(--surface)" }}
             >
-              Xem workflow broker
+              Xem cách ADN hỗ trợ bạn
               <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
             </a>
           </div>
@@ -296,9 +295,9 @@ function HeroSectionV2() {
 
 function BrokerHeroPreview() {
   const rows = [
-    { label: "Tín hiệu mới", value: "Upsert vào DataHub", tone: "var(--success)" },
-    { label: "Danh mục", value: "Đọc cùng source broker", tone: "var(--primary)" },
-    { label: "Phiếu lệnh", value: "Preview trước khi xác nhận", tone: "var(--warning)" },
+    { label: "Cổ phiếu đáng chú ý", value: "Có mã mới sẽ hiện ngay", tone: "var(--success)" },
+    { label: "Cổ phiếu bạn quan tâm", value: "Tách rõ đang quan sát và đang giữ", tone: "var(--primary)" },
+    { label: "Xem trước quyết định", value: "Có lý do, vùng giá và rủi ro", tone: "var(--warning)" },
   ];
 
   return (
@@ -317,7 +316,7 @@ function BrokerHeroPreview() {
               ADN AI Broker
             </p>
             <h3 className="mt-2 text-2xl font-black tracking-[-0.04em]" style={{ color: "var(--text-primary)" }}>
-              Quyết định từ dữ liệu thật
+              Gợi ý rõ ràng, dễ kiểm tra
             </h3>
           </div>
           <div className="rounded-2xl p-3" style={{ background: "var(--primary-light)", color: "var(--primary)" }}>
@@ -340,14 +339,14 @@ function BrokerHeroPreview() {
 
         <div className="mt-5 grid sm:grid-cols-2 gap-3">
           <div className="rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-            <p className="text-[12px] font-bold uppercase tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>NAV khuyến nghị</p>
+            <p className="text-[12px] font-bold uppercase tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>Tỷ trọng tham khảo</p>
             <p className="mt-3 text-3xl font-black" style={{ color: "var(--text-primary)" }}>10%</p>
-            <p className="mt-1 text-[13px]" style={{ color: "var(--text-secondary)" }}>Liên kết với quy mô danh mục khi preview lệnh.</p>
+            <p className="mt-1 text-[13px]" style={{ color: "var(--text-secondary)" }}>Gợi ý để tránh dồn vốn quá mức vào một mã.</p>
           </div>
           <div className="rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-            <p className="text-[12px] font-bold uppercase tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>Guardrail</p>
-            <p className="mt-3 text-3xl font-black" style={{ color: "var(--success)" }}>SAFE</p>
-            <p className="mt-1 text-[13px]" style={{ color: "var(--text-secondary)" }}>AI chỉ giải thích; lifecycle và rủi ro là deterministic.</p>
+            <p className="text-[12px] font-bold uppercase tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>Kỷ luật rủi ro</p>
+            <p className="mt-3 text-3xl font-black" style={{ color: "var(--success)" }}>RÕ</p>
+            <p className="mt-1 text-[13px]" style={{ color: "var(--text-secondary)" }}>Có điểm mua tham khảo, mục tiêu và vùng cắt lỗ.</p>
           </div>
         </div>
 
@@ -361,25 +360,25 @@ function BrokerHeroPreview() {
 
 const WORKFLOW_PROOFS = [
   {
-    title: "Một nguồn sự thật",
-    body: "Dashboard, ADN AI Broker, brief và notification đọc từ cùng record/topic thay vì mỗi nơi tự tính một kiểu.",
+    title: "Dữ liệu thống nhất",
+    body: "Dashboard, ADN AI Broker, bản tin và thông báo dùng cùng một nguồn dữ liệu để tránh mỗi nơi hiển thị một kiểu.",
     Icon: BarChart3,
   },
   {
-    title: "AI không sinh tín hiệu gốc",
-    body: "Scanner, lifecycle, risk và broker truth chạy deterministic; AI chỉ giải thích, tóm tắt và cá nhân hóa.",
+    title: "AI chỉ hỗ trợ phân tích",
+    body: "Tín hiệu và rủi ro được tính theo quy tắc cố định; AI chỉ giải thích, tóm tắt và giúp bạn đọc dữ liệu dễ hơn.",
     Icon: CheckCircle2,
   },
   {
-    title: "Broker workflow có kiểm soát",
-    body: "Kết nối tài khoản, NAV, vị thế và preview hành động được đặt sau guardrails, không mở real submit đại trà.",
+    title: "Bạn luôn là người quyết định",
+    body: "ADN đưa ra góc nhìn tham khảo, vùng giá và cảnh báo rủi ro; quyết định mua bán cuối cùng vẫn thuộc về nhà đầu tư.",
     Icon: Banknote,
   },
 ];
 
 function WorkflowProofSection() {
   return (
-    <section className="px-5 md:px-12 py-16">
+    <section id="workflow-proof" className="px-5 md:px-12 py-16">
       <div className="max-w-7xl mx-auto grid md:grid-cols-3 gap-4">
         {WORKFLOW_PROOFS.map(({ title, body, Icon }, idx) => (
           <FadeIn key={title} delay={idx * 0.08}>
@@ -395,64 +394,6 @@ function WorkflowProofSection() {
             </div>
           </FadeIn>
         ))}
-      </div>
-    </section>
-  );
-}
-
-function BrokerConnectedSection() {
-  return (
-    <section id="broker-workflow" className="px-5 md:px-12 py-20">
-      <div className="max-w-7xl mx-auto grid lg:grid-cols-[0.9fr_1.1fr] gap-10 items-center">
-        <FadeIn>
-          <SectionLabel>Broker-Connected Workflow</SectionLabel>
-          <h2 className="text-[34px] sm:text-[48px] font-black tracking-[-0.05em] leading-tight" style={{ color: "var(--text-primary)" }}>
-            Không chỉ xem tín hiệu. ADN đặt tín hiệu vào bối cảnh danh mục.
-          </h2>
-          <p className="mt-5 text-[17px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-            Khi tài khoản được kết nối, workflow có thể đối chiếu NAV, vị thế, sức mua và tỷ trọng khuyến nghị trước khi tạo phiếu preview. Người dùng vẫn là người xác nhận hành động cuối cùng.
-          </p>
-          <div className="mt-7 grid gap-3">
-            {[
-              "Đọc tín hiệu từ DataHub, không gửi Telegram từ raw scanner.",
-              "Tính tỷ trọng theo NAV và làm tròn lô giao dịch theo rule thị trường.",
-              "Tách preview, xác nhận thủ công và real-submit governance.",
-            ].map((item) => (
-              <div key={item} className="flex gap-3 text-[15px]" style={{ color: "var(--text-secondary)" }}>
-                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" style={{ color: "var(--success)" }} />
-                <span>{item}</span>
-              </div>
-            ))}
-          </div>
-        </FadeIn>
-
-        <FadeIn delay={0.12}>
-          <div className="rounded-[28px] p-5" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="rounded-2xl p-5" style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}>
-                <p className="text-[12px] font-bold uppercase tracking-[0.14em]" style={{ color: "var(--text-muted)" }}>Tài khoản liên kết</p>
-                <p className="mt-4 text-2xl font-black" style={{ color: "var(--text-primary)" }}>NAV 450 triệu</p>
-                <p className="mt-2 text-[14px]" style={{ color: "var(--text-secondary)" }}>Ví dụ minh họa: thẻ broker khuyến nghị 10% NAV.</p>
-              </div>
-              <div className="rounded-2xl p-5" style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}>
-                <p className="text-[12px] font-bold uppercase tracking-[0.14em]" style={{ color: "var(--text-muted)" }}>Phiếu preview</p>
-                <p className="mt-4 text-2xl font-black" style={{ color: "var(--text-primary)" }}>45 triệu</p>
-                <p className="mt-2 text-[14px]" style={{ color: "var(--text-secondary)" }}>Khối lượng được làm tròn theo bội số 100 trước khi xác nhận.</p>
-              </div>
-            </div>
-            <div className="mt-4 rounded-2xl p-5" style={{ background: "var(--primary-light)", border: "1px solid var(--border)" }}>
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div>
-                  <p className="text-[13px] font-bold uppercase tracking-[0.12em]" style={{ color: "var(--primary)" }}>Trạng thái thực thi</p>
-                  <p className="mt-2 text-xl font-black" style={{ color: "var(--text-primary)" }}>Safe / Allowlist / Compliance-gated</p>
-                </div>
-                <span className="rounded-full px-4 py-2 text-[13px] font-bold" style={{ background: "var(--surface)", color: "var(--primary)", border: "1px solid var(--border)" }}>
-                  Không public real submit
-                </span>
-              </div>
-            </div>
-          </div>
-        </FadeIn>
       </div>
     </section>
   );
@@ -593,11 +534,11 @@ function HeroSection() {
 ───────────────────────────────────────────────────────────────────────────── */
 const PARTNERS = [
   "Dashboard thị trường", "ADN AI Broker", "Chỉ báo ART",
-  "Signal Map", "Morning Brief", "EOD Brief",
-  "Broker preview", "DataHub canonical", "Guardrails",
+  "Bản đồ tín hiệu", "Bản tin sáng", "Bản tin cuối ngày",
+  "Cảnh báo rủi ro", "Tin tức thị trường", "Theo dõi danh mục",
   "Dashboard thị trường", "ADN AI Broker", "Chỉ báo ART",
-  "Signal Map", "Morning Brief", "EOD Brief",
-  "Broker preview", "DataHub canonical", "Guardrails",
+  "Bản đồ tín hiệu", "Bản tin sáng", "Bản tin cuối ngày",
+  "Cảnh báo rủi ro", "Tin tức thị trường", "Theo dõi danh mục",
 ];
 
 function SocialProofTicker() {
@@ -716,9 +657,9 @@ const DEFAULT_LANDING_PRODUCTS: LandingProductCardUI[] = [
   {
     id: "landing-broker",
     title: "ADN AI Broker",
-    subtitle: "Tín hiệu mua/bán tự động",
-    description: "Nhận tín hiệu Mua/Bán theo hệ thống Quant Trading của ADN Capital — bộ lọc đa chiều, tối ưu cho VN.",
-    bullets: ["Tín hiệu mua/bán tự động", "Bộ lọc Volume & RS cùng lúc", "Lịch sử tín hiệu đầy đủ", "Thông báo Real-time"],
+    subtitle: "Gợi ý cổ phiếu dễ theo dõi",
+    description: "Theo dõi các cổ phiếu đáng chú ý, vùng giá tham khảo và cảnh báo rủi ro theo hệ thống ADN Capital.",
+    bullets: ["Danh sách cổ phiếu đáng chú ý", "Lý do xuất hiện tín hiệu", "Vùng giá tham khảo", "Thông báo khi có cập nhật mới"],
     href: "/dashboard/signal-map",
     imageUrl: "/logo.jpg",
     imageAlt: "AI Broker mockup",
@@ -786,8 +727,8 @@ function FeaturesSection() {
               className="text-[17px] max-w-[520px]"
               style={{ color: "var(--text-secondary)" }}
             >
-              Các module chính được đặt trong cùng workflow: thị trường, tín hiệu,
-              broker insight, ART, backtest và quản trị danh mục.
+              Các công cụ chính được gom trong một trải nghiệm thống nhất:
+              thị trường, gợi ý cổ phiếu, ART, backtest và quản trị rủi ro.
             </p>
           </div>
         </FadeIn>
