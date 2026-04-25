@@ -47,7 +47,7 @@ const ui = {
   login: "\u0110\u0103ng nh\u1eadp",
   loginHint: "\u0110\u0103ng nh\u1eadp \u0111\u1ec3 tr\u1ea3i nghi\u1ec7m \u0111\u1ea7y \u0111\u1ee7",
   logout: "\u0110\u0103ng xu\u1ea5t",
-  notificationTitle: "Th\u00f4ng b\u00e1o",
+  notificationTitle: "C\u00e0i \u0111\u1eb7t th\u00f4ng b\u00e1o",
   lightMode: "Ch\u1ebf \u0111\u1ed9 s\u00e1ng",
   darkMode: "Ch\u1ebf \u0111\u1ed9 t\u1ed1i",
   updateError: "Kh\u00f4ng th\u1ec3 c\u1eadp nh\u1eadt t\u00f9y ch\u1ecdn th\u00f4ng b\u00e1o",
@@ -144,7 +144,7 @@ export default function MenuPage() {
       title: "C\u00e0i \u0110\u1eb7t",
       items: [
         { href: "/profile", label: "T\u00e0i kho\u1ea3n", icon: User },
-        { href: "/notifications?tab=updates", label: "Th\u00f4ng b\u00e1o", icon: Bell },
+        { href: "/app-updates", label: "Th\u00f4ng b\u00e1o c\u1eadp nh\u1eadt", icon: Bell },
       ],
     },
     {
