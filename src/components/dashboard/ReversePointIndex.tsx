@@ -430,12 +430,9 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
         ) : null}
 
         {/* Footer */}
-        <div className="flex items-center justify-between mt-3 pt-2 border-t" style={{ borderColor: "var(--border)" }}>
+        <div className="flex items-center mt-3 pt-2 border-t" style={{ borderColor: "var(--border)" }}>
           <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>
             ART MA7: <span className="font-bold" style={{ color: cfg.text }}>{artMA7.toFixed(2)}</span>
-          </span>
-          <span className="text-[10px] italic" style={{ color: "var(--text-muted)", opacity: 0.8 }}>
-            RSI(7)×5% + Stoch(5)×70% + ROC(5)×25%
           </span>
         </div>
       </div>

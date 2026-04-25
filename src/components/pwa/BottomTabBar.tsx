@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
-import { Activity, Bot, Home, Menu, Newspaper } from "lucide-react";
+import { Activity, Bot, BookOpenText, Home, Menu, Newspaper } from "lucide-react";
 
 const tabs = [
   { href: "/dashboard", label: "Trang ch\u1ee7", icon: Home },
   { href: "/tin-tuc", label: "Tin T\u1ee9c", icon: Newspaper },
   { href: "/dashboard/signal-map", label: "ADN AI Broker", icon: Bot },
   { href: "/art", label: "Ch\u1ec9 b\u00e1o ART", icon: Activity },
+  { href: "/journal", label: "Nh\u1eadt k\u00fd", icon: BookOpenText },
   { href: "/menu", label: "Menu", icon: Menu },
 ];
 
@@ -37,13 +38,13 @@ export function BottomTabBar() {
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
       }}
     >
-      <div className="mx-auto flex h-16 max-w-xl items-center justify-around px-1">
+      <div className="mx-auto grid h-16 max-w-xl grid-cols-6 items-center px-1">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const active = isActive(tab.href);
 
           return (
-            <Link key={tab.href} href={tab.href} className="flex-1" onClick={hapticTap}>
+            <Link key={tab.href} href={tab.href} className="min-w-0" onClick={hapticTap}>
               <div className="relative flex flex-col items-center gap-0.5 py-1.5">
                 {active && (
                   <motion.div
