@@ -1,43 +1,66 @@
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card } from "@/components/ui/Card";
-import { DollarSign, Check, Crown, Zap, Star, Gift, Shield } from "lucide-react";
+import { DollarSign, ShieldCheck } from "lucide-react";
 import { PricingClient } from "./PricingClient";
 
-export const metadata = { title: "Bảng Giá - ADN Capital" };
+export const metadata = { title: "Bảng giá - ADN Capital" };
 
 export default function PricingPage() {
   return (
     <MainLayout>
-      <div className="p-3 md:p-6 max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-10">
-          <div
-            className="inline-flex items-center gap-2 text-xs px-3 py-1.5 rounded-full mb-4"
-            style={{ background: "var(--primary-light)", border: "1px solid var(--border)", color: "var(--primary)" }}
-          >
-            <DollarSign className="w-3 h-3" />
-            Bảng Giá Dịch Vụ
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <section className="mb-10 grid gap-6 lg:grid-cols-[1.08fr_0.92fr] lg:items-end">
+          <div>
+            <div
+              className="mb-4 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em]"
+              style={{ background: "var(--primary-light)", borderColor: "var(--border)", color: "var(--primary)" }}
+            >
+              <DollarSign className="h-3.5 w-3.5" />
+              Bảng giá dịch vụ
+            </div>
+            <h1 className="max-w-3xl text-3xl font-black leading-tight tracking-[-0.04em] sm:text-5xl">
+              Chọn gói theo cách bạn dùng ADN mỗi ngày
+            </h1>
+            <p className="mt-4 max-w-2xl text-base leading-7" style={{ color: "var(--text-secondary)" }}>
+              ADN Capital gom dashboard, ADN AI Broker, ART, tin tức, brief và cảnh báo vào một bộ công cụ dễ dùng.
+              Bảng giá này chỉ áp dụng cho các tính năng đang mở công khai.
+            </p>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black mb-3" style={{ color: "var(--text-primary)" }}>
-            Nâng cấp để giao dịch{" "}
-            <span style={{ color: "var(--primary)" }}>chuyên nghiệp hơn</span>
-          </h1>
-          <p className="max-w-lg mx-auto text-sm" style={{ color: "var(--text-secondary)" }}>
-            Truy cập đầy đủ ADN Capital với phân tích chuyên sâu, tín hiệu ưu tiên và tư vấn cá nhân hóa theo lịch sử giao dịch.
-          </p>
-        </div>
+
+          <Card className="p-5">
+            <div className="flex gap-3">
+              <span
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl"
+                style={{ background: "var(--primary-light)", color: "var(--primary)" }}
+              >
+                <ShieldCheck className="h-5 w-5" />
+              </span>
+              <div>
+                <h2 className="font-bold">Nguyên tắc an toàn</h2>
+                <p className="mt-2 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
+                  AI chỉ hỗ trợ giải thích và tóm tắt. Tín hiệu, quản trị rủi ro và dữ liệu vận hành phải đi theo
+                  nguồn dữ liệu kiểm soát của hệ thống ADN.
+                </p>
+              </div>
+            </div>
+          </Card>
+        </section>
 
         <PricingClient />
 
-        {/* FAQ / Note */}
-        <Card className="mt-8 p-6 text-center">
-          <p className="text-sm mb-2" style={{ color: "var(--text-secondary)" }}>
-            💳 Thanh toán qua <strong style={{ color: "var(--text-primary)" }}>chuyển khoản ngân hàng</strong> hoặc{" "}
-            <strong style={{ color: "var(--text-primary)" }}>MoMo / ZaloPay</strong>
-          </p>
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-            Liên hệ admin để kích hoạt tài khoản sau khi thanh toán · Hỗ trợ 24/7
-          </p>
+        <Card className="mt-8 p-6">
+          <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-center">
+            <div>
+              <h2 className="text-lg font-black">Cần kích hoạt hoặc xuất hóa đơn?</h2>
+              <p className="mt-2 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
+                Liên hệ admin ADN Capital sau khi thanh toán để kích hoạt gói, cập nhật quyền truy cập và hỗ trợ
+                onboarding.
+              </p>
+            </div>
+            <div className="rounded-2xl border px-4 py-3 text-sm font-bold" style={{ borderColor: "var(--border)" }}>
+              Hỗ trợ qua Zalo / Telegram chính thức
+            </div>
+          </div>
         </Card>
       </div>
     </MainLayout>
