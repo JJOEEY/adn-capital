@@ -104,10 +104,6 @@ function ImgWithFallback({ src, alt, fill, className, sizes, priority }: {
   );
 }
 
-function fmtLiquidity(tyVnd: number): string {
-  return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(Math.round(tyVnd));
-}
-
 function getScoreLabel(score: number, maxScore: number = 14): string {
   if (maxScore <= 10) {
     if (score < 4) return "NGỦ ĐÔNG";
@@ -153,7 +149,6 @@ const MarketScoreMini = memo(function MarketScoreMini({ overview }: { overview: 
   const maxScore = overview.max_score;
   const color = getScoreColor(score, maxScore);
   const label = getScoreLabel(score, maxScore);
-  const liquidity = overview.liquidity;
 
   return (
     <div
@@ -164,7 +159,7 @@ const MarketScoreMini = memo(function MarketScoreMini({ overview }: { overview: 
         className="text-[12px] font-bold uppercase tracking-wider mb-3"
         style={{ color: "var(--text-muted)" }}
       >
-        ADN Composite Score
+        NexCore
       </p>
       <div className="flex items-center gap-4">
         <div className="flex items-baseline gap-1">
@@ -180,21 +175,9 @@ const MarketScoreMini = memo(function MarketScoreMini({ overview }: { overview: 
           {label}
         </div>
       </div>
-      <div className="flex gap-4 mt-3 text-[12px]" style={{ color: "var(--text-secondary)" }}>
-        {overview.ta_score != null && (
-          <span>
-            TA: <span className="font-bold" style={{ color: "var(--text-primary)" }}>{overview.ta_score}/10</span>
-          </span>
-        )}
-        {overview.valuation_score != null && (
-          <span>
-            Định giá: <span className="font-bold" style={{ color: "var(--text-primary)" }}>{overview.valuation_score}/4</span>
-          </span>
-        )}
-        <span>
-          Thanh khoản: <span className="font-bold" style={{ color: "var(--text-primary)" }}>{fmtLiquidity(liquidity)} Tỷ</span>
-        </span>
-      </div>
+      <p className="text-xs mt-3 leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+        Điểm tổng hợp trạng thái thị trường.
+      </p>
       <p className="text-xs mt-2 leading-relaxed" style={{ color: "var(--text-secondary)" }}>
         {overview.action_message}
       </p>

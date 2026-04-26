@@ -41,6 +41,12 @@ interface MarketData {
 interface EodBriefData {
   liquidity?: number | string | null;
   liquidity_detail?: string | null;
+  liquidity_by_exchange?: {
+    HOSE?: number | string | null;
+    HNX?: number | string | null;
+    UPCOM?: number | string | null;
+    total?: number | string | null;
+  } | null;
 }
 
 type SignalActivePayload = {
@@ -112,6 +118,38 @@ function parseTotalLiquidityFromDetail(detail: string | null | undefined): numbe
     detail.match(/thanh khoản[^0-9]{0,24}([\d.,]+)/i);
   if (!totalMatch?.[1]) return null;
   return parseLiquidityFromDisplay(totalMatch[1]);
+}
+
+function parseExchangeLiquidityTotal(
+  exchanges: EodBriefData["liquidity_by_exchange"],
+): number | null {
+  if (!exchanges) return null;
+  const hose = parseNumberishLiquidity(exchanges.HOSE);
+  const hnx = parseNumberishLiquidity(exchanges.HNX);
+  const upcom = parseNumberishLiquidity(exchanges.UPCOM);
+  if (hose != null && hnx != null && upcom != null) {
+    return hose + hnx + upcom;
+  }
+  return parseNumberishLiquidity(exchanges.total);
+}
+
+function parseExchangeLiquidityTotalFromDetail(detail: string | null | undefined): number | null {
+  if (!detail) return null;
+  const hose = detail.match(/HoSE\s*([\d.,]+)/i)?.[1];
+  const hnx = detail.match(/HNX\s*([\d.,]+)/i)?.[1];
+  const upcom = detail.match(/UPCoM\s*([\d.,]+)/i)?.[1] ?? detail.match(/UPCOM\s*([\d.,]+)/i)?.[1];
+  const values = [hose, hnx, upcom].map((value) => parseLiquidityFromDisplay(value));
+  if (values.every((value): value is number => value != null && Number.isFinite(value))) {
+    return values.reduce((sum, value) => sum + value, 0);
+  }
+  return null;
+}
+
+function cleanStatusBadge(value: string): string {
+  return value
+    .replace(/[🟢🟡🔴]/gu, "")
+    .replace(/\u00f0\u0178\u0178\u00a2|\u00f0\u0178\u0178\u00a1|\u00f0\u0178\u201d\u00b4/g, "")
+    .trim();
 }
 
 /** Component-level error boundary — hiện skeleton thay vì crash toàn trang */
@@ -229,9 +267,11 @@ export default function DashboardPage() {
     ];
   }, [data]);
 
-  // Thanh khoản: ưu tiên từ Python backend (đã fix)
+  // Liquidity ưu tiên tổng HoSE + HNX + UPCOM khi đủ dữ liệu.
   const effectiveLiquidityTy = useMemo(() => {
     const eodLiquidity =
+      parseExchangeLiquidityTotal(eodBrief?.liquidity_by_exchange) ??
+      parseExchangeLiquidityTotalFromDetail(eodBrief?.liquidity_detail) ??
       parseNumberishLiquidity(eodBrief?.liquidity) ??
       parseTotalLiquidityFromDetail(eodBrief?.liquidity_detail);
     const parsedFromDisplay = parseLiquidityFromDisplay(data?.totalVolume);
@@ -242,7 +282,7 @@ export default function DashboardPage() {
     ].filter((value): value is number => value != null && Number.isFinite(value) && value > 0);
     if (candidates.length === 0) return null;
     return Math.max(...candidates);
-  }, [eodBrief?.liquidity, eodBrief?.liquidity_detail, overview?.liquidity, data?.totalVolume]);
+  }, [eodBrief?.liquidity, eodBrief?.liquidity_by_exchange, eodBrief?.liquidity_detail, overview?.liquidity, data?.totalVolume]);
 
   const liquidityDisplay = effectiveLiquidityTy != null ? `${fmtLiquidity(effectiveLiquidityTy)} Tỷ VNĐ` : data?.totalVolume ?? "N/A";
 
@@ -325,7 +365,6 @@ export default function DashboardPage() {
                   <GaugeCard 
                     overview={effectiveOverview} 
                     marketData={data ?? null}
-                    liquidityOverride={effectiveLiquidityTy}
                   />
                 )}
 
@@ -383,7 +422,7 @@ function getScoreLabel(score: number, maxScore: number = 14): string {
     if (score <= 7) return "THĂM DÒ";
     return "THIÊN THỜI";
   }
-  // 14-point ADN Composite
+  // 14-point NexCore
   if (score < 6) return "NGỦ ĐÔNG";
   if (score < 11) return "THĂM DÒ";
   return "THIÊN THỜI";
@@ -485,20 +524,15 @@ function GaugeSVG({ score, maxScore }: { score: number; maxScore: number }) {
 const GaugeCard = memo(function GaugeCard({
   overview,
   marketData,
-  liquidityOverride,
 }: {
   overview: MarketOverview | null;
   marketData: MarketData | null;
-  liquidityOverride?: number | null;
 }) {
   const fallbackScore = !overview && marketData ? (marketData.status === "GOOD" ? 11 : marketData.status === "BAD" ? 2 : 6) : 0;
   const score = overview?.score ?? fallbackScore;
   const maxScore = overview?.max_score ?? 14;
-  const liquidity = liquidityOverride ?? overview?.liquidity ?? 0;
   const color = getScoreColor(score, maxScore);
   const label = getScoreLabel(score, maxScore);
-  const taScore = overview?.ta_score;
-  const valScore = overview?.valuation_score;
 
   return (
     <div
@@ -512,7 +546,7 @@ const GaugeCard = memo(function GaugeCard({
         className="text-[12px] font-bold uppercase tracking-wider mb-2 self-start"
         style={{ color: "var(--text-muted)" }}
       >
-        ADN Composite Score (W/M + Định giá)
+        NexCore
       </p>
 
       {overview ? (
@@ -531,12 +565,6 @@ const GaugeCard = memo(function GaugeCard({
             >
               {label}
             </div>
-            {(taScore != null || valScore != null) && (
-              <div className="flex gap-3 text-[12px] mt-1" style={{ color: "var(--text-secondary)" }}>
-                {taScore != null && <span>TA: <span className="font-bold" style={{ color: "var(--text-primary)" }}>{taScore}/10</span></span>}
-                {valScore != null && <span>Định giá: <span className="font-bold" style={{ color: "var(--text-primary)" }}>{valScore}/4</span></span>}
-              </div>
-            )}
           </div>
         </>
       ) : (
@@ -547,8 +575,8 @@ const GaugeCard = memo(function GaugeCard({
       )}
 
       {overview && (
-        <p className="text-xs mt-3" style={{ color: "var(--text-secondary)" }}>
-          Thanh khoản: <span className="font-bold" style={{ color: "var(--text-primary)" }}>{fmtLiquidity(liquidity)} Tỷ VNĐ</span>
+        <p className="text-xs mt-3 text-center" style={{ color: "var(--text-secondary)" }}>
+          Điểm tổng hợp trạng thái thị trường.
         </p>
       )}
     </div>
@@ -683,7 +711,7 @@ const MarketStatusCard = memo(function MarketStatusCard({
             className="text-xs font-bold px-2.5 py-1 rounded-full"
             style={{ background: cfg.bgRgba, color: cfg.color, border: `1px solid ${cfg.borderRgba}` }}
           >
-            {statusBadge.replace(/ðŸŸ¢|ðŸŸ¡|ðŸ”´/g, "").trim()}
+            {cleanStatusBadge(statusBadge)}
           </span>
         </div>
 
@@ -716,7 +744,7 @@ const MarketStatusCard = memo(function MarketStatusCard({
 
         {/* Market Breadth */}
         <p className="text-[11px] mb-3" style={{ color: "var(--text-secondary)" }}>
-          ðŸ“Š {breadth}
+          Độ rộng thị trường: {breadth}
         </p>
 
         {/* Action Message */}

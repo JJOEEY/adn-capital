@@ -880,8 +880,17 @@ function hasFullExchangeLiquidity(exchanges: ExchangeLiquidity | undefined): boo
   });
 }
 
+function sumExchangeLiquidity(exchanges: ExchangeLiquidity | undefined | null): number | null {
+  if (!hasFullExchangeLiquidity(exchanges ?? undefined)) return null;
+  const total = (exchanges!.HOSE ?? 0) + (exchanges!.HNX ?? 0) + (exchanges!.UPCOM ?? 0);
+  return Number.isFinite(total) && total > 0 ? total : null;
+}
+
 function buildLiquidityDetail(totalLiquidityRaw: number, exchanges: ExchangeLiquidity): string {
-  if (!(totalLiquidityRaw > 0)) return "";
+  const exchangeTotal = sumExchangeLiquidity(exchanges);
+  const displayTotal = exchangeTotal ?? totalLiquidityRaw;
+  if (!(displayTotal > 0)) return "";
+  totalLiquidityRaw = displayTotal;
   const exchangeParts = [
     exchanges.HOSE != null && exchanges.HOSE > 0 ? `HoSE ${Math.round(exchanges.HOSE).toLocaleString("vi-VN")}` : null,
     exchanges.HNX != null && exchanges.HNX > 0 ? `HNX ${Math.round(exchanges.HNX).toLocaleString("vi-VN")}` : null,
@@ -1076,13 +1085,12 @@ function toEodPayload(report: { createdAt: Date; content: string; rawData: strin
     UPCOM: exchangeLiquidity.UPCOM,
     total: toNumberOrNull(liquidityByExchangeRaw.total),
   };
-  const inferredTotalFromExchanges =
-    (exchangeLiquidity.HOSE ?? 0) + (exchangeLiquidity.HNX ?? 0) + (exchangeLiquidity.UPCOM ?? 0);
+  const inferredTotalFromExchanges = sumExchangeLiquidity(exchangeLiquidity);
   const totalLiquidityRaw =
-    toNumberOrNull(snapshot.liquidity) ??
+    inferredTotalFromExchanges ??
     liquidityByExchange.total ??
     toNumberOrNull(snapshot.totalLiquidity) ??
-    (inferredTotalFromExchanges > 0 ? inferredTotalFromExchanges : null) ??
+    toNumberOrNull(snapshot.liquidity) ??
     parseLiquidityFromContent(normalizedContent) ??
     0;
 
@@ -1336,6 +1344,11 @@ function backfillEodPayload(base: EodPayload, history: EodPayload[]): EodPayload
   if (result.sell_signals.length === 0) result.sell_signals = pickArrayField((payload) => payload.sell_signals);
   if (result.top_breakout.length === 0) result.top_breakout = pickArrayField((payload) => payload.top_breakout);
 
+  const exchangeLiquidityTotal = sumExchangeLiquidity(result.liquidity_by_exchange);
+  if (exchangeLiquidityTotal != null) {
+    result.liquidity = exchangeLiquidityTotal;
+  }
+
   if (result.liquidity > 0 && result.liquidity_by_exchange) {
     result.liquidity_detail = buildLiquidityDetail(result.liquidity, result.liquidity_by_exchange);
   }
@@ -1585,7 +1598,7 @@ export async function GET(request: NextRequest) {
       selected.liquidity_by_exchange = snapshotLiquidityByExchange;
     }
 
-    const snapshotLiquidity = toNumberOrNull(liveSnapshot.liquidity);
+    const snapshotLiquidity = sumExchangeLiquidity(snapshotLiquidityByExchange) ?? toNumberOrNull(liveSnapshot.liquidity);
     if (snapshotLiquidity != null && snapshotLiquidity > 0) {
       const selectedLiquidity = toNumberOrNull(selected.liquidity) ?? 0;
       if (selectedLiquidity <= 0 || selectedLiquidity < snapshotLiquidity * 0.4) {
@@ -1596,6 +1609,10 @@ export async function GET(request: NextRequest) {
 
   if (selected.liquidity_by_exchange) {
     selected.liquidity_by_exchange = normalizeExchangeLiquidity(selected.liquidity_by_exchange);
+  }
+  const selectedExchangeLiquidityTotal = sumExchangeLiquidity(selected.liquidity_by_exchange);
+  if (selectedExchangeLiquidityTotal != null) {
+    selected.liquidity = selectedExchangeLiquidityTotal;
   }
   if (selected.liquidity > 0 && selected.liquidity_by_exchange) {
     selected.liquidity_detail = buildLiquidityDetail(selected.liquidity, selected.liquidity_by_exchange);
