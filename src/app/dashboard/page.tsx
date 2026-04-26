@@ -581,7 +581,11 @@ const AIBrokerDecisionCard = memo(function AIBrokerDecisionCard({
   const isSell = decision.includes("BAN") || decision.includes("BÁN");
 
   const badgeColor = isBuy ? "#16a34a" : isSell ? "#ef4444" : "#f59e0b";
-  const badgeLabel = isBuy ? "AI BROKER: MUA" : isSell ? "AI BROKER: BÁN" : "AI BROKER: GIỮ";
+  const badgeLabel = isBuy
+    ? `${PRODUCT_NAMES.brokerWorkflow}: MUA`
+    : isSell
+      ? `${PRODUCT_NAMES.brokerWorkflow}: BÁN`
+      : `${PRODUCT_NAMES.brokerWorkflow}: GIỮ`;
 
   return (
     <div className="rounded-2xl border p-4 sm:p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>

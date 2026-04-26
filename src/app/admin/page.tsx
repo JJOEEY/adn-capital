@@ -316,7 +316,7 @@ function UsersTab() {
       setBrokerMinRr(String(data.AI_BROKER_MIN_RR ?? "1"));
       setBrokerAutoPick(Boolean(data.AI_BROKER_AUTO_PICK ?? true));
     } catch {
-      setBrokerMessage("Không tải được cấu hình AI Broker.");
+      setBrokerMessage("Không tải được cấu hình NexPilot.");
     } finally {
       setBrokerSettingsLoading(false);
     }
@@ -420,9 +420,9 @@ function UsersTab() {
         });
         if (!res.ok) throw new Error();
       }
-      setBrokerMessage("Đã lưu cấu hình AI Broker.");
+      setBrokerMessage("Đã lưu cấu hình NexPilot.");
     } catch {
-      setBrokerMessage("Lưu cấu hình AI Broker thất bại.");
+      setBrokerMessage("Lưu cấu hình NexPilot thất bại.");
     } finally {
       setBrokerSaving(false);
     }

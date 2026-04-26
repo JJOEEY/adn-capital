@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import type { Signal } from "@/types";
 import { RPIDashboard } from "@/components/formula-test/RPIDashboard";
+import { PRODUCT_NAMES } from "@/lib/brand/productNames";
 
 const FORMULAS = [
   {
@@ -38,7 +39,7 @@ const FORMULAS = [
     description:
       "Cổ phiếu mạnh nhất thị trường, tích lũy nền dài cạn kiệt thanh khoản, đột phá Vol khổng lồ xác nhận vào siêu sóng.",
     conditions: [
-      { icon: BarChart2, text: "RS Rating ≥ 85 (top 15% thị trường)" },
+      { icon: BarChart2, text: `${PRODUCT_NAMES.rsRating} ≥ 85 (top 15% thị trường)` },
       { icon: Target, text: "Nền giá hẹp < 8% trong 20 phiên" },
       { icon: Volume2, text: "Volume đột biến > 2.5× trung bình 20 phiên" },
       { icon: TrendingUp, text: "Breakout đỉnh hộp 20 phiên" },

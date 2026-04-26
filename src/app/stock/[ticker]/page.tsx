@@ -8,6 +8,7 @@ import { StockChart } from "@/components/chat/StockChart";
 import { OrderTicketPanel } from "@/components/broker/OrderTicketPanel";
 import { useTopic } from "@/hooks/useTopic";
 import { useTopics } from "@/hooks/useTopics";
+import { PRODUCT_NAMES } from "@/lib/brand/productNames";
 
 type TabId =
   | "overview"
@@ -157,14 +158,14 @@ type ChatMessage = {
 };
 
 const TABS: Array<{ id: TabId; label: string }> = [
-  { id: "overview", label: "Tong quan" },
+  { id: "overview", label: "Tổng quan" },
   { id: "ta", label: "TA" },
   { id: "fa", label: "FA" },
-  { id: "sentiment", label: "Tam ly" },
-  { id: "news", label: "News" },
-  { id: "seasonality", label: "Seasonality" },
-  { id: "signal", label: "Signal" },
-  { id: "portfolio", label: "Portfolio" },
+  { id: "sentiment", label: "Tâm lý" },
+  { id: "news", label: "Tin tức" },
+  { id: "seasonality", label: "Mùa vụ" },
+  { id: "signal", label: "Tín hiệu" },
+  { id: "portfolio", label: "Danh mục" },
 ];
 
 function fmtValue(value: number | null | undefined, suffix = "") {
@@ -224,9 +225,9 @@ function FreshnessBadge({ label, freshness }: { label: string; freshness: string
 function buildActionSummary(signal: SignalData | null, hasHolding: boolean) {
   if (!signal) {
     return {
-      title: "No active signal",
+      title: "Chưa có tín hiệu active",
       tone: "neutral" as const,
-      text: "He thong chua co signal moi cho ma nay. Nha dau tu theo doi tiep trong Watchlist.",
+      text: "Hệ thống chưa có tín hiệu mới cho mã này. Nhà đầu tư tiếp tục theo dõi trong danh sách quan tâm.",
     };
   }
 
@@ -240,39 +241,39 @@ function buildActionSummary(signal: SignalData | null, hasHolding: boolean) {
   if (status === "ACTIVE" || status === "HOLD_TO_DIE") {
     if (nearStoploss) {
       return {
-        title: "Risk warning",
+        title: "Cảnh báo rủi ro",
         tone: "danger" as const,
-        text: "Gia hien tai dang sat stoploss. Uu tien quan tri rui ro, khong binh quan vo ky luat.",
+        text: "Giá hiện tại đang sát điểm cắt lỗ. Ưu tiên quản trị rủi ro, không bình quân khi chưa có xác nhận mới.",
       };
     }
     if (pnl >= 10) {
       return {
-        title: "Protect profit",
+        title: "Bảo vệ lợi nhuận",
         tone: "success" as const,
-        text: "Vi the dang co lai tot. Co the nang trailing stop de khoa loi va giam rui ro dao chieu.",
+        text: "Vị thế đang có lãi tốt. Có thể nâng trailing stop để khóa lợi nhuận và giảm rủi ro đảo chiều.",
       };
     }
     return {
-      title: hasHolding ? "Hold discipline" : "Candidate active",
+      title: hasHolding ? "Giữ kỷ luật nắm giữ" : "Ứng viên đang active",
       tone: "warning" as const,
       text: hasHolding
-        ? "Vi the dang active. Theo doi moc target/stoploss va giu ky luat quan tri NAV."
-        : "Signal active nhung portfolio chua co vi the dong bo. Can kiem tra lai du lieu broker.",
+        ? "Vị thế đang active. Theo dõi target/cắt lỗ và giữ kỷ luật quản trị NAV."
+        : "Tín hiệu active nhưng danh mục chưa có vị thế đồng bộ. Cần kiểm tra lại dữ liệu broker.",
     };
   }
 
   if (status === "RADAR") {
     return {
-      title: "Watchlist setup",
+      title: "Thiết lập theo dõi",
       tone: "neutral" as const,
-      text: "Ma dang o trang thai radar. Cho xac nhan dieu kien kich hoat truoc khi vao lenh.",
+      text: "Mã đang ở trạng thái theo dõi. Chờ xác nhận điều kiện kích hoạt trước khi vào lệnh.",
     };
   }
 
   return {
-    title: "Signal lifecycle update",
+    title: "Cập nhật vòng đời tín hiệu",
     tone: "neutral" as const,
-    text: "Signal da chuyen trang thai. Kiem tra tab Signal de xem chi tiet.",
+    text: "Tín hiệu đã chuyển trạng thái. Kiểm tra tab Tín hiệu để xem chi tiết.",
   };
 }
 
@@ -289,7 +290,7 @@ function ActionSummaryCard({ summary }: { summary: ReturnType<typeof buildAction
   return (
     <div className="rounded-2xl border p-4" style={{ borderColor: style.borderColor, background: style.background }}>
       <p className="text-xs font-black uppercase tracking-wider" style={{ color: style.title }}>
-        AI Broker quick action
+        Hành động nhanh từ {PRODUCT_NAMES.brokerWorkflow}
       </p>
       <p className="mt-1 text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
         {summary.title}
