@@ -1,4 +1,7 @@
 export const BRAND = {
+  company: "ADN Capital",
+  platform: "ADNexus",
+  aiPersona: "AIDEN",
   name: "ADNexus",
   legalName: "ADN Capital",
   tagline: "Analyst. Discipline. Network.",
@@ -9,20 +12,46 @@ export const BRAND = {
 export const PRODUCT_NAMES = {
   platform: "ADNexus",
   assistant: "AIDEN Analyst",
-  advisory: "AIDEN Advisory",
+  advisory: "ADN Advisory powered by AIDEN",
+  advisoryShort: "AIDEN Advisory",
+  market: "NexPulse",
   dashboard: "NexPulse",
+  stock: "NexLens",
   workbench: "NexLens",
+  signals: "NexRadar",
   signalMap: "NexRadar",
+  rank: "NexRank",
   rsRating: "NexRank",
   art: "NexART",
+  risk: "NexGuard",
   guardrails: "NexGuard",
   portfolio: "NexVault",
+  broker: "NexLink",
   brokerConnect: "NexLink",
+  aiBroker: "NexPilot",
   brokerWorkflow: "NexPilot",
   backtest: "NexLab",
+  alerts: "NexSentinel",
   notifications: "NexSentinel",
   workflow: "NexFlow",
   brief: "AIDEN Brief",
+  diary: "NexDiary",
+} as const;
+
+export const PRODUCT_TAGLINES = {
+  platform: "Hệ điều hành đầu tư AI cho chứng khoán Việt Nam.",
+  market: "Đọc nhịp thị trường Việt Nam.",
+  stock: "Soi từng cổ phiếu qua dữ liệu, AI và tín hiệu.",
+  signals: "Theo dõi bản đồ cơ hội và vòng đời tín hiệu.",
+  rank: "Xếp hạng sức mạnh tương đối của cổ phiếu.",
+  art: "Action • Risk • Trend — đo hướng, rủi ro và trạng thái hành động.",
+  risk: "Giữ kỷ luật rủi ro trước khi hành động.",
+  portfolio: "Quản trị danh mục, tài sản và rủi ro.",
+  broker: "Kết nối tài khoản và đồng bộ trạng thái giao dịch.",
+  aiBroker: "Preview hành động giao dịch qua lớp kiểm soát.",
+  backtest: "Kiểm chứng chiến lược trước khi thực chiến.",
+  alerts: "Cảnh báo tín hiệu, rủi ro và workflow.",
+  advisory: "Tư vấn đầu tư kết hợp AI, dữ liệu và chuyên gia ADN.",
 } as const;
 
 export const PRODUCT_DESCRIPTIONS = {
@@ -40,6 +69,7 @@ export const PRODUCT_DESCRIPTIONS = {
   workflow: "Luồng tự động hóa nội bộ cho brief, signal và cảnh báo.",
   brief: "Bản tin AI đọc từ dữ liệu thị trường và tin tức đã chuẩn hóa.",
   advisory: "Trợ lý hội thoại đầu tư, hỗ trợ chat thường và phân tích mã.",
+  diary: "Nhật ký giao dịch và các ghi chú theo dõi hành động đầu tư.",
 } as const;
 
 export const ROUTE_DISPLAY_NAMES: Record<string, { title: string; breadcrumb: string }> = {
@@ -50,8 +80,8 @@ export const ROUTE_DISPLAY_NAMES: Record<string, { title: string; breadcrumb: st
   "/dashboard/signal-map": { title: PRODUCT_NAMES.brokerWorkflow, breadcrumb: "Sản phẩm - Broker workflow" },
   "/dashboard/dnse-trading": { title: PRODUCT_NAMES.brokerConnect, breadcrumb: "Admin pilot - Broker connect" },
   "/rs-rating": { title: PRODUCT_NAMES.rsRating, breadcrumb: "Sản phẩm - Xếp hạng sức mạnh" },
-  "/margin": { title: "Ký quỹ - Mua nhanh", breadcrumb: "Khác - Ký quỹ" },
-  "/journal": { title: "NexDiary", breadcrumb: "Dịch vụ - NexDiary" },
+  "/margin": { title: "Ký quỹ - Mua nhanh", breadcrumb: "Dịch vụ - Ký quỹ" },
+  "/journal": { title: PRODUCT_NAMES.diary, breadcrumb: `Dịch vụ - ${PRODUCT_NAMES.diary}` },
   "/pricing": { title: "Bảng giá", breadcrumb: "Khác - Gói dịch vụ" },
   "/backtest": { title: PRODUCT_NAMES.backtest, breadcrumb: "Khác - Kiểm chứng chiến thuật" },
   "/hdsd": { title: "Hướng dẫn sử dụng", breadcrumb: "Khác - Onboarding" },
