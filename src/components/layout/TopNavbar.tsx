@@ -41,9 +41,10 @@ const navItems = [
 ];
 
 /* ── Dropdown: Sản Phẩm Dịch Vụ ─────────────────────────── */
-const serviceItems: { href: string; label: string; icon: typeof BarChart2; badge: string | null; desc: string; adminOnly?: boolean }[] = [
+const serviceItems: { href: string; label: string; icon: typeof BarChart2; badge: string | null; desc: string; adminOnly?: boolean; vipOnly?: boolean }[] = [
   { href: "/terminal", label: PRODUCT_NAMES.advisory, icon: MessageSquare, badge: "HOT", desc: "Trợ lý đầu tư AIDEN" },
   { href: "/dashboard/signal-map", label: PRODUCT_NAMES.brokerWorkflow, icon: Zap, badge: null, desc: "Theo dõi cơ hội và trạng thái danh mục" },
+  { href: "/rs-rating", label: PRODUCT_NAMES.rsRating, icon: BarChart2, badge: "VIP", desc: "Xếp hạng sức mạnh cổ phiếu", vipOnly: true },
   { href: "/dashboard/dnse-trading", label: PRODUCT_NAMES.brokerConnect, icon: Wallet, badge: "PILOT", desc: "Admin pilot, chưa public cho khách hàng thường", adminOnly: true },
   { href: "/art", label: PRODUCT_NAMES.art, icon: Activity, badge: "MỚI", desc: "Action - Risk - Trend" },
   { href: "/formula-test", label: "Test công thức", icon: FlaskConical, badge: "MỚI", desc: "Kiểm tra công thức nội bộ", adminOnly: true },
@@ -101,7 +102,10 @@ export function TopNavbar() {
       ? pathname === "/"
       : pathname === href || pathname.startsWith(href + "/");
 
-  const isServiceActive = serviceItems.some((s) => isActive(s.href));
+  const canSeeService = (service: (typeof serviceItems)[number]) =>
+    (!service.adminOnly || isAdmin) && (!service.vipOnly || isAdmin || role === "VIP" || vipTier === "PREMIUM");
+  const visibleServiceItems = serviceItems.filter(canSeeService);
+  const isServiceActive = visibleServiceItems.some((s) => isActive(s.href));
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 h-14 border-b" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
@@ -204,7 +208,7 @@ export function TopNavbar() {
                           }}
                         >
                           <div className="p-1.5 space-y-0.5">
-                            {serviceItems.filter((s) => !s.adminOnly || isAdmin).map((svc) => {
+                            {visibleServiceItems.map((svc) => {
                               const SvcIcon = svc.icon;
                               const svcActive = isActive(svc.href);
                               return (
@@ -367,7 +371,7 @@ export function TopNavbar() {
             {/* Nhóm công cụ đầu tư trên mobile */}
             <div className="pt-1 mt-1 border-t" style={{ borderColor: "var(--border)" }}>
               <p className="px-3 text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: "var(--text-muted)" }}>Bộ công cụ đầu tư</p>
-              {serviceItems.filter((s) => !s.adminOnly || isAdmin).map((svc) => {
+              {visibleServiceItems.map((svc) => {
                 const SvcIcon = svc.icon;
                 const active = isActive(svc.href);
                 return (

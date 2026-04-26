@@ -9,7 +9,7 @@ export const BRAND = {
 export const PRODUCT_NAMES = {
   platform: "ADNexus",
   assistant: "AIDEN Analyst",
-  advisory: "ADN Advisory powered by AIDEN",
+  advisory: "AIDEN Advisory",
   dashboard: "NexPulse",
   workbench: "NexLens",
   signalMap: "NexRadar",
@@ -28,10 +28,10 @@ export const PRODUCT_NAMES = {
 export const PRODUCT_DESCRIPTIONS = {
   dashboard: "Bức tranh thị trường, thanh khoản, độ rộng và bản tin trong ngày.",
   workbench: "Không gian phân tích từng mã cổ phiếu theo dữ liệu đang có.",
-  signalMap: "Bản đồ tín hiệu đồng bộ từ cùng nguồn với Telegram và app.",
+  signalMap: "Bản đồ tín hiệu được đồng bộ từ cùng nguồn với Telegram và app.",
   rsRating: "Xếp hạng sức mạnh tương đối của cổ phiếu và danh mục theo nguồn chuẩn.",
-  art: "Action - Risk - Trend: theo dõi trạng thái hành động, rủi ro và xu hướng.",
-  guardrails: "Giới hạn an toàn giúp giữ kỷ luật trước khi hành động.",
+  art: "Action - Risk - Trend: theo dõi đảo chiều và trạng thái rủi ro.",
+  guardrails: "Các giới hạn an toàn giúp giữ kỷ luật trước khi hành động.",
   portfolio: "Theo dõi danh mục, vị thế và trạng thái lãi lỗ.",
   brokerConnect: "Kết nối broker ở chế độ pilot, chưa public cho khách hàng thường.",
   brokerWorkflow: "Theo dõi cơ hội, trạng thái và hành động đề xuất có kiểm soát.",
@@ -44,7 +44,6 @@ export const PRODUCT_DESCRIPTIONS = {
 
 export const ROUTE_DISPLAY_NAMES: Record<string, { title: string; breadcrumb: string }> = {
   "/": { title: BRAND.name, breadcrumb: BRAND.positioning },
-  "/auth": { title: `Đăng nhập ${BRAND.name}`, breadcrumb: `${BRAND.name} - Đăng nhập` },
   "/dashboard": { title: PRODUCT_NAMES.dashboard, breadcrumb: "Trang chủ - Tổng quan thị trường" },
   "/art": { title: PRODUCT_NAMES.art, breadcrumb: "Sản phẩm - Action - Risk - Trend" },
   "/terminal": { title: PRODUCT_NAMES.advisory, breadcrumb: "Sản phẩm - Tư vấn đầu tư" },
@@ -62,7 +61,6 @@ export const ROUTE_DISPLAY_NAMES: Record<string, { title: string; breadcrumb: st
   "/tin-tuc": { title: "Tin tức", breadcrumb: "Tin tức - Cập nhật thị trường" },
   "/khac/tin-tuc": { title: "Tin tức", breadcrumb: "Tin tức - Cập nhật thị trường" },
   "/notifications": { title: PRODUCT_NAMES.notifications, breadcrumb: "Thông báo - Cảnh báo và cập nhật" },
-  "/app-updates": { title: "Nhật ký cập nhật", breadcrumb: `${BRAND.name} - Cập nhật app và vá lỗi` },
   "/menu": { title: "Menu", breadcrumb: `${BRAND.name} - Tài khoản và dịch vụ` },
 };
 

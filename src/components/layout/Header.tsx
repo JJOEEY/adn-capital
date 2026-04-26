@@ -9,6 +9,7 @@ import { signOut, useSession } from "next-auth/react";
 import {
   Activity,
   Banknote,
+  BarChart2,
   Bell,
   BookOpen,
   Bot,
@@ -42,6 +43,7 @@ interface MenuItem {
   external?: boolean;
   badge?: string;
   roles?: string[];
+  requiresVip?: boolean;
 }
 
 interface MenuSection {
@@ -54,6 +56,7 @@ const menuSections: MenuSection[] = [
   {
     title: "Tổng quan",
     items: [
+      { href: "/", label: "Trang chủ", icon: Home },
       { href: "/dashboard", label: PRODUCT_NAMES.dashboard, icon: LayoutDashboard },
     ],
   },
@@ -63,6 +66,7 @@ const menuSections: MenuSection[] = [
       { href: "/dashboard/signal-map", label: PRODUCT_NAMES.brokerWorkflow, icon: Zap },
       { href: "/terminal", label: PRODUCT_NAMES.advisory, icon: MessageSquare },
       { href: "/art", label: PRODUCT_NAMES.art, icon: Activity, badge: "MỚI" },
+      { href: "/rs-rating", label: PRODUCT_NAMES.rsRating, icon: BarChart2, badge: "VIP", requiresVip: true },
       {
         href: "/dashboard/dnse-trading",
         label: PRODUCT_NAMES.brokerConnect,
@@ -135,7 +139,7 @@ function SidebarContent() {
   return (
     <div className="flex h-full flex-col">
       <div className={`shrink-0 flex items-center ${compact ? "justify-center px-2 pt-5 pb-4" : "gap-2.5 px-4 pt-5 pb-4"}`}>
-        <Link href="/dashboard" className={`flex items-center ${compact ? "justify-center" : "gap-2.5"}`}>
+        <Link href="/" className={`flex items-center ${compact ? "justify-center" : "gap-2.5"}`}>
           <Image
             src="/brand/favicon.png"
             alt={BRAND.name}
@@ -237,6 +241,7 @@ function SidebarContent() {
               <div className="space-y-0.5">
                 {section.items.map((item) => {
                   if (item.roles && !item.roles.includes(dbUser?.systemRole ?? "")) return null;
+                  if (item.requiresVip && !isAdmin && role !== "VIP" && vipTier !== "PREMIUM") return null;
                   const Icon = item.icon;
                   const active = isActive(item.href);
 

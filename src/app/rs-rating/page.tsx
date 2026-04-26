@@ -42,6 +42,14 @@ function FreshnessBadge({ freshness }: { freshness: string | null }) {
   );
 }
 
+function formatUpdatedAt(value: string) {
+  return new Date(value).toLocaleTimeString("vi-VN", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export default function RSRatingPage() {
   const { isRsRatingLocked } = useSubscription();
   const rsTopic = useTopic<RsRatingPayload>("research:rs-rating:list", {
@@ -91,7 +99,7 @@ export default function RSRatingPage() {
             <FreshnessBadge freshness={rsTopic.freshness} />
             {rsTopic.data?.updatedAt ? (
               <span className="hidden text-[12px] sm:inline" style={{ color: "var(--text-muted)" }}>
-                Cập nhật: {new Date(rsTopic.data.updatedAt).toLocaleTimeString("vi-VN")}
+                Cập nhật: {formatUpdatedAt(rsTopic.data.updatedAt)}
               </span>
             ) : null}
             <button
@@ -133,7 +141,7 @@ export default function RSRatingPage() {
         ) : (
           <LockOverlay
             isLocked={isRsRatingLocked}
-            message={`Nâng cấp VIP để xem bảng xếp hạng ${PRODUCT_NAMES.rsRating} đầy đủ`}
+            message={`Nâng cấp VIP/Premium để xem bảng xếp hạng ${PRODUCT_NAMES.rsRating} đầy đủ`}
           >
             <RatingTable stocks={stocks} />
           </LockOverlay>
