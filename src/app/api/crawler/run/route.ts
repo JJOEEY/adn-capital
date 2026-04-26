@@ -2,6 +2,13 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { GoogleGenAI } from "@google/genai";
+import {
+  countArticleWords,
+  ensureSeoTags,
+  hasArticleImage,
+  isFinanceArticle,
+  sanitizeArticleHtml,
+} from "@/lib/articles/server";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -35,6 +42,13 @@ interface AIRewriteResult {
   tags: string[];
 }
 
+type SaveArticleResult = {
+  id: string;
+  title: string;
+  status: string;
+  reason?: string;
+};
+
 // ── Slug generator ──
 function generateSlug(title: string): string {
   return (
@@ -52,6 +66,38 @@ function generateSlug(title: string): string {
 }
 
 // ── Step 1: VnExpress RSS Crawler ──
+function extractImageFromHtml(html: string): string | null {
+  const candidates = [
+    html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i),
+    html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i),
+    html.match(/<meta[^>]+itemprop=["']image["'][^>]+content=["']([^"']+)["']/i),
+    html.match(/<img[^>]+src=["']([^"']+\.(?:jpg|jpeg|png|webp)(?:\?[^"']*)?)["']/i),
+  ];
+
+  for (const match of candidates) {
+    const value = match?.[1]?.replace(/&amp;/g, "&").trim();
+    if (value && /^https?:\/\//i.test(value)) return value;
+  }
+
+  return null;
+}
+
+function validateArticleQuality(item: CrawledItem, content: string, tags: string[]) {
+  const reasons: string[] = [];
+  const combinedText = `${item.originalTitle} ${item.excerpt} ${content} ${tags.join(" ")}`;
+  const wordCount = countArticleWords(content);
+
+  if (!isFinanceArticle(combinedText)) reasons.push("not_finance_stock_news");
+  if (!hasArticleImage(item.imageUrl)) reasons.push("missing_image");
+  if (wordCount < 1000) reasons.push(`word_count_${wordCount}_below_1000`);
+
+  return {
+    ok: reasons.length === 0,
+    reasons,
+    wordCount,
+  };
+}
+
 async function crawlNews(): Promise<CrawledItem[]> {
   const RSS_FEEDS = [
     { source: "CafeF", url: "https://cafef.vn/thi-truong-chung-khoan.rss", category: "thi-truong" },
@@ -147,6 +193,7 @@ async function aiRewrite(item: CrawledItem): Promise<AIRewriteResult> {
       });
       if (pageRes.ok) {
         const html = await pageRes.text();
+        item.imageUrl = item.imageUrl || extractImageFromHtml(html);
         // Extract main article body from VnExpress / CafeF / generic pages
         const bodyMatch =
           html.match(/<article[^>]*class="[^"]*fck_detail[^"]*"[^>]*>([\s\S]*?)<\/article>/i) ||
@@ -172,7 +219,18 @@ async function aiRewrite(item: CrawledItem): Promise<AIRewriteResult> {
     }
   }
 
-  const prompt = `Bạn là một Chuyên gia phân tích vĩ mô và Nhà báo tài chính kỳ cựu đang làm việc tại ADN Capital. Nhiệm vụ của bạn là biên tập lại bài báo thô được cung cấp. Bạn phải tuân thủ TUYỆT ĐỐI các luật lệ sau:
+  const qualityRules = `
+YEU CAU CHAT LUONG BAT BUOC CHO WEB ADN:
+- Chi bien tap tin lien quan den tai chinh, chung khoan, ngan hang, vi mo, doanh nghiep niem yet, trai phieu, bat dong san hoac thi truong von.
+- Bai viet phai co do dai toi thieu 1000 tu sau khi bien tap, day du boi canh, so lieu, dien bien, tac dong va rui ro.
+- Noi dung phai chia dong nhu bai bao truyen thong: moi y trong mot the <p>, moi doan toi da 3-4 cau, co <h3> khi doi y lon.
+- Phai tao hashtag SEO trong mang tags, uu tien: chung khoan, tai chinh, VNIndex, ten nguon va chu de lien quan.
+- Khong viet nhu status ngan tren mang xa hoi; khong tao KPI, loi nhuan hay khuyen nghi khong co co so.
+`;
+
+  const prompt = `${qualityRules}
+
+Bạn là một Chuyên gia phân tích vĩ mô và Nhà báo tài chính kỳ cựu đang làm việc tại ADN Capital. Nhiệm vụ của bạn là biên tập lại bài báo thô được cung cấp. Bạn phải tuân thủ TUYỆT ĐỐI các luật lệ sau:
 
 1. GIỌNG VĂN KHÁCH QUAN, LẠNH LÙNG: Viết theo phong cách báo chí tài chính quốc tế (Reuters, Bloomberg, CafeF). Tập trung 100% vào sự kiện, dữ liệu, con số và luận điểm logic.
 2. CÁC TỪ CẤM (BLACKLIST): Tuyệt đối KHÔNG sử dụng các cụm từ sáo rỗng của AI như: "bức tranh toàn cảnh", "hành trình", "nhìn chung", "đáng chú ý", "không thể phủ nhận", "thời đại số", "có thể thấy", "như chúng ta đã biết", "sự trỗi dậy", "thắp sáng", "SỐC", "bùng nổ", "chấn động". Không dùng dấu chấm than (!).
@@ -241,7 +299,7 @@ async function saveArticle(
   item: CrawledItem,
   aiResult: AIRewriteResult,
   adminUserId: string
-): Promise<{ id: string; title: string; status: string }> {
+): Promise<SaveArticleResult> {
   // Check if article with same sourceUrl already exists
   if (item.sourceUrl) {
     const existing = await prisma.article.findFirst({
@@ -259,18 +317,31 @@ async function saveArticle(
     select: { id: true },
   });
 
+  const sanitizedContent = sanitizeArticleHtml(aiResult.content || item.content);
+  const seoTags = ensureSeoTags(aiResult.tags, item.sourceName);
+  const quality = validateArticleQuality(item, sanitizedContent, seoTags);
+
+  if (!quality.ok) {
+    return {
+      id: "",
+      title: aiResult.title,
+      status: "SKIPPED_QUALITY",
+      reason: quality.reasons.join(","),
+    };
+  }
+
   const article = await prisma.article.create({
     data: {
       title: aiResult.title,
       originalTitle: item.originalTitle,
       slug: generateSlug(aiResult.title),
-      content: aiResult.content || item.content,
+      content: sanitizedContent,
       excerpt: item.excerpt,
       aiSummary: aiResult.aiSummary,
       sourceUrl: item.sourceUrl,
       imageUrl: item.imageUrl,
       pdfUrl: item.pdfUrl,
-      tags: JSON.stringify(aiResult.tags),
+      tags: JSON.stringify(seoTags),
       sentiment: aiResult.sentiment,
       categoryId: category?.id ?? null,
       authorId: adminUserId,
@@ -348,7 +419,7 @@ export async function POST(request: Request) {
     }
 
     // Step 2 + 3: AI Rewrite + Save (sequential to avoid rate limits)
-    const results: { id: string; title: string; status: string }[] = [];
+    const results: SaveArticleResult[] = [];
 
     for (const item of allItems) {
       const aiResult = await aiRewrite(item);
@@ -358,12 +429,13 @@ export async function POST(request: Request) {
 
     const created = results.filter((r) => r.status === "PENDING_APPROVAL" || r.status === "PUBLISHED").length;
     const published = results.filter((r) => r.status === "PUBLISHED").length;
-    const skipped = results.filter((r) => r.status === "SKIPPED").length;
+    const skipped = results.filter((r) => r.status === "SKIPPED" || r.status === "SKIPPED_QUALITY").length;
+    const skippedQuality = results.filter((r) => r.status === "SKIPPED_QUALITY").length;
 
     return NextResponse.json({
       success: true,
       published,
-      message: `Crawled ${allItems.length} bài, tạo ${created} mới, bỏ qua ${skipped} trùng`,
+      message: `Crawled ${allItems.length} bài, tạo ${created} mới, bỏ qua ${skipped} bài (${skippedQuality} bài không đạt chuẩn chất lượng)`,
       results,
     });
   } catch (error) {

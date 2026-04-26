@@ -1,282 +1,277 @@
 "use client";
 
-import { useEditor, EditorContent } from "@tiptap/react";
+import { useCallback, useEffect, useRef } from "react";
+import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
 import Underline from "@tiptap/extension-underline";
 import Placeholder from "@tiptap/extension-placeholder";
 import TextAlign from "@tiptap/extension-text-align";
-import { useCallback, useRef } from "react";
 import {
   Bold,
-  Italic,
-  Underline as UnderlineIcon,
-  Strikethrough,
   Heading2,
-  Heading3,
+  ImagePlus,
+  Italic,
+  Link as LinkIcon,
   List,
   ListOrdered,
-  ImageIcon,
-  Link as LinkIcon,
-  Undo,
-  Redo,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
   Quote,
-  Minus,
-  RemoveFormatting,
+  Underline as UnderlineIcon,
 } from "lucide-react";
 
 interface RichTextEditorProps {
   content: string;
   onChange: (html: string) => void;
   placeholder?: string;
+  uploadEndpoint?: string;
+  onImageUploaded?: (url: string) => void;
 }
 
-export default function RichTextEditor({ content, onChange, placeholder = "Nội dung bài viết..." }: RichTextEditorProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        heading: { levels: [2, 3] },
-      }),
-      Underline,
-      Image.configure({
-        HTMLAttributes: { class: "rounded-lg max-w-full h-auto my-4" },
-        allowBase64: true,
-      }),
-      Link.configure({
-        openOnClick: false,
-        HTMLAttributes: { class: "text-cyan-400 underline hover:text-cyan-300", target: "_blank", rel: "noopener noreferrer" },
-      }),
-      Placeholder.configure({ placeholder }),
-      TextAlign.configure({ types: ["heading", "paragraph"] }),
-    ],
-    content,
-    onUpdate: ({ editor }) => {
-      onChange(editor.getHTML());
-    },
-    editorProps: {
-      attributes: {
-        class: "prose prose-invert prose-sm max-w-none min-h-[300px] px-4 py-3 focus:outline-none text-slate-200 leading-relaxed",
-      },
-      handleDrop: (view, event) => {
-        const files = event.dataTransfer?.files;
-        if (files && files.length > 0) {
-          event.preventDefault();
-          Array.from(files).forEach((file) => {
-            if (file.type.startsWith("image/")) {
-              handleImageFile(file);
-            }
-          });
-          return true;
-        }
-        return false;
-      },
-      handlePaste: (view, event) => {
-        const items = event.clipboardData?.items;
-        if (items) {
-          for (const item of Array.from(items)) {
-            if (item.type.startsWith("image/")) {
-              event.preventDefault();
-              const file = item.getAsFile();
-              if (file) handleImageFile(file);
-              return true;
-            }
-          }
-        }
-        return false;
-      },
-    },
-  });
-
-  const handleImageFile = useCallback(
-    (file: File) => {
-      if (!editor) return;
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const src = e.target?.result as string;
-        if (src) {
-          editor.chain().focus().setImage({ src }).run();
-        }
-      };
-      reader.readAsDataURL(file);
-    },
-    [editor]
-  );
-
-  const addImageFromUrl = useCallback(() => {
-    if (!editor) return;
-    const url = window.prompt("Nhập URL hình ảnh:");
-    if (url) {
-      editor.chain().focus().setImage({ src: url }).run();
-    }
-  }, [editor]);
-
-  const addLink = useCallback(() => {
-    if (!editor) return;
-    const previousUrl = editor.getAttributes("link").href;
-    const url = window.prompt("Nhập URL liên kết:", previousUrl);
-    if (url === null) return;
-    if (url === "") {
-      editor.chain().focus().extendMarkRange("link").unsetLink().run();
-    } else {
-      editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
-    }
-  }, [editor]);
-
-  const handleFileInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = e.target.files;
-      if (files) {
-        Array.from(files).forEach((file) => {
-          if (file.type.startsWith("image/")) {
-            handleImageFile(file);
-          }
-        });
-      }
-      e.target.value = "";
-    },
-    [handleImageFile]
-  );
-
-  if (!editor) return null;
-
-  const ToolBtn = ({
-    onClick,
-    active,
-    disabled,
-    title,
-    children,
-  }: {
-    onClick: () => void;
-    active?: boolean;
-    disabled?: boolean;
-    title: string;
-    children: React.ReactNode;
-  }) => (
+function ToolbarButton({
+  active,
+  disabled,
+  onClick,
+  children,
+  label,
+}: {
+  active?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+  label: string;
+}) {
+  return (
     <button
       type="button"
-      onClick={onClick}
+      aria-label={label}
       disabled={disabled}
-      title={title}
-      className={`p-1.5 rounded-md transition-colors ${
-        active ? "bg-cyan-500/20 text-cyan-400" : "text-slate-400 hover:text-white hover:bg-white/10"
-      } ${disabled ? "opacity-30 cursor-not-allowed" : ""}`}
+      onClick={onClick}
+      className={`rounded-lg border px-2.5 py-2 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+        active
+          ? "border-blue-400/40 bg-blue-500/20 text-blue-200"
+          : "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"
+      }`}
     >
       {children}
     </button>
   );
+}
 
-  const iconSize = "w-4 h-4";
+export default function RichTextEditor({
+  content,
+  onChange,
+  placeholder = "Nội dung bài viết...",
+  uploadEndpoint = "/api/articles/upload-image",
+  onImageUploaded,
+}: RichTextEditorProps) {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const editorRef = useRef<Editor | null>(null);
+
+  const uploadImage = useCallback(
+    async (file: File) => {
+      if (!file.type.startsWith("image/")) return;
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch(uploadEndpoint, {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = (await res.json().catch(() => null)) as { url?: string; error?: string } | null;
+      if (!res.ok || !data?.url) {
+        throw new Error(data?.error || "Không thể tải ảnh lên máy chủ");
+      }
+
+      editorRef.current?.chain().focus().setImage({ src: data.url, alt: file.name }).run();
+      onImageUploaded?.(data.url);
+    },
+    [onImageUploaded, uploadEndpoint]
+  );
+
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        heading: {
+          levels: [2, 3],
+        },
+      }),
+      Underline,
+      Link.configure({
+        openOnClick: false,
+        autolink: true,
+        linkOnPaste: true,
+        HTMLAttributes: {
+          class: "text-blue-400 underline underline-offset-2",
+          rel: "noopener noreferrer nofollow",
+          target: "_blank",
+        },
+      }),
+      Image.configure({
+        allowBase64: false,
+        HTMLAttributes: {
+          class: "my-4 h-auto max-w-full rounded-lg",
+        },
+      }),
+      TextAlign.configure({
+        types: ["heading", "paragraph"],
+      }),
+      Placeholder.configure({
+        placeholder,
+      }),
+    ],
+    content,
+    editorProps: {
+      attributes: {
+        class:
+          "prose prose-invert max-w-none min-h-[320px] px-4 py-3 text-sm text-slate-200 focus:outline-none",
+      },
+      handlePaste: (_view, event) => {
+        const files = Array.from(event.clipboardData?.files ?? []).filter((file) =>
+          file.type.startsWith("image/")
+        );
+        if (files.length === 0) return false;
+
+        event.preventDefault();
+        for (const file of files) {
+          void uploadImage(file).catch((error) => {
+            console.error("[RichTextEditor] Image paste upload failed:", error);
+          });
+        }
+        return true;
+      },
+      handleDrop: (_view, event) => {
+        const files = Array.from(event.dataTransfer?.files ?? []).filter((file) =>
+          file.type.startsWith("image/")
+        );
+        if (files.length === 0) return false;
+
+        event.preventDefault();
+        for (const file of files) {
+          void uploadImage(file).catch((error) => {
+            console.error("[RichTextEditor] Image drop upload failed:", error);
+          });
+        }
+        return true;
+      },
+    },
+    onUpdate: ({ editor }) => {
+      onChange(editor.getHTML());
+    },
+  });
+
+  useEffect(() => {
+    editorRef.current = editor;
+  }, [editor]);
+
+  useEffect(() => {
+    if (!editor || editor.getHTML() === content) return;
+    editor.commands.setContent(content || "");
+  }, [content, editor]);
+
+  const addLink = () => {
+    if (!editor) return;
+    const previousUrl = editor.getAttributes("link").href as string | undefined;
+    const url = window.prompt("URL liên kết", previousUrl ?? "https://");
+    if (url === null) return;
+    if (!url.trim()) {
+      editor.chain().focus().unsetLink().run();
+      return;
+    }
+    editor.chain().focus().extendMarkRange("link").setLink({ href: url.trim() }).run();
+  };
 
   return (
-    <div className="rounded-xl border border-white/10 bg-white/[0.03] overflow-hidden">
-      {/* ── Toolbar ── */}
-      <div className="flex flex-wrap items-center gap-0.5 px-2 py-1.5 border-b border-white/10 bg-white/[0.02]">
-        {/* Undo/Redo */}
-        <ToolBtn onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} title="Hoàn tác (Ctrl+Z)">
-          <Undo className={iconSize} />
-        </ToolBtn>
-        <ToolBtn onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} title="Làm lại (Ctrl+Y)">
-          <Redo className={iconSize} />
-        </ToolBtn>
-
-        <div className="w-px h-5 bg-white/10 mx-1" />
-
-        {/* Text formatting */}
-        <ToolBtn onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive("bold")} title="In đậm (Ctrl+B)">
-          <Bold className={iconSize} />
-        </ToolBtn>
-        <ToolBtn onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive("italic")} title="In nghiêng (Ctrl+I)">
-          <Italic className={iconSize} />
-        </ToolBtn>
-        <ToolBtn onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive("underline")} title="Gạch chân (Ctrl+U)">
-          <UnderlineIcon className={iconSize} />
-        </ToolBtn>
-        <ToolBtn onClick={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive("strike")} title="Gạch ngang">
-          <Strikethrough className={iconSize} />
-        </ToolBtn>
-
-        <div className="w-px h-5 bg-white/10 mx-1" />
-
-        {/* Headings */}
-        <ToolBtn onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive("heading", { level: 2 })} title="Tiêu đề H2">
-          <Heading2 className={iconSize} />
-        </ToolBtn>
-        <ToolBtn onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={editor.isActive("heading", { level: 3 })} title="Tiêu đề H3">
-          <Heading3 className={iconSize} />
-        </ToolBtn>
-
-        <div className="w-px h-5 bg-white/10 mx-1" />
-
-        {/* Lists */}
-        <ToolBtn onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive("bulletList")} title="Danh sách">
-          <List className={iconSize} />
-        </ToolBtn>
-        <ToolBtn onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive("orderedList")} title="Danh sách đánh số">
-          <ListOrdered className={iconSize} />
-        </ToolBtn>
-        <ToolBtn onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive("blockquote")} title="Trích dẫn">
-          <Quote className={iconSize} />
-        </ToolBtn>
-
-        <div className="w-px h-5 bg-white/10 mx-1" />
-
-        {/* Alignment */}
-        <ToolBtn onClick={() => editor.chain().focus().setTextAlign("left").run()} active={editor.isActive({ textAlign: "left" })} title="Căn trái">
-          <AlignLeft className={iconSize} />
-        </ToolBtn>
-        <ToolBtn onClick={() => editor.chain().focus().setTextAlign("center").run()} active={editor.isActive({ textAlign: "center" })} title="Căn giữa">
-          <AlignCenter className={iconSize} />
-        </ToolBtn>
-        <ToolBtn onClick={() => editor.chain().focus().setTextAlign("right").run()} active={editor.isActive({ textAlign: "right" })} title="Căn phải">
-          <AlignRight className={iconSize} />
-        </ToolBtn>
-
-        <div className="w-px h-5 bg-white/10 mx-1" />
-
-        {/* Media */}
-        <ToolBtn onClick={() => fileInputRef.current?.click()} title="Tải ảnh lên">
-          <ImageIcon className={iconSize} />
-        </ToolBtn>
-        <ToolBtn onClick={addImageFromUrl} title="Chèn ảnh từ URL">
-          <ImageIcon className={`${iconSize} opacity-60`} />
-        </ToolBtn>
-        <ToolBtn onClick={addLink} active={editor.isActive("link")} title="Chèn liên kết">
-          <LinkIcon className={iconSize} />
-        </ToolBtn>
-
-        <div className="w-px h-5 bg-white/10 mx-1" />
-
-        {/* Misc */}
-        <ToolBtn onClick={() => editor.chain().focus().setHorizontalRule().run()} title="Đường kẻ ngang">
-          <Minus className={iconSize} />
-        </ToolBtn>
-        <ToolBtn onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()} title="Xóa định dạng">
-          <RemoveFormatting className={iconSize} />
-        </ToolBtn>
+    <div className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]">
+      <div className="flex flex-wrap items-center gap-2 border-b border-white/10 bg-black/20 px-3 py-2">
+        <ToolbarButton
+          label="In đậm"
+          disabled={!editor}
+          active={editor?.isActive("bold")}
+          onClick={() => editor?.chain().focus().toggleBold().run()}
+        >
+          <Bold className="h-4 w-4" />
+        </ToolbarButton>
+        <ToolbarButton
+          label="In nghiêng"
+          disabled={!editor}
+          active={editor?.isActive("italic")}
+          onClick={() => editor?.chain().focus().toggleItalic().run()}
+        >
+          <Italic className="h-4 w-4" />
+        </ToolbarButton>
+        <ToolbarButton
+          label="Gạch chân"
+          disabled={!editor}
+          active={editor?.isActive("underline")}
+          onClick={() => editor?.chain().focus().toggleUnderline().run()}
+        >
+          <UnderlineIcon className="h-4 w-4" />
+        </ToolbarButton>
+        <ToolbarButton
+          label="Tiêu đề"
+          disabled={!editor}
+          active={editor?.isActive("heading", { level: 2 })}
+          onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
+        >
+          <Heading2 className="h-4 w-4" />
+        </ToolbarButton>
+        <ToolbarButton
+          label="Danh sách"
+          disabled={!editor}
+          active={editor?.isActive("bulletList")}
+          onClick={() => editor?.chain().focus().toggleBulletList().run()}
+        >
+          <List className="h-4 w-4" />
+        </ToolbarButton>
+        <ToolbarButton
+          label="Danh sách số"
+          disabled={!editor}
+          active={editor?.isActive("orderedList")}
+          onClick={() => editor?.chain().focus().toggleOrderedList().run()}
+        >
+          <ListOrdered className="h-4 w-4" />
+        </ToolbarButton>
+        <ToolbarButton
+          label="Trích dẫn"
+          disabled={!editor}
+          active={editor?.isActive("blockquote")}
+          onClick={() => editor?.chain().focus().toggleBlockquote().run()}
+        >
+          <Quote className="h-4 w-4" />
+        </ToolbarButton>
+        <ToolbarButton label="Liên kết" disabled={!editor} active={editor?.isActive("link")} onClick={addLink}>
+          <LinkIcon className="h-4 w-4" />
+        </ToolbarButton>
+        <ToolbarButton
+          label="Tải ảnh"
+          disabled={!editor}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <ImagePlus className="h-4 w-4" />
+        </ToolbarButton>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = "";
+            if (file) {
+              void uploadImage(file).catch((error) => {
+                console.error("[RichTextEditor] Image upload failed:", error);
+              });
+            }
+          }}
+        />
       </div>
-
-      {/* ── Editor area ── */}
       <EditorContent editor={editor} />
-
-      {/* Hidden file input for image upload */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        multiple
-        onChange={handleFileInputChange}
-        className="hidden"
-      />
-
-      {/* ── Hint ── */}
-      <div className="px-3 py-1.5 border-t border-white/5 text-[11px] text-slate-500">
-        Hỗ trợ: Copy-paste hình ảnh trực tiếp · Kéo-thả file ảnh · Ctrl+B/I/U · Markdown shortcuts
+      <div className="border-t border-white/10 px-3 py-2 text-[11px] text-slate-500">
+        Có thể dán trực tiếp hình ảnh hoặc kéo thả file ảnh. Ảnh sẽ được upload lên máy chủ,
+        không nhúng base64 vào bài viết.
       </div>
     </div>
   );

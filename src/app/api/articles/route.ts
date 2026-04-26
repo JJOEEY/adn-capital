@@ -1,24 +1,43 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import {
+  buildExcerptFromHtml,
+  createArticleSlug,
+  getArticleEditorUser,
+  normalizeArticleTags,
+  sanitizeArticleHtml,
+} from "@/lib/articles/server";
 
 export const dynamic = "force-dynamic";
 
-/**
- * GET /api/articles?status=PUBLISHED&category=thi-truong&page=1&limit=20
- * Public: chỉ trả bài PUBLISHED. Admin: trả tất cả status.
- */
+const VALID_STATUSES = ["DRAFT", "PENDING_APPROVAL", "PUBLISHED", "REJECTED"];
+
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
-  const status = searchParams.get("status") ?? "PUBLISHED";
+  const status = (searchParams.get("status") ?? "PUBLISHED").toUpperCase();
   const categorySlug = searchParams.get("category");
-  const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
-  const limit = Math.min(50, Math.max(1, parseInt(searchParams.get("limit") ?? "20")));
+  const page = Math.max(1, Number.parseInt(searchParams.get("page") ?? "1", 10));
+  const limit = Math.min(50, Math.max(1, Number.parseInt(searchParams.get("limit") ?? "20", 10)));
   const skip = (page - 1) * limit;
 
   try {
     const where: Record<string, unknown> = {};
 
-    if (status !== "ALL") {
+    if (status === "ALL") {
+      const editor = await getArticleEditorUser();
+      if (!editor) {
+        return NextResponse.json({ error: "Bạn không có quyền xem toàn bộ bài viết" }, { status: 403 });
+      }
+    } else {
+      if (!VALID_STATUSES.includes(status)) {
+        return NextResponse.json({ error: `Trạng thái không hợp lệ: ${status}` }, { status: 400 });
+      }
+      if (status !== "PUBLISHED") {
+        const editor = await getArticleEditorUser();
+        if (!editor) {
+          return NextResponse.json({ error: "Bạn không có quyền xem trạng thái này" }, { status: 403 });
+        }
+      }
       where.status = status;
     }
 
@@ -33,7 +52,7 @@ export async function GET(request: NextRequest) {
           author: { select: { id: true, name: true, image: true } },
           category: { select: { id: true, name: true, slug: true } },
         },
-        orderBy: { publishedAt: "desc" },
+        orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
         skip,
         take: limit,
       }),
@@ -41,9 +60,9 @@ export async function GET(request: NextRequest) {
     ]);
 
     return NextResponse.json({
-      articles: articles.map((a) => ({
-        ...a,
-        tags: JSON.parse(a.tags || "[]"),
+      articles: articles.map((article) => ({
+        ...article,
+        tags: safeParseTags(article.tags),
       })),
       total,
       page,
@@ -55,45 +74,46 @@ export async function GET(request: NextRequest) {
   }
 }
 
-/**
- * POST /api/articles — Tạo bài mới (WRITER hoặc ADMIN)
- */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { title, content, excerpt, aiSummary, sourceUrl, imageUrl, pdfUrl, originalTitle, tags, sentiment, categoryId, authorId } = body;
-
-    if (!title || !content || !authorId) {
-      return NextResponse.json({ error: "Thiếu title, content, hoặc authorId" }, { status: 400 });
+    const editor = await getArticleEditorUser();
+    if (!editor) {
+      return NextResponse.json({ error: "Bạn không có quyền tạo bài viết" }, { status: 403 });
     }
 
-    // Generate slug from title
-    const slug = title
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/đ/g, "d")
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "")
-      .slice(0, 100)
-      + "-" + Date.now().toString(36);
+    const body = await request.json();
+    const { title, content, excerpt, aiSummary, sourceUrl, imageUrl, pdfUrl, originalTitle, tags, hashtags, sentiment, categoryId, status } = body;
+
+    if (!title || !content) {
+      return NextResponse.json({ error: "Thiếu tiêu đề hoặc nội dung bài viết" }, { status: 400 });
+    }
+
+    const safeContent = sanitizeArticleHtml(String(content));
+    const requestedStatus = typeof status === "string" ? status.toUpperCase() : "PENDING_APPROVAL";
+    const articleStatus =
+      requestedStatus === "PUBLISHED" && editor.systemRole === "ADMIN"
+        ? "PUBLISHED"
+        : requestedStatus === "DRAFT"
+          ? "DRAFT"
+          : "PENDING_APPROVAL";
 
     const article = await prisma.article.create({
       data: {
-        title,
+        title: String(title).trim(),
         originalTitle: originalTitle || null,
-        slug,
-        content,
-        excerpt: excerpt || null,
+        slug: createArticleSlug(String(title)),
+        content: safeContent,
+        excerpt: excerpt || buildExcerptFromHtml(safeContent),
         aiSummary: aiSummary || null,
         sourceUrl: sourceUrl || null,
         imageUrl: imageUrl || null,
         pdfUrl: pdfUrl || null,
-        tags: JSON.stringify(tags || []),
+        tags: JSON.stringify(normalizeArticleTags(tags ?? hashtags)),
         sentiment: sentiment || null,
         categoryId: categoryId || null,
-        authorId,
-        status: "PENDING_APPROVAL",
+        authorId: editor.id,
+        status: articleStatus,
+        publishedAt: articleStatus === "PUBLISHED" ? new Date() : null,
       },
     });
 
@@ -101,5 +121,13 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("[POST /api/articles] Error:", error);
     return NextResponse.json({ error: "Lỗi tạo bài viết" }, { status: 500 });
+  }
+}
+
+function safeParseTags(value: string): string[] {
+  try {
+    return normalizeArticleTags(JSON.parse(value || "[]"));
+  } catch {
+    return normalizeArticleTags(value);
   }
 }

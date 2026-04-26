@@ -44,6 +44,13 @@ const statusConfig: Record<string, { label: string; bg: string; text: string }> 
   REJECTED: { label: "Từ chối", bg: "bg-red-500/15", text: "text-red-400" },
 };
 
+function parseTagsInput(value: string): string[] {
+  return value
+    .split(/[,;\n]/g)
+    .map((tag) => tag.replace(/^#+/, "").trim())
+    .filter(Boolean);
+}
+
 function StatusBadge({ status }: { status: string }) {
   const cfg = statusConfig[status] ?? statusConfig.DRAFT;
   return (
@@ -54,7 +61,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function AdminArticlesPage() {
-  const { isWriter, isLoading: authLoading, dbUser } = useCurrentDbUser();
+  const { isWriter, isLoading: authLoading } = useCurrentDbUser();
   const [articles, setArticles] = useState<Article[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,6 +77,8 @@ export default function AdminArticlesPage() {
   const [writeContent, setWriteContent] = useState("");
   const [writeCategoryId, setWriteCategoryId] = useState("");
   const [writeImageUrl, setWriteImageUrl] = useState("");
+  const [writeTags, setWriteTags] = useState("");
+  const [writeError, setWriteError] = useState<string | null>(null);
   const [writeSubmitting, setWriteSubmitting] = useState(false);
 
   const fetchArticles = useCallback(async () => {
@@ -156,6 +165,7 @@ export default function AdminArticlesPage() {
   const handleWriteSubmit = async () => {
     if (!writeTitle.trim() || !writeContent.trim()) return;
     setWriteSubmitting(true);
+    setWriteError(null);
     try {
       const res = await fetch("/api/articles", {
         method: "POST",
@@ -165,7 +175,7 @@ export default function AdminArticlesPage() {
           content: writeContent.trim(),
           categoryId: writeCategoryId || null,
           imageUrl: writeImageUrl.trim() || null,
-          authorId: dbUser?.id ?? "",
+          tags: parseTagsInput(writeTags),
         }),
       });
       if (res.ok) {
@@ -173,11 +183,16 @@ export default function AdminArticlesPage() {
         setWriteContent("");
         setWriteCategoryId("");
         setWriteImageUrl("");
+        setWriteTags("");
         setShowWriteForm(false);
         await fetchArticles();
+      } else {
+        const data = await res.json().catch(() => null);
+        setWriteError(data?.error || "Không thể tạo bài viết. Vui lòng kiểm tra lại nội dung.");
       }
     } catch (e) {
       console.error("Write failed:", e);
+      setWriteError("Không thể tạo bài viết do lỗi kết nối máy chủ.");
     } finally {
       setWriteSubmitting(false);
     }
@@ -271,6 +286,13 @@ export default function AdminArticlesPage() {
                   className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500/50"
                 />
               </div>
+              <input
+                type="text"
+                placeholder="Hashtag SEO, ví dụ: #chung-khoan, #tai-chinh, #VNIndex"
+                value={writeTags}
+                onChange={(e) => setWriteTags(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500/50"
+              />
               <textarea
                 placeholder="Nội dung bài viết (hỗ trợ HTML)"
                 value={writeContent}
@@ -281,8 +303,15 @@ export default function AdminArticlesPage() {
               <RichTextEditor
                 content={writeContent}
                 onChange={setWriteContent}
+                uploadEndpoint="/api/articles/upload-image"
+                onImageUploaded={(url) => setWriteImageUrl((current) => current || url)}
                 placeholder="Nội dung bài viết... (hỗ trợ copy-paste hình ảnh, kéo-thả file ảnh)"
               />
+              {writeError && (
+                <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+                  {writeError}
+                </div>
+              )}
               <div className="flex items-center gap-3">
                 <button
                   onClick={handleWriteSubmit}
