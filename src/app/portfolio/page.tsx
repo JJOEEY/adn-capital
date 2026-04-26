@@ -88,7 +88,7 @@ export default function PortfolioPage() {
           </button>
         </div>
 
-        <LockOverlay isLocked={!isVip} message="Nâng cấp VIP để mở Danh mục AI Broker">
+        <LockOverlay isLocked={!isVip} message="Nâng cấp VIP để mở NexVault">
           {!isConnected ? (
             <div
               className="rounded-2xl border p-4 text-sm"

@@ -597,7 +597,7 @@ const AIBrokerDecisionCard = memo(function AIBrokerDecisionCard({
         </span>
       </div>
       <p className="text-sm leading-relaxed" style={{ color: "var(--text-primary)" }}>
-        {summary || "AI Broker đang phân tích dữ liệu thị trường, ưu tiên giữ tỷ trọng an toàn."}
+        {summary || "AIDEN đang đọc dữ liệu thị trường, ưu tiên giữ tỷ trọng an toàn."}
       </p>
     </div>
   );

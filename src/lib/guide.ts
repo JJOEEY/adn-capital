@@ -71,11 +71,11 @@ const GUIDE_DEFAULT_DATA: GuideSeedCategory[] = [
           "## NexPilot\n\nNhập mã cổ phiếu để mở các thẻ phân tích:\n\n- Phân tích kỹ thuật\n- Phân tích cơ bản\n- Tâm lý & hành vi\n- Tin tức & sự kiện",
       },
       {
-        title: "Tư vấn đầu tư — Chat với AI",
+        title: "ADN Advisory — Chat với AIDEN",
         slug: "tu-van-dau-tu-chat-voi-ai",
         sortOrder: 4,
         content:
-          "## Tư vấn đầu tư\n\nChat với AI để nhận góc nhìn nhanh theo mã cổ phiếu hoặc câu hỏi tự do. Luôn kết hợp với khẩu vị rủi ro cá nhân trước khi ra quyết định.",
+          "## ADN Advisory\n\nChat với AIDEN để nhận góc nhìn nhanh theo mã cổ phiếu hoặc câu hỏi tự do. Luôn kết hợp với khẩu vị rủi ro cá nhân trước khi ra quyết định.",
       },
     ],
   },
