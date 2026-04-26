@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Search, TrendingUp, TrendingDown } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { PRODUCT_NAMES } from "@/lib/brand/productNames";
 import { getRsColor, getRsBgStyle, getRsLabel, formatPrice, formatPercent } from "@/lib/utils";
 import type { StockData } from "@/types";
 
@@ -92,7 +93,7 @@ export function RatingTable({ stocks }: RatingTableProps) {
                   %Thay đổi
                 </th>
                 <th className="text-center text-xs font-semibold uppercase tracking-wider px-4 py-3" style={{ color: "var(--text-muted)" }}>
-                  RS Rating
+                  {PRODUCT_NAMES.rsRating}
                 </th>
                 <th className="text-center text-xs font-semibold uppercase tracking-wider px-4 py-3 hidden md:table-cell" style={{ color: "var(--text-muted)" }}>
                   Nhãn

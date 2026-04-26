@@ -597,7 +597,7 @@ function UsersTab() {
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-[11px] uppercase tracking-wider font-bold" style={{ color: "var(--text-muted)" }}>
-              ADN AI Broker Admin
+              NexPilot Admin
             </p>
             <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
               Chỉnh ngưỡng auto-pick (Winrate/RR) và can thiệp mã vào giỏ ACTIVE.

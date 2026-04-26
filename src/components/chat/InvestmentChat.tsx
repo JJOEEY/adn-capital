@@ -228,7 +228,7 @@ function BotBubble({ message, onCardClick, cardLoading, cardDisabled = false }: 
                 className="rounded-full border px-2 py-0.5 text-[11px] font-black"
                 style={brokerBadgeDesign}
               >
-                AI BROKER: {brokerBadge}
+                AIDEN: {brokerBadge}
               </span>
             </div>
             <StockChart symbol={message.ticker} />
@@ -485,7 +485,7 @@ export function InvestmentChat({
             <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--primary-light)]">
               <Zap className="h-7 w-7 text-[var(--primary)]" />
             </div>
-            <h3 className="mb-1 text-base font-bold text-[var(--text-primary)]">ADN AI Broker sẵn sàng hỗ trợ</h3>
+            <h3 className="mb-1 text-base font-bold text-[var(--text-primary)]">AIDEN Analyst sẵn sàng hỗ trợ</h3>
             <p className="mb-5 max-w-xs text-sm text-[var(--text-secondary)]">
               Nhập mã cổ phiếu (VD: HPG) để mở 4 card phân tích, hoặc đặt câu hỏi tự do.
             </p>

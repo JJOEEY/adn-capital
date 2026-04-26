@@ -7,6 +7,7 @@ import {
   runBacktestProvider,
   runScannerProvider,
 } from "@/lib/providers/client";
+import { PRODUCT_NAMES } from "@/lib/brand/productNames";
 import type {
   BacktestManifestResponse,
   BacktestProviderManifest,
@@ -274,10 +275,10 @@ export function ProviderWorkbench() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="text-base font-black" style={{ color: "var(--text-primary)" }}>
-            Provider Workbench
+            Bảng chạy thử nhà cung cấp
           </h3>
           <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-            Manifest-driven scanner/backtest contracts (deterministic core + optional AI insight).
+            Cấu hình chạy thử bộ quy tắc và bộ quét theo manifest nội bộ.
           </p>
         </div>
         <div className="inline-flex rounded-lg border p-1" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
@@ -286,14 +287,14 @@ export function ProviderWorkbench() {
             style={mode === "backtest" ? { background: "var(--primary-light)", color: "var(--primary)" } : { color: "var(--text-secondary)" }}
             onClick={() => setMode("backtest")}
           >
-            Backtest
+            {PRODUCT_NAMES.backtest}
           </button>
           <button
             className="rounded-md px-3 py-1 text-xs font-semibold"
             style={mode === "scanner" ? { background: "var(--primary-light)", color: "var(--primary)" } : { color: "var(--text-secondary)" }}
             onClick={() => setMode("scanner")}
           >
-            Scanner
+            Bộ quét
           </button>
         </div>
       </div>

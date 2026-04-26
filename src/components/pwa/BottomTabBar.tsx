@@ -4,12 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import { Activity, Bot, BookOpenText, Home, Menu, Newspaper } from "lucide-react";
+import { PRODUCT_NAMES } from "@/lib/brand/productNames";
 
 const tabs = [
   { href: "/dashboard", label: "Trang ch\u1ee7", icon: Home },
   { href: "/tin-tuc", label: "Tin T\u1ee9c", icon: Newspaper },
-  { href: "/dashboard/signal-map", label: "ADN AI Broker", icon: Bot },
-  { href: "/art", label: "Ch\u1ec9 b\u00e1o ART", icon: Activity },
+  { href: "/dashboard/signal-map", label: PRODUCT_NAMES.brokerWorkflow, icon: Bot },
+  { href: "/art", label: PRODUCT_NAMES.art, icon: Activity },
   { href: "/journal", label: "Nh\u1eadt k\u00fd", icon: BookOpenText },
   { href: "/menu", label: "Menu", icon: Menu },
 ];

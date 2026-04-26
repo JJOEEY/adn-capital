@@ -2,6 +2,7 @@
 
 import { Crown, TrendingUp } from "lucide-react";
 import { Card } from "@/components/ui/Card";
+import { PRODUCT_NAMES } from "@/lib/brand/productNames";
 
 interface LeaderStock {
   rank: number;
@@ -33,7 +34,7 @@ export function TopLeaders({ stocks }: TopLeadersProps) {
             <h3 className="text-sm font-black uppercase tracking-wider" style={{ color: "#a855f7" }}>
               Top 5 Siêu Cổ Phiếu
             </h3>
-            <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>RS Rating cao nhất hôm nay</p>
+            <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>{PRODUCT_NAMES.rsRating} cao nhất hôm nay</p>
           </div>
         </div>
         <a

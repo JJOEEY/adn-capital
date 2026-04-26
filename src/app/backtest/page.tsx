@@ -4,6 +4,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { BacktestSection } from "@/components/dashboard/BacktestSection";
 import { ProviderWorkbench } from "@/components/providers/ProviderWorkbench";
 import { BarChart3, CheckCircle2, FlaskConical, ShieldAlert, TrendingDown } from "lucide-react";
+import { PRODUCT_NAMES } from "@/lib/brand/productNames";
 
 const methodCards = [
   {
@@ -19,7 +20,7 @@ const methodCards = [
   {
     icon: CheckCircle2,
     title: "Học kỷ luật vốn",
-    body: "Backtest giúp khách hàng hiểu vì sao cần điểm cắt lỗ, tỷ trọng và quy tắc thoát lệnh.",
+    body: `${PRODUCT_NAMES.backtest} giúp khách hàng hiểu vì sao cần điểm cắt lỗ, tỷ trọng và quy tắc thoát lệnh.`,
   },
 ];
 
@@ -43,7 +44,7 @@ export default function BacktestPage() {
                 className="text-[12px] font-bold uppercase tracking-[0.2em]"
                 style={{ color: "var(--primary)" }}
               >
-                Backtest & quản trị rủi ro
+                {PRODUCT_NAMES.backtest} & quản trị rủi ro
               </span>
             </div>
 
@@ -51,7 +52,7 @@ export default function BacktestPage() {
               Kiểm chứng một phương pháp trước khi tin vào nó.
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-7" style={{ color: "var(--text-secondary)" }}>
-              Backtest không dùng để hứa lợi nhuận. Mục tiêu là giúp khách hàng hiểu phương pháp có ưu điểm gì,
+              {PRODUCT_NAMES.backtest} không dùng để hứa lợi nhuận. Mục tiêu là giúp khách hàng hiểu phương pháp có ưu điểm gì,
               rủi ro nằm ở đâu và khi nào cần giảm tỷ trọng.
             </p>
 
@@ -65,7 +66,7 @@ export default function BacktestPage() {
                 }}
               >
                 <ShieldAlert className="h-4 w-4" />
-                <span>Không xem backtest như cam kết lợi nhuận tương lai.</span>
+                <span>Không xem {PRODUCT_NAMES.backtest} như cam kết lợi nhuận tương lai.</span>
               </div>
             </div>
           </div>

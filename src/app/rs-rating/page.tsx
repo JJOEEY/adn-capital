@@ -8,6 +8,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { BarChart2, RefreshCw } from "lucide-react";
 import { useTopic } from "@/hooks/useTopic";
 import type { StockData } from "@/types";
+import { PRODUCT_NAMES } from "@/lib/brand/productNames";
 
 type RsRatingPayload = {
   stocks?: Array<{
@@ -76,7 +77,9 @@ export default function RSRatingPage() {
                 <BarChart2 className="h-5 w-5" style={{ color: "#10b981" }} />
               </div>
               <div className="min-w-0">
-                <h1 className="text-xl font-black sm:text-2xl" style={{ color: "var(--text-primary)" }}>RS Rating</h1>
+                <h1 className="text-xl font-black sm:text-2xl" style={{ color: "var(--text-primary)" }}>
+                  {PRODUCT_NAMES.rsRating}
+                </h1>
                 <p className="truncate text-xs sm:text-sm" style={{ color: "var(--text-muted)" }}>
                   Xếp hạng sức mạnh tương đối từ dữ liệu định lượng.
                 </p>
@@ -111,13 +114,13 @@ export default function RSRatingPage() {
               />
             ))}
             <p className="mt-4 text-center text-xs" style={{ color: "var(--text-muted)" }}>
-              Đang tải dữ liệu RS Rating...
+              Đang tải dữ liệu {PRODUCT_NAMES.rsRating}...
             </p>
           </div>
         ) : rsTopic.error ? (
           <div className="py-12 text-center">
             <p className="text-sm" style={{ color: "var(--danger)" }}>
-              {typeof rsTopic.error === "string" ? rsTopic.error : "Không thể tải dữ liệu RS Rating."}
+              {typeof rsTopic.error === "string" ? rsTopic.error : `Không thể tải dữ liệu ${PRODUCT_NAMES.rsRating}.`}
             </p>
             <button
               onClick={() => void rsTopic.refresh(true)}
@@ -130,7 +133,7 @@ export default function RSRatingPage() {
         ) : (
           <LockOverlay
             isLocked={isRsRatingLocked}
-            message="Nâng cấp VIP để xem bảng xếp hạng RS Rating đầy đủ"
+            message={`Nâng cấp VIP để xem bảng xếp hạng ${PRODUCT_NAMES.rsRating} đầy đủ`}
           >
             <RatingTable stocks={stocks} />
           </LockOverlay>

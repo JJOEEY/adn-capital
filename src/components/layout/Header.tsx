@@ -1,42 +1,44 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
-import Link from "next/link";
+import type { ComponentType, CSSProperties, FormEvent } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
-import { type FormEvent, useEffect, useState } from "react";
-import { useSession, signOut } from "next-auth/react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { signOut, useSession } from "next-auth/react";
 import {
-  LogIn,
-  LogOut,
-  Sun,
-  Moon,
-  Home,
-  LayoutDashboard,
   Activity,
-  MessageSquare,
   Banknote,
+  Bell,
   BookOpen,
-  FlaskConical,
-  ShieldCheck,
-  Send,
-  Zap,
-  Wallet,
+  Bot,
   ChevronLeft,
   ChevronRight,
   Crown,
+  FlaskConical,
+  Home,
+  LayoutDashboard,
+  LogIn,
+  LogOut,
+  MessageSquare,
+  Moon,
   Newspaper,
-  Bell,
-  Bot,
   Search,
+  Send,
+  ShieldCheck,
+  Sun,
+  Wallet,
+  Zap,
 } from "lucide-react";
-import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 import { useTheme } from "@/components/providers/ThemeProvider";
+import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
+import { BRAND, PRODUCT_NAMES } from "@/lib/brand/productNames";
 import { useSidebarStore } from "@/store/sidebarStore";
 
 interface MenuItem {
   href: string;
   label: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: ComponentType<{ className?: string }>;
   external?: boolean;
   badge?: string;
   roles?: string[];
@@ -50,24 +52,30 @@ interface MenuSection {
 
 const menuSections: MenuSection[] = [
   {
-    title: "Overview",
+    title: "Tổng quan",
     items: [
-      { href: "/", label: "Trang Chủ", icon: Home },
-      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/", label: "Trang chủ", icon: Home },
+      { href: "/dashboard", label: PRODUCT_NAMES.dashboard, icon: LayoutDashboard },
     ],
   },
   {
-    title: "Sản Phẩm Đầu Tư",
+    title: "Sản phẩm đầu tư",
     items: [
-      { href: "/art", label: "Chỉ báo ART", icon: Activity, badge: "MỚI" },
-      { href: "/terminal", label: "Tư vấn đầu tư", icon: MessageSquare },
-      { href: "/dashboard/signal-map", label: "ADN AI Broker", icon: Zap },
-      { href: "/dashboard/dnse-trading", label: "DNSE Trading", icon: Wallet, badge: "NEW", roles: ["ADMIN"] },
-      { href: "/khac/tin-tuc", label: "Tin Tức", icon: Newspaper, badge: "BETA", roles: ["ADMIN", "WRITER"] },
+      { href: "/dashboard/signal-map", label: PRODUCT_NAMES.brokerWorkflow, icon: Zap },
+      { href: "/terminal", label: PRODUCT_NAMES.advisory, icon: MessageSquare },
+      { href: "/art", label: PRODUCT_NAMES.art, icon: Activity, badge: "MỚI" },
+      {
+        href: "/dashboard/dnse-trading",
+        label: PRODUCT_NAMES.brokerConnect,
+        icon: Wallet,
+        badge: "PILOT",
+        roles: ["ADMIN"],
+      },
+      { href: "/khac/tin-tuc", label: "Tin tức", icon: Newspaper, badge: "BETA", roles: ["ADMIN", "WRITER"] },
     ],
   },
   {
-    title: "Dịch Vụ",
+    title: "Dịch vụ",
     items: [
       { href: "/margin", label: "Ký quỹ · Mua nhanh", icon: Banknote, badge: "HOT" },
       { href: "/journal", label: "Nhật ký giao dịch", icon: BookOpen },
@@ -77,29 +85,29 @@ const menuSections: MenuSection[] = [
     title: "Khác",
     items: [
       { href: "https://t.me/+fryvX_B-6Y9kODg1", label: "Group Telegram", icon: Send, external: true },
-      { href: "/backtest", label: "Backtest", icon: FlaskConical },
+      { href: "/backtest", label: PRODUCT_NAMES.backtest, icon: FlaskConical },
       { href: "/hdsd", label: "Hướng dẫn sử dụng", icon: BookOpen },
     ],
   },
   {
-    title: "Về Chúng Tôi",
+    title: "Về chúng tôi",
     items: [
-      { href: "/san-pham", label: "Giới thiệu hệ thống", icon: Home },
+      { href: "/san-pham", label: `Bộ công cụ ${BRAND.name}`, icon: Home },
       { href: "/pricing", label: "Bảng giá dịch vụ", icon: Crown },
     ],
   },
   {
-    title: "Quản Lý",
-    items: [{ href: "/admin", label: "Quản Lý Hệ Thống", icon: ShieldCheck }],
+    title: "Quản lý",
+    items: [{ href: "/admin", label: "Quản lý hệ thống", icon: ShieldCheck }],
     adminOnly: true,
   },
 ];
 
-function badgeStyle(badge: string): React.CSSProperties {
+function badgeStyle(badge: string): CSSProperties {
   if (badge === "HOT") {
     return { background: "rgba(192,57,43,0.12)", color: "#C0392B", border: "1px solid rgba(192,57,43,0.25)" };
   }
-  if (badge === "BETA" || badge === "UPDATING") {
+  if (badge === "BETA" || badge === "PILOT") {
     return { background: "rgba(245,158,11,0.12)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.25)" };
   }
   return { background: "var(--primary-light)", color: "var(--primary)", border: "1px solid var(--border)" };
@@ -123,27 +131,27 @@ function SidebarContent() {
   const userImage = dbUser?.image || session?.user?.image || null;
 
   const isActive = (href: string) =>
-    href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/");
+    href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
 
   return (
     <div className="flex h-full flex-col">
       <div className={`shrink-0 flex items-center ${compact ? "justify-center px-2 pt-5 pb-4" : "gap-2.5 px-4 pt-5 pb-4"}`}>
         <Link href="/" className={`flex items-center ${compact ? "justify-center" : "gap-2.5"}`}>
           <Image
-            src="/logo.jpg"
-            alt="ADN"
-            width={compact ? 32 : 32}
-            height={compact ? 32 : 32}
+            src="/brand/favicon.png"
+            alt={BRAND.name}
+            width={32}
+            height={32}
             className="rounded-xl shrink-0"
             style={{ border: "1px solid var(--border)" }}
           />
           {!compact && (
             <div>
               <p className="text-[15px] font-bold leading-tight" style={{ color: "var(--text-primary)" }}>
-                ADN AI System
+                {BRAND.name}
               </p>
               <p className="text-[11px] tracking-wider uppercase" style={{ color: "var(--text-muted)" }}>
-                AI-Powered Platform
+                {BRAND.tagline}
               </p>
             </div>
           )}
@@ -157,7 +165,10 @@ function SidebarContent() {
               {userImage ? (
                 <img src={userImage} alt="" className="w-8 h-8 rounded-full shrink-0" style={{ border: "1px solid var(--border)" }} />
               ) : (
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{ background: "var(--primary)", color: "var(--text-primary)" }}>
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+                  style={{ background: "var(--primary)", color: "#fff" }}
+                >
                   {userName.charAt(0).toUpperCase()}
                 </div>
               )}
@@ -174,7 +185,7 @@ function SidebarContent() {
               onClick={toggleTheme}
               className="w-8 h-8 rounded-full flex items-center justify-center transition-all shrink-0"
               style={{ color: "var(--text-secondary)" }}
-              title={isDark ? "Light Mode" : "Dark Mode"}
+              title={isDark ? "Giao diện sáng" : "Giao diện tối"}
             >
               {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
@@ -283,7 +294,7 @@ function SidebarContent() {
             onClick={toggleTheme}
             className="w-full flex items-center justify-center gap-2.5 py-2 rounded-xl transition-all"
             style={{ color: "var(--text-secondary)" }}
-            title={isDark ? "Light Mode" : "Dark Mode"}
+            title={isDark ? "Giao diện sáng" : "Giao diện tối"}
           >
             {isDark ? <Sun className="w-[18px] h-[18px] shrink-0" /> : <Moon className="w-[18px] h-[18px] shrink-0" />}
           </button>
@@ -395,7 +406,7 @@ export function Header() {
             />
             <button
               type="submit"
-              aria-label="Mở tư vấn đầu tư cho mã cổ phiếu"
+              aria-label="Mở tư vấn đầu tư"
               className="shrink-0 rounded-full p-1"
               style={{ color: "var(--text-secondary)" }}
             >

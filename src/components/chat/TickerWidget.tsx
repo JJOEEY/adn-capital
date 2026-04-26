@@ -124,7 +124,7 @@ function AIInsightBlock({ insight }: { insight: string | null }) {
         </div>
         <div className="flex-1">
           <p className="text-[9px] text-yellow-500/70 font-black uppercase tracking-widest mb-1.5">
-            Nhận định AI — ADN AI Broker
+            Nhận định AIDEN
           </p>
           <p className="text-[12px] text-slate-200 leading-relaxed whitespace-pre-wrap">{insight}</p>
         </div>

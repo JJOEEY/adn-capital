@@ -16,6 +16,7 @@ import {
   WalletCards,
   Zap,
 } from "lucide-react";
+import { BRAND, PRODUCT_DESCRIPTIONS, PRODUCT_NAMES } from "@/lib/brand/productNames";
 
 type ProductCard = {
   href: string;
@@ -34,10 +35,14 @@ const productGroups: { title: string; description: string; items: ProductCard[] 
     items: [
       {
         href: "/dashboard",
-        title: "Dashboard thị trường",
+        title: PRODUCT_NAMES.dashboard,
         eyebrow: "Tổng quan",
-        description: "Theo dõi chỉ số, thanh khoản, độ rộng thị trường và các bản tin quan trọng trong ngày.",
-        bullets: ["Một nơi để xem nhanh trạng thái thị trường", "Đọc cùng dữ liệu với web và PWA", "Không dùng số liệu placeholder"],
+        description: PRODUCT_DESCRIPTIONS.dashboard,
+        bullets: [
+          "Một nơi để xem nhanh trạng thái thị trường",
+          "Đọc cùng dữ liệu với web, PWA và notification",
+          "Không dùng số liệu placeholder gây hiểu sai",
+        ],
         icon: BarChart3,
       },
       {
@@ -45,7 +50,11 @@ const productGroups: { title: string; description: string; items: ProductCard[] 
         title: "Tin tức",
         eyebrow: "Cập nhật",
         description: "Tổng hợp tin tài chính từ các nguồn chính thống để khách hàng đọc nhanh hơn.",
-        bullets: ["Bài viết được gom theo nguồn", "Tóm tắt nội dung chính", "Phù hợp cho người mới theo dõi thị trường"],
+        bullets: [
+          "Bài viết được gom theo nguồn",
+          "Tóm tắt nội dung chính",
+          "Phù hợp cho người mới theo dõi thị trường",
+        ],
         icon: Newspaper,
       },
     ],
@@ -56,26 +65,38 @@ const productGroups: { title: string; description: string; items: ProductCard[] 
     items: [
       {
         href: "/dashboard/signal-map",
-        title: "ADN AI Broker",
+        title: PRODUCT_NAMES.brokerWorkflow,
         eyebrow: "Gợi ý cơ hội",
-        description: "Hiển thị các mã đang được hệ thống theo dõi, trạng thái nắm giữ và điểm quản trị rủi ro.",
-        bullets: ["Tách rõ mã đang quan sát, mã đang nắm giữ và mã đã kết thúc", "Có vùng mua, mục tiêu và cắt lỗ", "AI chỉ giải thích, không tự sinh tín hiệu gốc"],
+        description: PRODUCT_DESCRIPTIONS.brokerWorkflow,
+        bullets: [
+          "Tách rõ mã đang quan sát, đang nắm giữ và đã kết thúc",
+          "Có vùng mua, mục tiêu và cắt lỗ",
+          "AI chỉ giải thích, không tự sinh tín hiệu gốc",
+        ],
         icon: Zap,
       },
       {
         href: "/art",
-        title: "Chỉ báo ART",
+        title: PRODUCT_NAMES.art,
         eyebrow: "Đảo chiều xu hướng",
-        description: "Đo mức độ hưng phấn hoặc hoảng loạn của thị trường, nhóm ngành hoặc từng mã.",
-        bullets: ["Dễ đọc bằng đồng hồ điểm", "Có lịch sử để so sánh", "Không lộ công thức vận hành nội bộ"],
+        description: PRODUCT_DESCRIPTIONS.art,
+        bullets: [
+          "Dễ đọc bằng đồng hồ điểm",
+          "Có lịch sử để so sánh",
+          "Không lộ công thức vận hành nội bộ",
+        ],
         icon: ShieldCheck,
       },
       {
         href: "/terminal",
-        title: "Tư vấn đầu tư",
+        title: PRODUCT_NAMES.advisory,
         eyebrow: "Chat AI",
-        description: "Hỏi đáp về cổ phiếu, thị trường và kịch bản hành động bằng tiếng Việt có dấu.",
-        bullets: ["Trả lời theo dữ liệu đang có", "Không khẳng định khi thiếu dữ liệu", "Phù hợp để kiểm tra thêm trước khi hành động"],
+        description: PRODUCT_DESCRIPTIONS.advisory,
+        bullets: [
+          "Trả lời theo dữ liệu đang có",
+          "Không khẳng định khi thiếu dữ liệu",
+          "Phù hợp để kiểm tra thêm trước khi hành động",
+        ],
         icon: Bot,
       },
     ],
@@ -86,10 +107,14 @@ const productGroups: { title: string; description: string; items: ProductCard[] 
     items: [
       {
         href: "/backtest",
-        title: "Backtest",
+        title: PRODUCT_NAMES.backtest,
         eyebrow: "Kiểm chứng",
-        description: "Mô phỏng phương pháp trên dữ liệu quá khứ để xem điểm mạnh, điểm yếu và rủi ro.",
-        bullets: ["Không hứa lợi nhuận tương lai", "Giải thích drawdown và kỷ luật vốn", "Phù hợp để học quy trình ADN"],
+        description: PRODUCT_DESCRIPTIONS.backtest,
+        bullets: [
+          "Không hứa lợi nhuận tương lai",
+          "Giải thích drawdown và kỷ luật vốn",
+          "Phù hợp để học quy trình ADN",
+        ],
         icon: FlaskConical,
       },
       {
@@ -97,7 +122,11 @@ const productGroups: { title: string; description: string; items: ProductCard[] 
         title: "Hướng dẫn sử dụng",
         eyebrow: "Onboarding",
         description: "Tài liệu thao tác từng bước cho khách hàng mới bắt đầu dùng hệ thống.",
-        bullets: ["Hướng dẫn theo từng sản phẩm", "Giải thích các khái niệm chính", "Giảm phụ thuộc vào hỗ trợ thủ công"],
+        bullets: [
+          "Hướng dẫn theo từng sản phẩm",
+          "Giải thích các khái niệm chính",
+          "Giảm phụ thuộc vào hỗ trợ thủ công",
+        ],
         icon: BookOpen,
       },
       {
@@ -105,7 +134,11 @@ const productGroups: { title: string; description: string; items: ProductCard[] 
         title: "Bảng giá",
         eyebrow: "Gói dịch vụ",
         description: "Chọn gói theo mức độ sử dụng: theo dõi thị trường, nhận gợi ý và dùng AI tư vấn.",
-        bullets: ["Chỉ gồm các tính năng đang mở công khai", "Nêu rõ phạm vi từng gói", "Có hướng dẫn kích hoạt sau thanh toán"],
+        bullets: [
+          "Chỉ gồm các tính năng đang mở công khai",
+          "Nêu rõ phạm vi từng gói",
+          "Có hướng dẫn kích hoạt sau thanh toán",
+        ],
         icon: Sparkles,
       },
     ],
@@ -115,10 +148,14 @@ const productGroups: { title: string; description: string; items: ProductCard[] 
 const adminOnlyProducts: ProductCard[] = [
   {
     href: "/dashboard/dnse-trading",
-    title: "DNSE Trading",
+    title: PRODUCT_NAMES.brokerConnect,
     eyebrow: "Admin pilot",
     description: "Màn hình thử nghiệm kết nối tài khoản giao dịch. Chỉ hiển thị cho admin cho tới khi pilot ổn định.",
-    bullets: ["Không public cho khách hàng thường", "Dùng để kiểm tra NAV và vị thế thật", "Mọi thao tác giao dịch vẫn theo quy trình kiểm soát riêng"],
+    bullets: [
+      "Không public cho khách hàng thường",
+      "Dùng để kiểm tra NAV và vị thế thật",
+      "Mọi thao tác giao dịch vẫn theo quy trình kiểm soát riêng",
+    ],
     icon: WalletCards,
     badge: "ADMIN",
   },
@@ -203,7 +240,7 @@ export default function SanPhamPage() {
         >
           <div className="max-w-3xl">
             <p className="text-xs font-black uppercase tracking-[0.24em]" style={{ color: "var(--primary)" }}>
-              ADN Capital Platform
+              {BRAND.name.toUpperCase()} TOOLKIT
             </p>
             <h1 className="mt-4 text-3xl font-black leading-tight tracking-[-0.04em] sm:text-5xl">
               Một bộ công cụ đầu tư, dùng cùng một nguồn dữ liệu.

@@ -1,5 +1,6 @@
 "use client";
 
+import { PRODUCT_NAMES } from "@/lib/brand/productNames";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -35,15 +36,15 @@ const plans: Plan[] = [
     price: "249.000đ",
     period: "/tháng",
     bestFor: "Dùng thử hệ thống",
-    description: "Phù hợp để xem dashboard, bản tin và cách ADN AI Broker trình bày cơ hội đầu tư.",
+    description: `Phù hợp để xem ${PRODUCT_NAMES.dashboard}, bản tin và cách ${PRODUCT_NAMES.brokerWorkflow} trình bày cơ hội đầu tư.`,
     ai: "Giới hạn theo ngày",
     alerts: "Cập nhật cơ bản",
-    tools: "Dashboard, Tin tức, ART thị trường",
+    tools: `${PRODUCT_NAMES.dashboard}, Tin tức, ${PRODUCT_NAMES.art} thị trường`,
     support: "Hỗ trợ tiêu chuẩn",
     features: [
-      "Dashboard thị trường và bản tin hằng ngày",
-      "ADN AI Broker ở mức theo dõi cơ bản",
-      "Chỉ báo ART cho thị trường và nhóm mã phổ biến",
+      `${PRODUCT_NAMES.dashboard} thị trường và bản tin hằng ngày`,
+      `${PRODUCT_NAMES.brokerWorkflow} ở mức theo dõi cơ bản`,
+      `${PRODUCT_NAMES.art} cho thị trường và nhóm mã phổ biến`,
       "Tin tức và thông báo hệ thống",
     ],
   },
@@ -56,13 +57,13 @@ const plans: Plan[] = [
     description: "Dành cho khách hàng muốn theo dõi thị trường đều đặn trong một quý.",
     ai: "Mở rộng lượt hỏi",
     alerts: "Ưu tiên thông báo",
-    tools: "Gợi ý cơ hội, ART, Tin tức, Nhật ký",
+    tools: `${PRODUCT_NAMES.brokerWorkflow}, ${PRODUCT_NAMES.art}, Tin tức, Nhật ký`,
     support: "Hỗ trợ ưu tiên",
     features: [
       "Toàn bộ quyền của gói 1 tháng",
-      "Tăng lượt tư vấn bằng AI",
+      `Tăng lượt tư vấn bằng ${PRODUCT_NAMES.advisory}`,
       "Thông báo cơ hội và cập nhật thị trường ưu tiên",
-      "Theo dõi trạng thái cơ hội trong ADN AI Broker",
+      `Theo dõi trạng thái cơ hội trong ${PRODUCT_NAMES.brokerWorkflow}`,
     ],
   },
   {
@@ -72,16 +73,16 @@ const plans: Plan[] = [
     period: "/6 tháng",
     badge: "Khuyến nghị",
     bestFor: "Dùng nghiêm túc",
-    description: "Gói cân bằng nhất cho người dùng xem ADN như hệ thống vận hành hằng ngày.",
+    description: "Gói cân bằng nhất cho người dùng xem ADNexus như hệ thống vận hành hằng ngày.",
     ai: "Chuyên sâu hơn",
     alerts: "Đầy đủ cảnh báo",
-    tools: "Gợi ý cơ hội, ART mã riêng, Backtest",
+    tools: `${PRODUCT_NAMES.brokerWorkflow}, ${PRODUCT_NAMES.art} mã riêng, ${PRODUCT_NAMES.backtest}`,
     support: "Ưu tiên cao",
     highlight: true,
     features: [
       "Toàn bộ quyền của gói 3 tháng",
       "Theo dõi mã đang quan sát, đang nắm giữ và đã kết thúc",
-      "ART cho mã riêng lẻ và lịch sử theo dõi",
+      `${PRODUCT_NAMES.art} cho mã riêng lẻ và lịch sử theo dõi`,
       "Weekly review và cảnh báo rủi ro danh mục",
     ],
   },
@@ -92,7 +93,7 @@ const plans: Plan[] = [
     period: "/năm",
     badge: "Tối ưu chi phí",
     bestFor: "Đồng hành dài hạn",
-    description: "Phù hợp với khách hàng dùng ADN cả năm và cần hỗ trợ onboarding kỹ hơn.",
+    description: "Phù hợp với khách hàng dùng ADNexus cả năm và cần hỗ trợ onboarding kỹ hơn.",
     ai: "Chuyên sâu, giới hạn hợp lý",
     alerts: "Đầy đủ cảnh báo",
     tools: "Toàn bộ bộ công cụ hiện có",
@@ -109,18 +110,18 @@ const plans: Plan[] = [
 const valueAxes = [
   {
     icon: Bot,
-    title: "AI tư vấn dễ hiểu",
+    title: "AIDEN tư vấn dễ hiểu",
     body: "Hỏi về cổ phiếu, xu hướng, rủi ro và kịch bản hành động bằng tiếng Việt có dấu.",
   },
   {
     icon: Bell,
-    title: "Cảnh báo đúng lúc",
+    title: `${PRODUCT_NAMES.notifications} cảnh báo đúng lúc`,
     body: "Cơ hội, bản tin và thông báo đọc từ cùng nguồn dữ liệu để hạn chế lệch giữa web, app và Telegram.",
   },
   {
     icon: LayoutDashboard,
     title: "Theo dõi trong một nơi",
-    body: "Dashboard, ADN AI Broker, ART, Tin tức và Backtest được gom theo cùng hành trình sử dụng.",
+    body: `${PRODUCT_NAMES.dashboard}, ${PRODUCT_NAMES.brokerWorkflow}, ${PRODUCT_NAMES.art}, Tin tức và ${PRODUCT_NAMES.backtest} được gom theo cùng hành trình sử dụng.`,
   },
   {
     icon: Headphones,
@@ -130,7 +131,7 @@ const valueAxes = [
 ];
 
 const comparisonRows: { label: string; key: keyof Pick<Plan, "ai" | "alerts" | "tools" | "support"> }[] = [
-  { label: "AI tư vấn", key: "ai" },
+  { label: "AIDEN tư vấn", key: "ai" },
   { label: "Cảnh báo", key: "alerts" },
   { label: "Công cụ", key: "tools" },
   { label: "Hỗ trợ", key: "support" },
@@ -284,7 +285,6 @@ export function PricingClient() {
           </table>
         </div>
       </section>
-
     </div>
   );
 }

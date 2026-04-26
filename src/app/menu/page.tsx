@@ -22,6 +22,7 @@ import {
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
+import { BRAND, PRODUCT_NAMES } from "@/lib/brand/productNames";
 
 type PreferenceKey = "stock_watchlist" | "signal_scan" | "ai_weekly_review";
 
@@ -66,9 +67,9 @@ const preferenceLabels: Array<{ key: PreferenceKey; label: string; description: 
   },
   {
     key: "ai_weekly_review",
-    label: "Nh\u1eadn \u0111\u00e1nh gi\u00e1 t\u00e2m l\u00fd h\u00e0ng tu\u1ea7n t\u1eeb ADN AI",
+    label: `Nh\u1eadn \u0111\u00e1nh gi\u00e1 t\u00e2m l\u00fd h\u00e0ng tu\u1ea7n t\u1eeb ${BRAND.persona}`,
     description:
-      "ADN AI g\u1eedi \u0111\u00e1nh gi\u00e1 h\u00e0nh vi v\u00e0 k\u1ef7 lu\u1eadt giao d\u1ecbch \u0111\u1ecbnh k\u1ef3.",
+      `${BRAND.persona} g\u1eedi \u0111\u00e1nh gi\u00e1 h\u00e0nh vi v\u00e0 k\u1ef7 lu\u1eadt giao d\u1ecbch \u0111\u1ecbnh k\u1ef3.`,
   },
 ];
 
@@ -150,7 +151,7 @@ export default function MenuPage() {
     {
       title: "D\u1ecbch V\u1ee5",
       items: [
-        { href: "/backtest", label: "Backtest", icon: FlaskConical },
+        { href: "/backtest", label: PRODUCT_NAMES.backtest, icon: FlaskConical },
         { href: "/margin", label: "K\u00fd qu\u1ef9 - Mua nhanh", icon: Banknote, badge: "HOT" },
         { href: "/hdsd", label: "H\u01b0\u1edbng D\u1eabn S\u1eed D\u1ee5ng", icon: BookOpen },
       ],

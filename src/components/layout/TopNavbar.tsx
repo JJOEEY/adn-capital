@@ -28,25 +28,26 @@ import {
   Wallet,
 } from "lucide-react";
 import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
+import { BRAND, PRODUCT_NAMES } from "@/lib/brand/productNames";
 import { USAGE_LIMITS } from "@/lib/utils";
 
 /* ── Nav items (không có dropdown) ─────────────────────── */
 const navItems = [
-  { href: "/",        label: "Trang Chủ", icon: Home,         badge: null },
-  { href: "/dashboard",label: "Dashboard", icon: LayoutDashboard, badge: null },
-  { href: "/backtest", label: "Backtest",  icon: FlaskConical, badge: null },
-  { href: "/journal",  label: "Nhật Ký",  icon: BookOpen,     badge: null },
-  { href: "/admin",    label: "Quản Lý",  icon: Users,        badge: null },
+  { href: "/", label: "Trang chủ", icon: Home, badge: null },
+  { href: "/dashboard", label: PRODUCT_NAMES.dashboard, icon: LayoutDashboard, badge: null },
+  { href: "/backtest", label: PRODUCT_NAMES.backtest, icon: FlaskConical, badge: null },
+  { href: "/journal", label: "Nhật ký", icon: BookOpen, badge: null },
+  { href: "/admin", label: "Quản lý", icon: Users, badge: null },
 ];
 
 /* ── Dropdown: Sản Phẩm Dịch Vụ ─────────────────────────── */
 const serviceItems: { href: string; label: string; icon: typeof BarChart2; badge: string | null; desc: string; adminOnly?: boolean }[] = [
-  { href: "/terminal",             label: "Chat AI",       icon: MessageSquare, badge: "HOT", desc: "Trợ lý đầu tư AI" },
-  { href: "/dashboard/signal-map", label: "ADN AI Broker", icon: Zap,         badge: null,    desc: "Trợ lý đồng hành khuyến nghị đầu tư" },
-  { href: "/dashboard/dnse-trading", label: "DNSE Trading", icon: Wallet,     badge: "NEW",   desc: "Kết nối tài khoản và đặt lệnh chủ động" },
-  { href: "/art",                  label: "ART",          icon: Activity,     badge: "MỚI",  desc: "Analytical Reversal Tracker" },
-  { href: "/formula-test",         label: "Test Công Thức", icon: FlaskConical, badge: "MỚI",  desc: "Test 3 công thức chọn cổ phiếu", adminOnly: true },
-  { href: "/margin",               label: "Ký Quỹ Margin", icon: Banknote,    badge: null,    desc: "Tư vấn ký quỹ margin" },
+  { href: "/terminal", label: PRODUCT_NAMES.advisory, icon: MessageSquare, badge: "HOT", desc: "Trợ lý đầu tư AIDEN" },
+  { href: "/dashboard/signal-map", label: PRODUCT_NAMES.brokerWorkflow, icon: Zap, badge: null, desc: "Theo dõi cơ hội và trạng thái danh mục" },
+  { href: "/dashboard/dnse-trading", label: PRODUCT_NAMES.brokerConnect, icon: Wallet, badge: "PILOT", desc: "Admin pilot, chưa public cho khách hàng thường", adminOnly: true },
+  { href: "/art", label: PRODUCT_NAMES.art, icon: Activity, badge: "MỚI", desc: "Action - Risk - Trend" },
+  { href: "/formula-test", label: "Test công thức", icon: FlaskConical, badge: "MỚI", desc: "Kiểm tra công thức nội bộ", adminOnly: true },
+  { href: "/margin", label: "Ký quỹ - Mua nhanh", icon: Banknote, badge: null, desc: "Dịch vụ hỗ trợ giao dịch" },
 ];
 
 function getBadgeStyle(badge: string | null): React.CSSProperties {
@@ -108,13 +109,13 @@ export function TopNavbar() {
         {/* ── Left: Logo ── */}
         <Link href="/" className="flex items-center gap-2.5 shrink-0">
           <Image
-            src="/logo.jpg"
-            alt="ADN Capital"
+            src="/brand/favicon.png"
+            alt={BRAND.name}
             width={32}
             height={32}
             className="rounded-lg"
           />
-          <span className="text-sm font-bold hidden sm:inline" style={{ color: "var(--text-primary)" }}>ADN Capital</span>
+          <span className="text-sm font-bold hidden sm:inline" style={{ color: "var(--text-primary)" }}>{BRAND.name}</span>
         </Link>
 
         {/* ── Center: Nav items (desktop) ── */}
@@ -182,7 +183,7 @@ export function TopNavbar() {
                         }
                       }}
                     >
-                      Sản Phẩm Dịch Vụ
+                      Bộ công cụ đầu tư
                       <ChevronDown
                         className={`w-3 h-3 transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""}`}
                       />
@@ -250,7 +251,7 @@ export function TopNavbar() {
                               <span className="text-[12px] transition-colors cursor-pointer" style={{ color: "var(--text-muted)" }}
                                 onMouseEnter={(e) => { (e.target as HTMLSpanElement).style.color = "var(--primary)"; }}
                                 onMouseLeave={(e) => { (e.target as HTMLSpanElement).style.color = "var(--text-muted)"; }}>
-                                Xem tất cả sản phẩm →
+                                Xem tất cả công cụ {"->"}
                               </span>
                             </Link>
                           </div>
@@ -363,9 +364,9 @@ export function TopNavbar() {
                 </Link>
               );
             })}
-            {/* Sản Phẩm Dịch Vụ group trên mobile */}
+            {/* Nhóm công cụ đầu tư trên mobile */}
             <div className="pt-1 mt-1 border-t" style={{ borderColor: "var(--border)" }}>
-              <p className="px-3 text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: "var(--text-muted)" }}>Sản Phẩm Dịch Vụ</p>
+              <p className="px-3 text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: "var(--text-muted)" }}>Bộ công cụ đầu tư</p>
               {serviceItems.filter((s) => !s.adminOnly || isAdmin).map((svc) => {
                 const SvcIcon = svc.icon;
                 const active = isActive(svc.href);

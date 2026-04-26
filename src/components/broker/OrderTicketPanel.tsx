@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
+import { PRODUCT_NAMES } from "@/lib/brand/productNames";
 import type {
   DnseExecutionResult,
   OrderExecutionPreview,
@@ -351,7 +352,7 @@ export function OrderTicketPanel({
             className="text-sm font-black uppercase tracking-wider"
             style={{ color: "var(--text-primary)" }}
           >
-            Phiếu lệnh DNSE
+            Phiếu xem trước {PRODUCT_NAMES.brokerConnect}
           </h3>
           <p className="text-xs" style={{ color: "var(--text-muted)" }}>
             Chế độ: <span className="font-semibold">{previewMode}</span> · Kiểm soát deterministic phía server
@@ -370,7 +371,7 @@ export function OrderTicketPanel({
           className="rounded-xl border p-3 text-sm"
           style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
         >
-          Đăng nhập để sử dụng phiếu lệnh DNSE.
+          Đăng nhập để sử dụng phiếu xem trước {PRODUCT_NAMES.brokerConnect}.
         </div>
       ) : (
         <div className="space-y-3">
@@ -384,7 +385,7 @@ export function OrderTicketPanel({
               }}
             >
               <p className="font-semibold" style={{ color: "var(--text-primary)" }}>
-                Khuyến nghị từ thẻ ADN AI Broker
+                Khuyến nghị từ {PRODUCT_NAMES.brokerWorkflow}
               </p>
               <p className="mt-1">
                 Tỷ trọng NAV:{" "}

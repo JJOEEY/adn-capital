@@ -23,6 +23,7 @@ import {
 import { MainLayout } from "@/components/layout/MainLayout";
 import { StockChart } from "@/components/chat/StockChart";
 import { formatVnDate, formatVnTime } from "@/lib/time";
+import { PRODUCT_NAMES } from "@/lib/brand/productNames";
 
 interface NotificationItem {
   id: string;
@@ -769,14 +770,14 @@ function NotificationsContent() {
               </div>
               <div className="min-w-0">
                 <h1 className="truncate text-base font-black" style={{ color: "var(--text-primary)" }}>
-                  {subTab === "updates" ? "Thông báo" : "Tư vấn đầu tư"}
+                  {subTab === "updates" ? PRODUCT_NAMES.notifications : PRODUCT_NAMES.advisory}
                 </h1>
                 <p className="truncate text-xs" style={{ color: "var(--text-muted)" }}>
                   {subTab === "updates"
                     ? "Cập nhật scan tín hiệu và thị trường"
                     : chatLoading
-                      ? "ADN AI đang phân tích"
-                      : "ADN AI Broker đang sẵn sàng"}
+                      ? "AIDEN đang phân tích"
+                      : "AIDEN sẵn sàng hỗ trợ"}
                 </p>
               </div>
             </div>
@@ -816,7 +817,7 @@ function NotificationsContent() {
               }
             >
               <Bot className="w-3.5 h-3.5" />
-              Tư vấn đầu tư
+              {PRODUCT_NAMES.advisory}
             </button>
           </div>
         </div>
@@ -940,7 +941,7 @@ function NotificationsContent() {
                   <div className="w-16 h-16 rounded-2xl border flex items-center justify-center mb-4" style={{ background: "var(--primary-light)", borderColor: "var(--border)" }}>
                     <Bot className="w-8 h-8" style={{ color: "var(--primary)" }} />
                   </div>
-                  <h3 className="text-lg font-black mb-1" style={{ color: "var(--text-primary)" }}>ADN AI Broker</h3>
+                  <h3 className="text-lg font-black mb-1" style={{ color: "var(--text-primary)" }}>AIDEN Analyst</h3>
                   <p className="text-xs max-w-xs mb-4" style={{ color: "var(--text-secondary)" }}>
                     Nhập trực tiếp mã cổ phiếu (ví dụ: HPG) để mở 4 thẻ phân tích, hoặc dùng lệnh:
                     <br />
@@ -1043,7 +1044,7 @@ function NotificationsContent() {
                                 background: `${badgeColor}1A`,
                               }}
                             >
-                              AI BROKER: {m.widgetMeta.badge ?? "GIỮ"}
+                              AIDEN: {m.widgetMeta.badge ?? "GIỮ"}
                             </span>
                           </div>
                           <StockChart symbol={m.widgetMeta.ticker} />

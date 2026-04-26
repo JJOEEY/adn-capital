@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, type CSSProperties, type FormEvent, type ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -20,32 +20,59 @@ import {
   User,
   WalletCards,
 } from "lucide-react";
+import { BRAND, PRODUCT_NAMES } from "@/lib/brand/productNames";
+import { isStandaloneAppRuntime } from "@/lib/mobileRuntime";
 
 const benefits = [
   {
     icon: LayoutDashboard,
-    title: "Dashboard thị trường",
+    title: PRODUCT_NAMES.dashboard,
     body: "Theo dõi VNINDEX, thanh khoản, độ rộng thị trường, bản tin sáng, tổng kết cuối ngày và các cơ hội mới trong cùng một màn hình.",
   },
   {
     icon: Bot,
-    title: "ADN AI Broker",
+    title: PRODUCT_NAMES.brokerWorkflow,
     body: "Xem mã cổ phiếu đáng chú ý, vùng giá tham khảo, trạng thái theo dõi và cảnh báo rủi ro trước khi ra quyết định.",
   },
   {
     icon: WalletCards,
     title: "Quy trình có kiểm soát",
-    body: "Các thao tác quan trọng luôn có bước kiểm tra và xác nhận rõ ràng. ADN không tự động giao dịch thay nhà đầu tư.",
+    body: "Các thao tác quan trọng luôn có bước kiểm tra và xác nhận rõ ràng. ADNexus không tự động giao dịch thay nhà đầu tư.",
   },
 ];
 
-const brokerSteps = [
-  "Đăng nhập ADN để mở dashboard và bộ công cụ phân tích.",
+const safeUseSteps = [
+  `Đăng nhập ${BRAND.name} để mở ${PRODUCT_NAMES.dashboard} và bộ công cụ phân tích.`,
   "Theo dõi thị trường, cơ hội và cảnh báo rủi ro trong cùng một tài khoản.",
   "Mọi thao tác nhạy cảm đều cần xác nhận của nhà đầu tư; hệ thống không tự ý thực hiện giao dịch.",
 ];
 
-function AuthPageShell({ children }: { children: React.ReactNode }) {
+function AuthPageShell({ children, compactApp = false }: { children: ReactNode; compactApp?: boolean }) {
+  if (compactApp) {
+    return (
+      <main
+        className="min-h-screen overflow-hidden px-4 py-8"
+        style={{
+          background: "var(--page-surface)",
+          color: "var(--text-primary)",
+          paddingTop: "calc(28px + env(safe-area-inset-top, 0px))",
+          paddingBottom: "calc(28px + env(safe-area-inset-bottom, 0px))",
+        }}
+      >
+        <div className="mx-auto flex min-h-[calc(100dvh-4rem)] w-full max-w-md flex-col justify-center">
+          <div className="mb-6 text-center">
+            <Image src="/brand/favicon.png" alt={BRAND.name} width={56} height={56} className="mx-auto rounded-2xl" priority />
+            <h1 className="mt-4 text-2xl font-black tracking-[-0.04em]">Đăng nhập {BRAND.name}</h1>
+            <p className="mt-2 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
+              Đăng nhập để mở {PRODUCT_NAMES.dashboard}, tin tức, {PRODUCT_NAMES.brokerWorkflow} và {PRODUCT_NAMES.art} trong app.
+            </p>
+          </div>
+          {children}
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main
       className="min-h-screen overflow-hidden px-4 py-8 sm:px-6 lg:px-10"
@@ -58,10 +85,7 @@ function AuthPageShell({ children }: { children: React.ReactNode }) {
           transition={{ duration: 0.45 }}
           className="relative"
         >
-          <div
-            className="absolute -left-20 -top-24 h-64 w-64 rounded-full blur-3xl"
-            style={{ background: "rgba(46,77,61,0.16)" }}
-          />
+          <div className="absolute -left-20 -top-24 h-64 w-64 rounded-full blur-3xl" style={{ background: "rgba(46,77,61,0.16)" }} />
           <div
             className="relative rounded-[2rem] border p-6 sm:p-8 lg:p-10"
             style={{
@@ -70,13 +94,13 @@ function AuthPageShell({ children }: { children: React.ReactNode }) {
             }}
           >
             <div className="mb-8 flex items-center gap-3">
-              <Image src="/brand/favicon.png" alt="ADN Capital" width={56} height={56} className="rounded-2xl" priority />
+              <Image src="/brand/favicon.png" alt={BRAND.name} width={56} height={56} className="rounded-2xl" priority />
               <div>
                 <p className="text-sm font-bold tracking-[0.28em]" style={{ color: "var(--primary)" }}>
-                  ADN CAPITAL
+                  {BRAND.name.toUpperCase()}
                 </p>
                 <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                  AI-powered investment platform
+                  {BRAND.tagline}
                 </p>
               </div>
             </div>
@@ -90,27 +114,20 @@ function AuthPageShell({ children }: { children: React.ReactNode }) {
             </div>
 
             <h1 className="max-w-3xl text-4xl font-black leading-tight tracking-[-0.04em] sm:text-5xl lg:text-6xl">
-              Đăng nhập để mở dashboard ADN Capital
+              Đăng nhập để mở {BRAND.name}
             </h1>
             <p className="mt-5 max-w-2xl text-base leading-7 sm:text-lg" style={{ color: "var(--text-secondary)" }}>
-              Một điểm vào cho dashboard thị trường, ADN AI Broker, ART và các cảnh báo quan trọng. AI hỗ trợ phân tích
-              và giải thích, còn quyết định cuối cùng luôn thuộc về nhà đầu tư.
+              Một điểm vào cho {PRODUCT_NAMES.dashboard}, {PRODUCT_NAMES.brokerWorkflow}, {PRODUCT_NAMES.art} và cảnh báo quan trọng.
+              {` ${PRODUCT_NAMES.assistant}`} hỗ trợ giải thích, còn quyết định cuối cùng luôn thuộc về nhà đầu tư.
             </p>
 
             <div className="mt-8 grid gap-3">
               {benefits.map((item) => {
                 const Icon = item.icon;
                 return (
-                  <div
-                    key={item.title}
-                    className="rounded-2xl border p-4"
-                    style={{ background: "var(--surface)", borderColor: "var(--border)" }}
-                  >
+                  <div key={item.title} className="rounded-2xl border p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
                     <div className="flex gap-3">
-                      <span
-                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-                        style={{ background: "var(--primary-light)", color: "var(--primary)" }}
-                      >
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: "var(--primary-light)", color: "var(--primary)" }}>
                         <Icon className="h-5 w-5" />
                       </span>
                       <div>
@@ -132,7 +149,7 @@ function AuthPageShell({ children }: { children: React.ReactNode }) {
                 style={{ background: "var(--primary)", color: "#EBE2CF" }}
               >
                 <Eye className="h-4 w-4" />
-                Xem demo read-only
+                Xem tư vấn read-only
               </Link>
               <Link
                 href="/pricing"
@@ -146,12 +163,7 @@ function AuthPageShell({ children }: { children: React.ReactNode }) {
           </div>
         </motion.section>
 
-        <motion.section
-          initial={{ opacity: 0, y: 22 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, delay: 0.08 }}
-          className="relative"
-        >
+        <motion.section initial={{ opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.08 }}>
           {children}
         </motion.section>
       </div>
@@ -161,11 +173,8 @@ function AuthPageShell({ children }: { children: React.ReactNode }) {
 
 function AuthPageSkeleton() {
   return (
-    <AuthPageShell>
-      <div
-        className="rounded-[2rem] border p-6"
-        style={{ background: "var(--surface)", borderColor: "var(--border)" }}
-      >
+    <AuthPageShell compactApp>
+      <div className="rounded-[2rem] border p-6" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
         <div className="mb-6 h-12 animate-pulse rounded-2xl" style={{ background: "var(--surface-2)" }} />
         <div className="h-[520px] animate-pulse rounded-2xl" style={{ background: "var(--surface-2)" }} />
       </div>
@@ -178,102 +187,90 @@ function AuthPageContent() {
   const searchParams = useSearchParams();
   const { status } = useSession();
 
-  const [mode, setMode] = useState<"login" | "register">(
-    searchParams.get("mode") === "register" ? "register" : "login",
-  );
+  const [mode, setMode] = useState<"login" | "register">(searchParams.get("mode") === "register" ? "register" : "login");
   const selectedPlan = searchParams.get("plan");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isStandaloneRuntime, setIsStandaloneRuntime] = useState(false);
+  const isAppMode = searchParams.get("app") === "1" || isStandaloneRuntime;
 
   useEffect(() => {
     setMode(searchParams.get("mode") === "register" ? "register" : "login");
   }, [searchParams]);
 
   useEffect(() => {
-    if (status === "authenticated") {
-      router.replace("/dashboard");
-    }
+    setIsStandaloneRuntime(isStandaloneAppRuntime());
+  }, []);
+
+  useEffect(() => {
+    if (status === "authenticated") router.replace("/dashboard");
   }, [status, router]);
 
-  const handleCredentialLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCredentialLogin = async (event: FormEvent) => {
+    event.preventDefault();
     setLoading(true);
     setError(null);
 
-    const result = await signIn("credentials", {
-      email,
-      password,
-      redirect: false,
-    });
+    const result = await signIn("credentials", { email, password, redirect: false });
 
     if (result?.error) {
       setError("Email hoặc mật khẩu không đúng.");
       setLoading(false);
-    } else {
-      window.location.href = "/dashboard";
+      return;
     }
+
+    window.location.href = "/dashboard";
   };
 
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleRegister = async (event: FormEvent) => {
+    event.preventDefault();
     setLoading(true);
     setError(null);
 
     try {
-      const res = await fetch("/api/auth/register", {
+      const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password, name }),
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
+      const data = await response.json();
+      if (!response.ok) {
         setError(data.error ?? "Đăng ký thất bại.");
         setLoading(false);
         return;
       }
 
-      const loginResult = await signIn("credentials", {
-        email,
-        password,
-        redirect: false,
-      });
-
+      const loginResult = await signIn("credentials", { email, password, redirect: false });
       if (loginResult?.error) {
         setError("Đăng ký thành công nhưng đăng nhập tự động lỗi. Vui lòng đăng nhập lại.");
         setMode("login");
         setLoading(false);
-      } else {
-        window.location.href = "/dashboard";
+        return;
       }
+
+      window.location.href = "/dashboard";
     } catch {
       setError("Không kết nối được máy chủ. Vui lòng thử lại.");
       setLoading(false);
     }
   };
 
-  const handleGoogleLogin = () => {
-    signIn("google", { callbackUrl: "/dashboard" });
-  };
-
-  const inputCls = "w-full rounded-xl py-3 pl-11 pr-4 text-sm outline-none transition focus:ring-2";
   const inputStyle = {
     background: "var(--surface-2)",
     border: "1px solid var(--border)",
     color: "var(--text-primary)",
-    ["--tw-ring-color" as string]: "rgba(46,77,61,0.22)",
-  };
+    "--tw-ring-color": "rgba(46,77,61,0.22)",
+  } as CSSProperties;
+
+  const inputClass = "w-full rounded-xl py-3 pl-11 pr-4 text-sm outline-none transition focus:ring-2";
 
   return (
-    <AuthPageShell>
-      <div
-        className="rounded-[2rem] border p-5 shadow-sm sm:p-6"
-        style={{ background: "var(--surface)", borderColor: "var(--border)" }}
-      >
+    <AuthPageShell compactApp={isAppMode}>
+      <div className="rounded-[2rem] border p-5 shadow-sm sm:p-6" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
         <div className="mb-5 flex rounded-2xl border p-1" style={{ background: "var(--surface-2)", borderColor: "var(--border)" }}>
           {(["login", "register"] as const).map((item) => (
             <button
@@ -295,16 +292,14 @@ function AuthPageContent() {
           ))}
         </div>
 
-        <div
-          className="mb-5 rounded-2xl border p-4"
-          style={{ background: "var(--primary-light)", borderColor: "var(--border)" }}
-        >
+        <div className="mb-5 rounded-2xl border p-4" style={{ background: "var(--primary-light)", borderColor: "var(--border)" }}>
           <div className="flex items-start gap-3">
             <Sparkles className="mt-0.5 h-5 w-5 shrink-0" style={{ color: "var(--primary)" }} />
             <div>
               <p className="font-bold">Sau khi đăng nhập</p>
               <p className="mt-1 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
-                Bạn có thể mở dashboard, xem cơ hội từ ADN AI Broker, theo dõi ART và dùng các công cụ nâng cao khi tài khoản đủ điều kiện.
+                Bạn có thể mở {PRODUCT_NAMES.dashboard}, xem cơ hội từ {PRODUCT_NAMES.brokerWorkflow}, theo dõi {PRODUCT_NAMES.art} và dùng
+                các công cụ nâng cao khi tài khoản đủ điều kiện.
               </p>
               {selectedPlan && (
                 <p className="mt-2 text-xs font-semibold" style={{ color: "var(--primary)" }}>
@@ -317,17 +312,14 @@ function AuthPageContent() {
 
         <button
           type="button"
-          onClick={handleGoogleLogin}
+          onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
           disabled={loading}
           className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-bold transition disabled:opacity-50"
           style={{ background: "var(--surface-2)", borderColor: "var(--border)", color: "var(--text-primary)" }}
         >
-          <svg className="h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
-            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />
-            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-          </svg>
+          <span aria-hidden="true" className="text-base">
+            G
+          </span>
           Tiếp tục với Google
         </button>
 
@@ -347,15 +339,7 @@ function AuthPageContent() {
               </label>
               <div className="relative">
                 <User className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
-                <input
-                  id="name"
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Nguyễn Văn A"
-                  className={inputCls}
-                  style={inputStyle}
-                />
+                <input id="name" type="text" value={name} onChange={(event) => setName(event.target.value)} placeholder="Nguyễn Văn A" className={inputClass} style={inputStyle} />
               </div>
             </div>
           )}
@@ -366,16 +350,7 @@ function AuthPageContent() {
             </label>
             <div className="relative">
               <Mail className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="email@example.com"
-                required
-                className={inputCls}
-                style={inputStyle}
-              />
+              <input id="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="email@example.com" required className={inputClass} style={inputStyle} />
             </div>
           </div>
 
@@ -389,21 +364,18 @@ function AuthPageContent() {
                 id="password"
                 type="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(event) => setPassword(event.target.value)}
                 placeholder={mode === "register" ? "Tối thiểu 6 ký tự" : "••••••••"}
                 required
                 minLength={mode === "register" ? 6 : undefined}
-                className={inputCls}
+                className={inputClass}
                 style={inputStyle}
               />
             </div>
           </div>
 
           {error && (
-            <div
-              className="mb-4 rounded-xl p-3 text-sm"
-              style={{ background: "rgba(192,57,43,0.08)", border: "1px solid rgba(192,57,43,0.20)", color: "var(--danger)" }}
-            >
+            <div className="mb-4 rounded-xl p-3 text-sm" style={{ background: "rgba(192,57,43,0.08)", border: "1px solid rgba(192,57,43,0.20)", color: "var(--danger)" }}>
               {error}
             </div>
           )}
@@ -415,14 +387,14 @@ function AuthPageContent() {
             style={{ background: "var(--primary)", color: "#EBE2CF" }}
           >
             {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-            {mode === "login" ? "Đăng nhập vào dashboard" : "Tạo tài khoản ADN"}
+            {mode === "login" ? `Đăng nhập vào ${BRAND.name}` : `Tạo tài khoản ${BRAND.name}`}
           </button>
         </form>
 
         <div className="mt-5 rounded-2xl border p-4" style={{ background: "var(--surface-2)", borderColor: "var(--border)" }}>
           <p className="mb-3 text-sm font-bold">Quy trình sử dụng an toàn</p>
           <div className="space-y-2">
-            {brokerSteps.map((step) => (
+            {safeUseSteps.map((step) => (
               <div key={step} className="flex gap-2 text-xs leading-5" style={{ color: "var(--text-secondary)" }}>
                 <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--primary)" }} />
                 <span>{step}</span>
@@ -432,7 +404,7 @@ function AuthPageContent() {
         </div>
 
         <p className="mt-5 text-center text-xs leading-5" style={{ color: "var(--text-muted)" }}>
-          Cần hỗ trợ? Liên hệ ADN Capital qua Telegram/Zalo chính thức. ADN không yêu cầu OTP, mật khẩu giao dịch hoặc mã xác nhận qua chat.
+          Cần hỗ trợ? Liên hệ ADN Capital qua Telegram/Zalo chính thức. ADNexus không yêu cầu OTP, mật khẩu giao dịch hoặc mã xác nhận qua chat.
         </p>
       </div>
     </AuthPageShell>

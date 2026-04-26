@@ -17,6 +17,7 @@ import { DnseAccountSelector } from "@/components/broker/DnseAccountSelector";
 import { DnseLoginModal } from "@/components/broker/DnseLoginModal";
 import { DnseAccountInfo } from "@/components/broker/DnseAccountInfo";
 import { useTopics } from "@/hooks/useTopics";
+import { PRODUCT_NAMES } from "@/lib/brand/productNames";
 
 type BrokerPosition = {
   ticker: string;
@@ -915,7 +916,7 @@ export function DnseTradingClient() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
           <h1 className="text-2xl font-black" style={{ color: "var(--text-primary)" }}>
-            DNSE Trading
+            {PRODUCT_NAMES.brokerConnect}
           </h1>
           <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
             Kết nối tài khoản DNSE thật để đồng bộ NAV, danh mục nắm giữ và đặt lệnh trong pilot an toàn.

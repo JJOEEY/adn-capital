@@ -9,6 +9,7 @@ import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 import { useChat } from "@/hooks/useChat";
 import { useTopic } from "@/hooks/useTopic";
 import { useChatStore } from "@/store/chatStore";
+import { PRODUCT_NAMES } from "@/lib/brand/productNames";
 
 // Shape hiển thị extra message từ free-text response
 interface ExtMessage {
@@ -130,9 +131,9 @@ export default function TerminalPage() {
               <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full animate-pulse" style={{ background: "var(--primary)" }} />
             </div>
             <div>
-              <p className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>ADN AI — Tư Vấn Đầu Tư</p>
+              <p className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>{PRODUCT_NAMES.advisory}</p>
               <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>
-                Phân tích TA · FA · Tâm lý · Tin tức • Online
+                AIDEN phân tích TA · FA · Tâm lý · Tin tức • Online
               </p>
               <div className="mt-1 flex items-center gap-1.5">
                 <FreshnessBadge freshness={activeSignalsTopic.freshness} />

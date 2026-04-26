@@ -3,6 +3,7 @@
 import { memo, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { TrendingUp, Zap, BarChart3, Rocket, ShieldCheck, TrendingDown, Flame } from "lucide-react";
+import { PRODUCT_NAMES } from "@/lib/brand/productNames";
 
 const DynamicBacktestChart = dynamic(
   () => import("@/components/dashboard/DynamicBacktestChart").then((m) => m.DynamicBacktestChart),
@@ -111,7 +112,7 @@ export const BacktestSection = memo(function BacktestSection() {
     {
       label: "Tổng Lệnh",
       value: kpi ? `${kpi.total_trades}` : `${baseline.totalTrades}`,
-      sub: "Tổng giao dịch backtest",
+      sub: "Tổng giao dịch kiểm chứng",
       Icon: BarChart3,
       color: "#f97316",
       bg: "rgba(249,115,22,0.10)",
@@ -125,7 +126,7 @@ export const BacktestSection = memo(function BacktestSection() {
         {/* Header */}
         <div className="text-center mb-10">
           <span className="text-[12px] font-bold uppercase tracking-[0.3em]" style={{ color: "var(--primary)" }}>
-            Backtest Results
+            {PRODUCT_NAMES.backtest}
           </span>
           <h2 className="text-2xl sm:text-3xl font-black mt-2" style={{ color: "var(--text-primary)" }}>
             Hiệu suất{" "}
@@ -134,7 +135,7 @@ export const BacktestSection = memo(function BacktestSection() {
             </span>
           </h2>
           <p className="text-sm mt-2 max-w-lg mx-auto" style={{ color: "var(--text-secondary)" }}>
-            Kết quả backtest dựa trên logic đầu tư của ADN Capital
+            Kết quả kiểm chứng dựa trên bộ quy tắc đầu tư của ADN Capital
           </p>
         </div>
 
@@ -254,7 +255,7 @@ export const BacktestSection = memo(function BacktestSection() {
 
         {/* Disclaimer */}
         <p className="text-[11px] text-center mt-6" style={{ color: "var(--text-muted)" }}>
-          * Kết quả backtest dựa trên dữ liệu lịch sử, không đảm bảo hiệu suất
+          * Kết quả kiểm chứng dựa trên dữ liệu lịch sử, không đảm bảo hiệu suất
           tương lai. Đầu tư luôn có rủi ro.
         </p>
         {snapshot?.generated_at && (

@@ -1,9 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Bell, RefreshCw, Bot } from "lucide-react";
+import { Bell, Bot, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { useState, useEffect } from "react";
+import { BRAND, getRouteDisplay } from "@/lib/brand/productNames";
 
 export function AppHeader() {
   const pathname = usePathname();
@@ -11,90 +12,61 @@ export function AppHeader() {
 
   useEffect(() => setMounted(true), []);
 
-  const getBreadcrumb = () => {
-    if (pathname === "/dashboard") return "Dashboard · Tổng quan thị trường";
-    if (pathname === "/art") return "Sản phẩm · Chỉ báo ART";
-    if (pathname === "/terminal") return "Sản phẩm · Tư vấn đầu tư";
-    if (pathname === "/dashboard/signal-map") return "Sản phẩm · ADN AI Broker";
-    if (pathname === "/dashboard/dnse-trading") return "Sản phẩm · DNSE Trading";
-    if (pathname === "/margin") return "Dịch vụ · Ký quỹ";
-    if (pathname === "/journal") return "Dịch vụ · Nhật ký giao dịch";
-    if (pathname === "/pricing") return "Khác · Bảng giá";
-    if (pathname === "/backtest") return "Khác · Backtest";
-    if (pathname === "/hdsd") return "Khác · Hướng dẫn sử dụng";
-    if (pathname === "/profile") return "Tài khoản · Thông tin cá nhân";
-    if (pathname === "/admin") return "Hệ thống · Quản lý";
-    return "ADN Capital · Investment System";
-  };
-
-  const getPageTitle = () => {
-    if (pathname === "/dashboard") return "Dashboard";
-    if (pathname === "/art") return "Chỉ báo ART";
-    if (pathname === "/terminal") return "Tư vấn đầu tư";
-    if (pathname === "/dashboard/signal-map") return "ADN AI Broker";
-    if (pathname === "/dashboard/dnse-trading") return "DNSE Trading";
-    if (pathname === "/margin") return "Ký quỹ Margin";
-    if (pathname === "/journal") return "Nhật ký giao dịch";
-    if (pathname === "/pricing") return "Bảng giá dịch vụ";
-    if (pathname === "/backtest") return "Backtest chiến thuật";
-    if (pathname === "/hdsd") return "Hướng dẫn sử dụng";
-    if (pathname === "/profile") return "Trang cá nhân";
-    if (pathname === "/admin") return "Quản lý hệ thống";
-    return "ADN Capital";
-  };
+  const display = getRouteDisplay(pathname);
 
   if (!mounted) return <div className="h-14" />;
 
   return (
     <header
-      className="h-14 px-6 flex items-center justify-between shrink-0 sticky top-0 z-30"
+      className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between px-6"
       style={{
         background: "var(--bg-surface)",
         borderBottom: "1px solid var(--border)",
       }}
     >
-      <div className="flex flex-col">
-        <h1 className="text-[17px] font-bold leading-tight" style={{ color: "var(--text-primary)" }}>
-          {getPageTitle()}
+      <div className="flex min-w-0 flex-col">
+        <h1 className="truncate text-[17px] font-bold leading-tight" style={{ color: "var(--text-primary)" }}>
+          {display.title}
         </h1>
-        <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
-          {getBreadcrumb()}
+        <p className="truncate text-[13px]" style={{ color: "var(--text-secondary)" }}>
+          {display.breadcrumb}
         </p>
       </div>
 
       <div className="flex items-center gap-2">
         <div
-          className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full text-[12px] font-medium"
+          className="hidden items-center gap-2 rounded-full px-3 py-1.5 text-[12px] font-medium md:flex"
           style={{ background: "rgba(23,54,39,0.40)", color: "var(--text-secondary)" }}
         >
-          <Bot className="w-3 h-3" />
-          ADN AI SYSTEM
+          <Bot className="h-3 w-3" />
+          {BRAND.name.toUpperCase()}
         </div>
 
         <button
-          className="w-9 h-9 rounded-full flex items-center justify-center transition-all"
+          aria-label="Thông báo"
+          className="flex h-9 w-9 items-center justify-center rounded-full transition-all"
           style={{ color: "var(--text-secondary)" }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-hover)";
+          onMouseEnter={(event) => {
+            event.currentTarget.style.background = "var(--bg-hover)";
           }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+          onMouseLeave={(event) => {
+            event.currentTarget.style.background = "transparent";
           }}
         >
-          <Bell className="w-4 h-4" />
+          <Bell className="h-4 w-4" />
         </button>
 
         <Button
           variant="ghost"
           size="sm"
-          className="hidden sm:flex items-center gap-2 h-9 px-4 rounded-lg border"
+          className="hidden h-9 items-center gap-2 rounded-lg border px-4 sm:flex"
           style={{
             borderColor: "var(--border)",
             color: "var(--text-secondary)",
           }}
           onClick={() => window.location.reload()}
         >
-          <RefreshCw className="w-3.5 h-3.5" />
+          <RefreshCw className="h-3.5 w-3.5" />
           Làm mới
         </Button>
       </div>

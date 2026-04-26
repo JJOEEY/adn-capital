@@ -1,9 +1,10 @@
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card } from "@/components/ui/Card";
+import { BRAND, PRODUCT_NAMES } from "@/lib/brand/productNames";
 import { DollarSign, ShieldCheck } from "lucide-react";
 import { PricingClient } from "./PricingClient";
 
-export const metadata = { title: "Bảng giá - ADN Capital" };
+export const metadata = { title: `Bảng giá - ${BRAND.name}` };
 
 export default function PricingPage() {
   return (
@@ -19,11 +20,12 @@ export default function PricingPage() {
               Bảng giá dịch vụ
             </div>
             <h1 className="max-w-3xl text-3xl font-black leading-tight tracking-[-0.04em] sm:text-5xl">
-              Chọn gói theo cách bạn dùng ADN mỗi ngày
+              Chọn gói theo cách bạn dùng {BRAND.name} mỗi ngày
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-7" style={{ color: "var(--text-secondary)" }}>
-              ADN Capital gom dashboard, ADN AI Broker, ART, tin tức, brief và cảnh báo vào một bộ công cụ dễ dùng.
-              Bảng giá này chỉ áp dụng cho các tính năng đang mở công khai.
+              {BRAND.name} gom {PRODUCT_NAMES.dashboard}, {PRODUCT_NAMES.brokerWorkflow}, {PRODUCT_NAMES.art}, tin tức,{" "}
+              {PRODUCT_NAMES.brief} và cảnh báo vào một bộ công cụ dễ dùng. Bảng giá này chỉ áp dụng cho các tính năng
+              đang mở công khai.
             </p>
           </div>
 
@@ -38,8 +40,8 @@ export default function PricingPage() {
               <div>
                 <h2 className="font-bold">Nguyên tắc an toàn</h2>
                 <p className="mt-2 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
-                  AI chỉ hỗ trợ giải thích và tóm tắt. Tín hiệu, quản trị rủi ro và dữ liệu vận hành phải đi theo
-                  nguồn dữ liệu kiểm soát của hệ thống ADN.
+                  {BRAND.persona} chỉ hỗ trợ giải thích và tóm tắt. Tín hiệu, quản trị rủi ro và dữ liệu vận hành đi theo
+                  nguồn dữ liệu kiểm soát của {BRAND.name}.
                 </p>
               </div>
             </div>

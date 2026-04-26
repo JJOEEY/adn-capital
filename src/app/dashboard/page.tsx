@@ -14,6 +14,7 @@ import { MorningNewsSkeleton, EveningNewsSkeleton } from "@/components/dashboard
 import { LockOverlay } from "@/components/ui/LockOverlay";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useTopic } from "@/hooks/useTopic";
+import { BRAND, PRODUCT_NAMES } from "@/lib/brand/productNames";
 
 interface MarketData {
   status: "GOOD" | "BAD" | "NEUTRAL";
@@ -255,7 +256,9 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-baseline gap-2">
-              <h1 className="text-xl sm:text-2xl font-black" style={{ color: "var(--text-primary)" }}>Dashboard</h1>
+              <h1 className="text-xl sm:text-2xl font-black" style={{ color: "var(--text-primary)" }}>
+                {PRODUCT_NAMES.dashboard}
+              </h1>
               <span
                 className="text-[12px] font-bold uppercase tracking-widest hidden sm:inline"
                 style={{ color: "var(--text-muted)" }}
@@ -313,7 +316,7 @@ export default function DashboardPage() {
 
           {/* Cột Phải: Gauge + Market Status Card */}
           <div className="lg:col-span-4 w-full min-w-0 flex flex-col gap-3">
-            <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem Đánh giá Vĩ mô">
+            <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem đánh giá thị trường">
               <SafeSection fallback={<GaugeCardSkeleton />}>
                 {/* Đồng hồ Gauge */}
                 {!mounted ? (
@@ -352,14 +355,14 @@ export default function DashboardPage() {
             </Suspense>
           </SafeSection>
 
-          <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để mở Khu vực AI Nhận định">
+          <LockOverlay isLocked={isDashboardLocked} message={`Nâng cấp VIP để mở nhận định ${BRAND.persona}`}>
             <AIBrokerDecisionCard
               summary={data?.aiSummary ?? null}
               signalLabel={effectiveOverview?.action_message ?? null}
             />
           </LockOverlay>
 
-          <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem Chỉ báo Cạn Kiệt Xu Hướng">
+          <LockOverlay isLocked={isDashboardLocked} message={`Nâng cấp VIP để xem ${PRODUCT_NAMES.art}`}>
             <SafeSection fallback={<RPISkeleton />}>
               {!mounted ? <RPISkeleton /> : <ReversePointIndex />}
             </SafeSection>
@@ -586,7 +589,7 @@ const AIBrokerDecisionCard = memo(function AIBrokerDecisionCard({
         <div className="flex items-center gap-2">
           <Bot className="w-4 h-4" style={{ color: "#16a34a" }} />
           <span className="text-[12px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-            Khu vực AI Nhận định
+            Nhận định {BRAND.persona}
           </span>
         </div>
         <span className="text-[11px] font-black px-2 py-1 rounded-full border" style={{ color: badgeColor, borderColor: `${badgeColor}55`, background: `${badgeColor}1A` }}>

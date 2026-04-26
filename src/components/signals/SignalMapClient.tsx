@@ -9,6 +9,7 @@ import type { Signal } from "@/types";
 import Link from "next/link";
 import { isWithinVnTradingSession } from "@/lib/time";
 import { useTopic } from "@/hooks/useTopic";
+import { PRODUCT_DESCRIPTIONS, PRODUCT_NAMES } from "@/lib/brand/productNames";
 
 type Tab = "RADAR" | "ACTIVE" | "CLOSED";
 type TierFilter = "all" | "LEADER" | "TRUNG_HAN" | "NGAN_HAN" | "TAM_NGAM";
@@ -165,10 +166,10 @@ export function SignalMapClient({
           </div>
           <div className="min-w-0">
             <h1 className="text-xl sm:text-2xl font-black" style={{ color: "var(--text-primary)" }}>
-              ADN AI Broker
+              {PRODUCT_NAMES.brokerWorkflow}
             </h1>
             <p className="text-xs sm:text-sm truncate" style={{ color: "var(--text-secondary)" }}>
-              Broker System Powered by ADN Capital
+              {PRODUCT_DESCRIPTIONS.brokerWorkflow}
             </p>
             <div className="mt-1">
               <FreshnessBadge freshness={signalMapTopic.freshness} />

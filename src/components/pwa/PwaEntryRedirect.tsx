@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 
@@ -12,16 +12,27 @@ function isStandalonePwa() {
   );
 }
 
-export function PwaEntryRedirect() {
+type PwaEntryRedirectProps = {
+  children?: ReactNode;
+};
+
+export function PwaEntryRedirect({ children }: PwaEntryRedirectProps) {
   const router = useRouter();
   const { status } = useSession();
+  const [standalone, setStandalone] = useState<boolean | null>(null);
 
   useEffect(() => {
+    setStandalone(isStandalonePwa());
+  }, []);
+
+  useEffect(() => {
+    if (standalone !== true) return;
     if (status === "loading") return;
-    if (!isStandalonePwa()) return;
 
     router.replace(status === "authenticated" ? "/dashboard" : "/auth");
-  }, [router, status]);
+  }, [router, standalone, status]);
 
-  return null;
+  if (standalone !== false) return null;
+
+  return <>{children}</>;
 }
