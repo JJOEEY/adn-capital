@@ -29,7 +29,7 @@ export function PwaEntryRedirect({ children }: PwaEntryRedirectProps) {
     if (standalone !== true) return;
     if (status === "loading") return;
 
-    router.replace(status === "authenticated" ? "/dashboard" : "/auth");
+    router.replace(status === "authenticated" ? "/dashboard" : "/auth?app=1");
   }, [router, standalone, status]);
 
   if (standalone !== false) return null;

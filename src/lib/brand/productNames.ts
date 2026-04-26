@@ -44,6 +44,7 @@ export const PRODUCT_DESCRIPTIONS = {
 
 export const ROUTE_DISPLAY_NAMES: Record<string, { title: string; breadcrumb: string }> = {
   "/": { title: BRAND.name, breadcrumb: BRAND.positioning },
+  "/auth": { title: `Đăng nhập ${BRAND.name}`, breadcrumb: `${BRAND.name} - Đăng nhập` },
   "/dashboard": { title: PRODUCT_NAMES.dashboard, breadcrumb: "Trang chủ - Tổng quan thị trường" },
   "/art": { title: PRODUCT_NAMES.art, breadcrumb: "Sản phẩm - Action - Risk - Trend" },
   "/terminal": { title: PRODUCT_NAMES.advisory, breadcrumb: "Sản phẩm - Tư vấn đầu tư" },
@@ -61,6 +62,7 @@ export const ROUTE_DISPLAY_NAMES: Record<string, { title: string; breadcrumb: st
   "/tin-tuc": { title: "Tin tức", breadcrumb: "Tin tức - Cập nhật thị trường" },
   "/khac/tin-tuc": { title: "Tin tức", breadcrumb: "Tin tức - Cập nhật thị trường" },
   "/notifications": { title: PRODUCT_NAMES.notifications, breadcrumb: "Thông báo - Cảnh báo và cập nhật" },
+  "/app-updates": { title: "Nhật ký cập nhật", breadcrumb: `${BRAND.name} - Cập nhật app và vá lỗi` },
   "/menu": { title: "Menu", breadcrumb: `${BRAND.name} - Tài khoản và dịch vụ` },
 };
 

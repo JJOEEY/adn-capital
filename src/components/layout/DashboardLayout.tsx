@@ -17,8 +17,8 @@ import {
   Menu,
   MessageSquare,
   Moon,
+  Newspaper,
   Sun,
-  TrendingUp,
   Users,
   X,
   Zap,
@@ -40,10 +40,10 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { href: "/dashboard", label: PRODUCT_NAMES.dashboard, icon: LayoutDashboard },
-  { href: "/", label: "Thị trường", icon: TrendingUp },
+  { href: "/tin-tuc", label: "Tin tức", icon: Newspaper },
   {
     href: "#",
-    label: "Bộ công cụ đầu tư",
+    label: `Bộ công cụ ${BRAND.name}`,
     icon: Zap,
     children: [
       { href: "/terminal", label: PRODUCT_NAMES.advisory, icon: MessageSquare, badge: "HOT" },

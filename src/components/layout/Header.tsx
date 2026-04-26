@@ -54,7 +54,6 @@ const menuSections: MenuSection[] = [
   {
     title: "Tổng quan",
     items: [
-      { href: "/", label: "Trang chủ", icon: Home },
       { href: "/dashboard", label: PRODUCT_NAMES.dashboard, icon: LayoutDashboard },
     ],
   },
@@ -136,7 +135,7 @@ function SidebarContent() {
   return (
     <div className="flex h-full flex-col">
       <div className={`shrink-0 flex items-center ${compact ? "justify-center px-2 pt-5 pb-4" : "gap-2.5 px-4 pt-5 pb-4"}`}>
-        <Link href="/" className={`flex items-center ${compact ? "justify-center" : "gap-2.5"}`}>
+        <Link href="/dashboard" className={`flex items-center ${compact ? "justify-center" : "gap-2.5"}`}>
           <Image
             src="/brand/favicon.png"
             alt={BRAND.name}
