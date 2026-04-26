@@ -55,8 +55,7 @@ export default function PricingPage() {
             <div>
               <h2 className="text-lg font-black">Cần kích hoạt hoặc xuất hóa đơn?</h2>
               <p className="mt-2 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
-                Liên hệ admin ADN Capital sau khi thanh toán để kích hoạt gói, cập nhật quyền truy cập và hỗ trợ
-                onboarding.
+                Liên hệ admin ADN Capital sau khi thanh toán để kích hoạt gói, cập nhật quyền truy cập và hỗ trợ onboarding.
               </p>
             </div>
             <div className="rounded-2xl border px-4 py-3 text-sm font-bold" style={{ borderColor: "var(--border)" }}>

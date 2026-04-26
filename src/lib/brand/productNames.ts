@@ -28,10 +28,10 @@ export const PRODUCT_NAMES = {
 export const PRODUCT_DESCRIPTIONS = {
   dashboard: "Bức tranh thị trường, thanh khoản, độ rộng và bản tin trong ngày.",
   workbench: "Không gian phân tích từng mã cổ phiếu theo dữ liệu đang có.",
-  signalMap: "Bản đồ tín hiệu được đồng bộ từ cùng nguồn với Telegram và app.",
+  signalMap: "Bản đồ tín hiệu đồng bộ từ cùng nguồn với Telegram và app.",
   rsRating: "Xếp hạng sức mạnh tương đối của cổ phiếu và danh mục theo nguồn chuẩn.",
-  art: "Action - Risk - Trend: theo dõi đảo chiều và trạng thái rủi ro.",
-  guardrails: "Các giới hạn an toàn giúp giữ kỷ luật trước khi hành động.",
+  art: "Action - Risk - Trend: theo dõi trạng thái hành động, rủi ro và xu hướng.",
+  guardrails: "Giới hạn an toàn giúp giữ kỷ luật trước khi hành động.",
   portfolio: "Theo dõi danh mục, vị thế và trạng thái lãi lỗ.",
   brokerConnect: "Kết nối broker ở chế độ pilot, chưa public cho khách hàng thường.",
   brokerWorkflow: "Theo dõi cơ hội, trạng thái và hành động đề xuất có kiểm soát.",
