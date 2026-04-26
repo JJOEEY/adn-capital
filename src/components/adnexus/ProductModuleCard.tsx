@@ -20,7 +20,8 @@ export function ProductModuleCard({ product, hrefPrefix = "/products" }: { produ
           <span
             className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[10px] font-black uppercase"
             style={{
-              background: product.status === "Public" ? "rgba(34,197,94,0.12)" : product.status === "Pilot" ? "rgba(245,158,11,0.14)" : "var(--surface-2)",
+              background:
+                product.status === "Public" ? "rgba(34,197,94,0.12)" : product.status === "Pilot" ? "rgba(245,158,11,0.14)" : "var(--surface-2)",
               color: product.status === "Public" ? "#059669" : product.status === "Pilot" ? "#d97706" : "var(--text-muted)",
             }}
           >
@@ -28,13 +29,19 @@ export function ProductModuleCard({ product, hrefPrefix = "/products" }: { produ
             {product.status}
           </span>
         </div>
-        <h3 className="mt-5 text-2xl font-black" style={{ color: "var(--text-primary)" }}>{product.shortName ?? product.name}</h3>
-        <p className="mt-3 text-sm leading-7" style={{ color: "var(--text-secondary)" }}>{product.outcome}</p>
+        <h3 className="mt-5 text-2xl font-black" style={{ color: "var(--text-primary)" }}>
+          {product.shortName ?? product.name}
+        </h3>
+        <p className="mt-3 text-sm leading-7" style={{ color: "var(--text-secondary)" }}>
+          {product.outcome}
+        </p>
       </div>
       <div className="mt-8">
         <div className="grid gap-2">
           {product.bullets.slice(0, 3).map((bullet) => (
-            <p key={bullet} className="text-sm" style={{ color: "var(--text-muted)" }}>• {bullet}</p>
+            <p key={bullet} className="text-sm" style={{ color: "var(--text-muted)" }}>
+              - {bullet}
+            </p>
           ))}
         </div>
         <div className="mt-6 inline-flex items-center gap-2 text-sm font-black" style={{ color: "var(--primary)" }}>

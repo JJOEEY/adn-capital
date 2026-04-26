@@ -1,26 +1,28 @@
 import Link from "next/link";
 import { BRAND } from "@/lib/brand/productNames";
-import { PRODUCT_MODULES } from "@/lib/brand/nexsuite";
+import { PUBLIC_PRODUCT_MODULES } from "@/lib/brand/nexsuite";
 
 export function PublicSiteFooter() {
-  const primaryProducts = PRODUCT_MODULES.filter((product) => product.status !== "Admin").slice(0, 8);
+  const primaryProducts = PUBLIC_PRODUCT_MODULES.slice(0, 8);
 
   return (
     <footer id="contact" className="border-t px-5 py-14 sm:px-8 lg:px-12 xl:px-16" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
       <div className="grid gap-10 lg:grid-cols-[1.2fr_2fr]">
         <div>
-          <p className="text-2xl font-black" style={{ color: "var(--text-primary)" }}>{BRAND.platform}</p>
-          <p className="mt-2 text-sm uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>{BRAND.tagline}</p>
+          <p className="text-2xl font-black" style={{ color: "var(--text-primary)" }}>
+            {BRAND.platform}
+          </p>
+          <p className="mt-2 text-sm uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
+            {BRAND.tagline}
+          </p>
           <p className="mt-5 max-w-md text-sm leading-7" style={{ color: "var(--text-secondary)" }}>
-            ADN Capital xây dựng ADNexus như một hệ điều hành đầu tư cho nhà đầu tư Việt Nam: đọc thị trường, giữ kỷ luật, theo dõi danh mục và hỏi AIDEN trong cùng một trải nghiệm.
+            ADN Capital xây dựng ADNexus như một hệ điều hành đầu tư cho nhà đầu tư Việt Nam: đọc thị trường, giữ kỷ luật, theo dõi danh mục và hỏi
+            AIDEN trong cùng một trải nghiệm.
           </p>
         </div>
 
         <div className="grid gap-8 sm:grid-cols-3">
-          <FooterColumn
-            title="NexSuite"
-            links={primaryProducts.map((product) => ({ href: `/products/${product.slug}`, label: product.shortName ?? product.name }))}
-          />
+          <FooterColumn title="NexSuite" links={primaryProducts.map((product) => ({ href: `/products/${product.slug}`, label: product.shortName ?? product.name }))} />
           <FooterColumn
             title="Tài nguyên"
             links={[
@@ -53,7 +55,9 @@ export function PublicSiteFooter() {
 function FooterColumn({ title, links }: { title: string; links: Array<{ href: string; label: string }> }) {
   return (
     <div>
-      <p className="text-xs font-black uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>{title}</p>
+      <p className="text-xs font-black uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
+        {title}
+      </p>
       <div className="mt-4 grid gap-3">
         {links.map((link) => (
           <Link key={`${link.href}-${link.label}`} href={link.href} className="text-sm font-bold hover:underline" style={{ color: "var(--text-secondary)" }}>

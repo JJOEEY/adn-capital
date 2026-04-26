@@ -85,7 +85,7 @@ export const PRODUCT_MODULES: ProductModule[] = [
     scene: "art",
     outcome: "Đọc trạng thái hành động, rủi ro và xu hướng mà không lộ công thức.",
     tagline: PRODUCT_TAGLINES.art,
-    bullets: ["Gauge trực quan", "Không công khai công thức", "Phù hợp để kiểm tra bối cảnh thị trường"],
+    bullets: ["Gauge trực quan", "Không công khai công thức", "Kiểm tra bối cảnh thị trường"],
   },
   {
     slug: "nexguard",
@@ -131,7 +131,8 @@ export const PRODUCT_MODULES: ProductModule[] = [
     outcome: "Xem trước hành động giao dịch qua lớp kiểm soát, không tự động đặt lệnh.",
     tagline: PRODUCT_TAGLINES.aiBroker,
     bullets: ["Tín hiệu trong bối cảnh danh mục", "Preview trước khi xác nhận", "Không public real submit"],
-    safetyNote: "AI chỉ giải thích/tóm tắt/cá nhân hóa; hành động nhạy cảm cần xác nhận và chính sách cho phép.",
+    safetyNote:
+      "AI chỉ giải thích, tóm tắt và cá nhân hóa. Hành động nhạy cảm cần xác nhận và chính sách cho phép.",
   },
   {
     slug: "nexlab",

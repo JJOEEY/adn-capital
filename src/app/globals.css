@@ -354,5 +354,68 @@ html { scroll-behavior: smooth; }
   100% { transform: translateX(-33.333%); }
 }
 
+/* ADNexus public motion system */
+.adn-motion-frame {
+  will-change: transform, opacity;
+}
+
+.adn-float {
+  animation: adnFloat 7s ease-in-out infinite;
+}
+
+.adn-pulse {
+  animation: adnPulse 3s ease-in-out infinite;
+}
+
+.adn-signal-sweep {
+  position: relative;
+  overflow: hidden;
+}
+
+.adn-signal-sweep::after {
+  content: "";
+  position: absolute;
+  inset: -40% auto -40% -30%;
+  width: 30%;
+  transform: rotate(18deg);
+  background: linear-gradient(90deg, transparent, rgba(46, 77, 61, 0.16), transparent);
+  animation: adnSignalSweep 5s ease-in-out infinite;
+}
+
+@keyframes adnFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes adnPulse {
+  0%, 100% { transform: scale(1); filter: saturate(1); }
+  50% { transform: scale(1.012); filter: saturate(1.18); }
+}
+
+@keyframes adnSignalSweep {
+  0% { transform: translateX(0) rotate(18deg); opacity: 0; }
+  20% { opacity: 1; }
+  70% { opacity: 1; }
+  100% { transform: translateX(520%) rotate(18deg); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .adn-float,
+  .adn-pulse,
+  .adn-signal-sweep::after,
+  .animate-marquee,
+  .typing-dot {
+    animation: none !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* perspective */
 .perspective-\[800px\] { perspective: 800px; }

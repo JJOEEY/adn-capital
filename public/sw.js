@@ -1,5 +1,5 @@
-// ADN Capital — Service Worker v3 (with Web Push support)
-const CACHE_NAME = 'adn-capital-v3';
+// ADN Capital - Service Worker v4 (with Web Push support)
+const CACHE_NAME = 'adn-capital-v4';
 const STATIC_ASSETS = [
   '/icons/icon-192x192.png',
   '/icons/icon-512x512.png',
@@ -9,7 +9,7 @@ const STATIC_ASSETS = [
   '/brand/logo-light.jpg',
 ];
 
-// Install — pre-cache only images, NOT pages
+// Install - pre-cache only images, NOT pages.
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
@@ -17,7 +17,7 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// Activate — delete ALL old caches
+// Activate - delete all old caches.
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
@@ -27,7 +27,14 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Push event — nhận notification từ server
+// Allow the app shell to activate a freshly deployed worker immediately.
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
+// Push event - receive notification from server.
 self.addEventListener('push', (event) => {
   if (!event.data) return;
 
@@ -51,7 +58,7 @@ self.addEventListener('push', (event) => {
   }
 });
 
-// Click notification — mở app
+// Click notification - open app.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
@@ -59,38 +66,33 @@ self.addEventListener('notificationclick', (event) => {
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
-      // Focus existing tab if open
       for (const client of clients) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
           client.navigate(url);
           return client.focus();
         }
       }
-      // Otherwise open new tab
       return self.clients.openWindow(url);
     })
   );
 });
 
 // Fetch strategy:
-// - API calls → network only (never cache)
-// - Next.js JS/CSS bundles → network first, NO cache fallback
-// - Images/fonts → cache first
+// - API calls -> network only (never cache)
+// - Next.js JS/CSS bundles -> network only
+// - HTML documents -> network only
+// - Images/fonts -> cache first
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip non-GET and non-http
   if (request.method !== 'GET') return;
   if (!url.protocol.startsWith('http')) return;
 
-  // API calls — always go to network, never cache
   if (url.pathname.startsWith('/api/')) {
     return;
   }
 
-  // Next.js JS/CSS bundles and HTML pages — ALWAYS network (no cache)
-  // This prevents stale JS from being served
   if (
     url.pathname.startsWith('/_next/') ||
     request.mode === 'navigate' ||
@@ -99,7 +101,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Static assets (images, fonts) — cache first
   if (
     request.destination === 'image' ||
     request.destination === 'font' ||
@@ -117,8 +118,5 @@ self.addEventListener('fetch', (event) => {
         });
       }).catch(() => fetch(request))
     );
-    return;
   }
-
-  // Everything else — network only
 });

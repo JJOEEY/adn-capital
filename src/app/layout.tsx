@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { AuthProvider } from "@/components/providers/AuthProvider";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
+import { BRAND } from "@/lib/brand/productNames";
 import localFont from "next/font/local";
 import "./globals.css";
 
@@ -28,11 +29,65 @@ const orbitron = localFont({
   display: "swap",
 });
 
+const siteUrl = "https://adncapital.com.vn";
+const siteDescription =
+  "ADNexus là hệ điều hành đầu tư AI cho chứng khoán Việt Nam: đọc thị trường, theo dõi cơ hội, giữ kỷ luật và hỏi AIDEN trong một workflow thống nhất.";
+
 export const metadata: Metadata = {
-  title: "ADN Capital - Trợ lý Chứng khoán Việt Nam",
-  description:
-    "Hệ thống AI phân tích chứng khoán Việt Nam chuyên nghiệp. Phân tích kỹ thuật, cơ bản, tín hiệu giao dịch.",
-  keywords: ["chứng khoán", "AI", "phân tích kỹ thuật", "Vietnam stock", "ADN AI"],
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: `${BRAND.platform} | ${BRAND.company}`,
+    template: `%s | ${BRAND.company}`,
+  },
+  description: siteDescription,
+  keywords: [
+    "ADNexus",
+    "ADN Capital",
+    "AIDEN",
+    "chứng khoán Việt Nam",
+    "AI đầu tư",
+    "phân tích cổ phiếu",
+    "NexPulse",
+    "NexPilot",
+    "NexART",
+    "NexRank",
+  ],
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    locale: "vi_VN",
+    url: siteUrl,
+    siteName: BRAND.company,
+    title: `${BRAND.platform} - ${BRAND.tagline}`,
+    description: siteDescription,
+    images: [
+      {
+        url: "/brand/logo-light.jpg",
+        width: 1024,
+        height: 1024,
+        alt: `${BRAND.company} logo`,
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `${BRAND.platform} | ${BRAND.company}`,
+    description: siteDescription,
+    images: ["/brand/logo-light.jpg"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-snippet": -1,
+      "max-image-preview": "large",
+      "max-video-preview": -1,
+    },
+  },
   icons: {
     icon: [
       { url: "/brand/favicon.png", type: "image/png" },
@@ -78,7 +133,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="theme-color" content="#F8F7F2" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="ADN Capital" />
+        <meta name="apple-mobile-web-app-title" content={BRAND.platform} />
         <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
@@ -89,6 +144,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {
               navigator.serviceWorker.register('/sw.js').then(function(reg) {
+                if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                reg.addEventListener('updatefound', function() {
+                  var worker = reg.installing;
+                  if (!worker) return;
+                  worker.addEventListener('statechange', function() {
+                    if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+                      worker.postMessage({ type: 'SKIP_WAITING' });
+                    }
+                  });
+                });
                 console.log('[ADN] Service Worker registered, scope:', reg.scope);
               }).catch(function(err) {
                 console.log('[ADN] SW registration failed:', err);
