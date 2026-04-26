@@ -344,7 +344,7 @@ function JournalAiReviewCards() {
       <div className="flex items-center gap-2 mb-3">
         <Sparkles className="w-4 h-4" style={{ color: "#10b981" }} />
         <h3 className="text-sm font-black" style={{ color: "var(--text-primary)" }}>
-          AI Broker danh gia lenh da dong
+          AIDEN đánh giá lệnh đã đóng
         </h3>
       </div>
       {isLoading ? (

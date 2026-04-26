@@ -421,7 +421,7 @@ async function getPersonalizationContext(userId: string | null, ticker: string):
 }
 
 // ─── System Prompt cơ bản ──────────────────────────────────
-const BASE_SYSTEM_PROMPT = `Bạn là ADN AI Broker của ADN Capital.
+const BASE_SYSTEM_PROMPT = `Bạn là AIDEN Analyst của ADNexus, vận hành bởi ADN Capital.
 Xưng hô: "Hệ thống". Gọi người dùng là "Nhà đầu tư".
 Giọng văn: chuyên nghiệp, kỷ luật, tập trung dữ liệu và quản trị rủi ro.
 Không dùng tiếng lóng. Không hứa hẹn lợi nhuận chắc chắn.
@@ -1070,7 +1070,7 @@ async function enforcePersonaAndLanguage(
   try {
     const repaired = await withTimeout(
       executeAIRequest(
-        `Viết lại câu trả lời sau theo đúng quy chuẩn ADN AI Broker.
+        `Viết lại câu trả lời sau theo đúng quy chuẩn AIDEN Analyst của ADNexus.
 - Xưng "Hệ thống", gọi user là "Nhà đầu tư".
 - Giọng chuyên nghiệp, kỷ luật, không dùng tiếng lóng.
 - Bắt buộc tiếng Việt có dấu rõ ràng.

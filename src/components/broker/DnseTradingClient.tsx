@@ -1337,7 +1337,7 @@ export function DnseTradingClient() {
               style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
             >
               <p className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
-                Tỷ trọng từ thẻ AI Broker: {queryNavPct.toFixed(2)}%
+                Tỷ trọng từ thẻ NexPilot: {queryNavPct.toFixed(2)}%
               </p>
               {suggestedNotional ? (
                 <p className="mt-2 text-xs font-semibold" style={{ color: "var(--primary)" }}>

@@ -188,7 +188,7 @@ export async function updateSignalLifecycle(): Promise<{
           from: "RADAR",
           to: "ACTIVE",
           reason: autoActivate
-            ? `AI Broker Active (${currentPrice.toLocaleString()})`
+            ? `NexPilot Active (${currentPrice.toLocaleString()})`
             : `Breakout Active (${currentPrice.toLocaleString()})`,
           price: currentPrice,
         });
