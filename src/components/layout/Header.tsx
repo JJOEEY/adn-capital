@@ -80,8 +80,7 @@ const menuSections: MenuSection[] = [
   {
     title: "Dịch vụ",
     items: [
-      { href: "/margin", label: "Ký quỹ · Mua nhanh", icon: Banknote, badge: "HOT" },
-      { href: "/journal", label: "Nhật ký giao dịch", icon: BookOpen },
+      { href: "/journal", label: "NexDiary", icon: BookOpen },
     ],
   },
   {
@@ -90,6 +89,7 @@ const menuSections: MenuSection[] = [
       { href: "https://t.me/+fryvX_B-6Y9kODg1", label: "Group Telegram", icon: Send, external: true },
       { href: "/backtest", label: PRODUCT_NAMES.backtest, icon: FlaskConical },
       { href: "/hdsd", label: "Hướng dẫn sử dụng", icon: BookOpen },
+      { href: "/margin", label: "Ký quỹ · Mua nhanh", icon: Banknote, badge: "HOT" },
     ],
   },
   {

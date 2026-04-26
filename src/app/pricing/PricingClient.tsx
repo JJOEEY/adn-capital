@@ -1,7 +1,7 @@
 "use client";
 
+import { useState } from "react";
 import { PRODUCT_NAMES } from "@/lib/brand/productNames";
-import Link from "next/link";
 import {
   ArrowRight,
   Bell,
@@ -138,6 +138,41 @@ const comparisonRows: { label: string; key: keyof Pick<Plan, "ai" | "alerts" | "
 ];
 
 function PlanCard({ plan }: { plan: Plan }) {
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleCheckout() {
+    if (isLoading) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/payment/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planId: plan.id }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (response.status === 401) {
+        const callbackUrl = encodeURIComponent(`/pricing?plan=${plan.id}`);
+        window.location.href = `/auth?mode=login&callbackUrl=${callbackUrl}`;
+        return;
+      }
+
+      if (!response.ok || !data.checkoutUrl) {
+        throw new Error(data.error || "Không tạo được liên kết thanh toán PayOS.");
+      }
+
+      window.location.href = data.checkoutUrl;
+    } catch (checkoutError) {
+      setError(checkoutError instanceof Error ? checkoutError.message : "Không tạo được liên kết thanh toán PayOS.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   return (
     <article
       className={`relative flex h-full flex-col rounded-[1.75rem] border p-5 transition hover:-translate-y-1 ${
@@ -185,18 +220,28 @@ function PlanCard({ plan }: { plan: Plan }) {
         ))}
       </ul>
 
-      <Link
-        href={`/auth?mode=register&plan=${plan.id}`}
+      <button
+        type="button"
+        onClick={handleCheckout}
+        disabled={isLoading}
         className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-black transition"
         style={{
           background: plan.highlight ? "var(--primary)" : "var(--surface-2)",
           border: plan.highlight ? "1px solid var(--primary)" : "1px solid var(--border)",
           color: plan.highlight ? "#EBE2CF" : "var(--text-primary)",
+          opacity: isLoading ? 0.7 : 1,
+          cursor: isLoading ? "wait" : "pointer",
         }}
       >
-        Chọn gói {plan.name}
+        {isLoading ? "Đang tạo thanh toán..." : `Chọn gói ${plan.name}`}
         <ArrowRight className="h-4 w-4" />
-      </Link>
+      </button>
+
+      {error ? (
+        <p className="mt-3 rounded-xl border px-3 py-2 text-sm" style={{ borderColor: "rgba(192,57,43,0.25)", color: "#C0392B" }}>
+          {error}
+        </p>
+      ) : null}
     </article>
   );
 }
