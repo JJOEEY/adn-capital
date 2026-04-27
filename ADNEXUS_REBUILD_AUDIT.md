@@ -1,73 +1,74 @@
 # ADNexus Rebuild Audit
 
-## Scope
-- Sprint hiện tại là display/UX rebuild cho public web và app shell, không đổi route/API/topic/DB/env.
-- Brand hiển thị: `ADNexus - Analyst. Discipline. Network.`
+## 1. Scope
+- Sprint này chỉ tối ưu UX/UI public web và app shell theo brand `ADNexus — Analyst. Discipline. Network.`
+- Không đổi route, API, DataHub topic, Prisma schema, cron name, env key hoặc DNSE execution policy.
+- `NexLink` vẫn là broker pilot/admin; không public real submit và không gọi DNSE runtime trên homepage.
+
+## 2. Current Routes Map
+- Public: `/`, `/san-pham`, `/pricing`, `/auth`, `/art`, `/rs-rating`, `/backtest`, `/hdsd`, `/journal`, `/terminal`.
+- Authenticated app: `/dashboard`, `/dashboard/signal-map`, `/stock/[ticker]`, `/portfolio`, `/notifications`, `/menu`.
+- Admin/pilot: `/dashboard/dnse-trading`, `/admin/*`.
+- PWA/APK: dùng app shell hiện tại, bottom tab đã có `Nhật ký`; route nội bộ vẫn giữ nguyên.
+
+## 3. Current Naming Map
+- Platform: `ADNexus`.
 - AI persona: `AIDEN`.
-- DNSE/NexLink tiếp tục là pilot/admin; public homepage không gọi DNSE runtime và không hứa auto-trading.
+- Dashboard: `NexPulse`.
+- Stock workbench: `NexLens`.
+- Signal map: `NexRadar`.
+- RS rating: `NexRank`.
+- ART indicator: `NexART`.
+- Risk layer: `NexGuard`.
+- Portfolio: `NexVault`.
+- Broker connect: `NexLink`.
+- Broker workflow: `NexPilot`.
+- Backtest: `NexLab`.
+- Notifications: `NexSentinel`.
+- Journal: `NexDiary`.
 
-## Current Routes Map
-- `/`: public ADNexus scroll story.
-- `/san-pham`, `/products`, `/products/[slug]`: product hub và product detail.
-- `/pricing`: bảng giá, cần đi PayOS khi user đã login.
-- `/auth`: đăng nhập/đăng ký, copy phải không hứa auto-trading.
-- `/art`: NexART, không lộ công thức trên UI public/dashboard.
-- `/rs-rating`: NexRank, chỉ Premium/VIP xem đầy đủ.
-- `/terminal`: ADN Advisory powered by AIDEN.
-- `/dashboard`: NexPulse authenticated command center.
-- `/dashboard/signal-map`: NexPilot/NexRadar authenticated.
-- `/dashboard/dnse-trading`: NexLink admin/pilot only.
-- `/journal`: NexDiary.
+## 4. Display Rename Safe To Apply
+- Nav labels, page headings, product cards, pricing copy, auth copy, sidebar labels and public marketing copy.
+- Route display metadata can use new names while path remains unchanged.
+- Internal identifiers must stay stable until a separate migration exists.
 
-## Naming Map
-- Dashboard/Market Overview: NexPulse.
-- Stock Workbench: NexLens.
-- Signal Map: NexRadar.
-- RS Rating: NexRank.
-- ART Indicator: NexART.
-- Risk/Guardrails: NexGuard.
-- Portfolio: NexVault.
-- DNSE/Broker Connect: NexLink.
-- AI Broker/Broker Workflow: NexPilot.
-- Backtest: NexLab.
-- Notifications/Alerts: NexSentinel.
-- Workflow Runtime: NexFlow.
-- Tư vấn đầu tư: ADN Advisory powered by AIDEN, public short label `AIDEN Advisory`.
+## 5. Public Pages Updated / Still Needing Attention
+- `/`: has ADNexus scroll-story, product scenes, dropdown product nav and safety copy.
+- `/san-pham`: now needs visual product hub, full product universe and subscription-aware NexRank locked state.
+- `/pricing`: CTA must call PayOS checkout for logged-in users and redirect unauthenticated users to auth with plan.
+- `/auth`: copy must not promise auto-trading; safe connected future state is allowed.
+- `/art`, `/rs-rating`, `/backtest`, `/hdsd`, `/journal`: route names are retained; display naming should align with brand constants.
 
-## Safe Display Rename
-- Safe: nav labels, public copy, product cards, metadata, page headings, mock scenes.
-- Not safe in this sprint: route paths, API paths, DataHub topics, Prisma models, cron names, env keys.
+## 6. App Shell / Product Polish
+- Sidebar should show `NexDiary` instead of “Nhật ký giao dịch”.
+- `NexLink` remains hidden for non-admin users.
+- Bottom nav keeps Vietnamese task labels where user-facing clarity is better, but product surfaces use Nex* names.
 
-## Public Pages Updated
-- `/` now uses full-viewport scroll story sections, fixed header, motion frame, product universe, FAQ schema and safety copy.
-- `/products` now has visual product hub instead of text-only cards.
-- `/products/[slug]` has metadata, structured data, product scene, safety principle block.
-- Public header product menu opens on hover/focus and links to section anchors/product pages.
+## 7. Animation And Scene Opportunities
+- Homepage sections should be full viewport and full-bleed in feel, with internal reading width only for text.
+- Product visuals should be CSS/SVG/components, not static screenshots.
+- Motion should be reveal/fade/scale only; avoid heavy scroll-jacking and respect reduced-motion where possible.
 
-## App Pages Requiring Continued Polish
-- PWA/app shell already has native-first navigation work, but authenticated dashboards still need visual unification in later UI polish.
-- NexLink remains hidden for non-admin until pilot is approved for public release.
+## 8. Top 15 Remaining Gaps Compared With Bridgewise-Class Experience
+1. Homepage sections were not full-bleed enough on wide screens.
+2. Product universe missed `NexLens`, `NexRadar`, `NexGuard`, `NexVault`, `NexLink`, `NexLab`, `NexSentinel`.
+3. `/san-pham` was text-card heavy and lacked visual context.
+4. Pricing plan CTA linked to auth even when user was logged in.
+5. Sidebar still used old “Nhật ký giao dịch” label.
+6. Public copy still needed stricter removal of internal jargon.
+7. Broker preview needed clearer “pilot / not auto-trading” language.
+8. NexRank needed a visible locked/premium state in product hub.
+9. Product dropdown needed deeper module links, not only broad navigation.
+10. Product scenes needed richer context, not only mock cards.
+11. Full-page scroll story needed desktop snap behavior.
+12. FAQ was missing from the public product story.
+13. Pricing teaser was missing from homepage flow.
+14. Public page must avoid DNSE runtime calls.
+15. Build and smoke validation must confirm no route is obviously broken.
 
-## Motion Opportunities Implemented
-- Fixed top header with gradient motion frame.
-- Full-viewport story sections.
-- Lightweight CSS/SVG-like scenes.
-- Reduced-motion fallback in global CSS.
-- No fake count-up KPI or hidden stale state.
-
-## Top 15 Gaps vs Bridgewise-Class Experience
-1. Full-bleed public sections were too boxed - addressed in `HomePageV2`.
-2. Product menu required click - addressed with hover/focus.
-3. Header was not fixed - addressed in `PublicSiteHeader`.
-4. Motion rules were undocumented - addressed in sprint notes and CSS reduced-motion rules.
-5. SEO metadata incomplete - addressed in root/products/product detail metadata.
-6. Product universe missing modules - addressed through `nexsuite.ts`.
-7. `/san-pham` lacked visual product context - partially addressed by `/products`; `/san-pham` should remain aligned.
-8. Public copy had jargon risk - reduced in homepage/product copy.
-9. NexLink public ambiguity - clarified as pilot/admin, no DNSE runtime call on public.
-10. AIDEN Advisory naming was inconsistent - public short label added.
-11. Service worker could serve stale deploy - cache bumped and `SKIP_WAITING` added.
-12. Sprint 0-6 traceability missing - addressed with sprint notes.
-13. Product detail pages lacked structured data - addressed.
-14. Auth/pricing still need ongoing copy/PayOS validation - tracked in notes.
-15. Browser visual smoke still required after deploy - tracked in QA notes.
+## 9. Current Sprint Actions
+- Expand public product story to all NexSuite modules.
+- Add component-based scenes for each key module.
+- Make `/san-pham` a visual product hub.
+- Route logged-in pricing CTA through `POST /api/payment/create`.
+- Rename sidebar journal label to `NexDiary`.

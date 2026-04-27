@@ -94,7 +94,7 @@ export async function GET(req: NextRequest) {
     const vn30  = snapshot.indices.find(i => i.ticker === "VN30");
 
     // ── 2. Gemini viết theo format Dashboard chuẩn Telegram ──────────
-    const prompt = `Bạn là ADN AI Bot — Trợ lý giao dịch chuyên nghiệp của ADN Capital.
+    const prompt = `Bạn là AIDEN Analyst — trợ lý phân tích chuyên nghiệp của ADN Capital.
 Hôm nay: ${today}. Nhiệm vụ: Viết BẢN TIN SÁNG 8:00.
 
 DỮ LIỆU THAM CHIẾU THỊ TRƯỜNG (THỰC):

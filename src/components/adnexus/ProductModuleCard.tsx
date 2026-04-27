@@ -2,6 +2,13 @@ import Link from "next/link";
 import { ArrowRight, Lock } from "lucide-react";
 import type { ProductModule } from "@/lib/brand/nexsuite";
 
+const STATUS_LABEL: Record<ProductModule["status"], string> = {
+  Public: "Cong khai",
+  Premium: "VIP",
+  Pilot: "Pilot",
+  Admin: "Admin",
+};
+
 export function ProductModuleCard({ product, hrefPrefix = "/products" }: { product: ProductModule; hrefPrefix?: string }) {
   const href = `${hrefPrefix}/${product.slug}`;
   const locked = product.status === "Premium" || product.status === "Admin";
@@ -21,12 +28,21 @@ export function ProductModuleCard({ product, hrefPrefix = "/products" }: { produ
             className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[10px] font-black uppercase"
             style={{
               background:
-                product.status === "Public" ? "rgba(34,197,94,0.12)" : product.status === "Pilot" ? "rgba(245,158,11,0.14)" : "var(--surface-2)",
-              color: product.status === "Public" ? "#059669" : product.status === "Pilot" ? "#d97706" : "var(--text-muted)",
+                product.status === "Public"
+                  ? "rgba(34,197,94,0.12)"
+                  : product.status === "Pilot"
+                    ? "rgba(245,158,11,0.14)"
+                    : "var(--surface-2)",
+              color:
+                product.status === "Public"
+                  ? "#059669"
+                  : product.status === "Pilot"
+                    ? "#d97706"
+                    : "var(--text-muted)",
             }}
           >
             {locked ? <Lock className="h-3 w-3" /> : null}
-            {product.status}
+            {STATUS_LABEL[product.status]}
           </span>
         </div>
         <h3 className="mt-5 text-2xl font-black" style={{ color: "var(--text-primary)" }}>
@@ -40,12 +56,12 @@ export function ProductModuleCard({ product, hrefPrefix = "/products" }: { produ
         <div className="grid gap-2">
           {product.bullets.slice(0, 3).map((bullet) => (
             <p key={bullet} className="text-sm" style={{ color: "var(--text-muted)" }}>
-              - {bullet}
+              • {bullet}
             </p>
           ))}
         </div>
         <div className="mt-6 inline-flex items-center gap-2 text-sm font-black" style={{ color: "var(--primary)" }}>
-          Xem chi tiết <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
+          Xem chi tiet <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
         </div>
       </div>
     </Link>

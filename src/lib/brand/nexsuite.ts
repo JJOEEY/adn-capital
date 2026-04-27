@@ -119,7 +119,7 @@ export const PRODUCT_MODULES: ProductModule[] = [
     outcome: "Kết nối broker ở trạng thái pilot/admin, chưa public cho khách hàng thường.",
     tagline: PRODUCT_TAGLINES.broker,
     bullets: ["Tài khoản và phiên", "NAV, tiền mặt, sức mua", "OTP/session khi áp dụng"],
-    safetyNote: "NexLink không gọi DNSE runtime trên trang public và chưa mở công khai.",
+    safetyNote: "ADN Link không gọi DNSE runtime trên trang public và chưa mở công khai.",
   },
   {
     slug: "nexpilot",
@@ -132,7 +132,7 @@ export const PRODUCT_MODULES: ProductModule[] = [
     tagline: PRODUCT_TAGLINES.aiBroker,
     bullets: ["Tín hiệu trong bối cảnh danh mục", "Preview trước khi xác nhận", "Không public real submit"],
     safetyNote:
-      "AI chỉ giải thích, tóm tắt và cá nhân hóa. Hành động nhạy cảm cần xác nhận và chính sách cho phép.",
+      "AI chỉ giải thích/tóm tắt/cá nhân hóa; hành động nhạy cảm cần xác nhận và chính sách cho phép.",
   },
   {
     slug: "nexlab",

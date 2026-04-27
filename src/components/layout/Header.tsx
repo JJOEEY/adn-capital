@@ -80,7 +80,7 @@ const menuSections: MenuSection[] = [
   {
     title: "Dịch vụ",
     items: [
-      { href: "/journal", label: "NexDiary", icon: BookOpen },
+      { href: "/journal", label: "ADN Diary", icon: BookOpen },
     ],
   },
   {

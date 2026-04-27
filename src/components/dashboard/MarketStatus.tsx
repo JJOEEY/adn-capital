@@ -214,7 +214,7 @@ export function MarketStatusDisplay({ data }: MarketStatusProps) {
         <div className="flex items-start gap-2">
         <Zap className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#16a34a" }} />
           <div>
-            <p className="text-[12px] mb-1" style={{ color: "var(--text-muted)" }}>🤖 ADN AI · Nhận định tổng hợp</p>
+            <p className="text-[12px] mb-1" style={{ color: "var(--text-muted)" }}>🤖 AIDEN · Nhận định tổng hợp</p>
             <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>{data.aiSummary}</p>
           </div>
         </div>

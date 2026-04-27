@@ -554,7 +554,7 @@ export default function ProfilePage() {
             <div className="flex items-center justify-between p-3 bg-neutral-800/50 rounded-xl border border-neutral-700/50">
               <div>
                 <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                  Nhận đánh giá tâm lý hàng tuần từ ADN AI
+                  Nhận đánh giá tâm lý hàng tuần từ AIDEN
                 </p>
                 <p className="text-[12px] mt-0.5" style={{ color: "var(--text-muted)" }}>
                   AI sẽ phân tích giao dịch tuần và gửi nhận xét riêng tư vào 17h Thứ 6

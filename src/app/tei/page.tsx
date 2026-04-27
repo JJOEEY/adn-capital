@@ -19,6 +19,7 @@ import { calculateRPI, getLatestRPI, type OHLCVData, type RPIResult } from "@/li
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useSubscription } from "@/hooks/useSubscription";
 import { LockOverlay } from "@/components/ui/LockOverlay";
+import { PRODUCT_NAMES } from "@/lib/brand/productNames";
 
 /* ═══════════════════════════════════════════════════════════════════════════
  *  TEI Page — Chỉ báo Cạn Kiệt Xu Hướng (Trend Exhaustion Index)
@@ -364,7 +365,7 @@ export default function TEIPage() {
   return (
     <MainLayout>
       <div className="p-3 md:p-6 max-w-5xl mx-auto space-y-4">
-        <LockOverlay isLocked={isArtPageLocked} message="Nâng cấp PREMIUM để xem chi tiết ART - Analytical Reversal Tracker">
+        <LockOverlay isLocked={isArtPageLocked} message={`Nâng cấp PREMIUM để xem chi tiết ${PRODUCT_NAMES.art}`}>
 
         <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden">
           {/* ═══ HEADER ═══ */}

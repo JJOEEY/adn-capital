@@ -76,6 +76,7 @@ model User {
   dnseAppliedAt   DateTime?
   initialJournalNAV Float?                                // Số dư vốn ban đầu của Nhật ký (VNĐ)
   enableAIReview  Boolean          @default(true)          // Bật/Tắt AI đánh giá tâm lý hàng tuần
+  trialVipActivatedAt DateTime?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
@@ -95,6 +96,8 @@ model User {
   chatDailyUsages   ChatUsageDaily[]
   chatQuotaOverride AdminChatQuotaOverride[] @relation("ChatQuotaTargetUser")
   updatedQuotaOverrideBy AdminChatQuotaOverride[] @relation("ChatQuotaUpdatedBy")
+  customerDiscountRequests CustomerDiscountRequest[] @relation("CustomerDiscountUser")
+  reviewedCustomerDiscountRequests CustomerDiscountRequest[] @relation("CustomerDiscountReviewedBy")
 }
 
 model NotificationPreference {
@@ -179,6 +182,9 @@ model PaymentOrder {
   planId        String   @default("1m")
   amount        Int
   description   String
+  customerCode  String?
+  discountPercent Int?
+  discountStatus  String?
   paymentLinkId String?
   checkoutUrl   String?
   status        String   @default("PENDING")
@@ -190,6 +196,29 @@ model PaymentOrder {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+}
+
+model CustomerDiscountRequest {
+  id                String    @id @default(cuid())
+  userId            String?
+  email             String?
+  customerCode      String
+  requestedPlanId   String
+  status            String    @default("PENDING") // PENDING | APPROVED | REJECTED
+  discountPercent   Int?
+  reviewedByAdminId String?
+  reviewedAt        DateTime?
+  note              String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  user       User? @relation("CustomerDiscountUser", fields: [userId], references: [id], onDelete: SetNull)
+  reviewedBy User? @relation("CustomerDiscountReviewedBy", fields: [reviewedByAdminId], references: [id], onDelete: SetNull)
+
+  @@index([customerCode, status])
+  @@index([userId, status])
+  @@index([requestedPlanId, status])
+  @@index([status, createdAt])
 }
 
 model Chat {

@@ -1,7 +1,15 @@
 import type { Metadata } from "next";
 import { AuthProvider } from "@/components/providers/AuthProvider";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
-import { BRAND } from "@/lib/brand/productNames";
+import { JsonLd } from "@/components/seo/JsonLd";
+import {
+  absoluteUrl,
+  DEFAULT_DESCRIPTION,
+  DEFAULT_KEYWORDS,
+  DEFAULT_OG_IMAGE,
+  SITE_NAME,
+  SITE_URL,
+} from "@/lib/seo";
 import localFont from "next/font/local";
 import "./globals.css";
 
@@ -29,53 +37,46 @@ const orbitron = localFont({
   display: "swap",
 });
 
-const siteUrl = "https://adncapital.com.vn";
-const siteDescription =
-  "ADNexus là hệ điều hành đầu tư AI cho chứng khoán Việt Nam: đọc thị trường, theo dõi cơ hội, giữ kỷ luật và hỏi AIDEN trong một workflow thống nhất.";
+const defaultTitle =
+  "ADN Capital | Hệ sinh thái AI đầu tư cho chứng khoán Việt Nam";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl),
+  metadataBase: new URL(SITE_URL),
+  applicationName: SITE_NAME,
   title: {
-    default: `${BRAND.platform} | ${BRAND.company}`,
-    template: `%s | ${BRAND.company}`,
+    default: defaultTitle,
+    template: `%s | ${SITE_NAME}`,
   },
-  description: siteDescription,
-  keywords: [
-    "ADNexus",
-    "ADN Capital",
-    "AIDEN",
-    "chứng khoán Việt Nam",
-    "AI đầu tư",
-    "phân tích cổ phiếu",
-    "NexPulse",
-    "NexPilot",
-    "NexART",
-    "NexRank",
-  ],
+  description: DEFAULT_DESCRIPTION,
+  keywords: DEFAULT_KEYWORDS,
+  authors: [{ name: SITE_NAME, url: SITE_URL }],
+  creator: SITE_NAME,
+  publisher: SITE_NAME,
+  category: "finance",
   alternates: {
     canonical: "/",
   },
   openGraph: {
     type: "website",
     locale: "vi_VN",
-    url: siteUrl,
-    siteName: BRAND.company,
-    title: `${BRAND.platform} - ${BRAND.tagline}`,
-    description: siteDescription,
+    url: "/",
+    siteName: SITE_NAME,
+    title: defaultTitle,
+    description: DEFAULT_DESCRIPTION,
     images: [
       {
-        url: "/brand/logo-light.jpg",
-        width: 1024,
-        height: 1024,
-        alt: `${BRAND.company} logo`,
+        url: absoluteUrl(DEFAULT_OG_IMAGE),
+        width: 512,
+        height: 512,
+        alt: SITE_NAME,
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: `${BRAND.platform} | ${BRAND.company}`,
-    description: siteDescription,
-    images: ["/brand/logo-light.jpg"],
+    title: defaultTitle,
+    description: DEFAULT_DESCRIPTION,
+    images: [absoluteUrl(DEFAULT_OG_IMAGE)],
   },
   robots: {
     index: true,
@@ -83,8 +84,8 @@ export const metadata: Metadata = {
     googleBot: {
       index: true,
       follow: true,
-      "max-snippet": -1,
       "max-image-preview": "large",
+      "max-snippet": -1,
       "max-video-preview": -1,
     },
   },
@@ -97,6 +98,29 @@ export const metadata: Metadata = {
     apple: "/icons/icon-192x192.png",
   },
 };
+
+const rootJsonLd = [
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "@id": absoluteUrl("/#organization"),
+    name: SITE_NAME,
+    url: SITE_URL,
+    logo: absoluteUrl("/brand/logo-light.jpg"),
+    email: "admin@adncapital.vn",
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "@id": absoluteUrl("/#website"),
+    name: SITE_NAME,
+    url: SITE_URL,
+    inLanguage: "vi-VN",
+    publisher: {
+      "@id": absoluteUrl("/#organization"),
+    },
+  },
+];
 
 const hydrationFixScript = `
 (function(){
@@ -124,19 +148,36 @@ const themeScript = `
 })();
 `;
 
+const mobileRuntimeScript = `
+(function(){
+  try{
+    var ua=navigator.userAgent||'';
+    var nativeApp=ua.indexOf('ADNCapitalAndroid')>-1;
+    if(nativeApp){
+      document.documentElement.classList.add('adn-native-app');
+    }
+  }catch(e){}
+})();
+`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="vi" suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+        />
         <meta name="theme-color" content="#F8F7F2" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content={BRAND.platform} />
+        <meta name="apple-mobile-web-app-title" content="ADN Capital" />
         <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+        <JsonLd data={rootJsonLd} />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <script dangerouslySetInnerHTML={{ __html: mobileRuntimeScript }} />
         <script dangerouslySetInnerHTML={{ __html: hydrationFixScript }} />
         <script
           dangerouslySetInnerHTML={{
@@ -144,16 +185,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {
               navigator.serviceWorker.register('/sw.js').then(function(reg) {
-                if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-                reg.addEventListener('updatefound', function() {
-                  var worker = reg.installing;
-                  if (!worker) return;
-                  worker.addEventListener('statechange', function() {
-                    if (worker.state === 'installed' && navigator.serviceWorker.controller) {
-                      worker.postMessage({ type: 'SKIP_WAITING' });
-                    }
-                  });
-                });
                 console.log('[ADN] Service Worker registered, scope:', reg.scope);
               }).catch(function(err) {
                 console.log('[ADN] SW registration failed:', err);
@@ -164,7 +195,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
       </head>
-      <body className={`${manrope.variable} ${orbitron.variable} antialiased min-h-screen text-base leading-relaxed`} suppressHydrationWarning>
+      <body
+        className={`${manrope.variable} ${orbitron.variable} antialiased min-h-screen text-base leading-relaxed`}
+        suppressHydrationWarning
+      >
         <AuthProvider>
           <ThemeProvider>{children}</ThemeProvider>
         </AuthProvider>

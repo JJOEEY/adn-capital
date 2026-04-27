@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
@@ -16,32 +15,14 @@ export function generateStaticParams() {
   return PRODUCT_MODULES.map((product) => ({ slug: product.slug }));
 }
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+export async function generateMetadata({ params }: PageProps) {
   const { slug } = await params;
   const product = getProductModule(slug);
   if (!product) return {};
 
-  const title = `${product.shortName ?? product.name} | ADNexus`;
-  const description = `${product.outcome} ${product.tagline}`;
-
   return {
-    title,
-    description,
-    alternates: {
-      canonical: `/products/${product.slug}`,
-    },
-    openGraph: {
-      title,
-      description,
-      url: `/products/${product.slug}`,
-      images: ["/brand/logo-light.jpg"],
-    },
-    twitter: {
-      card: "summary_large_image",
-      title,
-      description,
-      images: ["/brand/logo-light.jpg"],
-    },
+    title: `${product.shortName ?? product.name} | ${BRAND.name}`,
+    description: product.outcome,
   };
 }
 
@@ -51,50 +32,11 @@ export default async function ProductDetailPage({ params }: PageProps) {
   if (!product) notFound();
 
   const safeRoute = product.status === "Admin" ? "/products/nexlink" : product.route;
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
-    name: product.shortName ?? product.name,
-    applicationCategory: "FinanceApplication",
-    operatingSystem: "Web, PWA",
-    provider: {
-      "@type": "Organization",
-      name: BRAND.company,
-      url: "https://adncapital.com.vn",
-    },
-    description: product.outcome,
-  };
-  const breadcrumbJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    itemListElement: [
-      {
-        "@type": "ListItem",
-        position: 1,
-        name: "ADNexus",
-        item: "https://adncapital.com.vn",
-      },
-      {
-        "@type": "ListItem",
-        position: 2,
-        name: "NexSuite",
-        item: "https://adncapital.com.vn/products",
-      },
-      {
-        "@type": "ListItem",
-        position: 3,
-        name: product.shortName ?? product.name,
-        item: `https://adncapital.com.vn/products/${product.slug}`,
-      },
-    ],
-  };
 
   return (
     <main className="min-h-screen" style={{ background: "var(--page-surface)", color: "var(--text-primary)" }}>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <PublicSiteHeader />
-      <section className="flex min-h-[100svh] w-full items-center px-5 pt-32 pb-20 sm:px-8 lg:px-12 xl:px-16">
+      <section className="flex min-h-[100svh] w-full items-center px-5 py-20 sm:px-8 lg:px-12 xl:px-16">
         <div className="grid w-full items-center gap-12 lg:grid-cols-[0.9fr_1.1fr]">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.32em]" style={{ color: "var(--primary)" }}>
@@ -122,11 +64,19 @@ export default async function ProductDetailPage({ params }: PageProps) {
               </div>
             ) : null}
             <div className="mt-10 flex flex-wrap gap-3">
-              <Link href={safeRoute} className="inline-flex items-center gap-2 rounded-2xl px-5 py-3 font-black" style={{ background: "var(--primary)", color: "white" }}>
-                {product.status === "Admin" ? "Xem trạng thái pilot" : `Mở ${product.shortName ?? product.name}`} <ArrowRight className="h-4 w-4" />
+              <Link
+                href={safeRoute}
+                className="inline-flex items-center gap-2 rounded-2xl px-5 py-3 font-black"
+                style={{ background: "var(--primary)", color: "white" }}
+              >
+                {product.status === "Admin" ? "Xem trang thai pilot" : `Mo ${product.shortName ?? product.name}`} <ArrowRight className="h-4 w-4" />
               </Link>
-              <Link href="/products" className="inline-flex items-center gap-2 rounded-2xl border px-5 py-3 font-black" style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}>
-                Quay lại NexSuite
+              <Link
+                href="/products"
+                className="inline-flex items-center gap-2 rounded-2xl border px-5 py-3 font-black"
+                style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
+              >
+                Quay lai he sinh thai ADN
               </Link>
             </div>
           </div>
@@ -137,15 +87,15 @@ export default async function ProductDetailPage({ params }: PageProps) {
       <section className="px-5 pb-20 sm:px-8 lg:px-12 xl:px-16">
         <div className="rounded-[2rem] border bg-white p-8 dark:bg-white/5" style={{ borderColor: "var(--border)" }}>
           <p className="text-xs font-black uppercase tracking-[0.24em]" style={{ color: "var(--text-muted)" }}>
-            Nguyên tắc hiển thị
+            Nguyen tac hien thi
           </p>
           <div className="mt-6 grid gap-4 lg:grid-cols-3">
             {[
-              "Không dùng KPI giả hoặc cam kết lợi nhuận.",
-              "Không đổi route/API/topic nội bộ trong sprint display rename.",
+              "Khong dung KPI gia hoac cam ket loi nhuan.",
+              "Khong doi route/API/topic noi bo trong sprint display rename.",
               product.slug === "nexlink" || product.slug === "nexpilot"
-                ? "Broker workflow chỉ là preview/pilot-safe trên public, không tự động đặt lệnh."
-                : "Dữ liệu sản phẩm phải đi theo nguồn canonical của hệ thống khi vào app.",
+                ? "Broker workflow chi la preview/pilot-safe tren public, khong tu dong dat lenh."
+                : "Du lieu san pham phai di theo nguon canonical cua he thong khi vao app.",
             ].map((item) => (
               <div key={item} className="rounded-2xl bg-[var(--surface-2)] p-5 font-bold" style={{ color: "var(--text-secondary)" }}>
                 {item}

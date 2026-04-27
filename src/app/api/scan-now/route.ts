@@ -20,7 +20,7 @@ interface ScannerSignal {
  * POST /api/scan-now
  *
  * Manual scanner entrypoint. It must use the same deterministic ingest path as
- * cron/webhook so ADN AI Broker, DataHub and notifications read one artifact.
+ * cron/webhook so ADN Pilot, DataHub and notifications read one artifact.
  */
 export async function POST() {
   const startedAt = Date.now();

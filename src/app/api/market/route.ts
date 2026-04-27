@@ -172,7 +172,7 @@ async function getMarketStatus() {
   const opportunityBullets: string[] = [];
   if (pct >= 0.5) {
     opportunityBullets.push("Dòng tiền mạnh tạo cơ hội đột phá cho nhóm cổ phiếu leader có base đẹp.");
-    opportunityBullets.push("Cổ phiếu có NexRank cao đang trong giai đoạn breakout.");
+    opportunityBullets.push("Cổ phiếu có ADN Rank cao đang trong giai đoạn breakout.");
     riskBullets.push("Cẩn thận FOMO khi thị trường tăng nóng, luôn có kế hoạch cắt lỗ.");
   } else if (pct >= -0.5) {
     opportunityBullets.push("Thị trường tích lũy tạo cơ hội xây dựng vị thế cho sóng tiếp theo.");

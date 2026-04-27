@@ -1,12 +1,12 @@
 {
-  "name": "ADNexus - Hệ điều hành đầu tư AI",
-  "short_name": "ADNexus",
-  "description": "ADNexus - hệ điều hành đầu tư AI cho chứng khoán Việt Nam: NexPulse, NexPilot, NexART, NexRank và AIDEN Analyst.",
+  "name": "ADN Capital",
+  "short_name": "ADN Capital",
+  "description": "He sinh thai AI dau tu cho chung khoan Viet Nam.",
   "start_url": "/dashboard",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "theme_color": "#121212",
-  "background_color": "#121212",
+  "theme_color": "#0f2f22",
+  "background_color": "#f6f3ec",
   "icons": [
     {
       "src": "/icons/icon-192x192.png",

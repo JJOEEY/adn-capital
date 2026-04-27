@@ -24,7 +24,7 @@ export function useSubscription() {
   const isPremium = isAdmin || vipTier === "PREMIUM";
   // Signal Map: VIP hoặc ADMIN
   const isSignalLocked = !hasFullAccess;
-  // RS Rating: VIP hoặc ADMIN
+// ADN Rank: VIP hoặc ADMIN
   const isRsRatingLocked = !hasFullAccess;
   // Phân tích tâm lý AI: VIP hoặc ADMIN
   const isPsychologyLocked = !hasFullAccess;

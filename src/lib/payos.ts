@@ -6,23 +6,50 @@ import {
   type WebhookData,
 } from "@payos/node";
 
-/* ═══════════════════════════════════════════════════════════════════════════
- *  PLAN DEFINITIONS
- * ═══════════════════════════════════════════════════════════════════════════ */
 export interface VipPlan {
   id: string;
   name: string;
   days: number;
-  price: number;       // giá niêm yết (VND)
-  dnsePrice: number;   // giá KH DNSE (VND)
+  price: number;
+  dnsePrice: number;
   description: string;
+  disabledForCheckout?: boolean;
 }
 
 export const VIP_PLANS: Record<string, VipPlan> = {
-  "1m":  { id: "1m",  name: "Gói 1 Tháng",   days: 30,  price: 249_000,   dnsePrice: 224_000,   description: "VIP 1 Thang ADN Capital" },
-  "3m":  { id: "3m",  name: "Gói 3 Tháng",   days: 90,  price: 649_000,   dnsePrice: 519_000,   description: "VIP 3 Thang ADN Capital" },
-  "6m":  { id: "6m",  name: "Gói 6 Tháng",   days: 180, price: 1_199_000, dnsePrice: 839_000,   description: "VIP 6 Thang ADN Capital" },
-  "12m": { id: "12m", name: "Gói 12 Tháng",  days: 365, price: 1_999_000, dnsePrice: 1_199_000, description: "VIP 12 Thang ADN Capital" },
+  "1m": {
+    id: "1m",
+    name: "Gói 1 tháng",
+    days: 30,
+    price: 249_000,
+    dnsePrice: 224_000,
+    description: "VIP 1 tháng ADN Capital",
+    disabledForCheckout: true,
+  },
+  "3m": {
+    id: "3m",
+    name: "Gói 3 tháng",
+    days: 90,
+    price: 649_000,
+    dnsePrice: 519_000,
+    description: "VIP 3 tháng ADN Capital",
+  },
+  "6m": {
+    id: "6m",
+    name: "Gói 6 tháng",
+    days: 180,
+    price: 1_199_000,
+    dnsePrice: 839_000,
+    description: "VIP 6 tháng ADN Capital",
+  },
+  "12m": {
+    id: "12m",
+    name: "Gói 12 tháng",
+    days: 365,
+    price: 1_999_000,
+    dnsePrice: 1_199_000,
+    description: "VIP 12 tháng ADN Capital",
+  },
 };
 
 export function layPlan(planId: string): VipPlan | null {
@@ -31,56 +58,47 @@ export function layPlan(planId: string): VipPlan | null {
 
 let payosClient: PayOS | null = null;
 
-function layBienMoiTruongBatBuoc(tenBien: string, giaTri?: string) {
-  if (!giaTri) {
+function requireEnv(name: string, value?: string) {
+  if (!value) {
     throw new Error(
-      `Thiếu biến môi trường ${tenBien}. Hãy thêm PAYOS_CLIENT_ID, PAYOS_API_KEY và PAYOS_CHECKSUM_KEY vào .env.local trước khi dùng PayOS.`,
+      `Thiếu biến môi trường ${name}. Hãy cấu hình PAYOS_CLIENT_ID, PAYOS_API_KEY và PAYOS_CHECKSUM_KEY trước khi dùng PayOS.`,
     );
   }
 
-  return giaTri;
+  return value;
 }
 
-function taoPayOSClient() {
+function createPayOSClient() {
   return new PayOS({
-    clientId: layBienMoiTruongBatBuoc(
-      "PAYOS_CLIENT_ID",
-      process.env.PAYOS_CLIENT_ID,
-    ),
-    apiKey: layBienMoiTruongBatBuoc(
-      "PAYOS_API_KEY",
-      process.env.PAYOS_API_KEY,
-    ),
-    checksumKey: layBienMoiTruongBatBuoc(
-      "PAYOS_CHECKSUM_KEY",
-      process.env.PAYOS_CHECKSUM_KEY,
-    ),
+    clientId: requireEnv("PAYOS_CLIENT_ID", process.env.PAYOS_CLIENT_ID),
+    apiKey: requireEnv("PAYOS_API_KEY", process.env.PAYOS_API_KEY),
+    checksumKey: requireEnv("PAYOS_CHECKSUM_KEY", process.env.PAYOS_CHECKSUM_KEY),
   });
 }
 
 export function layPayOS() {
   if (!payosClient) {
-    payosClient = taoPayOSClient();
+    payosClient = createPayOSClient();
   }
 
   return payosClient;
 }
 
 export function taoMaDonHangPayOS() {
-  const duoiNgauNhien = Math.floor(Math.random() * 1000)
+  const randomSuffix = Math.floor(Math.random() * 1000)
     .toString()
     .padStart(3, "0");
 
-  return Number(`${Date.now()}${duoiNgauNhien}`);
+  return Number(`${Date.now()}${randomSuffix}`);
 }
 
 export const payos = {
-  async createPaymentLink(duLieuThanhToan: CreatePaymentLinkRequest): Promise<CreatePaymentLinkResponse> {
-    return layPayOS().paymentRequests.create(duLieuThanhToan);
+  async createPaymentLink(paymentData: CreatePaymentLinkRequest): Promise<CreatePaymentLinkResponse> {
+    return layPayOS().paymentRequests.create(paymentData);
   },
 
-  async verifyPaymentWebhookData(duLieuWebhook: Webhook): Promise<WebhookData> {
-    return layPayOS().webhooks.verify(duLieuWebhook);
+  async verifyPaymentWebhookData(webhookData: Webhook): Promise<WebhookData> {
+    return layPayOS().webhooks.verify(webhookData);
   },
 
   async confirmWebhook(webhookUrl: string) {

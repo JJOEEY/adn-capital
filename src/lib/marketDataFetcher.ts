@@ -1828,7 +1828,7 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
 export async function getRSRatingStocks(): Promise<string[]> {
   const rsStocks = await fetchRSRatingList();
   if (rsStocks && rsStocks.length > 0) {
-    // Sắp xếp theo RS Rating giảm dần, lấy tất cả
+  // Sắp xếp theo ADN Rank giảm dần, lấy tất cả
     return rsStocks
       .sort((a, b) => b.rsRating - a.rsRating)
       .map((s) => s.symbol);

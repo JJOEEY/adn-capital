@@ -188,7 +188,7 @@ export async function updateSignalLifecycle(): Promise<{
           from: "RADAR",
           to: "ACTIVE",
           reason: autoActivate
-            ? `NexPilot Active (${currentPrice.toLocaleString()})`
+            ? `ADN Pilot Active (${currentPrice.toLocaleString()})`
             : `Breakout Active (${currentPrice.toLocaleString()})`,
           price: currentPrice,
         });

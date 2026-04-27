@@ -674,7 +674,7 @@ async function handleIntraday(forceRun = false): Promise<NextResponse> {
     const liq = snapshot.liquidityByExchange;
     const fmtLiq = (v: number | null) => (v == null ? "?" : `${(v > 1_000_000 ? v / 1_000_000_000 : v).toFixed(0)} tỷ`);
 
-    const prompt = `Bạn là ADN AI Bot — trợ lý giao dịch chuyên nghiệp.
+  const prompt = `Bạn là AIDEN Analyst — trợ lý phân tích chuyên nghiệp của ADN Capital.
 Data thực: ${formatSnapshotForAI(snapshot, { investorMode: "intraday" })}
 Tin CafeF: ${buildCafefContext(cafefNews)}
 

@@ -37,7 +37,7 @@ const benefits = [
   {
     icon: WalletCards,
     title: "Quy trình có kiểm soát",
-    body: "Các thao tác quan trọng luôn có bước kiểm tra và xác nhận rõ ràng. ADNexus không tự động giao dịch thay nhà đầu tư.",
+    body: "Các thao tác quan trọng luôn có bước kiểm tra và xác nhận rõ ràng. ADN Capital không tự động giao dịch thay nhà đầu tư.",
   },
 ];
 
@@ -186,6 +186,8 @@ function AuthPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { status } = useSession();
+  const [isStandaloneRuntime, setIsStandaloneRuntime] = useState(false);
+  const isAppMode = searchParams.get("app") === "1" || isStandaloneRuntime;
 
   const [mode, setMode] = useState<"login" | "register">(searchParams.get("mode") === "register" ? "register" : "login");
   const selectedPlan = searchParams.get("plan");
@@ -194,8 +196,6 @@ function AuthPageContent() {
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [isStandaloneRuntime, setIsStandaloneRuntime] = useState(false);
-  const isAppMode = searchParams.get("app") === "1" || isStandaloneRuntime;
 
   useEffect(() => {
     setMode(searchParams.get("mode") === "register" ? "register" : "login");
@@ -404,7 +404,7 @@ function AuthPageContent() {
         </div>
 
         <p className="mt-5 text-center text-xs leading-5" style={{ color: "var(--text-muted)" }}>
-          Cần hỗ trợ? Liên hệ ADN Capital qua Telegram/Zalo chính thức. ADNexus không yêu cầu OTP, mật khẩu giao dịch hoặc mã xác nhận qua chat.
+          Cần hỗ trợ? Liên hệ ADN Capital qua Telegram/Zalo chính thức. ADN Capital không yêu cầu OTP, mật khẩu giao dịch hoặc mã xác nhận qua chat.
         </p>
       </div>
     </AuthPageShell>
