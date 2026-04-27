@@ -189,8 +189,8 @@ export function HomePageV2() {
             </motion.div>
 
             <div
-              className="grid gap-0 overflow-hidden rounded-[2.5rem] border bg-[#151515] text-white lg:grid-cols-2"
-              style={{ borderColor: "rgba(255,255,255,0.12)" }}
+              className="grid gap-0 overflow-hidden rounded-[2.5rem] border bg-white text-[var(--text-primary)] shadow-2xl shadow-black/5 dark:bg-[#151515] dark:text-white dark:shadow-black/40 lg:grid-cols-2"
+              style={{ borderColor: "var(--border)" }}
             >
               <SupportCard
                 eyebrow="Gói 01 - Tự trải nghiệm"
@@ -285,16 +285,18 @@ export function HomePageV2() {
 function ControlRoomVisual() {
   return (
     <div
-      className="rounded-[2.2rem] border bg-[#161916] p-4 text-white shadow-2xl shadow-emerald-950/20"
-      style={{ borderColor: "rgba(255,255,255,0.12)" }}
+      className="rounded-[2.2rem] border bg-white/85 p-4 text-[var(--text-primary)] shadow-2xl shadow-emerald-900/10 backdrop-blur dark:bg-[#161916] dark:text-white dark:shadow-emerald-950/20"
+      style={{ borderColor: "var(--border)" }}
     >
-      <div className="rounded-[1.7rem] border bg-[#20231f] p-5" style={{ borderColor: "rgba(255,255,255,0.12)" }}>
+      <div className="rounded-[1.7rem] border bg-[var(--surface-2)] p-5 dark:bg-[#20231f]" style={{ borderColor: "var(--border)" }}>
         <div className="mb-5 flex items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.28em] text-emerald-200/70">ADN Capital Control Room</p>
-            <p className="mt-1 text-sm text-white/55">Tích hợp đa lớp dữ liệu</p>
+            <p className="text-xs font-black uppercase tracking-[0.28em] text-[var(--primary)] dark:text-emerald-200/70">ADN Capital Control Room</p>
+            <p className="mt-1 text-sm text-[var(--text-secondary)] dark:text-white/55">Tích hợp đa lớp dữ liệu</p>
           </div>
-          <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/70">15:30 VN</span>
+          <span className="rounded-full border px-3 py-1 text-xs text-[var(--text-secondary)] dark:border-white/10 dark:text-white/70" style={{ borderColor: "var(--border)" }}>
+            15:30 VN
+          </span>
         </div>
 
         <div className="grid gap-4 xl:grid-cols-[0.72fr_1fr_0.72fr]">
@@ -311,7 +313,7 @@ function ControlRoomVisual() {
               </div>
             </DarkPanel>
             <DarkPanel title="ADN Radar" subtitle="Tín hiệu & trợ lý AIDEN">
-              <div className="mt-4 rounded-2xl bg-black/20 p-3 text-sm text-white/75">
+              <div className="mt-4 rounded-2xl bg-[var(--surface-2)] p-3 text-sm text-[var(--text-secondary)] dark:bg-black/20 dark:text-white/75">
                 AIDEN: tín hiệu được đặt trong bối cảnh, không tự tạo lệnh.
               </div>
             </DarkPanel>
@@ -325,27 +327,27 @@ function ControlRoomVisual() {
                   "conic-gradient(from 230deg, #ef4444 0deg, #f59e0b 82deg, #7c3aed 150deg, transparent 151deg)",
               }}
             >
-              <div className="flex h-full w-full flex-col items-center justify-center rounded-full bg-[#20231f]">
+              <div className="flex h-full w-full flex-col items-center justify-center rounded-full bg-[var(--surface-2)] dark:bg-[#20231f]">
                 <p className="text-5xl font-black text-amber-300">8</p>
-                <p className="text-xs uppercase tracking-[0.24em] text-white/55">Tích cực</p>
+                <p className="text-xs uppercase tracking-[0.24em] text-[var(--text-secondary)] dark:text-white/55">Tích cực</p>
               </div>
             </div>
-            <div className="mt-6 rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-center text-sm font-black text-amber-200">
+            <div className="mt-6 rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-center text-sm font-black text-amber-700 dark:text-amber-200">
               Gợi ý: theo dõi có kỷ luật
             </div>
           </DarkPanel>
 
           <div className="grid gap-4">
             <DarkPanel title="ADN Guard" subtitle="Quản trị rủi ro AI">
-              <div className="mt-5 rounded-3xl bg-emerald-400/15 p-5">
-                <p className="text-3xl font-black text-emerald-200">AN TOÀN</p>
-                <p className="mt-2 text-sm text-white/62">AI hỗ trợ theo dõi rủi ro hệ thống.</p>
+              <div className="mt-5 rounded-3xl bg-emerald-100/70 p-5 dark:bg-emerald-400/15">
+                <p className="text-3xl font-black text-emerald-700 dark:text-emerald-200">AN TOÀN</p>
+                <p className="mt-2 text-sm text-[var(--text-secondary)] dark:text-white/62">AI hỗ trợ theo dõi rủi ro hệ thống.</p>
               </div>
             </DarkPanel>
             <DarkPanel title="ADN Sync" subtitle="Đồng bộ trải nghiệm">
-              <div className="mt-5 rounded-3xl bg-white/7 p-5">
+              <div className="mt-5 rounded-3xl bg-white/70 p-5 dark:bg-white/7">
                 <p className="text-3xl font-black">HỆ THỐNG</p>
-                <p className="mt-2 text-sm text-white/62">Web, app và thông báo đi cùng quy trình vận hành.</p>
+                <p className="mt-2 text-sm text-[var(--text-secondary)] dark:text-white/62">Web, app và thông báo đi cùng quy trình vận hành.</p>
               </div>
             </DarkPanel>
           </div>
@@ -367,9 +369,9 @@ function DarkPanel({
   center?: boolean;
 }) {
   return (
-    <div className={`rounded-3xl border bg-black/16 p-5 ${center ? "text-center" : ""}`} style={{ borderColor: "rgba(255,255,255,0.12)" }}>
+    <div className={`rounded-3xl border bg-white/72 p-5 shadow-sm shadow-black/5 dark:bg-black/16 dark:shadow-none ${center ? "text-center" : ""}`} style={{ borderColor: "var(--border)" }}>
       <p className="font-black">{title}</p>
-      <p className="mt-1 text-sm text-white/55">{subtitle}</p>
+      <p className="mt-1 text-sm text-[var(--text-secondary)] dark:text-white/55">{subtitle}</p>
       {children}
     </div>
   );
@@ -377,8 +379,8 @@ function DarkPanel({
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl bg-white/7 p-3">
-      <p className="text-white/45">{label}</p>
+    <div className="rounded-xl bg-[var(--surface-2)] p-3 dark:bg-white/7">
+      <p className="text-[var(--text-muted)] dark:text-white/45">{label}</p>
       <p className="mt-1 font-black">{value}</p>
     </div>
   );
@@ -447,27 +449,27 @@ function SupportCard({
 }) {
   return (
     <article
-      className={`min-h-[650px] p-8 sm:p-10 lg:p-14 ${highlighted ? "bg-white/5 lg:border-l" : "bg-black/10"}`}
-      style={{ borderColor: "rgba(255,255,255,0.1)" }}
+      className={`min-h-[650px] p-8 sm:p-10 lg:p-14 ${highlighted ? "bg-emerald-50/60 lg:border-l dark:bg-white/5" : "bg-white dark:bg-black/10"}`}
+      style={{ borderColor: "var(--border)" }}
     >
       <div className="flex items-start justify-between gap-4">
-        <p className="text-xs font-black uppercase tracking-[0.32em] text-white/45">{eyebrow}</p>
-        {highlighted ? <span className="rounded-full bg-amber-400/14 px-3 py-1 text-xs font-black text-amber-200">ADN SUPPORT</span> : null}
+        <p className="text-xs font-black uppercase tracking-[0.32em] text-[var(--text-muted)] dark:text-white/45">{eyebrow}</p>
+        {highlighted ? <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800 dark:bg-amber-400/14 dark:text-amber-200">ADN SUPPORT</span> : null}
       </div>
       <h3 className="mt-12 font-serif text-[clamp(3rem,4.6vw,5.2rem)] font-black leading-none tracking-[-0.04em]">{title}</h3>
-      <p className="mt-5 text-2xl font-black text-white/72">{subtitle}</p>
-      <div className="mt-10 h-px bg-white/10" />
+      <p className="mt-5 text-2xl font-black text-[var(--text-secondary)] dark:text-white/72">{subtitle}</p>
+      <div className="mt-10 h-px bg-[var(--border)] dark:bg-white/10" />
       <div className="mt-10 grid gap-6">
         {items.map((item, index) => (
-          <p key={item} className="grid grid-cols-[44px_1fr] gap-4 text-lg font-bold text-white/82">
-            <span className="font-mono text-white/38">{String(index + 1).padStart(2, "0")}</span>
+          <p key={item} className="grid grid-cols-[44px_1fr] gap-4 text-lg font-bold text-[var(--text-primary)] dark:text-white/82">
+            <span className="font-mono text-[var(--text-muted)] dark:text-white/38">{String(index + 1).padStart(2, "0")}</span>
             <span>{item}</span>
           </p>
         ))}
       </div>
       <Link
         href={href}
-        className={`mt-14 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-6 py-5 text-lg font-black ${highlighted ? "bg-white text-black" : "bg-black text-white"}`}
+        className={`mt-14 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-6 py-5 text-lg font-black ${highlighted ? "bg-[var(--primary)] text-white dark:bg-white dark:text-black" : "bg-[var(--text-primary)] text-[var(--page-surface)] dark:bg-black dark:text-white"}`}
       >
         {cta} <ArrowRight className="h-5 w-5" />
       </Link>
