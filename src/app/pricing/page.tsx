@@ -6,8 +6,8 @@ import { Gift, ShieldCheck, TicketPercent } from "lucide-react";
 import { PricingClient } from "./PricingClient";
 
 export const metadata = {
-  title: `Bang gia - ${BRAND.name}`,
-  description: "Chon goi ADN Capital, gui ma khach hang de admin duyet uu dai va thanh toan qua PayOS.",
+  title: `Bảng giá - ${BRAND.name}`,
+  description: "Chọn gói ADN Capital, gửi mã khách hàng để admin duyệt ưu đãi và thanh toán qua PayOS.",
 };
 
 export default function PricingPage() {
@@ -21,13 +21,13 @@ export default function PricingPage() {
               style={{ background: "var(--primary-light)", borderColor: "var(--border)", color: "var(--primary)" }}
             >
               <TicketPercent className="h-3.5 w-3.5" />
-              Bang gia dich vu
+              Bảng giá dịch vụ
             </div>
             <h1 className="max-w-3xl text-3xl font-black leading-tight tracking-[-0.04em] sm:text-5xl">
-              Chon goi ADN Capital theo chu ky dau tu cua ban
+              Chọn gói ADN Capital theo chu kỳ đầu tư của bạn
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-7" style={{ color: "var(--text-secondary)" }}>
-              Mo tai khoan de duoc trai nghiem VIP 1 tuan. Neu co ma khach hang, he thong se gui yeu cau admin duyet truoc khi ap dung uu dai vao PayOS.
+              Mở tài khoản để được trải nghiệm VIP 1 tuần. Nếu có mã khách hàng, hệ thống sẽ gửi yêu cầu admin duyệt trước khi áp dụng ưu đãi vào PayOS.
             </p>
           </div>
 
@@ -40,9 +40,9 @@ export default function PricingPage() {
                 <ShieldCheck className="h-5 w-5" />
               </span>
               <div>
-                <h2 className="font-bold">Nguyen tac thanh toan an toan</h2>
+                <h2 className="font-bold">Nguyên tắc thanh toán an toàn</h2>
                 <p className="mt-2 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
-                  Gia giam chi duoc tinh o may chu khi ma khach hang da duoc admin duyet. Client khong tu quyet dinh muc giam.
+                  Giá giảm chỉ được tính ở máy chủ khi mã khách hàng đã được admin duyệt. Client không tự quyết định mức giảm.
                 </p>
               </div>
             </div>
@@ -54,9 +54,9 @@ export default function PricingPage() {
             <div className="flex gap-3">
               <Gift className="h-6 w-6 text-[var(--primary)]" />
               <div>
-                <h2 className="font-black">Mo tai khoan ngay de duoc trai nghiem VIP 1 tuan</h2>
+                <h2 className="font-black">Mở tài khoản ngay để được trải nghiệm VIP 1 tuần</h2>
                 <p className="mt-2 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
-                  Trial VIP chi ap dung mot lan cho tai khoan moi/chua tung kich hoat VIP.
+                  Trial VIP chỉ áp dụng một lần cho tài khoản mới/chưa từng kích hoạt VIP.
                 </p>
               </div>
             </div>
@@ -65,29 +65,29 @@ export default function PricingPage() {
             <div className="flex gap-3">
               <TicketPercent className="h-6 w-6 text-[var(--primary)]" />
               <div>
-                <h2 className="font-black">Mo tai khoan DNSE bat dau giao dich de nhan Promo len toi 40%</h2>
+                <h2 className="font-black">Mở tài khoản DNSE bắt đầu giao dịch để nhận Promo lên tới 40%</h2>
                 <p className="mt-2 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
-                  Promo can co ma khach hang duoc admin duyet: 20% cho 3 thang, 30% cho 6 thang, 40% cho 12 thang.
+                  Promo cần có mã khách hàng được admin duyệt: 20% cho 3 tháng, 30% cho 6 tháng, 40% cho 12 tháng.
                 </p>
               </div>
             </div>
           </Card>
         </div>
 
-        <Suspense fallback={<Card className="p-6">Dang tai bang gia...</Card>}>
+        <Suspense fallback={<Card className="p-6">Đang tải bảng giá...</Card>}>
           <PricingClient />
         </Suspense>
 
         <Card className="mt-8 p-6">
           <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-center">
             <div>
-              <h2 className="text-lg font-black">Can kich hoat hoac xuat hoa don?</h2>
+              <h2 className="text-lg font-black">Cần kích hoạt hoặc xuất hóa đơn?</h2>
               <p className="mt-2 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
-                Lien he admin ADN Capital sau khi thanh toan de kich hoat goi, cap nhat quyen truy cap va ho tro onboarding.
+                Liên hệ admin ADN Capital sau khi thanh toán để kích hoạt gói, cập nhật quyền truy cập và hỗ trợ onboarding.
               </p>
             </div>
             <div className="rounded-2xl border px-4 py-3 text-sm font-bold" style={{ borderColor: "var(--border)" }}>
-              Ho tro qua Zalo / Telegram chinh thuc
+              Hỗ trợ qua Zalo / Telegram chính thức
             </div>
           </div>
         </Card>

@@ -37,8 +37,7 @@ const orbitron = localFont({
   display: "swap",
 });
 
-const defaultTitle =
-  "ADN Capital | Hệ sinh thái AI đầu tư cho chứng khoán Việt Nam";
+const defaultTitle = "ADN Capital | Hệ sinh thái AI đầu tư cho chứng khoán Việt Nam";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

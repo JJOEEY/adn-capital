@@ -8,9 +8,21 @@ import { useTheme } from "@/components/providers/ThemeProvider";
 import { BRAND, PRODUCT_NAMES } from "@/lib/brand/productNames";
 
 const productLinks = [
-  { label: PRODUCT_NAMES.market, href: "/#product-adn-pulse", description: "Đọc chỉ số, thanh khoản và độ rộng thị trường." },
-  { label: PRODUCT_NAMES.stock, href: "/#product-adn-lens", description: "Soi từng cổ phiếu qua dữ liệu và AIDEN." },
-  { label: PRODUCT_NAMES.art, href: "/#product-adn-art", description: "Đọc trạng thái hành động, rủi ro và xu hướng." },
+  {
+    label: PRODUCT_NAMES.market,
+    href: "/#product-adn-pulse",
+    description: "Đọc chỉ số, thanh khoản và độ rộng thị trường.",
+  },
+  {
+    label: PRODUCT_NAMES.stock,
+    href: "/#product-adn-lens",
+    description: "Soi từng cổ phiếu qua dữ liệu và AIDEN.",
+  },
+  {
+    label: PRODUCT_NAMES.art,
+    href: "/#product-adn-art",
+    description: "Đọc trạng thái hành động, rủi ro và xu hướng.",
+  },
 ];
 
 const nav = [
@@ -28,15 +40,22 @@ export function PublicSiteHeader() {
 
   return (
     <header
-      className="sticky top-0 z-50 border-b backdrop-blur-xl"
+      className="fixed left-0 right-0 top-0 z-[80] border-b backdrop-blur-xl"
       style={{
-        background: "color-mix(in srgb, var(--page-surface) 90%, transparent)",
+        background: "color-mix(in srgb, var(--page-surface) 92%, transparent)",
         borderColor: "var(--border)",
       }}
     >
       <div className="flex w-full items-center justify-between px-5 py-3 sm:px-8 lg:px-12 xl:px-16">
         <Link href="/" className="flex items-center gap-3">
-          <Image src={logoSrc} alt={BRAND.company} width={44} height={44} className="rounded-xl object-cover" priority />
+          <Image
+            src={logoSrc}
+            alt={BRAND.company}
+            width={44}
+            height={44}
+            className="rounded-xl object-cover"
+            priority
+          />
           <div>
             <p className="text-sm font-black leading-tight" style={{ color: "var(--text-primary)" }}>
               {BRAND.company}
@@ -64,7 +83,7 @@ export function PublicSiteHeader() {
               >
                 <Link
                   href={item.href}
-                  className="text-sm font-bold transition hover:text-[var(--primary)]"
+                  className="cursor-pointer text-sm font-bold transition hover:text-[var(--primary)]"
                   style={{ color: "var(--text-secondary)" }}
                 >
                   {item.label}
@@ -79,7 +98,7 @@ export function PublicSiteHeader() {
                         <Link
                           key={product.href}
                           href={product.href}
-                          className="rounded-2xl border p-4 transition hover:-translate-y-0.5 hover:border-[var(--primary)]"
+                          className="cursor-pointer rounded-2xl border p-4 transition hover:-translate-y-0.5 hover:border-[var(--primary)]"
                           style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
                           onClick={() => setProductsOpen(false)}
                         >
@@ -94,7 +113,7 @@ export function PublicSiteHeader() {
                     </div>
                     <Link
                       href="/products"
-                      className="mt-4 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-black"
+                      className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-full px-4 py-2 text-sm font-black"
                       style={{ background: "var(--primary)", color: "white" }}
                     >
                       Xem toàn bộ hệ sinh thái ADN <ArrowRight className="h-4 w-4" />
@@ -106,7 +125,7 @@ export function PublicSiteHeader() {
               <Link
                 key={item.href}
                 href={item.href}
-                className="text-sm font-bold transition hover:text-[var(--primary)]"
+                className="cursor-pointer text-sm font-bold transition hover:text-[var(--primary)]"
                 style={{ color: "var(--text-secondary)" }}
               >
                 {item.label}
@@ -115,61 +134,65 @@ export function PublicSiteHeader() {
           )}
         </nav>
 
-        <div className="hidden items-center gap-3 lg:flex">
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={toggleTheme}
-            className="rounded-full border p-3"
-            style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-primary)" }}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full border"
+            style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
             aria-label="Đổi giao diện"
           >
             {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
           <Link
             href="/auth"
-            className="rounded-full border px-5 py-3 text-sm font-black"
+            className="hidden rounded-full border px-5 py-3 text-sm font-black sm:inline-flex"
             style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
           >
             Đăng nhập
           </Link>
-          <Link href="/auth?mode=register" className="rounded-full px-5 py-3 text-sm font-black" style={{ background: "var(--primary)", color: "white" }}>
+          <Link
+            href="/auth?mode=register"
+            className="hidden rounded-full px-5 py-3 text-sm font-black sm:inline-flex"
+            style={{ background: "var(--primary)", color: "white" }}
+          >
             Dùng thử
           </Link>
+          <button
+            type="button"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full border lg:hidden"
+            style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
+            onClick={() => setMobileOpen((value) => !value)}
+            aria-label="Mở menu"
+          >
+            {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+          </button>
         </div>
-
-        <button
-          type="button"
-          className="rounded-full border p-3 lg:hidden"
-          style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
-          onClick={() => setMobileOpen((value) => !value)}
-          aria-label="Mở menu"
-        >
-          {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </button>
       </div>
 
       {mobileOpen ? (
-        <div className="border-t px-5 py-5 lg:hidden" style={{ borderColor: "var(--border)", background: "var(--page-surface)" }}>
+        <div
+          className="border-t px-5 py-4 lg:hidden"
+          style={{ borderColor: "var(--border)", background: "var(--page-surface)" }}
+        >
           <div className="grid gap-2">
             {nav.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
-                className="rounded-2xl border px-4 py-3 font-bold"
-                style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
+                className="rounded-2xl px-4 py-3 font-bold"
+                style={{ background: "var(--surface-2)", color: "var(--text-primary)" }}
                 onClick={() => setMobileOpen(false)}
               >
                 {item.label}
               </Link>
             ))}
-          </div>
-          <div className="mt-4 grid gap-2">
             {productLinks.map((product) => (
               <Link
                 key={product.href}
                 href={product.href}
-                className="rounded-2xl bg-[var(--surface-2)] px-4 py-3 text-sm font-black"
-                style={{ color: "var(--text-primary)" }}
+                className="rounded-2xl px-4 py-3 text-sm font-bold"
+                style={{ color: "var(--text-secondary)" }}
                 onClick={() => setMobileOpen(false)}
               >
                 {product.label}

@@ -20,34 +20,34 @@ export function PublicSiteFooter() {
             {BRAND.tagline}
           </p>
           <p className="mt-5 max-w-md text-sm leading-7" style={{ color: "var(--text-secondary)" }}>
-            ADN Capital xay dung he sinh thai AI dau tu cho nha dau tu Viet Nam: doc thi truong, giu ky luat, theo doi danh muc va hoi AIDEN trong cung mot trai nghiem.
+            ADN Capital xây dựng hệ sinh thái AI đầu tư cho nhà đầu tư Việt Nam: đọc thị trường, giữ kỷ luật, theo dõi danh mục và hỏi AIDEN trong cùng một trải nghiệm.
           </p>
         </div>
 
         <div className="grid gap-8 sm:grid-cols-3">
           <FooterColumn
-            title="He sinh thai ADN"
+            title="Hệ sinh thái ADN"
             links={primaryProducts.map((product) => ({
               href: `/products/${product.slug}`,
               label: product.shortName ?? product.name,
             }))}
           />
           <FooterColumn
-            title="Tai nguyen"
+            title="Tài nguyên"
             links={[
-              { href: "/pricing", label: "Bang gia" },
-              { href: "/hdsd", label: "Huong dan su dung" },
+              { href: "/pricing", label: "Bảng giá" },
+              { href: "/hdsd", label: "Hướng dẫn sử dụng" },
               { href: "/backtest", label: "ADN Lab" },
-              { href: "/khac/tin-tuc", label: "Tin tuc" },
+              { href: "/khac/tin-tuc", label: "Tin tức" },
             ]}
           />
           <FooterColumn
-            title="Lien he"
+            title="Liên hệ"
             links={[
               { href: "tel:0962977179", label: "0962 977 179" },
               { href: "https://zalo.me/0962977179", label: "Zalo ADN Capital" },
-              { href: "/auth", label: "Dang nhap" },
-              { href: "/dashboard", label: "Dung thu dashboard" },
+              { href: "/auth", label: "Đăng nhập" },
+              { href: "/dashboard", label: "Dùng thử dashboard" },
             ]}
           />
         </div>
@@ -57,8 +57,8 @@ export function PublicSiteFooter() {
         className="mt-10 flex flex-col gap-3 border-t pt-6 text-xs sm:flex-row sm:items-center sm:justify-between"
         style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
       >
-        <p>© {new Date().getFullYear()} {BRAND.legalName}. Khong cam ket loi nhuan. Tin hieu chi ho tro quyet dinh.</p>
-        <p>62 Hoang The Thien, Phuong An Khanh, TP. Ho Chi Minh</p>
+        <p>© {new Date().getFullYear()} {BRAND.legalName}. Không cam kết lợi nhuận. Tín hiệu chỉ hỗ trợ quyết định.</p>
+        <p>62 Hoàng Thế Thiện, Phường An Khánh, TP. Hồ Chí Minh</p>
       </div>
     </footer>
   );
