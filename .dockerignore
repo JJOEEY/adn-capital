@@ -1,0 +1,14 @@
+.git
+.next
+node_modules
+app_data
+coverage
+*.log
+*.tsbuildinfo
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.vps
+deploy/*.secret
+vps-credentials.json
