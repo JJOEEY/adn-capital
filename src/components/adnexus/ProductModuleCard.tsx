@@ -3,7 +3,7 @@ import { ArrowRight, Lock } from "lucide-react";
 import type { ProductModule } from "@/lib/brand/nexsuite";
 
 const STATUS_LABEL: Record<ProductModule["status"], string> = {
-  Public: "Cong khai",
+  Public: "Công khai",
   Premium: "VIP",
   Pilot: "Pilot",
   Admin: "Admin",
@@ -61,7 +61,7 @@ export function ProductModuleCard({ product, hrefPrefix = "/products" }: { produ
           ))}
         </div>
         <div className="mt-6 inline-flex items-center gap-2 text-sm font-black" style={{ color: "var(--primary)" }}>
-          Xem chi tiet <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
+          Xem chi tiết <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
         </div>
       </div>
     </Link>

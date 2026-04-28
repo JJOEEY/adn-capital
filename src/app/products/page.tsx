@@ -20,10 +20,10 @@ export default function ProductsPage() {
               {BRAND.name} - {PRODUCT_NAMES.suite}
             </p>
             <h1 className="mt-6 max-w-5xl text-5xl font-black leading-[0.96] tracking-[-0.06em] sm:text-7xl lg:text-8xl">
-              Mot he sinh thai cho toan bo hanh trinh dau tu.
+              Một hệ sinh thái cho toàn bộ hành trình đầu tư.
             </h1>
             <p className="mt-7 max-w-2xl text-lg leading-8" style={{ color: "var(--text-secondary)" }}>
-              Tu doc thi truong, soi co phieu, theo doi co hoi den giu ky luat hanh dong, moi cong cu trong ADN Capital duoc dat trong mot workflow de hieu va de kiem soat.
+              Từ đọc thị trường, soi cổ phiếu, theo dõi cơ hội đến giữ kỷ luật hành động, mọi công cụ trong ADN Capital được đặt trong một workflow dễ hiểu và dễ kiểm soát.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
@@ -31,14 +31,14 @@ export default function ProductsPage() {
                 className="inline-flex items-center gap-2 rounded-2xl px-5 py-3 font-black"
                 style={{ background: "var(--primary)", color: "white" }}
               >
-                Xem tren trang chu <ArrowRight className="h-4 w-4" />
+                Xem trên trang chủ <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
                 href="/pricing"
                 className="inline-flex items-center gap-2 rounded-2xl border px-5 py-3 font-black"
                 style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
               >
-                Xem bang gia
+                Xem bảng giá
               </Link>
             </div>
           </div>
@@ -49,10 +49,10 @@ export default function ProductsPage() {
             </p>
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
               {[
-                ["Doc thi truong", PRODUCT_NAMES.market],
-                ["Soi co phieu", PRODUCT_NAMES.stock],
-                ["Theo doi co hoi", PRODUCT_NAMES.signals],
-                ["Giu ky luat", PRODUCT_NAMES.risk],
+                ["Đọc thị trường", PRODUCT_NAMES.market],
+                ["Soi cổ phiếu", PRODUCT_NAMES.stock],
+                ["Theo dõi cơ hội", PRODUCT_NAMES.signals],
+                ["Giữ kỷ luật", PRODUCT_NAMES.risk],
               ].map(([title, value]) => (
                 <div key={title} className="rounded-3xl border bg-[var(--surface-2)] p-5" style={{ borderColor: "var(--border)" }}>
                   <CheckCircle2 className="h-5 w-5 text-emerald-600" />
@@ -63,7 +63,7 @@ export default function ProductsPage() {
             </div>
             <div className="mt-4 rounded-3xl border p-5" style={{ borderColor: "var(--border)" }}>
               <p className="text-sm leading-7" style={{ color: "var(--text-secondary)" }}>
-                Cac tinh nang broker chi hien thi theo che do pilot/safe-mode khi du dieu kien. Trang public khong goi DNSE runtime va khong tu dong dat lenh.
+                Các tính năng broker chỉ hiển thị theo chế độ pilot/safe-mode khi đủ điều kiện. Trang public không gọi DNSE runtime và không tự động đặt lệnh.
               </p>
             </div>
           </div>
@@ -74,15 +74,12 @@ export default function ProductsPage() {
         <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.28em]" style={{ color: "var(--primary)" }}>
-              Bo cong cu
+              Bộ công cụ
             </p>
             <h2 className="mt-3 text-4xl font-black tracking-[-0.04em] lg:text-6xl">
-              Cac module trong he sinh thai ADN
+              Các module trong hệ sinh thái ADN
             </h2>
           </div>
-          <p className="max-w-xl text-sm leading-7" style={{ color: "var(--text-secondary)" }}>
-            Ten route noi bo van giu nguyen de khong pha DataHub, app va API. Phan hien thi cho khach hang da doi ve ADN Capital/ADN*.
-          </p>
         </div>
 
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
