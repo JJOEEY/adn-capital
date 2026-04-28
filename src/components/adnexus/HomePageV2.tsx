@@ -81,9 +81,9 @@ export function HomePageV2() {
                 <span className="block">Nâng Tầm Trải</span>
                 <span className="block">Nghiệm Đầu Tư</span>
                 <span className="block">Cùng AI Chuyên Biệt</span>
-                <span className="block">
+                <span className="block text-[0.78em] leading-[1.1] tracking-[-0.018em] sm:text-[0.8em] lg:text-[0.82em]">
                   tại{" "}
-                  <span className="inline-block font-serif italic leading-[1.08] tracking-[-0.012em] text-[var(--primary)]">
+                  <span className="inline-block font-serif italic leading-[1.08] tracking-[-0.01em] text-[var(--primary)]">
                     ADN Capital
                   </span>
                 </span>
