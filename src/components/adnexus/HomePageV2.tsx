@@ -77,10 +77,15 @@ export function HomePageV2() {
               <p className="text-xs font-black uppercase tracking-[0.34em]" style={{ color: "var(--primary)" }}>
                 {BRAND.company} - {BRAND.tagline}
               </p>
-              <h1 className="mt-7 text-[clamp(3.05rem,6.8vw,7.65rem)] font-black leading-[0.98] tracking-[-0.07em]">
-                Nâng Tầm Trải Nghiệm Đầu Tư Cùng AI Chuyên Biệt tại{" "}
-                <span className="font-serif italic tracking-[-0.04em] text-[var(--primary)]">
-                  ADN Capital
+              <h1 className="mt-7 max-w-[8.7em] text-left text-[3rem] font-black leading-[1.12] tracking-[-0.018em] [word-spacing:0.035em] sm:text-[4.45rem] sm:leading-[1.09] sm:tracking-[-0.02em] md:text-[5.7rem] md:leading-[1.07] md:tracking-[-0.022em] md:[word-spacing:0.045em] lg:text-[6.55rem] xl:text-[7.45rem] xl:leading-[1.06] xl:tracking-[-0.024em] xl:[word-spacing:0.05em]">
+                <span className="block md:text-justify md:[text-align-last:justify]">Nâng Tầm Trải</span>
+                <span className="block md:text-justify md:[text-align-last:justify]">Nghiệm Đầu Tư</span>
+                <span className="block md:text-justify md:[text-align-last:justify]">Cùng AI Chuyên</span>
+                <span className="block">
+                  Biệt tại{" "}
+                  <span className="inline-block font-serif italic leading-[1.06] tracking-[-0.01em] text-[var(--primary)]">
+                    ADN Capital
+                  </span>
                 </span>
               </h1>
               <p
