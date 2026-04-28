@@ -1,11 +1,11 @@
 "use client";
 
-import type { ReactNode } from "react";
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, BarChart3, LineChart, ShieldCheck } from "lucide-react";
 import { PwaEntryRedirect } from "@/components/pwa/PwaEntryRedirect";
 import { BRAND, PRODUCT_NAMES } from "@/lib/brand/productNames";
+import { AdnHeroProductShowcase } from "./AdnHeroProductShowcase";
 import { PublicSiteFooter } from "./PublicSiteFooter";
 import { PublicSiteHeader } from "./PublicSiteHeader";
 
@@ -70,50 +70,57 @@ export function HomePageV2() {
       >
         <PublicSiteHeader />
 
-        <section className="relative flex min-h-[calc(100svh-76px)] w-full items-center overflow-hidden px-5 py-12 sm:px-8 lg:px-12 xl:px-16">
+        <section className="relative flex min-h-[calc(100svh-76px)] w-full items-center overflow-hidden px-5 py-10 sm:px-8 lg:px-12 lg:py-8 xl:px-16">
           <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_86%_10%,rgba(16,185,129,0.18),transparent_32%),radial-gradient(circle_at_8%_88%,rgba(245,158,11,0.10),transparent_30%)]" />
-          <div className="grid w-full items-center gap-12 lg:grid-cols-[0.95fr_1.05fr]">
-            <motion.div {...motionProps} className="max-w-[980px]">
-              <p className="text-xs font-black uppercase tracking-[0.34em]" style={{ color: "var(--primary)" }}>
+          <div className="grid w-full min-w-0 items-center gap-8 xl:grid-cols-[0.9fr_1.1fr] xl:gap-10">
+            <motion.div
+              {...motionProps}
+              className="w-full min-w-0 max-w-[780px]"
+            >
+              <p className="max-w-full text-[0.68rem] font-black uppercase leading-5 tracking-[0.22em] sm:text-xs sm:tracking-[0.34em]" style={{ color: "var(--primary)" }}>
                 {BRAND.company} - {BRAND.tagline}
               </p>
-              <h1 className="mt-7 max-w-[980px] text-left text-[clamp(3.2rem,11.5vw,4.8rem)] font-black leading-[1.08] tracking-[-0.025em] sm:text-[clamp(4.25rem,9vw,6.1rem)] sm:leading-[1.06] lg:text-[clamp(5.4rem,6.6vw,7.1rem)] lg:leading-[1.04] xl:max-w-[1040px] xl:text-[7.35rem] xl:tracking-[-0.03em]">
-                <span className="block">Nâng Tầm Trải</span>
-                <span className="block">Nghiệm Đầu Tư</span>
-                <span className="block">Cùng AI Chuyên Biệt</span>
-                <span className="block text-[0.78em] leading-[1.1] tracking-[-0.018em] sm:text-[0.8em] lg:text-[0.82em]">
-                  tại{" "}
+              <h1 className="mt-6 max-w-[7.9em] text-left text-[clamp(2.08rem,9vw,3.35rem)] font-black leading-[1.13] tracking-[-0.018em] [word-spacing:0.035em] sm:text-[4.15rem] sm:leading-[1.09] sm:tracking-[-0.02em] md:text-[4.55rem] md:leading-[1.08] md:tracking-[-0.022em] md:[word-spacing:0.045em] lg:text-[4.45rem] xl:text-[4.5rem] xl:leading-[1.065] xl:tracking-[-0.024em] xl:[word-spacing:0.05em] 2xl:text-[4.9rem]">
+                <span className="block md:whitespace-nowrap md:text-justify md:[text-align-last:justify]">Nâng Tầm Trải</span>
+                <span className="block md:whitespace-nowrap md:text-justify md:[text-align-last:justify]">Nghiệm Đầu Tư</span>
+                <span className="block md:whitespace-nowrap md:text-justify md:[text-align-last:justify]">Cùng AI Chuyên</span>
+                <span className="block text-[0.72em] sm:whitespace-nowrap">
+                  Biệt tại{" "}
                   <span className="inline-block font-serif italic leading-[1.08] tracking-[-0.01em] text-[var(--primary)]">
                     ADN Capital
                   </span>
                 </span>
               </h1>
               <p
-                className="mt-8 max-w-3xl text-base leading-8 sm:text-lg sm:leading-9"
+                className="mt-6 max-w-[20.5rem] text-[0.95rem] leading-8 sm:max-w-2xl sm:text-lg sm:leading-9"
                 style={{ color: "var(--text-secondary)" }}
               >
                 {subheadline}
               </p>
-              <div className="mt-10 flex flex-wrap gap-3">
+              <div className="mt-8 flex flex-wrap gap-2">
                 <Link
                   href="/auth?mode=register"
-                  className="inline-flex items-center gap-2 rounded-2xl px-6 py-4 text-sm font-black sm:text-base"
+                  className="inline-flex items-center gap-2 rounded-2xl px-5 py-3.5 text-sm font-black sm:text-[0.95rem]"
                   style={{ background: "var(--primary)", color: "white" }}
                 >
-                  Đăng ký dùng thử MIỄN PHÍ <ArrowRight className="h-5 w-5" />
+                  Đăng ký dùng thử MIỄN PHÍ <ArrowRight className="h-4 w-4" />
                 </Link>
                 <Link
                   href="#ecosystem"
-                  className="inline-flex items-center gap-2 rounded-2xl border px-6 py-4 text-sm font-black sm:text-base"
+                  className="inline-flex items-center gap-2 rounded-2xl border px-5 py-3.5 text-sm font-black sm:text-[0.95rem]"
                   style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
                 >
-                  Trải nghiệm hệ sinh thái ADN <ArrowRight className="h-5 w-5" />
+                  Trải nghiệm hệ sinh thái ADN <ArrowRight className="h-4 w-4" />
                 </Link>
               </div>
             </motion.div>
 
-            <motion.div {...motionProps} transition={{ duration: 0.65, delay: 0.08, ease: "easeOut" }}>
-              <ControlRoomVisual />
+            <motion.div
+              {...motionProps}
+              className="w-full min-w-0 overflow-hidden"
+              transition={{ duration: 0.65, delay: 0.08, ease: "easeOut" }}
+            >
+              <AdnHeroProductShowcase />
             </motion.div>
           </div>
         </section>
@@ -155,8 +162,8 @@ export function HomePageV2() {
                     key={product.id}
                     id={product.id}
                     {...motionProps}
-                    className="rounded-[2.35rem] border bg-white p-8 shadow-xl shadow-black/5 dark:bg-white/5"
-                    style={{ borderColor: "var(--border)" }}
+                    className="rounded-[2.35rem] border p-8 shadow-xl shadow-black/5"
+                    style={{ background: "var(--bg-surface)", borderColor: "var(--border)" }}
                   >
                     <span
                       className="flex h-12 w-12 items-center justify-center rounded-2xl"
@@ -245,8 +252,8 @@ export function HomePageV2() {
                 <motion.div
                   key={item.q}
                   {...motionProps}
-                  className="rounded-[2rem] border bg-white p-6 dark:bg-white/5"
-                  style={{ borderColor: "var(--border)" }}
+                  className="rounded-[2rem] border p-6"
+                  style={{ background: "var(--bg-surface)", borderColor: "var(--border)" }}
                 >
                   <h3 className="text-xl font-black">{item.q}</h3>
                   <p className="mt-3 leading-8" style={{ color: "var(--text-secondary)" }}>
@@ -260,8 +267,8 @@ export function HomePageV2() {
 
         <section id="contact" className="flex min-h-[70svh] w-full items-center px-5 py-20 sm:px-8 lg:px-12 xl:px-16">
           <div
-            className="w-full rounded-[3rem] border bg-white p-8 text-center dark:bg-white/5 sm:p-12 lg:p-16"
-            style={{ borderColor: "var(--border)" }}
+            className="w-full rounded-[3rem] border p-8 text-center sm:p-12 lg:p-16"
+            style={{ background: "var(--bg-surface)", borderColor: "var(--border)" }}
           >
             <ShieldCheck className="mx-auto h-12 w-12 text-[var(--primary)]" />
             <h2 className="mx-auto mt-8 max-w-4xl text-[clamp(2.75rem,5.1vw,5.8rem)] font-black leading-[0.99] tracking-[-0.055em]">
@@ -287,110 +294,6 @@ export function HomePageV2() {
   );
 }
 
-function ControlRoomVisual() {
-  return (
-    <div
-      className="rounded-[2.2rem] border bg-white/85 p-4 text-[var(--text-primary)] shadow-2xl shadow-emerald-900/10 backdrop-blur dark:bg-[#161916] dark:text-white dark:shadow-emerald-950/20"
-      style={{ borderColor: "var(--border)" }}
-    >
-      <div className="rounded-[1.7rem] border bg-[var(--surface-2)] p-5 dark:bg-[#20231f]" style={{ borderColor: "var(--border)" }}>
-        <div className="mb-5 flex items-center justify-between gap-4">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.28em] text-[var(--primary)] dark:text-emerald-200/70">ADN Capital Control Room</p>
-            <p className="mt-1 text-sm text-[var(--text-secondary)] dark:text-white/55">Tích hợp đa lớp dữ liệu</p>
-          </div>
-          <span className="rounded-full border px-3 py-1 text-xs text-[var(--text-secondary)] dark:border-white/10 dark:text-white/70" style={{ borderColor: "var(--border)" }}>
-            15:30 VN
-          </span>
-        </div>
-
-        <div className="grid gap-4 xl:grid-cols-[0.72fr_1fr_0.72fr]">
-          <div className="grid gap-4">
-            <DarkPanel title="ADN Pulse" subtitle="Nhịp thị trường">
-              <div className="mt-4 h-16 rounded-2xl bg-[linear-gradient(135deg,rgba(239,68,68,.18),rgba(16,185,129,.22))]">
-                <svg viewBox="0 0 240 70" className="h-full w-full" aria-hidden="true">
-                  <path d="M4 48 C34 18, 60 60, 90 34 S142 20, 170 42 S210 12, 236 26" fill="none" stroke="#7dd3fc" strokeWidth="4" />
-                </svg>
-              </div>
-              <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                <Metric label="Thanh khoản" value="Theo dõi" />
-                <Metric label="Độ rộng" value="Cân bằng" />
-              </div>
-            </DarkPanel>
-            <DarkPanel title="ADN Radar" subtitle="Tín hiệu & trợ lý AIDEN">
-              <div className="mt-4 rounded-2xl bg-[var(--surface-2)] p-3 text-sm text-[var(--text-secondary)] dark:bg-black/20 dark:text-white/75">
-                AIDEN: tín hiệu được đặt trong bối cảnh, không tự tạo lệnh.
-              </div>
-            </DarkPanel>
-          </div>
-
-          <DarkPanel title="ADN Score" subtitle="Chỉ số sức mạnh tổng hợp" center>
-            <div
-              className="mx-auto mt-6 h-48 w-48 rounded-full p-4"
-              style={{
-                background:
-                  "conic-gradient(from 230deg, #ef4444 0deg, #f59e0b 82deg, #7c3aed 150deg, transparent 151deg)",
-              }}
-            >
-              <div className="flex h-full w-full flex-col items-center justify-center rounded-full bg-[var(--surface-2)] dark:bg-[#20231f]">
-                <p className="text-5xl font-black text-amber-300">8</p>
-                <p className="text-xs uppercase tracking-[0.24em] text-[var(--text-secondary)] dark:text-white/55">Tích cực</p>
-              </div>
-            </div>
-            <div className="mt-6 rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-center text-sm font-black text-amber-700 dark:text-amber-200">
-              Gợi ý: theo dõi có kỷ luật
-            </div>
-          </DarkPanel>
-
-          <div className="grid gap-4">
-            <DarkPanel title="ADN Guard" subtitle="Quản trị rủi ro AI">
-              <div className="mt-5 rounded-3xl bg-emerald-100/70 p-5 dark:bg-emerald-400/15">
-                <p className="text-3xl font-black text-emerald-700 dark:text-emerald-200">AN TOÀN</p>
-                <p className="mt-2 text-sm text-[var(--text-secondary)] dark:text-white/62">AI hỗ trợ theo dõi rủi ro hệ thống.</p>
-              </div>
-            </DarkPanel>
-            <DarkPanel title="ADN Sync" subtitle="Đồng bộ trải nghiệm">
-              <div className="mt-5 rounded-3xl bg-white/70 p-5 dark:bg-white/7">
-                <p className="text-3xl font-black">HỆ THỐNG</p>
-                <p className="mt-2 text-sm text-[var(--text-secondary)] dark:text-white/62">Web, app và thông báo đi cùng quy trình vận hành.</p>
-              </div>
-            </DarkPanel>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function DarkPanel({
-  title,
-  subtitle,
-  children,
-  center = false,
-}: {
-  title: string;
-  subtitle: string;
-  children: ReactNode;
-  center?: boolean;
-}) {
-  return (
-    <div className={`rounded-3xl border bg-white/72 p-5 shadow-sm shadow-black/5 dark:bg-black/16 dark:shadow-none ${center ? "text-center" : ""}`} style={{ borderColor: "var(--border)" }}>
-      <p className="font-black">{title}</p>
-      <p className="mt-1 text-sm text-[var(--text-secondary)] dark:text-white/55">{subtitle}</p>
-      {children}
-    </div>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl bg-[var(--surface-2)] p-3 dark:bg-white/7">
-      <p className="text-[var(--text-muted)] dark:text-white/45">{label}</p>
-      <p className="mt-1 font-black">{value}</p>
-    </div>
-  );
-}
-
 function ProductMiniVisual({ name }: { name: string }) {
   if (name === PRODUCT_NAMES.art) {
     return (
@@ -408,7 +311,7 @@ function ProductMiniVisual({ name }: { name: string }) {
     return (
       <div className="mt-10 grid gap-3 rounded-[2rem] bg-[var(--surface-2)] p-5">
         {["HPG", "FPT", "MWG"].map((ticker, index) => (
-          <div key={ticker} className="flex items-center justify-between rounded-2xl bg-white px-4 py-3 dark:bg-white/5">
+          <div key={ticker} className="flex items-center justify-between rounded-2xl px-4 py-3" style={{ background: "var(--bg-surface)" }}>
             <strong>{ticker}</strong>
             <span className={index === 1 ? "text-emerald-600" : "text-amber-600"}>{index === 1 ? "Mạnh" : "Theo dõi"}</span>
           </div>
@@ -426,7 +329,7 @@ function ProductMiniVisual({ name }: { name: string }) {
       </div>
       <div className="mt-4 grid grid-cols-3 gap-3">
         {["HOSE", "HNX", "UPCOM"].map((exchange) => (
-          <div key={exchange} className="rounded-2xl bg-white p-3 text-center text-sm font-black dark:bg-white/5">
+          <div key={exchange} className="rounded-2xl p-3 text-center text-sm font-black" style={{ background: "var(--bg-surface)" }}>
             {exchange}
           </div>
         ))}
@@ -454,8 +357,8 @@ function SupportCard({
 }) {
   return (
     <article
-      className={`min-h-[650px] p-8 sm:p-10 lg:p-14 ${highlighted ? "bg-emerald-50/60 lg:border-l dark:bg-white/5" : "bg-white dark:bg-black/10"}`}
-      style={{ borderColor: "var(--border)" }}
+      className={`min-h-[650px] p-8 sm:p-10 lg:p-14 ${highlighted ? "lg:border-l" : ""}`}
+      style={{ background: highlighted ? "var(--surface-2)" : "var(--bg-surface)", borderColor: "var(--border)" }}
     >
       <div className="flex items-start justify-between gap-4">
         <p className="text-xs font-black uppercase tracking-[0.32em] text-[var(--text-muted)] dark:text-white/45">{eyebrow}</p>
@@ -463,7 +366,7 @@ function SupportCard({
       </div>
       <h3 className="mt-12 font-serif text-[clamp(3rem,4.6vw,5.2rem)] font-black leading-none tracking-[-0.04em]">{title}</h3>
       <p className="mt-5 text-2xl font-black text-[var(--text-secondary)] dark:text-white/72">{subtitle}</p>
-      <div className="mt-10 h-px bg-[var(--border)] dark:bg-white/10" />
+      <div className="mt-10 h-px bg-[var(--border)]" />
       <div className="mt-10 grid gap-6">
         {items.map((item, index) => (
           <p key={item} className="grid grid-cols-[44px_1fr] gap-4 text-lg font-bold text-[var(--text-primary)] dark:text-white/82">

@@ -7,13 +7,6 @@ import { ProductSceneVisual } from "@/components/adnexus/ProductScenes";
 import { BRAND } from "@/lib/brand/productNames";
 import { getProductModule, PRODUCT_MODULES } from "@/lib/brand/nexsuite";
 
-const STATUS_LABEL = {
-  Public: "Công khai",
-  Premium: "VIP",
-  Pilot: "Pilot",
-  Admin: "Admin",
-} as const;
-
 type PageProps = {
   params: Promise<{ slug: string }>;
 };
@@ -43,11 +36,11 @@ export default async function ProductDetailPage({ params }: PageProps) {
   return (
     <main className="min-h-screen" style={{ background: "var(--page-surface)", color: "var(--text-primary)" }}>
       <PublicSiteHeader />
-      <section className="flex min-h-[100svh] w-full items-center px-5 py-20 sm:px-8 lg:px-12 xl:px-16">
+      <section className="flex min-h-[calc(100svh-76px)] w-full items-center px-5 py-12 sm:px-8 lg:px-12 lg:py-10 xl:px-16">
         <div className="grid w-full items-center gap-12 lg:grid-cols-[0.9fr_1.1fr]">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.32em]" style={{ color: "var(--primary)" }}>
-              {product.pillar} - {STATUS_LABEL[product.status]}
+              {product.pillar} - {product.status}
             </p>
             <h1 className="mt-7 text-6xl font-black leading-[0.95] tracking-[-0.07em] lg:text-8xl">
               {product.shortName ?? product.name}
@@ -92,17 +85,17 @@ export default async function ProductDetailPage({ params }: PageProps) {
       </section>
 
       <section className="px-5 pb-20 sm:px-8 lg:px-12 xl:px-16">
-        <div className="rounded-[2rem] border bg-white p-8 dark:bg-white/5" style={{ borderColor: "var(--border)" }}>
+        <div className="rounded-[2rem] border p-8" style={{ background: "var(--bg-surface)", borderColor: "var(--border)" }}>
           <p className="text-xs font-black uppercase tracking-[0.24em]" style={{ color: "var(--text-muted)" }}>
             Nguyên tắc hiển thị
           </p>
           <div className="mt-6 grid gap-4 lg:grid-cols-3">
             {[
               "Không dùng KPI giả hoặc cam kết lợi nhuận.",
-              "Trải nghiệm public chỉ hiển thị các tính năng đã sẵn sàng cho khách hàng.",
+              "Tên sản phẩm, mô tả và CTA hiển thị theo chuẩn ADN Capital.",
               product.slug === "nexlink" || product.slug === "nexpilot"
                 ? "Broker workflow chỉ là preview/pilot-safe trên public, không tự động đặt lệnh."
-                : "Dữ liệu sản phẩm đi theo nguồn chuẩn của hệ thống khi vào app.",
+                : "Dữ liệu sản phẩm đi theo nguồn canonical của hệ thống khi vào app.",
             ].map((item) => (
               <div key={item} className="rounded-2xl bg-[var(--surface-2)] p-5 font-bold" style={{ color: "var(--text-secondary)" }}>
                 {item}

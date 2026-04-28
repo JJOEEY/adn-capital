@@ -16,8 +16,8 @@ export function ProductModuleCard({ product, hrefPrefix = "/products" }: { produ
   return (
     <Link
       href={href}
-      className="group flex min-h-[270px] flex-col justify-between rounded-[2rem] border bg-white p-6 transition hover:-translate-y-1 hover:shadow-2xl hover:shadow-black/10 dark:bg-white/5"
-      style={{ borderColor: "var(--border)" }}
+      className="group flex min-h-[270px] flex-col justify-between rounded-[2rem] border p-6 transition hover:-translate-y-1 hover:shadow-2xl hover:shadow-black/10"
+      style={{ background: "var(--bg-surface)", borderColor: "var(--border)" }}
     >
       <div>
         <div className="flex items-center justify-between gap-3">

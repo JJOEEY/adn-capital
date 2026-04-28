@@ -32,7 +32,7 @@ export function ProductSceneVisual({ scene, compact = false }: Props) {
   if (scene === "pulse") {
     return (
       <SceneFrame compact={compact} eyebrow={PRODUCT_NAMES.market} title="Bức tranh thị trường">
-        <div className="rounded-[1.75rem] border bg-white p-5 shadow-sm dark:bg-white/5" style={{ borderColor: "var(--border)" }}>
+        <div className="rounded-[1.75rem] border p-5 shadow-sm" style={{ background: "var(--bg-surface)", borderColor: "var(--border)" }}>
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.22em]" style={{ color: "var(--text-muted)" }}>
@@ -56,7 +56,7 @@ export function ProductSceneVisual({ scene, compact = false }: Props) {
         </div>
         <div className="grid gap-3 sm:grid-cols-3">
           {["HOSE 18,420 tỷ", "HNX 1,120 tỷ", "UPCOM 840 tỷ"].map((item) => (
-            <div key={item} className="rounded-2xl border bg-white p-4 text-sm font-black dark:bg-white/5" style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}>
+            <div key={item} className="rounded-2xl border p-4 text-sm font-black" style={{ background: "var(--bg-surface)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
               {item}
             </div>
           ))}
@@ -75,7 +75,7 @@ export function ProductSceneVisual({ scene, compact = false }: Props) {
             </p>
             <div className="mt-4 space-y-3">
               {signals.map((ticker, index) => (
-                <div key={ticker} className="flex items-center justify-between rounded-2xl bg-white px-4 py-3 dark:bg-white/5">
+                <div key={ticker} className="flex items-center justify-between rounded-2xl px-4 py-3" style={{ background: "var(--bg-surface)" }}>
                   <div>
                     <p className="font-black" style={{ color: "var(--text-primary)" }}>
                       {ticker}
@@ -89,7 +89,7 @@ export function ProductSceneVisual({ scene, compact = false }: Props) {
               ))}
             </div>
           </div>
-          <div className="rounded-[1.75rem] border bg-white p-5 dark:bg-white/5" style={{ borderColor: "var(--border)" }}>
+          <div className="rounded-[1.75rem] border p-5" style={{ background: "var(--bg-surface)", borderColor: "var(--border)" }}>
             <p className="text-xs font-black uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
               Bối cảnh trước hành động
             </p>
@@ -123,12 +123,12 @@ export function ProductSceneVisual({ scene, compact = false }: Props) {
             </p>
             <p className="text-lg font-black text-amber-500">Trung tính</p>
             <p className="mt-2 text-sm" style={{ color: "var(--text-muted)" }}>
-              Hiển thị tín hiệu ở mức dễ hiểu, không công khai công thức.
+              Công thức định lượng không hiển thị trên giao diện public.
             </p>
           </div>
           <div className="space-y-3">
             {["Theo dõi thêm", "Không mua đuổi", "Kiểm tra vị thế", "Chờ xác nhận"].map((item) => (
-              <div key={item} className="flex items-center justify-between rounded-2xl border bg-white p-4 dark:bg-white/5" style={{ borderColor: "var(--border)" }}>
+              <div key={item} className="flex items-center justify-between rounded-2xl border p-4" style={{ background: "var(--bg-surface)", borderColor: "var(--border)" }}>
                 <span className="font-bold" style={{ color: "var(--text-primary)" }}>
                   {item}
                 </span>
@@ -144,7 +144,7 @@ export function ProductSceneVisual({ scene, compact = false }: Props) {
   if (scene === "rank") {
     return (
       <SceneFrame compact={compact} eyebrow={PRODUCT_NAMES.rank} title="Bảng sức mạnh tương đối">
-        <div className="rounded-[1.75rem] border bg-white p-5 dark:bg-white/5" style={{ borderColor: "var(--border)" }}>
+        <div className="rounded-[1.75rem] border p-5" style={{ background: "var(--bg-surface)", borderColor: "var(--border)" }}>
           <div className="space-y-4">
             {rankRows.map(([ticker, score]) => (
               <div key={ticker}>
@@ -167,7 +167,7 @@ export function ProductSceneVisual({ scene, compact = false }: Props) {
     return (
       <SceneFrame compact={compact} eyebrow={scene === "link" ? PRODUCT_NAMES.broker : PRODUCT_NAMES.portfolio} title={scene === "link" ? "Broker workflow pilot" : "Danh mục trong ngữ cảnh"}>
         <div className="grid gap-4 sm:grid-cols-2">
-          <InfoCard icon={<WalletCards />} title="NAV minh họa" value="450 triệu" note="Preview an toàn, không gọi DNSE runtime ở trang giới thiệu." />
+          <InfoCard icon={<WalletCards />} title="NAV minh họa" value="450 triệu" note="Preview, không gọi DNSE runtime ở public." />
           <InfoCard icon={<Briefcase />} title="Vị thế" value="6 mã" note="Theo dõi tỷ trọng và PnL." />
           <InfoCard icon={<ShieldCheck />} title="Trạng thái" value={scene === "link" ? "Pilot" : "Safe"} note="Không tự động đặt lệnh công khai." />
           <InfoCard icon={<Gauge />} title="Phiên" value="OTP/session" note="Cần xác thực khi áp dụng." />
@@ -180,7 +180,7 @@ export function ProductSceneVisual({ scene, compact = false }: Props) {
     const Icon = scene === "lab" ? FlaskConical : scene === "sentinel" ? Bell : LineChart;
     return (
       <SceneFrame compact={compact} eyebrow={scene === "lab" ? PRODUCT_NAMES.backtest : scene === "sentinel" ? PRODUCT_NAMES.alerts : PRODUCT_NAMES.workflow} title="Theo dõi có bằng chứng">
-        <div className="rounded-[1.75rem] border bg-white p-6 dark:bg-white/5" style={{ borderColor: "var(--border)" }}>
+        <div className="rounded-[1.75rem] border p-6" style={{ background: "var(--bg-surface)", borderColor: "var(--border)" }}>
           <Icon className="h-10 w-10 text-[var(--primary)]" />
           <div className="mt-6 grid gap-3">
             {["Kịch bản", "Kết quả", "Rủi ro", "Nhật ký"].map((item, index) => (
@@ -200,7 +200,7 @@ export function ProductSceneVisual({ scene, compact = false }: Props) {
   if (scene === "advisory") {
     return (
       <SceneFrame compact={compact} eyebrow={PRODUCT_NAMES.advisoryShort} title="Chat như một ứng dụng nhắn tin">
-        <div className="rounded-[1.75rem] border bg-white p-5 dark:bg-white/5" style={{ borderColor: "var(--border)" }}>
+        <div className="rounded-[1.75rem] border p-5" style={{ background: "var(--bg-surface)", borderColor: "var(--border)" }}>
           <div className="flex items-center gap-3 border-b pb-4" style={{ borderColor: "var(--border)" }}>
             <Bot className="h-8 w-8 text-[var(--primary)]" />
             <div>
@@ -221,7 +221,7 @@ export function ProductSceneVisual({ scene, compact = false }: Props) {
 
   return (
     <SceneFrame compact={compact} eyebrow={PRODUCT_NAMES.stock} title="Không gian phân tích cổ phiếu">
-      <div className="rounded-[1.75rem] border bg-white p-6 dark:bg-white/5" style={{ borderColor: "var(--border)" }}>
+      <div className="rounded-[1.75rem] border p-6" style={{ background: "var(--bg-surface)", borderColor: "var(--border)" }}>
         <p className="text-5xl font-black" style={{ color: "var(--text-primary)" }}>HPG</p>
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
           {["Kỹ thuật", "Cơ bản", "Tin tức", "Tâm lý"].map((item) => (
@@ -238,8 +238,8 @@ export function ProductSceneVisual({ scene, compact = false }: Props) {
 function SceneFrame({ eyebrow, title, compact, children }: { eyebrow: string; title: string; compact: boolean; children: ReactNode }) {
   return (
     <div
-      className={`rounded-[2rem] border bg-white/80 p-4 shadow-2xl shadow-black/10 backdrop-blur dark:bg-white/5 ${compact ? "" : "sm:p-6 lg:p-8"}`}
-      style={{ borderColor: "var(--border)" }}
+      className={`rounded-[2rem] border p-4 shadow-2xl shadow-black/10 ${compact ? "" : "sm:p-6 lg:p-8"}`}
+      style={{ background: "var(--bg-surface)", borderColor: "var(--border)" }}
     >
       <div className="mb-5 flex items-center gap-3">
         <span className="rounded-2xl bg-[var(--surface-2)] p-3">
@@ -257,7 +257,7 @@ function SceneFrame({ eyebrow, title, compact, children }: { eyebrow: string; ti
 
 function InfoCard({ icon, title, value, note }: { icon: ReactNode; title: string; value: string; note: string }) {
   return (
-    <div className="rounded-3xl border bg-white p-5 dark:bg-white/5" style={{ borderColor: "var(--border)" }}>
+    <div className="rounded-3xl border p-5" style={{ background: "var(--bg-surface)", borderColor: "var(--border)" }}>
       <div className="h-6 w-6 text-[var(--primary)]">{icon}</div>
       <p className="mt-4 text-xs font-black uppercase tracking-[0.18em]" style={{ color: "var(--text-muted)" }}>{title}</p>
       <p className="mt-2 text-3xl font-black" style={{ color: "var(--text-primary)" }}>{value}</p>

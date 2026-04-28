@@ -13,17 +13,17 @@ export default function ProductsPage() {
     <main className="min-h-screen" style={{ background: "var(--page-surface)", color: "var(--text-primary)" }}>
       <PublicSiteHeader />
 
-      <section className="flex min-h-[100svh] w-full items-center px-5 py-24 sm:px-8 lg:px-12 xl:px-16">
+      <section className="flex min-h-[calc(100svh-76px)] w-full items-center px-5 py-12 sm:px-8 lg:px-12 lg:py-10 xl:px-16">
         <div className="grid w-full gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.32em]" style={{ color: "var(--primary)" }}>
               {BRAND.name} - {PRODUCT_NAMES.suite}
             </p>
-            <h1 className="mt-6 max-w-5xl text-5xl font-black leading-[0.96] tracking-[-0.06em] sm:text-7xl lg:text-8xl">
+            <h1 className="mt-6 max-w-5xl text-5xl font-black leading-[1.02] tracking-[-0.04em] sm:text-7xl sm:leading-[0.98] lg:text-8xl">
               Một hệ sinh thái cho toàn bộ hành trình đầu tư.
             </h1>
             <p className="mt-7 max-w-2xl text-lg leading-8" style={{ color: "var(--text-secondary)" }}>
-              Từ đọc thị trường, soi cổ phiếu, theo dõi cơ hội đến giữ kỷ luật hành động, mọi công cụ trong ADN Capital được đặt trong một workflow dễ hiểu và dễ kiểm soát.
+              Từ đọc thị trường, soi cổ phiếu, theo dõi cơ hội đến giữ kỷ luật hành động, mỗi công cụ trong ADN Capital được đặt trong một workflow dễ hiểu và dễ kiểm soát.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
@@ -43,7 +43,10 @@ export default function ProductsPage() {
             </div>
           </div>
 
-          <div className="rounded-[2.5rem] border bg-white/80 p-5 shadow-2xl shadow-black/10 dark:bg-white/5" style={{ borderColor: "var(--border)" }}>
+          <div
+            className="rounded-[2.5rem] border p-5 shadow-2xl shadow-black/10"
+            style={{ background: "var(--bg-surface)", borderColor: "var(--border)" }}
+          >
             <p className="text-xs font-black uppercase tracking-[0.24em]" style={{ color: "var(--text-muted)" }}>
               ADN Capital workflow
             </p>
