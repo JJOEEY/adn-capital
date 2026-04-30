@@ -177,18 +177,28 @@ export async function POST(req: NextRequest) {
       ? resolved.context.accountCandidates
       : [resolved.context.brokerAccountNo];
 
-    const [balanceResult, positionsResult, loanPackagesResult, ppseResult] = await Promise.all([
+    const [balanceResult, positionsResult, loanPackagesResult] = await Promise.all([
       firstUsefulSuccess(candidates, (accountNo) => client.getBalance(accountNo), isUsefulBalance),
       firstSuccess(candidates, (accountNo) => client.getPositions(accountNo)),
       firstSuccess(candidates, (accountNo) => client.getLoanPackages(accountNo, "STOCK", ticker)),
-      firstSuccess(candidates, (accountNo) =>
-        client.getPPSE(accountNo, ticker, {
-          marketType: "STOCK",
-          price: price ?? undefined,
-          loanPackageId: body.loanPackageId && body.loanPackageId !== "CASH" ? body.loanPackageId : undefined,
-        }),
-      ),
     ]);
+    const packageRows = extractArrayPayload(loanPackagesResult.value);
+    const loanPackages = normalizeLoanPackageRows(packageRows);
+    const preferredCashPackage =
+      loanPackages.find((item) => item.isCash && item.loanPackageId !== "CASH") ??
+      loanPackages.find((item) => item.loanPackageId !== "CASH") ??
+      loanPackages[0];
+    const selectedLoanPackageId =
+      body.loanPackageId && loanPackages.some((item) => item.loanPackageId === body.loanPackageId)
+        ? body.loanPackageId
+        : preferredCashPackage?.loanPackageId ?? "CASH";
+    const ppseResult = await firstSuccess(candidates, (accountNo) =>
+      client.getPPSE(accountNo, ticker, {
+        marketType: "STOCK",
+        price: price ?? undefined,
+        loanPackageId: selectedLoanPackageId !== "CASH" ? selectedLoanPackageId : undefined,
+      }),
+    );
 
     if (balanceResult.error) warnings.push("Chưa đọc được tổng tài sản ròng mới nhất.");
     if (positionsResult.error) warnings.push("Chưa đọc được danh mục nắm giữ mới nhất.");
@@ -224,13 +234,6 @@ export async function POST(req: NextRequest) {
       recommendedNavPct: navPct,
       fallbackNavPct: 5,
     });
-
-    const packageRows = extractArrayPayload(loanPackagesResult.value);
-    const loanPackages = normalizeLoanPackageRows(packageRows);
-    const selectedLoanPackageId =
-      body.loanPackageId && loanPackages.some((item) => item.loanPackageId === body.loanPackageId)
-        ? body.loanPackageId
-        : loanPackages[0]?.loanPackageId ?? "CASH";
 
     const accountNo =
       ppseResult.accountNo ??

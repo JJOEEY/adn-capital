@@ -114,8 +114,14 @@ export function extractArrayPayload(value: unknown): unknown[] {
   if (!root) return [];
   if (Array.isArray(root.data)) return root.data;
   const data = toRecord(root.data);
+  if (Array.isArray(data?.loanPackages)) return data.loanPackages;
+  if (Array.isArray(data?.positions)) return data.positions;
+  if (Array.isArray(data?.orders)) return data.orders;
   if (Array.isArray(data?.items)) return data.items;
   if (Array.isArray(data?.rows)) return data.rows;
+  if (Array.isArray(root.loanPackages)) return root.loanPackages;
+  if (Array.isArray(root.positions)) return root.positions;
+  if (Array.isArray(root.orders)) return root.orders;
   if (Array.isArray(root.items)) return root.items;
   if (Array.isArray(root.rows)) return root.rows;
   if (Array.isArray(root.packages)) return root.packages;
@@ -123,31 +129,40 @@ export function extractArrayPayload(value: unknown): unknown[] {
 }
 
 export function normalizeLoanPackageRows(rows: unknown[]): NormalizedDnseLoanPackage[] {
-  const packages: NormalizedDnseLoanPackage[] = [
-    {
-      loanPackageId: "CASH",
-      loanPackageName: "Giao dịch tiền mặt",
-      interestRate: 0,
-      maxLoanRatio: 0,
-      isCash: true,
-    },
-  ];
+  const packages: NormalizedDnseLoanPackage[] = [];
 
   rows.forEach((item, index) => {
     const row = toRecord(item);
     if (!row) return;
     const id = String(row.id ?? row.code ?? row.loanPackageId ?? row.name ?? "").trim();
     if (!id) return;
+    const initialRate = readFirstNumber(row, ["initialRate", "initialMarginRate"], null);
+    const packageName =
+      String(row.name ?? row.loanPackageName ?? row.code ?? `Gói giao dịch ${index + 1}`).trim() ||
+      `Gói giao dịch ${index + 1}`;
+    const isCash =
+      initialRate === 1 ||
+      /ti[eề]n m[aặ]t|cash|gd ti[eề]n m[aặ]t/i.test(packageName);
+    const computedLoanRatio = initialRate != null ? Math.max(0, (1 - initialRate) * 100) : null;
+
     packages.push({
       loanPackageId: id,
-      loanPackageName:
-        String(row.name ?? row.loanPackageName ?? row.code ?? `Gói giao dịch ${index + 1}`).trim() ||
-        `Gói giao dịch ${index + 1}`,
-      interestRate: readFirstNumber(row, ["interestRate", "rate", "loanRate", "marginRate"], null),
-      maxLoanRatio: readFirstNumber(row, ["maxLoanRatio", "loanRatio", "marginRatio"], null),
-      isCash: false,
+      loanPackageName: packageName,
+      interestRate: readFirstNumber(row, ["interestRate", "rate", "loanRate", "marginRate", "interest"], null),
+      maxLoanRatio: readFirstNumber(row, ["maxLoanRatio", "loanRatio", "marginRatio"], computedLoanRatio),
+      isCash,
     });
   });
+
+  if (!packages.length) {
+    packages.push({
+      loanPackageId: "CASH",
+      loanPackageName: "Giao dịch tiền mặt",
+      interestRate: 0,
+      maxLoanRatio: 0,
+      isCash: true,
+    });
+  }
 
   const dedup = new Map<string, NormalizedDnseLoanPackage>();
   for (const item of packages) dedup.set(item.loanPackageId, item);
@@ -167,8 +182,10 @@ export function extractAvailableSellQty(positions: unknown[], ticker: string): n
       "sellableQuantity",
       "sellableQty",
       "tradeQuantity",
+      "openQuantity",
       "quantity",
       "totalQuantity",
+      "accumulateQuantity",
     ], 0);
   }
   return null;

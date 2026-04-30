@@ -184,7 +184,6 @@ function normalizeBaseUrls(baseUrl?: string) {
   const canonicalize = (raw: string) =>
     raw
       .trim()
-      .replace(/\/openapi(?=\/|$)/i, "")
       .replace(/\/+$/, "");
   const envBaseUrls = (process.env.DNSE_TRADING_BASE_URLS ?? "")
     .split(",")
@@ -197,6 +196,7 @@ function normalizeBaseUrls(baseUrl?: string) {
     ...(baseUrl?.trim() ? [canonicalize(baseUrl)] : []),
     ...envBaseUrls,
     ...(baseFromEnv ? [baseFromEnv] : []),
+    "https://api.dnse.com.vn/openapi",
     "https://api.dnse.com.vn",
     "https://services.entrade.com.vn",
     "https://openapi.dnse.com.vn",
@@ -215,11 +215,22 @@ function getHostname(baseUrl: string) {
 }
 
 function isOpenApiHost(baseUrl: string) {
-  return getHostname(baseUrl) === "openapi.dnse.com.vn";
+  if (getHostname(baseUrl) === "openapi.dnse.com.vn") return true;
+  try {
+    const parsed = new URL(baseUrl);
+    return parsed.hostname.toLowerCase() === "api.dnse.com.vn" && /^\/openapi(\/|$)/i.test(parsed.pathname);
+  } catch {
+    return false;
+  }
 }
 
 function isApiHost(baseUrl: string) {
-  return getHostname(baseUrl) === "api.dnse.com.vn";
+  if (getHostname(baseUrl) !== "api.dnse.com.vn") return false;
+  try {
+    return !/^\/openapi(\/|$)/i.test(new URL(baseUrl).pathname);
+  } catch {
+    return true;
+  }
 }
 
 function isServiceHost(baseUrl: string) {
@@ -292,14 +303,24 @@ function extractArrayPayload(payload: unknown): unknown[] {
   const data = root.data;
   if (Array.isArray(data)) return data;
   const nested = toRecord(data);
+  const arrayKeys = [
+    "accounts",
+    "positions",
+    "loanPackages",
+    "orders",
+    "orderHistory",
+    "items",
+    "rows",
+    "packages",
+  ];
   if (nested) {
-    if (Array.isArray(nested.accounts)) return nested.accounts;
-    if (Array.isArray(nested.items)) return nested.items;
-    if (Array.isArray(nested.rows)) return nested.rows;
+    for (const key of arrayKeys) {
+      if (Array.isArray(nested[key])) return nested[key] as unknown[];
+    }
   }
-  if (Array.isArray(root.accounts)) return root.accounts;
-  if (Array.isArray(root.items)) return root.items;
-  if (Array.isArray(root.rows)) return root.rows;
+  for (const key of arrayKeys) {
+    if (Array.isArray(root[key])) return root[key] as unknown[];
+  }
   return [];
 }
 
@@ -369,14 +390,21 @@ export class DnseTradingClient {
     this.userJwtToken = options?.userJwtToken?.trim() || null;
   }
 
-  private generateOpenApiSignature(method: string, path: string, dateValue: string, nonce: string) {
-    const signatureString = `(request-target): ${method.toLowerCase()} ${path}\ndate: ${dateValue}\nnonce: ${nonce}`;
+  private generateOpenApiSignature(
+    method: string,
+    path: string,
+    dateValue: string,
+    nonce: string,
+    dateHeaderName = "X-Aux-Date",
+  ) {
+    const dateHeaderKey = dateHeaderName.toLowerCase();
+    const signatureString = `(request-target): ${method.toLowerCase()} ${path}\n${dateHeaderKey}: ${dateValue}\nnonce: ${nonce}`;
     const signature = crypto
       .createHmac("sha256", Buffer.from(this.apiSecret, "utf8"))
       .update(signatureString, "utf8")
       .digest("base64");
     const escaped = encodeURIComponent(signature);
-    return `Signature keyId="${this.apiKey}",algorithm="hmac-sha256",headers="(request-target) date",signature="${escaped}",nonce="${nonce}"`;
+    return `Signature keyId="${this.apiKey}",algorithm="hmac-sha256",headers="(request-target) ${dateHeaderKey}",signature="${escaped}",nonce="${nonce}"`;
   }
 
   private buildHeaders(
@@ -412,10 +440,20 @@ export class DnseTradingClient {
       return headers;
     }
 
+    const dateHeaderName = process.env.DNSE_DATE_HEADER?.trim() || "X-Aux-Date";
     const dateValue = formatDateHeader(new Date());
     const nonce = crypto.randomUUID().replace(/-/g, "");
-    headers.Date = dateValue;
-    headers["X-Signature"] = this.generateOpenApiSignature(method, path, dateValue, nonce);
+    headers[dateHeaderName] = dateValue;
+    if (dateHeaderName.toLowerCase() !== "date") {
+      headers.Date = dateValue;
+    }
+    headers["X-Signature"] = this.generateOpenApiSignature(
+      method,
+      path,
+      dateValue,
+      nonce,
+      dateHeaderName,
+    );
     Object.assign(headers, extraHeaders);
 
     return headers;
@@ -596,6 +634,8 @@ export class DnseTradingClient {
         const quantity = readNumber(row, [
           "quantity",
           "totalQuantity",
+          "accumulateQuantity",
+          "openQuantity",
           "volume",
           "actualVolume",
           "onHand",
@@ -607,6 +647,7 @@ export class DnseTradingClient {
           "availableQuantity",
           "available",
           "tradeQuantity",
+          "openQuantity",
           "sellableQuantity",
           "sellableQty",
         ], quantity);
@@ -614,6 +655,7 @@ export class DnseTradingClient {
           "avgPrice",
           "averagePrice",
           "costPrice",
+          "breakEvenPrice",
           "avgCost",
           "buyPrice",
           "price",
@@ -641,7 +683,7 @@ export class DnseTradingClient {
           "unrealizedPL",
           "unrealizedProfit",
           "profit",
-        ]);
+        ], quantity > 0 && avgPrice > 0 && lastPrice > 0 ? quantity * (lastPrice - avgPrice) : 0);
         const totalPLPct =
           readNumber(row, ["totalPLPct", "profitLossRate", "profitPercent", "pnlPercent"], Number.NaN);
         return {
@@ -675,24 +717,44 @@ export class DnseTradingClient {
   private mapOrders(rows: unknown[], fallbackAccountNo: string): DnseOrder[] {
     return rows.map((item) => {
       const row = toRecord(item) ?? {};
+      const sideRaw = readString(row, ["side", "orderSide"]);
+      const sideNormalized = sideRaw?.toUpperCase() === "NS" || sideRaw?.toUpperCase() === "SELL"
+        ? "SELL"
+        : "BUY";
+      const quantity = readNumber(row, [
+        "quantity",
+        "orderQty",
+        "orderQuantity",
+        "accumulateQuantity",
+      ]);
+      const filledQty = readNumber(row, [
+        "filledQty",
+        "filledQuantity",
+        "matchQty",
+        "fillQuantity",
+      ]);
       return {
-        orderId: readString(row, ["orderId", "id", "orderNumber"]) ?? "",
+        orderId: readString(row, ["orderId", "id", "orderNumber", "refOrderId"]) ?? "",
         accountNo: readString(row, ["accountNo", "account", "subAccount"]) ?? fallbackAccountNo,
         symbol: readString(row, ["symbol", "ticker", "code"]) ?? "",
-        side: (readString(row, ["side", "orderSide"])?.toUpperCase() as "BUY" | "SELL") || "BUY",
+        side: sideNormalized,
         orderType: readString(row, ["orderType", "type", "priceType"]) ?? "",
-        price: Number(row.price ?? row.orderPrice ?? 0),
-        quantity: Number(row.quantity ?? row.orderQty ?? 0),
-        filledQty: Number(row.filledQty ?? row.filledQuantity ?? row.matchQty ?? 0),
-        remainingQty: Number(
-          row.remainingQty ?? row.remainingQuantity ?? row.leaveQty ?? row.unfilledQty ?? 0,
-        ),
+        price: readNumber(row, ["price", "orderPrice", "limitPrice", "averagePrice"]),
+        quantity,
+        filledQty,
+        remainingQty: readNumber(row, [
+          "remainingQty",
+          "remainingQuantity",
+          "leaveQty",
+          "leaveQuantity",
+          "unfilledQty",
+        ], Math.max(0, quantity - filledQty)),
         status: readString(row, ["status", "orderStatus", "state"]) ?? "",
         createdAt:
-          readString(row, ["createdAt", "createdTime", "submittedAt", "orderDate", "tradingDate"]) ??
+          readString(row, ["createdAt", "createdTime", "submittedAt", "orderDate", "tradingDate", "createdDate"]) ??
           "",
         updatedAt:
-          readString(row, ["updatedAt", "updatedTime", "modifiedAt", "lastUpdatedAt"]) ?? "",
+          readString(row, ["updatedAt", "updatedTime", "modifiedAt", "lastUpdatedAt", "modifiedDate"]) ?? "",
       };
     });
   }
@@ -810,28 +872,31 @@ export class DnseTradingClient {
       accountId: accountNo,
       accountNo,
       marketType,
+      pageSize: 100,
     };
     const sessionPath = buildPathWithQuery(`/order-service/accounts/${accountNo}/positions`, {
       marketType,
+      pageSize: 100,
     });
     const sessionPathAccountPositions = buildPathWithQuery(
       `/order-service/account-positions/${accountNo}`,
-      { marketType },
+      { marketType, pageSize: 100 },
     );
     const sessionPathStockPositions = buildPathWithQuery(`/order-service/stock-positions/${accountNo}`, {
       marketType,
+      pageSize: 100,
     });
     const sessionServicePath = buildPathWithQuery(
       `/dnse-order-service/accounts/${accountNo}/positions`,
-      { marketType },
+      { marketType, pageSize: 100 },
     );
     const sessionServicePathAccountPositions = buildPathWithQuery(
       `/dnse-order-service/account-positions/${accountNo}`,
-      { marketType },
+      { marketType, pageSize: 100 },
     );
     const sessionServicePathStockPositions = buildPathWithQuery(
       `/dnse-order-service/stock-positions/${accountNo}`,
-      { marketType },
+      { marketType, pageSize: 100 },
     );
     const sessionPathByAccount = buildPathWithQuery(`/order-service/positions`, accountQuery);
     const sessionServicePathByAccount = buildPathWithQuery(
@@ -858,7 +923,10 @@ export class DnseTradingClient {
       console.warn("[DNSE getPositions] Session API failed, fallback to OpenAPI.");
     }
 
-    const path = buildPathWithQuery(`/accounts/${accountNo}/positions`, { marketType });
+    const path = buildPathWithQuery(`/accounts/${accountNo}/positions`, {
+      marketType,
+      pageSize: 100,
+    });
     const payload = await this.requestFirstSuccess(
       "GET",
       [path],
@@ -935,12 +1003,17 @@ export class DnseTradingClient {
     options?: { fromDate?: string | null; toDate?: string | null; page?: number | null; size?: number | null },
   ): Promise<DnseOrder[]> {
     if (isDnseDebugEnabled()) console.log("[DNSE getOrdersHistory] Account:", accountNo);
+    const now = new Date();
+    const defaultFrom = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    const defaultTo = now.toISOString().slice(0, 10);
 
     const query = {
-      from: options?.fromDate ?? undefined,
-      to: options?.toDate ?? undefined,
+      from: options?.fromDate ?? defaultFrom,
+      to: options?.toDate ?? defaultTo,
       pageIndex: options?.page ?? 1,
-      pageSize: options?.size ?? undefined,
+      pageSize: options?.size ?? 100,
       marketType: DEFAULT_MARKET_TYPE,
     };
 
@@ -1032,22 +1105,24 @@ export class DnseTradingClient {
     symbol?: string | null,
   ): Promise<JsonRecord[]> {
     if (isDnseDebugEnabled()) console.log("[DNSE getLoanPackages] Account:", accountNo);
+    const normalizedSymbol = symbol?.trim().toUpperCase() || null;
+    if (!normalizedSymbol) return [];
     const accountQuery = {
       accountId: accountNo,
       accountNo,
       marketType,
-      symbol: symbol ?? undefined,
+      symbol: normalizedSymbol,
     };
     const sessionPath = buildPathWithQuery(`/order-service/accounts/${accountNo}/loan-packages`, {
       marketType,
-      symbol: symbol ?? undefined,
+      symbol: normalizedSymbol,
     });
     const sessionPathByAccount = buildPathWithQuery(`/order-service/loan-packages`, accountQuery);
     const sessionServicePath = buildPathWithQuery(
       `/dnse-order-service/accounts/${accountNo}/loan-packages`,
       {
         marketType,
-        symbol: symbol ?? undefined,
+        symbol: normalizedSymbol,
       },
     );
     const sessionServicePathByAccount = buildPathWithQuery(
@@ -1058,7 +1133,7 @@ export class DnseTradingClient {
       `/order-service/accounts/${accountNo}/loan-packages`,
       {
         marketType,
-        symbol: symbol ?? undefined,
+        symbol: normalizedSymbol,
       },
     );
     const sessionServicePathByAccountOrderService = buildPathWithQuery(
@@ -1087,7 +1162,7 @@ export class DnseTradingClient {
 
     const path = buildPathWithQuery(`/accounts/${accountNo}/loan-packages`, {
       marketType,
-      symbol: symbol ?? undefined,
+      symbol: normalizedSymbol,
     });
     const payload = await this.requestFirstSuccess(
       "GET",
@@ -1192,17 +1267,12 @@ export class DnseTradingClient {
 
   async sendEmailOTP(): Promise<void> {
     await this.requestFirstSuccess(
-      "GET",
-      [
-        "/dnse-auth-service/api/email-otp",
-        "/dnse-auth-service/email-otp",
-        "/auth-service/api/email-otp",
-      ],
+      "POST",
+      ["/registration/send-email-otp"],
       {
         label: "Failed to send OTP",
-        includeBody: true,
-        includeAuthorization: true,
-        baseFilter: "service",
+        includeAuthorization: false,
+        baseFilter: "openapi",
       },
     );
   }
@@ -1210,17 +1280,16 @@ export class DnseTradingClient {
   async createTradingToken(otp: string): Promise<{ token: string; expiresIn: number }> {
     const payload = await this.requestFirstSuccess(
       "POST",
-      [
-        "/dnse-order-service/trading-token",
-        "/order-service/trading-token",
-      ],
+      ["/registration/trading-token"],
       {
         includeBody: true,
-        body: "",
+        body: JSON.stringify({
+          otpType: "email_otp",
+          passcode: otp,
+        }),
         label: "Invalid OTP",
-        includeAuthorization: true,
-        baseFilter: "service",
-        extraHeaders: { otp },
+        includeAuthorization: false,
+        baseFilter: "openapi",
       },
     );
 
@@ -1231,8 +1300,8 @@ export class DnseTradingClient {
       readString(nested, ["token", "tradingToken", "accessToken"]) ??
       "";
     const expiresInRaw =
-      Number((root.expiresIn as number | string | undefined) ?? nested.expiresIn ?? 25200) ||
-      25200;
+      Number((root.expiresIn as number | string | undefined) ?? nested.expiresIn ?? 28800) ||
+      28800;
 
     if (!token) {
       throw new Error("DNSE không trả trading token hợp lệ.");
@@ -1243,7 +1312,7 @@ export class DnseTradingClient {
     return { token, expiresIn: expiresInRaw };
   }
 
-  setTradingToken(token: string, expiresIn = 25200) {
+  setTradingToken(token: string, expiresIn = 28800) {
     this.tradingToken = token;
     this.tokenExpiry = Date.now() + expiresIn * 1000;
   }
@@ -1263,21 +1332,29 @@ export class DnseTradingClient {
 
     const payload = await this.requestFirstSuccess(
       "POST",
-      ["/accounts/orders", "/order-service/orders"],
+      [
+        buildPathWithQuery("/accounts/orders", {
+          marketType: DEFAULT_MARKET_TYPE,
+          orderCategory: DEFAULT_ORDER_CATEGORY,
+        }),
+      ],
       {
         includeBody: true,
-        body: JSON.stringify({
+        body: JSON.stringify(Object.fromEntries(Object.entries({
           accountNo: params.accountNo,
           symbol: params.symbol,
-          side: params.side,
+          side: params.side === "SELL" ? "NS" : "NB",
           orderType: params.orderType,
           price: params.price,
           quantity: params.quantity,
           loanPackageId: params.loanPackageId,
-        }),
+        }).filter(([, value]) => value != null && value !== ""))),
         label: "Failed to place order",
         includeAuthorization: false,
         baseFilter: "openapi",
+        extraHeaders: {
+          "trading-token": this.tradingToken,
+        },
       },
     );
 
