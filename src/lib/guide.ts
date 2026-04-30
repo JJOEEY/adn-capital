@@ -64,11 +64,11 @@ const GUIDE_DEFAULT_DATA: GuideSeedCategory[] = [
           "## ADN Composite Score\n\nĐiểm tổng hợp từ nhiều thành phần (xu hướng, động lượng, thanh khoản, hành vi dòng tiền).\n\n- Điểm cao: ưu tiên theo dõi cơ hội\n- Điểm thấp: ưu tiên quản trị rủi ro",
       },
       {
-        title: "Hướng dẫn dùng ADN Pilot",
+        title: "Hướng dẫn dùng ADN Radar",
         slug: "huong-dan-dung-adn-ai-broker",
         sortOrder: 3,
         content:
-          "## ADN Pilot\n\nNhập mã cổ phiếu để mở các thẻ phân tích:\n\n- Phân tích kỹ thuật\n- Phân tích cơ bản\n- Tâm lý & hành vi\n- Tin tức & sự kiện",
+          "## ADN Radar\n\nNhập mã cổ phiếu để mở các thẻ phân tích:\n\n- Phân tích kỹ thuật\n- Phân tích cơ bản\n- Tâm lý & hành vi\n- Tin tức & sự kiện",
       },
       {
         title: "ADN Advisory — Chat với AIDEN",
@@ -80,7 +80,7 @@ const GUIDE_DEFAULT_DATA: GuideSeedCategory[] = [
     ],
   },
   {
-    title: "ADN Pilot",
+    title: "ADN Radar",
     slug: "adn-ai-broker",
     sortOrder: 3,
     sections: [

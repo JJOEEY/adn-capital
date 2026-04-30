@@ -5,19 +5,19 @@ import { PublicSiteFooter } from "@/components/adnexus/PublicSiteFooter";
 import { PublicSiteHeader } from "@/components/adnexus/PublicSiteHeader";
 import { ProductSceneVisual } from "@/components/adnexus/ProductScenes";
 import { BRAND } from "@/lib/brand/productNames";
-import { getProductModule, PRODUCT_MODULES } from "@/lib/brand/nexsuite";
+import { PUBLIC_PRODUCT_MODULES } from "@/lib/brand/nexsuite";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
 };
 
 export function generateStaticParams() {
-  return PRODUCT_MODULES.map((product) => ({ slug: product.slug }));
+  return PUBLIC_PRODUCT_MODULES.map((product) => ({ slug: product.slug }));
 }
 
 export async function generateMetadata({ params }: PageProps) {
   const { slug } = await params;
-  const product = getProductModule(slug);
+  const product = PUBLIC_PRODUCT_MODULES.find((module) => module.slug === slug);
   if (!product) return {};
 
   return {
@@ -28,7 +28,7 @@ export async function generateMetadata({ params }: PageProps) {
 
 export default async function ProductDetailPage({ params }: PageProps) {
   const { slug } = await params;
-  const product = getProductModule(slug);
+  const product = PUBLIC_PRODUCT_MODULES.find((module) => module.slug === slug);
   if (!product) notFound();
 
   const safeRoute = product.status === "Admin" ? "/products/nexlink" : product.route;

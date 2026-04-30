@@ -67,7 +67,7 @@ export function ProductSceneVisual({ scene, compact = false }: Props) {
 
   if (scene === "pilot" || scene === "radar") {
     return (
-      <SceneFrame compact={compact} eyebrow={scene === "pilot" ? PRODUCT_NAMES.aiBroker : PRODUCT_NAMES.signals} title="Cơ hội có trạng thái">
+      <SceneFrame compact={compact} eyebrow={PRODUCT_NAMES.signals} title="Cơ hội có trạng thái">
         <div className="grid gap-4 sm:grid-cols-[0.9fr_1.1fr]">
           <div className="rounded-[1.75rem] border bg-[var(--surface-2)] p-4" style={{ borderColor: "var(--border)" }}>
             <p className="text-xs font-black uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>

@@ -342,7 +342,7 @@ export function SignalCard({ signal, buyHref, showBuyAction = false }: SignalCar
         </div>
       )}
 
-      {/* ADN Pilot Insight */}
+      {/* ADN Radar Insight */}
       {aiNote && (
         <div
           className="rounded-xl mx-3 mb-3 p-3"
@@ -359,7 +359,7 @@ export function SignalCard({ signal, buyHref, showBuyAction = false }: SignalCar
                 className="text-[11px] font-bold uppercase tracking-wider"
                 style={{ color: "var(--primary)" }}
               >
-                ADN Pilot Insight
+                ADN Radar Insight
               </span>
               <p className="text-sm italic leading-relaxed mt-1 line-clamp-4" style={{ color: "var(--text-secondary)" }}>
                 {aiNote.replace(/\*\*/g, "").replace(/📊|🎯|📐|💡|📅|⚠️/g, "").trim().split("\n").filter(l => l.trim()).slice(0, 3).join(" · ")}

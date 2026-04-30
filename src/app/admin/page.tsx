@@ -316,7 +316,7 @@ function UsersTab() {
       setBrokerMinRr(String(data.AI_BROKER_MIN_RR ?? "1"));
       setBrokerAutoPick(Boolean(data.AI_BROKER_AUTO_PICK ?? true));
     } catch {
-      setBrokerMessage("Không tải được cấu hình ADN Pilot.");
+      setBrokerMessage("Không tải được cấu hình ADN Radar.");
     } finally {
       setBrokerSettingsLoading(false);
     }
@@ -420,9 +420,9 @@ function UsersTab() {
         });
         if (!res.ok) throw new Error();
       }
-      setBrokerMessage("Đã lưu cấu hình ADN Pilot.");
+      setBrokerMessage("Đã lưu cấu hình ADN Radar.");
     } catch {
-      setBrokerMessage("Lưu cấu hình ADN Pilot thất bại.");
+      setBrokerMessage("Lưu cấu hình ADN Radar thất bại.");
     } finally {
       setBrokerSaving(false);
     }
@@ -597,7 +597,7 @@ function UsersTab() {
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-[11px] uppercase tracking-wider font-bold" style={{ color: "var(--text-muted)" }}>
-              ADN Pilot Admin
+              ADN Radar Admin
             </p>
             <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
               Chỉnh ngưỡng auto-pick (Winrate/RR) và can thiệp mã vào giỏ ACTIVE.

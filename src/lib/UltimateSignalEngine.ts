@@ -3,7 +3,7 @@
  *
  * Step 1: Map scanner signal → tier + base NAV
  * Step 2: Seasonality filter (NodeCache memory, TTL 30 ngày per ticker-month)
- * Step 3: AIDEN/ADN Pilot card (Gemini — CHỈ gọi khi signal FIRST-TIME NEW/RADAR)
+ * Step 3: AIDEN/ADN Radar card (Gemini — CHỈ gọi khi signal FIRST-TIME NEW/RADAR)
  *
  * ✅ KHÔNG gọi Gemini khi chỉ cập nhật PnL định kỳ
  * ✅ KHÔNG hardcode FiinQuant credentials
@@ -179,7 +179,7 @@ function getSeasonalityMultiplier(data: SeasonalityData | null): {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  Step 3: AIDEN/ADN Pilot message (Gemini)
+//  Step 3: AIDEN/ADN Radar message (Gemini)
 //  CHỈ GỌI KHI signal LẦN ĐẦU TIÊN (status NEW / RADAR)
 //  Cấm gọi khi cập nhật PnL định kỳ
 // ═══════════════════════════════════════════════════════════════════
@@ -331,7 +331,7 @@ export async function processSignals(
     const sharpeRatio = seasonality?.sharpeRatio ?? 0;
     const triggerSignal = raw.reason ?? "Tín hiệu kỹ thuật";
 
-    // Step 3: AIDEN/ADN Pilot message (Gemini) — CHỈ gọi cho signal MỚI
+    // Step 3: AIDEN/ADN Radar message (Gemini) — CHỈ gọi cho signal MỚI
     const aiReasoning = await callGeminiReasoning({
       ticker: raw.ticker,
       tier,

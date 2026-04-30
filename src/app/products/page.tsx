@@ -4,9 +4,9 @@ import { PublicSiteFooter } from "@/components/adnexus/PublicSiteFooter";
 import { PublicSiteHeader } from "@/components/adnexus/PublicSiteHeader";
 import { ProductModuleCard } from "@/components/adnexus/ProductModuleCard";
 import { BRAND, PRODUCT_NAMES } from "@/lib/brand/productNames";
-import { PRODUCT_MODULES } from "@/lib/brand/nexsuite";
+import { PUBLIC_PRODUCT_MODULES } from "@/lib/brand/nexsuite";
 
-const visibleProducts = PRODUCT_MODULES.filter((product) => product.status !== "Admin");
+const visibleProducts = PUBLIC_PRODUCT_MODULES;
 
 export default function ProductsPage() {
   return (
@@ -23,7 +23,7 @@ export default function ProductsPage() {
               Một hệ sinh thái cho toàn bộ hành trình đầu tư.
             </h1>
             <p className="mt-7 max-w-2xl text-lg leading-8" style={{ color: "var(--text-secondary)" }}>
-              Từ đọc thị trường, soi cổ phiếu, theo dõi cơ hội đến giữ kỷ luật hành động, mỗi công cụ trong ADN Capital được đặt trong một workflow dễ hiểu và dễ kiểm soát.
+              Từ đọc thị trường, soi cổ phiếu, theo dõi cơ hội đến quản trị danh mục, mỗi công cụ trong ADN Capital được đặt trong một workflow dễ hiểu và dễ kiểm soát.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
@@ -55,7 +55,7 @@ export default function ProductsPage() {
                 ["Đọc thị trường", PRODUCT_NAMES.market],
                 ["Soi cổ phiếu", PRODUCT_NAMES.stock],
                 ["Theo dõi cơ hội", PRODUCT_NAMES.signals],
-                ["Giữ kỷ luật", PRODUCT_NAMES.risk],
+                ["Quản trị danh mục", PRODUCT_NAMES.portfolio],
               ].map(([title, value]) => (
                 <div key={title} className="rounded-3xl border bg-[var(--surface-2)] p-5" style={{ borderColor: "var(--border)" }}>
                   <CheckCircle2 className="h-5 w-5 text-emerald-600" />

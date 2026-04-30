@@ -125,7 +125,7 @@ assert.match(signalsRoute, /buildSignalMapPayload/, "ADN Lens API must return on
 assert.match(signalsRoute, /normalizeSignalPrice/, "ADN Lens API must normalize price units before rendering");
 
 const signalMapClient = read("src/components/signals/SignalMapClient.tsx");
-assert.match(signalMapClient, /signalMapTopic\.data\?\.reportedToday/, "ADN Pilot must read reported signals from signal:map:latest first");
+assert.match(signalMapClient, /signalMapTopic\.data\?\.reportedToday/, "ADN Radar must read reported signals from signal:map:latest first");
 
 const ingest = read("src/lib/signals/ingest.ts");
 assert.match(ingest, /normalizeSignalPrice/, "scanner ingestion must normalize price units before processing");

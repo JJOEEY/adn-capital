@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { BRAND } from "@/lib/brand/productNames";
-import { PRODUCT_MODULES } from "@/lib/brand/nexsuite";
+import { PUBLIC_PRODUCT_MODULES } from "@/lib/brand/nexsuite";
 
 export function PublicSiteFooter() {
-  const primaryProducts = PRODUCT_MODULES.filter((product) => product.status !== "Admin").slice(0, 8);
+  const primaryProducts = PUBLIC_PRODUCT_MODULES.slice(0, 8);
 
   return (
     <footer
