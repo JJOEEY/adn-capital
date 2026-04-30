@@ -75,6 +75,9 @@ services:
     container_name: adn-fiinquant
     restart: unless-stopped
     env_file: .env
+    environment:
+      - WEBHOOK_URL=http://web:3000/api/webhooks/signals
+      - BRIDGE_DIRECT_TELEGRAM_ENABLED=false
     ports:
       - "8000:8000"
     networks:
