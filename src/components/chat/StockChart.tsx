@@ -6,6 +6,8 @@ import { useTheme } from "@/components/providers/ThemeProvider";
 interface StockChartProps {
   symbol: string;
   exchange?: string;
+  candles?: Candle[];
+  sourceLabel?: string;
 }
 
 interface Candle {
@@ -26,7 +28,7 @@ function getChartHeight() {
     : CHART_HEIGHT_MOBILE;
 }
 
-export function StockChart({ symbol, exchange = "HOSE" }: StockChartProps) {
+export function StockChart({ symbol, exchange = "HOSE", candles, sourceLabel }: StockChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,16 +39,21 @@ export function StockChart({ symbol, exchange = "HOSE" }: StockChartProps) {
     if (!chartContainerRef.current) return;
 
     let disposed = false;
+    let cleanup: (() => void) | undefined;
 
     async function init() {
       try {
         setLoading(true);
         setError(null);
 
-        const res = await fetch(`/api/chart?symbol=${symbol}`);
-        if (!res.ok) throw new Error("Không tải được dữ liệu");
-        const { candles } = (await res.json()) as { candles: Candle[] };
-        if (!candles?.length) throw new Error("Không có dữ liệu");
+        let chartCandles = candles;
+        if (!chartCandles) {
+          const res = await fetch(`/api/chart?symbol=${symbol}`);
+          if (!res.ok) throw new Error("Không tải được dữ liệu");
+          const payload = (await res.json()) as { candles: Candle[] };
+          chartCandles = payload.candles;
+        }
+        if (!chartCandles?.length) throw new Error("Không có dữ liệu");
         if (disposed) return;
 
         const {
@@ -94,7 +101,7 @@ export function StockChart({ symbol, exchange = "HOSE" }: StockChartProps) {
           wickDownColor: "#ef4444",
         });
 
-        const chartData = candles.map((c) => ({
+        const chartData = chartCandles.map((c) => ({
           time: c.time as number,
           open: c.open,
           high: c.high,
@@ -112,7 +119,7 @@ export function StockChart({ symbol, exchange = "HOSE" }: StockChartProps) {
           scaleMargins: { top: 0.8, bottom: 0 },
         });
 
-        const volumeData = candles.map((c) => ({
+        const volumeData = chartCandles.map((c) => ({
           time: c.time as number,
           value: c.volume,
           color: c.close >= c.open ? "rgba(16,185,129,0.35)" : "rgba(239,68,68,0.35)",
@@ -177,11 +184,18 @@ export function StockChart({ symbol, exchange = "HOSE" }: StockChartProps) {
       return undefined;
     }
 
-    void init();
+    void init().then((teardown) => {
+      if (disposed) {
+        teardown?.();
+        return;
+      }
+      cleanup = teardown;
+    });
     return () => {
       disposed = true;
+      cleanup?.();
     };
-  }, [symbol, isDark]);
+  }, [symbol, isDark, candles]);
 
   return (
     <div className="mt-3 rounded-xl overflow-hidden border" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
@@ -196,6 +210,7 @@ export function StockChart({ symbol, exchange = "HOSE" }: StockChartProps) {
           <span className="text-yellow-500">━ EMA10</span>
           <span className="text-purple-500">━ EMA30</span>
           <span>{exchange}:{symbol}</span>
+          {sourceLabel ? <span>{sourceLabel}</span> : null}
         </div>
       </div>
 
@@ -232,4 +247,3 @@ export function StockChart({ symbol, exchange = "HOSE" }: StockChartProps) {
     </div>
   );
 }
-

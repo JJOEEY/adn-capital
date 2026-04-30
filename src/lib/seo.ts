@@ -12,7 +12,7 @@ export const DEFAULT_KEYWORDS = [
   "phân tích chứng khoán",
   "AI chứng khoán",
   "ADN Pulse",
-  "ADN Lens",
+  "ADN Stock",
   "ADN ART",
   "ADN Rank",
   "AIDEN",

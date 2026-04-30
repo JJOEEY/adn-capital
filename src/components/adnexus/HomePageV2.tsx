@@ -275,7 +275,7 @@ export function HomePageV2() {
               Mở ADN Capital và kiểm tra thị trường hôm nay.
             </h2>
             <p className="mx-auto mt-6 max-w-2xl leading-8" style={{ color: "var(--text-secondary)" }}>
-              Bắt đầu bằng dashboard dễ đọc, sau đó mở rộng sang ADN Lens, ADN ART và AIDEN khi cần phân tích sâu hơn.
+              Bắt đầu bằng dashboard dễ đọc, sau đó mở rộng sang ADN Stock, ADN ART và AIDEN khi cần phân tích sâu hơn.
             </p>
             <div className="mt-10 flex flex-wrap justify-center gap-3">
               <Link href="/auth?mode=register" className="rounded-2xl px-6 py-4 font-black" style={{ background: "var(--primary)", color: "white" }}>

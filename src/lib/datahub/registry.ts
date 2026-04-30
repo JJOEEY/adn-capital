@@ -492,6 +492,150 @@ async function loadResearchWorkbench(topicKey: string) {
   };
 }
 
+const CHAT_TICKER_EXCLUSIONS = new Set([
+  "ADN",
+  "AI",
+  "AIDEN",
+  "API",
+  "BAN",
+  "BUY",
+  "CHART",
+  "CO",
+  "DANG",
+  "FA",
+  "GIU",
+  "HOLD",
+  "MA",
+  "MODE",
+  "MUA",
+  "NEWS",
+  "PTCB",
+  "PTKT",
+  "SAFE",
+  "SELL",
+  "TA",
+  "TAMLY",
+  "VE",
+  "VIP",
+  "XEM",
+]);
+
+function stripStockContextFromQuestion(message: string) {
+  return message
+    .split(/\n\nMã cổ phiếu đang xem:/i)[0]
+    .split(/\n\nMa co phieu dang xem:/i)[0]
+    .trim();
+}
+
+function extractChatTickerCandidates(message: string) {
+  const widget = message.match(/^\[WIDGET(?::MOCK)?:([A-Z0-9._-]{2,12})/);
+  if (widget?.[1]) return [widget[1]];
+
+  const commandMatch = message.match(/\/(?:ta|fa|news|tamly|ptkt|ptcb)\s+([A-Z0-9._-]{2,12})/i);
+  const explicitTickerMatch = message.match(/(?:\bmã\b|\bma\b|\bticker\b|\bcổ phiếu\b|\bco phieu\b)\s+([A-Z0-9._-]{2,12})/i);
+  const matches = [
+    commandMatch?.[1],
+    explicitTickerMatch?.[1],
+    ...(message.match(/\b[A-Z0-9._-]{2,12}\b/g) ?? []),
+  ].filter((item): item is string => Boolean(item));
+  return Array.from(
+    new Set(
+      matches
+        .map((item) => item.toUpperCase())
+        .map((item) => item.replace(/[^A-Z0-9._-]/g, ""))
+        .filter((item) => item.length >= 2 && item.length <= 12 && !CHAT_TICKER_EXCLUSIONS.has(item)),
+    ),
+  ).slice(0, 4);
+}
+
+async function loadRecentResearchTickers() {
+  const rows = await prisma.chat.findMany({
+    where: {
+      OR: [
+        { role: "user" },
+        { message: { startsWith: "[WIDGET" } },
+      ],
+    },
+    orderBy: { createdAt: "desc" },
+    take: 300,
+    select: { message: true, role: true, createdAt: true },
+  });
+
+  const resolutionCache = new Map<string, Awaited<ReturnType<typeof resolveMarketTicker>>>();
+  const items = new Map<
+    string,
+    {
+      ticker: string;
+      lastAskedAt: Date;
+      lastQuestion: string | null;
+      askCount: number;
+    }
+  >();
+
+  for (const row of rows) {
+    const candidates = extractChatTickerCandidates(row.message);
+    if (candidates.length === 0) continue;
+    const question = row.role === "user" ? stripStockContextFromQuestion(row.message).slice(0, 180) : null;
+
+    for (const candidate of candidates) {
+      let resolved = resolutionCache.get(candidate);
+      if (!resolved) {
+        resolved = await resolveMarketTicker(candidate);
+        resolutionCache.set(candidate, resolved);
+      }
+      if (!resolved.valid) continue;
+
+      const existing = items.get(resolved.ticker);
+      if (existing) {
+        existing.askCount += 1;
+        if (!existing.lastQuestion && question) existing.lastQuestion = question;
+        continue;
+      }
+
+      items.set(resolved.ticker, {
+        ticker: resolved.ticker,
+        lastAskedAt: row.createdAt,
+        lastQuestion: question,
+        askCount: 1,
+      });
+    }
+  }
+
+  const recent = Array.from(items.values())
+    .sort((a, b) => b.lastAskedAt.getTime() - a.lastAskedAt.getTime())
+    .slice(0, 12);
+
+  const withPrices = await Promise.all(
+    recent.map(async (item) => {
+      try {
+        const ta = await fetchTAData(item.ticker);
+        return {
+          ...item,
+          lastAskedAt: item.lastAskedAt.toISOString(),
+          currentPrice: ta?.currentPrice ?? null,
+          changePct: ta?.changePct ?? null,
+          source: ta?.source ?? null,
+        };
+      } catch {
+        return {
+          ...item,
+          lastAskedAt: item.lastAskedAt.toISOString(),
+          currentPrice: null,
+          changePct: null,
+          source: null,
+        };
+      }
+    }),
+  );
+
+  return {
+    count: withPrices.length,
+    items: withPrices,
+    generatedAt: new Date().toISOString(),
+    source: "db:chat+datahub:ta",
+  };
+}
+
 type BrokerTopicChannel =
   | "accounts"
   | "positions"
@@ -1525,6 +1669,16 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
       return match ? { ok: true, params: { ticker: match[1] } } : { ok: false };
     },
     resolve: async (_, __, params) => resolveMarketTicker(params.ticker),
+  },
+  {
+    id: "research:recent-tickers",
+    ttlMs: 60_000,
+    minIntervalMs: 15_000,
+    source: "db:chat+ta",
+    version: "v1",
+    tags: ["research", "workbench", "public"],
+    match: (topicKey) => (topicKey === "research:recent-tickers" ? { ok: true } : { ok: false }),
+    resolve: async () => loadRecentResearchTickers(),
   },
   {
     id: "vn:ta:{ticker}",

@@ -119,10 +119,10 @@ assert.match(datahubRegistry, /signal:reported:\{date\}/, "DataHub must expose d
 assert.match(datahubRegistry, /normalizeSignalPrice/, "DataHub signal list topics must normalize price units");
 
 const signalsRoute = read("src/app/api/signals/route.ts");
-assert.match(signalsRoute, /updatedAt:\s*\{\s*gte:\s*since\s*\}/, "ADN Lens API must include recently updated signals");
-assert.match(signalsRoute, /loadReportedSignalSummary/, "ADN Lens API must include reported SignalHistory in the canonical signal map");
-assert.match(signalsRoute, /buildSignalMapPayload/, "ADN Lens API must return one combined SignalMap/DataHub payload");
-assert.match(signalsRoute, /normalizeSignalPrice/, "ADN Lens API must normalize price units before rendering");
+assert.match(signalsRoute, /updatedAt:\s*\{\s*gte:\s*since\s*\}/, "ADN Stock API must include recently updated signals");
+assert.match(signalsRoute, /loadReportedSignalSummary/, "ADN Stock API must include reported SignalHistory in the canonical signal map");
+assert.match(signalsRoute, /buildSignalMapPayload/, "ADN Stock API must return one combined SignalMap/DataHub payload");
+assert.match(signalsRoute, /normalizeSignalPrice/, "ADN Stock API must normalize price units before rendering");
 
 const signalMapClient = read("src/components/signals/SignalMapClient.tsx");
 assert.match(signalMapClient, /signalMapTopic\.data\?\.reportedToday/, "ADN Radar must read reported signals from signal:map:latest first");

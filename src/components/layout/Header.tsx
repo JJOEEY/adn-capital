@@ -21,7 +21,6 @@ import {
   LayoutDashboard,
   LogIn,
   LogOut,
-  MessageSquare,
   Moon,
   Newspaper,
   Search,
@@ -64,7 +63,7 @@ const menuSections: MenuSection[] = [
     title: "Sản phẩm đầu tư",
     items: [
       { href: "/dashboard/signal-map", label: PRODUCT_NAMES.brokerWorkflow, icon: Zap },
-      { href: "/terminal", label: PRODUCT_NAMES.advisory, icon: MessageSquare },
+      { href: "/stock/HPG", label: PRODUCT_NAMES.stock, icon: Search },
       { href: "/art", label: PRODUCT_NAMES.art, icon: Activity, badge: "MỚI" },
       { href: "/rs-rating", label: PRODUCT_NAMES.rsRating, icon: BarChart2, badge: "VIP", requiresVip: true },
       {
