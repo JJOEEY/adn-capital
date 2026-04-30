@@ -550,6 +550,13 @@ function extractMetric(text: string, labels: string[]) {
   return null;
 }
 
+function normalizeValuationRatio(value: number | null, kind: "pe" | "pb") {
+  if (value == null || !Number.isFinite(value)) return null;
+  if (kind === "pe" && Math.abs(value) > 1000) return Number((value / 1000).toFixed(3));
+  if (kind === "pb" && Math.abs(value) > 100) return Number((value / 1000).toFixed(3));
+  return value;
+}
+
 function extractReportPeriod(text: string) {
   const quarter = text.match(/\bQ([1-4])\s*[/-]\s*(20\d{2})\b/i);
   if (quarter) return `Q${quarter[1]}/${quarter[2]}`;
@@ -559,8 +566,8 @@ function extractReportPeriod(text: string) {
 }
 
 function extractRecentFAFromText(ticker: string, text: string, ta: TAData | null): FAData | null {
-  const pe = extractMetric(text, ["P/E", "PE", "PER"]);
-  const pb = extractMetric(text, ["P/B", "PB", "PBR"]);
+  const pe = normalizeValuationRatio(extractMetric(text, ["P/E", "PE", "PER"]), "pe");
+  const pb = normalizeValuationRatio(extractMetric(text, ["P/B", "PB", "PBR"]), "pb");
   const eps = extractMetric(text, ["EPS", "Earning per share"]);
   const bookValuePerShare = extractMetric(text, ["BVPS", "Book value per share", "Book value", "Gia tri so sach"]);
   const roe = extractMetric(text, ["ROE"]);

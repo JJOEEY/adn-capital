@@ -222,6 +222,13 @@ function readFAField(record: unknown, keys: string[]): number | null {
   return null;
 }
 
+function normalizeValuationRatio(value: number | null, kind: "pe" | "pb"): number | null {
+  if (value == null || !Number.isFinite(value)) return null;
+  if (kind === "pe" && Math.abs(value) > 1000) return Number((value / 1000).toFixed(3));
+  if (kind === "pb" && Math.abs(value) > 100) return Number((value / 1000).toFixed(3));
+  return value;
+}
+
 function recordList(value: unknown): FARecord[] {
   if (Array.isArray(value)) {
     return value.filter((item): item is FARecord => Boolean(item) && typeof item === "object");
@@ -506,8 +513,8 @@ export async function fetchFAData(ticker: string): Promise<FAData | null> {
     ) ?? {};
     const ratios = bestRecordWithAny(json.ratios, [...epsKeys, ...bookValueKeys, "roe", "roa"])
       ?? firstRecord(json.ratios);
-    let pe = readFAField(val, peKeys) ?? readFAField(ratios, peKeys);
-    let pb = readFAField(val, pbKeys) ?? readFAField(ratios, pbKeys);
+    let pe = normalizeValuationRatio(readFAField(val, peKeys) ?? readFAField(ratios, peKeys), "pe");
+    let pb = normalizeValuationRatio(readFAField(val, pbKeys) ?? readFAField(ratios, pbKeys), "pb");
 
     // Parse ratios (FundamentalAnalysis.get_ratios)
     const roe = readFAField(ratios, ["roe", "returnOnEquity", "return_on_equity"]);
