@@ -35,7 +35,10 @@ const TICKER_EXCLUSIONS = new Set([
   "PHAN",
   "PHIEU",
   "SELL",
+  "SANH",
+  "SO",
   "USD",
+  "VA",
   "VN",
   "TA",
   "FA",
@@ -75,8 +78,6 @@ export function sanitizeTicker(value: string | null | undefined) {
 
 export function extractTickerCandidates(message: string, currentTicker?: string | null, limit = 5) {
   const candidates = new Set<string>();
-  const current = sanitizeTicker(currentTicker);
-  if (current) candidates.add(current);
 
   const upper = normalizeTickerText(message).toUpperCase();
   for (const match of upper.matchAll(/\b[A-Z][A-Z0-9._-]{1,11}\b/g)) {
@@ -84,6 +85,9 @@ export function extractTickerCandidates(message: string, currentTicker?: string 
     if (!token) continue;
     candidates.add(token);
   }
+
+  const current = sanitizeTicker(currentTicker);
+  if (candidates.size === 0 && current) candidates.add(current);
 
   return Array.from(candidates).slice(0, limit);
 }
