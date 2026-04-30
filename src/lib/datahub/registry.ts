@@ -10,6 +10,7 @@ import { decryptDnseToken } from "@/lib/brokers/dnse/crypto";
 import { getDnseTradingClient } from "@/lib/providers/dnse/trading-client";
 import type { SignalScanArtifact } from "@/lib/signals/ingest";
 import { loadReportedSignalSummary } from "@/lib/signals/report-history";
+import { normalizeSignalPrice } from "@/lib/signals/price-units";
 import { resolveTopicFamily, resolveTopicStaleWindowMs } from "./policy";
 import { TopicContext, TopicDefinition } from "./types";
 
@@ -197,7 +198,7 @@ async function assertValidTicker(ticker: string) {
 }
 
 async function loadSignalList(status: "RADAR" | "ACTIVE") {
-  return prisma.signal.findMany({
+  const rows = await prisma.signal.findMany({
     where: { status },
     orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
     take: 120,
@@ -220,6 +221,14 @@ async function loadSignalList(status: "RADAR" | "ACTIVE") {
       createdAt: true,
     },
   });
+
+  return rows.map((row) => ({
+    ...row,
+    entryPrice: normalizeSignalPrice(row.entryPrice),
+    currentPrice: normalizeSignalPrice(row.currentPrice),
+    target: normalizeSignalPrice(row.target),
+    stoploss: normalizeSignalPrice(row.stoploss),
+  }));
 }
 
 async function loadPortfolioSignalsForUser(userId: string) {

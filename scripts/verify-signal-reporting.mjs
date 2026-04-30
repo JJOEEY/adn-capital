@@ -116,6 +116,7 @@ assert.equal(mapPayload.signals[0].reportedToday, true, "reported signals must b
 const datahubRegistry = read("src/lib/datahub/registry.ts");
 assert.match(datahubRegistry, /signal:reported:today/, "DataHub must expose today's reported signals");
 assert.match(datahubRegistry, /signal:reported:\{date\}/, "DataHub must expose date-addressable reported signals");
+assert.match(datahubRegistry, /normalizeSignalPrice/, "DataHub signal list topics must normalize price units");
 
 const signalsRoute = read("src/app/api/signals/route.ts");
 assert.match(signalsRoute, /updatedAt:\s*\{\s*gte:\s*since\s*\}/, "ADN Lens API must include recently updated signals");
