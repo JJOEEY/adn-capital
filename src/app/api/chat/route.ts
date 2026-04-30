@@ -1244,8 +1244,14 @@ function extractTicker(text: string): string | null {
 // ─── Main POST handler ────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json() as { message: string; guestUsage?: number; currentTicker?: string | null };
-    const { message, guestUsage = 0, currentTicker = null } = body;
+    const body = await req.json() as {
+      message: string;
+      guestUsage?: number;
+      currentTicker?: string | null;
+      ticker?: string | null;
+    };
+    const { message, guestUsage = 0 } = body;
+    const currentTicker = body.currentTicker ?? body.ticker ?? null;
 
     if (!message?.trim()) {
       return NextResponse.json({ error: "Thiếu nội dung tin nhắn" }, { status: 400 });

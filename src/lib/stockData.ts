@@ -209,17 +209,30 @@ function toFiniteNumber(value: unknown): number | null {
 
 function readFAField(record: unknown, keys: string[]): number | null {
   if (!record || typeof record !== "object") return null;
-  const source = record as FARecord;
   const wanted = new Set(keys.map(normalizeFAKey));
 
-  for (const [rawKey, rawValue] of Object.entries(source)) {
-    const key = normalizeFAKey(rawKey);
-    if (wanted.has(key)) {
-      const value = toFiniteNumber(rawValue);
-      if (value != null) return value;
+  function visit(value: unknown): number | null {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const nested = visit(item);
+        if (nested != null) return nested;
+      }
+      return null;
     }
+    if (!value || typeof value !== "object") return null;
+    for (const [rawKey, rawValue] of Object.entries(value as FARecord)) {
+      const key = normalizeFAKey(rawKey);
+      if (wanted.has(key)) {
+        const parsed = toFiniteNumber(rawValue);
+        if (parsed != null) return parsed;
+      }
+      const nested = visit(rawValue);
+      if (nested != null) return nested;
+    }
+    return null;
   }
-  return null;
+
+  return visit(record);
 }
 
 function normalizeValuationRatio(value: number | null, kind: "pe" | "pb"): number | null {
@@ -237,6 +250,11 @@ function recordList(value: unknown): FARecord[] {
 }
 
 function recordPeriodScore(record: FARecord) {
+  const recordYear = Number(record.year);
+  if (Number.isFinite(recordYear) && recordYear >= 2000) {
+    const recordQuarter = Number(record.quarter ?? 0);
+    return recordYear * 10 + (Number.isFinite(recordQuarter) ? recordQuarter : 0);
+  }
   const raw =
     record.reportDate ??
     record.report_date ??
@@ -244,7 +262,6 @@ function recordPeriodScore(record: FARecord) {
     record.trading_date ??
     record.date ??
     record.period ??
-    record.quarter ??
     record.year;
   if (raw == null) return Number.NEGATIVE_INFINITY;
   const text = String(raw);
@@ -472,7 +489,7 @@ export async function fetchFAData(ticker: string): Promise<FAData | null> {
     "price_book_ratio",
     "pbratio",
   ];
-  const epsKeys = ["eps", "earningPerShare", "earning_per_share", "eps_ttm"];
+  const epsKeys = ["eps", "basicEPS", "basic_eps", "earningPerShare", "earning_per_share", "eps_ttm"];
   const bookValueKeys = [
     "bookValuePerShare",
     "book_value_per_share",
@@ -519,14 +536,21 @@ export async function fetchFAData(ticker: string): Promise<FAData | null> {
     // Parse ratios (FundamentalAnalysis.get_ratios)
     const roe = readFAField(ratios, ["roe", "returnOnEquity", "return_on_equity"]);
     const roa = readFAField(ratios, ["roa", "returnOnAsset", "return_on_asset"]);
-    const eps = readFAField(ratios, epsKeys);
-    const bookValuePerShare = readFAField(ratios, bookValueKeys);
+    const eps = readFAField(val, epsKeys) ?? readFAField(ratios, epsKeys);
+    const bookValuePerShare = readFAField(val, bookValueKeys) ?? readFAField(ratios, bookValueKeys);
     const revenueLastQ = readFAField(ratios, ["revenue", "netRevenue", "net_revenue", "doanh_thu"]);
     const profitLastQ = readFAField(ratios, ["netProfit", "postTaxProfit", "profit_after_tax", "net_profit"]);
     const revenueGrowthYoY = readFAField(ratios, ["revenueGrowth", "revenueGrowthYoY", "revenue_growth_yoy"]);
     const profitGrowthYoY = readFAField(ratios, ["profitGrowth", "profitGrowthYoY", "profit_growth_yoy"]);
     const reportDate = String(
-      val.reportDate ?? val.report_date ?? ratios.reportDate ?? ratios.report_date ?? ratios.year ?? ratios.period ?? "",
+      val.reportDate ??
+        val.report_date ??
+        ratios.reportDate ??
+        ratios.report_date ??
+        ratios.period ??
+        (ratios.year && ratios.quarter ? `${ratios.year}Q${ratios.quarter}` : null) ??
+        ratios.year ??
+        "",
     ) || null;
     let valuationBasis: FAData["valuationBasis"] = pe != null || pb != null ? "reported" : "latest_period";
 
@@ -571,7 +595,7 @@ export async function fetchFAData(ticker: string): Promise<FAData | null> {
       profitGrowthYoY,
       reportDate,
       valuationBasis,
-      source: "FiinQuant Bridge",
+      source: "valuation-service",
     };
   } catch (err) {
     console.error(`[fetchFAData] ${code}: Lỗi kết nối FiinQuant Bridge`, err);

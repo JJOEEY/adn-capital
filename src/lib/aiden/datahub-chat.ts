@@ -19,20 +19,45 @@ const TICKER_EXCLUSIONS = new Set([
   "AIDEN",
   "AI",
   "API",
+  "BAN",
   "BOT",
   "CEO",
+  "CH",
+  "CHO",
+  "CO",
+  "DANG",
   "CFO",
   "GDP",
+  "GIA",
+  "GIU",
+  "KHONG",
+  "MA",
+  "MUA",
+  "NEN",
+  "PH",
+  "PHAN",
+  "PHIEU",
   "USD",
   "VND",
   "VN",
   "TA",
   "FA",
+  "TICH",
+  "TOI",
   "PTKT",
   "PTCB",
   "NEWS",
   "TAMLY",
+  "XEM",
 ]);
+
+function stripVietnameseDiacritics(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D");
+}
 
 function compactJson(value: unknown, maxLength = 2400) {
   const raw = JSON.stringify(value, null, 2);
@@ -84,7 +109,7 @@ function stripInternalFields(value: unknown): unknown {
 function extractTickerCandidates(message: string, currentTicker?: string | null) {
   const candidates = new Set<string>();
   if (currentTicker) candidates.add(currentTicker.toUpperCase());
-  const upper = message.toUpperCase();
+  const upper = stripVietnameseDiacritics(message).toUpperCase();
   for (const match of upper.matchAll(/\b[A-Z][A-Z0-9._-]{1,11}\b/g)) {
     const token = match[0].replace(/[^A-Z0-9._-]/g, "");
     if (!token || TICKER_EXCLUSIONS.has(token)) continue;
