@@ -182,6 +182,7 @@ export interface FAData {
   pe: number | null;
   pb: number | null;
   eps: number | null;
+  bookValuePerShare?: number | null;
   roe: number | null;
   roa: number | null;
   revenueLastQ: number | null;
@@ -189,7 +190,78 @@ export interface FAData {
   revenueGrowthYoY: number | null;
   profitGrowthYoY: number | null;
   reportDate: string | null;
+  valuationBasis?: "reported" | "computed_from_latest_price" | "latest_period";
   source: string;
+}
+
+type FARecord = Record<string, unknown>;
+
+function normalizeFAKey(key: string) {
+  return key.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function toFiniteNumber(value: unknown): number | null {
+  if (value == null || value === "") return null;
+  const normalized = typeof value === "string" ? value.replace(/,/g, "") : value;
+  const numberValue = Number(normalized);
+  return Number.isFinite(numberValue) ? numberValue : null;
+}
+
+function readFAField(record: unknown, keys: string[]): number | null {
+  if (!record || typeof record !== "object") return null;
+  const source = record as FARecord;
+  const wanted = new Set(keys.map(normalizeFAKey));
+
+  for (const [rawKey, rawValue] of Object.entries(source)) {
+    const key = normalizeFAKey(rawKey);
+    if (wanted.has(key)) {
+      const value = toFiniteNumber(rawValue);
+      if (value != null) return value;
+    }
+  }
+  return null;
+}
+
+function recordList(value: unknown): FARecord[] {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is FARecord => Boolean(item) && typeof item === "object");
+  }
+  return value && typeof value === "object" ? [value as FARecord] : [];
+}
+
+function recordPeriodScore(record: FARecord) {
+  const raw =
+    record.reportDate ??
+    record.report_date ??
+    record.tradingDate ??
+    record.trading_date ??
+    record.date ??
+    record.period ??
+    record.quarter ??
+    record.year;
+  if (raw == null) return Number.NEGATIVE_INFINITY;
+  const text = String(raw);
+  const time = Date.parse(text);
+  if (Number.isFinite(time)) return time;
+  const year = Number(text.match(/\b(20\d{2})\b/)?.[1] ?? record.year);
+  const quarter = Number(text.match(/[Qq](\d)/)?.[1] ?? record.quarter ?? 0);
+  if (Number.isFinite(year)) return year * 10 + (Number.isFinite(quarter) ? quarter : 0);
+  return Number.NEGATIVE_INFINITY;
+}
+
+function bestRecordWithAny(value: unknown, keys: string[]): FARecord | null {
+  const records = recordList(value).filter((record) => readFAField(record, keys) != null);
+  if (records.length === 0) return null;
+  return records
+    .map((record, index) => ({ record, index, score: recordPeriodScore(record) }))
+    .sort((a, b) => (b.score - a.score) || (b.index - a.index))[0]?.record ?? null;
+}
+
+function firstRecord(value: unknown): FARecord {
+  if (Array.isArray(value)) {
+    return (value.find((item) => item && typeof item === "object") as FARecord | undefined) ?? {};
+  }
+  return value && typeof value === "object" ? (value as FARecord) : {};
 }
 
 // ═══════════════════════════════════════════════
@@ -374,6 +446,36 @@ export async function fetchTAData(ticker: string): Promise<TAData | null> {
 export async function fetchFAData(ticker: string): Promise<FAData | null> {
   const code = ticker.toUpperCase();
   const BACKEND = getPythonBridgeUrl();
+  const peKeys = [
+    "pe",
+    "p/e",
+    "pe_ttm",
+    "priceToEarning",
+    "price_to_earning",
+    "price_to_earnings",
+    "price_earning_ratio",
+    "peratio",
+  ];
+  const pbKeys = [
+    "pb",
+    "p/b",
+    "pb_mrq",
+    "priceToBook",
+    "price_to_book",
+    "price_book_ratio",
+    "pbratio",
+  ];
+  const epsKeys = ["eps", "earningPerShare", "earning_per_share", "eps_ttm"];
+  const bookValueKeys = [
+    "bookValuePerShare",
+    "book_value_per_share",
+    "bvps",
+    "bookvalue",
+    "book_value",
+    "equityPerShare",
+    "equity_per_share",
+    "ownersEquityPerShare",
+  ];
 
   try {
     console.log(`[fetchFAData] ${code}: Gọi FiinQuant Bridge /api/v1/fundamental/${code}`);
@@ -393,21 +495,56 @@ export async function fetchFAData(ticker: string): Promise<FAData | null> {
 
     const json = await res.json();
 
-    // Parse valuation (MarketDepth.get_stock_valuation)
-    const val = json.valuation ?? {};
-    const pe = val.pe ?? val.PE ?? val.priceToEarning ?? null;
-    const pb = val.pb ?? val.PB ?? val.priceToBook ?? null;
+    // Parse valuation (MarketDepth.get_stock_valuation). FiinQuantX có thể trả
+    // tên cột khác nhau như P/E, pe_ttm, price_to_earning, P/B, pb_mrq.
+    const val = bestRecordWithAny(
+      [
+        ...recordList(json.valuationNormalized),
+        ...recordList(json.valuation),
+      ],
+      [...peKeys, ...pbKeys],
+    ) ?? {};
+    const ratios = bestRecordWithAny(json.ratios, [...epsKeys, ...bookValueKeys, "roe", "roa"])
+      ?? firstRecord(json.ratios);
+    let pe = readFAField(val, peKeys) ?? readFAField(ratios, peKeys);
+    let pb = readFAField(val, pbKeys) ?? readFAField(ratios, pbKeys);
 
     // Parse ratios (FundamentalAnalysis.get_ratios)
-    const ratios = Array.isArray(json.ratios) && json.ratios.length > 0 ? json.ratios[0] : {};
-    const roe = ratios.roe ?? ratios.ROE ?? ratios.returnOnEquity ?? null;
-    const roa = ratios.roa ?? ratios.ROA ?? ratios.returnOnAsset ?? null;
-    const eps = ratios.eps ?? ratios.EPS ?? ratios.earningPerShare ?? null;
-    const revenueLastQ = ratios.revenue ?? ratios.netRevenue ?? null;
-    const profitLastQ = ratios.netProfit ?? ratios.postTaxProfit ?? null;
-    const revenueGrowthYoY = ratios.revenueGrowth ?? ratios.revenueGrowthYoY ?? null;
-    const profitGrowthYoY = ratios.profitGrowth ?? ratios.profitGrowthYoY ?? null;
-    const reportDate = ratios.reportDate ?? ratios.year?.toString() ?? null;
+    const roe = readFAField(ratios, ["roe", "returnOnEquity", "return_on_equity"]);
+    const roa = readFAField(ratios, ["roa", "returnOnAsset", "return_on_asset"]);
+    const eps = readFAField(ratios, epsKeys);
+    const bookValuePerShare = readFAField(ratios, bookValueKeys);
+    const revenueLastQ = readFAField(ratios, ["revenue", "netRevenue", "net_revenue", "doanh_thu"]);
+    const profitLastQ = readFAField(ratios, ["netProfit", "postTaxProfit", "profit_after_tax", "net_profit"]);
+    const revenueGrowthYoY = readFAField(ratios, ["revenueGrowth", "revenueGrowthYoY", "revenue_growth_yoy"]);
+    const profitGrowthYoY = readFAField(ratios, ["profitGrowth", "profitGrowthYoY", "profit_growth_yoy"]);
+    const reportDate = String(
+      val.reportDate ?? val.report_date ?? ratios.reportDate ?? ratios.report_date ?? ratios.year ?? ratios.period ?? "",
+    ) || null;
+    let valuationBasis: FAData["valuationBasis"] = pe != null || pb != null ? "reported" : "latest_period";
+
+    if ((pe == null && eps != null && eps > 0) || (pb == null && bookValuePerShare != null && bookValuePerShare > 0)) {
+      const priceFromPayload = readFAField(val, [
+        "price",
+        "close",
+        "closePrice",
+        "close_price",
+        "currentPrice",
+        "marketPrice",
+        "lastPrice",
+      ]);
+      const taForPrice = priceFromPayload == null ? await fetchTAData(code) : null;
+      const rawLatestPrice = priceFromPayload ?? taForPrice?.currentPrice ?? null;
+      const latestPrice = rawLatestPrice != null && rawLatestPrice < 1000 ? rawLatestPrice * 1000 : rawLatestPrice;
+
+      if (latestPrice != null) {
+        if (pe == null && eps != null && eps > 0) pe = Number((latestPrice / eps).toFixed(2));
+        if (pb == null && bookValuePerShare != null && bookValuePerShare > 0) {
+          pb = Number((latestPrice / bookValuePerShare).toFixed(2));
+        }
+        valuationBasis = "computed_from_latest_price";
+      }
+    }
 
     console.log(
       `[fetchFAData] ${code} ✓ PE=${pe}, PB=${pb}, ROE=${roe}%, EPS=${eps}`
@@ -415,16 +552,18 @@ export async function fetchFAData(ticker: string): Promise<FAData | null> {
 
     return {
       ticker: code,
-      pe: pe != null ? Number(pe) : null,
-      pb: pb != null ? Number(pb) : null,
-      eps: eps != null ? Number(eps) : null,
-      roe: roe != null ? Number(roe) : null,
-      roa: roa != null ? Number(roa) : null,
-      revenueLastQ: revenueLastQ != null ? Number(revenueLastQ) : null,
-      profitLastQ: profitLastQ != null ? Number(profitLastQ) : null,
-      revenueGrowthYoY: revenueGrowthYoY != null ? Number(revenueGrowthYoY) : null,
-      profitGrowthYoY: profitGrowthYoY != null ? Number(profitGrowthYoY) : null,
+      pe,
+      pb,
+      eps,
+      bookValuePerShare,
+      roe,
+      roa,
+      revenueLastQ,
+      profitLastQ,
+      revenueGrowthYoY,
+      profitGrowthYoY,
       reportDate,
+      valuationBasis,
       source: "FiinQuant Bridge",
     };
   } catch (err) {

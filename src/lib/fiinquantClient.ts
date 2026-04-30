@@ -219,6 +219,55 @@ export interface FiinRealtimeResponse {
   [key: string]: unknown;
 }
 
+export interface MarketBoardLevel {
+  price: number;
+  volume: number;
+}
+
+export interface MarketBoardRow {
+  ticker: string;
+  exchange?: string;
+  close: number;
+  open?: number;
+  high?: number;
+  low?: number;
+  reference?: number;
+  ceiling?: number;
+  floor?: number;
+  average?: number;
+  change?: number;
+  changePct?: number;
+  volume?: number;
+  value?: number;
+  totalTrades?: number;
+  foreignBuyVolume?: number;
+  foreignSellVolume?: number;
+  ma20Volume?: number;
+  bid?: MarketBoardLevel[];
+  ask?: MarketBoardLevel[];
+  [key: string]: unknown;
+}
+
+export interface MarketBoardResponse {
+  prices: Record<string, MarketBoardRow>;
+}
+
+export interface MarketDepthResponse {
+  ticker: string;
+  exchange?: string;
+  close: number | null;
+  reference: number | null;
+  ceiling: number | null;
+  floor: number | null;
+  bid: MarketBoardLevel[];
+  ask: MarketBoardLevel[];
+  spread: number | null;
+  totalBidVolume: number;
+  totalAskVolume: number;
+  source: string;
+  updatedAt: string;
+}
+
 // ═══════════════════════════════════════════════
 //  Generic Fetch Helper
 // ═══════════════════════════════════════════════
@@ -340,6 +389,65 @@ export async function fetchRealtimeTradingData(
   return fiinFetch<FiinRealtimeResponse>(
     `/api/v1/realtime/${encodeURIComponent(normalized)}?timeframe=${encodeURIComponent(timeframe)}`
   );
+}
+
+export async function fetchMarketBoard(tickers: string[]): Promise<MarketBoardResponse | null> {
+  const normalized = Array.from(
+    new Set(
+      tickers
+        .map((ticker) => ticker.trim().toUpperCase().replace(/[^A-Z0-9._-]/g, ""))
+        .filter(Boolean),
+    ),
+  ).slice(0, 50);
+  if (normalized.length === 0) return { prices: {} };
+
+  try {
+    const res = await fetch(`${BACKEND()}/api/v1/batch-price`, {
+      method: "POST",
+      cache: "no-store",
+      signal: AbortSignal.timeout(TIMEOUT),
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": process.env.FIINQUANT_API_KEY ?? "",
+      },
+      body: JSON.stringify({ tickers: normalized }),
+    });
+    if (!res.ok) {
+      console.error(`[FiinQuant] /api/v1/batch-price -> ${res.status}`);
+      return null;
+    }
+    return (await res.json()) as MarketBoardResponse;
+  } catch (err) {
+    console.error("[FiinQuant] /api/v1/batch-price error:", err);
+    return null;
+  }
+}
+
+export async function fetchMarketDepth(ticker: string): Promise<MarketDepthResponse | null> {
+  const normalized = ticker.trim().toUpperCase().replace(/[^A-Z0-9._-]/g, "");
+  if (!normalized) return null;
+  const board = await fetchMarketBoard([normalized]);
+  const row = board?.prices?.[normalized];
+  if (!row) return null;
+  const bid = (row.bid ?? []).filter((level) => level.price > 0 && level.volume > 0);
+  const ask = (row.ask ?? []).filter((level) => level.price > 0 && level.volume > 0);
+  const bestBid = bid[0]?.price ?? null;
+  const bestAsk = ask[0]?.price ?? null;
+  return {
+    ticker: normalized,
+    exchange: row.exchange,
+    close: Number.isFinite(Number(row.close)) ? Number(row.close) : null,
+    reference: Number.isFinite(Number(row.reference)) ? Number(row.reference) : null,
+    ceiling: Number.isFinite(Number(row.ceiling)) ? Number(row.ceiling) : null,
+    floor: Number.isFinite(Number(row.floor)) ? Number(row.floor) : null,
+    bid,
+    ask,
+    spread: bestBid != null && bestAsk != null ? bestAsk - bestBid : null,
+    totalBidVolume: bid.reduce((sum, level) => sum + level.volume, 0),
+    totalAskVolume: ask.reduce((sum, level) => sum + level.volume, 0),
+    source: "VNStock price_board via FiinQuant Bridge",
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 /** Scan Now (VIP feature — full market scanner) */

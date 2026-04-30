@@ -376,10 +376,10 @@ export function InvestmentChat({
     async (cardId: CardId, ticker: string) => {
       setCardLoading(cardId);
       const commandMap: Record<CardId, string> = {
-        ta: `/ta ${ticker}`,
-        fa: `/fa ${ticker}`,
-        tamly: `/tamly ${ticker}`,
-        news: `/news ${ticker}`,
+        ta: `Phân tích kỹ thuật ${ticker}`,
+        fa: `Phân tích cơ bản ${ticker}`,
+        tamly: `Phân tích dòng tiền và hành vi ${ticker}`,
+        news: `Cập nhật tin tức và rủi ro của ${ticker}`,
       };
 
       try {
@@ -401,7 +401,7 @@ export function InvestmentChat({
         }
         if (!response.ok) throw new Error(data.error ?? `HTTP ${response.status}`);
 
-        const text = data.message ?? "Không có dữ liệu phân tích.";
+        const text = data.message ?? "AIDEN chưa có phản hồi phù hợp. Vui lòng thử lại.";
         const taBadge = cardId === "ta" ? mapSignalToBadge(text) : undefined;
         addMessage({
           role: "bot",

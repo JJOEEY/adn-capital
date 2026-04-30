@@ -22,6 +22,7 @@ import { getVnDateISO } from "@/lib/time";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
 import { loadReportedSignalSummary } from "@/lib/signals/report-history";
 import { formatReportedSignalSummary } from "@/lib/signals/reporting";
+import { runAidenDatahubChat } from "@/lib/aiden/datahub-chat";
 
 const FIINQUANT_BRIDGE = getPythonBridgeUrl();
 const CHAT_BRIDGE_AI_TIMEOUT_MS = 5_500;
@@ -1243,8 +1244,8 @@ function extractTicker(text: string): string | null {
 // ─── Main POST handler ────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json() as { message: string; guestUsage?: number };
-    const { message, guestUsage = 0 } = body;
+    const body = await req.json() as { message: string; guestUsage?: number; currentTicker?: string | null };
+    const { message, guestUsage = 0, currentTicker = null } = body;
 
     if (!message?.trim()) {
       return NextResponse.json({ error: "Thiếu nội dung tin nhắn" }, { status: 400 });
@@ -1257,6 +1258,88 @@ export async function POST(req: NextRequest) {
     // 🚫 TICKER INTERCEPTOR — DÒNG ĐẦU TIÊN, TRƯỚC MỌI THỨ
     // Không để LLM quyết định widget/text. TypeScript quyết định.
     // ══════════════════════════════════════════════════════════
+    const aidenDbUser = await getCurrentDbUser();
+    const aidenUserId = aidenDbUser?.id ?? null;
+    const aidenQuota = await resolveChatQuota({ userId: aidenUserId, guestUsage });
+    if (aidenQuota.usage.isLimitReached) {
+      return NextResponse.json(
+        {
+          error: "LIMIT_REACHED",
+          message: "Bạn đã dùng hết lượt tư vấn hôm nay. Nâng cấp VIP để tiếp tục ngay.",
+          usage: aidenQuota.usage,
+        },
+        { status: 429 },
+      );
+    }
+
+    const { cmd, date: commandDate } = parseCommand(message);
+    if (cmd === "/signals") {
+      const tradingDate = normalizeSignalHistoryDate(commandDate);
+      if (!tradingDate) {
+        return NextResponse.json({
+          message: "Ngày không hợp lệ. Ví dụ: `/signals` hoặc `/signals 2026-04-30`.",
+          newUsage: aidenQuota.usage.used,
+          usage: aidenQuota.usage,
+          streamState: "done",
+        });
+      }
+
+      const summary = await loadReportedSignalSummary(tradingDate);
+      const responseText = formatReportedSignalSummary(summary, { limit: 50 });
+      if (aidenUserId) {
+        await prisma.$transaction([
+          prisma.chat.create({ data: { userId: aidenUserId, message, role: "user" } }),
+          prisma.chat.create({ data: { userId: aidenUserId, message: responseText, role: "assistant" } }),
+        ]);
+      }
+      return NextResponse.json({
+        message: responseText,
+        content: responseText,
+        newUsage: aidenQuota.usage.used,
+        usage: aidenQuota.usage,
+        streamState: "done",
+        widgetMeta: {
+          complete: false,
+        },
+      });
+    }
+
+    const aiden = await runAidenDatahubChat({
+      message,
+      currentTicker,
+      context: { userId: aidenUserId, userRole: aidenDbUser?.role ?? null, systemRole: aidenDbUser?.systemRole ?? null },
+    });
+    const aidenUsageAfter = await consumeChatQuota(aidenQuota);
+    if (aidenUserId) {
+      await prisma.$transaction([
+        prisma.chat.create({ data: { userId: aidenUserId, message, role: "user" } }),
+        prisma.chat.create({ data: { userId: aidenUserId, message: aiden.message, role: "assistant" } }),
+      ]);
+    }
+
+    return NextResponse.json({
+      id: generateId(),
+      role: "assistant",
+      message: aiden.message,
+      content: aiden.message,
+      ticker: aiden.ticker,
+      tickers: aiden.tickers,
+      usedTopics: aiden.usedTopics,
+      model: aiden.model,
+      dataFreshness: aiden.dataFreshness,
+      newUsage: aidenUsageAfter.used,
+      usage: aidenUsageAfter,
+      streamState: "done",
+      widgetMeta: {
+        complete: false,
+        ticker: aiden.ticker,
+      },
+    });
+
+    /*
+     * Legacy slash-command/chat implementation is intentionally disabled.
+     * AIDEN now routes natural-language stock questions through DataHub + Flash only.
+     *
     const { cmd, stock: parsedStock, compareStocks, date: commandDate } = parseCommand(message);
     const upper = message.trim().toUpperCase();
     const detectedIntent = !cmd
@@ -1394,7 +1477,7 @@ export async function POST(req: NextRequest) {
       const tradingDate = normalizeSignalHistoryDate(commandDate);
       if (!tradingDate) {
         return NextResponse.json({
-          message: "Ngày không hợp lệ. Ví dụ: **/signals** hoặc **/signals 2026-04-30**.",
+          message: "Ngày không hợp lệ. Ví dụ: `/signals` hoặc `/signals 2026-04-30`.",
           newUsage: quota.usage.used,
           usage: quota.usage,
         });
@@ -1422,7 +1505,7 @@ export async function POST(req: NextRequest) {
     if (cmd === "/compare" && compareTickers.length < 2) {
       return NextResponse.json({
         message:
-          'Hệ thống cần ít nhất 2 mã để so sánh. Ví dụ: **/compare HPG HSG** hoặc **/compare FPT CMG VGI**.',
+          'Hệ thống cần ít nhất 2 mã để so sánh. Ví dụ: `/compare HPG HSG` hoặc `/compare FPT CMG VGI`.',
         newUsage: quota.usage.used,
         usage: quota.usage,
       });
@@ -1431,7 +1514,7 @@ export async function POST(req: NextRequest) {
     if (cmd && cmd !== "/compare" && cmd !== "/signals" && !stock) {
       return NextResponse.json({
         message:
-          "Hệ thống cần mã cổ phiếu hợp lệ. Ví dụ: **/ta DGC**, **/fa FPT**, **/news VNM**, **/tamly SSI**.",
+          "Hệ thống cần mã cổ phiếu hợp lệ. Ví dụ: `/ta DGC`, `/fa FPT`, `/news VNM`, `/tamly SSI`.",
         newUsage: quota.usage.used,
         usage: quota.usage,
       });
@@ -1677,6 +1760,7 @@ Nhà đầu tư hỏi: ${message}`;
         complete: false,
       },
     });
+    */
 
   } catch (error) {
     console.error("[/api/chat] Lỗi:", error);

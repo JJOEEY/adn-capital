@@ -417,5 +417,33 @@ html { scroll-behavior: smooth; }
   }
 }
 
+.aiden-markdown :where(p) {
+  margin: 0.25rem 0;
+}
+
+.aiden-markdown :where(h1, h2, h3) {
+  margin: 0.55rem 0 0.3rem;
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.aiden-markdown :where(ul, ol) {
+  margin: 0.35rem 0 0.35rem 1rem;
+  padding-left: 0.75rem;
+}
+
+.aiden-markdown :where(li) {
+  margin: 0.22rem 0;
+}
+
+.aiden-markdown :where(strong) {
+  font-weight: 800;
+}
+
+.aiden-markdown :where(em) {
+  font-style: italic;
+}
+
 /* perspective */
 .perspective-\[800px\] { perspective: 800px; }

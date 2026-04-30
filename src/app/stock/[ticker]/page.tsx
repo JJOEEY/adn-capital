@@ -1,107 +1,27 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Bot, ChartCandlestick, Clock3, RefreshCw, Send, Sparkles } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import {
+  ArrowDown,
+  ArrowUp,
+  Bot,
+  ChartCandlestick,
+  Plus,
+  RefreshCw,
+  Search,
+  Send,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { StockChart } from "@/components/chat/StockChart";
+import { StockChart, type Candle, type ChartTimeframe } from "@/components/chat/StockChart";
 import { useTopic } from "@/hooks/useTopic";
 
-type TabId =
-  | "overview"
-  | "ta"
-  | "fa"
-  | "sentiment"
-  | "news"
-  | "seasonality"
-  | "signal"
-  | "portfolio";
-
 type JsonRecord = Record<string, unknown>;
-
-type TickerNewsItem = {
-  title?: string;
-  summary?: string;
-  source?: string;
-  time?: string;
-  published_at?: string;
-  url?: string;
-};
-
-type WorkbenchPayload = {
-  ticker: string;
-  market: {
-    vnindex: { value?: number; change?: number; changePercent?: number } | null;
-    vn30: { value?: number; change?: number; changePercent?: number } | null;
-    liquidity?: { total?: number } | null;
-    breadth?: { up?: number; down?: number; unchanged?: number } | null;
-    investorTrading?: unknown;
-  };
-  ta?: {
-    currentPrice?: number;
-    changePct?: number;
-    rsi14?: number;
-    ema10?: number;
-    ema20?: number;
-    ema30?: number;
-    ema50?: number;
-    avgVolume20?: number;
-    source?: string;
-  } | null;
-  fa?: {
-    pe?: number | null;
-    pb?: number | null;
-    eps?: number | null;
-    roe?: number | null;
-    roa?: number | null;
-    revenueGrowthYoY?: number | null;
-    profitGrowthYoY?: number | null;
-    source?: string;
-  } | null;
-  seasonality?: {
-    winRate?: number | null;
-    sharpeRatio?: number | null;
-    rrRatio?: number | null;
-  } | null;
-  investor?: {
-    summary?: string;
-    data?: unknown[];
-  } | null;
-  news?: TickerNewsItem[];
-  signal?: SignalData | null;
-  summary?: {
-    hasTA?: boolean;
-    hasFA?: boolean;
-    hasInvestorFlow?: boolean;
-    hasSignal?: boolean;
-    hasNews?: boolean;
-  };
-};
-
-type PortfolioHoldingTopicData = {
-  ticker: string;
-  connected: boolean;
-  holding: {
-    ticker: string;
-    entryPrice: number | null;
-    currentPrice: number | null;
-    pnlPercent: number | null;
-    navAllocation: number | null;
-    status?: string | null;
-    tier?: string | null;
-    type?: string | null;
-  } | null;
-};
-
-type TickerResolution = {
-  input: string;
-  ticker: string;
-  valid: boolean;
-  source: string;
-  reason?: string;
-  checkedAt: string;
-};
 
 type SignalData = {
   status?: string;
@@ -111,57 +31,108 @@ type SignalData = {
   currentPnl?: number | null;
   target?: number | null;
   stoploss?: number | null;
-  aiReasoning?: string | null;
-  winRate?: number | null;
-  rrRatio?: number | null;
-  sharpeRatio?: number | null;
 };
 
-type ChatMessage = {
-  role: "user" | "bot";
-  text: string;
+type WorkbenchPayload = {
+  ticker: string;
+  ta?: {
+    currentPrice?: number;
+    changePct?: number;
+    avgVolume20?: number;
+    source?: string;
+  } | null;
+  fa?: {
+    pe?: number | null;
+    pb?: number | null;
+    eps?: number | null;
+    bookValuePerShare?: number | null;
+    roe?: number | null;
+    roa?: number | null;
+    reportDate?: string | null;
+    valuationBasis?: string | null;
+    source?: string;
+  } | null;
+  signal?: SignalData | null;
 };
 
-type Candle = {
-  time: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
+type TickerResolution = {
+  ticker: string;
+  valid: boolean;
+};
+
+type DepthLevel = {
+  price: number;
   volume: number;
 };
 
-type RecentResearchItem = {
+type DepthPayload = {
   ticker: string;
-  lastAskedAt: string;
-  lastQuestion: string | null;
-  askCount: number;
-  currentPrice: number | null;
-  changePct: number | null;
-  source: string | null;
-};
-
-type RecentResearchPayload = {
-  count: number;
-  items: RecentResearchItem[];
-  generatedAt: string;
+  exchange?: string;
+  close: number | null;
+  reference: number | null;
+  ceiling: number | null;
+  floor: number | null;
+  bid: DepthLevel[];
+  ask: DepthLevel[];
+  spread: number | null;
+  totalBidVolume: number;
+  totalAskVolume: number;
   source: string;
+  updatedAt: string;
 };
 
-const TABS: Array<{ id: TabId; label: string }> = [
-  { id: "overview", label: "Tổng quan" },
-  { id: "ta", label: "TA" },
-  { id: "fa", label: "FA" },
-  { id: "sentiment", label: "Tâm lý" },
-  { id: "news", label: "Tin tức" },
-  { id: "seasonality", label: "Mùa vụ" },
-  { id: "signal", label: "Tín hiệu" },
-  { id: "portfolio", label: "Danh mục" },
-];
+type BoardRow = {
+  ticker: string;
+  exchange?: string;
+  close?: number;
+  reference?: number;
+  ceiling?: number;
+  floor?: number;
+  change?: number;
+  changePct?: number;
+  volume?: number;
+  foreignBuyVolume?: number;
+  foreignSellVolume?: number;
+  bid?: DepthLevel[];
+  ask?: DepthLevel[];
+  ma20Volume?: number;
+};
+
+type BoardPayload = {
+  tickers: string[];
+  prices: Record<string, BoardRow>;
+  source: string;
+  updatedAt: string;
+};
+
+type ChatMessage = {
+  id: string;
+  role: "user" | "bot";
+  text: string;
+  streaming?: boolean;
+};
+
+type AidenResponse = {
+  message?: string;
+  error?: string;
+  ticker?: string;
+  tickers?: string[];
+};
+
+const DEFAULT_WATCHLIST = ["SSI", "HPG", "FPT", "GVR", "MBB", "VND", "VCB", "VHM"];
 
 function fmtValue(value: number | null | undefined, suffix = "") {
   if (value == null || !Number.isFinite(value)) return "--";
   return `${value.toLocaleString("vi-VN")}${suffix}`;
+}
+
+function fmtPrice(value: number | null | undefined) {
+  return fmtValue(value);
+}
+
+function fmtMultiple(value: number | null | undefined) {
+  if (value == null || !Number.isFinite(value)) return "Đang tính";
+  return `${value.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}x`;
 }
 
 function fmtPercent(value: number | null | undefined) {
@@ -182,16 +153,20 @@ function readNumber(record: unknown, keys: string[]) {
 
 function readUnixTime(value: unknown) {
   if (typeof value === "number" && Number.isFinite(value)) {
-    if (value > 10_000_000_000) return Math.floor(value / 1000);
-    return Math.floor(value);
+    return value > 10_000_000_000 ? Math.floor(value / 1000) : Math.floor(value);
   }
   if (typeof value !== "string" || !value.trim()) return null;
-  const dateOnly = value.trim().split(" ")[0];
-  const timestamp = Date.parse(dateOnly.includes("T") ? dateOnly : `${dateOnly}T00:00:00Z`);
+  const text = value.trim();
+  const normalized = text.includes("T")
+    ? text
+    : text.includes(" ")
+      ? `${text.replace(" ", "T")}+07:00`
+      : `${text}T00:00:00+07:00`;
+  const timestamp = Date.parse(normalized);
   return Number.isFinite(timestamp) ? Math.floor(timestamp / 1000) : null;
 }
 
-function normalizeHistoricalCandles(payload: unknown): Candle[] {
+function normalizeCandles(payload: unknown): Candle[] {
   if (!payload || typeof payload !== "object") return [];
   const record = payload as JsonRecord;
   const rows = Array.isArray(record.candles)
@@ -204,11 +179,12 @@ function normalizeHistoricalCandles(payload: unknown): Candle[] {
 
   return rows
     .map((row) => {
-      const time = readUnixTime(readNumber(row, ["time", "timestamp"]) ?? (row as JsonRecord)?.date ?? (row as JsonRecord)?.timestamp);
+      const item = row as JsonRecord;
+      const time = readUnixTime(item.time ?? item.timestamp ?? item.date);
       const open = readNumber(row, ["open", "o"]);
       const high = readNumber(row, ["high", "h"]);
       const low = readNumber(row, ["low", "l"]);
-      const close = readNumber(row, ["close", "c"]);
+      const close = readNumber(row, ["close", "c", "price"]);
       const volume = readNumber(row, ["volume", "v"]) ?? 0;
       if (time == null || open == null || high == null || low == null || close == null) return null;
       return { time, open, high, low, close, volume };
@@ -223,13 +199,10 @@ function readRealtimePrice(payload: unknown) {
   if (direct != null) return direct;
   const data = payload && typeof payload === "object" ? (payload as JsonRecord).data : null;
   const rows = Array.isArray(data) ? data : [];
-  const last = rows.at(-1);
-  return readNumber(last, ["close", "price", "current"]);
+  return readNumber(rows.at(-1), ["close", "price", "current"]);
 }
 
 function readRealtimeChangePct(payload: unknown) {
-  const direct = readNumber(payload, ["changePct", "change_pct", "changePercent"]);
-  if (direct != null) return direct;
   const data = payload && typeof payload === "object" ? (payload as JsonRecord).data : null;
   const rows = Array.isArray(data) ? data : [];
   const first = readNumber(rows[0], ["close", "price"]);
@@ -238,243 +211,228 @@ function readRealtimeChangePct(payload: unknown) {
   return ((last - first) / first) * 100;
 }
 
-function formatDateTime(value: string | null | undefined) {
-  if (!value) return "--";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "--";
-  return new Intl.DateTimeFormat("vi-VN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    day: "2-digit",
-    month: "2-digit",
-  }).format(date);
+function marketDefaultTimeframe(): ChartTimeframe {
+  const now = new Date();
+  const vnHour = Number(new Intl.DateTimeFormat("en-US", { hour: "2-digit", hour12: false, timeZone: "Asia/Ho_Chi_Minh" }).format(now));
+  return vnHour >= 9 && vnHour < 15 ? "5m" : "1D";
 }
 
 function InfoItem({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
-      <p className="text-[11px] uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-        {label}
-      </p>
-      <p className="mt-1 text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-        {value}
-      </p>
+      <p className="text-[11px] uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>{label}</p>
+      <p className="mt-1 text-sm font-bold" style={{ color: "var(--text-primary)" }}>{value}</p>
     </div>
-  );
-}
-
-function JsonPanel({ value }: { value: unknown }) {
-  return (
-    <pre
-      className="max-h-[340px] overflow-auto rounded-xl border p-3 text-xs"
-      style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--text-secondary)" }}
-    >
-      {JSON.stringify(value, null, 2)}
-    </pre>
   );
 }
 
 function FreshnessBadge({ label, freshness }: { label: string; freshness: string | null }) {
   if (!freshness) return null;
-  const state = freshness.toLowerCase();
-  const isFresh = state === "fresh";
-  const isStale = state === "stale";
-  const text = isFresh ? "Mới" : isStale ? "Cache" : state.toUpperCase();
-  const style = isFresh
-    ? { color: "#16a34a", borderColor: "rgba(22,163,74,0.25)", background: "rgba(22,163,74,0.10)" }
-    : isStale
-      ? { color: "#f59e0b", borderColor: "rgba(245,158,11,0.25)", background: "rgba(245,158,11,0.10)" }
-      : { color: "var(--danger)", borderColor: "rgba(192,57,43,0.25)", background: "rgba(192,57,43,0.10)" };
+  const fresh = freshness === "fresh";
   return (
-    <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider" style={style}>
-      <span>{label}</span>
-      <span>· {text}</span>
+    <span
+      className="rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase"
+      style={{
+        borderColor: fresh ? "rgba(22,163,74,0.25)" : "rgba(245,158,11,0.25)",
+        background: fresh ? "rgba(22,163,74,0.10)" : "rgba(245,158,11,0.10)",
+        color: fresh ? "#16a34a" : "#f59e0b",
+      }}
+    >
+      {label} · {fresh ? "Mới" : "Gần nhất"}
     </span>
   );
 }
 
-function buildActionSummary(signal: SignalData | null, hasHolding: boolean) {
-  if (!signal) {
-    return {
-      title: "Chưa có tín hiệu active",
-      tone: "neutral" as const,
-      text: "Hệ thống chưa có tín hiệu mới cho mã này. Nhà đầu tư tiếp tục theo dõi trong danh sách quan tâm.",
-    };
-  }
-
-  const status = (signal.status ?? "").toUpperCase();
-  const pnl = signal.currentPnl ?? 0;
-  const stoploss = signal.stoploss ?? null;
-  const currentPrice = signal.currentPrice ?? null;
-  const nearStoploss =
-    stoploss != null && currentPrice != null && currentPrice > 0 && (currentPrice - stoploss) / currentPrice <= 0.015;
-
-  if (status === "ACTIVE" || status === "HOLD_TO_DIE") {
-    if (nearStoploss) {
-      return {
-        title: "Cảnh báo rủi ro",
-        tone: "danger" as const,
-        text: "Giá hiện tại đang sát điểm cắt lỗ. Ưu tiên quản trị rủi ro, không bình quân khi chưa có xác nhận mới.",
-      };
-    }
-    if (pnl >= 10) {
-      return {
-        title: "Bảo vệ lợi nhuận",
-        tone: "success" as const,
-        text: "Vị thế đang có lãi tốt. Có thể nâng trailing stop để khóa lợi nhuận và giảm rủi ro đảo chiều.",
-      };
-    }
-    return {
-      title: hasHolding ? "Giữ kỷ luật nắm giữ" : "Ứng viên đang active",
-      tone: "warning" as const,
-      text: hasHolding
-        ? "Vị thế đang active. Theo dõi target/cắt lỗ và giữ kỷ luật quản trị NAV."
-        : "Tín hiệu active nhưng danh mục chưa có vị thế đồng bộ. Cần kiểm tra lại dữ liệu broker.",
-    };
-  }
-
-  if (status === "RADAR") {
-    return {
-      title: "Thiết lập theo dõi",
-      tone: "neutral" as const,
-      text: "Mã đang ở trạng thái theo dõi. Chờ xác nhận điều kiện kích hoạt trước khi vào lệnh.",
-    };
-  }
-
-  return {
-    title: "Cập nhật vòng đời tín hiệu",
-    tone: "neutral" as const,
-    text: "Tín hiệu đã chuyển trạng thái. Kiểm tra tab Tín hiệu để xem chi tiết.",
-  };
-}
-
-function ActionSummaryCard({ summary }: { summary: ReturnType<typeof buildActionSummary> }) {
-  const style =
-    summary.tone === "success"
-      ? { borderColor: "rgba(22,163,74,0.3)", background: "rgba(22,163,74,0.08)", title: "#16a34a" }
-      : summary.tone === "danger"
-        ? { borderColor: "rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.08)", title: "#ef4444" }
-        : summary.tone === "warning"
-          ? { borderColor: "rgba(245,158,11,0.3)", background: "rgba(245,158,11,0.08)", title: "#f59e0b" }
-          : { borderColor: "var(--border)", background: "var(--surface)", title: "var(--text-primary)" };
-
-  return (
-    <div className="rounded-2xl border p-4" style={{ borderColor: style.borderColor, background: style.background }}>
-      <p className="text-xs font-black uppercase tracking-wider" style={{ color: style.title }}>
-        Gợi ý theo dõi từ ADN Stock
-      </p>
-      <p className="mt-1 text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-        {summary.title}
-      </p>
-      <p className="mt-1 text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-        {summary.text}
-      </p>
-    </div>
-  );
-}
-
-function WorkbenchTabs({
-  tab,
-  setTab,
-}: {
-  tab: TabId;
-  setTab: (tab: TabId) => void;
+function StockOverviewPanel({ workbench, realtimePrice, realtimeChangePct }: {
+  workbench: WorkbenchPayload | null;
+  realtimePrice: number | null;
+  realtimeChangePct: number | null;
 }) {
+  const signal = workbench?.signal ?? null;
+  const ta = workbench?.ta ?? null;
+  const fa = workbench?.fa ?? null;
   return (
-    <div className="flex flex-wrap gap-2">
-      {TABS.map((item) => (
-        <button
-          key={item.id}
-          onClick={() => setTab(item.id)}
-          className="rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all"
-          style={
-            tab === item.id
-              ? { borderColor: "var(--border-strong)", background: "var(--primary-light)", color: "var(--primary)" }
-              : { borderColor: "var(--border)", background: "var(--surface)", color: "var(--text-secondary)" }
-          }
-        >
-          {item.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function RecentResearchPanel({
-  activeTicker,
-  payload,
-  isLoading,
-}: {
-  activeTicker: string;
-  payload: RecentResearchPayload | null;
-  isLoading: boolean;
-}) {
-  const items = payload?.items ?? [];
-  return (
-    <section className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-black" style={{ color: "var(--text-primary)" }}>
-            Mã khách hàng hỏi gần đây
-          </p>
-          <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
-            Dữ liệu lấy từ DataHub, chỉ làm mới giá realtime.
-          </p>
-        </div>
-        <span className="rounded-full border px-2 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
-          DataHub
+    <section className="rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-black" style={{ color: "var(--text-primary)" }}>Tổng quan</h2>
+        <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+          Giá: {fmtPrice(realtimePrice ?? ta?.currentPrice)} · {fmtPercent(realtimeChangePct ?? ta?.changePct)}
         </span>
       </div>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+        <InfoItem label="Giá khuyến nghị" value={fmtPrice(signal?.entryPrice)} />
+        <InfoItem label="Giá mục tiêu" value={fmtPrice(signal?.target)} />
+        <InfoItem label="Giá cắt lỗ" value={fmtPrice(signal?.stoploss)} />
+        <InfoItem label="Volume MA20" value={fmtValue(ta?.avgVolume20)} />
+        <InfoItem label="P/E" value={fmtMultiple(fa?.pe)} />
+        <InfoItem label="P/B" value={fmtMultiple(fa?.pb)} />
+      </div>
+    </section>
+  );
+}
 
-      {isLoading && items.length === 0 ? (
-        <div className="mt-4 grid gap-2 md:grid-cols-2">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <div key={index} className="h-20 animate-pulse rounded-xl bg-[var(--surface-2)]" />
-          ))}
+function OrderBookPanel({ depth, loading }: { depth: DepthPayload | null; loading: boolean }) {
+  const bid = depth?.bid ?? [];
+  const ask = depth?.ask ?? [];
+  return (
+    <section className="rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-black" style={{ color: "var(--text-primary)" }}>Sổ lệnh mua/bán</h2>
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+            3 mức giá mua và bán tốt nhất đang chờ khớp trên thị trường.
+          </p>
         </div>
-      ) : items.length === 0 ? (
-        <p className="mt-4 text-sm" style={{ color: "var(--text-muted)" }}>
-          Chưa có mã nào trong lịch sử hỏi gần đây.
-        </p>
+        <span className="text-xs font-bold" style={{ color: "var(--text-secondary)" }}>
+          Chênh lệch giá {fmtPrice(depth?.spread)}
+        </span>
+      </div>
+      <div className="mb-3 rounded-lg border px-3 py-2 text-[12px]" style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-secondary)" }}>
+        Bên mua là giá nhà đầu tư đang đặt mua. Bên bán là giá nhà đầu tư đang chào bán. Chênh lệch giá càng nhỏ thì mã thường càng dễ mua/bán nhanh.
+      </div>
+      {loading && !depth ? (
+        <div className="h-28 animate-pulse rounded-lg bg-[var(--surface-2)]" />
+      ) : !depth ? (
+        <p className="text-sm" style={{ color: "var(--text-muted)" }}>Sổ lệnh mua/bán đang được cập nhật cho mã này.</p>
       ) : (
-        <div className="mt-4 grid gap-2 md:grid-cols-2">
-          {items.map((item) => {
-            const active = item.ticker === activeTicker;
-            return (
-              <Link
-                key={item.ticker}
-                href={`/stock/${item.ticker}`}
-                className="rounded-xl border p-3 transition-colors"
-                style={{
-                  borderColor: active ? "var(--border-strong)" : "var(--border)",
-                  background: active ? "var(--primary-light)" : "var(--surface-2)",
-                  color: "var(--text-primary)",
-                }}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <span className="font-mono text-sm font-black">{item.ticker}</span>
-                  <span className="text-xs font-bold" style={{ color: item.changePct && item.changePct > 0 ? "#16a34a" : item.changePct && item.changePct < 0 ? "#ef4444" : "var(--text-muted)" }}>
-                    {fmtValue(item.currentPrice)}
-                  </span>
-                </div>
-                <div className="mt-2 flex items-center justify-between gap-3 text-[11px]" style={{ color: "var(--text-muted)" }}>
-                  <span className="inline-flex items-center gap-1">
-                    <Clock3 className="h-3 w-3" />
-                    {formatDateTime(item.lastAskedAt)}
-                  </span>
-                  <span>{item.askCount} lượt hỏi</span>
-                </div>
-                {item.lastQuestion ? (
-                  <p className="mt-2 line-clamp-2 text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-                    {item.lastQuestion}
-                  </p>
-                ) : null}
-              </Link>
-            );
-          })}
+        <div className="grid gap-3 md:grid-cols-2">
+          <DepthSide title="Bên mua" levels={bid} tone="bid" />
+          <DepthSide title="Bên bán" levels={ask} tone="ask" />
+          <InfoItem label="Tổng cầu" value={fmtValue(depth.totalBidVolume)} />
+          <InfoItem label="Tổng cung" value={fmtValue(depth.totalAskVolume)} />
         </div>
       )}
     </section>
+  );
+}
+
+function DepthSide({ title, levels, tone }: { title: string; levels: DepthLevel[]; tone: "bid" | "ask" }) {
+  return (
+    <div className="rounded-lg border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+      <p className="mb-2 text-xs font-bold" style={{ color: tone === "bid" ? "#16a34a" : "#ef4444" }}>{title}</p>
+      <div className="space-y-1">
+        {[0, 1, 2].map((index) => {
+          const level = levels[index];
+          return (
+            <div key={index} className="grid grid-cols-3 gap-2 text-xs">
+              <span style={{ color: "var(--text-muted)" }}>Mức {index + 1}</span>
+              <span className="font-bold" style={{ color: tone === "bid" ? "#16a34a" : "#ef4444" }}>{fmtPrice(level?.price)}</span>
+              <span className="text-right" style={{ color: "var(--text-secondary)" }}>{fmtValue(level?.volume)}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function WatchlistBoard({
+  items,
+  board,
+  onAdd,
+  onRemove,
+  onMove,
+  onOpen,
+}: {
+  items: string[];
+  board: BoardPayload | null;
+  onAdd: (ticker: string) => void;
+  onRemove: (ticker: string) => void;
+  onMove: (ticker: string, direction: -1 | 1) => void;
+  onOpen: (ticker: string) => void;
+}) {
+  const [draft, setDraft] = useState("");
+  const rows = items.map((ticker) => board?.prices?.[ticker] ?? { ticker });
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    onAdd(draft);
+    setDraft("");
+  };
+
+  return (
+    <section className="rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-black" style={{ color: "var(--text-primary)" }}>Danh sách theo dõi</h2>
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>Bảng giá rút gọn, tự cập nhật mỗi 5-10 giây.</p>
+        </div>
+        <form onSubmit={submit} className="flex gap-2">
+          <input
+            value={draft}
+            onChange={(event) => setDraft(event.target.value.toUpperCase())}
+            placeholder="Thêm mã"
+            className="w-24 rounded-lg border px-2 py-1 text-xs outline-none"
+            style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-primary)" }}
+          />
+          <button type="submit" aria-label="Thêm mã vào watchlist" className="rounded-lg border px-2" style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}>
+            <Plus className="h-4 w-4" />
+          </button>
+        </form>
+      </div>
+      <div className="max-h-[360px] overflow-auto rounded-lg border" style={{ borderColor: "var(--border)" }}>
+        <table className="w-full min-w-[760px] text-xs">
+          <thead style={{ background: "var(--surface-2)", color: "var(--text-muted)" }}>
+            <tr>
+              <th className="px-2 py-2 text-left">Mã</th>
+              <th className="px-2 py-2 text-right">Giá</th>
+              <th className="px-2 py-2 text-right">%</th>
+              <th className="px-2 py-2 text-right" title="Khối lượng đã khớp trong phiên">Khối lượng</th>
+              <th className="px-2 py-2 text-right" title="Giá trần, giá sàn và giá tham chiếu">Trần/Sàn/TC</th>
+              <th className="px-2 py-2 text-right" title="Giá mua tốt nhất đang chờ khớp và khối lượng đặt mua">Mua tốt nhất</th>
+              <th className="px-2 py-2 text-right" title="Giá bán tốt nhất đang chờ khớp và khối lượng chào bán">Bán tốt nhất</th>
+              <th className="px-2 py-2 text-right" title="Khối ngoại mua/bán trong phiên">Nước ngoài</th>
+              <th className="px-2 py-2 text-right">Sắp xếp</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, index) => {
+              const changePct = Number(row.changePct ?? 0);
+              const tone = changePct > 0 ? "#16a34a" : changePct < 0 ? "#ef4444" : "var(--text-secondary)";
+              return (
+                <tr key={row.ticker} className="border-t" style={{ borderColor: "var(--border)" }}>
+                  <td className="px-2 py-2">
+                    <button type="button" onClick={() => onOpen(row.ticker)} className="font-mono font-black" style={{ color: "var(--primary)" }}>
+                      {row.ticker}
+                    </button>
+                    <span className="ml-1 text-[10px]" style={{ color: "var(--text-muted)" }}>{row.exchange ?? ""}</span>
+                  </td>
+                  <td className="px-2 py-2 text-right font-bold" style={{ color: tone }}>{fmtPrice(row.close)}</td>
+                  <td className="px-2 py-2 text-right" style={{ color: tone }}>{fmtPercent(row.changePct)}</td>
+                  <td className="px-2 py-2 text-right">{fmtValue(row.volume)}</td>
+                  <td className="px-2 py-2 text-right">{fmtPrice(row.ceiling)}/{fmtPrice(row.floor)}/{fmtPrice(row.reference)}</td>
+                  <td className="px-2 py-2 text-right text-emerald-600">{fmtPrice(row.bid?.[0]?.price)} · {fmtValue(row.bid?.[0]?.volume)}</td>
+                  <td className="px-2 py-2 text-right text-red-500">{fmtPrice(row.ask?.[0]?.price)} · {fmtValue(row.ask?.[0]?.volume)}</td>
+                  <td className="px-2 py-2 text-right">{fmtValue(row.foreignBuyVolume)}/{fmtValue(row.foreignSellVolume)}</td>
+                  <td className="px-2 py-2">
+                    <div className="flex justify-end gap-1">
+                      <IconButton label="Đưa lên" disabled={index === 0} onClick={() => onMove(row.ticker, -1)}><ArrowUp className="h-3.5 w-3.5" /></IconButton>
+                      <IconButton label="Đưa xuống" disabled={index === rows.length - 1} onClick={() => onMove(row.ticker, 1)}><ArrowDown className="h-3.5 w-3.5" /></IconButton>
+                      <IconButton label="Xóa" onClick={() => onRemove(row.ticker)}><Trash2 className="h-3.5 w-3.5" /></IconButton>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function IconButton({ label, disabled, onClick, children }: { label: string; disabled?: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      onClick={onClick}
+      className="inline-flex h-7 w-7 items-center justify-center rounded-md border disabled:opacity-40"
+      style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -493,32 +451,39 @@ function AidenPanel({
   onSend: () => Promise<void>;
   loading: boolean;
 }) {
+  const bottomRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages, loading]);
+
   return (
-    <section className="flex min-h-[680px] flex-col rounded-2xl border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+    <section className="flex h-[72vh] min-h-[520px] max-h-[730px] flex-col overflow-hidden rounded-xl border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
       <div className="border-b px-4 py-3" style={{ borderColor: "var(--border)" }}>
         <div className="flex items-center gap-2">
-          <Bot className="h-4 w-4" style={{ color: "#16a34a" }} />
-          <span className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>
-            AIDEN
-          </span>
+          <Bot className="h-4 w-4 text-emerald-600" />
+          <span className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>AIDEN</span>
         </div>
         <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
-          Hỏi mã cổ phiếu, AIDEN sẽ mở biểu đồ trong ADN Stock.
+          Hỏi trực tiếp mã cổ phiếu, AIDEN trả lời bằng dữ liệu thị trường và báo cáo mới nhất.
         </p>
       </div>
-
-      <div className="flex-1 space-y-2 overflow-y-auto p-3">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
         {messages.map((message, index) => (
-          <div key={`${message.role}-${index}`} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+          <div key={message.id || `${message.role}-${index}`} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
             <div
-              className="max-w-[92%] whitespace-pre-wrap rounded-xl px-3 py-2 text-sm"
+              className={`max-w-[94%] rounded-xl px-3 py-2 text-sm leading-relaxed ${message.role === "bot" ? "aiden-markdown" : "whitespace-pre-wrap"}`}
               style={
                 message.role === "user"
                   ? { background: "var(--primary)", color: "var(--on-primary)" }
                   : { background: "var(--surface-2)", color: "var(--text-primary)", border: "1px solid var(--border)" }
               }
             >
-              {message.text}
+              {message.role === "bot" ? (
+                <>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown>
+                  {message.streaming ? <span className="ml-0.5 inline-block h-4 w-1 animate-pulse rounded-sm bg-current align-text-bottom" /> : null}
+                </>
+              ) : message.text}
             </div>
           </div>
         ))}
@@ -526,12 +491,12 @@ function AidenPanel({
           <div className="flex justify-start">
             <div className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm" style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-secondary)" }}>
               <Sparkles className="h-3.5 w-3.5 animate-pulse" />
-              AIDEN đang xử lý...
+              AIDEN đang phân tích...
             </div>
           </div>
         ) : null}
+        <div ref={bottomRef} />
       </div>
-
       <div className="border-t p-3" style={{ borderColor: "var(--border)" }}>
         <div className="flex gap-2">
           <input
@@ -545,6 +510,7 @@ function AidenPanel({
             style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
           />
           <button
+            type="button"
             onClick={() => void onSend()}
             disabled={loading}
             aria-label="Gửi câu hỏi cho AIDEN"
@@ -559,117 +525,183 @@ function AidenPanel({
   );
 }
 
-type AidenResponse = {
-  message?: string;
-  error?: string;
-  ticker?: string;
-  chartStock?: string;
-  chartExchange?: string;
-  widgetType?: string;
-  widgetMeta?: { ticker?: string };
-};
-
 export default function StockDetailPage() {
   const params = useParams<{ ticker: string }>();
   const router = useRouter();
   const ticker = useMemo(() => (params?.ticker ?? "VNINDEX").toUpperCase(), [params?.ticker]);
-  const [tab, setTab] = useState<TabId>("overview");
+  const [timeframe, setTimeframe] = useState<ChartTimeframe>(() => marketDefaultTimeframe());
+  const [search, setSearch] = useState(ticker);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
+  const [watchlist, setWatchlist] = useState<string[]>([]);
+  const typingTimerRef = useRef<number | null>(null);
 
   const tickerResolutionTopic = useTopic<TickerResolution>(`ticker:resolve:${ticker}`, {
-    refreshInterval: 0,
     revalidateOnFocus: false,
     dedupingInterval: 30_000,
   });
   const resolvedTicker = tickerResolutionTopic.data?.valid ? tickerResolutionTopic.data.ticker : ticker;
   const isTickerValid = tickerResolutionTopic.data?.valid === true;
-  const canLoadWorkbench = isTickerValid;
 
   const workbenchTopic = useTopic<WorkbenchPayload>(`research:workbench:${resolvedTicker}`, {
-    enabled: canLoadWorkbench,
-    refreshInterval: 0,
+    enabled: isTickerValid,
     revalidateOnFocus: false,
     dedupingInterval: 30_000,
   });
-  const realtimeTopic = useTopic<unknown>(`vn:realtime:${resolvedTicker}:5m`, {
-    enabled: canLoadWorkbench,
-    refreshInterval: 60_000,
+  const realtimeTopic = useTopic<unknown>(`vn:realtime:${resolvedTicker}:${timeframe === "1D" ? "5m" : timeframe}`, {
+    enabled: isTickerValid,
+    refreshInterval: timeframe === "1D" ? 0 : 5_000,
     revalidateOnFocus: false,
-    dedupingInterval: 15_000,
+    dedupingInterval: 5_000,
   });
   const historicalTopic = useTopic<unknown>(`vn:historical:${resolvedTicker}:1d`, {
-    enabled: canLoadWorkbench,
-    refreshInterval: 0,
+    enabled: isTickerValid,
     revalidateOnFocus: false,
     dedupingInterval: 60_000,
   });
-  const holdingTopic = useTopic<PortfolioHoldingTopicData>(`portfolio:holding:current-user:${resolvedTicker}`, {
-    enabled: canLoadWorkbench,
-    refreshInterval: 0,
+  const depthTopic = useTopic<DepthPayload>(`vn:depth:${resolvedTicker}`, {
+    enabled: isTickerValid,
+    refreshInterval: 5_000,
     revalidateOnFocus: false,
-    dedupingInterval: 30_000,
-  });
-  const recentResearchTopic = useTopic<RecentResearchPayload>("research:recent-tickers", {
-    refreshInterval: 60_000,
-    revalidateOnFocus: false,
-    dedupingInterval: 15_000,
+    dedupingInterval: 5_000,
   });
 
   useEffect(() => {
+    if (typingTimerRef.current) {
+      window.clearTimeout(typingTimerRef.current);
+      typingTimerRef.current = null;
+    }
+    setSearch(resolvedTicker);
     setMessages([
       {
+        id: `intro-${resolvedTicker}`,
         role: "bot",
-        text: `AIDEN đang theo dõi mã ${resolvedTicker}. Anh/chị có thể hỏi nhanh về xu hướng, rủi ro hoặc nhập mã khác để mở biểu đồ.`,
+        text: `AIDEN đang theo dõi **${resolvedTicker}**. Anh/chị có thể hỏi: **Phân tích ${resolvedTicker}**, **có nên mua không**, hoặc nhập một mã khác.`,
       },
     ]);
   }, [resolvedTicker]);
 
+  useEffect(() => {
+    return () => {
+      if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    const raw = window.localStorage.getItem("adn-stock-watchlist");
+    const saved = raw ? JSON.parse(raw) as string[] : [];
+    const merged = Array.from(new Set([resolvedTicker, ...saved, ...DEFAULT_WATCHLIST])).slice(0, 30);
+    setWatchlist(merged);
+  }, [resolvedTicker]);
+
+  useEffect(() => {
+    if (watchlist.length > 0) {
+      window.localStorage.setItem("adn-stock-watchlist", JSON.stringify(watchlist));
+    }
+  }, [watchlist]);
+
+  const boardKey = watchlist.length > 0 ? `vn:board:${watchlist.join(",")}` : "";
+  const boardTopic = useTopic<BoardPayload>(boardKey, {
+    enabled: watchlist.length > 0,
+    refreshInterval: 10_000,
+    revalidateOnFocus: false,
+    dedupingInterval: 5_000,
+  });
+
+  const historicalCandles = useMemo(() => normalizeCandles(historicalTopic.data), [historicalTopic.data]);
+  const realtimeCandles = useMemo(() => normalizeCandles(realtimeTopic.data), [realtimeTopic.data]);
+  const chartCandles = timeframe === "1D" ? historicalCandles : realtimeCandles;
   const workbench = workbenchTopic.data;
-  const ta = workbench?.ta ?? null;
-  const fa = workbench?.fa ?? null;
-  const signal = workbench?.signal ?? null;
-  const news = workbench?.news ?? [];
-  const investorData = workbench?.investor ?? {};
-  const seasonality = workbench?.seasonality ?? null;
-  const holding = holdingTopic.data?.holding ?? null;
-  const historicalCandles = useMemo(() => normalizeHistoricalCandles(historicalTopic.data), [historicalTopic.data]);
-  const realtimePrice = readRealtimePrice(realtimeTopic.data) ?? ta?.currentPrice ?? null;
-  const realtimeChangePct = readRealtimeChangePct(realtimeTopic.data) ?? ta?.changePct ?? null;
-  const actionSummary = buildActionSummary(signal, Boolean(holding));
+  const realtimePrice = readRealtimePrice(realtimeTopic.data) ?? workbench?.ta?.currentPrice ?? null;
+  const realtimeChangePct = readRealtimeChangePct(realtimeTopic.data) ?? workbench?.ta?.changePct ?? null;
+
+  const refreshAll = () => {
+    void tickerResolutionTopic.refresh(true);
+    void workbenchTopic.refresh(true);
+    void realtimeTopic.refresh(true);
+    void historicalTopic.refresh(true);
+    void depthTopic.refresh(true);
+    void boardTopic.refresh(true);
+  };
+
+  const handleSearch = (event: FormEvent) => {
+    event.preventDefault();
+    const next = search.trim().toUpperCase().replace(/[^A-Z0-9._-]/g, "");
+    if (next) router.push(`/stock/${next}`);
+  };
+
+  const addWatchlist = (value: string) => {
+    const next = value.trim().toUpperCase().replace(/[^A-Z0-9._-]/g, "");
+    if (!next) return;
+    setWatchlist((prev) => Array.from(new Set([next, ...prev])).slice(0, 50));
+  };
+
+  const removeWatchlist = (value: string) => {
+    setWatchlist((prev) => prev.filter((tickerItem) => tickerItem !== value));
+  };
+
+  const moveWatchlist = (value: string, direction: -1 | 1) => {
+    setWatchlist((prev) => {
+      const index = prev.indexOf(value);
+      const nextIndex = index + direction;
+      if (index < 0 || nextIndex < 0 || nextIndex >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      return next;
+    });
+  };
+
+  const streamBotMessage = (fullText: string) => {
+    if (typingTimerRef.current) {
+      window.clearTimeout(typingTimerRef.current);
+      typingTimerRef.current = null;
+    }
+
+    const id = `bot-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const stepSize = Math.max(2, Math.ceil(fullText.length / 280));
+    let index = 0;
+    setMessages((prev) => [...prev, { id, role: "bot", text: "", streaming: true }]);
+
+    const tick = () => {
+      index = Math.min(fullText.length, index + stepSize);
+      setMessages((prev) =>
+        prev.map((message) =>
+          message.id === id
+            ? { ...message, text: fullText.slice(0, index), streaming: index < fullText.length }
+            : message,
+        ),
+      );
+
+      if (index < fullText.length) {
+        typingTimerRef.current = window.setTimeout(tick, 16);
+      } else {
+        typingTimerRef.current = null;
+      }
+    };
+
+    typingTimerRef.current = window.setTimeout(tick, 35);
+  };
 
   const handleSend = async () => {
     const text = input.trim();
     if (!text || chatLoading) return;
-
     setInput("");
-    setMessages((prev) => [...prev, { role: "user", text }]);
+    setMessages((prev) => [...prev, { id: `user-${Date.now()}`, role: "user", text }]);
     setChatLoading(true);
-
     try {
-      const prompt = `${text}\n\nMã cổ phiếu đang xem: ${resolvedTicker}`;
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: prompt }),
+        body: JSON.stringify({ message: text, currentTicker: resolvedTicker }),
       });
       const data = (await res.json()) as AidenResponse;
-      const nextTicker = (data.ticker ?? data.chartStock ?? data.widgetMeta?.ticker ?? "").trim().toUpperCase();
-      const botText =
-        data.message ||
-        data.error ||
-        (nextTicker
-          ? `AIDEN đã mở biểu đồ ${nextTicker} trong ADN Stock.`
-          : "AIDEN chưa có phản hồi phù hợp. Anh/chị thử nhập mã cổ phiếu hoặc câu hỏi rõ hơn.");
-
-      setMessages((prev) => [...prev, { role: "bot", text: botText }]);
-      void recentResearchTopic.refresh(true);
-      if (nextTicker && nextTicker !== resolvedTicker) {
-        router.push(`/stock/${nextTicker}`);
-      }
+      const botText = data.message || data.error || "AIDEN chưa có phản hồi phù hợp. Vui lòng thử lại.";
+      streamBotMessage(botText);
+      const nextTicker = data.ticker?.trim().toUpperCase();
+      if (nextTicker && nextTicker !== resolvedTicker) router.push(`/stock/${nextTicker}`);
     } catch {
-      setMessages((prev) => [...prev, { role: "bot", text: "Lỗi kết nối AIDEN. Vui lòng thử lại." }]);
+      streamBotMessage("Lỗi kết nối AIDEN. Vui lòng thử lại.");
     } finally {
       setChatLoading(false);
     }
@@ -677,216 +709,74 @@ export default function StockDetailPage() {
 
   return (
     <MainLayout>
-      <div className="mx-auto max-w-[1680px] space-y-4 p-4 md:p-6">
-        <div className="flex items-center justify-between gap-3">
+      <div className="mx-auto max-w-[1800px] space-y-4 p-4 md:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
               <ChartCandlestick className="h-5 w-5" style={{ color: "var(--text-secondary)" }} />
-              <h1 className="text-xl font-black" style={{ color: "var(--text-primary)" }}>
-                Tra cứu cổ phiếu: {resolvedTicker}
-              </h1>
+              <h1 className="text-xl font-black" style={{ color: "var(--text-primary)" }}>Tra cứu cổ phiếu: {resolvedTicker}</h1>
             </div>
-            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            <div className="mt-1 flex flex-wrap gap-1.5">
               <FreshnessBadge label="Mã" freshness={tickerResolutionTopic.freshness} />
-              <FreshnessBadge label="DataHub" freshness={workbenchTopic.freshness} />
-              <FreshnessBadge label="Giá realtime" freshness={realtimeTopic.freshness} />
-              <FreshnessBadge label="Lịch sử hỏi" freshness={recentResearchTopic.freshness} />
+              <FreshnessBadge label="Phân tích" freshness={workbenchTopic.freshness} />
+              <FreshnessBadge label="Giá" freshness={realtimeTopic.freshness} />
+              <FreshnessBadge label="Sổ lệnh" freshness={depthTopic.freshness} />
             </div>
           </div>
-          <button
-            onClick={() => {
-              void tickerResolutionTopic.refresh(true);
-              void workbenchTopic.refresh(true);
-              void realtimeTopic.refresh(true);
-              void historicalTopic.refresh(true);
-              void holdingTopic.refresh(true);
-              void recentResearchTopic.refresh(true);
-            }}
-            className="inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-semibold"
-            style={{ borderColor: "var(--border)", color: "var(--text-secondary)", background: "var(--surface)" }}
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${workbenchTopic.isValidating || realtimeTopic.isValidating ? "animate-spin" : ""}`} />
-            Làm mới
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <form onSubmit={handleSearch} className="flex gap-2">
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value.toUpperCase())}
+                className="w-36 rounded-lg border px-3 py-2 text-sm font-bold outline-none"
+                style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--text-primary)" }}
+                aria-label="Tìm mã cổ phiếu"
+              />
+              <button type="submit" className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold" style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--text-secondary)" }}>
+                <Search className="h-4 w-4" />
+                Tìm
+              </button>
+            </form>
+            <button onClick={refreshAll} className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold" style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--text-secondary)" }}>
+              <RefreshCw className={`h-4 w-4 ${workbenchTopic.isValidating || realtimeTopic.isValidating ? "animate-spin" : ""}`} />
+              Làm mới
+            </button>
+          </div>
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-3">
-          <section className="space-y-4 xl:col-span-2">
-            {tickerResolutionTopic.isLoading ? (
-              <div className="rounded-2xl border p-4 text-sm" style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--text-secondary)" }}>
-                Đang xác thực mã cổ phiếu trong toàn thị trường...
-              </div>
-            ) : null}
+        {!tickerResolutionTopic.isLoading && !isTickerValid ? (
+          <div className="rounded-xl border p-4 text-sm" style={{ borderColor: "var(--danger)", background: "rgba(192,57,43,0.08)", color: "var(--text-primary)" }}>
+            Mã <strong>{ticker}</strong> không hợp lệ hoặc chưa có trong dữ liệu thị trường hiện tại.
+          </div>
+        ) : null}
 
-            {!tickerResolutionTopic.isLoading && !isTickerValid ? (
-              <div className="rounded-2xl border p-4 text-sm" style={{ borderColor: "var(--danger)", background: "rgba(192,57,43,0.08)", color: "var(--text-primary)" }}>
-                Mã <strong>{ticker}</strong> không hợp lệ hoặc chưa có trong dữ liệu thị trường hiện tại.
-                <br />
-                Hệ thống đã chặn render ADN Stock để tránh sai dữ liệu.
-              </div>
-            ) : null}
-
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <section className="space-y-4">
             {isTickerValid ? (
-              <div className="rounded-2xl border p-3" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-                {historicalTopic.isLoading && historicalCandles.length === 0 ? (
-                  <div className="flex h-[320px] items-center justify-center rounded-xl bg-[var(--surface-2)] text-sm md:h-[500px]" style={{ color: "var(--text-secondary)" }}>
-                    Đang tải biểu đồ từ DataHub...
-                  </div>
-                ) : (
-                  <StockChart symbol={resolvedTicker} candles={historicalCandles} sourceLabel="DataHub" />
-                )}
-              </div>
-            ) : null}
-
-            {isTickerValid ? <ActionSummaryCard summary={actionSummary} /> : null}
-
-            {isTickerValid ? (
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                <InfoItem label="Giá hiện tại" value={fmtValue(realtimePrice)} />
-                <InfoItem label="Biến động" value={fmtPercent(realtimeChangePct)} />
-                <InfoItem label="RSI14" value={fmtValue(ta?.rsi14)} />
-                <InfoItem label="Tín hiệu" value={signal?.status ?? "--"} />
-              </div>
-            ) : null}
-
-            <RecentResearchPanel
-              activeTicker={resolvedTicker}
-              payload={recentResearchTopic.data}
-              isLoading={recentResearchTopic.isLoading}
-            />
-
-            {isTickerValid ? <WorkbenchTabs tab={tab} setTab={setTab} /> : null}
-
-            {isTickerValid ? (
-              <div className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
-                {workbenchTopic.isLoading && !workbench ? (
-                  <div className="space-y-2">
-                    <div className="h-6 w-1/2 animate-pulse rounded bg-[var(--surface-2)]" />
-                    <div className="h-24 animate-pulse rounded bg-[var(--surface-2)]" />
-                  </div>
-                ) : tab === "overview" ? (
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <InfoItem label="VNINDEX" value={fmtValue(workbench?.market?.vnindex?.value)} />
-                    <InfoItem label="VN30" value={fmtValue(workbench?.market?.vn30?.value)} />
-                    <InfoItem label="Thanh khoản" value={fmtValue(workbench?.market?.liquidity?.total)} />
-                    <InfoItem
-                      label="Độ rộng"
-                      value={`${workbench?.market?.breadth?.up ?? 0}/${workbench?.market?.breadth?.down ?? 0}/${workbench?.market?.breadth?.unchanged ?? 0}`}
-                    />
-                  </div>
-                ) : tab === "ta" ? (
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <InfoItem label="EMA10" value={fmtValue(ta?.ema10)} />
-                    <InfoItem label="EMA20" value={fmtValue(ta?.ema20)} />
-                    <InfoItem label="EMA30" value={fmtValue(ta?.ema30)} />
-                    <InfoItem label="EMA50" value={fmtValue(ta?.ema50)} />
-                    <InfoItem label="Volume MA20" value={fmtValue(ta?.avgVolume20)} />
-                    <InfoItem label="Nguồn" value={ta?.source ?? "--"} />
-                  </div>
-                ) : tab === "fa" ? (
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <InfoItem label="P/E" value={fmtValue(fa?.pe)} />
-                    <InfoItem label="P/B" value={fmtValue(fa?.pb)} />
-                    <InfoItem label="EPS" value={fmtValue(fa?.eps)} />
-                    <InfoItem label="ROE" value={fmtPercent(fa?.roe)} />
-                    <InfoItem label="ROA" value={fmtPercent(fa?.roa)} />
-                    <InfoItem label="Nguồn" value={fa?.source ?? "--"} />
-                  </div>
-                ) : tab === "sentiment" ? (
-                  <div className="space-y-3">
-                    <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-                      Dòng tiền và tâm lý realtime của {resolvedTicker}.
-                    </p>
-                    <JsonPanel value={investorData} />
-                  </div>
-                ) : tab === "news" ? (
-                  <div className="space-y-2">
-                    {news.length === 0 ? (
-                      <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                        Chưa có bản tin mới cho mã này.
-                      </p>
-                    ) : (
-                      news.slice(0, 8).map((item, idx) => (
-                        <div
-                          key={`${item.title ?? "news"}-${idx}`}
-                          className="rounded-xl border p-3"
-                          style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
-                        >
-                          <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-                            {item.title ?? "Tin tức thị trường"}
-                          </p>
-                          {item.summary ? (
-                            <p className="mt-1 text-xs" style={{ color: "var(--text-secondary)" }}>
-                              {item.summary}
-                            </p>
-                          ) : null}
-                          <p className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
-                            {(item.source ?? "Nguồn tổng hợp")} · {(item.time ?? item.published_at ?? "").toString()}
-                          </p>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                ) : tab === "seasonality" ? (
-                  <div className="grid gap-3 md:grid-cols-3">
-                    <InfoItem label="Winrate" value={fmtPercent(seasonality?.winRate)} />
-                    <InfoItem label="Sharpe" value={fmtValue(seasonality?.sharpeRatio)} />
-                    <InfoItem label="R/R" value={fmtValue(seasonality?.rrRatio)} />
-                  </div>
-                ) : tab === "signal" ? (
-                  <div className="space-y-3">
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <InfoItem label="Trạng thái" value={signal?.status ?? "--"} />
-                      <InfoItem label="Loại tín hiệu" value={signal?.type ?? "--"} />
-                      <InfoItem label="Giá kích hoạt" value={fmtValue(signal?.entryPrice)} />
-                      <InfoItem label="Giá hiện tại" value={fmtValue(signal?.currentPrice ?? realtimePrice)} />
-                      <InfoItem label="Mục tiêu" value={fmtValue(signal?.target)} />
-                      <InfoItem label="Cắt lỗ" value={fmtValue(signal?.stoploss)} />
-                      <InfoItem label="P/L" value={fmtPercent(signal?.currentPnl)} />
-                      <InfoItem label="Winrate/RR" value={`${fmtPercent(signal?.winRate)} / ${fmtValue(signal?.rrRatio)}`} />
-                    </div>
-                    {signal?.aiReasoning ? (
-                      <div
-                        className="rounded-xl border p-3 text-sm leading-relaxed"
-                        style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
-                      >
-                        {signal.aiReasoning}
-                      </div>
-                    ) : null}
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {!holding ? (
-                      <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                        Nhà đầu tư chưa có vị thế ACTIVE trùng mã {resolvedTicker}.
-                      </p>
-                    ) : (
-                      <div
-                        className="grid gap-3 rounded-xl border p-3 md:grid-cols-2"
-                        style={{ borderColor: "var(--border)" }}
-                      >
-                        <InfoItem label="Giá vốn" value={fmtValue(holding.entryPrice)} />
-                        <InfoItem label="Giá hiện tại" value={fmtValue(holding.currentPrice ?? realtimePrice)} />
-                        <InfoItem label="P/L" value={fmtPercent(holding.pnlPercent)} />
-                        <InfoItem label="NAV" value={`${fmtValue(holding.navAllocation)}%`} />
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+              <>
+                <StockChart
+                  symbol={resolvedTicker}
+                  candles={chartCandles}
+                  sourceLabel="ADN Stock"
+                  timeframe={timeframe}
+                  onTimeframeChange={setTimeframe}
+                />
+                <StockOverviewPanel workbench={workbench ?? null} realtimePrice={realtimePrice} realtimeChangePct={realtimeChangePct} />
+                <div className="grid gap-4 2xl:grid-cols-[420px_minmax(0,1fr)]">
+                  <OrderBookPanel depth={depthTopic.data} loading={depthTopic.isLoading} />
+                  <WatchlistBoard
+                    items={watchlist}
+                    board={boardTopic.data}
+                    onAdd={addWatchlist}
+                    onRemove={removeWatchlist}
+                    onMove={moveWatchlist}
+                    onOpen={(next) => router.push(`/stock/${next}`)}
+                  />
+                </div>
+              </>
             ) : null}
           </section>
-
-          <div className="space-y-4">
-            <AidenPanel
-              ticker={resolvedTicker}
-              messages={messages}
-              input={input}
-              setInput={setInput}
-              onSend={handleSend}
-              loading={chatLoading}
-            />
-          </div>
+          <AidenPanel ticker={resolvedTicker} messages={messages} input={input} setInput={setInput} onSend={handleSend} loading={chatLoading} />
         </div>
       </div>
     </MainLayout>

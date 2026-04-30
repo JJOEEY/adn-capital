@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
-import { fetchRealtimeTradingData } from "@/lib/fiinquantClient";
+import { fetchMarketBoard, fetchMarketDepth, fetchRealtimeTradingData } from "@/lib/fiinquantClient";
 import { getMarketSnapshot } from "@/lib/marketDataFetcher";
 import { prisma } from "@/lib/prisma";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
-import { fetchFAData, fetchTAData } from "@/lib/stockData";
+import { fetchFAData, fetchTAData, type FAData, type TAData } from "@/lib/stockData";
 import { resolveMarketTicker } from "@/lib/ticker-resolver";
 import { listDnseOrderHistory } from "@/lib/brokers/dnse/order-history";
 import { decryptDnseToken } from "@/lib/brokers/dnse/crypto";
@@ -197,6 +197,37 @@ async function assertValidTicker(ticker: string) {
   return resolved;
 }
 
+const REALTIME_TIMEFRAMES = new Set(["1m", "5m", "15m", "30m"]);
+
+function normalizeBoardTickers(raw: string) {
+  return Array.from(
+    new Set(
+      raw
+        .split(",")
+        .map((ticker) => ticker.trim().toUpperCase().replace(/[^A-Z0-9._-]/g, ""))
+        .filter(Boolean),
+    ),
+  ).slice(0, 50);
+}
+
+async function loadMarketBoardForTickers(rawTickers: string) {
+  const candidates = normalizeBoardTickers(rawTickers);
+  const resolved = await Promise.all(
+    candidates.map(async (ticker) => {
+      const result = await resolveMarketTicker(ticker);
+      return result.valid ? result.ticker : null;
+    }),
+  );
+  const tickers = Array.from(new Set(resolved.filter((ticker): ticker is string => Boolean(ticker))));
+  const board = await fetchMarketBoard(tickers);
+  return {
+    tickers,
+    prices: board?.prices ?? {},
+    source: "VNStock price_board via FiinQuant Bridge",
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 async function loadSignalList(status: "RADAR" | "ACTIVE") {
   const rows = await prisma.signal.findMany({
     where: { status },
@@ -310,18 +341,30 @@ async function loadWatchlistForUser(userId: string) {
 }
 
 async function loadSeasonalityForTicker(ticker: string) {
-  const row = await prisma.signal.findFirst({
-    where: { ticker },
-    orderBy: { updatedAt: "desc" },
-    select: {
-      ticker: true,
-      winRate: true,
-      sharpeRatio: true,
-      rrRatio: true,
-      updatedAt: true,
-      createdAt: true,
-    },
-  });
+  let row: {
+    ticker: string;
+    winRate: number | null;
+    sharpeRatio: number | null;
+    rrRatio: string | null;
+    updatedAt: Date;
+    createdAt: Date;
+  } | null = null;
+  try {
+    row = await prisma.signal.findFirst({
+      where: { ticker },
+      orderBy: { updatedAt: "desc" },
+      select: {
+        ticker: true,
+        winRate: true,
+        sharpeRatio: true,
+        rrRatio: true,
+        updatedAt: true,
+        createdAt: true,
+      },
+    });
+  } catch (error) {
+    console.warn("[DataHub research] optional seasonality Signal unavailable:", error);
+  }
   if (!row) return null;
   return {
     ticker: row.ticker,
@@ -357,14 +400,19 @@ async function loadSignalForTicker(ticker: string) {
 }
 
 async function loadTickerNews(ticker: string) {
-  const backend = getPythonBridgeUrl();
-  const res = await fetch(`${backend}/api/v1/news/${encodeURIComponent(ticker)}?limit=6`, {
-    cache: "no-store",
-    signal: AbortSignal.timeout(20_000),
-  });
-  if (!res.ok) return [];
-  const payload = (await res.json()) as { items?: JsonRecord[]; news?: JsonRecord[] };
-  return Array.isArray(payload.items) ? payload.items : Array.isArray(payload.news) ? payload.news : [];
+  try {
+    const backend = getPythonBridgeUrl();
+    const res = await fetch(`${backend}/api/v1/news/${encodeURIComponent(ticker)}?limit=6`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!res.ok) return [];
+    const payload = (await res.json()) as { items?: JsonRecord[]; news?: JsonRecord[] };
+    return Array.isArray(payload.items) ? payload.items : Array.isArray(payload.news) ? payload.news : [];
+  } catch (error) {
+    console.warn("[DataHub research] optional ticker news unavailable:", error);
+    return [];
+  }
 }
 
 async function loadLeaderRadar() {
@@ -398,7 +446,7 @@ async function loadHistoricalTicker(ticker: string) {
 }
 
 async function loadAiCachesForTicker(ticker: string) {
-  const [insight, ta, fa, tamly] = await Promise.all([
+  const [insight, ta, fa, tamly, chat] = await Promise.all([
     prisma.aiInsightCache.findMany({
       where: { ticker },
       orderBy: { updatedAt: "desc" },
@@ -432,6 +480,18 @@ async function loadAiCachesForTicker(ticker: string) {
       console.warn("[DataHub research] optional AiTamlyCache unavailable:", error);
       return null;
     }),
+    prisma.chat.findMany({
+      where: {
+        role: "assistant",
+        message: { contains: ticker },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 8,
+      select: { message: true, createdAt: true },
+    }).catch((error) => {
+      console.warn("[DataHub research] optional Chat history unavailable:", error);
+      return [];
+    }),
   ]);
 
   return {
@@ -439,23 +499,152 @@ async function loadAiCachesForTicker(ticker: string) {
     ta,
     fa,
     tamly,
+    chat,
   };
 }
 
-async function loadResearchWorkbench(topicKey: string) {
-  const ticker = tickerFromTopic(topicKey, "research:workbench:");
-  if (!ticker) throw new Error("Invalid ticker");
-  const resolved = await assertValidTicker(ticker);
-  const normalizedTicker = resolved.ticker;
+function parseMetricNumber(raw: string) {
+  const cleaned = raw
+    .replace(/[^\d,.-]/g, "")
+    .replace(/^-+$/, "")
+    .trim();
+  if (!cleaned) return null;
 
-  const [ta, fa, seasonality, investor, marketSnapshot, activeSignal, news, aiCaches] = await Promise.all([
-    fetchTAData(normalizedTicker),
-    fetchFAData(normalizedTicker),
-    loadSeasonalityForTicker(normalizedTicker),
-    fetchRealtimeTradingData(normalizedTicker, "5m"),
-    getMarketSnapshot(),
-    prisma.signal.findFirst({
-      where: { ticker: normalizedTicker, status: { in: ["RADAR", "ACTIVE"] } },
+  const lastComma = cleaned.lastIndexOf(",");
+  const lastDot = cleaned.lastIndexOf(".");
+  let normalized = cleaned;
+
+  if (lastComma >= 0 && lastDot >= 0) {
+    const decimalSeparator = lastComma > lastDot ? "," : ".";
+    normalized =
+      decimalSeparator === ","
+        ? cleaned.replace(/\./g, "").replace(",", ".")
+        : cleaned.replace(/,/g, "");
+  } else if (lastComma >= 0) {
+    const digitsAfter = cleaned.length - lastComma - 1;
+    normalized = digitsAfter <= 2 ? cleaned.replace(",", ".") : cleaned.replace(/,/g, "");
+  } else if (lastDot >= 0) {
+    const digitsAfter = cleaned.length - lastDot - 1;
+    normalized = digitsAfter === 3 ? cleaned.replace(/\./g, "") : cleaned;
+  }
+
+  const value = Number(normalized);
+  return Number.isFinite(value) ? value : null;
+}
+
+function extractMetric(text: string, labels: string[]) {
+  for (const label of labels) {
+    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const patterns = [
+      new RegExp(`${escaped}\\s*(?:\\([^)]*\\))?\\s*(?:[:=]|la|dat|o muc|quanh)?\\s*\\(?\\s*(-?\\d[\\d.,]*)`, "i"),
+      new RegExp(`${escaped}[^\\d\\n]{0,32}(-?\\d[\\d.,]*)`, "i"),
+    ];
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (match?.[1]) {
+        const value = parseMetricNumber(match[1]);
+        if (value != null) return value;
+      }
+    }
+  }
+  return null;
+}
+
+function extractReportPeriod(text: string) {
+  const quarter = text.match(/\bQ([1-4])\s*[/-]\s*(20\d{2})\b/i);
+  if (quarter) return `Q${quarter[1]}/${quarter[2]}`;
+  const vnQuarter = text.match(/\bqu[yý]\s*([1-4])\s*[/-]?\s*(20\d{2})\b/i);
+  if (vnQuarter) return `Q${vnQuarter[1]}/${vnQuarter[2]}`;
+  return null;
+}
+
+function extractRecentFAFromText(ticker: string, text: string, ta: TAData | null): FAData | null {
+  const pe = extractMetric(text, ["P/E", "PE", "PER"]);
+  const pb = extractMetric(text, ["P/B", "PB", "PBR"]);
+  const eps = extractMetric(text, ["EPS", "Earning per share"]);
+  const bookValuePerShare = extractMetric(text, ["BVPS", "Book value per share", "Book value", "Gia tri so sach"]);
+  const roe = extractMetric(text, ["ROE"]);
+  const roa = extractMetric(text, ["ROA"]);
+  const revenueGrowthYoY = extractMetric(text, ["Doanh thu YoY", "Revenue YoY", "Revenue growth"]);
+  const profitGrowthYoY = extractMetric(text, ["Loi nhuan YoY", "Lợi nhuận YoY", "Profit YoY", "Profit growth"]);
+  const computedPe = pe ?? (ta?.currentPrice && eps && eps > 0 ? Number((ta.currentPrice / eps).toFixed(2)) : null);
+  const computedPb = pb ?? (ta?.currentPrice && bookValuePerShare && bookValuePerShare > 0 ? Number((ta.currentPrice / bookValuePerShare).toFixed(2)) : null);
+
+  if (computedPe == null && computedPb == null && eps == null && bookValuePerShare == null && roe == null && roa == null) return null;
+
+  return {
+    ticker,
+    pe: computedPe,
+    pb: computedPb,
+    eps,
+    bookValuePerShare,
+    roe,
+    roa,
+    revenueLastQ: null,
+    profitLastQ: null,
+    revenueGrowthYoY,
+    profitGrowthYoY,
+    reportDate: extractReportPeriod(text),
+    valuationBasis: pe != null || pb != null ? "latest_period" : "computed_from_latest_price",
+    source: "recent-analysis-cache",
+  };
+}
+
+function buildRecentFAText(aiCaches: Awaited<ReturnType<typeof loadAiCachesForTicker>>) {
+  const parts: string[] = [];
+  if (aiCaches.fa?.analysis) parts.push(aiCaches.fa.analysis);
+  for (const item of aiCaches.insight ?? []) {
+    if (["PTCB", "FA", "OVERVIEW"].includes(String(item.tabType ?? "").toUpperCase()) && item.content) {
+      parts.push(item.content);
+    }
+  }
+  for (const item of aiCaches.chat ?? []) {
+    if (item.message) parts.push(item.message);
+  }
+  return parts.join("\n\n");
+}
+
+function hydrateFAFromRecentAnalysis(
+  ticker: string,
+  fa: FAData | null,
+  aiCaches: Awaited<ReturnType<typeof loadAiCachesForTicker>>,
+  ta: TAData | null,
+) {
+  const cachedFA = extractRecentFAFromText(ticker, buildRecentFAText(aiCaches), ta);
+  if (!cachedFA) return fa;
+
+  return {
+    ...cachedFA,
+    ...fa,
+    pe: fa?.pe ?? cachedFA.pe,
+    pb: fa?.pb ?? cachedFA.pb,
+    eps: fa?.eps ?? cachedFA.eps,
+    bookValuePerShare: fa?.bookValuePerShare ?? cachedFA.bookValuePerShare,
+    roe: fa?.roe ?? cachedFA.roe,
+    roa: fa?.roa ?? cachedFA.roa,
+    revenueLastQ: fa?.revenueLastQ ?? cachedFA.revenueLastQ,
+    profitLastQ: fa?.profitLastQ ?? cachedFA.profitLastQ,
+    revenueGrowthYoY: fa?.revenueGrowthYoY ?? cachedFA.revenueGrowthYoY,
+    profitGrowthYoY: fa?.profitGrowthYoY ?? cachedFA.profitGrowthYoY,
+    reportDate: fa?.reportDate ?? cachedFA.reportDate,
+    valuationBasis: fa?.valuationBasis ?? cachedFA.valuationBasis,
+    source: fa?.source ?? cachedFA.source,
+  };
+}
+
+async function loadHydratedFAData(ticker: string) {
+  const [ta, fa, aiCaches] = await Promise.all([
+    fetchTAData(ticker),
+    fetchFAData(ticker),
+    loadAiCachesForTicker(ticker),
+  ]);
+  return hydrateFAFromRecentAnalysis(ticker, fa, aiCaches, ta);
+}
+
+async function loadOptionalWorkbenchSignal(ticker: string) {
+  try {
+    return await prisma.signal.findFirst({
+      where: { ticker, status: { in: ["RADAR", "ACTIVE"] } },
       orderBy: { updatedAt: "desc" },
       select: {
         id: true,
@@ -473,10 +662,30 @@ async function loadResearchWorkbench(topicKey: string) {
         rrRatio: true,
         updatedAt: true,
       },
-    }),
+    });
+  } catch (error) {
+    console.warn("[DataHub research] optional Signal unavailable:", error);
+    return null;
+  }
+}
+
+async function loadResearchWorkbench(topicKey: string) {
+  const ticker = tickerFromTopic(topicKey, "research:workbench:");
+  if (!ticker) throw new Error("Invalid ticker");
+  const resolved = await assertValidTicker(ticker);
+  const normalizedTicker = resolved.ticker;
+
+  const [ta, faRaw, seasonality, investor, marketSnapshot, activeSignal, news, aiCaches] = await Promise.all([
+    fetchTAData(normalizedTicker),
+    fetchFAData(normalizedTicker),
+    loadSeasonalityForTicker(normalizedTicker),
+    fetchRealtimeTradingData(normalizedTicker, "5m"),
+    getMarketSnapshot(),
+    loadOptionalWorkbenchSignal(normalizedTicker),
     loadTickerNews(normalizedTicker),
     loadAiCachesForTicker(normalizedTicker),
   ]);
+  const fa = hydrateFAFromRecentAnalysis(normalizedTicker, faRaw, aiCaches, ta);
 
   return {
     ticker: normalizedTicker,
@@ -1721,7 +1930,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     },
     resolve: async (_, __, params) => {
       const resolved = await assertValidTicker(params.ticker);
-      return fetchFAData(resolved.ticker);
+      return loadHydratedFAData(resolved.ticker);
     },
   },
   {
@@ -1741,19 +1950,51 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     },
   },
   {
-    id: "vn:realtime:{ticker}:5m",
+    id: "vn:realtime:{ticker}:{timeframe}",
     ttlMs: 60_000,
-    minIntervalMs: 10_000,
+    minIntervalMs: 5_000,
     source: "fiinquant",
     version: "v1",
     tags: ["research", "realtime", "market"],
     match: (topicKey) => {
-      const match = topicKey.match(/^vn:realtime:([A-Z0-9._-]{1,12}):5m$/);
+      const match = topicKey.match(/^vn:realtime:([A-Z0-9._-]{1,12}):(1m|5m|15m|30m)$/);
+      return match ? { ok: true, params: { ticker: match[1], timeframe: match[2] } } : { ok: false };
+    },
+    resolve: async (_, __, params) => {
+      const resolved = await assertValidTicker(params.ticker);
+      const timeframe = REALTIME_TIMEFRAMES.has(params.timeframe) ? params.timeframe : "5m";
+      return fetchRealtimeTradingData(resolved.ticker, timeframe);
+    },
+  },
+  {
+    id: "vn:depth:{ticker}",
+    ttlMs: 10_000,
+    minIntervalMs: 5_000,
+    source: "fiinquant:vnstock-price-board",
+    version: "v1",
+    tags: ["research", "depth", "orderbook", "market"],
+    match: (topicKey) => {
+      const match = topicKey.match(/^vn:depth:([A-Z0-9._-]{1,12})$/);
       return match ? { ok: true, params: { ticker: match[1] } } : { ok: false };
     },
     resolve: async (_, __, params) => {
       const resolved = await assertValidTicker(params.ticker);
-      return fetchRealtimeTradingData(resolved.ticker, "5m");
+      return fetchMarketDepth(resolved.ticker);
+    },
+  },
+  {
+    id: "vn:board:{tickers}",
+    ttlMs: 10_000,
+    minIntervalMs: 5_000,
+    source: "fiinquant:vnstock-price-board",
+    version: "v1",
+    tags: ["watchlist", "board", "market"],
+    match: (topicKey) => {
+      const match = topicKey.match(/^vn:board:([A-Z0-9._,-]{1,300})$/);
+      return match ? { ok: true, params: { tickers: match[1] } } : { ok: false };
+    },
+    resolve: async (_, __, params) => {
+      return loadMarketBoardForTickers(params.tickers);
     },
   },
   {

@@ -1,4 +1,5 @@
-const DEFAULT_PYTHON_BRIDGE_URL = "http://fiinquant:8000";
+const DEFAULT_PYTHON_BRIDGE_URL =
+  process.env.NODE_ENV === "production" ? "http://fiinquant:8000" : "http://127.0.0.1:8000";
 
 export function getPythonBridgeUrl(): string {
   const raw =
@@ -15,4 +16,3 @@ export function getDatabaseUrlContract() {
     direct: process.env.DIRECT_DATABASE_URL ?? "",
   };
 }
-

@@ -1,16 +1,36 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { PointerEvent, ReactNode } from "react";
+import {
+  Eye,
+  EyeOff,
+  GitGraph,
+  Lock,
+  LockOpen,
+  Minus,
+  MousePointer2,
+  RectangleHorizontal,
+  Rows3,
+  Slash,
+  Trash2,
+  Type,
+  Undo2,
+} from "lucide-react";
 import { useTheme } from "@/components/providers/ThemeProvider";
+
+export type ChartTimeframe = "1m" | "5m" | "15m" | "30m" | "1D";
 
 interface StockChartProps {
   symbol: string;
   exchange?: string;
   candles?: Candle[];
   sourceLabel?: string;
+  timeframe?: ChartTimeframe;
+  onTimeframeChange?: (timeframe: ChartTimeframe) => void;
 }
 
-interface Candle {
+export interface Candle {
   time: number;
   open: number;
   high: number;
@@ -19,8 +39,17 @@ interface Candle {
   volume: number;
 }
 
-const CHART_HEIGHT_MOBILE = 320;
-const CHART_HEIGHT_DESKTOP = 500;
+type DrawingTool = "cursor" | "trend" | "hline" | "vline" | "zone" | "fib" | "text";
+type Drawing = {
+  id: string;
+  tool: Exclude<DrawingTool, "cursor">;
+  points: Array<{ x: number; y: number }>;
+  text?: string;
+};
+
+const CHART_HEIGHT_MOBILE = 360;
+const CHART_HEIGHT_DESKTOP = 560;
+const TIMEFRAMES: ChartTimeframe[] = ["1m", "5m", "15m", "30m", "1D"];
 
 function getChartHeight() {
   return typeof window !== "undefined" && window.innerWidth >= 768
@@ -28,12 +57,117 @@ function getChartHeight() {
     : CHART_HEIGHT_MOBILE;
 }
 
-export function StockChart({ symbol, exchange = "HOSE", candles, sourceLabel }: StockChartProps) {
+function calcEMA(data: Array<{ time: number; close: number }>, period: number) {
+  const emaData: { time: number; value: number }[] = [];
+  const k = 2 / (period + 1);
+  let ema = 0;
+  for (let i = 0; i < data.length; i += 1) {
+    if (i < period - 1) {
+      ema += data[i].close / period;
+      continue;
+    }
+    if (i === period - 1) {
+      ema += data[i].close / period;
+      emaData.push({ time: data[i].time, value: ema });
+      continue;
+    }
+    ema = data[i].close * k + ema * (1 - k);
+    emaData.push({ time: data[i].time, value: ema });
+  }
+  return emaData;
+}
+
+function sanitizeCandles(candles?: Candle[]) {
+  return (candles ?? [])
+    .filter((c) => Number.isFinite(c.time) && Number.isFinite(c.open) && Number.isFinite(c.high) && Number.isFinite(c.low) && Number.isFinite(c.close))
+    .sort((a, b) => a.time - b.time)
+    .filter((c, index, all) => index === 0 || c.time !== all[index - 1].time);
+}
+
+function pointFromEvent(event: PointerEvent<SVGSVGElement>) {
+  const rect = event.currentTarget.getBoundingClientRect();
+  return {
+    x: Math.max(0, Math.min(100, ((event.clientX - rect.left) / rect.width) * 100)),
+    y: Math.max(0, Math.min(100, ((event.clientY - rect.top) / rect.height) * 100)),
+  };
+}
+
+function drawingPath(drawing: Drawing) {
+  const [a, b] = drawing.points;
+  if (!a) return null;
+  if (drawing.tool === "hline") return { x1: 0, y1: a.y, x2: 100, y2: a.y };
+  if (drawing.tool === "vline") return { x1: a.x, y1: 0, x2: a.x, y2: 100 };
+  if (!b) return null;
+  return { x1: a.x, y1: a.y, x2: b.x, y2: b.y };
+}
+
+function ToolButton({
+  active,
+  label,
+  onClick,
+  children,
+}: {
+  active?: boolean;
+  label: string;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border transition-colors"
+      style={{
+        borderColor: active ? "var(--primary)" : "var(--border)",
+        background: active ? "var(--primary-light)" : "var(--surface)",
+        color: active ? "var(--primary)" : "var(--text-secondary)",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+export function StockChart({
+  symbol,
+  exchange = "HOSE",
+  candles,
+  sourceLabel,
+  timeframe = "1D",
+  onTimeframeChange,
+}: StockChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
+  const pendingPointRef = useRef<{ x: number; y: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeTool, setActiveTool] = useState<DrawingTool>("cursor");
+  const [drawings, setDrawings] = useState<Drawing[]>([]);
+  const [drawingsHidden, setDrawingsHidden] = useState(false);
+  const [drawingsLocked, setDrawingsLocked] = useState(false);
   const { theme } = useTheme();
   const isDark = theme === "dark";
+  const chartCandles = useMemo(() => sanitizeCandles(candles), [candles]);
+  const storageKey = `adn-chart-drawings:${symbol}:${timeframe}`;
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(storageKey);
+      setDrawings(raw ? JSON.parse(raw) : []);
+    } catch {
+      setDrawings([]);
+    }
+    pendingPointRef.current = null;
+  }, [storageKey]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify(drawings));
+    } catch {
+      // Local persistence is best-effort only.
+    }
+  }, [drawings, storageKey]);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -46,14 +180,14 @@ export function StockChart({ symbol, exchange = "HOSE", candles, sourceLabel }: 
         setLoading(true);
         setError(null);
 
-        let chartCandles = candles;
-        if (!chartCandles) {
+        let nextCandles = chartCandles;
+        if (!nextCandles.length && timeframe === "1D") {
           const res = await fetch(`/api/chart?symbol=${symbol}`);
-          if (!res.ok) throw new Error("Không tải được dữ liệu");
+          if (!res.ok) throw new Error("Không tải được dữ liệu chart");
           const payload = (await res.json()) as { candles: Candle[] };
-          chartCandles = payload.candles;
+          nextCandles = sanitizeCandles(payload.candles);
         }
-        if (!chartCandles?.length) throw new Error("Không có dữ liệu");
+        if (!nextCandles.length) throw new Error("Biểu đồ đang cập nhật dữ liệu cho khung này");
         if (disposed) return;
 
         const {
@@ -88,7 +222,8 @@ export function StockChart({ symbol, exchange = "HOSE", candles, sourceLabel }: 
           },
           timeScale: {
             borderColor: isDark ? "#223328" : "#d6cdbb",
-            timeVisible: false,
+            timeVisible: timeframe !== "1D",
+            secondsVisible: timeframe === "1m",
           },
         });
 
@@ -101,7 +236,7 @@ export function StockChart({ symbol, exchange = "HOSE", candles, sourceLabel }: 
           wickDownColor: "#ef4444",
         });
 
-        const chartData = chartCandles.map((c) => ({
+        const chartData = nextCandles.map((c) => ({
           time: c.time as number,
           open: c.open,
           high: c.high,
@@ -114,70 +249,33 @@ export function StockChart({ symbol, exchange = "HOSE", candles, sourceLabel }: 
           priceFormat: { type: "volume" },
           priceScaleId: "volume",
         });
-
-        chart.priceScale("volume").applyOptions({
-          scaleMargins: { top: 0.8, bottom: 0 },
-        });
-
-        const volumeData = chartCandles.map((c) => ({
+        chart.priceScale("volume").applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
+        volumeSeries.setData(nextCandles.map((c) => ({
           time: c.time as number,
           value: c.volume,
           color: c.close >= c.open ? "rgba(16,185,129,0.35)" : "rgba(239,68,68,0.35)",
-        }));
-        volumeSeries.setData(volumeData as any);
+        })) as any);
 
-        const ema10Series = chart.addSeries(LineSeries, {
-          color: "#f59e0b",
-          lineWidth: 1,
-          title: "EMA10",
-        });
-        const ema30Series = chart.addSeries(LineSeries, {
-          color: "#8b5cf6",
-          lineWidth: 1,
-          title: "EMA30",
-        });
+        chart.addSeries(LineSeries, { color: "#f59e0b", lineWidth: 1, title: "EMA10" })
+          .setData(calcEMA(chartData, 10) as any);
+        chart.addSeries(LineSeries, { color: "#8b5cf6", lineWidth: 1, title: "EMA30" })
+          .setData(calcEMA(chartData, 30) as any);
 
-        function calcEMA(data: typeof chartData, period: number) {
-          const emaData: { time: number; value: number }[] = [];
-          const k = 2 / (period + 1);
-          let ema = 0;
-          for (let i = 0; i < data.length; i += 1) {
-            if (i < period - 1) {
-              ema += data[i].close / period;
-              continue;
-            }
-            if (i === period - 1) {
-              ema += data[i].close / period;
-              emaData.push({ time: data[i].time as number, value: ema });
-              continue;
-            }
-            ema = data[i].close * k + ema * (1 - k);
-            emaData.push({ time: data[i].time as number, value: ema });
-          }
-          return emaData;
-        }
-
-        ema10Series.setData(calcEMA(chartData, 10) as any);
-        ema30Series.setData(calcEMA(chartData, 30) as any);
         chart.timeScale().fitContent();
-
         const observer = new ResizeObserver(() => {
-          if (container.clientWidth > 0) {
-            chart.applyOptions({ width: container.clientWidth });
-          }
+          if (container.clientWidth > 0) chart.applyOptions({ width: container.clientWidth });
         });
         observer.observe(container);
-
         setLoading(false);
 
         return () => {
           observer.disconnect();
           chart.remove();
         };
-      } catch (err: any) {
+      } catch (err) {
         if (!disposed) {
           if (chartContainerRef.current) chartContainerRef.current.innerHTML = "";
-          setError(err?.message || "Lỗi tải chart");
+          setError(err instanceof Error ? err.message : "Lỗi tải chart");
           setLoading(false);
         }
       }
@@ -185,64 +283,155 @@ export function StockChart({ symbol, exchange = "HOSE", candles, sourceLabel }: 
     }
 
     void init().then((teardown) => {
-      if (disposed) {
-        teardown?.();
-        return;
-      }
-      cleanup = teardown;
+      if (disposed) teardown?.();
+      else cleanup = teardown;
     });
     return () => {
       disposed = true;
       cleanup?.();
     };
-  }, [symbol, isDark, candles]);
+  }, [symbol, isDark, timeframe, chartCandles]);
+
+  function addDrawing(point: { x: number; y: number }) {
+    if (activeTool === "cursor" || drawingsLocked) return;
+    const oneClick = activeTool === "hline" || activeTool === "vline" || activeTool === "text";
+    if (oneClick) {
+      const text = activeTool === "text" ? window.prompt("Nội dung ghi chú", "Ghi chú")?.trim() : undefined;
+      if (activeTool === "text" && !text) return;
+      setDrawings((prev) => [...prev, { id: crypto.randomUUID(), tool: activeTool, points: [point], text } as Drawing]);
+      return;
+    }
+
+    const pending = pendingPointRef.current;
+    if (!pending) {
+      pendingPointRef.current = point;
+      return;
+    }
+    setDrawings((prev) => [...prev, { id: crypto.randomUUID(), tool: activeTool, points: [pending, point] } as Drawing]);
+    pendingPointRef.current = null;
+  }
 
   return (
-    <div className="mt-3 rounded-xl overflow-hidden border" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
-      <div className="flex items-center justify-between px-3 py-2 border-b" style={{ borderColor: "var(--border)" }}>
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="text-[11px] font-bold font-mono" style={{ color: "var(--primary)" }}>
-            {symbol} — Biểu đồ kỹ thuật
+    <div className="overflow-hidden rounded-xl border" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2" style={{ borderColor: "var(--border)" }}>
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="h-2 w-2 rounded-full bg-emerald-400" />
+          <span className="truncate text-[11px] font-bold" style={{ color: "var(--primary)" }}>
+            {symbol} - Biểu đồ giao dịch
           </span>
         </div>
-        <div className="flex items-center gap-2 text-[12px] font-mono" style={{ color: "var(--text-muted)" }}>
-          <span className="text-yellow-500">━ EMA10</span>
-          <span className="text-purple-500">━ EMA30</span>
-          <span>{exchange}:{symbol}</span>
-          {sourceLabel ? <span>{sourceLabel}</span> : null}
+        <div className="flex flex-wrap items-center gap-1">
+          {TIMEFRAMES.map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => onTimeframeChange?.(item)}
+              className="rounded-md border px-2 py-1 text-[11px] font-bold"
+              style={{
+                borderColor: item === timeframe ? "var(--primary)" : "var(--border)",
+                background: item === timeframe ? "var(--primary-light)" : "var(--surface)",
+                color: item === timeframe ? "var(--primary)" : "var(--text-secondary)",
+              }}
+            >
+              {item}
+            </button>
+          ))}
+          <span className="ml-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
+            {exchange}:{symbol} {sourceLabel ? `· ${sourceLabel}` : ""}
+          </span>
         </div>
       </div>
 
-      <div ref={chartContainerRef} className="w-full" style={{ minHeight: CHART_HEIGHT_MOBILE }}>
-        {loading && !error && (
-          <div className="flex items-center justify-center h-[320px] md:h-[500px]">
-            <div className="flex flex-col items-center gap-3">
-              <div className="w-6 h-6 border-2 border-emerald-500/40 border-t-emerald-400 rounded-full animate-spin" />
-              <span className="text-xs font-mono" style={{ color: "var(--text-secondary)" }}>
-                Đang tải chart {symbol}...
-              </span>
+      <div className="flex flex-wrap items-center gap-1 border-b px-3 py-2" style={{ borderColor: "var(--border)" }}>
+        <ToolButton label="Con trỏ" active={activeTool === "cursor"} onClick={() => setActiveTool("cursor")}><MousePointer2 className="h-4 w-4" /></ToolButton>
+        <ToolButton label="Trendline" active={activeTool === "trend"} onClick={() => setActiveTool("trend")}><Slash className="h-4 w-4" /></ToolButton>
+        <ToolButton label="Đường ngang" active={activeTool === "hline"} onClick={() => setActiveTool("hline")}><Minus className="h-4 w-4" /></ToolButton>
+        <ToolButton label="Đường dọc" active={activeTool === "vline"} onClick={() => setActiveTool("vline")}><Rows3 className="h-4 w-4 rotate-90" /></ToolButton>
+        <ToolButton label="Vùng giá" active={activeTool === "zone"} onClick={() => setActiveTool("zone")}><RectangleHorizontal className="h-4 w-4" /></ToolButton>
+        <ToolButton label="Fibonacci" active={activeTool === "fib"} onClick={() => setActiveTool("fib")}><GitGraph className="h-4 w-4" /></ToolButton>
+        <ToolButton label="Ghi chú" active={activeTool === "text"} onClick={() => setActiveTool("text")}><Type className="h-4 w-4" /></ToolButton>
+        <div className="mx-1 h-6 w-px bg-[var(--border)]" />
+        <ToolButton label="Hoàn tác drawing" onClick={() => setDrawings((prev) => prev.slice(0, -1))}><Undo2 className="h-4 w-4" /></ToolButton>
+        <ToolButton label={drawingsLocked ? "Mở khóa drawing" : "Khóa drawing"} active={drawingsLocked} onClick={() => setDrawingsLocked((value) => !value)}>
+          {drawingsLocked ? <Lock className="h-4 w-4" /> : <LockOpen className="h-4 w-4" />}
+        </ToolButton>
+        <ToolButton label={drawingsHidden ? "Hiện drawing" : "Ẩn drawing"} active={drawingsHidden} onClick={() => setDrawingsHidden((value) => !value)}>
+          {drawingsHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </ToolButton>
+        <ToolButton label="Xóa tất cả drawing" onClick={() => setDrawings([])}><Trash2 className="h-4 w-4" /></ToolButton>
+      </div>
+
+      <div className="relative">
+        <div ref={chartContainerRef} className="w-full" style={{ minHeight: CHART_HEIGHT_MOBILE }}>
+          {loading && !error && (
+            <div className="flex h-[360px] items-center justify-center md:h-[560px]">
+              <div className="flex flex-col items-center gap-3">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-emerald-500/40 border-t-emerald-400" />
+                <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                  Đang tải chart {symbol}...
+                </span>
+              </div>
             </div>
-          </div>
-        )}
-        {error && (
-          <div className="flex items-center justify-center h-[320px] md:h-[500px]">
-            <div className="flex flex-col items-center gap-2 text-center px-6">
-              <svg className="w-8 h-8 text-yellow-500/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+          )}
+          {error && (
+            <div className="flex h-[360px] items-center justify-center px-6 text-center md:h-[560px]">
+              <span className="text-sm text-yellow-600">{error}</span>
+            </div>
+          )}
+        </div>
+        {!drawingsHidden && !error ? (
+          <svg
+            className="absolute inset-0 h-full w-full"
+            style={{ pointerEvents: activeTool === "cursor" || drawingsLocked ? "none" : "auto" }}
+            onPointerDown={(event) => addDrawing(pointFromEvent(event))}
+          >
+            {drawings.map((drawing) => {
+              if (drawing.tool === "zone" && drawing.points[1]) {
+                const [a, b] = drawing.points;
+                const x = Math.min(a.x, b.x);
+                const y = Math.min(a.y, b.y);
+                const width = Math.abs(a.x - b.x);
+                const height = Math.abs(a.y - b.y);
+                return <rect key={drawing.id} x={`${x}%`} y={`${y}%`} width={`${width}%`} height={`${height}%`} fill="rgba(245,158,11,0.12)" stroke="#f59e0b" strokeWidth="1.5" />;
+              }
+              if (drawing.tool === "fib" && drawing.points[1]) {
+                const [a, b] = drawing.points;
+                const levels = [0, 23.6, 38.2, 50, 61.8, 100];
+                return (
+                  <g key={drawing.id}>
+                    {levels.map((level) => {
+                      const y = a.y + ((b.y - a.y) * level) / 100;
+                      return (
+                        <g key={level}>
+                          <line x1={`${a.x}%`} y1={`${y}%`} x2={`${b.x}%`} y2={`${y}%`} stroke="#22c55e" strokeWidth="1" strokeDasharray="4 4" />
+                          <text x={`${Math.min(a.x, b.x)}%`} y={`${y}%`} fill="#22c55e" fontSize="11">{level}%</text>
+                        </g>
+                      );
+                    })}
+                  </g>
+                );
+              }
+              if (drawing.tool === "text") {
+                const [a] = drawing.points;
+                return <text key={drawing.id} x={`${a.x}%`} y={`${a.y}%`} fill="#f59e0b" fontSize="13" fontWeight="700">{drawing.text}</text>;
+              }
+              const path = drawingPath(drawing);
+              if (!path) return null;
+              return (
+                <line
+                  key={drawing.id}
+                  x1={`${path.x1}%`}
+                  y1={`${path.y1}%`}
+                  x2={`${path.x2}%`}
+                  y2={`${path.y2}%`}
+                  stroke={drawing.tool === "trend" ? "#38bdf8" : "#f59e0b"}
+                  strokeWidth="2"
+                  strokeDasharray={drawing.tool === "vline" || drawing.tool === "hline" ? "5 5" : undefined}
                 />
-              </svg>
-              <span className="text-xs text-yellow-500/80 font-mono">Hệ thống dữ liệu đang bảo trì</span>
-              <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>
-                Vui lòng thử lại sau ít phút
-              </span>
-            </div>
-          </div>
-        )}
+              );
+            })}
+          </svg>
+        ) : null}
       </div>
     </div>
   );

@@ -556,10 +556,10 @@ function NotificationsContent() {
 
       setCardLoading(cardId);
       const commandMap: Record<CardId, string> = {
-        ta: `/ta ${ticker}`,
-        fa: `/fa ${ticker}`,
-        tamly: `/tamly ${ticker}`,
-        news: `/news ${ticker}`,
+        ta: `Phân tích kỹ thuật ${ticker}`,
+        fa: `Phân tích cơ bản ${ticker}`,
+        tamly: `Phân tích dòng tiền và hành vi ${ticker}`,
+        news: `Cập nhật tin tức và rủi ro của ${ticker}`,
       };
 
       try {
@@ -943,10 +943,9 @@ function NotificationsContent() {
                   </div>
                   <h3 className="text-lg font-black mb-1" style={{ color: "var(--text-primary)" }}>AIDEN Analyst</h3>
                   <p className="text-xs max-w-xs mb-4" style={{ color: "var(--text-secondary)" }}>
-                    Nhập trực tiếp mã cổ phiếu (ví dụ: HPG) để mở 4 thẻ phân tích, hoặc dùng lệnh:
+                    Nhập trực tiếp mã cổ phiếu hoặc câu hỏi tự nhiên. Ví dụ: SSI, phân tích HPG, có nên mua GVR không?
                     <br />
-                    <span className="font-mono" style={{ color: "var(--primary)" }}>/ta Mã</span> · <span className="font-mono" style={{ color: "var(--primary)" }}>/fa Mã</span> ·{" "}
-                    <span className="font-mono" style={{ color: "var(--primary)" }}>/news Mã</span>
+                    <span className="font-mono" style={{ color: "var(--primary)" }}>AIDEN dùng DataHub để trả lời.</span>
                   </p>
                 </div>
               )}

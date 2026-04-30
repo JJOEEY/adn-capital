@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 
 const apiKey = process.env.GEMINI_API_KEY;
 if (!apiKey) {
@@ -221,6 +221,22 @@ export async function executeAIRequest(
 
   console.error(`[Gemini] all model attempts failed. intent=${intent}`, lastErr);
   return OVERLOAD_MESSAGE;
+}
+
+export async function executeFlashOnlyAIRequest(
+  prompt: string,
+  systemInstruction?: string,
+): Promise<string> {
+  const sysInstr = systemInstruction ?? SYSTEM_INSTRUCTIONS.GENERAL;
+  const response = await genAI.models.generateContent({
+    model: MODEL_FLASH,
+    contents: prompt,
+    config: {
+      systemInstruction: sysInstr,
+      thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
+    },
+  });
+  return response.text ?? "";
 }
 
 export function getGeminiModel(_modelName?: string) {
