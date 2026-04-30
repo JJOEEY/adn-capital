@@ -29,6 +29,10 @@ type ReportedSignalSummary = {
     }>;
   }>;
 };
+type SignalMapTopicValue = {
+  signals: Signal[];
+  reportedToday?: ReportedSignalSummary;
+};
 
 const TABS: { value: Tab; label: string; icon: typeof Crosshair }[] = [
   { value: "RADAR",  label: "Tầm ngắm",     icon: Crosshair  },
@@ -90,19 +94,20 @@ export function SignalMapClient({
         ? 5 * 60_000
         : 15 * 60_000;
 
-  const signalMapTopic = useTopic<{ signals: Signal[] }>("signal:map:latest", {
+  const signalMapTopic = useTopic<SignalMapTopicValue>("signal:map:latest", {
     refreshInterval,
     revalidateOnFocus: false,
     dedupingInterval: 10_000,
   });
   const reportedTopic = useTopic<ReportedSignalSummary>("signal:reported:today", {
+    enabled: !signalMapTopic.data?.reportedToday,
     refreshInterval: 60_000,
     revalidateOnFocus: false,
     dedupingInterval: 10_000,
   });
 
   const allSignals = signalMapTopic.data?.signals ?? [];
-  const reportedSummary = reportedTopic.data;
+  const reportedSummary = signalMapTopic.data?.reportedToday ?? reportedTopic.data;
   const reportedRows = reportedSummary?.groups.flatMap((group) => group.rows) ?? [];
   const reportedPreview = reportedRows.slice(0, 24);
   const tabSignals = allSignals.filter((s) => {

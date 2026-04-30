@@ -2,6 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getBatchPrices } from "@/lib/PriceCache";
 import { fetchTAData } from "@/lib/stockData";
+import { loadReportedSignalSummary } from "@/lib/signals/report-history";
+import { buildSignalMapPayload } from "@/lib/signals/signal-map";
+import { normalizeSignalPrice } from "@/lib/signals/price-units";
 
 export const dynamic = "force-dynamic";
 
@@ -75,38 +78,40 @@ async function persistLivePrices(
     .filter((signal) => liveStatuses.has(signal.status))
     .map((signal) => {
       const currentPrice = livePriceMap[signal.ticker]?.close;
-      if (!isValidPrice(currentPrice) || signal.entryPrice <= 0) {
+      const normalizedCurrentPrice = normalizeSignalPrice(currentPrice);
+      const normalizedEntryPrice = normalizeSignalPrice(signal.entryPrice);
+      if (!isValidPrice(normalizedCurrentPrice) || !isValidPrice(normalizedEntryPrice)) {
         return null;
       }
 
-      const currentPnl = +(((currentPrice - signal.entryPrice) / signal.entryPrice) * 100).toFixed(2);
-      const stoploss = signal.stoploss;
-      if (isValidPrice(stoploss) && currentPrice <= stoploss) {
+      const currentPnl = +(((normalizedCurrentPrice - normalizedEntryPrice) / normalizedEntryPrice) * 100).toFixed(2);
+      const stoploss = normalizeSignalPrice(signal.stoploss);
+      if (isValidPrice(stoploss) && normalizedCurrentPrice <= stoploss) {
         updatedCount++;
         closedCount++;
         return prisma.signal.update({
           where: { id: signal.id },
           data: {
             status: "CLOSED",
-            closePrice: currentPrice,
-            currentPrice,
+            closePrice: normalizedCurrentPrice,
+            currentPrice: normalizedCurrentPrice,
             currentPnl,
             pnl: currentPnl,
-            closedReason: `Cắt lỗ tự động: giá ${currentPrice.toLocaleString("vi-VN")} <= stoploss ${stoploss.toLocaleString("vi-VN")} (${currentPnl}%)`,
+            closedReason: `Cắt lỗ tự động: giá ${normalizedCurrentPrice.toLocaleString("vi-VN")} <= stoploss ${stoploss.toLocaleString("vi-VN")} (${currentPnl}%)`,
             closedAt: new Date(),
           },
         });
       }
 
-      const existingPrice = signal.currentPrice ?? 0;
-      if (Math.abs(existingPrice - currentPrice) < 0.0001) {
+      const existingPrice = normalizeSignalPrice(signal.currentPrice ?? 0);
+      if (Math.abs(existingPrice - normalizedCurrentPrice) < 0.0001) {
         return null;
       }
 
       updatedCount++;
       return prisma.signal.update({
         where: { id: signal.id },
-        data: { currentPrice, currentPnl },
+        data: { currentPrice: normalizedCurrentPrice, currentPnl },
       });
     })
     .filter(Boolean);
@@ -145,10 +150,24 @@ export async function GET(request: NextRequest) {
     since.setDate(since.getDate() - days);
     since.setHours(0, 0, 0, 0);
 
+    const reportedToday = await loadReportedSignalSummary();
+    const reportedIdentities = Array.from(
+      new Map(
+        reportedToday.rows.map((row) => [
+          `${row.ticker}|${row.signalType}`,
+          { ticker: row.ticker, type: row.signalType },
+        ]),
+      ).values(),
+    );
+
     const where: Record<string, unknown> = {
       OR: [
         { createdAt: { gte: since } },
         { updatedAt: { gte: since } },
+        ...reportedIdentities.map((identity) => ({
+          ticker: identity.ticker,
+          type: identity.type,
+        })),
       ],
     };
     if (statusFilter && ["RADAR", "ACTIVE", "HOLD_TO_DIE", "CLOSED"].includes(statusFilter)) {
@@ -186,36 +205,43 @@ export async function GET(request: NextRequest) {
     }
 
     const now = Date.now();
+    const signalRows = signals.map((s) => {
+      const live = liveStatuses.has(s.status) ? livePriceMap[s.ticker] : undefined;
+      const liveCurrentPrice =
+        live && typeof live.close === "number" && Number.isFinite(live.close) && live.close > 0
+          ? normalizeSignalPrice(live.close)
+          : null;
+      const entryPrice = normalizeSignalPrice(s.entryPrice);
+      const target = normalizeSignalPrice(s.target);
+      const stoploss = normalizeSignalPrice(s.stoploss);
+      const closePrice = normalizeSignalPrice(s.closePrice);
+      const currentPrice = liveCurrentPrice ?? normalizeSignalPrice(s.currentPrice);
+      const currentPnl =
+        currentPrice != null && entryPrice > 0
+          ? +(((currentPrice - entryPrice) / entryPrice) * 100).toFixed(2)
+          : s.currentPnl;
+      const pnl =
+        closePrice != null && entryPrice > 0
+          ? +(((closePrice - entryPrice) / entryPrice) * 100).toFixed(2)
+          : s.pnl;
 
-    return NextResponse.json({
-      signals: signals.map((s) => ({
-        ...(function () {
-          const live = liveStatuses.has(s.status) ? livePriceMap[s.ticker] : undefined;
-          const liveCurrentPrice =
-            live && typeof live.close === "number" && Number.isFinite(live.close) && live.close > 0
-              ? live.close
-              : null;
-          const currentPrice = liveCurrentPrice ?? s.currentPrice;
-          const currentPnl =
-            currentPrice != null && s.entryPrice > 0
-              ? +(((currentPrice - s.entryPrice) / s.entryPrice) * 100).toFixed(2)
-              : s.currentPnl;
-          return { currentPrice, currentPnl };
-        })(),
+      return {
+        currentPrice,
+        currentPnl,
         id: s.id,
         ticker: s.ticker,
         type: s.type,
         status: s.status,
         tier: s.tier,
-        entryPrice: s.entryPrice,
-        target: s.target,
-        stoploss: s.stoploss,
-        closePrice: s.closePrice,
+        entryPrice,
+        target,
+        stoploss,
+        closePrice,
         navAllocation: s.navAllocation,
         triggerSignal: s.triggerSignal,
         aiReasoning: s.aiReasoning,
         reason: s.reason ?? null,
-        pnl: s.pnl,
+        pnl,
         closedReason: s.closedReason,
         winRate: s.winRate,
         sharpeRatio: s.sharpeRatio,
@@ -223,8 +249,10 @@ export async function GET(request: NextRequest) {
         createdAt: s.createdAt.toISOString(),
         updatedAt: s.updatedAt.toISOString(),
         daysInSignal: Math.floor((now - s.createdAt.getTime()) / 86_400_000),
-      })),
+      };
     });
+
+    return NextResponse.json(buildSignalMapPayload(signalRows, reportedToday));
   } catch (error) {
     console.error("[/api/signals] Lỗi:", error);
     return NextResponse.json(

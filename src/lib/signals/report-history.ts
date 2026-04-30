@@ -6,6 +6,7 @@ import {
   type ReportedSignalLike,
   type ReportedSignalSummary,
 } from "./reporting";
+import { normalizeSignalPrice } from "./price-units";
 
 export type ReportedSignalHistoryRow = ReportedSignalLike & {
   id: string;
@@ -75,7 +76,7 @@ export async function loadReportedSignalRows(
       ...row,
       ticker: row.ticker.toUpperCase().trim(),
       signalType: row.signalType.toUpperCase().trim(),
-      entryPrice: signal?.entryPrice ?? null,
+      entryPrice: signal?.entryPrice != null ? normalizeSignalPrice(signal.entryPrice) : null,
       status: signal?.status ?? null,
       reason: signal?.reason ?? null,
     };

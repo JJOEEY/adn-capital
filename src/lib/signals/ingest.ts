@@ -7,6 +7,7 @@ import {
 } from "@/lib/aiBroker";
 import { getVnNow } from "@/lib/time";
 import { claimSignalNotifications, type SignalNotificationCandidate } from "./notification-dedupe";
+import { normalizeSignalPrice } from "./price-units";
 
 export const SIGNAL_SCAN_SLOTS = ["10:00", "10:30", "14:00", "14:25"] as const;
 export const SIGNAL_SCAN_SLOT_SET = new Set<string>(SIGNAL_SCAN_SLOTS);
@@ -89,7 +90,15 @@ export function toSignalKey(ticker: string, type: string): string {
 
 export function normalizeIncomingSignals(signals: RawScannerSignal[]): RawScannerSignal[] {
   const valid = signals.filter((signal) => {
-    if (!signal?.ticker || !signal?.type || typeof signal?.entryPrice !== "number") return false;
+    if (
+      !signal?.ticker ||
+      !signal?.type ||
+      typeof signal?.entryPrice !== "number" ||
+      !Number.isFinite(signal.entryPrice) ||
+      signal.entryPrice <= 0
+    ) {
+      return false;
+    }
     return VALID_SIGNAL_TYPES.has(signal.type);
   });
 
@@ -100,6 +109,7 @@ export function normalizeIncomingSignals(signals: RawScannerSignal[]): RawScanne
         {
           ...signal,
           ticker: signal.ticker.toUpperCase().trim(),
+          entryPrice: normalizeSignalPrice(signal.entryPrice),
         },
       ]),
     ).values(),
