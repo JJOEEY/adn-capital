@@ -34,13 +34,17 @@ function uniqueAccountCandidates(values: Array<string | null | undefined>) {
   return Array.from(set);
 }
 
+function isDnseDebugEnabled() {
+  return process.env.DNSE_DEBUG === "true";
+}
+
 export async function requireDnseAccountContext(): Promise<DnseAccountContextResult> {
-  console.log("[DNSE Shared] Resolving account context");
+  if (isDnseDebugEnabled()) console.log("[DNSE Shared] Resolving account context");
 
   const session = await auth();
   const userId = session?.user?.id;
   if (!userId) {
-    console.warn("[DNSE Shared] Unauthorized (no session user)");
+    if (isDnseDebugEnabled()) console.warn("[DNSE Shared] Unauthorized (no session user)");
     return {
       ok: false,
       response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
@@ -68,7 +72,7 @@ export async function requireDnseAccountContext(): Promise<DnseAccountContextRes
   ]);
 
   if (!user) {
-    console.error("[DNSE Shared] User not found", { userId });
+    if (isDnseDebugEnabled()) console.error("[DNSE Shared] User not found", { userId });
     return {
       ok: false,
       response: NextResponse.json({ error: "Không tìm thấy tài khoản" }, { status: 404 }),
@@ -90,17 +94,19 @@ export async function requireDnseAccountContext(): Promise<DnseAccountContextRes
     fallbackUserAccountNo,
   ]);
 
-  console.log("[DNSE Shared] Context data", {
-    userId,
-    activeConnectionAccountNo,
-    activeConnectionSubAccountNo,
-    fallbackUserAccountNo,
-    accountNo,
-    brokerAccountNo,
-    accountCandidates,
-    dnseVerified: user.dnseVerified,
-    connectionStatus: connection?.status ?? null,
-  });
+  if (isDnseDebugEnabled()) {
+    console.log("[DNSE Shared] Context data", {
+      userId,
+      activeConnectionAccountNo,
+      activeConnectionSubAccountNo,
+      fallbackUserAccountNo,
+      accountNo,
+      brokerAccountNo,
+      accountCandidates,
+      dnseVerified: user.dnseVerified,
+      connectionStatus: connection?.status ?? null,
+    });
+  }
 
   if (!accountNo || !brokerAccountNo || accountCandidates.length === 0) {
     return {
@@ -125,12 +131,14 @@ export async function requireDnseAccountContext(): Promise<DnseAccountContextRes
     try {
       userJwtToken = decryptDnseToken(connection.accessTokenEnc);
     } catch (error) {
-      console.warn("[DNSE Shared] Failed to decrypt linked DNSE token", {
-        userId,
-        accountNo,
-        brokerAccountNo,
-        message: error instanceof Error ? error.message : "unknown_error",
-      });
+      if (isDnseDebugEnabled()) {
+        console.warn("[DNSE Shared] Failed to decrypt linked DNSE token", {
+          userId,
+          accountNo,
+          brokerAccountNo,
+          message: error instanceof Error ? error.message : "unknown_error",
+        });
+      }
     }
   }
 

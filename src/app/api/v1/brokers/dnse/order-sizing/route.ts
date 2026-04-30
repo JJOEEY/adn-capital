@@ -72,6 +72,36 @@ async function firstSuccess<T>(
   return { accountNo: null, value: null, error: lastError };
 }
 
+async function firstUsefulSuccess<T>(
+  candidates: string[],
+  run: (accountNo: string) => Promise<T>,
+  isUseful: (value: T) => boolean,
+): Promise<{ accountNo: string | null; value: T | null; error: string | null }> {
+  let lastError: string | null = null;
+  let firstValue: { accountNo: string; value: T } | null = null;
+  for (const accountNo of candidates) {
+    try {
+      const value = await run(accountNo);
+      if (!firstValue) firstValue = { accountNo, value };
+      if (isUseful(value)) return { accountNo, value, error: null };
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : "KhÃ´ng Ä‘á»c Ä‘Æ°á»£c dá»¯ liá»‡u tÃ i khoáº£n.";
+    }
+  }
+  if (firstValue) return { ...firstValue, error: lastError };
+  return { accountNo: null, value: null, error: lastError };
+}
+
+function isUsefulBalance(value: unknown) {
+  const totalAsset = readBestPositiveNumber(value, BALANCE_TOTAL_ASSET_KEYS, null);
+  const buyingPower = readBestPositiveNumber(value, BALANCE_BUYING_POWER_KEYS, null);
+  return Boolean((totalAsset != null && totalAsset > 0) || (buyingPower != null && buyingPower > 0));
+}
+
+function positiveOrNull(value: number | null) {
+  return value != null && value > 0 ? value : null;
+}
+
 function readWorkbenchPrice(value: unknown): number | null {
   const row = toRecord(value);
   const ta = toRecord(row?.ta);
@@ -148,7 +178,7 @@ export async function POST(req: NextRequest) {
       : [resolved.context.brokerAccountNo];
 
     const [balanceResult, positionsResult, loanPackagesResult, ppseResult] = await Promise.all([
-      firstSuccess(candidates, (accountNo) => client.getBalance(accountNo)),
+      firstUsefulSuccess(candidates, (accountNo) => client.getBalance(accountNo), isUsefulBalance),
       firstSuccess(candidates, (accountNo) => client.getPositions(accountNo)),
       firstSuccess(candidates, (accountNo) => client.getLoanPackages(accountNo, "STOCK", ticker)),
       firstSuccess(candidates, (accountNo) =>
@@ -189,8 +219,8 @@ export async function POST(req: NextRequest) {
       buyingPower,
       sellingPower,
       availableSellQty,
-      dnseMaxBuyQty,
-      dnseMaxSellQty,
+      dnseMaxBuyQty: positiveOrNull(dnseMaxBuyQty),
+      dnseMaxSellQty: positiveOrNull(dnseMaxSellQty),
       recommendedNavPct: navPct,
       fallbackNavPct: 5,
     });

@@ -855,6 +855,23 @@ export function DnseTradingClient() {
     return Number.isFinite(brokerNav) && brokerNav > 0 ? brokerNav : null;
   }, [effectiveBalanceTopic?.totalNav]);
 
+  const buyingPowerValue = useMemo(() => {
+    const brokerBuyingPower = Number(effectiveBalanceTopic?.buyingPower);
+    return Number.isFinite(brokerBuyingPower) && brokerBuyingPower >= 0 ? brokerBuyingPower : null;
+  }, [effectiveBalanceTopic?.buyingPower]);
+
+  const directOrderLoanPackages = useMemo(
+    () =>
+      loanPackages.map((pkg) => ({
+        loanPackageId: pkg.loanPackageId,
+        loanPackageName: pkg.loanPackageName,
+        interestRate: pkg.interestRate ?? null,
+        maxLoanRatio: pkg.maxLoanRatio ?? null,
+        isCash: false,
+      })),
+    [loanPackages],
+  );
+
   const suggestedNotional = useMemo(() => {
     if (!queryNavPct || !totalNavValue) return null;
     return Number(((totalNavValue * queryNavPct) / 100).toFixed(0));
@@ -1569,6 +1586,9 @@ export function DnseTradingClient() {
           source={querySource}
           signalId={querySignalId}
           navPct={queryNavPct ?? undefined}
+          initialTotalAsset={totalNavValue}
+          initialBuyingPower={buyingPowerValue}
+          initialLoanPackages={directOrderLoanPackages}
           canTrade={canTrade}
         />
       </div>

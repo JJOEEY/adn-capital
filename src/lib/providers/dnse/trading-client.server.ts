@@ -62,6 +62,10 @@ type ClientOptions = {
 const DEFAULT_MARKET_TYPE = "STOCK";
 const DEFAULT_ORDER_CATEGORY = "NORMAL";
 
+function isDnseDebugEnabled() {
+  return process.env.DNSE_DEBUG === "true";
+}
+
 function toRecord(value: unknown): JsonRecord | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   return value as JsonRecord;
@@ -381,6 +385,7 @@ export class DnseTradingClient {
     includeBody = false,
     includeAuthorization = false,
     baseUrl?: string,
+    extraHeaders?: Record<string, string>,
   ) {
     const headers: Record<string, string> = {
       Accept: "application/json",
@@ -403,6 +408,7 @@ export class DnseTradingClient {
 
     if (baseUrl && isServiceHost(baseUrl)) {
       // auth-service/order-service trên api/services chỉ cần x-api-key khi không có JWT linked-user.
+      Object.assign(headers, extraHeaders);
       return headers;
     }
 
@@ -410,6 +416,7 @@ export class DnseTradingClient {
     const nonce = crypto.randomUUID().replace(/-/g, "");
     headers.Date = dateValue;
     headers["X-Signature"] = this.generateOpenApiSignature(method, path, dateValue, nonce);
+    Object.assign(headers, extraHeaders);
 
     return headers;
   }
@@ -424,10 +431,12 @@ export class DnseTradingClient {
       includeAuthorization?: boolean;
       baseFilter?: "all" | "api" | "openapi" | "service";
       debugTag?: string;
+      extraHeaders?: Record<string, string>;
     },
   ) {
     let lastError = "Unknown DNSE error";
     let lastAuthError: string | null = null;
+    const debugTag = isDnseDebugEnabled() ? options?.debugTag : undefined;
     for (const baseUrl of this.baseUrls) {
       if (options?.baseFilter === "api" && !isApiHost(baseUrl)) continue;
       if (options?.baseFilter === "openapi" && !isOpenApiHost(baseUrl)) continue;
@@ -443,9 +452,10 @@ export class DnseTradingClient {
             Boolean(options?.includeBody),
             Boolean(options?.includeAuthorization),
             baseUrl,
+            options?.extraHeaders,
           );
-          if (options?.debugTag) {
-            const debugLabel = `[DNSE ${options.debugTag}]`;
+          if (debugTag) {
+            const debugLabel = `[DNSE ${debugTag}]`;
             const logHeaders = { ...headers };
             if (logHeaders.Authorization) {
               const token = logHeaders.Authorization;
@@ -462,10 +472,7 @@ export class DnseTradingClient {
                 )
               : "";
             console.log(`${debugLabel} URL:`, url);
-            console.log(
-              `${debugLabel} API Key (first 20 chars):`,
-              this.apiKey ? this.apiKey.substring(0, 20) : "(missing)",
-            );
+            console.log(`${debugLabel} API Key configured:`, Boolean(this.apiKey));
             console.log(`${debugLabel} API Secret exists:`, !!this.apiSecret);
             console.log(`${debugLabel} Aux-Date:`, auxDate);
             console.log(`${debugLabel} Signature (first 20 chars):`, signaturePreview.substring(0, 20));
@@ -480,8 +487,8 @@ export class DnseTradingClient {
           });
 
           const responseText = await response.text();
-          if (options?.debugTag) {
-            const debugLabel = `[DNSE ${options.debugTag}]`;
+          if (debugTag) {
+            const debugLabel = `[DNSE ${debugTag}]`;
             console.log(`${debugLabel} Response status:`, response.status);
             console.log(
               `${debugLabel} Response headers:`,
@@ -491,7 +498,7 @@ export class DnseTradingClient {
           }
 
           if (response.ok) {
-            if (process.env.DNSE_DEBUG === "true" && !options?.debugTag) {
+            if (isDnseDebugEnabled() && !debugTag) {
               console.info("[DNSE_CLIENT] request_ok", { method, baseUrl, path });
             }
             if (!responseText.trim()) return {} as JsonRecord;
@@ -504,7 +511,7 @@ export class DnseTradingClient {
 
           const normalized = normalizeErrorMessage(responseText);
           lastError = `${response.status} ${normalized || responseText || response.statusText}`;
-          if (process.env.DNSE_DEBUG === "true" && !options?.debugTag) {
+          if (isDnseDebugEnabled() && !debugTag) {
             console.warn("[DNSE_CLIENT] request_failed", {
               method,
               baseUrl,
@@ -554,9 +561,11 @@ export class DnseTradingClient {
           debugTag: `${debugTag}Session`,
         });
       } catch (serviceError) {
-        console.warn(`[DNSE ${debugTag}] session service-host failed, trying openapi fallback`, {
-          message: serviceError instanceof Error ? serviceError.message : "unknown_error",
-        });
+        if (isDnseDebugEnabled()) {
+          console.warn(`[DNSE ${debugTag}] session service-host failed, trying openapi fallback`, {
+            message: serviceError instanceof Error ? serviceError.message : "unknown_error",
+          });
+        }
       }
     }
 
@@ -568,9 +577,11 @@ export class DnseTradingClient {
         debugTag,
       });
     } catch (apiError) {
-      console.warn(`[DNSE ${debugTag}] openapi fallback failed`, {
-        message: apiError instanceof Error ? apiError.message : "unknown_error",
-      });
+      if (isDnseDebugEnabled()) {
+        console.warn(`[DNSE ${debugTag}] openapi fallback failed`, {
+          message: apiError instanceof Error ? apiError.message : "unknown_error",
+        });
+      }
     }
 
     return null;
@@ -690,13 +701,10 @@ export class DnseTradingClient {
     // Luồng user-session: chỉ dùng JWT để gọi account list theo endpoint DNSE auth/order.
     // Không fallback qua API key nhằm tránh link nhầm account.
     if (this.userJwtToken) {
-      console.log("[DNSE getAccounts] mode=user-jwt");
-      console.log("[DNSE getAccounts] baseUrls:", JSON.stringify(this.baseUrls));
-      console.log("[DNSE getAccounts] apiSecretExists:", !!this.apiSecret);
-      console.log(
-        "[DNSE getAccounts] jwtPreview:",
-        this.userJwtToken.length > 20 ? `${this.userJwtToken.slice(0, 20)}...` : "***",
-      );
+      if (isDnseDebugEnabled()) {
+        console.log("[DNSE getAccounts] mode=user-jwt");
+        console.log("[DNSE getAccounts] baseUrls:", JSON.stringify(this.baseUrls));
+      }
 
       try {
         const payloadService = await this.requestFirstSuccess(
@@ -710,14 +718,18 @@ export class DnseTradingClient {
           },
         );
         const accountsService = normalizeAccounts(extractArrayPayload(payloadService));
-        console.log("[DNSE getAccounts] parsedAccounts(service):", accountsService.length);
+        if (isDnseDebugEnabled()) {
+          console.log("[DNSE getAccounts] parsedAccounts(service):", accountsService.length);
+        }
         if (accountsService.length > 0) {
           return accountsService;
         }
       } catch (serviceError) {
-        console.warn("[DNSE getAccounts] service-host failed, trying openapi-hmac", {
-          message: serviceError instanceof Error ? serviceError.message : "unknown_error",
-        });
+        if (isDnseDebugEnabled()) {
+          console.warn("[DNSE getAccounts] service-host failed, trying openapi-hmac", {
+            message: serviceError instanceof Error ? serviceError.message : "unknown_error",
+          });
+        }
       }
 
       const payloadOpenApi = await this.requestFirstSuccess("GET", ["/accounts"], {
@@ -727,19 +739,18 @@ export class DnseTradingClient {
         debugTag: "getAccounts",
       });
       const accountsOpenApi = normalizeAccounts(extractArrayPayload(payloadOpenApi));
-      console.log("[DNSE getAccounts] parsedAccounts(openapi):", accountsOpenApi.length);
+      if (isDnseDebugEnabled()) {
+        console.log("[DNSE getAccounts] parsedAccounts(openapi):", accountsOpenApi.length);
+      }
       if (accountsOpenApi.length > 0) return accountsOpenApi;
       throw new Error("Failed to get accounts: empty account list from DNSE session");
     }
 
     // Fallback chuẩn SDK DNSE: OpenAPI HMAC, không gửi Authorization bearer.
-    console.log("[DNSE getAccounts] mode=openapi-hmac");
-    console.log("[DNSE getAccounts] baseUrls:", JSON.stringify(this.baseUrls));
-    console.log(
-      "[DNSE getAccounts] apiKeyPreview:",
-      this.apiKey ? `${this.apiKey.slice(0, 20)}...` : "(missing)",
-    );
-    console.log("[DNSE getAccounts] apiSecretExists:", !!this.apiSecret);
+    if (isDnseDebugEnabled()) {
+      console.log("[DNSE getAccounts] mode=openapi-hmac");
+      console.log("[DNSE getAccounts] baseUrls:", JSON.stringify(this.baseUrls));
+    }
     const payload = await this.requestFirstSuccess("GET", ["/accounts"], {
       label: "Failed to get accounts",
       includeAuthorization: false,
@@ -750,7 +761,7 @@ export class DnseTradingClient {
     return normalizeAccounts(rows);
   }
   async getBalance(accountNo: string): Promise<DnseBalance> {
-    console.log("[DNSE getBalance] Account:", accountNo);
+    if (isDnseDebugEnabled()) console.log("[DNSE getBalance] Account:", accountNo);
     const sessionApiPaths = [
       `/order-service/account-balances/${accountNo}`,
       `/order-service/accounts/${accountNo}/balances`,
@@ -774,7 +785,7 @@ export class DnseTradingClient {
       return normalizeBalance(balanceSession, accountNo);
     }
 
-    if (this.userJwtToken) {
+    if (this.userJwtToken && isDnseDebugEnabled()) {
       console.warn("[DNSE getBalance] Session API failed, fallback to OpenAPI.");
     }
 
@@ -794,7 +805,7 @@ export class DnseTradingClient {
   }
 
   async getPositions(accountNo: string, marketType = DEFAULT_MARKET_TYPE): Promise<DnsePosition[]> {
-    console.log("[DNSE getPositions] Account:", accountNo);
+    if (isDnseDebugEnabled()) console.log("[DNSE getPositions] Account:", accountNo);
     const accountQuery = {
       accountId: accountNo,
       accountNo,
@@ -843,7 +854,7 @@ export class DnseTradingClient {
       return this.mapPositions(extractArrayPayload(sessionPayload), accountNo);
     }
 
-    if (this.userJwtToken) {
+    if (this.userJwtToken && isDnseDebugEnabled()) {
       console.warn("[DNSE getPositions] Session API failed, fallback to OpenAPI.");
     }
 
@@ -866,7 +877,7 @@ export class DnseTradingClient {
     marketType = DEFAULT_MARKET_TYPE,
     orderCategory = DEFAULT_ORDER_CATEGORY,
   ): Promise<DnseOrder[]> {
-    console.log("[DNSE getOrders] Account:", accountNo);
+    if (isDnseDebugEnabled()) console.log("[DNSE getOrders] Account:", accountNo);
     const accountQuery = {
       accountId: accountNo,
       accountNo,
@@ -898,7 +909,7 @@ export class DnseTradingClient {
     );
     if (sessionPayload) return this.mapOrders(extractArrayPayload(sessionPayload), accountNo);
 
-    if (this.userJwtToken) {
+    if (this.userJwtToken && isDnseDebugEnabled()) {
       console.warn("[DNSE getOrders] Session API failed, fallback to OpenAPI.");
     }
 
@@ -923,7 +934,7 @@ export class DnseTradingClient {
     accountNo: string,
     options?: { fromDate?: string | null; toDate?: string | null; page?: number | null; size?: number | null },
   ): Promise<DnseOrder[]> {
-    console.log("[DNSE getOrdersHistory] Account:", accountNo);
+    if (isDnseDebugEnabled()) console.log("[DNSE getOrdersHistory] Account:", accountNo);
 
     const query = {
       from: options?.fromDate ?? undefined,
@@ -1000,7 +1011,7 @@ export class DnseTradingClient {
 
     if (sessionPayload) return this.mapOrders(extractArrayPayload(sessionPayload), accountNo);
 
-    if (this.userJwtToken) {
+    if (this.userJwtToken && isDnseDebugEnabled()) {
       console.warn("[DNSE getOrdersHistory] Session API failed, fallback to OpenAPI.");
     }
 
@@ -1020,7 +1031,7 @@ export class DnseTradingClient {
     marketType = DEFAULT_MARKET_TYPE,
     symbol?: string | null,
   ): Promise<JsonRecord[]> {
-    console.log("[DNSE getLoanPackages] Account:", accountNo);
+    if (isDnseDebugEnabled()) console.log("[DNSE getLoanPackages] Account:", accountNo);
     const accountQuery = {
       accountId: accountNo,
       accountNo,
@@ -1070,7 +1081,7 @@ export class DnseTradingClient {
       return extractArrayPayload(sessionPayload) as JsonRecord[];
     }
 
-    if (this.userJwtToken) {
+    if (this.userJwtToken && isDnseDebugEnabled()) {
       console.warn("[DNSE getLoanPackages] Session API failed, fallback to OpenAPI.");
     }
 
@@ -1100,7 +1111,7 @@ export class DnseTradingClient {
       loanPackageId?: string | number | null;
     },
   ): Promise<JsonRecord | null> {
-    console.log("[DNSE getPPSE] Account:", accountNo, "Symbol:", symbol);
+    if (isDnseDebugEnabled()) console.log("[DNSE getPPSE] Account:", accountNo, "Symbol:", symbol);
     const sessionPath = buildPathWithQuery(`/order-service/accounts/${accountNo}/ppse`, {
       marketType: params?.marketType ?? DEFAULT_MARKET_TYPE,
       symbol,
@@ -1156,7 +1167,7 @@ export class DnseTradingClient {
       return (toRecord(sessionPayload)?.data as JsonRecord) ?? toRecord(sessionPayload);
     }
 
-    if (this.userJwtToken) {
+    if (this.userJwtToken && isDnseDebugEnabled()) {
       console.warn("[DNSE getPPSE] Session API failed, fallback to OpenAPI.");
     }
 
@@ -1182,21 +1193,34 @@ export class DnseTradingClient {
   async sendEmailOTP(): Promise<void> {
     await this.requestFirstSuccess(
       "GET",
-      ["/auth-service/api/email-otp", "/auth-service/email-otp"],
-      { label: "Failed to send OTP", includeAuthorization: true, baseFilter: "api" },
+      [
+        "/dnse-auth-service/api/email-otp",
+        "/dnse-auth-service/email-otp",
+        "/auth-service/api/email-otp",
+      ],
+      {
+        label: "Failed to send OTP",
+        includeBody: true,
+        includeAuthorization: true,
+        baseFilter: "service",
+      },
     );
   }
 
   async createTradingToken(otp: string): Promise<{ token: string; expiresIn: number }> {
     const payload = await this.requestFirstSuccess(
       "POST",
-      ["/order-service/trading-token", "/auth/trading-token"],
+      [
+        "/dnse-order-service/trading-token",
+        "/order-service/trading-token",
+      ],
       {
         includeBody: true,
-        body: JSON.stringify({ otp }),
+        body: "",
         label: "Invalid OTP",
         includeAuthorization: true,
-        baseFilter: "api",
+        baseFilter: "service",
+        extraHeaders: { otp },
       },
     );
 

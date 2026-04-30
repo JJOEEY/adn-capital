@@ -62,6 +62,9 @@ type DirectOrderPanelProps = {
   defaultSide?: "BUY" | "SELL";
   defaultPrice?: number | null;
   defaultAccountId?: string | null;
+  initialTotalAsset?: number | null;
+  initialBuyingPower?: number | null;
+  initialLoanPackages?: Array<Partial<LoanPackageOption>>;
   source?: string | null;
   signalId?: string | null;
   navPct?: number | null;
@@ -85,6 +88,13 @@ type AutoConfigState = {
 
 const ORDER_TYPES: OrderType[] = ["LO", "MTL", "ATO", "ATC"];
 const LOT_SIZE = 100;
+const CASH_PACKAGE: LoanPackageOption = {
+  loanPackageId: "CASH",
+  loanPackageName: "Giao dịch tiền mặt",
+  interestRate: 0,
+  maxLoanRatio: 0,
+  isCash: true,
+};
 
 function fmtMoney(value: number | null | undefined) {
   if (value == null || !Number.isFinite(value)) return "--";
@@ -110,6 +120,27 @@ function normalizeOrderPrice(value: string) {
 function floorToLot(value: number) {
   if (!Number.isFinite(value) || value <= 0) return 0;
   return Math.floor(value / LOT_SIZE) * LOT_SIZE;
+}
+
+function parseQuantityInput(value: string) {
+  const parsed = Number(value.replace(/[^\d]/g, ""));
+  return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : 0;
+}
+
+function normalizeInitialLoanPackages(rows: Array<Partial<LoanPackageOption>> | null | undefined) {
+  const packages = [CASH_PACKAGE];
+  for (const row of rows ?? []) {
+    const id = String(row.loanPackageId ?? "").trim();
+    if (!id || id === "CASH") continue;
+    packages.push({
+      loanPackageId: id,
+      loanPackageName: String(row.loanPackageName ?? id).trim() || id,
+      interestRate: row.interestRate ?? null,
+      maxLoanRatio: row.maxLoanRatio ?? null,
+      isCash: Boolean(row.isCash),
+    });
+  }
+  return Array.from(new Map(packages.map((item) => [item.loanPackageId, item])).values());
 }
 
 function sideLabel(side: "BUY" | "SELL") {
@@ -145,7 +176,7 @@ function DirectStatus({ children, tone = "neutral" }: { children: string; tone?:
   );
 }
 
-function AutoRadarConfigPanel() {
+function AutoRadarConfigPanel({ loanPackages }: { loanPackages: LoanPackageOption[] }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [requestingCode, setRequestingCode] = useState(false);
@@ -331,7 +362,6 @@ function AutoRadarConfigPanel() {
             ["Giá trị tối đa mỗi ngày", "maxDailyValue"],
             ["Số lệnh tối đa mỗi ngày", "maxDailyOrders"],
             ["Tự dừng khi lỗ vượt (%)", "maxLossPct"],
-            ["Gói giao dịch ưu tiên", "loanPackageId"],
           ].map(([label, key]) => (
             <label key={key} className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
               {label}
@@ -343,6 +373,22 @@ function AutoRadarConfigPanel() {
               />
             </label>
           ))}
+          <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+            Gói giao dịch ưu tiên
+            <select
+              value={config.loanPackageId}
+              onChange={(event) => setConfig((prev) => ({ ...prev, loanPackageId: event.target.value }))}
+              className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+              style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-primary)" }}
+            >
+              <option value="">Không chọn trước</option>
+              {loanPackages.map((item) => (
+                <option key={item.loanPackageId} value={item.loanPackageId}>
+                  {item.loanPackageName}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="text-xs font-semibold lg:col-span-2" style={{ color: "var(--text-secondary)" }}>
             Danh sách mã được phép
             <input
@@ -425,6 +471,9 @@ export function DirectOrderPanel({
   defaultSide = "BUY",
   defaultPrice = null,
   defaultAccountId = null,
+  initialTotalAsset = null,
+  initialBuyingPower = null,
+  initialLoanPackages = [],
   source = null,
   signalId = null,
   navPct = null,
@@ -434,6 +483,7 @@ export function DirectOrderPanel({
   const [orderType, setOrderType] = useState<OrderType>("LO");
   const [priceInput, setPriceInput] = useState(toDisplayPrice(defaultPrice));
   const [quantity, setQuantity] = useState(0);
+  const [quantityInput, setQuantityInput] = useState("");
   const [loanPackageId, setLoanPackageId] = useState("CASH");
   const [quantityTouched, setQuantityTouched] = useState(false);
   const [sizing, setSizing] = useState<OrderSizing | null>(null);
@@ -451,6 +501,8 @@ export function DirectOrderPanel({
 
   useEffect(() => {
     setPriceInput(toDisplayPrice(defaultPrice));
+    setQuantity(0);
+    setQuantityInput("");
     setQuantityTouched(false);
     setPreview(null);
     setResult(null);
@@ -458,13 +510,46 @@ export function DirectOrderPanel({
     setError(null);
   }, [defaultPrice, ticker]);
 
-  const selectedLoanPackage = useMemo(
-    () => sizing?.loanPackages.find((item) => item.loanPackageId === loanPackageId) ?? null,
-    [loanPackageId, sizing?.loanPackages],
+  const initialLoanPackageOptions = useMemo(
+    () => normalizeInitialLoanPackages(initialLoanPackages),
+    [initialLoanPackages],
   );
+
+  const loanPackageOptions = useMemo(() => {
+    const serverPackages = sizing?.loanPackages ?? [];
+    if (serverPackages.length > 1 || initialLoanPackageOptions.length <= 1) {
+      return serverPackages.length ? serverPackages : initialLoanPackageOptions;
+    }
+    return initialLoanPackageOptions;
+  }, [initialLoanPackageOptions, sizing?.loanPackages]);
+
+  const selectedLoanPackage = useMemo(
+    () => loanPackageOptions.find((item) => item.loanPackageId === loanPackageId) ?? null,
+    [loanPackageId, loanPackageOptions],
+  );
+
+  useEffect(() => {
+    if (loanPackageOptions.some((item) => item.loanPackageId === loanPackageId)) return;
+    setLoanPackageId(loanPackageOptions[0]?.loanPackageId ?? "CASH");
+  }, [loanPackageId, loanPackageOptions]);
 
   const orderPrice = useMemo(() => normalizeOrderPrice(priceInput), [priceInput]);
   const orderValue = useMemo(() => (orderPrice ? orderPrice * quantity : 0), [orderPrice, quantity]);
+  const displayTotalAsset = sizing?.totalAsset ?? initialTotalAsset ?? null;
+  const displayBuyingPower = sizing?.buyingPower ?? initialBuyingPower ?? null;
+  const fallbackBuyMax = orderPrice && displayBuyingPower != null
+    ? floorToLot(Math.floor(displayBuyingPower / orderPrice))
+    : 0;
+  const fallbackRecommendedQuantity = orderPrice && displayTotalAsset
+    ? floorToLot(Math.min(fallbackBuyMax, Math.floor((displayTotalAsset * (navPct ?? 5)) / 100 / orderPrice)))
+    : 0;
+  const displayBuyMaxQuantity = sizing?.buyMaxQuantity && sizing.buyMaxQuantity > 0
+    ? sizing.buyMaxQuantity
+    : fallbackBuyMax;
+  const displaySellMaxQuantity = sizing?.sellMaxQuantity ?? 0;
+  const displayRecommendedQuantity = sizing?.recommendedQuantity && sizing.recommendedQuantity > 0
+    ? sizing.recommendedQuantity
+    : fallbackRecommendedQuantity;
 
   const loadSizing = async () => {
     if (!canTrade) return;
@@ -492,11 +577,24 @@ export function DirectOrderPanel({
       if (data.sizing.selectedLoanPackageId && loanPackageId === "CASH") {
         setLoanPackageId(data.sizing.selectedLoanPackageId);
       }
-      if (!quantityTouched && data.sizing.recommendedQuantity > 0) {
-        setQuantity(data.sizing.recommendedQuantity);
+      const recommendedQuantity =
+        data.sizing.recommendedQuantity > 0 ? data.sizing.recommendedQuantity : fallbackRecommendedQuantity;
+      if (!quantityTouched && recommendedQuantity > 0) {
+        setQuantity(recommendedQuantity);
+        setQuantityInput(String(recommendedQuantity));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không tính được khối lượng.");
+      if (displayTotalAsset || displayBuyingPower) {
+        setError(null);
+        setMessage("Đang dùng số liệu tài khoản đã đồng bộ để tính nhanh.");
+        const fallbackQuantity = fallbackRecommendedQuantity > 0 ? fallbackRecommendedQuantity : fallbackBuyMax;
+        if (!quantityTouched && fallbackQuantity > 0) {
+          setQuantity(fallbackQuantity);
+          setQuantityInput(String(fallbackQuantity));
+        }
+      } else {
+        setError(err instanceof Error ? err.message : "Không tính được khối lượng.");
+      }
     } finally {
       setLoadingSizing(false);
     }
@@ -508,7 +606,18 @@ export function DirectOrderPanel({
     }, 250);
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canTrade, ticker, side, orderType, priceInput, loanPackageId, signalId, navPct]);
+  }, [
+    canTrade,
+    ticker,
+    side,
+    orderType,
+    priceInput,
+    loanPackageId,
+    signalId,
+    navPct,
+    initialTotalAsset,
+    initialBuyingPower,
+  ]);
 
   const setSideAndClear = (nextSide: "BUY" | "SELL") => {
     setSide(nextSide);
@@ -517,17 +626,25 @@ export function DirectOrderPanel({
     setMessage(null);
   };
 
-  const changeQuantity = (delta: number) => {
+  const setQuantityValue = (value: number) => {
+    const next = Math.max(0, Math.trunc(value));
     setQuantityTouched(true);
-    setQuantity((prev) => Math.max(0, floorToLot(prev + delta)));
+    setQuantity(next);
+    setQuantityInput(next > 0 ? String(next) : "");
+    setPreview(null);
+  };
+
+  const changeQuantity = (delta: number) => {
+    setQuantityValue(floorToLot(quantity + delta));
   };
 
   const validateBeforeCheck = (checkSide = side) => {
     if (!canTrade) return "Bạn cần liên kết và đăng nhập lại tài khoản DNSE trước khi đặt lệnh.";
     if (!ticker.trim()) return "Vui lòng chọn mã cổ phiếu.";
     if (!quantity || quantity <= 0) return "Vui lòng nhập khối lượng hợp lệ.";
+    if (quantity % LOT_SIZE !== 0) return "Khối lượng đặt phải là bội số 100.";
     if (orderType === "LO" && !orderPrice) return "Lệnh LO cần có giá đặt.";
-    const maxQuantity = checkSide === "BUY" ? sizing?.buyMaxQuantity ?? 0 : sizing?.sellMaxQuantity ?? 0;
+    const maxQuantity = checkSide === "BUY" ? displayBuyMaxQuantity : displaySellMaxQuantity;
     if (maxQuantity > 0 && quantity > maxQuantity) {
       return `Khối lượng vượt mức ${checkSide === "BUY" ? "mua" : "bán"} tối đa.`;
     }
@@ -611,8 +728,8 @@ export function DirectOrderPanel({
     }
   };
 
-  const maxBuy = sizing?.buyMaxQuantity ?? 0;
-  const maxSell = sizing?.sellMaxQuantity ?? 0;
+  const maxBuy = displayBuyMaxQuantity;
+  const maxSell = displaySellMaxQuantity;
 
   return (
     <div className="space-y-4">
@@ -663,7 +780,7 @@ export function DirectOrderPanel({
               className="mt-1 w-full rounded-xl border px-3 py-2 text-sm font-bold"
               style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-primary)" }}
             >
-              {(sizing?.loanPackages ?? [{ loanPackageId: "CASH", loanPackageName: "Giao dịch tiền mặt", isCash: true, interestRate: 0, maxLoanRatio: 0 }]).map((item) => (
+              {loanPackageOptions.map((item) => (
                 <option key={item.loanPackageId} value={item.loanPackageId}>
                   {item.loanPackageName}
                 </option>
@@ -675,11 +792,11 @@ export function DirectOrderPanel({
         <div className="mt-3 grid gap-3 md:grid-cols-3">
           <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
             <p className="text-xs" style={{ color: "var(--text-muted)" }}>Tổng tài sản ròng</p>
-            <p className="mt-1 text-lg font-black" style={{ color: "var(--text-primary)" }}>{fmtMoney(sizing?.totalAsset)}</p>
+            <p className="mt-1 text-lg font-black" style={{ color: "var(--text-primary)" }}>{fmtMoney(displayTotalAsset)}</p>
           </div>
           <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
             <p className="text-xs" style={{ color: "var(--text-muted)" }}>Sức mua</p>
-            <p className="mt-1 text-lg font-black" style={{ color: "#16a34a" }}>{fmtMoney(sizing?.buyingPower)}</p>
+            <p className="mt-1 text-lg font-black" style={{ color: "#16a34a" }}>{fmtMoney(displayBuyingPower)}</p>
           </div>
           <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
             <p className="text-xs" style={{ color: "var(--text-muted)" }}>Giá trị lệnh</p>
@@ -739,11 +856,22 @@ export function DirectOrderPanel({
             Khối lượng đặt
             <div className="mt-1 flex rounded-xl border" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
               <input
-                value={quantity || ""}
+                value={quantityInput}
+                inputMode="numeric"
+                pattern="[0-9]*"
+                placeholder="Nhập khối lượng, ví dụ 5000"
                 onChange={(event) => {
+                  const raw = event.target.value.replace(/[^\d]/g, "");
                   setQuantityTouched(true);
-                  setQuantity(floorToLot(Number(event.target.value)));
+                  setQuantityInput(raw);
+                  setQuantity(parseQuantityInput(raw));
                   setPreview(null);
+                }}
+                onBlur={() => {
+                  if (!quantity) return;
+                  const rounded = floorToLot(quantity);
+                  setQuantity(rounded);
+                  setQuantityInput(rounded > 0 ? String(rounded) : "");
                 }}
                 className="min-w-0 flex-1 rounded-l-xl bg-transparent px-3 py-2 text-lg font-black outline-none"
                 style={{ color: "var(--text-primary)" }}
@@ -762,8 +890,42 @@ export function DirectOrderPanel({
             Bán tối đa: <strong style={{ color: "var(--text-primary)" }}>{fmtNumber(maxSell)}</strong>
           </div>
           <div className="rounded-xl border px-3 py-2 text-sm" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
-            Gợi ý: <strong style={{ color: "var(--text-primary)" }}>{fmtNumber(sizing?.recommendedQuantity)}</strong>
+            Gợi ý: <strong style={{ color: "var(--text-primary)" }}>{fmtNumber(displayRecommendedQuantity)}</strong>
           </div>
+        </div>
+
+        <div className="mt-2 flex flex-wrap gap-2">
+          {[1000, 5000, 10000, 50000, 100000].map((value) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setQuantityValue(value)}
+              className="rounded-lg border px-3 py-1.5 text-xs font-bold"
+              style={{ borderColor: "var(--border)", color: "var(--text-secondary)", background: "var(--surface-2)" }}
+            >
+              {value.toLocaleString("vi-VN")}
+            </button>
+          ))}
+          {displayRecommendedQuantity > 0 ? (
+            <button
+              type="button"
+              onClick={() => setQuantityValue(displayRecommendedQuantity)}
+              className="rounded-lg border px-3 py-1.5 text-xs font-bold"
+              style={{ borderColor: "rgba(22,163,74,0.25)", color: "#15803d", background: "rgba(22,163,74,0.10)" }}
+            >
+              Dùng gợi ý
+            </button>
+          ) : null}
+          {side === "BUY" && maxBuy > 0 ? (
+            <button
+              type="button"
+              onClick={() => setQuantityValue(maxBuy)}
+              className="rounded-lg border px-3 py-1.5 text-xs font-bold"
+              style={{ borderColor: "rgba(22,163,74,0.25)", color: "#15803d", background: "rgba(22,163,74,0.10)" }}
+            >
+              Mua tối đa
+            </button>
+          ) : null}
         </div>
 
         {(sizing?.target || sizing?.stoploss) ? (
@@ -842,7 +1004,7 @@ export function DirectOrderPanel({
         ) : null}
       </section>
 
-      <AutoRadarConfigPanel />
+      <AutoRadarConfigPanel loanPackages={loanPackageOptions} />
     </div>
   );
 }
