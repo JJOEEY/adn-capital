@@ -17,6 +17,7 @@ interface ExtMessage {
   role: "user" | "bot";
   text: string;
   createdAt: number;
+  ticker?: string;
 }
 
 type ActiveSignalRow = {
@@ -104,7 +105,7 @@ export default function TerminalPage() {
         }
         setExtraMessages((prev) => [
           ...prev,
-          { id: crypto.randomUUID(), role: "bot", text: reply, createdAt: Date.now() },
+          { id: crypto.randomUUID(), role: "bot", text: reply, createdAt: Date.now(), ticker: data.ticker },
         ]);
       } catch {
         setExtraMessages((prev) => [

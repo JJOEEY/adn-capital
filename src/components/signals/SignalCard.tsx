@@ -376,7 +376,7 @@ export function SignalCard({ signal, buyHref, showBuyAction = false }: SignalCar
               className="w-full rounded-xl px-3 py-2 text-xs font-black transition-all hover:opacity-90"
               style={{ background: "var(--primary)", color: "var(--on-primary)" }}
             >
-              Đặt lệnh mua
+              Đặt lệnh
             </button>
           </Link>
         </div>

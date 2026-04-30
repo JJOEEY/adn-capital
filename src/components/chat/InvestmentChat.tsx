@@ -116,6 +116,15 @@ function badgeStyle(badge: BrokerBadge): { color: string; borderColor: string; b
   };
 }
 
+function buildAdnLinkHref(ticker: string) {
+  const query = new URLSearchParams({
+    ticker: ticker.trim().toUpperCase(),
+    side: "BUY",
+    source: "aiden",
+  });
+  return `/dashboard/dnse-trading?${query.toString()}`;
+}
+
 function BotAvatar() {
   return (
     <div
@@ -253,6 +262,20 @@ function BotBubble({ message, onCardClick, cardLoading, cardDisabled = false }: 
             disabled={cardDisabled}
           />
         )}
+
+        {message.role === "bot" && message.ticker ? (
+          <a
+            href={buildAdnLinkHref(message.ticker)}
+            className="w-fit rounded-full border px-3 py-1.5 text-xs font-bold"
+            style={{
+              borderColor: "rgba(22,163,74,0.25)",
+              background: "rgba(22,163,74,0.10)",
+              color: "#15803d",
+            }}
+          >
+            Đặt lệnh {message.ticker}
+          </a>
+        ) : null}
       </div>
     </div>
   );

@@ -1191,7 +1191,13 @@ export class DnseTradingClient {
     const payload = await this.requestFirstSuccess(
       "POST",
       ["/order-service/trading-token", "/auth/trading-token"],
-      { includeBody: false, label: "Invalid OTP", includeAuthorization: true, baseFilter: "api" },
+      {
+        includeBody: true,
+        body: JSON.stringify({ otp }),
+        label: "Invalid OTP",
+        includeAuthorization: true,
+        baseFilter: "api",
+      },
     );
 
     const root = toRecord(payload) ?? {};

@@ -150,6 +150,15 @@ function fmtPrice(value: number | null | undefined) {
   return fmtValue(value);
 }
 
+function buildAdnLinkHref(ticker: string, source = "aiden") {
+  const query = new URLSearchParams({
+    ticker: ticker.trim().toUpperCase(),
+    side: "BUY",
+    source,
+  });
+  return `/dashboard/dnse-trading?${query.toString()}`;
+}
+
 function fmtMultiple(value: number | null | undefined) {
   if (value == null || !Number.isFinite(value)) return "Đang tính";
   return `${value.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}x`;
@@ -509,19 +518,33 @@ function AidenPanel({
               {message.tickers?.length ? (
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {message.tickers.map((tickerItem) => (
-                    <button
-                      key={`${message.id}-${tickerItem}`}
-                      type="button"
-                      onClick={() => onTickerSelect(tickerItem)}
-                      className="rounded-full border px-2 py-0.5 text-[11px] font-bold"
-                      style={{
-                        borderColor: "var(--border)",
-                        background: "var(--surface)",
-                        color: "var(--primary)",
-                      }}
-                    >
-                      {tickerItem}
-                    </button>
+                    <span key={`${message.id}-${tickerItem}`} className="inline-flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => onTickerSelect(tickerItem)}
+                        className="rounded-full border px-2 py-0.5 text-[11px] font-bold"
+                        style={{
+                          borderColor: "var(--border)",
+                          background: "var(--surface)",
+                          color: "var(--primary)",
+                        }}
+                      >
+                        {tickerItem}
+                      </button>
+                      {message.role === "bot" ? (
+                        <a
+                          href={buildAdnLinkHref(tickerItem)}
+                          className="rounded-full border px-2 py-0.5 text-[11px] font-bold"
+                          style={{
+                            borderColor: "rgba(22,163,74,0.25)",
+                            background: "rgba(22,163,74,0.10)",
+                            color: "#15803d",
+                          }}
+                        >
+                          Đặt lệnh
+                        </a>
+                      ) : null}
+                    </span>
                   ))}
                 </div>
               ) : null}

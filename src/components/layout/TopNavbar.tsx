@@ -45,7 +45,7 @@ const serviceItems: { href: string; label: string; icon: typeof BarChart2; badge
   { href: "/terminal", label: PRODUCT_NAMES.advisory, icon: MessageSquare, badge: "HOT", desc: "Trợ lý đầu tư AIDEN" },
   { href: "/dashboard/signal-map", label: PRODUCT_NAMES.brokerWorkflow, icon: Zap, badge: null, desc: "Theo dõi cơ hội và trạng thái danh mục" },
   { href: "/rs-rating", label: PRODUCT_NAMES.rsRating, icon: BarChart2, badge: "VIP", desc: "Xếp hạng sức mạnh cổ phiếu", vipOnly: true },
-  { href: "/dashboard/dnse-trading", label: PRODUCT_NAMES.brokerConnect, icon: Wallet, badge: "PILOT", desc: "Admin pilot, chưa public cho khách hàng thường", adminOnly: true },
+  { href: "/dashboard/dnse-trading", label: PRODUCT_NAMES.brokerConnect, icon: Wallet, badge: null, desc: "Đặt lệnh qua tài khoản DNSE đã liên kết" },
   { href: "/art", label: PRODUCT_NAMES.art, icon: Activity, badge: "MỚI", desc: "Action - Risk - Trend" },
   { href: "/formula-test", label: "Test công thức", icon: FlaskConical, badge: "MỚI", desc: "Kiểm tra công thức nội bộ", adminOnly: true },
   { href: "/margin", label: "Ký quỹ - Mua nhanh", icon: Banknote, badge: null, desc: "Dịch vụ hỗ trợ giao dịch" },

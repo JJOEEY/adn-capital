@@ -124,7 +124,7 @@ export function DnseAccountInfo({
                   color: "#b45309",
                   background: "rgba(245,158,11,0.08)",
                 }}
-                title="Đăng nhập lại DNSE để làm mới phiên và dữ liệu NAV"
+                title="Đăng nhập lại DNSE để làm mới phiên và tổng tài sản ròng"
               >
                 Đăng nhập lại DNSE
               </button>
@@ -158,7 +158,7 @@ export function DnseAccountInfo({
               className="rounded-full border px-2 py-1 text-xs font-semibold"
               style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
             >
-              ID: {accountId ?? "--"}
+              Tài khoản: {accountId ?? "--"}
             </span>
 
             {linked ? (
@@ -193,7 +193,7 @@ export function DnseAccountInfo({
                 background: "rgba(37,99,235,0.10)",
               }}
             >
-              <ShieldCheck className="h-3.5 w-3.5" /> Pilot Guard bật
+              <ShieldCheck className="h-3.5 w-3.5" /> Chế độ an toàn đang bật
             </span>
           </div>
 
@@ -215,7 +215,7 @@ export function DnseAccountInfo({
                 </span>
               </p>
               <p>
-                Access token hết hạn:{" "}
+                Quyền truy cập hết hạn:{" "}
                 <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
                   {fmtDateTime(accessTokenExpiresAt)}
                 </span>
@@ -233,7 +233,7 @@ export function DnseAccountInfo({
                 </span>
               </p>
               <p>
-                Fallback OpenAPI:{" "}
+                Trạng thái dữ liệu dự phòng:{" "}
                 <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
                   {hasApiKeyConfigured ? "Đã cấu hình" : "Chưa cấu hình"}
                 </span>
@@ -242,7 +242,7 @@ export function DnseAccountInfo({
               {tokenExpired || needsRelogin ? (
                 <p className="md:col-span-2" style={{ color: "var(--danger)" }}>
                   Phiên DNSE đã hết hạn hoặc không còn hiệu lực trong trình duyệt. Vui lòng bấm
-                  {" "}"Đăng nhập lại DNSE" để làm mới NAV, sức mua và danh mục.
+                  {" "}"Đăng nhập lại DNSE" để làm mới tổng tài sản ròng, sức mua và danh mục.
                 </p>
               ) : null}
 
@@ -281,7 +281,6 @@ export function DnseAccountInfo({
                         }}
                       >
                         {account.accountNo}
-                        {account.accountType ? ` · ${account.accountType}` : ""}
                       </span>
                     ))}
                   </div>
@@ -331,9 +330,9 @@ export function DnseAccountInfo({
                 <p className="font-semibold" style={{ color: "var(--text-primary)" }}>
                   Trạng thái kết nối DNSE
                 </p>
-                <p>1. Hệ thống đang chạy theo chế độ API key + tài khoản DNSE đã liên kết.</p>
-                <p>2. Khi DNSE ID được xác minh, dữ liệu NAV/holdings sẽ tự động đồng bộ qua broker topics.</p>
-                <p>3. Nếu chưa có dữ liệu realtime, kiểm tra lại account DNSE đã liên kết và trạng thái sync.</p>
+                <p>1. Hệ thống chỉ dùng tài khoản DNSE khách hàng đã liên kết.</p>
+                <p>2. Khi tài khoản được xác minh, tổng tài sản ròng và danh mục sẽ tự động đồng bộ.</p>
+                <p>3. Nếu chưa có dữ liệu mới nhất, vui lòng đăng nhập lại DNSE rồi làm mới trang.</p>
               </div>
 
               {!hasApiKeyConfigured ? (
@@ -345,7 +344,7 @@ export function DnseAccountInfo({
                     background: "rgba(192,57,43,0.08)",
                   }}
                 >
-                  DNSE API chưa cấu hình đủ: thiếu DNSE_API_KEY.
+                  Chưa đủ cấu hình kết nối DNSE trên máy chủ.
                 </div>
               ) : null}
             </div>

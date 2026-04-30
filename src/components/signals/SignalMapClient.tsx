@@ -390,6 +390,9 @@ export function SignalMapClient({
             (() => {
               const query = new URLSearchParams({
                 ticker: signal.ticker,
+                side: "BUY",
+                source: "radar",
+                signalId: signal.id,
               });
               if (signal.navAllocation != null && Number.isFinite(signal.navAllocation)) {
                 query.set("navPct", String(signal.navAllocation));

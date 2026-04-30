@@ -12,7 +12,7 @@ import {
   TrendingUp,
   Wallet,
 } from "lucide-react";
-import { OrderTicketPanel } from "@/components/broker/OrderTicketPanel";
+import { DirectOrderPanel } from "@/components/broker/DirectOrderPanel";
 import { DnseAccountSelector } from "@/components/broker/DnseAccountSelector";
 import { DnseLoginModal } from "@/components/broker/DnseLoginModal";
 import { DnseAccountInfo } from "@/components/broker/DnseAccountInfo";
@@ -308,7 +308,7 @@ function normalizeDnseReason(reason: string | null | undefined) {
       lower,
     )
   ) {
-    return "Phiên DNSE đã hết hạn. Vui lòng bấm “Đăng nhập lại DNSE” để làm mới NAV và danh mục.";
+    return "Phiên DNSE đã hết hạn. Vui lòng bấm “Đăng nhập lại DNSE” để làm mới tổng tài sản ròng và danh mục.";
   }
 
   if (/api key not found in storage|oa-401|oa-400/.test(lower)) {
@@ -320,7 +320,7 @@ function normalizeDnseReason(reason: string | null | undefined) {
       lower,
     )
   ) {
-    return "Phiên DNSE đã hết hạn. Vui lòng bấm “Đăng nhập lại DNSE” để làm mới NAV và danh mục.";
+    return "Phiên DNSE đã hết hạn. Vui lòng bấm “Đăng nhập lại DNSE” để làm mới tổng tài sản ròng và danh mục.";
   }
 
   if (/api key not found in storage|oa-401|oa-400/.test(lower)) {
@@ -352,7 +352,7 @@ function normalizeDnseReasonVi(reason: string | null | undefined) {
       lower,
     )
   ) {
-    return "Phiên DNSE đã hết hạn. Vui lòng bấm “Đăng nhập lại DNSE” để làm mới NAV và danh mục.";
+    return "Phiên DNSE đã hết hạn. Vui lòng bấm “Đăng nhập lại DNSE” để làm mới tổng tài sản ròng và danh mục.";
   }
 
   if (/api key not found in storage|oa-401|oa-400/.test(lower)) {
@@ -464,6 +464,9 @@ export function DnseTradingClient() {
   const queryTicker = (searchParams.get("ticker") ?? "").trim().toUpperCase();
   const queryNavPctRaw = Number(searchParams.get("navPct") ?? "");
   const queryEntryRaw = Number(searchParams.get("entry") ?? "");
+  const querySideRaw = (searchParams.get("side") ?? "BUY").trim().toUpperCase();
+  const querySource = (searchParams.get("source") ?? "").trim().toLowerCase() || null;
+  const querySignalId = (searchParams.get("signalId") ?? "").trim() || null;
 
   const queryNavPct =
     Number.isFinite(queryNavPctRaw) && queryNavPctRaw > 0
@@ -471,6 +474,7 @@ export function DnseTradingClient() {
       : null;
   const queryEntryPrice =
     Number.isFinite(queryEntryRaw) && queryEntryRaw > 0 ? queryEntryRaw : null;
+  const querySide = querySideRaw === "SELL" ? "SELL" : "BUY";
   const [ticker, setTicker] = useState(queryTicker || "HPG");
   const [connectionStatus, setConnectionStatus] = useState<DnseConnectionStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(true);
@@ -678,7 +682,7 @@ export function DnseTradingClient() {
         accounts:
           accountsResult.status === "rejected" ? accountsResult.reason?.message ?? "Không thể đọc tài khoản DNSE." : null,
         balance:
-          balanceResult.status === "rejected" ? balanceResult.reason?.message ?? "Không thể đọc NAV DNSE." : null,
+          balanceResult.status === "rejected" ? balanceResult.reason?.message ?? "Không thể đọc tổng tài sản ròng DNSE." : null,
         holdings:
           positionsResult.status === "rejected" ? positionsResult.reason?.message ?? "Không thể đọc danh mục DNSE." : null,
         orders:
@@ -814,7 +818,7 @@ export function DnseTradingClient() {
     (canUseTopicBalanceHint ? normalizeDnseReasonVi(effectiveBalanceTopic?.reason) : null) ??
     (canUseTopicBalanceHint ? normalizeDnseReasonVi(balanceEnvelope?.error?.message) : null) ??
     (needsRelogin
-      ? "Phiên DNSE đã hết hạn. Vui lòng đăng nhập lại để đồng bộ NAV và danh mục."
+      ? "Phiên DNSE đã hết hạn. Vui lòng đăng nhập lại để đồng bộ tổng tài sản ròng và danh mục."
       : null);
   const holdingsHint =
     normalizeDnseReasonVi(directDnse.errors.holdings) ??
@@ -834,7 +838,7 @@ export function DnseTradingClient() {
 
   const balanceDisplayHint =
     needsRelogin && !effectiveBalanceTopic?.totalNav
-      ? "Phiên DNSE đã hết hạn. Vui lòng đăng nhập lại để đồng bộ NAV và sức mua."
+      ? "Phiên DNSE đã hết hạn. Vui lòng đăng nhập lại để đồng bộ tổng tài sản ròng và sức mua."
       : balanceHint;
   const holdingsDisplayHint =
     needsRelogin && holdings.length === 0
@@ -908,7 +912,7 @@ export function DnseTradingClient() {
   const isConnected = isLinkedAccount && (hasActiveDnseSession || hasBrokerData);
   const canTrade = isLinkedAccount && hasActiveDnseSession;
   const loginSuccessMessage = isLinkedAccount
-    ? "Đăng nhập lại DNSE thành công. Hệ thống đang làm mới NAV và danh mục."
+    ? "Đăng nhập lại DNSE thành công. Hệ thống đang làm mới tổng tài sản ròng và danh mục."
     : "Đăng nhập DNSE thành công. Hãy bấm Liên kết tài khoản DNSE.";
 
   return (
@@ -919,7 +923,7 @@ export function DnseTradingClient() {
             {PRODUCT_NAMES.brokerConnect}
           </h1>
           <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-            Kết nối tài khoản DNSE thật để đồng bộ NAV, danh mục nắm giữ và đặt lệnh trong pilot an toàn.
+            Kết nối tài khoản DNSE để đồng bộ tổng tài sản ròng, danh mục nắm giữ và đặt lệnh có kiểm soát.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -1099,7 +1103,7 @@ export function DnseTradingClient() {
                     background: "rgba(37,99,235,0.10)",
                   }}
                 >
-                  <ShieldCheck className="h-3.5 w-3.5" /> Pilot Guard bật
+                  <ShieldCheck className="h-3.5 w-3.5" /> Chế độ an toàn đang bật
                 </span>
               </div>
 
@@ -1118,7 +1122,7 @@ export function DnseTradingClient() {
                     </span>
                   </p>
                   <p>
-                    Access token hết hạn:{" "}
+                    Quyền truy cập hết hạn:{" "}
                     <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
                       {fmtDateTime(connectionStatus?.connection?.accessTokenExpiresAt)}
                     </span>
@@ -1213,9 +1217,9 @@ export function DnseTradingClient() {
                     <p className="font-semibold" style={{ color: "var(--text-primary)" }}>
                       Trạng thái kết nối DNSE
                     </p>
-                    <p>1. Hệ thống đang chạy theo chế độ API key + tài khoản DNSE đã liên kết.</p>
-                    <p>2. Khi DNSE ID được xác minh, dữ liệu NAV/holdings sẽ tự đồng bộ qua broker topics.</p>
-                    <p>3. Nếu chưa có dữ liệu realtime, kiểm tra lại account DNSE đã liên kết và trạng thái sync.</p>
+                    <p>1. Hệ thống chỉ dùng tài khoản DNSE khách hàng đã liên kết.</p>
+                    <p>2. Khi tài khoản DNSE được xác minh, tổng tài sản ròng và danh mục sẽ tự đồng bộ.</p>
+                    <p>3. Nếu chưa có dữ liệu mới nhất, vui lòng đăng nhập lại DNSE rồi làm mới trang.</p>
                   </div>
 
                   {!hasApiKeyConfigured ? (
@@ -1271,13 +1275,13 @@ export function DnseTradingClient() {
               className="text-sm font-black uppercase tracking-wide"
               style={{ color: "var(--text-primary)" }}
             >
-              NAV & sức mua
+              Tổng tài sản và sức mua
             </h2>
           </div>
           {isConnected ? (
             <div className="space-y-2 text-sm">
               <p style={{ color: "var(--text-secondary)" }}>
-                NAV tổng:{" "}
+                Tổng tài sản ròng:{" "}
                 <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
                   {totalNavValue
                     ? `${Math.round(totalNavValue).toLocaleString("vi-VN")} VND`
@@ -1293,19 +1297,19 @@ export function DnseTradingClient() {
                 </span>
               </p>
               <p style={{ color: "var(--text-secondary)" }}>
-                NAV đã phân bổ:{" "}
+                Tỷ trọng đã dùng:{" "}
                 <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
                   {Number(effectiveBalanceTopic?.navAllocatedPct ?? 0).toFixed(2)}%
                 </span>
               </p>
               <p style={{ color: "var(--text-secondary)" }}>
-                NAV còn lại:{" "}
+                Tỷ trọng còn lại:{" "}
                 <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
                   {Number(effectiveBalanceTopic?.navRemainingPct ?? 0).toFixed(2)}%
                 </span>
               </p>
               <p style={{ color: "var(--text-secondary)" }}>
-                Trần NAV active:{" "}
+                Giới hạn tỷ trọng đang áp dụng:{" "}
                 <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
                   {Number(effectiveBalanceTopic?.maxActiveNavPct ?? 90).toFixed(0)}%
                 </span>
@@ -1321,7 +1325,7 @@ export function DnseTradingClient() {
               className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold"
               style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
             >
-              <CircleOff className="h-3.5 w-3.5" /> Chưa có dữ liệu NAV realtime do tài khoản DNSE chưa liên kết hoặc chưa đồng bộ.
+              <CircleOff className="h-3.5 w-3.5" /> Chưa có dữ liệu tổng tài sản ròng do tài khoản DNSE chưa liên kết hoặc chưa đồng bộ.
             </div>
           )}
 
@@ -1345,7 +1349,7 @@ export function DnseTradingClient() {
                 </p>
               ) : (
                 <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
-                  Chưa tính được giá trị lệnh vì chưa có NAV realtime từ DNSE.
+                  Chưa tính được giá trị lệnh vì chưa có tổng tài sản ròng mới nhất từ DNSE.
                 </p>
               )}
             </div>
@@ -1521,7 +1525,7 @@ export function DnseTradingClient() {
       >
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-black uppercase tracking-wide" style={{ color: "var(--text-primary)" }}>
-            Đặt lệnh chủ động
+            Bảng đặt lệnh
           </h2>
           <div className="flex items-center gap-2">
             <input
@@ -1553,16 +1557,19 @@ export function DnseTradingClient() {
 
         {!canTrade && needsRelogin ? (
           <p className="mt-2 text-xs" style={{ color: "var(--danger)" }}>
-            Phiên DNSE đã hết hạn. Vui lòng đăng nhập lại trước khi kiểm tra NAV hoặc đặt lệnh.
+            Phiên DNSE đã hết hạn. Vui lòng đăng nhập lại trước khi kiểm tra lệnh hoặc đặt lệnh.
           </p>
         ) : null}
 
-        <OrderTicketPanel
+        <DirectOrderPanel
           ticker={(ticker || "HPG").trim().toUpperCase()}
-          recommendedNavPct={queryNavPct ?? undefined}
-          totalNavValue={totalNavValue ?? undefined}
           defaultPrice={queryEntryPrice ?? undefined}
           defaultAccountId={selectedAccountId ?? undefined}
+          defaultSide={querySide}
+          source={querySource}
+          signalId={querySignalId}
+          navPct={queryNavPct ?? undefined}
+          canTrade={canTrade}
         />
       </div>
 
