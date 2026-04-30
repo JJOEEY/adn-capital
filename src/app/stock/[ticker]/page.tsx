@@ -702,11 +702,6 @@ export default function StockDetailPage() {
     return next;
   }, [router, ticker]);
 
-  const handleSearch = (event: FormEvent) => {
-    event.preventDefault();
-    selectTicker(search);
-  };
-
   const addWatchlist = (value: string) => {
     const next = sanitizeTicker(value);
     if (!next) return;
@@ -760,14 +755,18 @@ export default function StockDetailPage() {
     typingTimerRef.current = window.setTimeout(tick, 35);
   };
 
-  const handleSend = async () => {
-    const text = input.trim();
+  const submitAidenQuery = async (
+    rawText: string,
+    options: { explicitTicker?: string | null; displayText?: string; clearInput?: boolean } = {},
+  ) => {
+    const text = rawText.trim();
     if (!text || chatLoading) return;
-    const parsedTicker = extractExplicitTickerCandidate(text);
+    const parsedTicker = sanitizeTicker(options.explicitTicker) || extractExplicitTickerCandidate(text);
     const requestTicker = parsedTicker ? (selectTicker(parsedTicker) ?? parsedTicker) : resolvedTicker;
     const userTickers = parsedTicker ? [parsedTicker] : [];
-    setInput("");
-    setMessages((prev) => [...prev, { id: `user-${Date.now()}`, role: "user", text, tickers: userTickers }]);
+    const displayText = options.displayText?.trim() || text;
+    if (options.clearInput ?? true) setInput("");
+    setMessages((prev) => [...prev, { id: `user-${Date.now()}`, role: "user", text: displayText, tickers: userTickers }]);
     setChatLoading(true);
     try {
       const res = await fetch("/api/chat", {
@@ -786,6 +785,21 @@ export default function StockDetailPage() {
     } finally {
       setChatLoading(false);
     }
+  };
+
+  const handleSend = async () => {
+    await submitAidenQuery(input, { clearInput: true });
+  };
+
+  const handleSearch = (event: FormEvent) => {
+    event.preventDefault();
+    const next = sanitizeTicker(search);
+    if (!next) return;
+    void submitAidenQuery(`Phân tích ${next}`, {
+      explicitTicker: next,
+      displayText: `Phân tích ${next}`,
+      clearInput: false,
+    });
   };
 
   return (
@@ -809,13 +823,19 @@ export default function StockDetailPage() {
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value.toUpperCase())}
+                placeholder="Mã cổ phiếu"
                 className="w-36 rounded-lg border px-3 py-2 text-sm font-bold outline-none"
                 style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--text-primary)" }}
                 aria-label="Tìm mã cổ phiếu"
               />
-              <button type="submit" className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold" style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--text-secondary)" }}>
+              <button
+                type="submit"
+                disabled={chatLoading}
+                className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-50"
+                style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--text-secondary)" }}
+              >
                 <Search className="h-4 w-4" />
-                Tìm
+                Phân tích
               </button>
             </form>
             <button onClick={refreshAll} className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold" style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--text-secondary)" }}>
