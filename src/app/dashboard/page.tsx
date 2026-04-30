@@ -422,7 +422,7 @@ function getScoreLabel(score: number, maxScore: number = 14): string {
     if (score <= 7) return "THĂM DÒ";
     return "THIÊN THỜI";
   }
-  // 14-point NexCore
+  // 14-point ADNCore
   if (score < 6) return "NGỦ ĐÔNG";
   if (score < 11) return "THĂM DÒ";
   return "THIÊN THỜI";
@@ -546,7 +546,7 @@ const GaugeCard = memo(function GaugeCard({
         className="text-[12px] font-bold uppercase tracking-wider mb-2 self-start"
         style={{ color: "var(--text-muted)" }}
       >
-        NexCore
+        ADNCore
       </p>
 
       {overview ? (

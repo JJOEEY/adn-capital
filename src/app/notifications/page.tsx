@@ -945,7 +945,7 @@ function NotificationsContent() {
                   <p className="text-xs max-w-xs mb-4" style={{ color: "var(--text-secondary)" }}>
                     Nhập trực tiếp mã cổ phiếu hoặc câu hỏi tự nhiên. Ví dụ: SSI, phân tích HPG, có nên mua GVR không?
                     <br />
-                    <span className="font-mono" style={{ color: "var(--primary)" }}>AIDEN dùng DataHub để trả lời.</span>
+                    <span className="font-mono" style={{ color: "var(--primary)" }}>AIDEN dùng dữ liệu thị trường và hồ sơ phân tích để trả lời.</span>
                   </p>
                 </div>
               )}

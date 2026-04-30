@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
@@ -20,6 +20,7 @@ import {
 import { MainLayout } from "@/components/layout/MainLayout";
 import { StockChart, type Candle, type ChartTimeframe } from "@/components/chat/StockChart";
 import { useTopic } from "@/hooks/useTopic";
+import { extractExplicitTickerCandidate, sanitizeTicker } from "@/lib/ticker-text";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -39,6 +40,12 @@ type WorkbenchPayload = {
     currentPrice?: number;
     changePct?: number;
     avgVolume20?: number;
+    sma20?: number | null;
+    sma50?: number | null;
+    sma200?: number | null;
+    ema20?: number | null;
+    ema50?: number | null;
+    ema200?: number | null;
     source?: string;
   } | null;
   fa?: {
@@ -51,6 +58,17 @@ type WorkbenchPayload = {
     reportDate?: string | null;
     valuationBasis?: string | null;
     source?: string;
+  } | null;
+  adnCore?: {
+    score?: number | null;
+    max_score?: number | null;
+    status_badge?: string | null;
+    action_message?: string | null;
+  } | null;
+  art?: {
+    score?: number | null;
+    ma7?: number | null;
+    status?: string | null;
   } | null;
   signal?: SignalData | null;
 };
@@ -110,6 +128,7 @@ type ChatMessage = {
   role: "user" | "bot";
   text: string;
   streaming?: boolean;
+  tickers?: string[];
 };
 
 type AidenResponse = {
@@ -120,6 +139,7 @@ type AidenResponse = {
 };
 
 const DEFAULT_WATCHLIST = ["SSI", "HPG", "FPT", "GVR", "MBB", "VND", "VCB", "VHM"];
+const AIDEN_CHAT_STORAGE_KEY = "adn-stock-aiden-chat-v1";
 
 function fmtValue(value: number | null | undefined, suffix = "") {
   if (value == null || !Number.isFinite(value)) return "--";
@@ -442,6 +462,7 @@ function AidenPanel({
   input,
   setInput,
   onSend,
+  onTickerSelect,
   loading,
 }: {
   ticker: string;
@@ -449,6 +470,7 @@ function AidenPanel({
   input: string;
   setInput: (next: string) => void;
   onSend: () => Promise<void>;
+  onTickerSelect: (ticker: string) => void;
   loading: boolean;
 }) {
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -484,6 +506,25 @@ function AidenPanel({
                   {message.streaming ? <span className="ml-0.5 inline-block h-4 w-1 animate-pulse rounded-sm bg-current align-text-bottom" /> : null}
                 </>
               ) : message.text}
+              {message.tickers?.length ? (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {message.tickers.map((tickerItem) => (
+                    <button
+                      key={`${message.id}-${tickerItem}`}
+                      type="button"
+                      onClick={() => onTickerSelect(tickerItem)}
+                      className="rounded-full border px-2 py-0.5 text-[11px] font-bold"
+                      style={{
+                        borderColor: "var(--border)",
+                        background: "var(--surface)",
+                        color: "var(--primary)",
+                      }}
+                    >
+                      {tickerItem}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </div>
         ))}
@@ -535,6 +576,7 @@ export default function StockDetailPage() {
   const [input, setInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const [watchlist, setWatchlist] = useState<string[]>([]);
+  const [chatHydrated, setChatHydrated] = useState(false);
   const typingTimerRef = useRef<number | null>(null);
 
   const tickerResolutionTopic = useTopic<TickerResolution>(`ticker:resolve:${ticker}`, {
@@ -568,19 +610,44 @@ export default function StockDetailPage() {
   });
 
   useEffect(() => {
-    if (typingTimerRef.current) {
-      window.clearTimeout(typingTimerRef.current);
-      typingTimerRef.current = null;
-    }
     setSearch(resolvedTicker);
+  }, [resolvedTicker]);
+
+  useEffect(() => {
+    if (chatHydrated) return;
+    try {
+      const raw = window.sessionStorage.getItem(AIDEN_CHAT_STORAGE_KEY);
+      const saved = raw ? JSON.parse(raw) as ChatMessage[] : [];
+      if (Array.isArray(saved) && saved.length > 0) {
+        setMessages(saved.map((message) => ({ ...message, streaming: false })));
+        setChatHydrated(true);
+        return;
+      }
+    } catch {
+      // Session restore is best-effort only.
+    }
     setMessages([
       {
-        id: `intro-${resolvedTicker}`,
+        id: `intro-${Date.now()}`,
         role: "bot",
         text: `AIDEN đang theo dõi **${resolvedTicker}**. Anh/chị có thể hỏi: **Phân tích ${resolvedTicker}**, **có nên mua không**, hoặc nhập một mã khác.`,
+        tickers: [resolvedTicker],
       },
     ]);
-  }, [resolvedTicker]);
+    setChatHydrated(true);
+  }, [chatHydrated, resolvedTicker]);
+
+  useEffect(() => {
+    if (!chatHydrated) return;
+    try {
+      const persisted = messages
+        .slice(-60)
+        .map((message) => ({ ...message, streaming: false }));
+      window.sessionStorage.setItem(AIDEN_CHAT_STORAGE_KEY, JSON.stringify(persisted));
+    } catch {
+      // Session persistence is best-effort only.
+    }
+  }, [chatHydrated, messages]);
 
   useEffect(() => {
     return () => {
@@ -625,14 +692,23 @@ export default function StockDetailPage() {
     void boardTopic.refresh(true);
   };
 
+  const selectTicker = useCallback((nextTicker: string) => {
+    const next = sanitizeTicker(nextTicker);
+    if (!next) return null;
+    setSearch(next);
+    if (next !== ticker) {
+      router.replace(`/stock/${next}`, { scroll: false });
+    }
+    return next;
+  }, [router, ticker]);
+
   const handleSearch = (event: FormEvent) => {
     event.preventDefault();
-    const next = search.trim().toUpperCase().replace(/[^A-Z0-9._-]/g, "");
-    if (next) router.push(`/stock/${next}`);
+    selectTicker(search);
   };
 
   const addWatchlist = (value: string) => {
-    const next = value.trim().toUpperCase().replace(/[^A-Z0-9._-]/g, "");
+    const next = sanitizeTicker(value);
     if (!next) return;
     setWatchlist((prev) => Array.from(new Set([next, ...prev])).slice(0, 50));
   };
@@ -652,7 +728,7 @@ export default function StockDetailPage() {
     });
   };
 
-  const streamBotMessage = (fullText: string) => {
+  const streamBotMessage = (fullText: string, tickers: string[] = []) => {
     if (typingTimerRef.current) {
       window.clearTimeout(typingTimerRef.current);
       typingTimerRef.current = null;
@@ -661,14 +737,15 @@ export default function StockDetailPage() {
     const id = `bot-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const stepSize = Math.max(2, Math.ceil(fullText.length / 280));
     let index = 0;
-    setMessages((prev) => [...prev, { id, role: "bot", text: "", streaming: true }]);
+    const cleanTickers = Array.from(new Set(tickers.map((item) => sanitizeTicker(item)).filter(Boolean)));
+    setMessages((prev) => [...prev, { id, role: "bot", text: "", streaming: true, tickers: cleanTickers }]);
 
     const tick = () => {
       index = Math.min(fullText.length, index + stepSize);
       setMessages((prev) =>
         prev.map((message) =>
           message.id === id
-            ? { ...message, text: fullText.slice(0, index), streaming: index < fullText.length }
+            ? { ...message, text: fullText.slice(0, index), streaming: index < fullText.length, tickers: cleanTickers }
             : message,
         ),
       );
@@ -686,20 +763,24 @@ export default function StockDetailPage() {
   const handleSend = async () => {
     const text = input.trim();
     if (!text || chatLoading) return;
+    const parsedTicker = extractExplicitTickerCandidate(text);
+    const requestTicker = parsedTicker ? (selectTicker(parsedTicker) ?? parsedTicker) : resolvedTicker;
+    const userTickers = parsedTicker ? [parsedTicker] : [];
     setInput("");
-    setMessages((prev) => [...prev, { id: `user-${Date.now()}`, role: "user", text }]);
+    setMessages((prev) => [...prev, { id: `user-${Date.now()}`, role: "user", text, tickers: userTickers }]);
     setChatLoading(true);
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, currentTicker: resolvedTicker }),
+        body: JSON.stringify({ message: text, currentTicker: requestTicker }),
       });
       const data = (await res.json()) as AidenResponse;
       const botText = data.message || data.error || "AIDEN chưa có phản hồi phù hợp. Vui lòng thử lại.";
-      streamBotMessage(botText);
-      const nextTicker = data.ticker?.trim().toUpperCase();
-      if (nextTicker && nextTicker !== resolvedTicker) router.push(`/stock/${nextTicker}`);
+      const botTickers = Array.from(new Set((data.tickers ?? [data.ticker]).map((item) => sanitizeTicker(item)).filter(Boolean)));
+      streamBotMessage(botText, botTickers);
+      const nextTicker = sanitizeTicker(data.ticker) || botTickers[0] || null;
+      if (nextTicker && nextTicker !== requestTicker) selectTicker(nextTicker);
     } catch {
       streamBotMessage("Lỗi kết nối AIDEN. Vui lòng thử lại.");
     } finally {
@@ -770,13 +851,21 @@ export default function StockDetailPage() {
                     onAdd={addWatchlist}
                     onRemove={removeWatchlist}
                     onMove={moveWatchlist}
-                    onOpen={(next) => router.push(`/stock/${next}`)}
+                    onOpen={(next) => selectTicker(next)}
                   />
                 </div>
               </>
             ) : null}
           </section>
-          <AidenPanel ticker={resolvedTicker} messages={messages} input={input} setInput={setInput} onSend={handleSend} loading={chatLoading} />
+          <AidenPanel
+            ticker={resolvedTicker}
+            messages={messages}
+            input={input}
+            setInput={setInput}
+            onSend={handleSend}
+            onTickerSelect={selectTicker}
+            loading={chatLoading}
+          />
         </div>
       </div>
     </MainLayout>

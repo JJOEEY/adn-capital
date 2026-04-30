@@ -350,7 +350,7 @@ export default function TEIPage() {
         <div className="p-3 md:p-6 max-w-5xl mx-auto">
           <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-8 text-center">
             <div className="text-lg font-bold mb-2" style={{ color: "var(--danger)" }}>Không tải được dữ liệu OHLCV</div>
-            <p className="text-sm mb-4" style={{ color: "var(--text-secondary)" }}>Mã: {ticker} — Kiểm tra FiinQuant Bridge</p>
+            <p className="text-sm mb-4" style={{ color: "var(--text-secondary)" }}>Mã: {ticker} — Kiểm tra tín hiệu thị trường</p>
             <button onClick={handleRefresh}
               className="px-4 py-2 rounded-lg text-sm transition-colors"
               style={{ border: "1px solid var(--border)", color: "var(--text-secondary)" }}>

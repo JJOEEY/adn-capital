@@ -415,6 +415,34 @@ async function loadTickerNews(ticker: string) {
   }
 }
 
+async function loadOptionalTickerArt(ticker: string) {
+  try {
+    const readArtNumber = (value: unknown) => {
+      const numberValue = Number(value);
+      return Number.isFinite(numberValue) ? numberValue : null;
+    };
+    const backend = getPythonBridgeUrl();
+    const res = await fetch(`${backend}/api/v1/rpi/${encodeURIComponent(ticker)}?days=120`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(12_000),
+    });
+    if (!res.ok) return null;
+    const payload = await res.json() as JsonRecord;
+    const score = readArtNumber(payload.rpi_current) ?? readArtNumber(payload.tei) ?? readArtNumber(payload.rpi);
+    const ma7 = readArtNumber(payload.rpi_ma7) ?? readArtNumber(payload.ma7);
+    if (score == null) return null;
+    return {
+      score,
+      ma7,
+      status: payload.status ?? payload.classification ?? null,
+      updatedAt: payload.updatedAt ?? payload.date ?? null,
+    };
+  } catch (error) {
+    console.warn("[DataHub research] optional ADN ART unavailable:", error);
+    return null;
+  }
+}
+
 async function loadLeaderRadar() {
   const backend = getPythonBridgeUrl();
   const res = await fetch(`${backend}/api/v1/leader-radar`, {
@@ -682,7 +710,7 @@ async function loadResearchWorkbench(topicKey: string) {
   const resolved = await assertValidTicker(ticker);
   const normalizedTicker = resolved.ticker;
 
-  const [ta, faRaw, seasonality, investor, marketSnapshot, activeSignal, news, aiCaches] = await Promise.all([
+  const [ta, faRaw, seasonality, investor, marketSnapshot, activeSignal, news, aiCaches, art] = await Promise.all([
     fetchTAData(normalizedTicker),
     fetchFAData(normalizedTicker),
     loadSeasonalityForTicker(normalizedTicker),
@@ -691,6 +719,7 @@ async function loadResearchWorkbench(topicKey: string) {
     loadOptionalWorkbenchSignal(normalizedTicker),
     loadTickerNews(normalizedTicker),
     loadAiCachesForTicker(normalizedTicker),
+    loadOptionalTickerArt(normalizedTicker),
   ]);
   const fa = hydrateFAFromRecentAnalysis(normalizedTicker, faRaw, aiCaches, ta);
 
@@ -703,6 +732,8 @@ async function loadResearchWorkbench(topicKey: string) {
       breadth: marketSnapshot.breadth,
       investorTrading: marketSnapshot.investorTrading,
     },
+    adnCore: marketSnapshot.marketOverview,
+    art,
     ta,
     fa,
     seasonality,

@@ -1,6 +1,7 @@
 import { getTopicEnvelope } from "@/lib/datahub/core";
 import type { TopicContext, TopicEnvelope } from "@/lib/datahub/types";
 import { executeFlashOnlyAIRequest, MODEL_FLASH } from "@/lib/gemini";
+import { extractTickerCandidates as extractTickerCandidatesFromText } from "@/lib/ticker-text";
 import { resolveMarketTicker } from "@/lib/ticker-resolver";
 
 type JsonRecord = Record<string, unknown>;
@@ -14,52 +15,7 @@ export type AidenDatahubChatResult = {
   dataFreshness: Record<string, TopicEnvelope["freshness"]>;
 };
 
-const TICKER_EXCLUSIONS = new Set([
-  "ADN",
-  "AIDEN",
-  "AI",
-  "API",
-  "BAN",
-  "BOT",
-  "CEO",
-  "CH",
-  "CHO",
-  "CO",
-  "DANG",
-  "CFO",
-  "GDP",
-  "GIA",
-  "GIU",
-  "KHONG",
-  "MA",
-  "MUA",
-  "NEN",
-  "PH",
-  "PHAN",
-  "PHIEU",
-  "USD",
-  "VND",
-  "VN",
-  "TA",
-  "FA",
-  "TICH",
-  "TOI",
-  "PTKT",
-  "PTCB",
-  "NEWS",
-  "TAMLY",
-  "XEM",
-]);
-
-function stripVietnameseDiacritics(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/đ/g, "d")
-    .replace(/Đ/g, "D");
-}
-
-function compactJson(value: unknown, maxLength = 2400) {
+function compactJson(value: unknown, maxLength = 5200) {
   const raw = JSON.stringify(value, null, 2);
   if (raw.length <= maxLength) return raw;
   return `${raw.slice(0, maxLength)}\n... truncated`;
@@ -79,10 +35,178 @@ function formatDecimal(value: number) {
   return value.toLocaleString("vi-VN", { maximumFractionDigits: 2 });
 }
 
+function formatPrice(value: number | null) {
+  return value == null ? null : value.toLocaleString("vi-VN", { maximumFractionDigits: 0 });
+}
+
+function formatPct(value: number | null) {
+  return value == null ? null : value.toLocaleString("vi-VN", { maximumFractionDigits: 2 });
+}
+
+function normalizePercentMetric(value: number | null) {
+  if (value == null) return null;
+  return Math.abs(value) <= 1 ? value * 100 : value;
+}
+
 function lastRow(value: unknown) {
   const record = asRecord(value);
   const data = Array.isArray(record.data) ? record.data : [];
   return data.length > 0 ? data[data.length - 1] : null;
+}
+
+function readNestedNumber(value: unknown, path: string[]) {
+  let current: unknown = value;
+  for (const key of path) {
+    current = asRecord(current)[key];
+  }
+  return asNumber(current);
+}
+
+function payloadRows(value: unknown) {
+  const record = asRecord(value);
+  if (Array.isArray(record.data)) return record.data as unknown[];
+  if (Array.isArray(record.candles)) return record.candles as unknown[];
+  if (Array.isArray(record.items)) return record.items as unknown[];
+  return Array.isArray(value) ? value : [];
+}
+
+function normalizeHistoricalCandles(value: unknown) {
+  return payloadRows(value)
+    .map((row) => {
+      const item = asRecord(row);
+      const open = asNumber(item.open ?? item.o);
+      const high = asNumber(item.high ?? item.h);
+      const low = asNumber(item.low ?? item.l);
+      const close = asNumber(item.close ?? item.c ?? item.price);
+      const volume = asNumber(item.volume ?? item.v);
+      const date = String(item.date ?? item.time ?? item.timestamp ?? "");
+      if (open == null || high == null || low == null || close == null) return null;
+      return { date, open, high, low, close, volume };
+    })
+    .filter((item): item is { date: string; open: number; high: number; low: number; close: number; volume: number | null } => item !== null);
+}
+
+function pctDiff(value: number | null, base: number | null) {
+  if (value == null || base == null || base === 0) return null;
+  return Number((((value - base) / base) * 100).toFixed(2));
+}
+
+function classifyLastCandle(candles: ReturnType<typeof normalizeHistoricalCandles>, volumeMa20: number | null) {
+  const last = candles.at(-1);
+  if (!last) return null;
+  const range = Math.max(1, last.high - last.low);
+  const body = Math.abs(last.close - last.open);
+  const bodyPct = Number(((body / range) * 100).toFixed(1));
+  const rangePct = last.close > 0 ? Number(((range / last.close) * 100).toFixed(2)) : null;
+  const volumeVsMa20 = last.volume != null && volumeMa20 ? Number((last.volume / volumeMa20).toFixed(2)) : null;
+  const direction = last.close > last.open ? "up" : last.close < last.open ? "down" : "neutral";
+  let vsaWyckoff = "Biên độ và khối lượng ở trạng thái cân bằng.";
+  if (volumeVsMa20 != null && volumeVsMa20 >= 1.4 && direction === "down") {
+    vsaWyckoff = "Áp lực cung tăng, cần đề phòng phân phối hoặc selling climax nếu thủng hỗ trợ.";
+  } else if (volumeVsMa20 != null && volumeVsMa20 >= 1.4 && direction === "up") {
+    vsaWyckoff = "Cầu vào chủ động, phù hợp kịch bản hấp thụ cung nếu giữ được vùng hỗ trợ.";
+  } else if (volumeVsMa20 != null && volumeVsMa20 < 0.8) {
+    vsaWyckoff = "Thanh khoản thấp, tín hiệu bứt phá hoặc hồi phục cần thêm xác nhận.";
+  }
+  return { ...last, direction, bodyPct, rangePct, volumeVsMa20, vsaWyckoff };
+}
+
+function buildAnalysisMetrics(wb: JsonRecord, realtime: unknown, historical: unknown) {
+  const ta = asRecord(wb.ta);
+  const fa = asRecord(wb.fa);
+  const signal = asRecord(wb.signal);
+  const realtimeLast = asRecord(lastRow(realtime));
+  const candles = normalizeHistoricalCandles(historical);
+  const currentPrice = asNumber(ta.currentPrice) ?? asNumber(realtimeLast.close ?? realtimeLast.price);
+  const ma20 = asNumber(ta.sma20) ?? asNumber(ta.ema20);
+  const ma50 = asNumber(ta.sma50) ?? asNumber(ta.ema50);
+  const ma200 = asNumber(ta.sma200) ?? asNumber(ta.ema200);
+  const volumeMa20 = asNumber(ta.avgVolume20);
+  const volume10 = Array.isArray(ta.volume10) ? ta.volume10 : [];
+  const latestVolume = asNumber(realtimeLast.volume) ?? asNumber(volume10.at(-1));
+  const support = asNumber(signal.stoploss) ?? readNestedNumber(ta, ["bollinger", "lower"]) ?? asNumber(ta.low52w);
+  const resistance = asNumber(signal.target) ?? readNestedNumber(ta, ["bollinger", "upper"]) ?? asNumber(ta.high52w);
+  const entry = asNumber(signal.entryPrice);
+  const safeZoneLow = support;
+  const safeZoneHigh = entry ?? ma20 ?? currentPrice;
+  const macdHistogram = readNestedNumber(ta, ["macd", "histogram"]);
+  const macdHistogramPrev = readNestedNumber(ta, ["macd", "histogramPrev"]);
+  const rsi14 = asNumber(ta.rsi14);
+  const volumeVsMa20 = latestVolume != null && volumeMa20 ? Number((latestVolume / volumeMa20).toFixed(2)) : null;
+  const lastCandle = classifyLastCandle(candles, volumeMa20);
+
+  return stripInternalFields({
+    ticker: wb.ticker,
+    price: currentPrice,
+    changePct: asNumber(ta.changePct),
+    movingAverages: {
+      ma20,
+      ma50,
+      ma200,
+      priceVsMa20Pct: pctDiff(currentPrice, ma20),
+      priceVsMa50Pct: pctDiff(currentPrice, ma50),
+      priceVsMa200Pct: pctDiff(currentPrice, ma200),
+    },
+    momentum: {
+      rsi14,
+      macdHistogram,
+      macdHistogramPrev,
+      macdHistogramChange: macdHistogram != null && macdHistogramPrev != null ? Number((macdHistogram - macdHistogramPrev).toFixed(2)) : null,
+    },
+    volume: {
+      latestVolume,
+      volumeMa20,
+      volumeVsMa20,
+    },
+    priceZones: {
+      support,
+      resistance,
+      safeZoneLow,
+      safeZoneHigh,
+      low52w: asNumber(ta.low52w),
+      high52w: asNumber(ta.high52w),
+    },
+    radarAction: {
+      status: signal.status ?? null,
+      type: signal.type ?? null,
+      entryPrice: entry,
+      target: asNumber(signal.target),
+      stoploss: asNumber(signal.stoploss),
+      currentPnl: asNumber(signal.currentPnl),
+      winRate: asNumber(signal.winRate),
+      rrRatio: signal.rrRatio ?? null,
+    },
+    valuation: {
+      pe: asNumber(fa.pe),
+      pb: asNumber(fa.pb),
+      eps: asNumber(fa.eps),
+      bvps: asNumber(fa.bookValuePerShare),
+      roe: normalizePercentMetric(asNumber(fa.roe)),
+      roa: normalizePercentMetric(asNumber(fa.roa)),
+      reportDate: fa.reportDate ?? null,
+    },
+    lastCandle,
+    recentCandles: candles.slice(-6),
+    adnCore: stripInternalFields(wb.adnCore ?? null),
+    adnArt: stripInternalFields(wb.art ?? null),
+    suggestedTextFacts: {
+      maLine: currentPrice != null
+        ? [
+            ma20 != null ? `Giá ${formatPrice(currentPrice)} so với MA20 ${formatPrice(ma20)} (${formatPct(pctDiff(currentPrice, ma20))}%)` : null,
+            ma50 != null ? `MA50 ${formatPrice(ma50)}` : null,
+            ma200 != null ? `MA200 ${formatPrice(ma200)}` : null,
+          ].filter(Boolean).join("; ")
+        : null,
+      riskTrigger: ma20 != null
+        ? `Nếu giá mất MA20 ${formatPrice(ma20)} với volume vượt MA20 ${formatPrice(volumeMa20)}, rủi ro điều chỉnh sâu tăng lên.`
+        : null,
+      warningSupport: currentPrice != null && ma20 != null && currentPrice >= ma20
+        ? `Giá đang trên MA20 ${formatPrice(ma20)}, xu hướng ngắn hạn còn được hỗ trợ.`
+        : currentPrice != null && ma20 != null
+          ? `Giá đang dưới MA20 ${formatPrice(ma20)}, cần chờ lấy lại MA20 trước khi tăng tỷ trọng.`
+          : null,
+    },
+  });
 }
 
 function stripInternalFields(value: unknown): unknown {
@@ -107,15 +231,7 @@ function stripInternalFields(value: unknown): unknown {
 }
 
 function extractTickerCandidates(message: string, currentTicker?: string | null) {
-  const candidates = new Set<string>();
-  if (currentTicker) candidates.add(currentTicker.toUpperCase());
-  const upper = stripVietnameseDiacritics(message).toUpperCase();
-  for (const match of upper.matchAll(/\b[A-Z][A-Z0-9._-]{1,11}\b/g)) {
-    const token = match[0].replace(/[^A-Z0-9._-]/g, "");
-    if (!token || TICKER_EXCLUSIONS.has(token)) continue;
-    candidates.add(token);
-  }
-  return Array.from(candidates).slice(0, 5);
+  return extractTickerCandidatesFromText(message, currentTicker, 5);
 }
 
 async function resolveTickers(message: string, currentTicker?: string | null) {
@@ -138,21 +254,25 @@ function buildTickerContext(ticker: string, envelopes: Array<{ topic: string; en
   const workbench = envelopes.find((item) => item.topic.startsWith("research:workbench:"))?.envelope.value;
   const realtime = envelopes.find((item) => item.topic.startsWith("vn:realtime:"))?.envelope.value;
   const depth = envelopes.find((item) => item.topic.startsWith("vn:depth:"))?.envelope.value;
+  const historical = envelopes.find((item) => item.topic.startsWith("vn:historical:"))?.envelope.value;
   const wb = asRecord(workbench);
 
   return {
     ticker,
+    analysisMetrics: buildAnalysisMetrics(wb, realtime, historical),
     ta: stripInternalFields(wb.ta ?? null),
     fa: stripInternalFields(wb.fa ?? null),
     signal: stripInternalFields(wb.signal ?? null),
+    adnCore: stripInternalFields(wb.adnCore ?? null),
+    adnArt: stripInternalFields(wb.art ?? null),
     market: stripInternalFields(wb.market ?? null),
     investor: stripInternalFields(wb.investor ?? null),
     news: stripInternalFields(Array.isArray(wb.news) ? wb.news.slice(0, 5) : []),
-    aiCaches: stripInternalFields(wb.aiCaches ?? null),
     realtimeSummary: stripInternalFields(asRecord(realtime).summary ?? null),
     realtimeLastBar: stripInternalFields(lastRow(realtime)),
     orderbook: stripInternalFields(depth ?? null),
     dataSummary: wb.summary ?? null,
+    aiCaches: stripInternalFields(wb.aiCaches ?? null),
   };
 }
 
@@ -187,16 +307,31 @@ Quy tắc bắt buộc:
 
 function buildPrompt(message: string, contexts: unknown[]) {
   const comparison = contexts.length >= 2;
+  const outputContract = `OUTPUT_CONTRACT:
+- Bắt buộc dùng đúng 7 heading theo thứ tự: **Phân tích cấu trúc (Biểu đồ cổ phiếu)**, **Phân tích vùng giá**, **Chiến lược**, **Phân tích cơ bản**, **Kịch bản rủi ro**, **Cảnh báo**, **Kết luận**.
+- Mỗi phần 2-5 bullet/câu ngắn. Không viết chung chung nếu context có số; phải đưa số cụ thể.
+- Phân tích cấu trúc: nêu vị trí giá so với MA20, MA50, MA200; mẫu hình hiện tại; nến gần nhất theo VSA/Wyckoff dựa vào analysisMetrics.lastCandle/recentCandles/volume.
+- Phân tích vùng giá: nêu hỗ trợ, kháng cự, vùng an toàn bằng số.
+- Chiến lược: có 2 kịch bản rõ ràng: nếu đang lãi và nếu đang lỗ. Mỗi kịch bản có điểm chốt lời/giảm tỷ trọng và điểm cắt lỗ hoặc điều kiện giữ lại.
+- Phân tích cơ bản: mở bằng **Chỉ số định giá:** nếu context có P/E/P/B/EPS/BVPS/ROE/ROA; so với giá hiện tại và bối cảnh thị trường để đánh giá hấp dẫn hay không.
+- Kịch bản rủi ro: nêu điều kiện làm phân tích thất bại, ví dụ mất MA20/MA50, volume tăng, MACD histogram xấu đi, RSI suy yếu, selling climax hoặc phân phối.
+- Cảnh báo: bắt buộc có 3 dòng **Ủng hộ:**, **Cảnh báo:**, **Note:**. Mỗi dòng phải có ít nhất một số liệu hoặc điều kiện rõ.
+- Kết luận: nêu ADNCore và ADN ART nếu có trong context, sau đó phân loại hành động: quan sát, chờ mua, mua thăm dò, nắm giữ, giảm tỷ trọng, hoặc tránh mua.
+- Kết thúc bằng đúng disclaimer:
+⚠️ Phân tích tham khảo, không phải khuyến nghị đầu tư.
+— ADN Capital 🤖`;
   return `INTERNAL_CONTEXT:
 ${compactJson(contexts)}
+
+${outputContract}
 
 Người dùng hỏi:
 ${message}
 
 Yêu cầu trả lời:
 ${comparison ? "- So sánh trực diện các mã được hỏi." : "- Phân tích mã cổ phiếu chính được hỏi."}
-- Gồm 4 phần: PTKT, Định giá/PTCB, Hành vi dòng tiền/ATC hoặc sổ lệnh mua/bán nếu có, Kết luận hành động.
-- Mỗi phần 2-4 dòng, ưu tiên số liệu mới nhất trong ngữ cảnh.
+- Gồm đúng 7 phần theo OUTPUT_CONTRACT, không quay lại cấu trúc slash-command cũ.
+- Mỗi phần 2-5 dòng hoặc bullet ngắn, ưu tiên số liệu mới nhất trong ngữ cảnh.
 - Phần Định giá/PTCB bắt buộc mở bằng dòng **Chỉ số định giá:** nếu ngữ cảnh có P/E/P/B/EPS/ROE/ROA.
 - Không nhắc tên nguồn nội bộ hoặc trạng thái backend.
 - Nếu dùng kỳ báo cáo trước đó, viết ngắn gọn "theo kỳ báo cáo gần nhất" và tiếp tục phân tích.
@@ -264,8 +399,8 @@ function buildValuationLine(contexts: unknown[]) {
   const pb = asNumber(fa.pb);
   const eps = asNumber(fa.eps);
   const bvps = asNumber(fa.bookValuePerShare);
-  const roe = asNumber(fa.roe);
-  const roa = asNumber(fa.roa);
+  const roe = normalizePercentMetric(asNumber(fa.roe));
+  const roa = normalizePercentMetric(asNumber(fa.roa));
   const reportDate = typeof fa.reportDate === "string" && fa.reportDate.trim()
     ? ` theo kỳ báo cáo gần nhất ${fa.reportDate.trim()}`
     : " theo kỳ báo cáo gần nhất";
@@ -283,6 +418,16 @@ function buildValuationLine(contexts: unknown[]) {
     return "**Chỉ số định giá:** Theo kỳ báo cáo gần nhất, phần định giá được đối chiếu với vùng giá hiện tại, chất lượng lợi nhuận và rủi ro thị trường.";
   }
   return `**Chỉ số định giá:** ${pieces.join(" · ")}${reportDate}.`;
+}
+
+const AIDEN_ANALYSIS_DISCLAIMER = "⚠️ Phân tích tham khảo, không phải khuyến nghị đầu tư.\n— ADN Capital 🤖";
+
+function ensureDisclaimer(answer: string) {
+  const cleaned = answer
+    .replace(/⚠️?\s*Phân tích tham khảo,?\s*không phải khuyến nghị đầu tư\.?/giu, "")
+    .replace(/—\s*ADN Capital\s*🤖?/giu, "")
+    .trim();
+  return `${cleaned}\n\n${AIDEN_ANALYSIS_DISCLAIMER}`.trim();
 }
 
 function ensureValuationLine(answer: string, contexts: unknown[]) {
@@ -322,6 +467,7 @@ export async function runAidenDatahubChat(input: {
       const topics = [
         `research:workbench:${ticker}`,
         `vn:realtime:${ticker}:5m`,
+        `vn:historical:${ticker}:1d`,
         `vn:depth:${ticker}`,
       ];
       const envelopes = await Promise.all(topics.map((topic) => readTopic(topic, context)));
@@ -347,7 +493,7 @@ export async function runAidenDatahubChat(input: {
   }
 
   return {
-    message: sanitizeCustomerAnswer(ensureValuationLine(answer.trim(), contexts)),
+    message: ensureDisclaimer(sanitizeCustomerAnswer(ensureValuationLine(answer.trim(), contexts))),
     ticker: tickers[0],
     tickers,
     usedTopics,

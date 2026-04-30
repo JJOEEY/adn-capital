@@ -80,6 +80,13 @@ function calcLastEMA(closes: number[], period: number): number {
   return Math.round(emas[emas.length - 1] / 100) * 100;
 }
 
+function calcLastSMA(values: number[], period: number): number | null {
+  if (values.length < period) return null;
+  const slice = values.slice(-period);
+  const average = slice.reduce((sum, value) => sum + value, 0) / period;
+  return Math.round(average / 100) * 100;
+}
+
 /** RSI(14) theo Wilder Smoothing. Trả 50 nếu không đủ data. */
 function calcRSI(closes: number[], period = 14): number {
   if (closes.length < period + 2) return 50;
@@ -160,10 +167,14 @@ export interface TAData {
   changePct: number;
   volume10: number[];
   avgVolume10: number;
+  sma20?: number | null;
+  sma50?: number | null;
+  sma200?: number | null;
   ema10: number;
   ema20: number;
   ema30: number;
   ema50: number;
+  ema200?: number | null;
   rsi14: number;
   macd: { macd: number; signal: number; histogram: number; histogramPrev: number } | null;
   bollinger: { upper: number; middle: number; lower: number } | null;
@@ -295,7 +306,7 @@ function firstRecord(value: unknown): FARecord {
 /**
  * Fetch dữ liệu TA thực từ VNDirect dchart API.
  *
- * Lấy 70 phiên (đủ cho EMA50, RSI14, MACD26).
+ * Lấy khoảng 300 phiên (đủ cho MA200, RSI14, MACD26).
  * Giá trả về nghìn đồng → nhân x1000 → VNĐ.
  * Log chi tiết mọi lỗi HTTP ra console backend.
  *
@@ -307,7 +318,7 @@ export async function fetchTAData(ticker: string): Promise<TAData | null> {
 
   try {
     const now  = Math.floor(Date.now() / 1000);
-    const from = now - 90 * 86400; // 90 ngày trước ~ đủ 70 phiên giao dịch
+    const from = now - 420 * 86400; // đủ lịch sử ngày cho MA200 và vùng 52 tuần
     const url  = `${DCHART_BASE}?resolution=D&symbol=${code}&from=${from}&to=${now}`;
 
     console.log(`[fetchTAData] Fetching VNDirect dchart: ${url}`);
@@ -386,10 +397,14 @@ export async function fetchTAData(ticker: string): Promise<TAData | null> {
     const low52w  = Math.min(...lows);
 
     // Chỉ báo kỹ thuật
+    const sma20 = calcLastSMA(closes, 20);
+    const sma50 = calcLastSMA(closes, 50);
+    const sma200 = calcLastSMA(closes, 200);
     const ema10 = calcLastEMA(closes, 10);
     const ema20 = calcLastEMA(closes, 20);
     const ema30 = calcLastEMA(closes, 30);
     const ema50 = calcLastEMA(closes, 50);
+    const ema200 = closes.length >= 200 ? calcLastEMA(closes, 200) : null;
     const rsi14 = calcRSI(closes, 14);
     const macd  = calcMACD(closes);
     const bollinger = calcBollingerBands(closes, 20, 2);
@@ -430,10 +445,14 @@ export async function fetchTAData(ticker: string): Promise<TAData | null> {
       changePct,
       volume10: vol10,
       avgVolume10: avgVol10,
+      sma20,
+      sma50,
+      sma200,
       ema10,
       ema20,
       ema30,
       ema50,
+      ema200,
       rsi14,
       macd,
       bollinger,

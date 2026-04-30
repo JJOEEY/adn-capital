@@ -159,7 +159,7 @@ const MarketScoreMini = memo(function MarketScoreMini({ overview }: { overview: 
         className="text-[12px] font-bold uppercase tracking-wider mb-3"
         style={{ color: "var(--text-muted)" }}
       >
-        NexCore
+        ADNCore
       </p>
       <div className="flex items-center gap-4">
         <div className="flex items-baseline gap-1">
