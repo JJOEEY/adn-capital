@@ -22,7 +22,7 @@ type CronJobPolicy = {
 
 const CRON_JOB_POLICIES: Record<CanonicalCronType, CronJobPolicy> = {
   signal_scan_type1: {
-    slotsMinutes: [10 * 60, 10 * 60 + 30, 14 * 60, 14 * 60 + 20],
+    slotsMinutes: [10 * 60, 10 * 60 + 30, 14 * 60, 14 * 60 + 25],
     staleGraceMinutes: 45,
     tradingWindowOnly: true,
   },

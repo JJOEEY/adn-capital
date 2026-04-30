@@ -6,6 +6,67 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSignalWindowInfo } from "@/lib/cronHelpers";
+import { invalidateTopics } from "@/lib/datahub/core";
+
+const BRIEF_REPORT_TYPES = new Set(["morning_brief", "close_brief_15h", "eod_full_19h"]);
+
+function normalizeBridgeType(type: string): string {
+  if (type === "morning") return "morning_brief";
+  if (type === "eod") return "eod_full_19h";
+  if (type === "close" || type === "eod_brief") return "close_brief_15h";
+  return type;
+}
+
+function stringifyBridgeContent(content: unknown): string {
+  if (typeof content === "string") return content.trim();
+  if (content && typeof content === "object") {
+    const record = content as Record<string, unknown>;
+    for (const key of ["markdown", "report", "content", "text", "message"]) {
+      const value = record[key];
+      if (typeof value === "string" && value.trim()) return value.trim();
+    }
+  }
+  return JSON.stringify(content);
+}
+
+async function persistBridgeMarketReport(
+  type: string,
+  title: string,
+  content: string,
+  rawPayload: unknown,
+) {
+  if (!BRIEF_REPORT_TYPES.has(type)) return null;
+
+  const dedupeCutoff = new Date(Date.now() - 45 * 60 * 1000);
+  const existing = await prisma.marketReport.findFirst({
+    where: {
+      type,
+      title,
+      content,
+      createdAt: { gte: dedupeCutoff },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  });
+  if (existing) return existing.id;
+
+  const created = await prisma.marketReport.create({
+    data: {
+      type,
+      title,
+      content,
+      rawData: JSON.stringify(rawPayload && typeof rawPayload === "object" ? rawPayload : { content }),
+      metadata: JSON.stringify({
+        source: "bridge_internal_notification",
+        receivedAt: new Date().toISOString(),
+      }),
+    },
+    select: { id: true },
+  });
+
+  invalidateTopics({ tags: ["news", "brief", "dashboard", "market"] });
+  return created.id;
+}
 
 export async function POST(req: NextRequest) {
   // Xác thực bằng CRON_SECRET
@@ -24,12 +85,12 @@ export async function POST(req: NextRequest) {
 
     // Lưu vào Notification (model đã có sẵn trong schema.prisma)
     // Map type sang title
-    const normalizedType = type === "morning" ? "morning_brief" : type === "eod" ? "close_brief_15h" : type;
+    const normalizedType = normalizeBridgeType(type);
     const finalType =
       normalizedType === "signal" || normalizedType === "signal_scan"
         ? getSignalWindowInfo().type
         : normalizedType;
-    const safeContent = typeof content === "string" ? content.trim() : JSON.stringify(content);
+    const safeContent = stringifyBridgeContent(content);
 
     const typeLabels: Record<string, string> = {
       morning_brief: "Bản tin sáng 08:00",
@@ -54,6 +115,7 @@ export async function POST(req: NextRequest) {
     };
     const fallbackTitle = typeLabels[finalType] ?? finalType;
     const title = (body.title?.trim() || fallbackTitle).slice(0, 255);
+    const marketReportId = await persistBridgeMarketReport(finalType, title, safeContent, content);
 
     // Dedupe trong cùng time window để web feed không bị trùng khi source retry.
     const dedupeCutoff = new Date(Date.now() - 15 * 60 * 1000);
@@ -68,7 +130,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (existing) {
-      return NextResponse.json({ ok: true, id: existing.id, deduped: true });
+      return NextResponse.json({ ok: true, id: existing.id, marketReportId, deduped: true });
     }
 
     const notification = await prisma.notification.create({
@@ -80,7 +142,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return NextResponse.json({ ok: true, id: notification.id });
+    return NextResponse.json({ ok: true, id: notification.id, marketReportId });
   } catch (error) {
     console.error("[Internal Notifications] Lỗi:", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

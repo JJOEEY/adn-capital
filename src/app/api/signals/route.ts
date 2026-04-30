@@ -145,14 +145,19 @@ export async function GET(request: NextRequest) {
     since.setDate(since.getDate() - days);
     since.setHours(0, 0, 0, 0);
 
-    const where: Record<string, unknown> = { createdAt: { gte: since } };
+    const where: Record<string, unknown> = {
+      OR: [
+        { createdAt: { gte: since } },
+        { updatedAt: { gte: since } },
+      ],
+    };
     if (statusFilter && ["RADAR", "ACTIVE", "HOLD_TO_DIE", "CLOSED"].includes(statusFilter)) {
       where.status = statusFilter;
     }
 
     let signals = await prisma.signal.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
     });
 
     const liveStatuses = new Set(["ACTIVE", "HOLD_TO_DIE"]);
@@ -172,7 +177,7 @@ export async function GET(request: NextRequest) {
         if ((liveUpdate?.closedCount ?? 0) > 0) {
           signals = await prisma.signal.findMany({
             where,
-            orderBy: { createdAt: "desc" },
+            orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
           });
         }
       } catch (error) {

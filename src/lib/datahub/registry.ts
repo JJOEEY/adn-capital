@@ -9,6 +9,7 @@ import { listDnseOrderHistory } from "@/lib/brokers/dnse/order-history";
 import { decryptDnseToken } from "@/lib/brokers/dnse/crypto";
 import { getDnseTradingClient } from "@/lib/providers/dnse/trading-client";
 import type { SignalScanArtifact } from "@/lib/signals/ingest";
+import { loadReportedSignalSummary } from "@/lib/signals/report-history";
 import { resolveTopicFamily, resolveTopicStaleWindowMs } from "./policy";
 import { TopicContext, TopicDefinition } from "./types";
 
@@ -1325,6 +1326,29 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
       return match ? { ok: true, params: { date: match[1], slot: match[2] } } : { ok: false };
     },
     resolve: async (_, __, params) => loadSignalScanArtifactByDateSlot(params.date, params.slot),
+  },
+  {
+    id: "signal:reported:today",
+    ttlMs: 30_000,
+    minIntervalMs: 10_000,
+    source: "db:signal-history",
+    version: "v1",
+    tags: ["signal", "signal-reported", "public", "dashboard"],
+    match: (topicKey) => (topicKey === "signal:reported:today" ? { ok: true } : { ok: false }),
+    resolve: async () => loadReportedSignalSummary(),
+  },
+  {
+    id: "signal:reported:{date}",
+    ttlMs: 24 * 60 * 60 * 1000,
+    minIntervalMs: 60_000,
+    source: "db:signal-history",
+    version: "v1",
+    tags: ["signal", "signal-reported", "public", "dashboard"],
+    match: (topicKey) => {
+      const match = topicKey.match(/^signal:reported:(\d{4}-\d{2}-\d{2})$/);
+      return match ? { ok: true, params: { date: match[1] } } : { ok: false };
+    },
+    resolve: async (_, __, params) => loadReportedSignalSummary(params.date),
   },
   {
     id: "portfolio:user:{userId}:overview",

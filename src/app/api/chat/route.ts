@@ -20,6 +20,8 @@ import { MockFactory } from "@/lib/mock-factory";
 import { getFullWidgetData } from "@/lib/widget-service";
 import { getVnDateISO } from "@/lib/time";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
+import { loadReportedSignalSummary } from "@/lib/signals/report-history";
+import { formatReportedSignalSummary } from "@/lib/signals/reporting";
 
 const FIINQUANT_BRIDGE = getPythonBridgeUrl();
 const CHAT_BRIDGE_AI_TIMEOUT_MS = 5_500;
@@ -575,7 +577,7 @@ async function detectIntent(msg: string): Promise<{ intent: "CHAT_GENERAL" | "AN
 }
 
 // ─── Parse lệnh từ tin nhắn ──────────────────────────────────
-function parseCommand(msg: string): { cmd: string | null; stock: string | null; compareStocks: string[] } {
+function parseCommand(msg: string): { cmd: string | null; stock: string | null; compareStocks: string[]; date: string | null } {
   const trimmed = msg.trim();
   const lower = trimmed.toLowerCase();
   const taMatch = trimmed.match(/^\/ta\s+([A-Za-z0-9]{2,10})/i);
@@ -583,23 +585,35 @@ function parseCommand(msg: string): { cmd: string | null; stock: string | null; 
   const newsMatch = trimmed.match(/^\/news\s+([A-Za-z0-9]{2,10})/i);
   const tamlyMatch = trimmed.match(/^\/tamly\s+([A-Za-z0-9]{2,10})/i);
   const compareMatch = trimmed.match(/^\/compare\s+(.+)/i);
-  if (taMatch) return { cmd: "/ta", stock: taMatch[1].toUpperCase(), compareStocks: [] };
-  if (faMatch) return { cmd: "/fa", stock: faMatch[1].toUpperCase(), compareStocks: [] };
-  if (newsMatch) return { cmd: "/news", stock: newsMatch[1].toUpperCase(), compareStocks: [] };
-  if (tamlyMatch) return { cmd: "/tamly", stock: tamlyMatch[1].toUpperCase(), compareStocks: [] };
+  const signalsMatch = trimmed.match(/^\/(?:signals|tin-hieu|reported)(?:\s+([0-9]{4}-[0-9]{2}-[0-9]{2}|today|homnay|hom-nay))?/i);
+  if (taMatch) return { cmd: "/ta", stock: taMatch[1].toUpperCase(), compareStocks: [], date: null };
+  if (faMatch) return { cmd: "/fa", stock: faMatch[1].toUpperCase(), compareStocks: [], date: null };
+  if (newsMatch) return { cmd: "/news", stock: newsMatch[1].toUpperCase(), compareStocks: [], date: null };
+  if (tamlyMatch) return { cmd: "/tamly", stock: tamlyMatch[1].toUpperCase(), compareStocks: [], date: null };
+  if (signalsMatch) return { cmd: "/signals", stock: null, compareStocks: [], date: signalsMatch[1] ?? null };
   if (compareMatch) {
     const compareStocks = extractTickerCandidates(compareMatch[1])
       .filter((ticker, idx, arr) => arr.indexOf(ticker) === idx)
       .filter((ticker) => !TICKER_STOP_WORDS.has(ticker))
       .slice(0, 5);
-    return { cmd: "/compare", stock: compareStocks[0] ?? null, compareStocks };
+    return { cmd: "/compare", stock: compareStocks[0] ?? null, compareStocks, date: null };
   }
-  if (lower.startsWith("/ta")) return { cmd: "/ta", stock: null, compareStocks: [] };
-  if (lower.startsWith("/fa")) return { cmd: "/fa", stock: null, compareStocks: [] };
-  if (lower.startsWith("/news")) return { cmd: "/news", stock: null, compareStocks: [] };
-  if (lower.startsWith("/tamly")) return { cmd: "/tamly", stock: null, compareStocks: [] };
-  if (lower.startsWith("/compare")) return { cmd: "/compare", stock: null, compareStocks: [] };
-  return { cmd: null, stock: null, compareStocks: [] };
+  if (lower.startsWith("/ta")) return { cmd: "/ta", stock: null, compareStocks: [], date: null };
+  if (lower.startsWith("/fa")) return { cmd: "/fa", stock: null, compareStocks: [], date: null };
+  if (lower.startsWith("/news")) return { cmd: "/news", stock: null, compareStocks: [], date: null };
+  if (lower.startsWith("/tamly")) return { cmd: "/tamly", stock: null, compareStocks: [], date: null };
+  if (lower.startsWith("/compare")) return { cmd: "/compare", stock: null, compareStocks: [], date: null };
+  if (lower.startsWith("/signals") || lower.startsWith("/tin-hieu") || lower.startsWith("/reported")) {
+    return { cmd: "/signals", stock: null, compareStocks: [], date: null };
+  }
+  return { cmd: null, stock: null, compareStocks: [], date: null };
+}
+
+function normalizeSignalHistoryDate(date: string | null): string | null {
+  if (!date) return getVnDateISO();
+  const normalized = date.trim().toLowerCase();
+  if (["today", "homnay", "hom-nay"].includes(normalized)) return getVnDateISO();
+  return /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : null;
 }
 
 // ─── Helper format số theo chuẩn chứng khoán VN ──────────────
@@ -1243,7 +1257,7 @@ export async function POST(req: NextRequest) {
     // 🚫 TICKER INTERCEPTOR — DÒNG ĐẦU TIÊN, TRƯỚC MỌI THỨ
     // Không để LLM quyết định widget/text. TypeScript quyết định.
     // ══════════════════════════════════════════════════════════
-    const { cmd, stock: parsedStock, compareStocks } = parseCommand(message);
+    const { cmd, stock: parsedStock, compareStocks, date: commandDate } = parseCommand(message);
     const upper = message.trim().toUpperCase();
     const detectedIntent = !cmd
       ? await detectIntent(message)
@@ -1376,6 +1390,35 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (cmd === "/signals") {
+      const tradingDate = normalizeSignalHistoryDate(commandDate);
+      if (!tradingDate) {
+        return NextResponse.json({
+          message: "Ngày không hợp lệ. Ví dụ: **/signals** hoặc **/signals 2026-04-30**.",
+          newUsage: quota.usage.used,
+          usage: quota.usage,
+        });
+      }
+
+      const summary = await loadReportedSignalSummary(tradingDate);
+      const responseText = formatReportedSignalSummary(summary, { limit: 50 });
+      if (userId) {
+        await prisma.$transaction([
+          prisma.chat.create({ data: { userId, message, role: "user" } }),
+          prisma.chat.create({ data: { userId, message: responseText, role: "assistant" } }),
+        ]);
+      }
+      return NextResponse.json({
+        message: responseText,
+        newUsage: quota.usage.used,
+        usage: quota.usage,
+        streamState: "done",
+        widgetMeta: {
+          complete: false,
+        },
+      });
+    }
+
     if (cmd === "/compare" && compareTickers.length < 2) {
       return NextResponse.json({
         message:
@@ -1385,7 +1428,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    if (cmd && cmd !== "/compare" && !stock) {
+    if (cmd && cmd !== "/compare" && cmd !== "/signals" && !stock) {
       return NextResponse.json({
         message:
           "Hệ thống cần mã cổ phiếu hợp lệ. Ví dụ: **/ta DGC**, **/fa FPT**, **/news VNM**, **/tamly SSI**.",

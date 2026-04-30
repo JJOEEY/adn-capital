@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Zap, RefreshCw, Crosshair, Briefcase, CheckCircle, Crown, Lock, Bot } from "lucide-react";
+import { RefreshCw, Crosshair, Briefcase, CheckCircle, Crown, Lock, Bot, History } from "lucide-react";
 import { SignalCard } from "@/components/signals/SignalCard";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -13,6 +13,22 @@ import { PRODUCT_DESCRIPTIONS, PRODUCT_NAMES } from "@/lib/brand/productNames";
 
 type Tab = "RADAR" | "ACTIVE" | "CLOSED";
 type TierFilter = "all" | "LEADER" | "TRUNG_HAN" | "NGAN_HAN" | "TAM_NGAM";
+type ReportedSignalSummary = {
+  tradingDate: string;
+  total: number;
+  tickers: string[];
+  groups: Array<{
+    signalType: string;
+    label: string;
+    total: number;
+    rows: Array<{
+      ticker: string;
+      signalType: string;
+      entryPrice: number | null;
+      reportedAt: string | null;
+    }>;
+  }>;
+};
 
 const TABS: { value: Tab; label: string; icon: typeof Crosshair }[] = [
   { value: "RADAR",  label: "Tầm ngắm",     icon: Crosshair  },
@@ -79,8 +95,16 @@ export function SignalMapClient({
     revalidateOnFocus: false,
     dedupingInterval: 10_000,
   });
+  const reportedTopic = useTopic<ReportedSignalSummary>("signal:reported:today", {
+    refreshInterval: 60_000,
+    revalidateOnFocus: false,
+    dedupingInterval: 10_000,
+  });
 
   const allSignals = signalMapTopic.data?.signals ?? [];
+  const reportedSummary = reportedTopic.data;
+  const reportedRows = reportedSummary?.groups.flatMap((group) => group.rows) ?? [];
+  const reportedPreview = reportedRows.slice(0, 24);
   const tabSignals = allSignals.filter((s) => {
     const status = s.status ?? "RADAR";
     if (tab === "ACTIVE") return status === "ACTIVE" || status === "HOLD_TO_DIE";
@@ -182,7 +206,58 @@ export function SignalMapClient({
         </Button>
       </div>
 
-      {/* ═══ Stats Overview ═══ */}
+      {/* Reported signals */}
+      {reportedSummary && reportedSummary.total > 0 && (
+        <section
+          className="rounded-xl border p-3"
+          style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
+          aria-label="Tín hiệu đã báo hôm nay"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <History className="h-4 w-4 flex-shrink-0" style={{ color: "var(--primary)" }} />
+              <p className="truncate text-sm font-bold" style={{ color: "var(--text-primary)" }}>
+                Đã báo hôm nay
+              </p>
+            </div>
+            <p className="flex-shrink-0 text-xs" style={{ color: "var(--text-secondary)" }}>
+              {reportedSummary.tradingDate} - {reportedSummary.total} mã
+            </p>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {reportedPreview.map((row) => (
+              <span
+                key={`${row.ticker}-${row.signalType}-${row.reportedAt ?? "na"}`}
+                className="rounded-md border px-2 py-1 text-xs font-semibold"
+                style={{
+                  borderColor: "var(--border)",
+                  background: "var(--surface)",
+                  color: "var(--text-primary)",
+                }}
+              >
+                {row.ticker}
+                {row.entryPrice != null && Number.isFinite(row.entryPrice)
+                  ? ` ${row.entryPrice.toLocaleString("vi-VN", { maximumFractionDigits: 0 })}`
+                  : ""}
+              </span>
+            ))}
+            {reportedSummary.total > reportedPreview.length && (
+              <span
+                className="rounded-md border px-2 py-1 text-xs font-semibold"
+                style={{
+                  borderColor: "var(--border)",
+                  background: "var(--surface)",
+                  color: "var(--text-secondary)",
+                }}
+              >
+                +{reportedSummary.total - reportedPreview.length}
+              </span>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* Stats Overview */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
         {[
           { label: "Tầm ngắm",   val: stats.radar,   color: "var(--primary)" },

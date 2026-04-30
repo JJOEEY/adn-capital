@@ -17,7 +17,8 @@
     "verify:phase6:runtime": "node scripts/phase6-workflow-runtime-readiness.mjs",
     "verify:phase6:smoke": "node scripts/phase6-workflow-smoke.mjs",
     "verify:phase6:staging": "node scripts/phase6-staging-runtime-verify.mjs",
-    "verify:phase7:observability": "node scripts/phase7-observability-verify.mjs"
+    "verify:phase7:observability": "node scripts/phase7-observability-verify.mjs",
+    "verify:signal-reporting": "node scripts/verify-signal-reporting.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",

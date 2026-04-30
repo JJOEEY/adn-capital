@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { selectFreshSignalCandidates, type ReportedSignalLike } from "./reporting";
 
 export interface SignalNotificationCandidate {
   ticker: string;
@@ -12,13 +13,28 @@ export function toSignalDedupeKey(ticker: string, type: string): string {
   return `${ticker.toUpperCase().trim()}|${type}`;
 }
 
+export async function loadSignalNotificationClaims(sentDate: string): Promise<ReportedSignalLike[]> {
+  return prisma.signalHistory.findMany({
+    where: { sentDate },
+    select: {
+      id: true,
+      ticker: true,
+      signalType: true,
+      sentDate: true,
+      createdAt: true,
+    },
+  });
+}
+
 export async function claimSignalNotifications(
   candidates: SignalNotificationCandidate[],
   sentDate: string,
 ) {
   const claimed: SignalNotificationCandidate[] = [];
+  const existingClaims = await loadSignalNotificationClaims(sentDate);
+  const freshCandidates = selectFreshSignalCandidates(candidates, existingClaims, sentDate);
 
-  for (const candidate of candidates) {
+  for (const candidate of freshCandidates) {
     const ticker = candidate.ticker.toUpperCase().trim();
     if (!ticker || !candidate.type) continue;
 
