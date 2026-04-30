@@ -404,21 +404,33 @@ async function loadAiCachesForTicker(ticker: string) {
       orderBy: { updatedAt: "desc" },
       take: 4,
       select: { tabType: true, content: true, updatedAt: true },
+    }).catch((error) => {
+      console.warn("[DataHub research] optional AiInsightCache unavailable:", error);
+      return [];
     }),
     prisma.aiTaCache.findFirst({
       where: { ticker },
       orderBy: { createdAt: "desc" },
       select: { analysis: true, createdAt: true },
+    }).catch((error) => {
+      console.warn("[DataHub research] optional AiTaCache unavailable:", error);
+      return null;
     }),
     prisma.aiFaCache.findFirst({
       where: { ticker },
       orderBy: { createdAt: "desc" },
       select: { analysis: true, createdAt: true, quarter: true },
+    }).catch((error) => {
+      console.warn("[DataHub research] optional AiFaCache unavailable:", error);
+      return null;
     }),
     prisma.aiTamlyCache.findFirst({
       where: { ticker },
       orderBy: { createdAt: "desc" },
       select: { analysis: true, createdAt: true, date: true },
+    }).catch((error) => {
+      console.warn("[DataHub research] optional AiTamlyCache unavailable:", error);
+      return null;
     }),
   ]);
 
