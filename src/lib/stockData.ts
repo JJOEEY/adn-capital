@@ -1,32 +1,18 @@
 ﻿/**
  * stockData.ts
- * Module fetching dữ liệu chứng khoán thực từ VNDirect dchart API (public, không cần auth).
- *
- * Endpoint OHLCV:
- *   https://dchart-api.vndirect.com.vn/dchart/history
- *     ?resolution=D&symbol={TICKER}&from={unix}&to={unix}
- *
- * Giá trả về theo đơn vị "nghìn đồng" => nhân x1000 ra VNĐ thực.
- * Ví dụ: DGC close=49.1 => 49,100 VNĐ.
+ * Module fetching dữ liệu chứng khoán thực cho lớp phân tích server-side.
  */
 
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
-
-const DCHART_BASE = "https://dchart-api.vndirect.com.vn/dchart/history";
-
-// Header giả lập browser, tránh bị chặn
-const FETCH_HEADERS: HeadersInit = {
-  "User-Agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-  "Accept": "*/*",
-  "Referer": "https://dchart.vndirect.com.vn/",
-  "Origin": "https://dchart.vndirect.com.vn",
-};
+import {
+  getMarketPayloadRows,
+  normalizeHistoricalPricePayload,
+  readMarketNumber,
+} from "@/lib/market-price-normalization";
 
 // ═══════════════════════════════════════════════
 //  PHẦN 1: Lookup sàn (HNX/UPCOM/HOSE)
-//  VNDirect dchart không trả về exchange,
-//  nên ta dùng danh sách nhúng sẵn.
+//  Một số nguồn OHLCV không trả về exchange, nên ta dùng danh sách nhúng sẵn.
 //  HOSE = mặc định nếu không thuộc HNX/UPCOM.
 // ═══════════════════════════════════════════════
 
@@ -299,83 +285,102 @@ function firstRecord(value: unknown): FARecord {
   return value && typeof value === "object" ? (value as FARecord) : {};
 }
 
+function normalizeVietnamPrice(value: number | null): number | null {
+  if (value == null || !Number.isFinite(value) || value <= 0) return null;
+  const normalized = value < 1000 ? value * 1000 : value;
+  return Math.round(normalized / 10) * 10;
+}
+
+function readMarketTimestamp(record: FARecord) {
+  const raw = record.time ?? record.timestamp ?? record.date ?? record.tradingDate ?? record.trading_date;
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    return raw > 10_000_000_000 ? Math.floor(raw / 1000) : Math.floor(raw);
+  }
+  if (typeof raw !== "string" || !raw.trim()) return 0;
+  const text = raw.trim();
+  const normalized = text.includes("T")
+    ? text
+    : text.includes(" ")
+      ? `${text.replace(" ", "T")}+07:00`
+      : `${text}T00:00:00+07:00`;
+  const timestamp = Date.parse(normalized);
+  return Number.isFinite(timestamp) ? Math.floor(timestamp / 1000) : 0;
+}
+
 // ═══════════════════════════════════════════════
 //  PHẦN 4: Fetch dữ liệu
 // ═══════════════════════════════════════════════
 
 /**
- * Fetch dữ liệu TA thực từ VNDirect dchart API.
- *
- * Lấy khoảng 300 phiên (đủ cho MA200, RSI14, MACD26).
- * Giá trả về nghìn đồng → nhân x1000 → VNĐ.
- * Log chi tiết mọi lỗi HTTP ra console backend.
+ * Fetch dữ liệu TA từ OHLCV canonical qua Python bridge.
  *
  * @param ticker - Mã cổ phiếu (VD: "DGC", "SSI")
  * @returns TAData đầy đủ, hoặc null nếu lỗi
  */
 export async function fetchTAData(ticker: string): Promise<TAData | null> {
   const code = ticker.toUpperCase();
+  const backend = getPythonBridgeUrl();
 
   try {
-    const now  = Math.floor(Date.now() / 1000);
-    const from = now - 420 * 86400; // đủ lịch sử ngày cho MA200 và vùng 52 tuần
-    const url  = `${DCHART_BASE}?resolution=D&symbol=${code}&from=${from}&to=${now}`;
+    const attempts = [
+      { days: 420, timeout: 55_000 },
+      { days: 300, timeout: 45_000 },
+      { days: 260, timeout: 35_000 },
+      { days: 180, timeout: 25_000 },
+    ];
+    let payload: unknown = null;
+    let lastError: unknown = null;
 
-    console.log(`[fetchTAData] Fetching VNDirect dchart: ${url}`);
+    for (const attempt of attempts) {
+      const url = `${backend}/api/v1/historical/${encodeURIComponent(code)}?days=${attempt.days}&timeframe=1d&adjusted=false`;
+      try {
+        const res = await fetch(url, {
+          signal: AbortSignal.timeout(attempt.timeout),
+          cache: "no-store",
+        });
+        if (!res.ok) {
+          const body = await res.text().catch(() => "(unreadable)");
+          throw new Error(`HTTP ${res.status}: ${body.slice(0, 200)}`);
+        }
+        const json = await res.json();
+        const normalized = normalizeHistoricalPricePayload(json);
+        if (getMarketPayloadRows(normalized).length > 0) {
+          payload = normalized;
+          break;
+        }
+      } catch (error) {
+        lastError = error;
+        console.warn(`[fetchTAData] ${code}: OHLCV ${attempt.days}d unavailable`, error);
+      }
+    }
 
-    const res = await fetch(url, {
-      headers: FETCH_HEADERS,
-      signal: AbortSignal.timeout(12000),
-      cache: "no-store",
-    });
-
-    // ─── Log lỗi HTTP chi tiết để dễ debug ───
-    if (!res.ok) {
-      const body = await res.text().catch(() => "(unreadable)");
-      console.error(
-        `[fetchTAData] ${code}: HTTP ${res.status} ${res.statusText}\n` +
-        `  URL: ${url}\n` +
-        `  Body: ${body.slice(0, 200)}`
-      );
+    if (!payload) {
+      console.error(`[fetchTAData] ${code}: không lấy được OHLCV`, lastError);
       return null;
     }
 
-    const json = await res.json();
+    const ohlcv = getMarketPayloadRows(payload)
+      .sort((a, b) => readMarketTimestamp(a) - readMarketTimestamp(b))
+      .map((row) => ({
+        time: readMarketTimestamp(row),
+        open: normalizeVietnamPrice(readMarketNumber(row.open ?? row.o)),
+        high: normalizeVietnamPrice(readMarketNumber(row.high ?? row.h)),
+        low: normalizeVietnamPrice(readMarketNumber(row.low ?? row.l)),
+        close: normalizeVietnamPrice(readMarketNumber(row.close ?? row.c ?? row.price)),
+        volume: Math.round(readMarketNumber(row.volume ?? row.v) ?? 0),
+      }))
+      .filter((row) => row.time > 0 && row.open != null && row.high != null && row.low != null && row.close != null);
 
-    // Kiểm tra status từ dchart ("ok" = có data)
-    if (json.s !== "ok") {
-      console.error(
-        `[fetchTAData] ${code}: dchart trả s="${json.s}" (không phải "ok").\n` +
-        `  Response: ${JSON.stringify(json).slice(0, 300)}`
-      );
+    if (!ohlcv.length) {
+      console.error(`[fetchTAData] ${code}: OHLCV rỗng sau chuẩn hóa`);
       return null;
     }
 
-    const closes_raw: number[] = json.c ?? [];
-    const opens_raw:  number[] = json.o ?? [];
-    const highs_raw:  number[] = json.h ?? [];
-    const lows_raw:   number[] = json.l ?? [];
-    const volumes:    number[] = json.v ?? [];
-    const timestamps: number[] = json.t ?? [];
-
-    if (!closes_raw.length) {
-      console.error(`[fetchTAData] ${code}: mảng giá đóng cửa rỗng`);
-      return null;
-    }
-
-    console.log(
-      `[fetchTAData] ${code}: nhận ${closes_raw.length} phiên.\n` +
-      `  Phiên mới nhất: t=${new Date(timestamps[timestamps.length - 1] * 1000).toLocaleDateString("vi-VN")}, ` +
-      `o=${opens_raw[opens_raw.length-1]}, h=${highs_raw[highs_raw.length-1]}, ` +
-      `l=${lows_raw[lows_raw.length-1]}, c=${closes_raw[closes_raw.length-1]}, v=${volumes[volumes.length-1]}`
-    );
-
-    // Giá dchart trả về đơn vị nghìn đồng (VD: 49.1 = 49.100 VNĐ)
-    // Nhân x1000 và làm tròn hàng trăm → đúng format giá CKVN
-    const SCALE = 1000;
-    const closes = closes_raw.map((v) => Math.round((v * SCALE) / 100) * 100);
-    const highs  = highs_raw.map((v) => Math.round((v * SCALE) / 100) * 100);
-    const lows   = lows_raw.map((v) => Math.round((v * SCALE) / 100) * 100);
+    const closes = ohlcv.map((row) => row.close as number);
+    const highs = ohlcv.map((row) => row.high as number);
+    const lows = ohlcv.map((row) => row.low as number);
+    const volumes = ohlcv.map((row) => row.volume);
+    const timestamps = ohlcv.map((row) => row.time);
 
     const currentPrice = closes[closes.length - 1];
     const refPrice     = closes.length >= 2 ? closes[closes.length - 2] : currentPrice;
@@ -463,7 +468,7 @@ export async function fetchTAData(ticker: string): Promise<TAData | null> {
       high52w,
       low52w,
       dataDate,
-      source: "VNDirect dchart (realtime)",
+      source: "market-ohlcv",
     };
 
   } catch (err: any) {
