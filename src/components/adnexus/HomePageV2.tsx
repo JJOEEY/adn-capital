@@ -80,13 +80,13 @@ export function HomePageV2() {
               <p className="max-w-full text-[0.68rem] font-black uppercase leading-5 tracking-[0.22em] sm:text-xs sm:tracking-[0.34em]" style={{ color: "var(--primary)" }}>
                 {BRAND.company} - {BRAND.tagline}
               </p>
-              <h1 className="mt-6 max-w-[7.9em] text-left text-[clamp(2.08rem,9vw,3.35rem)] font-black leading-[1.13] tracking-[-0.018em] [word-spacing:0.035em] sm:text-[4.15rem] sm:leading-[1.09] sm:tracking-[-0.02em] md:text-[4.55rem] md:leading-[1.08] md:tracking-[-0.022em] md:[word-spacing:0.045em] lg:text-[4.45rem] xl:text-[4.5rem] xl:leading-[1.065] xl:tracking-[-0.024em] xl:[word-spacing:0.05em] 2xl:text-[4.9rem]">
-                <span className="block md:whitespace-nowrap md:text-justify md:[text-align-last:justify]">Nâng Tầm Trải</span>
-                <span className="block md:whitespace-nowrap md:text-justify md:[text-align-last:justify]">Nghiệm Đầu Tư</span>
-                <span className="block md:whitespace-nowrap md:text-justify md:[text-align-last:justify]">Cùng AI Chuyên</span>
-                <span className="block text-[0.72em] sm:whitespace-nowrap">
-                  Biệt tại{" "}
-                  <span className="inline-block font-serif italic leading-[1.08] tracking-[-0.01em] text-[var(--primary)]">
+              <h1 className="mt-6 max-w-[11.5em] text-left text-5xl font-black leading-[1.06] tracking-normal sm:text-6xl md:text-7xl lg:text-[4.6rem] xl:text-[4.85rem] 2xl:text-[5.15rem]">
+                <span className="block">Nâng Tầm</span>
+                <span className="block">Trải Nghiệm Đầu Tư</span>
+                <span className="block text-[0.82em]">cùng AI Chuyên biệt</span>
+                <span className="block text-[0.72em]">
+                  tại{" "}
+                  <span className="inline-block font-serif italic leading-[1.08] tracking-normal text-[var(--primary)]">
                     ADN Capital
                   </span>
                 </span>
@@ -101,7 +101,7 @@ export function HomePageV2() {
                 <Link
                   href="/auth?mode=register"
                   className="inline-flex items-center gap-2 rounded-2xl px-5 py-3.5 text-sm font-black sm:text-[0.95rem]"
-                  style={{ background: "var(--primary)", color: "white" }}
+                  style={{ background: "var(--primary)", color: "var(--on-primary)" }}
                 >
                   Đăng ký dùng thử MIỄN PHÍ <ArrowRight className="h-4 w-4" />
                 </Link>
@@ -132,8 +132,10 @@ export function HomePageV2() {
                 <p className="text-xs font-black uppercase tracking-[0.34em]" style={{ color: "var(--primary)" }}>
                   Hệ sinh thái ADN
                 </p>
-                <h2 className="mt-5 text-[clamp(2.75rem,5.8vw,6.2rem)] font-black uppercase leading-[0.99] tracking-[-0.06em]">
-                  Một hệ sinh thái cho toàn bộ hành trình đầu tư
+                <h2 className="mt-5 max-w-[720px] text-5xl font-black leading-[1.02] tracking-normal sm:text-6xl md:text-7xl lg:text-[5rem] xl:text-[5.6rem]">
+                  <span className="block">All-in-one cho</span>
+                  <span className="block">toàn bộ</span>
+                  <span className="block">Hành trình đầu tư</span>
                 </h2>
               </div>
               <div className="flex flex-wrap gap-3">
@@ -147,7 +149,7 @@ export function HomePageV2() {
                 <Link
                   href="/auth?mode=register"
                   className="inline-flex items-center gap-2 rounded-2xl px-5 py-3 font-black"
-                  style={{ background: "var(--primary)", color: "white" }}
+                  style={{ background: "var(--primary)", color: "var(--on-primary)" }}
                 >
                   Đăng ký dùng thử MIỄN PHÍ <ArrowRight className="h-4 w-4" />
                 </Link>
@@ -201,8 +203,8 @@ export function HomePageV2() {
             </motion.div>
 
             <div
-              className="grid gap-0 overflow-hidden rounded-[2.5rem] border bg-white text-[var(--text-primary)] shadow-2xl shadow-black/5 dark:bg-[#151515] dark:text-white dark:shadow-black/40 lg:grid-cols-2"
-              style={{ borderColor: "var(--border)" }}
+              className="grid gap-0 overflow-hidden rounded-[2.5rem] border shadow-2xl shadow-black/5 lg:grid-cols-2"
+              style={{ background: "var(--bg-surface)", borderColor: "var(--border)", color: "var(--text-primary)" }}
             >
               <SupportCard
                 eyebrow="Gói 01 - Tự trải nghiệm"
@@ -278,7 +280,7 @@ export function HomePageV2() {
               Bắt đầu bằng dashboard dễ đọc, sau đó mở rộng sang ADN Stock, ADN ART và AIDEN khi cần phân tích sâu hơn.
             </p>
             <div className="mt-10 flex flex-wrap justify-center gap-3">
-              <Link href="/auth?mode=register" className="rounded-2xl px-6 py-4 font-black" style={{ background: "var(--primary)", color: "white" }}>
+              <Link href="/auth?mode=register" className="rounded-2xl px-6 py-4 font-black" style={{ background: "var(--primary)", color: "var(--on-primary)" }}>
                 Đăng ký dùng thử MIỄN PHÍ
               </Link>
               <Link href="/pricing" className="rounded-2xl border px-6 py-4 font-black" style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}>
@@ -361,23 +363,34 @@ function SupportCard({
       style={{ background: highlighted ? "var(--surface-2)" : "var(--bg-surface)", borderColor: "var(--border)" }}
     >
       <div className="flex items-start justify-between gap-4">
-        <p className="text-xs font-black uppercase tracking-[0.32em] text-[var(--text-muted)] dark:text-white/45">{eyebrow}</p>
-        {highlighted ? <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800 dark:bg-amber-400/14 dark:text-amber-200">ADN SUPPORT</span> : null}
+        <p className="text-xs font-black uppercase tracking-[0.32em] text-[var(--text-muted)]">{eyebrow}</p>
+        {highlighted ? (
+          <span
+            className="rounded-full px-3 py-1 text-xs font-black"
+            style={{ background: "color-mix(in srgb, var(--secondary) 16%, var(--bg-surface))", color: "var(--secondary)" }}
+          >
+            ADN SUPPORT
+          </span>
+        ) : null}
       </div>
       <h3 className="mt-12 font-serif text-[clamp(3rem,4.6vw,5.2rem)] font-black leading-none tracking-[-0.04em]">{title}</h3>
-      <p className="mt-5 text-2xl font-black text-[var(--text-secondary)] dark:text-white/72">{subtitle}</p>
+      <p className="mt-5 text-2xl font-black text-[var(--text-secondary)]">{subtitle}</p>
       <div className="mt-10 h-px bg-[var(--border)]" />
       <div className="mt-10 grid gap-6">
         {items.map((item, index) => (
-          <p key={item} className="grid grid-cols-[44px_1fr] gap-4 text-lg font-bold text-[var(--text-primary)] dark:text-white/82">
-            <span className="font-mono text-[var(--text-muted)] dark:text-white/38">{String(index + 1).padStart(2, "0")}</span>
+          <p key={item} className="grid grid-cols-[44px_1fr] gap-4 text-lg font-bold text-[var(--text-primary)]">
+            <span className="font-mono text-[var(--text-muted)]">{String(index + 1).padStart(2, "0")}</span>
             <span>{item}</span>
           </p>
         ))}
       </div>
       <Link
         href={href}
-        className={`mt-14 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-6 py-5 text-lg font-black ${highlighted ? "bg-[var(--primary)] text-white dark:bg-white dark:text-black" : "bg-[var(--text-primary)] text-[var(--page-surface)] dark:bg-black dark:text-white"}`}
+        className="mt-14 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-6 py-5 text-lg font-black"
+        style={{
+          background: highlighted ? "var(--primary)" : "var(--text-primary)",
+          color: highlighted ? "var(--on-primary)" : "var(--page-surface)",
+        }}
       >
         {cta} <ArrowRight className="h-5 w-5" />
       </Link>

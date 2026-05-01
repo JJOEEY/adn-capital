@@ -90,8 +90,8 @@ export function PublicSiteHeader() {
                 </Link>
                 {productsOpen ? (
                   <div
-                    className="absolute left-1/2 top-8 w-[520px] -translate-x-1/2 rounded-[2rem] border bg-white p-4 shadow-2xl dark:bg-[#07150f]"
-                    style={{ borderColor: "var(--border)" }}
+                    className="absolute left-1/2 top-8 w-[520px] -translate-x-1/2 rounded-[2rem] border p-4 shadow-2xl backdrop-blur-xl"
+                    style={{ background: "color-mix(in srgb, var(--bg-surface) 94%, transparent)", borderColor: "var(--border)" }}
                   >
                     <div className="grid gap-3">
                       {productLinks.map((product) => (
@@ -114,7 +114,7 @@ export function PublicSiteHeader() {
                     <Link
                       href="/products"
                       className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-full px-4 py-2 text-sm font-black"
-                      style={{ background: "var(--primary)", color: "white" }}
+                      style={{ background: "var(--primary)", color: "var(--on-primary)" }}
                     >
                       Xem toàn bộ hệ sinh thái ADN <ArrowRight className="h-4 w-4" />
                     </Link>
@@ -154,7 +154,7 @@ export function PublicSiteHeader() {
           <Link
             href="/auth?mode=register"
             className="hidden rounded-full px-5 py-3 text-sm font-black sm:inline-flex"
-            style={{ background: "var(--primary)", color: "white" }}
+            style={{ background: "var(--primary)", color: "var(--on-primary)" }}
           >
             Dùng thử
           </Link>
