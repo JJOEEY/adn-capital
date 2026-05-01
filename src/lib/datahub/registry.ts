@@ -510,6 +510,10 @@ async function loadRecentMarketClose(ticker: string) {
   );
   if (!res.ok) return null;
   const payload = await res.json();
+  const normalizedPayload = normalizeHistoricalPricePayload(payload);
+  const normalizedClose = latestClosePriceFromPayload(normalizedPayload);
+  if (normalizedClose != null && normalizedClose > 0) return normalizedClose;
+
   const rows = getMarketPayloadRows(payload);
   for (let index = rows.length - 1; index >= 0; index -= 1) {
     const close = readMarketNumber(rows[index].close ?? rows[index].c ?? rows[index].price);
