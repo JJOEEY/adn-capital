@@ -475,7 +475,7 @@ function ScreenTitle({
         <Icon className="h-6 w-6" />
       </div>
       <div className="min-w-0">
-        <h2 className="truncate font-serif text-[clamp(1.75rem,4vw,2.55rem)] font-black tracking-[-0.035em] text-[var(--text-primary)]">
+        <h2 className="truncate text-[clamp(1.75rem,4vw,2.55rem)] font-black tracking-normal text-[var(--text-primary)]">
           {title}
         </h2>
         <p className="truncate text-sm font-bold text-[var(--text-muted)]">{subtitle}</p>

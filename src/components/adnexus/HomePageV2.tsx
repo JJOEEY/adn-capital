@@ -70,7 +70,7 @@ export function HomePageV2() {
       >
         <PublicSiteHeader />
 
-        <section className="relative flex min-h-[calc(100svh-76px)] w-full items-center overflow-hidden px-5 py-10 sm:px-8 lg:px-12 lg:py-8 xl:px-16">
+        <section className="relative flex min-h-[calc(100svh-76px)] w-full items-center overflow-hidden px-5 py-16 sm:px-8 sm:py-20 lg:px-12 lg:py-24 xl:px-16">
           <div
             className="absolute inset-0 -z-10"
             style={{
@@ -92,7 +92,7 @@ export function HomePageV2() {
                 <span className="block text-[0.82em]">cùng AI Chuyên biệt</span>
                 <span className="block text-[0.72em]">
                   tại{" "}
-                  <span className="inline-block font-serif italic leading-[1.08] tracking-normal text-[var(--primary)]">
+                  <span className="inline-block font-black leading-[1.08] tracking-normal text-[var(--primary)]">
                     ADN Capital
                   </span>
                 </span>
@@ -131,7 +131,7 @@ export function HomePageV2() {
           </div>
         </section>
 
-        <section id="ecosystem" className="flex min-h-[100svh] w-full items-center px-5 py-20 sm:px-8 lg:px-12 xl:px-16">
+        <section id="ecosystem" className="mt-8 flex min-h-[100svh] w-full scroll-mt-24 items-center px-5 py-24 sm:px-8 lg:px-12 lg:py-32 xl:px-16">
           <div className="w-full">
             <motion.div {...motionProps} className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
               <div className="max-w-5xl">
@@ -182,7 +182,7 @@ export function HomePageV2() {
                     <p className="mt-8 text-xs font-black uppercase tracking-[0.25em]" style={{ color: "var(--text-muted)" }}>
                       {product.label}
                     </p>
-                    <h3 className="mt-3 text-4xl font-black tracking-[-0.04em]">{product.name}</h3>
+                    <h3 className="mt-3 text-4xl font-black tracking-normal">{product.name}</h3>
                     <p className="mt-5 min-h-[84px] leading-8" style={{ color: "var(--text-secondary)" }}>
                       {product.text}
                     </p>
@@ -194,13 +194,13 @@ export function HomePageV2() {
           </div>
         </section>
 
-        <section id="pricing" className="flex min-h-[100svh] w-full items-center px-5 py-20 sm:px-8 lg:px-12 xl:px-16">
+        <section id="pricing" className="mt-8 flex min-h-[100svh] w-full scroll-mt-24 items-center px-5 py-24 sm:px-8 lg:px-12 lg:py-32 xl:px-16">
           <div className="w-full">
             <motion.div {...motionProps} className="mb-10 max-w-5xl">
               <p className="text-xs font-black uppercase tracking-[0.34em]" style={{ color: "var(--primary)" }}>
                 Hướng dẫn sử dụng
               </p>
-              <h2 className="mt-5 text-[clamp(2.75rem,5.2vw,5.8rem)] font-black leading-[0.99] tracking-[-0.055em]">
+              <h2 className="mt-5 text-[clamp(2.75rem,5.2vw,5.8rem)] font-black leading-[0.99] tracking-normal">
                 Bắt đầu miễn phí, có ADN Support khi cần đi sâu hơn.
               </h2>
               <p className="mt-6 max-w-3xl text-lg leading-8" style={{ color: "var(--text-secondary)" }}>
@@ -245,13 +245,13 @@ export function HomePageV2() {
           </div>
         </section>
 
-        <section id="faq" className="min-h-[70svh] w-full px-5 py-20 sm:px-8 lg:px-12 xl:px-16">
+        <section id="faq" className="mt-8 min-h-[70svh] w-full scroll-mt-24 px-5 py-24 sm:px-8 lg:px-12 lg:py-32 xl:px-16">
           <div className="grid gap-12 lg:grid-cols-[0.75fr_1.25fr]">
             <motion.div {...motionProps}>
               <p className="text-xs font-black uppercase tracking-[0.34em]" style={{ color: "var(--primary)" }}>
                 FAQ
               </p>
-              <h2 className="mt-6 text-[clamp(2.75rem,4.8vw,5.4rem)] font-black leading-[0.99] tracking-[-0.055em]">
+              <h2 className="mt-6 text-[clamp(2.75rem,4.8vw,5.4rem)] font-black leading-[0.99] tracking-normal">
                 Những điểm cần rõ trước khi dùng.
               </h2>
             </motion.div>
@@ -273,13 +273,13 @@ export function HomePageV2() {
           </div>
         </section>
 
-        <section id="contact" className="flex min-h-[70svh] w-full items-center px-5 py-20 sm:px-8 lg:px-12 xl:px-16">
+        <section id="contact" className="mt-8 flex min-h-[70svh] w-full scroll-mt-24 items-center px-5 py-24 sm:px-8 lg:px-12 lg:py-32 xl:px-16">
           <div
             className="w-full rounded-[3rem] border p-8 text-center sm:p-12 lg:p-16"
             style={{ background: "var(--bg-surface)", borderColor: "var(--border)" }}
           >
             <ShieldCheck className="mx-auto h-12 w-12 text-[var(--primary)]" />
-            <h2 className="mx-auto mt-8 max-w-4xl text-[clamp(2.75rem,5.1vw,5.8rem)] font-black leading-[0.99] tracking-[-0.055em]">
+            <h2 className="mx-auto mt-8 max-w-4xl text-[clamp(2.75rem,5.1vw,5.8rem)] font-black leading-[0.99] tracking-normal">
               Mở ADN Capital và kiểm tra thị trường hôm nay.
             </h2>
             <p className="mx-auto mt-6 max-w-2xl leading-8" style={{ color: "var(--text-secondary)" }}>
@@ -379,7 +379,7 @@ function SupportCard({
           </span>
         ) : null}
       </div>
-      <h3 className="mt-12 font-serif text-[clamp(3rem,4.6vw,5.2rem)] font-black leading-none tracking-[-0.04em]">{title}</h3>
+      <h3 className="mt-12 text-[clamp(3rem,4.6vw,5.2rem)] font-black leading-none tracking-normal">{title}</h3>
       <p className="mt-5 text-2xl font-black text-[var(--text-secondary)]">{subtitle}</p>
       <div className="mt-10 h-px bg-[var(--border)]" />
       <div className="mt-10 grid gap-6">
