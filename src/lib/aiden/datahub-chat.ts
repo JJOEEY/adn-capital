@@ -1,6 +1,14 @@
 import { getTopicEnvelope } from "@/lib/datahub/core";
 import type { TopicContext, TopicEnvelope } from "@/lib/datahub/types";
 import { executeFlashOnlyAIRequest, MODEL_FLASH } from "@/lib/gemini";
+import {
+  applyMarketPriceScale,
+  chooseMarketDisplayPrice,
+  getMarketPayloadRows,
+  latestClosePriceFromPayload,
+  latestTurnoverPriceFromPayload,
+  marketPriceScaleFromPayload,
+} from "@/lib/market-price-normalization";
 import { extractTickerCandidates as extractTickerCandidatesFromText } from "@/lib/ticker-text";
 import { resolveMarketTicker } from "@/lib/ticker-resolver";
 
@@ -63,21 +71,18 @@ function readNestedNumber(value: unknown, path: string[]) {
 }
 
 function payloadRows(value: unknown) {
-  const record = asRecord(value);
-  if (Array.isArray(record.data)) return record.data as unknown[];
-  if (Array.isArray(record.candles)) return record.candles as unknown[];
-  if (Array.isArray(record.items)) return record.items as unknown[];
-  return Array.isArray(value) ? value : [];
+  return getMarketPayloadRows(value);
 }
 
 function normalizeHistoricalCandles(value: unknown) {
+  const scale = marketPriceScaleFromPayload(value);
   return payloadRows(value)
     .map((row) => {
       const item = asRecord(row);
-      const open = asNumber(item.open ?? item.o);
-      const high = asNumber(item.high ?? item.h);
-      const low = asNumber(item.low ?? item.l);
-      const close = asNumber(item.close ?? item.c ?? item.price);
+      const open = applyMarketPriceScale(asNumber(item.open ?? item.o), scale);
+      const high = applyMarketPriceScale(asNumber(item.high ?? item.h), scale);
+      const low = applyMarketPriceScale(asNumber(item.low ?? item.l), scale);
+      const close = applyMarketPriceScale(asNumber(item.close ?? item.c ?? item.price), scale);
       const volume = asNumber(item.volume ?? item.v);
       const date = String(item.date ?? item.time ?? item.timestamp ?? "");
       if (open == null || high == null || low == null || close == null) return null;
@@ -117,16 +122,33 @@ function buildAnalysisMetrics(wb: JsonRecord, realtime: unknown, historical: unk
   const signal = asRecord(wb.signal);
   const realtimeLast = asRecord(lastRow(realtime));
   const candles = normalizeHistoricalCandles(historical);
-  const currentPrice = asNumber(ta.currentPrice) ?? asNumber(realtimeLast.close ?? realtimeLast.price);
-  const ma20 = asNumber(ta.sma20) ?? asNumber(ta.ema20);
-  const ma50 = asNumber(ta.sma50) ?? asNumber(ta.ema50);
-  const ma200 = asNumber(ta.sma200) ?? asNumber(ta.ema200);
+  const payloadScale = marketPriceScaleFromPayload(historical);
+  const historicalMarketPrice = latestTurnoverPriceFromPayload(historical);
+  const historicalClosePrice = latestClosePriceFromPayload(historical);
+  const anchorPrice = chooseMarketDisplayPrice(historicalClosePrice, historicalMarketPrice);
+  const rawCurrentPrice = asNumber(ta.currentPrice) ?? asNumber(realtimeLast.close ?? realtimeLast.price);
+  const anchorScale = anchorPrice != null && rawCurrentPrice != null && rawCurrentPrice > 0
+    ? anchorPrice / rawCurrentPrice
+    : 1;
+  const historicalScale = Math.abs(anchorScale - 1) >= 0.08
+    ? anchorScale
+    : payloadScale !== 1
+      ? payloadScale
+      : 1;
+  const currentPrice = chooseMarketDisplayPrice(applyMarketPriceScale(rawCurrentPrice, historicalScale), anchorPrice);
+  const ma20 = applyMarketPriceScale(asNumber(ta.sma20) ?? asNumber(ta.ema20), historicalScale);
+  const ma50 = applyMarketPriceScale(asNumber(ta.sma50) ?? asNumber(ta.ema50), historicalScale);
+  const ma200 = applyMarketPriceScale(asNumber(ta.sma200) ?? asNumber(ta.ema200), historicalScale);
   const volumeMa20 = asNumber(ta.avgVolume20);
   const volume10 = Array.isArray(ta.volume10) ? ta.volume10 : [];
   const latestVolume = asNumber(realtimeLast.volume) ?? asNumber(volume10.at(-1));
-  const support = asNumber(signal.stoploss) ?? readNestedNumber(ta, ["bollinger", "lower"]) ?? asNumber(ta.low52w);
-  const resistance = asNumber(signal.target) ?? readNestedNumber(ta, ["bollinger", "upper"]) ?? asNumber(ta.high52w);
-  const entry = asNumber(signal.entryPrice);
+  const support = applyMarketPriceScale(asNumber(signal.stoploss), historicalScale)
+    ?? applyMarketPriceScale(readNestedNumber(ta, ["bollinger", "lower"]), historicalScale)
+    ?? applyMarketPriceScale(asNumber(ta.low52w), historicalScale);
+  const resistance = applyMarketPriceScale(asNumber(signal.target), historicalScale)
+    ?? applyMarketPriceScale(readNestedNumber(ta, ["bollinger", "upper"]), historicalScale)
+    ?? applyMarketPriceScale(asNumber(ta.high52w), historicalScale);
+  const entry = applyMarketPriceScale(asNumber(signal.entryPrice), historicalScale);
   const safeZoneLow = support;
   const safeZoneHigh = entry ?? ma20 ?? currentPrice;
   const macdHistogram = readNestedNumber(ta, ["macd", "histogram"]);
@@ -163,15 +185,15 @@ function buildAnalysisMetrics(wb: JsonRecord, realtime: unknown, historical: unk
       resistance,
       safeZoneLow,
       safeZoneHigh,
-      low52w: asNumber(ta.low52w),
-      high52w: asNumber(ta.high52w),
+      low52w: applyMarketPriceScale(asNumber(ta.low52w), historicalScale),
+      high52w: applyMarketPriceScale(asNumber(ta.high52w), historicalScale),
     },
     radarAction: {
       status: signal.status ?? null,
       type: signal.type ?? null,
       entryPrice: entry,
-      target: asNumber(signal.target),
-      stoploss: asNumber(signal.stoploss),
+      target: applyMarketPriceScale(asNumber(signal.target), historicalScale),
+      stoploss: applyMarketPriceScale(asNumber(signal.stoploss), historicalScale),
       currentPnl: asNumber(signal.currentPnl),
       winRate: asNumber(signal.winRate),
       rrRatio: signal.rrRatio ?? null,

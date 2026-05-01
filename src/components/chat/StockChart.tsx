@@ -28,6 +28,7 @@ interface StockChartProps {
   sourceLabel?: string;
   timeframe?: ChartTimeframe;
   onTimeframeChange?: (timeframe: ChartTimeframe) => void;
+  allowFallbackFetch?: boolean;
 }
 
 export interface Candle {
@@ -137,9 +138,11 @@ export function StockChart({
   sourceLabel,
   timeframe = "1D",
   onTimeframeChange,
+  allowFallbackFetch = true,
 }: StockChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const pendingPointRef = useRef<{ x: number; y: number } | null>(null);
+  const [pendingPoint, setPendingPoint] = useState<{ x: number; y: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTool, setActiveTool] = useState<DrawingTool>("cursor");
@@ -159,7 +162,13 @@ export function StockChart({
       setDrawings([]);
     }
     pendingPointRef.current = null;
+    setPendingPoint(null);
   }, [storageKey]);
+
+  useEffect(() => {
+    pendingPointRef.current = null;
+    setPendingPoint(null);
+  }, [activeTool]);
 
   useEffect(() => {
     try {
@@ -181,7 +190,7 @@ export function StockChart({
         setError(null);
 
         let nextCandles = chartCandles;
-        if (!nextCandles.length && timeframe === "1D") {
+        if (!nextCandles.length && allowFallbackFetch && timeframe === "1D") {
           const res = await fetch(`/api/chart?symbol=${symbol}`);
           if (!res.ok) throw new Error("Không tải được dữ liệu chart");
           const payload = (await res.json()) as { candles: Candle[] };
@@ -290,7 +299,7 @@ export function StockChart({
       disposed = true;
       cleanup?.();
     };
-  }, [symbol, isDark, timeframe, chartCandles]);
+  }, [symbol, isDark, timeframe, chartCandles, allowFallbackFetch]);
 
   function addDrawing(point: { x: number; y: number }) {
     if (activeTool === "cursor" || drawingsLocked) return;
@@ -305,10 +314,12 @@ export function StockChart({
     const pending = pendingPointRef.current;
     if (!pending) {
       pendingPointRef.current = point;
+      setPendingPoint(point);
       return;
     }
     setDrawings((prev) => [...prev, { id: crypto.randomUUID(), tool: activeTool, points: [pending, point] } as Drawing]);
     pendingPointRef.current = null;
+    setPendingPoint(null);
   }
 
   return (
@@ -382,9 +393,24 @@ export function StockChart({
         {!drawingsHidden && !error ? (
           <svg
             className="absolute inset-0 h-full w-full"
-            style={{ pointerEvents: activeTool === "cursor" || drawingsLocked ? "none" : "auto" }}
-            onPointerDown={(event) => addDrawing(pointFromEvent(event))}
+            style={{
+              pointerEvents: activeTool === "cursor" || drawingsLocked ? "none" : "auto",
+              cursor: activeTool === "cursor" || drawingsLocked ? "default" : "crosshair",
+              zIndex: 2,
+            }}
+            onPointerDown={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              addDrawing(pointFromEvent(event));
+            }}
           >
+            {pendingPoint ? (
+              <g>
+                <circle cx={`${pendingPoint.x}%`} cy={`${pendingPoint.y}%`} r="5" fill="#22c55e" stroke="#ffffff" strokeWidth="2" />
+                <line x1={`${pendingPoint.x}%`} y1="0" x2={`${pendingPoint.x}%`} y2="100%" stroke="rgba(34,197,94,0.35)" strokeDasharray="4 4" />
+                <line x1="0" y1={`${pendingPoint.y}%`} x2="100%" y2={`${pendingPoint.y}%`} stroke="rgba(34,197,94,0.35)" strokeDasharray="4 4" />
+              </g>
+            ) : null}
             {drawings.map((drawing) => {
               if (drawing.tool === "zone" && drawing.points[1]) {
                 const [a, b] = drawing.points;

@@ -11,6 +11,14 @@ import { getDnseTradingClient } from "@/lib/providers/dnse/trading-client";
 import type { SignalScanArtifact } from "@/lib/signals/ingest";
 import { loadReportedSignalSummary } from "@/lib/signals/report-history";
 import { normalizeSignalPrice } from "@/lib/signals/price-units";
+import {
+  applyMarketPriceScale,
+  chooseMarketDisplayPrice,
+  latestClosePriceFromPayload,
+  latestTurnoverPriceFromPayload,
+  marketPriceScaleFromPayload,
+  normalizeHistoricalPricePayload,
+} from "@/lib/market-price-normalization";
 import { resolveTopicFamily, resolveTopicStaleWindowMs } from "./policy";
 import { TopicContext, TopicDefinition } from "./types";
 
@@ -470,7 +478,75 @@ async function loadHistoricalTicker(ticker: string) {
     const text = await res.text();
     throw new Error(`historical ${symbol} HTTP ${res.status}: ${text}`);
   }
-  return res.json();
+  const payload = await res.json();
+  return normalizeHistoricalPricePayload(payload);
+}
+
+function scalePriceField(value: number | null | undefined, scale: number) {
+  return applyMarketPriceScale(value, scale);
+}
+
+function normalizeTAWithHistorical(ta: TAData | null, historical: unknown): TAData | null {
+  if (!ta) return ta;
+  const turnoverPrice = latestTurnoverPriceFromPayload(historical);
+  const latestClosePrice = latestClosePriceFromPayload(historical);
+  const anchorPrice = chooseMarketDisplayPrice(latestClosePrice, turnoverPrice);
+  const payloadScale = marketPriceScaleFromPayload(historical);
+  const anchorScale = anchorPrice != null && ta.currentPrice > 0
+    ? anchorPrice / ta.currentPrice
+    : 1;
+  const scale = Math.abs(anchorScale - 1) >= 0.08
+    ? anchorScale
+    : payloadScale !== 1
+      ? payloadScale
+      : 1;
+  const scaledCurrent = scalePriceField(ta.currentPrice, scale);
+  const currentPrice = chooseMarketDisplayPrice(scaledCurrent, anchorPrice);
+  if (scale === 1 && currentPrice === ta.currentPrice) return ta;
+
+  const refPrice = scalePriceField(ta.refPrice, scale) ?? ta.refPrice;
+  const change = currentPrice != null && refPrice != null ? currentPrice - refPrice : scalePriceField(ta.change, scale) ?? ta.change;
+  const changePct = currentPrice != null && refPrice != null && refPrice > 0
+    ? Number(((change / refPrice) * 100).toFixed(2))
+    : ta.changePct;
+
+  return {
+    ...ta,
+    currentPrice: currentPrice ?? ta.currentPrice,
+    ceiling: scalePriceField(ta.ceiling, scale) ?? ta.ceiling,
+    floor: scalePriceField(ta.floor, scale) ?? ta.floor,
+    refPrice,
+    change,
+    changePct,
+    sma20: scalePriceField(ta.sma20, scale),
+    sma50: scalePriceField(ta.sma50, scale),
+    sma200: scalePriceField(ta.sma200, scale),
+    ema10: scalePriceField(ta.ema10, scale) ?? ta.ema10,
+    ema20: scalePriceField(ta.ema20, scale) ?? ta.ema20,
+    ema30: scalePriceField(ta.ema30, scale) ?? ta.ema30,
+    ema50: scalePriceField(ta.ema50, scale) ?? ta.ema50,
+    ema200: scalePriceField(ta.ema200, scale),
+    prevClose: scalePriceField(ta.prevClose, scale) ?? ta.prevClose,
+    prevEma10: scalePriceField(ta.prevEma10, scale) ?? ta.prevEma10,
+    prevEma20: scalePriceField(ta.prevEma20, scale) ?? ta.prevEma20,
+    high52w: scalePriceField(ta.high52w, scale) ?? ta.high52w,
+    low52w: scalePriceField(ta.low52w, scale) ?? ta.low52w,
+    macd: ta.macd
+      ? {
+          macd: scalePriceField(ta.macd.macd, scale) ?? ta.macd.macd,
+          signal: scalePriceField(ta.macd.signal, scale) ?? ta.macd.signal,
+          histogram: scalePriceField(ta.macd.histogram, scale) ?? ta.macd.histogram,
+          histogramPrev: scalePriceField(ta.macd.histogramPrev, scale) ?? ta.macd.histogramPrev,
+        }
+      : ta.macd,
+    bollinger: ta.bollinger
+      ? {
+          upper: scalePriceField(ta.bollinger.upper, scale) ?? ta.bollinger.upper,
+          middle: scalePriceField(ta.bollinger.middle, scale) ?? ta.bollinger.middle,
+          lower: scalePriceField(ta.bollinger.lower, scale) ?? ta.bollinger.lower,
+        }
+      : ta.bollinger,
+  };
 }
 
 async function loadAiCachesForTicker(ticker: string) {
@@ -710,7 +786,7 @@ async function loadResearchWorkbench(topicKey: string) {
   const resolved = await assertValidTicker(ticker);
   const normalizedTicker = resolved.ticker;
 
-  const [ta, faRaw, seasonality, investor, marketSnapshot, activeSignal, news, aiCaches, art] = await Promise.all([
+  const [taRaw, faRaw, seasonality, investor, marketSnapshot, activeSignal, news, aiCaches, art, historical] = await Promise.all([
     fetchTAData(normalizedTicker),
     fetchFAData(normalizedTicker),
     loadSeasonalityForTicker(normalizedTicker),
@@ -720,7 +796,12 @@ async function loadResearchWorkbench(topicKey: string) {
     loadTickerNews(normalizedTicker),
     loadAiCachesForTicker(normalizedTicker),
     loadOptionalTickerArt(normalizedTicker),
+    loadHistoricalTicker(normalizedTicker).catch((error) => {
+      console.warn("[DataHub research] optional historical normalization unavailable:", error);
+      return null;
+    }),
   ]);
+  const ta = normalizeTAWithHistorical(taRaw, historical);
   const fa = hydrateFAFromRecentAnalysis(normalizedTicker, faRaw, aiCaches, ta);
 
   return {
@@ -1943,7 +2024,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     id: "vn:ta:{ticker}",
     ttlMs: 120_000,
     minIntervalMs: 15_000,
-    source: "vndirect",
+    source: "fiinquant",
     version: "v1",
     tags: ["research", "ta"],
     match: (topicKey) => {
@@ -1952,7 +2033,11 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     },
     resolve: async (_, __, params) => {
       const resolved = await assertValidTicker(params.ticker);
-      return fetchTAData(resolved.ticker);
+      const [ta, historical] = await Promise.all([
+        fetchTAData(resolved.ticker),
+        loadHistoricalTicker(resolved.ticker).catch(() => null),
+      ]);
+      return normalizeTAWithHistorical(ta, historical);
     },
   },
   {

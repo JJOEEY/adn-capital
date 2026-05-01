@@ -20,6 +20,13 @@ import {
 import { MainLayout } from "@/components/layout/MainLayout";
 import { StockChart, type Candle, type ChartTimeframe } from "@/components/chat/StockChart";
 import { useTopic } from "@/hooks/useTopic";
+import {
+  applyMarketPriceScale,
+  chooseMarketDisplayPrice,
+  getMarketPayloadRows,
+  latestTurnoverPriceFromPayload,
+  marketPriceScaleFromPayload,
+} from "@/lib/market-price-normalization";
 import { extractExplicitTickerCandidate, sanitizeTicker } from "@/lib/ticker-text";
 
 type JsonRecord = Record<string, unknown>;
@@ -198,22 +205,17 @@ function readUnixTime(value: unknown) {
 function normalizeCandles(payload: unknown): Candle[] {
   if (!payload || typeof payload !== "object") return [];
   const record = payload as JsonRecord;
-  const rows = Array.isArray(record.candles)
-    ? record.candles
-    : Array.isArray(record.data)
-      ? record.data
-      : Array.isArray(record.items)
-        ? record.items
-        : [];
+  const rows = getMarketPayloadRows(record);
+  const scale = marketPriceScaleFromPayload(record);
 
   return rows
     .map((row) => {
       const item = row as JsonRecord;
       const time = readUnixTime(item.time ?? item.timestamp ?? item.date);
-      const open = readNumber(row, ["open", "o"]);
-      const high = readNumber(row, ["high", "h"]);
-      const low = readNumber(row, ["low", "l"]);
-      const close = readNumber(row, ["close", "c", "price"]);
+      const open = applyMarketPriceScale(readNumber(row, ["open", "o"]), scale);
+      const high = applyMarketPriceScale(readNumber(row, ["high", "h"]), scale);
+      const low = applyMarketPriceScale(readNumber(row, ["low", "l"]), scale);
+      const close = applyMarketPriceScale(readNumber(row, ["close", "c", "price"]), scale);
       const volume = readNumber(row, ["volume", "v"]) ?? 0;
       if (time == null || open == null || high == null || low == null || close == null) return null;
       return { time, open, high, low, close, volume };
@@ -241,9 +243,15 @@ function readRealtimeChangePct(payload: unknown) {
 }
 
 function marketDefaultTimeframe(): ChartTimeframe {
-  const now = new Date();
-  const vnHour = Number(new Intl.DateTimeFormat("en-US", { hour: "2-digit", hour12: false, timeZone: "Asia/Ho_Chi_Minh" }).format(now));
-  return vnHour >= 9 && vnHour < 15 ? "5m" : "1D";
+  return "1D";
+}
+
+function readHistoricalMarketPrice(payload: unknown) {
+  const rows = getMarketPayloadRows(payload);
+  const last = rows.at(-1);
+  const scale = marketPriceScaleFromPayload(payload);
+  const scaledClose = applyMarketPriceScale(readNumber(last, ["close", "c", "price"]), scale);
+  return chooseMarketDisplayPrice(scaledClose, latestTurnoverPriceFromPayload(payload));
 }
 
 function InfoItem({ label, value }: { label: string; value: string }) {
@@ -567,7 +575,10 @@ function AidenPanel({
             value={input}
             onChange={(event) => setInput(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === "Enter") void onSend();
+              if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                event.preventDefault();
+                void onSend();
+              }
             }}
             placeholder={`Hỏi AIDEN về ${ticker}...`}
             className="flex-1 rounded-xl px-3 py-2 text-sm outline-none"
@@ -703,8 +714,18 @@ export default function StockDetailPage() {
   const realtimeCandles = useMemo(() => normalizeCandles(realtimeTopic.data), [realtimeTopic.data]);
   const chartCandles = timeframe === "1D" ? historicalCandles : realtimeCandles;
   const workbench = workbenchTopic.data;
-  const realtimePrice = readRealtimePrice(realtimeTopic.data) ?? workbench?.ta?.currentPrice ?? null;
+  const historicalMarketPrice = useMemo(() => readHistoricalMarketPrice(historicalTopic.data), [historicalTopic.data]);
+  const realtimePrice = chooseMarketDisplayPrice(
+    readRealtimePrice(realtimeTopic.data) ?? workbench?.ta?.currentPrice ?? null,
+    historicalMarketPrice,
+  );
   const realtimeChangePct = readRealtimeChangePct(realtimeTopic.data) ?? workbench?.ta?.changePct ?? null;
+
+  useEffect(() => {
+    if (timeframe !== "1D" && !realtimeTopic.isLoading && !realtimeTopic.isValidating && realtimeCandles.length === 0 && historicalCandles.length > 0) {
+      setTimeframe("1D");
+    }
+  }, [timeframe, realtimeTopic.isLoading, realtimeTopic.isValidating, realtimeCandles.length, historicalCandles.length]);
 
   const refreshAll = () => {
     void tickerResolutionTopic.refresh(true);
@@ -718,6 +739,7 @@ export default function StockDetailPage() {
   const selectTicker = useCallback((nextTicker: string) => {
     const next = sanitizeTicker(nextTicker);
     if (!next) return null;
+    setTimeframe("1D");
     setSearch(next);
     if (next !== ticker) {
       router.replace(`/stock/${next}`, { scroll: false });
@@ -814,6 +836,16 @@ export default function StockDetailPage() {
     await submitAidenQuery(input, { clearInput: true });
   };
 
+  const handleSearchEnter = () => {
+    const next = sanitizeTicker(search);
+    if (!next) return;
+    void submitAidenQuery(next, {
+      explicitTicker: next,
+      displayText: next,
+      clearInput: false,
+    });
+  };
+
   const handleSearch = (event: FormEvent) => {
     event.preventDefault();
     const next = sanitizeTicker(search);
@@ -846,6 +878,12 @@ export default function StockDetailPage() {
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value.toUpperCase())}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                    event.preventDefault();
+                    handleSearchEnter();
+                  }
+                }}
                 placeholder="Mã cổ phiếu"
                 className="w-36 rounded-lg border px-3 py-2 text-sm font-bold outline-none"
                 style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--text-primary)" }}
@@ -884,6 +922,7 @@ export default function StockDetailPage() {
                   sourceLabel="ADN Stock"
                   timeframe={timeframe}
                   onTimeframeChange={setTimeframe}
+                  allowFallbackFetch={false}
                 />
                 <StockOverviewPanel workbench={workbench ?? null} realtimePrice={realtimePrice} realtimeChangePct={realtimeChangePct} />
                 <div className="grid gap-4 2xl:grid-cols-[420px_minmax(0,1fr)]">
