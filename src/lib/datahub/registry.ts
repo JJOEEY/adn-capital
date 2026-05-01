@@ -14,10 +14,12 @@ import { normalizeSignalPrice } from "@/lib/signals/price-units";
 import {
   applyMarketPriceScale,
   chooseMarketDisplayPrice,
+  getMarketPayloadRows,
   latestClosePriceFromPayload,
   latestTurnoverPriceFromPayload,
   marketPriceScaleFromPayload,
   normalizeHistoricalPricePayload,
+  readMarketNumber,
 } from "@/lib/market-price-normalization";
 import { resolveTopicFamily, resolveTopicStaleWindowMs } from "./policy";
 import { TopicContext, TopicDefinition } from "./types";
@@ -206,6 +208,20 @@ async function assertValidTicker(ticker: string) {
 }
 
 const REALTIME_TIMEFRAMES = new Set(["1m", "5m", "15m", "30m"]);
+const DCHART_BASE = "https://dchart-api.vndirect.com.vn/dchart/history";
+const DCHART_HEADERS: HeadersInit = {
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+  Accept: "*/*",
+  Referer: "https://dchart.vndirect.com.vn/",
+  Origin: "https://dchart.vndirect.com.vn",
+};
+
+const DCHART_RESOLUTION_BY_TIMEFRAME: Record<string, string> = {
+  "1m": "1",
+  "5m": "5",
+  "15m": "15",
+  "30m": "30",
+};
 
 function normalizeBoardTickers(raw: string) {
   return Array.from(
@@ -480,6 +496,90 @@ async function loadHistoricalTicker(ticker: string) {
   }
   const payload = await res.json();
   return normalizeHistoricalPricePayload(payload);
+}
+
+function hasCandleRows(payload: unknown) {
+  return getMarketPayloadRows(payload).length > 0;
+}
+
+async function loadDchartIntradayTicker(ticker: string, timeframe: string) {
+  const resolution = DCHART_RESOLUTION_BY_TIMEFRAME[timeframe];
+  if (!resolution) return null;
+
+  const symbol = ticker.toUpperCase().trim();
+  const now = Math.floor(Date.now() / 1000);
+  const from = now - 30 * 86400;
+  const res = await fetch(
+    `${DCHART_BASE}?resolution=${encodeURIComponent(resolution)}&symbol=${encodeURIComponent(symbol)}&from=${from}&to=${now}`,
+    {
+      headers: DCHART_HEADERS,
+      cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
+    },
+  );
+  if (!res.ok) return null;
+
+  const json = await res.json();
+  const closes = Array.isArray(json?.c) ? json.c : [];
+  const times = Array.isArray(json?.t) ? json.t : [];
+  if (json?.s !== "ok" || closes.length === 0 || times.length === 0) return null;
+
+  const historical = await loadHistoricalTicker(symbol).catch(() => null);
+  const historicalClose = latestClosePriceFromPayload(historical);
+  const lastRawClose = readMarketNumber(closes.at(-1));
+  const baseLastClose = lastRawClose != null && Number.isFinite(lastRawClose) ? lastRawClose * 1000 : null;
+  const scale = historicalClose != null && baseLastClose != null && baseLastClose > 0
+    ? historicalClose / baseLastClose
+    : 1;
+
+  const rows = times
+    .map((time: unknown, index: number) => {
+      const unixTime = typeof time === "number" && Number.isFinite(time) ? Math.floor(time) : null;
+      const openRaw = Number(json.o?.[index]);
+      const highRaw = Number(json.h?.[index]);
+      const lowRaw = Number(json.l?.[index]);
+      const closeRaw = Number(json.c?.[index]);
+      if (
+        unixTime == null ||
+        !Number.isFinite(openRaw) ||
+        !Number.isFinite(highRaw) ||
+        !Number.isFinite(lowRaw) ||
+        !Number.isFinite(closeRaw)
+      ) {
+        return null;
+      }
+      return {
+        time: unixTime,
+        open: applyMarketPriceScale(openRaw * 1000, scale),
+        high: applyMarketPriceScale(highRaw * 1000, scale),
+        low: applyMarketPriceScale(lowRaw * 1000, scale),
+        close: applyMarketPriceScale(closeRaw * 1000, scale),
+        volume: Number(json.v?.[index] ?? 0),
+      };
+    })
+    .filter((row: JsonRecord | null): row is JsonRecord => Boolean(row))
+    .filter((row: JsonRecord, index: number, all: JsonRecord[]) => index === 0 || row.time !== all[index - 1].time);
+
+  if (rows.length === 0) return null;
+  return {
+    ticker: symbol,
+    timeframe,
+    date: new Date((Number(rows.at(-1)?.time) || now) * 1000).toISOString().slice(0, 10),
+    count: rows.length,
+    summary: {
+      totalBuyVolume: 0,
+      totalSellVolume: 0,
+      netVolume: 0,
+    },
+    data: rows,
+  };
+}
+
+async function loadRealtimeTicker(ticker: string, timeframe: string) {
+  const realtime = await fetchRealtimeTradingData(ticker, timeframe);
+  if (hasCandleRows(realtime)) return realtime;
+  const chartFallback = await loadDchartIntradayTicker(ticker, timeframe);
+  return chartFallback ?? realtime;
 }
 
 function scalePriceField(value: number | null | undefined, scale: number) {
@@ -2086,7 +2186,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     resolve: async (_, __, params) => {
       const resolved = await assertValidTicker(params.ticker);
       const timeframe = REALTIME_TIMEFRAMES.has(params.timeframe) ? params.timeframe : "5m";
-      return fetchRealtimeTradingData(resolved.ticker, timeframe);
+      return loadRealtimeTicker(resolved.ticker, timeframe);
     },
   },
   {
@@ -2133,7 +2233,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     },
     resolve: async (_, __, params) => {
       const resolved = await assertValidTicker(params.ticker);
-      return fetchRealtimeTradingData(resolved.ticker, "5m");
+      return loadRealtimeTicker(resolved.ticker, "5m");
     },
   },
   {
