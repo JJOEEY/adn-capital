@@ -7,6 +7,7 @@ import {
   Banknote,
   Bell,
   BookOpen,
+  Bot,
   ChevronRight,
   Crown,
   FlaskConical,
@@ -151,6 +152,7 @@ export default function MenuPage() {
     {
       title: "D\u1ecbch V\u1ee5",
       items: [
+        { href: "/aiden", label: PRODUCT_NAMES.advisory, icon: Bot, badge: "HOT" },
         { href: "/backtest", label: PRODUCT_NAMES.backtest, icon: FlaskConical },
         { href: "/margin", label: "K\u00fd qu\u1ef9 - Mua nhanh", icon: Banknote, badge: "HOT" },
         { href: "/hdsd", label: "H\u01b0\u1edbng D\u1eabn S\u1eed D\u1ee5ng", icon: BookOpen },

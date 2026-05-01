@@ -64,6 +64,7 @@ const menuSections: MenuSection[] = [
     items: [
       { href: "/dashboard/signal-map", label: PRODUCT_NAMES.brokerWorkflow, icon: Zap },
       { href: "/stock/HPG", label: PRODUCT_NAMES.stock, icon: Search },
+      { href: "/aiden", label: PRODUCT_NAMES.advisory, icon: Bot, badge: "HOT" },
       { href: "/art", label: PRODUCT_NAMES.art, icon: Activity, badge: "MỚI" },
       { href: "/rs-rating", label: PRODUCT_NAMES.rsRating, icon: BarChart2, badge: "VIP", requiresVip: true },
       {
