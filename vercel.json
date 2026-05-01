@@ -62,6 +62,11 @@
       "comment": "09:00-15:59 VN - lifecycle worker"
     },
     {
+      "path": "/api/cron?type=news_crawler",
+      "schedule": "*/30 0-15 * * *",
+      "comment": "07:00-22:30 VN - continuous news crawler"
+    },
+    {
       "path": "/api/cron/ai-weekly-review",
       "schedule": "0 10 * * 5",
       "comment": "17:00 VN Friday - weekly AI review"

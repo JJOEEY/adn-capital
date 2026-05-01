@@ -30,7 +30,8 @@ export type SignalWindowType =
 
 /** Validate cron secret header */
 export function validateCronSecret(req: NextRequest): boolean {
-  const secret = req.headers.get("x-cron-secret");
+  const bearer = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
+  const secret = req.headers.get("x-cron-secret") ?? bearer;
   return secret === (process.env.CRON_SECRET ?? "adn-cron-dev-key");
 }
 

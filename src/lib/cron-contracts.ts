@@ -3,7 +3,8 @@ export type CanonicalCronType =
   | "close_brief_15h"
   | "eod_full_19h"
   | "market_stats_type2"
-  | "signal_scan_type1";
+  | "signal_scan_type1"
+  | "news_crawler";
 
 export const CANONICAL_CRON_TYPES: readonly CanonicalCronType[] = [
   "morning_brief",
@@ -11,6 +12,7 @@ export const CANONICAL_CRON_TYPES: readonly CanonicalCronType[] = [
   "eod_full_19h",
   "market_stats_type2",
   "signal_scan_type1",
+  "news_crawler",
 ] as const;
 
 export const CRON_TYPE_ALIASES: Record<string, CanonicalCronType> = {
@@ -19,6 +21,7 @@ export const CRON_TYPE_ALIASES: Record<string, CanonicalCronType> = {
   eod_full_19h: "eod_full_19h",
   market_stats_type2: "market_stats_type2",
   signal_scan_type1: "signal_scan_type1",
+  news_crawler: "news_crawler",
 
   // legacy aliases
   prop_trading: "eod_full_19h",
@@ -28,6 +31,9 @@ export const CRON_TYPE_ALIASES: Record<string, CanonicalCronType> = {
   signal_scan: "signal_scan_type1",
   "scan-signals": "signal_scan_type1",
   scan_signals: "signal_scan_type1",
+  news_crawl: "news_crawler",
+  crawler_news: "news_crawler",
+  crawler: "news_crawler",
 };
 
 export const LEGACY_CRON_ALIASES = [
@@ -38,6 +44,9 @@ export const LEGACY_CRON_ALIASES = [
   "signal_scan",
   "scan-signals",
   "scan_signals",
+  "news_crawl",
+  "crawler_news",
+  "crawler",
 ] as const;
 
 export const SIGNAL_SCANNER_CANONICAL_NAME: CanonicalCronType = "signal_scan_type1";

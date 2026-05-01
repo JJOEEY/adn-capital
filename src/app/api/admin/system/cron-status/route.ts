@@ -20,6 +20,8 @@ type CronJobPolicy = {
   tradingWindowOnly: boolean;
 };
 
+const NEWS_CRAWLER_SLOTS = Array.from({ length: 32 }, (_, index) => 7 * 60 + index * 30);
+
 const CRON_JOB_POLICIES: Record<CanonicalCronType, CronJobPolicy> = {
   signal_scan_type1: {
     slotsMinutes: [10 * 60, 10 * 60 + 30, 14 * 60, 14 * 60 + 25],
@@ -44,6 +46,11 @@ const CRON_JOB_POLICIES: Record<CanonicalCronType, CronJobPolicy> = {
   eod_full_19h: {
     slotsMinutes: [19 * 60],
     staleGraceMinutes: 120,
+    tradingWindowOnly: false,
+  },
+  news_crawler: {
+    slotsMinutes: NEWS_CRAWLER_SLOTS,
+    staleGraceMinutes: 90,
     tradingWindowOnly: false,
   },
 };

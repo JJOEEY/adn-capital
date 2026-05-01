@@ -95,6 +95,38 @@ async function handleCloseBrief15(forceRun = false): Promise<NextResponse> {
   return mod.GET(buildInternalCronRequest(url.toString()));
 }
 
+async function handleNewsCrawler(): Promise<NextResponse> {
+  const startTime = Date.now();
+  try {
+    const mod = await import("@/app/api/crawler/run/route");
+    const headers = new Headers();
+    headers.set("x-cron-secret", process.env.CRON_SECRET ?? "adn-cron-dev-key");
+    const response = await mod.POST(
+      new Request("http://localhost/api/crawler/run", {
+        method: "POST",
+        headers,
+      }),
+    );
+    const payload = await response.json().catch(() => ({}));
+    const duration = Date.now() - startTime;
+    await logCron(
+      "news_crawler",
+      response.ok ? "success" : "error",
+      response.ok ? "News crawler completed" : "News crawler failed",
+      duration,
+      payload,
+    );
+    if (response.ok) {
+      invalidateTopics({ tags: ["news", "articles", "dashboard"] });
+    }
+    return NextResponse.json({ type: "news_crawler", ...payload }, { status: response.status });
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    await logCron("news_crawler", "error", String(error), duration);
+    return NextResponse.json({ error: "Lỗi cập nhật tin tức" }, { status: 500 });
+  }
+}
+
 function hasMeaningfulBreadth(snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>): boolean {
   const breadth = snapshot.breadth;
   return !!breadth && breadth.up + breadth.down + breadth.unchanged > 0;
@@ -338,6 +370,7 @@ export async function GET(req: NextRequest) {
           "eod_full_19h",
           "market_stats_type2",
           "signal_scan_type1",
+          "news_crawler",
         ],
         legacyAliases: LEGACY_CRON_ALIASES,
       },
@@ -370,6 +403,9 @@ export async function GET(req: NextRequest) {
     if (type === "market_stats_type2") {
       return runCronHandlerWithWorkflowHook(type, () => handleIntraday(forceRun), "cron-dispatch:sync");
     }
+    if (type === "news_crawler") {
+      return runCronHandlerWithWorkflowHook(type, () => handleNewsCrawler(), "cron-dispatch:sync");
+    }
     return runCronHandlerWithWorkflowHook(type, () => handleSignalScan5m(), "cron-dispatch:sync");
   }
 
@@ -394,6 +430,8 @@ export async function GET(req: NextRequest) {
         await runCronHandlerWithWorkflowHook(type, () => handlePropTrading(forceRun), "cron-dispatch:async");
       } else if (type === "market_stats_type2") {
         await runCronHandlerWithWorkflowHook(type, () => handleIntraday(forceRun), "cron-dispatch:async");
+      } else if (type === "news_crawler") {
+        await runCronHandlerWithWorkflowHook(type, () => handleNewsCrawler(), "cron-dispatch:async");
       } else {
         await runCronHandlerWithWorkflowHook(type, () => handleSignalScan5m(), "cron-dispatch:async");
       }

@@ -62,7 +62,7 @@ async function loadCompositeLive() {
 async function loadNews(type: "morning" | "eod" | "close") {
   const mod = await import("@/app/api/market-news/route");
   const newsType = type === "close" ? "eod" : type;
-  const req = new NextRequest(`http://localhost/api/market-news?type=${newsType}`);
+  const req = new NextRequest(`http://localhost/api/market-news?type=${newsType}&stored=1`);
   const res = await mod.GET(req);
   if (!res.ok) throw new Error(`market-news ${newsType} HTTP ${res.status}`);
   const payload = await res.json();
@@ -1707,9 +1707,10 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
   },
   {
     id: "news:morning:latest",
-    ttlMs: 300_000,
-    minIntervalMs: 30_000,
-    source: "api:market-news",
+    ttlMs: 6 * 60 * 60 * 1000,
+    minIntervalMs: 60_000,
+    staleWhileRevalidateMs: 24 * 60 * 60 * 1000,
+    source: "db:market-report",
     version: "v1",
     tags: ["news", "brief", "dashboard"],
     match: (topicKey) => (topicKey === "news:morning:latest" ? { ok: true } : { ok: false }),
@@ -1717,9 +1718,10 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
   },
   {
     id: "brief:morning:latest",
-    ttlMs: 300_000,
-    minIntervalMs: 30_000,
-    source: "api:market-news",
+    ttlMs: 6 * 60 * 60 * 1000,
+    minIntervalMs: 60_000,
+    staleWhileRevalidateMs: 24 * 60 * 60 * 1000,
+    source: "db:market-report",
     version: "v1",
     tags: ["brief", "morning-brief", "public"],
     match: (topicKey) => (topicKey === "brief:morning:latest" ? { ok: true } : { ok: false }),
@@ -1740,9 +1742,10 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
   },
   {
     id: "news:eod:latest",
-    ttlMs: 300_000,
-    minIntervalMs: 30_000,
-    source: "api:market-news",
+    ttlMs: 6 * 60 * 60 * 1000,
+    minIntervalMs: 60_000,
+    staleWhileRevalidateMs: 24 * 60 * 60 * 1000,
+    source: "db:market-report",
     version: "v1",
     tags: ["news", "brief", "dashboard"],
     match: (topicKey) => (topicKey === "news:eod:latest" ? { ok: true } : { ok: false }),
@@ -1773,9 +1776,10 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
   },
   {
     id: "brief:eod:latest",
-    ttlMs: 300_000,
-    minIntervalMs: 30_000,
-    source: "api:market-news",
+    ttlMs: 6 * 60 * 60 * 1000,
+    minIntervalMs: 60_000,
+    staleWhileRevalidateMs: 24 * 60 * 60 * 1000,
+    source: "db:market-report",
     version: "v1",
     tags: ["brief", "eod-brief", "news", "dashboard", "public"],
     match: (topicKey) => (topicKey === "brief:eod:latest" ? { ok: true } : { ok: false }),
@@ -2139,8 +2143,9 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
   },
   {
     id: "vn:depth:{ticker}",
-    ttlMs: 10_000,
-    minIntervalMs: 5_000,
+    ttlMs: 15_000,
+    minIntervalMs: 10_000,
+    staleWhileRevalidateMs: 60_000,
     source: "fiinquant:vnstock-price-board",
     version: "v1",
     tags: ["research", "depth", "orderbook", "market"],
@@ -2155,8 +2160,9 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
   },
   {
     id: "vn:board:{tickers}",
-    ttlMs: 10_000,
-    minIntervalMs: 5_000,
+    ttlMs: 30_000,
+    minIntervalMs: 15_000,
+    staleWhileRevalidateMs: 90_000,
     source: "fiinquant:vnstock-price-board",
     version: "v1",
     tags: ["watchlist", "board", "market"],

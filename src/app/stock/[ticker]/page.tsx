@@ -406,7 +406,7 @@ function WatchlistBoard({
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-sm font-black" style={{ color: "var(--text-primary)" }}>Danh sách theo dõi</h2>
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>Bảng giá rút gọn, tự cập nhật mỗi 5-10 giây.</p>
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>Bảng giá rút gọn, tự cập nhật khoảng 15-30 giây.</p>
         </div>
         <form onSubmit={submit} className="flex gap-2">
           <input
@@ -655,9 +655,9 @@ export default function StockDetailPage() {
   });
   const depthTopic = useTopic<DepthPayload>(`vn:depth:${resolvedTicker}`, {
     enabled: isTickerValid,
-    refreshInterval: 5_000,
+    refreshInterval: 15_000,
     revalidateOnFocus: false,
-    dedupingInterval: 5_000,
+    dedupingInterval: 10_000,
   });
 
   useEffect(() => {
@@ -745,9 +745,9 @@ export default function StockDetailPage() {
   const boardKey = watchlist.length > 0 ? `vn:board:${watchlist.join(",")}` : "";
   const boardTopic = useTopic<BoardPayload>(boardKey, {
     enabled: watchlist.length > 0,
-    refreshInterval: 10_000,
+    refreshInterval: 30_000,
     revalidateOnFocus: false,
-    dedupingInterval: 5_000,
+    dedupingInterval: 15_000,
   });
 
   const historicalCandles = useMemo(() => normalizeCandles(historicalTopic.data), [historicalTopic.data]);

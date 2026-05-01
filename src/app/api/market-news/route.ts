@@ -1407,6 +1407,39 @@ function eodPayloadScore(payload: EodPayload): number {
   return score;
 }
 
+function hasDisplayableMorningPayload(payload: MorningPayload): boolean {
+  const hasAnyIndex = payload.reference_indices.some(
+    (item) => typeof item.value === "number" && item.value > 0,
+  );
+  const hasAnyContent =
+    payload.vn_market.some(isMeaningfulLine) ||
+    payload.macro.some(isMeaningfulLine) ||
+    payload.risk_opportunity.some(isMeaningfulLine);
+  return hasAnyIndex || hasAnyContent;
+}
+
+function hasDisplayableEodPayload(payload: EodPayload): boolean {
+  const hasMarketNumber =
+    (Number.isFinite(payload.vnindex) && payload.vnindex > 0) ||
+    (Number.isFinite(payload.liquidity) && payload.liquidity > 0) ||
+    payload.breadth.total > 0;
+  const hasNarrative =
+    [payload.session_summary, payload.liquidity_detail, payload.foreign_flow, payload.notable_trades, payload.outlook]
+      .some((line) => line.length > 0 && !isUnavailableText(line));
+  const hasLists = [
+    payload.foreign_top_buy,
+    payload.foreign_top_sell,
+    payload.prop_trading_top_buy,
+    payload.prop_trading_top_sell,
+    payload.sector_gainers,
+    payload.sector_losers,
+    payload.buy_signals,
+    payload.sell_signals,
+    payload.top_breakout,
+  ].some((list) => list.length > 0);
+  return hasMarketNumber || hasNarrative || hasLists;
+}
+
 async function buildLiveEodFallbackPayload(): Promise<EodPayload | null> {
   try {
     const candidates: EodPayload[] = [];
@@ -1505,6 +1538,9 @@ async function buildLiveEodFallbackPayload(): Promise<EodPayload | null> {
 
 export async function GET(request: NextRequest) {
   const typeParam = request.nextUrl.searchParams.get("type") ?? "morning";
+  const storedOnly =
+    request.nextUrl.searchParams.get("stored") === "1" ||
+    request.nextUrl.searchParams.get("mode") === "stored";
   if (typeParam !== "morning" && typeParam !== "eod") {
     return NextResponse.json({ error: "type phải là 'morning' hoặc 'eod'" }, { status: 400 });
   }
@@ -1531,12 +1567,14 @@ export async function GET(request: NextRequest) {
       orderedPayloads[0];
     selected = backfillMorningPayload(selected, orderedPayloads);
     let bridgeMorningPayload: MorningPayload | null = null;
-    const bridgeMorning = await fetchMorningNews().catch(() => null);
-    if (bridgeMorning) {
-      bridgeMorningPayload = fromBridgeMorningPayload(bridgeMorning);
-      selected = backfillMorningPayload(selected, [bridgeMorningPayload]);
+    if (!storedOnly) {
+      const bridgeMorning = await fetchMorningNews().catch(() => null);
+      if (bridgeMorning) {
+        bridgeMorningPayload = fromBridgeMorningPayload(bridgeMorning);
+        selected = backfillMorningPayload(selected, [bridgeMorningPayload]);
+      }
+      selected = await enrichMorningPayload(selected, bridgeMorningPayload);
     }
-    selected = await enrichMorningPayload(selected, bridgeMorningPayload);
     selected = {
       ...selected,
       reference_indices: selected.reference_indices.map((item) => ({
@@ -1547,7 +1585,7 @@ export async function GET(request: NextRequest) {
       macro: selected.macro.map((line) => sanitizeNewsLine(line)).filter(Boolean),
       risk_opportunity: selected.risk_opportunity.map((line) => sanitizeNewsLine(line)).filter(Boolean),
     };
-    if (!hasValidMorningPayload(selected)) {
+    if (storedOnly ? !hasDisplayableMorningPayload(selected) : !hasValidMorningPayload(selected)) {
       return NextResponse.json({ error: "Morning Brief chưa đủ dữ liệu hợp lệ để publish." }, { status: 503 });
     }
     return NextResponse.json(selected);
@@ -1571,19 +1609,19 @@ export async function GET(request: NextRequest) {
   let selected = [...sameDatePayloads].sort((a, b) => eodPayloadScore(b) - eodPayloadScore(a))[0] ?? orderedPayloads[0];
   selected = backfillEodPayload(selected, orderedPayloads);
 
-  if (shouldUseBridgeEod(selected) || !hasFullExchangeLiquidity(selected.liquidity_by_exchange)) {
+  if (!storedOnly && (shouldUseBridgeEod(selected) || !hasFullExchangeLiquidity(selected.liquidity_by_exchange))) {
     const bridgeEod = await fetchEodNews().catch(() => null);
     if (bridgeEod) {
       selected = backfillEodPayload(fromBridgeEodPayload(bridgeEod), [selected, ...orderedPayloads]);
     }
   }
 
-  if (!hasValidEodPayload(selected) || !hasFullExchangeLiquidity(selected.liquidity_by_exchange)) {
+  if (!storedOnly && (!hasValidEodPayload(selected) || !hasFullExchangeLiquidity(selected.liquidity_by_exchange))) {
     const liveFallback = await buildLiveEodFallbackPayload();
     if (liveFallback) selected = backfillEodPayload(selected, [liveFallback]);
   }
 
-  const liveSnapshot = await getMarketSnapshot().catch(() => null);
+  const liveSnapshot = storedOnly ? null : await getMarketSnapshot().catch(() => null);
   if (liveSnapshot) {
     const snapshotLiquidityByExchange: ExchangeLiquidity = normalizeExchangeLiquidity({
       HOSE: toNumberOrNull(liveSnapshot.liquidityByExchange.HOSE),
@@ -1634,7 +1672,7 @@ export async function GET(request: NextRequest) {
     sell_signals: selected.sell_signals.map((line) => sanitizeNewsLine(line)).filter(Boolean),
     top_breakout: selected.top_breakout.map((line) => sanitizeNewsLine(line)).filter(Boolean),
   };
-  if (!hasValidEodPayload(selected)) {
+  if (storedOnly ? !hasDisplayableEodPayload(selected) : !hasValidEodPayload(selected)) {
     return NextResponse.json({ error: "EOD Brief chưa đủ dữ liệu hợp lệ để publish." }, { status: 503 });
   }
   return NextResponse.json(selected);

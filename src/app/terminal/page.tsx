@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Trash2, Lock, Crown } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -18,6 +18,7 @@ interface ExtMessage {
   text: string;
   createdAt: number;
   ticker?: string;
+  streaming?: boolean;
 }
 
 type ActiveSignalRow = {
@@ -49,6 +50,7 @@ export default function TerminalPage() {
 
   const [extraMessages, setExtraMessages] = useState<ExtMessage[]>([]);
   const [freeTextPending, setFreeTextPending] = useState(false);
+  const typingTimersRef = useRef<number[]>([]);
   const activeSignalsTopic = useTopic<ActiveSignalRow[]>("signal:market:active", {
     refreshInterval: 60_000,
     revalidateOnFocus: false,
@@ -60,6 +62,44 @@ export default function TerminalPage() {
   const showLowQuotaWarning = !usage?.isUnlimited && typeof remaining === "number" && remaining > 0 && remaining <= 3;
 
   const limitPercent = limit === Infinity ? 0 : Math.min((chatCount / limit) * 100, 100);
+
+  useEffect(() => {
+    return () => {
+      typingTimersRef.current.forEach((timer) => window.clearInterval(timer));
+      typingTimersRef.current = [];
+    };
+  }, []);
+
+  const appendTypingBotMessage = useCallback((reply: string, ticker?: string) => {
+    const id = crypto.randomUUID();
+    const chars = Array.from(reply);
+    const chunkSize = Math.max(2, Math.ceil(chars.length / 240));
+    let cursor = 0;
+
+    setExtraMessages((prev) => [
+      ...prev,
+      { id, role: "bot", text: "", createdAt: Date.now(), ticker, streaming: true },
+    ]);
+
+    const timer = window.setInterval(() => {
+      cursor = Math.min(chars.length, cursor + chunkSize);
+      const nextText = chars.slice(0, cursor).join("");
+      const done = cursor >= chars.length;
+
+      setExtraMessages((prev) =>
+        prev.map((message) =>
+          message.id === id ? { ...message, text: nextText, streaming: !done } : message,
+        ),
+      );
+
+      if (done) {
+        window.clearInterval(timer);
+        typingTimersRef.current = typingTimersRef.current.filter((item) => item !== timer);
+      }
+    }, 16);
+
+    typingTimersRef.current.push(timer);
+  }, []);
 
   // Free-text handler (1 request duy nhất để tránh chậm và tránh đếm usage 2 lần)
   const handleFreeText = useCallback(
@@ -103,20 +143,14 @@ export default function TerminalPage() {
             data.data?.fundamental?.aiInsight ??
             "Hệ thống đã nhận diện mã **" + data.ticker + "** và phân tích nhanh. Nhà đầu tư có thể nhập trực tiếp mã " + data.ticker + " để mở 4 thẻ phân tích chi tiết.";
         }
-        setExtraMessages((prev) => [
-          ...prev,
-          { id: crypto.randomUUID(), role: "bot", text: reply, createdAt: Date.now(), ticker: data.ticker },
-        ]);
+        appendTypingBotMessage(reply, data.ticker);
       } catch {
-        setExtraMessages((prev) => [
-          ...prev,
-          { id: crypto.randomUUID(), role: "bot", text: "Mất kết nối server. Vui lòng thử lại.", createdAt: Date.now() },
-        ]);
+        appendTypingBotMessage("Mất kết nối server. Vui lòng thử lại.");
       } finally {
         setFreeTextPending(false);
       }
     },
-    [chatCount, isAuthenticated, setChatCount]
+    [appendTypingBotMessage, chatCount, isAuthenticated, setChatCount]
   );
 
   return (

@@ -89,7 +89,7 @@ function validateArticleQuality(item: CrawledItem, content: string, tags: string
 
   if (!isFinanceArticle(combinedText)) reasons.push("not_finance_stock_news");
   if (!hasArticleImage(item.imageUrl)) reasons.push("missing_image");
-  if (wordCount < 1000) reasons.push(`word_count_${wordCount}_below_1000`);
+  if (wordCount < 300) reasons.push(`word_count_${wordCount}_below_300`);
 
   return {
     ok: reasons.length === 0,
@@ -376,10 +376,13 @@ export async function POST(request: Request) {
   // Auth: ADMIN session OR x-api-key header (for cron/automation)
   const apiKey = request.headers.get("x-api-key");
   const CRAWLER_API_KEY = process.env.CRAWLER_API_KEY;
+  const cronSecret = request.headers.get("x-cron-secret") ?? request.headers.get("x-internal-key");
+  const expectedCronSecret = (process.env.CRON_SECRET ?? process.env.INTERNAL_API_KEY ?? "adn-cron-dev-key").trim();
+  const isCronAuthorized = Boolean(cronSecret && expectedCronSecret && cronSecret.trim() === expectedCronSecret);
 
   let adminUserId: string;
 
-  if (apiKey && CRAWLER_API_KEY && apiKey === CRAWLER_API_KEY) {
+  if ((apiKey && CRAWLER_API_KEY && apiKey === CRAWLER_API_KEY) || isCronAuthorized) {
     // API key auth: find first admin user
     const admin = await prisma.user.findFirst({
       where: { systemRole: "ADMIN" },
@@ -418,10 +421,29 @@ export async function POST(request: Request) {
       });
     }
 
+    const sourceUrls = Array.from(new Set(allItems.map((item) => item.sourceUrl).filter(Boolean)));
+    const existingRows = sourceUrls.length > 0
+      ? await prisma.article.findMany({
+          where: { sourceUrl: { in: sourceUrls } },
+          select: { sourceUrl: true },
+        })
+      : [];
+    const existingUrls = new Set(existingRows.map((row) => row.sourceUrl).filter(Boolean));
+    const newItems = allItems.filter((item) => item.sourceUrl && !existingUrls.has(item.sourceUrl)).slice(0, 8);
+
+    if (newItems.length === 0) {
+      return NextResponse.json({
+        success: true,
+        message: "KhÃ´ng cÃ³ bÃ i viáº¿t má»›i Ä‘á»ƒ crawl",
+        scanned: allItems.length,
+        results: [],
+      });
+    }
+
     // Step 2 + 3: AI Rewrite + Save (sequential to avoid rate limits)
     const results: SaveArticleResult[] = [];
 
-    for (const item of allItems) {
+    for (const item of newItems) {
       const aiResult = await aiRewrite(item);
       const saved = await saveArticle(item, aiResult, adminUserId);
       results.push(saved);
@@ -435,6 +457,8 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       published,
+      scanned: allItems.length,
+      processed: newItems.length,
       message: `Crawled ${allItems.length} bài, tạo ${created} mới, bỏ qua ${skipped} bài (${skippedQuality} bài không đạt chuẩn chất lượng)`,
       results,
     });

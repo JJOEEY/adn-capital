@@ -13,7 +13,9 @@ import { extractTickerCandidates as extractTickerCandidatesFromText } from "@/li
 import { resolveMarketTicker } from "@/lib/ticker-resolver";
 
 type JsonRecord = Record<string, unknown>;
-const GENERAL_CHAT_TIMEOUT_MS = 18_000;
+const GENERAL_CHAT_TIMEOUT_MS = 12_000;
+const GENERAL_TOPIC_TIMEOUT_MS = 3_500;
+const TICKER_TOPIC_TIMEOUT_MS = 7_500;
 
 export type AidenDatahubChatResult = {
   message: string;
@@ -308,6 +310,29 @@ async function readTopic(topic: string, context: TopicContext) {
   return { topic, envelope };
 }
 
+function errorTopicEnvelope(topic: string, message: string): TopicEnvelope {
+  const now = new Date().toISOString();
+  return {
+    topic,
+    value: null,
+    updatedAt: now,
+    expiresAt: now,
+    freshness: "error",
+    source: "aiden-context",
+    version: "v1",
+    error: { code: "topic_timeout", message, retryable: true },
+  };
+}
+
+async function readTopicSoft(topic: string, context: TopicContext, timeoutMs: number) {
+  try {
+    return await withTimeout(readTopic(topic, context), timeoutMs, `topic:${topic}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { topic, envelope: errorTopicEnvelope(topic, message) };
+  }
+}
+
 function buildTickerContext(ticker: string, envelopes: Array<{ topic: string; envelope: TopicEnvelope }>) {
   const workbench = envelopes.find((item) => item.topic.startsWith("research:workbench:"))?.envelope.value;
   const realtime = envelopes.find((item) => item.topic.startsWith("vn:realtime:"))?.envelope.value;
@@ -372,13 +397,12 @@ function compactSignalList(value: unknown) {
 async function buildGeneralMarketContext(context: TopicContext) {
   const topics = [
     "vn:index:overview",
-    "vn:index:composite:live",
     "signal:market:radar",
     "signal:market:active",
     "brief:morning:latest",
     "brief:eod:latest",
   ];
-  const envelopes = await Promise.all(topics.map((topic) => readTopic(topic, context)));
+  const envelopes = await Promise.all(topics.map((topic) => readTopicSoft(topic, context, GENERAL_TOPIC_TIMEOUT_MS)));
   const byTopic = new Map(envelopes.map((item) => [item.topic, item.envelope.value]));
 
   return {
@@ -386,7 +410,6 @@ async function buildGeneralMarketContext(context: TopicContext) {
     envelopes,
     context: stripInternalFields({
       market: byTopic.get("vn:index:overview"),
-      marketComposite: byTopic.get("vn:index:composite:live"),
       radarSignals: compactSignalList(byTopic.get("signal:market:radar")),
       activeSignals: compactSignalList(byTopic.get("signal:market:active")),
       morningBrief: byTopic.get("brief:morning:latest"),
@@ -679,7 +702,7 @@ export async function runAidenDatahubChat(input: {
         `vn:historical:${ticker}:1d`,
         `vn:depth:${ticker}`,
       ];
-      const envelopes = await Promise.all(topics.map((topic) => readTopic(topic, context)));
+      const envelopes = await Promise.all(topics.map((topic) => readTopicSoft(topic, context, TICKER_TOPIC_TIMEOUT_MS)));
       return { ticker, topics, envelopes, context: buildTickerContext(ticker, envelopes) };
     }),
   );

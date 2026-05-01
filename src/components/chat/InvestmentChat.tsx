@@ -21,6 +21,7 @@ interface Message {
   mediaUrl?: string | null;
   showDynamicChart?: boolean;
   brokerBadge?: BrokerBadge;
+  streaming?: boolean;
 }
 
 interface HistoryMessage {
@@ -218,12 +219,13 @@ function BotBubble({ message, onCardClick, cardLoading, cardDisabled = false }: 
     <div className="flex items-start gap-2.5">
       <BotAvatar />
       <div className="flex max-w-[90%] flex-col gap-2">
-        {message.text && (
+        {(message.text || message.streaming) && (
           <div
             className="rounded-2xl rounded-tl-sm border px-4 py-2.5 text-sm leading-relaxed"
             style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--text-primary)" }}
           >
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown>
+            {message.streaming && <span className="ml-0.5 inline-block h-4 w-1 animate-pulse rounded-sm bg-current align-text-bottom" />}
           </div>
         )}
 

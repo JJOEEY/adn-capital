@@ -76,6 +76,24 @@ function normalizeListForDisplay(items?: string[]): string[] {
   return out;
 }
 
+function MorningBriefEmptyState() {
+  return (
+    <div className="rounded-2xl border p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+      <div className="flex items-start gap-3">
+        <div className="rounded-lg border p-2" style={{ background: "var(--primary-light)", borderColor: "var(--border)" }}>
+          <AlertTriangle className="h-4 w-4" style={{ color: "var(--primary)" }} />
+        </div>
+        <div>
+          <h3 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>Bản tin sáng đang chờ cập nhật</h3>
+          <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
+            Bản tin mới nhất sẽ hiển thị tại đây ngay sau lần tổng hợp kế tiếp.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function MorningNews() {
   const morningTopic = useTopic<MorningData>("brief:morning:latest", {
     pollMs: 300_000,
@@ -85,7 +103,8 @@ export function MorningNews() {
   });
   const data = morningTopic.data;
 
-  if ((morningTopic.isLoading && !data) || !data) return <MorningNewsSkeleton />;
+  if (morningTopic.isLoading && !data) return <MorningNewsSkeleton />;
+  if (!data) return <MorningBriefEmptyState />;
 
   const vnItems = normalizeListForDisplay(data.vn_market);
   const macroItems = normalizeListForDisplay(data.macro);

@@ -13,6 +13,7 @@ import {
   ArrowUpCircle,
   ArrowDownCircle,
   Rocket,
+  AlertTriangle,
 } from "lucide-react";
 import { EveningNewsSkeleton } from "./NewsSkeleton";
 import { useTopic } from "@/hooks/useTopic";
@@ -75,6 +76,26 @@ function normalizeSubIndices(
   });
 }
 
+function EveningBriefEmptyState() {
+  return (
+    <div className="rounded-2xl border p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+      <div className="flex items-start gap-3">
+        <div className="rounded-lg border p-2" style={{ background: "var(--surface-2)", borderColor: "var(--border)" }}>
+          <AlertTriangle className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
+        </div>
+        <div>
+          <h3 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>
+            Bản tin cuối ngày đang chờ cập nhật
+          </h3>
+          <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
+            Bản tin mới nhất sẽ hiển thị tại đây ngay sau lần tổng hợp kế tiếp.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function EveningNews() {
   const eodTopic = useTopic<EodData>("brief:eod:latest", {
     pollMs: 300_000,
@@ -84,7 +105,8 @@ export function EveningNews() {
   });
   const data = eodTopic.data;
 
-  if ((eodTopic.isLoading && !data) || !data) return <EveningNewsSkeleton />;
+  if (eodTopic.isLoading && !data) return <EveningNewsSkeleton />;
+  if (!data) return <EveningBriefEmptyState />;
 
   const up = data.change_pct >= 0;
   const normalizedSubIndices = normalizeSubIndices(data.sub_indices);
