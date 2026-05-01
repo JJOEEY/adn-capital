@@ -489,7 +489,7 @@ function scaleDchartPrice(value: unknown) {
   return applyMarketPriceScale(readMarketNumber(value), 1000);
 }
 
-async function loadDchartHistoricalTicker(ticker: string, days = 300) {
+async function loadDchartHistoricalTicker(ticker: string, days = 300, anchorPrice?: number | null) {
   const symbol = ticker.toUpperCase().trim();
   const now = Math.floor(Date.now() / 1000);
   const from = now - days * 86400;
@@ -512,7 +512,7 @@ async function loadDchartHistoricalTicker(ticker: string, days = 300) {
   const times = Array.isArray(json?.t) ? json.t : [];
   if (json?.s !== "ok" || closes.length === 0 || times.length === 0) return null;
 
-  const data: JsonRecord[] = times
+  const rawData: JsonRecord[] = times
     .map((time: unknown, index: number) => {
       const unix = readMarketNumber(time);
       const close = scaleDchartPrice(closes[index]);
@@ -530,6 +530,20 @@ async function loadDchartHistoricalTicker(ticker: string, days = 300) {
     })
     .filter((row: JsonRecord | null): row is JsonRecord => row != null)
     .sort((a: JsonRecord, b: JsonRecord) => Number(a.time) - Number(b.time));
+  const lastClose = readMarketNumber(rawData.at(-1)?.close);
+  const scale =
+    anchorPrice != null && lastClose != null && lastClose > 0
+      ? anchorPrice / lastClose
+      : 1;
+  const data: JsonRecord[] = Math.abs(scale - 1) >= 0.03
+    ? rawData.map((row): JsonRecord => ({
+        ...row,
+        open: applyMarketPriceScale(readMarketNumber(row.open), scale) ?? row.open,
+        high: applyMarketPriceScale(readMarketNumber(row.high), scale) ?? row.high,
+        low: applyMarketPriceScale(readMarketNumber(row.low), scale) ?? row.low,
+        close: applyMarketPriceScale(readMarketNumber(row.close), scale) ?? row.close,
+      }))
+    : rawData;
 
   return {
     ticker: symbol,
@@ -546,7 +560,8 @@ async function loadHistoricalTicker(ticker: string) {
   const backend = getPythonBridgeUrl();
   const symbol = ticker.toUpperCase().trim();
 
-  const dchart = await loadDchartHistoricalTicker(symbol).catch(() => null);
+  const recentClose = await loadBridgeRecentMarketClose(symbol).catch(() => null);
+  const dchart = await loadDchartHistoricalTicker(symbol, 300, recentClose).catch(() => null);
   if (dchart) return dchart;
 
   const res = await fetch(
@@ -564,11 +579,7 @@ async function loadHistoricalTicker(ticker: string) {
   return normalizeHistoricalPricePayload(payload);
 }
 
-async function loadRecentMarketClose(ticker: string) {
-  const dchart = await loadDchartHistoricalTicker(ticker, 10).catch(() => null);
-  const dchartClose = latestClosePriceFromPayload(dchart);
-  if (dchartClose != null && dchartClose > 0) return dchartClose;
-
+async function loadBridgeRecentMarketClose(ticker: string) {
   const backend = getPythonBridgeUrl();
   const symbol = ticker.toUpperCase().trim();
   const res = await fetch(
@@ -590,6 +601,15 @@ async function loadRecentMarketClose(ticker: string) {
     if (close != null && close > 0) return close < 1000 ? close * 1000 : close;
   }
   return null;
+}
+
+async function loadRecentMarketClose(ticker: string) {
+  const bridgeClose = await loadBridgeRecentMarketClose(ticker).catch(() => null);
+  if (bridgeClose != null && bridgeClose > 0) return bridgeClose;
+
+  const dchart = await loadDchartHistoricalTicker(ticker, 10).catch(() => null);
+  const dchartClose = latestClosePriceFromPayload(dchart);
+  return dchartClose != null && dchartClose > 0 ? dchartClose : null;
 }
 
 function hasCandleRows(payload: unknown) {
