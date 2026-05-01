@@ -223,6 +223,11 @@ const DCHART_RESOLUTION_BY_TIMEFRAME: Record<string, string> = {
   "30m": "30",
 };
 
+function dchartDateFromUnix(seconds: number) {
+  const date = new Date(seconds * 1000);
+  return `${date.toISOString().slice(0, 10)} 00:00`;
+}
+
 function normalizeBoardTickers(raw: string) {
   return Array.from(
     new Set(
@@ -480,9 +485,70 @@ async function loadLeaderRadar() {
   return res.json();
 }
 
+function scaleDchartPrice(value: unknown) {
+  return applyMarketPriceScale(readMarketNumber(value), 1000);
+}
+
+async function loadDchartHistoricalTicker(ticker: string, days = 300) {
+  const symbol = ticker.toUpperCase().trim();
+  const now = Math.floor(Date.now() / 1000);
+  const from = now - days * 86400;
+  const res = await fetch(
+    `${DCHART_BASE}?resolution=D&symbol=${encodeURIComponent(symbol)}&from=${from}&to=${now}`,
+    {
+      headers: DCHART_HEADERS,
+      signal: AbortSignal.timeout(8_000),
+      cache: "no-store",
+    },
+  );
+  if (!res.ok) return null;
+
+  const json = await res.json();
+  const opens = Array.isArray(json?.o) ? json.o : [];
+  const highs = Array.isArray(json?.h) ? json.h : [];
+  const lows = Array.isArray(json?.l) ? json.l : [];
+  const closes = Array.isArray(json?.c) ? json.c : [];
+  const volumes = Array.isArray(json?.v) ? json.v : [];
+  const times = Array.isArray(json?.t) ? json.t : [];
+  if (json?.s !== "ok" || closes.length === 0 || times.length === 0) return null;
+
+  const data: JsonRecord[] = times
+    .map((time: unknown, index: number) => {
+      const unix = readMarketNumber(time);
+      const close = scaleDchartPrice(closes[index]);
+      if (unix == null || close == null) return null;
+      return {
+        ticker: symbol,
+        time: unix,
+        date: dchartDateFromUnix(unix),
+        open: scaleDchartPrice(opens[index]) ?? close,
+        high: scaleDchartPrice(highs[index]) ?? close,
+        low: scaleDchartPrice(lows[index]) ?? close,
+        close,
+        volume: readMarketNumber(volumes[index]) ?? 0,
+      };
+    })
+    .filter((row: JsonRecord | null): row is JsonRecord => row != null)
+    .sort((a: JsonRecord, b: JsonRecord) => Number(a.time) - Number(b.time));
+
+  return {
+    ticker: symbol,
+    timeframe: "1d",
+    from_date: data[0]?.date ?? null,
+    to_date: data.at(-1)?.date ?? null,
+    count: data.length,
+    data,
+    source: "dchart",
+  };
+}
+
 async function loadHistoricalTicker(ticker: string) {
   const backend = getPythonBridgeUrl();
   const symbol = ticker.toUpperCase().trim();
+
+  const dchart = await loadDchartHistoricalTicker(symbol).catch(() => null);
+  if (dchart) return dchart;
+
   const res = await fetch(
     `${backend}/api/v1/historical/${encodeURIComponent(symbol)}?days=300&timeframe=1d`,
     {
@@ -499,13 +565,17 @@ async function loadHistoricalTicker(ticker: string) {
 }
 
 async function loadRecentMarketClose(ticker: string) {
+  const dchart = await loadDchartHistoricalTicker(ticker, 10).catch(() => null);
+  const dchartClose = latestClosePriceFromPayload(dchart);
+  if (dchartClose != null && dchartClose > 0) return dchartClose;
+
   const backend = getPythonBridgeUrl();
   const symbol = ticker.toUpperCase().trim();
   const res = await fetch(
     `${backend}/api/v1/historical/${encodeURIComponent(symbol)}?days=10&timeframe=1d`,
     {
       cache: "no-store",
-      signal: AbortSignal.timeout(8_000),
+      signal: AbortSignal.timeout(20_000),
     },
   );
   if (!res.ok) return null;
