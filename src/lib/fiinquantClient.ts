@@ -382,12 +382,14 @@ export async function fetchIntradaySnapshot(): Promise<FiinIntradaySnapshot | nu
 /** Dữ liệu realtime theo mã (nền tảng Trading_Data_Stream/Fetch_Trading_Data từ bridge) */
 export async function fetchRealtimeTradingData(
   ticker: string,
-  timeframe = "5m"
+  timeframe = "5m",
+  timeout = TIMEOUT
 ): Promise<FiinRealtimeResponse | null> {
   const normalized = ticker.trim().toUpperCase();
   if (!normalized) return null;
   return fiinFetch<FiinRealtimeResponse>(
-    `/api/v1/realtime/${encodeURIComponent(normalized)}?timeframe=${encodeURIComponent(timeframe)}`
+    `/api/v1/realtime/${encodeURIComponent(normalized)}?timeframe=${encodeURIComponent(timeframe)}`,
+    { timeout },
   );
 }
 

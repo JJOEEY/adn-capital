@@ -487,7 +487,7 @@ async function loadHistoricalTicker(ticker: string) {
     `${backend}/api/v1/historical/${encodeURIComponent(symbol)}?days=300&timeframe=1d`,
     {
       cache: "no-store",
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(45_000),
     },
   );
   if (!res.ok) {
@@ -496,6 +496,26 @@ async function loadHistoricalTicker(ticker: string) {
   }
   const payload = await res.json();
   return normalizeHistoricalPricePayload(payload);
+}
+
+async function loadRecentMarketClose(ticker: string) {
+  const backend = getPythonBridgeUrl();
+  const symbol = ticker.toUpperCase().trim();
+  const res = await fetch(
+    `${backend}/api/v1/historical/${encodeURIComponent(symbol)}?days=10&timeframe=1d`,
+    {
+      cache: "no-store",
+      signal: AbortSignal.timeout(8_000),
+    },
+  );
+  if (!res.ok) return null;
+  const payload = await res.json();
+  const rows = getMarketPayloadRows(payload);
+  for (let index = rows.length - 1; index >= 0; index -= 1) {
+    const close = readMarketNumber(rows[index].close ?? rows[index].c ?? rows[index].price);
+    if (close != null && close > 0) return close < 1000 ? close * 1000 : close;
+  }
+  return null;
 }
 
 function hasCandleRows(payload: unknown) {
@@ -524,8 +544,9 @@ async function loadDchartIntradayTicker(ticker: string, timeframe: string) {
   const times = Array.isArray(json?.t) ? json.t : [];
   if (json?.s !== "ok" || closes.length === 0 || times.length === 0) return null;
 
-  const historical = await loadHistoricalTicker(symbol).catch(() => null);
-  const historicalClose = latestClosePriceFromPayload(historical);
+  const historicalClose =
+    (await loadRecentMarketClose(symbol).catch(() => null)) ??
+    latestClosePriceFromPayload(await loadHistoricalTicker(symbol).catch(() => null));
   const lastRawClose = readMarketNumber(closes.at(-1));
   const baseLastClose = lastRawClose != null && Number.isFinite(lastRawClose) ? lastRawClose * 1000 : null;
   const scale = historicalClose != null && baseLastClose != null && baseLastClose > 0
@@ -575,8 +596,13 @@ async function loadDchartIntradayTicker(ticker: string, timeframe: string) {
   };
 }
 
-async function loadRealtimeTicker(ticker: string, timeframe: string) {
-  const realtime = await fetchRealtimeTradingData(ticker, timeframe);
+async function loadRealtimeTicker(ticker: string, timeframe: string, preferChartFallback = false) {
+  if (preferChartFallback) {
+    const chartFallback = await loadDchartIntradayTicker(ticker, timeframe);
+    if (chartFallback) return chartFallback;
+  }
+
+  const realtime = await fetchRealtimeTradingData(ticker, timeframe, 5_000);
   if (hasCandleRows(realtime)) return realtime;
   const chartFallback = await loadDchartIntradayTicker(ticker, timeframe);
   return chartFallback ?? realtime;
@@ -586,11 +612,15 @@ function scalePriceField(value: number | null | undefined, scale: number) {
   return applyMarketPriceScale(value, scale);
 }
 
-function normalizeTAWithHistorical(ta: TAData | null, historical: unknown): TAData | null {
+function normalizeTAWithHistorical(
+  ta: TAData | null,
+  historical: unknown,
+  anchorOverride?: number | null,
+): TAData | null {
   if (!ta) return ta;
   const turnoverPrice = latestTurnoverPriceFromPayload(historical);
   const latestClosePrice = latestClosePriceFromPayload(historical);
-  const anchorPrice = chooseMarketDisplayPrice(latestClosePrice, turnoverPrice);
+  const anchorPrice = anchorOverride ?? chooseMarketDisplayPrice(latestClosePrice, turnoverPrice);
   const payloadScale = marketPriceScaleFromPayload(historical);
   const anchorScale = anchorPrice != null && ta.currentPrice > 0
     ? anchorPrice / ta.currentPrice
@@ -886,11 +916,11 @@ async function loadResearchWorkbench(topicKey: string) {
   const resolved = await assertValidTicker(ticker);
   const normalizedTicker = resolved.ticker;
 
-  const [taRaw, faRaw, seasonality, investor, marketSnapshot, activeSignal, news, aiCaches, art, historical] = await Promise.all([
+  const [taRaw, faRaw, seasonality, investor, marketSnapshot, activeSignal, news, aiCaches, art, historical, recentClose] = await Promise.all([
     fetchTAData(normalizedTicker),
     fetchFAData(normalizedTicker),
     loadSeasonalityForTicker(normalizedTicker),
-    fetchRealtimeTradingData(normalizedTicker, "5m"),
+    loadRealtimeTicker(normalizedTicker, "5m"),
     getMarketSnapshot(),
     loadOptionalWorkbenchSignal(normalizedTicker),
     loadTickerNews(normalizedTicker),
@@ -900,8 +930,9 @@ async function loadResearchWorkbench(topicKey: string) {
       console.warn("[DataHub research] optional historical normalization unavailable:", error);
       return null;
     }),
+    loadRecentMarketClose(normalizedTicker).catch(() => null),
   ]);
-  const ta = normalizeTAWithHistorical(taRaw, historical);
+  const ta = normalizeTAWithHistorical(taRaw, historical, recentClose);
   const fa = hydrateFAFromRecentAnalysis(normalizedTicker, faRaw, aiCaches, ta);
 
   return {
@@ -2133,11 +2164,12 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     },
     resolve: async (_, __, params) => {
       const resolved = await assertValidTicker(params.ticker);
-      const [ta, historical] = await Promise.all([
+      const [ta, historical, recentClose] = await Promise.all([
         fetchTAData(resolved.ticker),
         loadHistoricalTicker(resolved.ticker).catch(() => null),
+        loadRecentMarketClose(resolved.ticker).catch(() => null),
       ]);
-      return normalizeTAWithHistorical(ta, historical);
+      return normalizeTAWithHistorical(ta, historical, recentClose);
     },
   },
   {
@@ -2186,7 +2218,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     resolve: async (_, __, params) => {
       const resolved = await assertValidTicker(params.ticker);
       const timeframe = REALTIME_TIMEFRAMES.has(params.timeframe) ? params.timeframe : "5m";
-      return loadRealtimeTicker(resolved.ticker, timeframe);
+      return loadRealtimeTicker(resolved.ticker, timeframe, true);
     },
   },
   {
