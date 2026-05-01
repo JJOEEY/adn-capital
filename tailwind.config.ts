@@ -49,17 +49,17 @@ const config: Config = {
         "light-border-strong":    "#D6CDBB",
 
         /* Dark */
-        "dark-primary":           "#173627",
-        "dark-primary-hover":     "#1f4a34",
-        "dark-secondary":         "#EBE2CF",
-        "dark-tertiary":          "#492628",
-        "dark-bg":                "#0D1410",
-        "dark-surface":           "#111a14",
-        "dark-surface-2":         "#162019",
-        "dark-hover":             "#1a2a1d",
-        "dark-text":              "#EBE2CF",
-        "dark-text-sub":          "#9aab9e",
-        "dark-text-muted":        "#5a6b5e",
+        "dark-primary":           "#B8C7B5",
+        "dark-primary-hover":     "#D7E0D4",
+        "dark-secondary":         "#C9C1B3",
+        "dark-tertiary":          "#928B80",
+        "dark-bg":                "#101216",
+        "dark-surface":           "#16181D",
+        "dark-surface-2":         "#1F2127",
+        "dark-hover":             "#242832",
+        "dark-text":              "#F3EFE7",
+        "dark-text-sub":          "#B9B2A8",
+        "dark-text-muted":        "#7E817B",
 
         /* Shared */
         danger: {
@@ -84,8 +84,8 @@ const config: Config = {
         "input-light":      "0 0 0 3px rgba(46,77,61,0.08)",
         "glow-light":       "0 0 16px rgba(46,77,61,0.18)",
         /* Dark */
-        "card-dark":        "0 4px 20px -6px rgba(0,0,0,0.40)",
-        "glow-dark":        "0 0 20px rgba(16,185,129,0.25)",
+        "card-dark":        "0 18px 64px -34px rgba(0,0,0,0.72)",
+        "glow-dark":        "0 0 28px -10px rgba(184,199,181,0.28)",
       },
 
       /* ── Animations ── */
@@ -102,8 +102,8 @@ const config: Config = {
 
       keyframes: {
         pulseGlow: {
-          "0%":   { boxShadow: "0 0 5px #10b981, 0 0 10px #10b981" },
-          "100%": { boxShadow: "0 0 15px #10b981, 0 0 30px #10b981, 0 0 50px #10b98140" },
+          "0%":   { boxShadow: "0 0 5px #B8C7B5, 0 0 10px rgba(184,199,181,0.18)" },
+          "100%": { boxShadow: "0 0 18px rgba(184,199,181,0.22), 0 0 42px rgba(184,199,181,0.16)" },
         },
         fadeIn: {
           "0%":   { opacity: "0" },

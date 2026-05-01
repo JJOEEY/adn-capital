@@ -53,7 +53,7 @@ function AuthPageShell({ children, compactApp = false }: { children: ReactNode; 
       <main
         className="min-h-screen overflow-hidden px-4 py-8"
         style={{
-          background: "var(--page-surface)",
+          background: "var(--page-background)",
           color: "var(--text-primary)",
           paddingTop: "calc(28px + env(safe-area-inset-top, 0px))",
           paddingBottom: "calc(28px + env(safe-area-inset-bottom, 0px))",
@@ -76,7 +76,7 @@ function AuthPageShell({ children, compactApp = false }: { children: ReactNode; 
   return (
     <main
       className="min-h-screen overflow-hidden px-4 py-8 sm:px-6 lg:px-10"
-      style={{ background: "var(--page-surface)", color: "var(--text-primary)" }}
+      style={{ background: "var(--page-background)", color: "var(--text-primary)" }}
     >
       <div className="mx-auto grid min-h-[calc(100vh-4rem)] w-full max-w-7xl items-center gap-8 lg:grid-cols-[1.08fr_0.92fr]">
         <motion.section

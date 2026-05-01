@@ -216,21 +216,21 @@ export function StockChart({
           width: container.clientWidth,
           height: getChartHeight(),
           layout: {
-            background: { type: ColorType.Solid, color: isDark ? "#0d1410" : "#ffffff" },
-            textColor: isDark ? "#8ea195" : "#6b7280",
+            background: { type: ColorType.Solid, color: isDark ? "#16181d" : "#ffffff" },
+            textColor: isDark ? "#b9b2a8" : "#6b7280",
             fontSize: 11,
           },
           grid: {
-            vertLines: { color: isDark ? "#1a2a1d" : "#edf2f7" },
-            horzLines: { color: isDark ? "#1a2a1d" : "#edf2f7" },
+            vertLines: { color: isDark ? "#2a2d34" : "#edf2f7" },
+            horzLines: { color: isDark ? "#2a2d34" : "#edf2f7" },
           },
           crosshair: { mode: CrosshairMode.Normal },
           rightPriceScale: {
-            borderColor: isDark ? "#223328" : "#d6cdbb",
+            borderColor: isDark ? "#30333b" : "#d6cdbb",
             scaleMargins: { top: 0.1, bottom: 0.3 },
           },
           timeScale: {
-            borderColor: isDark ? "#223328" : "#d6cdbb",
+            borderColor: isDark ? "#30333b" : "#d6cdbb",
             timeVisible: timeframe !== "1D",
             secondsVisible: timeframe === "1m",
           },

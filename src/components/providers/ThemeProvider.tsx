@@ -28,6 +28,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     document.documentElement.classList.remove("dark", "light");
     // Thêm class tương ứng
     document.documentElement.classList.add(t);
+    document
+      .querySelector('meta[name="theme-color"]')
+      ?.setAttribute("content", t === "dark" ? "#101216" : "#F8F7F2");
   };
 
   const setTheme = useCallback((t: Theme) => {

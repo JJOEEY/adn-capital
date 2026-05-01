@@ -66,12 +66,18 @@ export function HomePageV2() {
     <PwaEntryRedirect>
       <main
         className="min-h-screen overflow-x-hidden pt-[76px]"
-        style={{ background: "var(--page-surface)", color: "var(--text-primary)" }}
+        style={{ background: "var(--page-background)", color: "var(--text-primary)" }}
       >
         <PublicSiteHeader />
 
         <section className="relative flex min-h-[calc(100svh-76px)] w-full items-center overflow-hidden px-5 py-10 sm:px-8 lg:px-12 lg:py-8 xl:px-16">
-          <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_86%_10%,rgba(16,185,129,0.18),transparent_32%),radial-gradient(circle_at_8%_88%,rgba(245,158,11,0.10),transparent_30%)]" />
+          <div
+            className="absolute inset-0 -z-10"
+            style={{
+              background:
+                "radial-gradient(circle at 86% 10%, var(--glow-primary), transparent 32%), radial-gradient(circle at 8% 88%, var(--glow-secondary), transparent 30%)",
+            }}
+          />
           <div className="grid w-full min-w-0 items-center gap-8 xl:grid-cols-[0.9fr_1.1fr] xl:gap-10">
             <motion.div
               {...motionProps}

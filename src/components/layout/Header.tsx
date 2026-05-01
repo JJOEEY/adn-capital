@@ -252,7 +252,7 @@ function SidebarContent() {
                         fontSize: "14px",
                         fontWeight: active ? 600 : 500,
                         color: active ? "var(--text-primary)" : "var(--text-secondary)",
-                        background: active ? "rgba(23,54,39,0.50)" : "transparent",
+                        background: active ? "var(--primary-light)" : "transparent",
                       }}
                       title={compact ? item.label : undefined}
                     >
@@ -370,8 +370,10 @@ export function Header() {
           collapsed ? "w-[68px]" : "w-[240px]"
         }`}
         style={{
-          background: "var(--surface)",
+          background: "var(--glass-surface-strong)",
           borderRight: "1px solid var(--border)",
+          boxShadow: "var(--shadow-ambient)",
+          backdropFilter: "blur(var(--glass-blur))",
         }}
       >
         <SidebarContent />
@@ -380,9 +382,10 @@ export function Header() {
       <header
         className="fixed top-0 left-0 right-0 z-50 lg:hidden"
         style={{
-          background: "var(--surface)",
+          background: "var(--glass-surface-strong)",
           borderBottom: "1px solid var(--border)",
           paddingTop: "env(safe-area-inset-top, 0px)",
+          backdropFilter: "blur(var(--glass-blur))",
         }}
       >
         <div className="flex h-16 items-center gap-2 px-3">

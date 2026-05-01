@@ -143,6 +143,8 @@ const themeScript = `
     var theme=localStorage.getItem('adn-theme')||'light';
     document.documentElement.classList.remove('dark','light');
     document.documentElement.classList.add(theme);
+    var meta=document.querySelector('meta[name="theme-color"]');
+    if(meta){ meta.setAttribute('content', theme==='dark' ? '#101216' : '#F8F7F2'); }
   }catch(e){}
 })();
 `;

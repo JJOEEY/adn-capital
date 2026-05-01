@@ -34,7 +34,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
   const safeRoute = product.status === "Admin" ? "/products/nexlink" : product.route;
 
   return (
-    <main className="min-h-screen" style={{ background: "var(--page-surface)", color: "var(--text-primary)" }}>
+    <main className="min-h-screen" style={{ background: "var(--page-background)", color: "var(--text-primary)" }}>
       <PublicSiteHeader />
       <section className="flex min-h-[calc(100svh-76px)] w-full items-center px-5 py-12 sm:px-8 lg:px-12 lg:py-10 xl:px-16">
         <div className="grid w-full items-center gap-12 lg:grid-cols-[0.9fr_1.1fr]">

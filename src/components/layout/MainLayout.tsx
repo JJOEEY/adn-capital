@@ -40,7 +40,7 @@ export function MainLayout({ children, disableSwipe = false }: MainLayoutProps) 
   const touchProps = isMobile && !disableSwipe ? swipeHandlers : {};
 
   return (
-    <div className="min-h-screen flex" style={{ background: "var(--bg-page)" }}>
+    <div className="min-h-screen flex" style={{ background: "var(--page-background)" }}>
       {showSplash && <SplashScreen />}
 
       {/* Sidebar (fixed on desktop) */}

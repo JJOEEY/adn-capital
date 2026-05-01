@@ -261,7 +261,10 @@ export function Sidebar() {
           <button className="absolute inset-0 bg-black/40" onClick={() => setMobileOpen(false)} aria-label="Đóng menu" />
           <aside
             className="absolute left-0 top-0 bottom-0 w-72 shadow-2xl flex flex-col"
-            style={{ background: "var(--surface, #FFFFFF)" }}
+            style={{
+              background: "var(--glass-surface-strong)",
+              backdropFilter: "blur(var(--glass-blur))",
+            }}
           >
             {sidebarContent}
           </aside>
@@ -271,8 +274,10 @@ export function Sidebar() {
       <aside
         className="hidden md:flex md:fixed md:left-0 md:top-0 md:bottom-0 md:w-72 md:flex-col md:z-30"
         style={{
-          background: "var(--surface, #FFFFFF)",
+          background: "var(--glass-surface-strong)",
           borderRight: "1px solid var(--border, #E8E4DB)",
+          boxShadow: "var(--shadow-ambient)",
+          backdropFilter: "blur(var(--glass-blur))",
         }}
       >
         {sidebarContent}

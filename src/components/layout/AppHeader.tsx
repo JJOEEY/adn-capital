@@ -20,8 +20,10 @@ export function AppHeader() {
     <header
       className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between px-6"
       style={{
-        background: "var(--bg-surface)",
+        background: "var(--glass-surface-strong)",
         borderBottom: "1px solid var(--border)",
+        boxShadow: "var(--shadow-ambient)",
+        backdropFilter: "blur(var(--glass-blur))",
       }}
     >
       <div className="flex min-w-0 flex-col">
@@ -36,7 +38,7 @@ export function AppHeader() {
       <div className="flex items-center gap-2">
         <div
           className="hidden items-center gap-2 rounded-full px-3 py-1.5 text-[12px] font-medium md:flex"
-          style={{ background: "rgba(23,54,39,0.40)", color: "var(--text-secondary)" }}
+          style={{ background: "var(--primary-light)", color: "var(--primary)" }}
         >
           <Bot className="h-3 w-3" />
           {BRAND.name.toUpperCase()}

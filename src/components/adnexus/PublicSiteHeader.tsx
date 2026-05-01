@@ -42,8 +42,9 @@ export function PublicSiteHeader() {
     <header
       className="fixed left-0 right-0 top-0 z-[80] border-b backdrop-blur-xl"
       style={{
-        background: "color-mix(in srgb, var(--page-surface) 92%, transparent)",
+        background: "var(--glass-surface-strong)",
         borderColor: "var(--border)",
+        boxShadow: "var(--shadow-ambient)",
       }}
     >
       <div className="flex w-full items-center justify-between px-5 py-3 sm:px-8 lg:px-12 xl:px-16">
@@ -173,7 +174,7 @@ export function PublicSiteHeader() {
       {mobileOpen ? (
         <div
           className="border-t px-5 py-4 lg:hidden"
-          style={{ borderColor: "var(--border)", background: "var(--page-surface)" }}
+          style={{ borderColor: "var(--border)", background: "var(--glass-surface-strong)" }}
         >
           <div className="grid gap-2">
             {nav.map((item) => (

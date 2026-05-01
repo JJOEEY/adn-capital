@@ -285,7 +285,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     <div
       className="min-h-screen transition-colors duration-300"
       style={{
-        background: "var(--bg-page)",
+        background: "var(--page-background)",
         color: "var(--text-primary)",
       }}
     >
@@ -293,11 +293,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
           <div
             className="absolute top-[-200px] left-[-100px] w-[500px] h-[500px] rounded-full blur-[120px]"
-            style={{ background: "rgba(23,54,39,0.05)" }}
+            style={{ background: "var(--glow-primary)" }}
           />
           <div
             className="absolute bottom-[-200px] right-[-100px] w-[400px] h-[400px] rounded-full blur-[120px]"
-            style={{ background: "rgba(73,38,40,0.05)" }}
+            style={{ background: "var(--glow-secondary)" }}
           />
         </div>
       )}
@@ -307,8 +307,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           sidebarOpen ? "w-[240px]" : "w-[68px]"
         }`}
         style={{
-          background: "var(--surface)",
+          background: "var(--glass-surface-strong)",
           borderRight: "1px solid var(--border)",
+          boxShadow: "var(--shadow-ambient)",
+          backdropFilter: "blur(var(--glass-blur))",
         }}
       >
         {renderSidebarContent(!sidebarOpen)}
@@ -333,8 +335,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
         style={{
-          background: "var(--surface)",
+          background: "var(--glass-surface-strong)",
           borderRight: "1px solid var(--border)",
+          backdropFilter: "blur(var(--glass-blur))",
         }}
       >
         <button
@@ -351,8 +354,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       <div
         className="md:hidden fixed top-0 left-0 right-0 z-30 h-16 flex items-center px-4 gap-3 border-b"
         style={{
-          background: "var(--surface)",
+          background: "var(--glass-surface-strong)",
           borderBottom: "1px solid var(--border)",
+          backdropFilter: "blur(var(--glass-blur))",
         }}
       >
         <button
