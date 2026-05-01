@@ -46,7 +46,7 @@ const navItems: NavItem[] = [
     label: `Bộ công cụ ${BRAND.name}`,
     icon: Zap,
     children: [
-      { href: "/terminal", label: PRODUCT_NAMES.advisory, icon: MessageSquare, badge: "HOT" },
+      { href: "/aiden", label: PRODUCT_NAMES.advisory, icon: MessageSquare, badge: "HOT" },
       { href: "/dashboard/signal-map", label: PRODUCT_NAMES.brokerWorkflow, icon: Zap },
       { href: "/art", label: PRODUCT_NAMES.art, icon: Activity, badge: "MỚI" },
       { href: "/margin", label: "Ký quỹ - Mua nhanh", icon: Banknote },

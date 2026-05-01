@@ -71,11 +71,11 @@ const GUIDE_DEFAULT_DATA: GuideSeedCategory[] = [
           "## ADN Radar\n\nNhập mã cổ phiếu để mở các thẻ phân tích:\n\n- Phân tích kỹ thuật\n- Phân tích cơ bản\n- Tâm lý & hành vi\n- Tin tức & sự kiện",
       },
       {
-        title: "ADN Advisory — Chat với AIDEN",
+        title: "ADN AIDEN — Chat tư vấn đầu tư",
         slug: "tu-van-dau-tu-chat-voi-ai",
         sortOrder: 4,
         content:
-          "## ADN Advisory\n\nChat với AIDEN để nhận góc nhìn nhanh theo mã cổ phiếu hoặc câu hỏi tự do. Luôn kết hợp với khẩu vị rủi ro cá nhân trước khi ra quyết định.",
+          "## ADN AIDEN\n\nChat với AIDEN để nhận góc nhìn nhanh theo thị trường, mã cổ phiếu, danh mục hoặc câu hỏi đầu tư tự do. Nếu cần biểu đồ chi tiết, hãy mở ADN Stock.",
       },
     ],
   },

@@ -134,7 +134,7 @@ export default function TerminalPage() {
             <div>
               <p className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>{PRODUCT_NAMES.advisory}</p>
               <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>
-                AIDEN phân tích TA · FA · Tâm lý · Tin tức • Online
+                Hỏi AIDEN về thị trường, cổ phiếu và danh mục • Online
               </p>
               <div className="mt-1 flex items-center gap-1.5">
                 <FreshnessBadge freshness={activeSignalsTopic.freshness} />
@@ -193,6 +193,7 @@ export default function TerminalPage() {
             freeTextLoading={freeTextPending}
             extraMessages={extraMessages}
             disableInput={isLimitReached}
+            forceDirectChat
             disableReason="Bạn đã hết lượt tư vấn. Nâng cấp VIP để tiếp tục ngay."
           />
         </div>

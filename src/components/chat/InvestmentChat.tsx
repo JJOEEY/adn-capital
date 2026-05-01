@@ -287,6 +287,7 @@ interface InvestmentChatProps {
   extraMessages?: Message[];
   disableInput?: boolean;
   disableReason?: string;
+  forceDirectChat?: boolean;
 }
 
 export function InvestmentChat({
@@ -295,6 +296,7 @@ export function InvestmentChat({
   extraMessages = [],
   disableInput = false,
   disableReason = "",
+  forceDirectChat = false,
 }: InvestmentChatProps) {
   const { data: session } = useSession();
   const { theme } = useTheme();
@@ -462,6 +464,12 @@ export function InvestmentChat({
     const ticker = detectTicker(trimmed);
     addMessage({ role: "user", text: trimmed, createdAt: Date.now() });
 
+    if (forceDirectChat && onSendFreeText) {
+      setBotLoading(true);
+      onSendFreeText(trimmed);
+      return;
+    }
+
     if (ticker) {
       addMessage({
         role: "bot",
@@ -483,7 +491,7 @@ export function InvestmentChat({
       setBotLoading(true);
       onSendFreeText(trimmed);
     }
-  }, [disableInput, input, addMessage, onSendFreeText, userId]);
+  }, [disableInput, input, addMessage, onSendFreeText, userId, forceDirectChat]);
 
   useEffect(() => {
     if (extraMessages.length > 0) {
@@ -508,9 +516,13 @@ export function InvestmentChat({
             <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--primary-light)]">
               <Zap className="h-7 w-7 text-[var(--primary)]" />
             </div>
-            <h3 className="mb-1 text-base font-bold text-[var(--text-primary)]">AIDEN Analyst sẵn sàng hỗ trợ</h3>
+            <h3 className="mb-1 text-base font-bold text-[var(--text-primary)]">
+              {forceDirectChat ? "AIDEN sẵn sàng hỗ trợ" : "AIDEN Analyst sẵn sàng hỗ trợ"}
+            </h3>
             <p className="mb-5 max-w-xs text-sm text-[var(--text-secondary)]">
-              Nhập mã cổ phiếu (VD: HPG) để mở 4 card phân tích, hoặc đặt câu hỏi tự do.
+              {forceDirectChat
+                ? "Hỏi về thị trường, danh mục, cổ phiếu hoặc so sánh mã. Nếu cần biểu đồ chi tiết, mở ADN Stock."
+                : "Nhập mã cổ phiếu (VD: HPG) để mở 4 thẻ phân tích, hoặc đặt câu hỏi tự do."}
             </p>
             <div className="grid w-full max-w-xs grid-cols-2 gap-2">
               {WELCOME_HINTS.map((item) => (
@@ -577,7 +589,7 @@ export function InvestmentChat({
               }
             }}
             disabled={isLoading || disableInput}
-            placeholder="Nhập mã CP (HPG) hoặc câu hỏi tự do..."
+            placeholder={forceDirectChat ? "Hỏi AIDEN về thị trường hoặc cổ phiếu..." : "Nhập mã CP (HPG) hoặc câu hỏi tự do..."}
             className="h-11 flex-1 rounded-full border px-4 text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:opacity-50"
             style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
           />

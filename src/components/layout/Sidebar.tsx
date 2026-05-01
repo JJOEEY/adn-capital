@@ -34,7 +34,7 @@ const navItems: Array<{
   { href: "/dashboard", label: PRODUCT_NAMES.dashboard, icon: LayoutDashboard, badge: null },
   { href: "/san-pham", label: `Bộ công cụ ${BRAND.name}`, icon: Layers, badge: null },
   { href: "/journal", label: "ADN Diary", icon: BookOpen, badge: null },
-  { href: "/terminal", label: PRODUCT_NAMES.advisory, icon: MessageSquare, badge: "HOT" },
+  { href: "/aiden", label: PRODUCT_NAMES.advisory, icon: MessageSquare, badge: "HOT" },
   { href: "/dashboard/signal-map", label: PRODUCT_NAMES.brokerWorkflow, icon: Zap, badge: null },
   { href: "/dashboard/dnse-trading", label: PRODUCT_NAMES.brokerConnect, icon: Wallet, badge: null },
   { href: "/art", label: PRODUCT_NAMES.art, icon: TrendingUp, badge: "MỚI" },

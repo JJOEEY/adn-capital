@@ -172,7 +172,7 @@ export const PRODUCT_MODULES: ProductModule[] = [
     name: PRODUCT_NAMES.advisory,
     shortName: PRODUCT_NAMES.advisoryShort,
     pillar: "Analyst",
-    route: "/terminal",
+    route: "/aiden",
     status: "Public",
     scene: "advisory",
     outcome: "Hỏi thị trường, hỏi mã hoặc hỏi kiến thức đầu tư như một ứng dụng chat.",

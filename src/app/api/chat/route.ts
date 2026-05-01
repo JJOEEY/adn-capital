@@ -1330,6 +1330,7 @@ export async function POST(req: NextRequest) {
       content: aiden.message,
       ticker: aiden.ticker,
       tickers: aiden.tickers,
+      recommendation: aiden.recommendation,
       usedTopics: aiden.usedTopics,
       model: aiden.model,
       dataFreshness: aiden.dataFreshness,

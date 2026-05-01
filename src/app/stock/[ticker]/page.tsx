@@ -138,15 +138,24 @@ type ChatMessage = {
   tickers?: string[];
 };
 
+type AidenRecommendation = {
+  ticker?: string | null;
+  entryPrice?: number | null;
+  target?: number | null;
+  stoploss?: number | null;
+};
+
 type AidenResponse = {
   message?: string;
   error?: string;
   ticker?: string;
   tickers?: string[];
+  recommendation?: AidenRecommendation | null;
 };
 
 const DEFAULT_WATCHLIST = ["SSI", "HPG", "FPT", "GVR", "MBB", "VND", "VCB", "VHM"];
 const AIDEN_CHAT_STORAGE_KEY = "adn-stock-aiden-chat-v1";
+const AIDEN_RECOMMENDATION_STORAGE_KEY = "adn-stock-aiden-recommendations-v1";
 
 function fmtValue(value: number | null | undefined, suffix = "") {
   if (value == null || !Number.isFinite(value)) return "--";
@@ -280,14 +289,20 @@ function FreshnessBadge({ label, freshness }: { label: string; freshness: string
   );
 }
 
-function StockOverviewPanel({ workbench, realtimePrice, realtimeChangePct }: {
+function StockOverviewPanel({ workbench, realtimePrice, realtimeChangePct, aidenRecommendation }: {
   workbench: WorkbenchPayload | null;
   realtimePrice: number | null;
   realtimeChangePct: number | null;
+  aidenRecommendation: AidenRecommendation | null;
 }) {
   const signal = workbench?.signal ?? null;
   const ta = workbench?.ta ?? null;
   const fa = workbench?.fa ?? null;
+  const reference = aidenRecommendation ?? {
+    entryPrice: signal?.entryPrice,
+    target: signal?.target,
+    stoploss: signal?.stoploss,
+  };
   return (
     <section className="rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -297,9 +312,9 @@ function StockOverviewPanel({ workbench, realtimePrice, realtimeChangePct }: {
         </span>
       </div>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-        <InfoItem label="Giá khuyến nghị" value={fmtPrice(signal?.entryPrice)} />
-        <InfoItem label="Giá mục tiêu" value={fmtPrice(signal?.target)} />
-        <InfoItem label="Giá cắt lỗ" value={fmtPrice(signal?.stoploss)} />
+        <InfoItem label="Giá khuyến nghị" value={fmtPrice(reference.entryPrice)} />
+        <InfoItem label="Giá mục tiêu" value={fmtPrice(reference.target)} />
+        <InfoItem label="Giá cắt lỗ" value={fmtPrice(reference.stoploss)} />
         <InfoItem label="Volume MA20" value={fmtValue(ta?.avgVolume20)} />
         <InfoItem label="P/E" value={fmtMultiple(fa?.pe)} />
         <InfoItem label="P/B" value={fmtMultiple(fa?.pb)} />
@@ -611,6 +626,8 @@ export default function StockDetailPage() {
   const [chatLoading, setChatLoading] = useState(false);
   const [watchlist, setWatchlist] = useState<string[]>([]);
   const [chatHydrated, setChatHydrated] = useState(false);
+  const [recommendationsHydrated, setRecommendationsHydrated] = useState(false);
+  const [aidenRecommendations, setAidenRecommendations] = useState<Record<string, AidenRecommendation>>({});
   const typingTimerRef = useRef<number | null>(null);
 
   const tickerResolutionTopic = useTopic<TickerResolution>(`ticker:resolve:${ticker}`, {
@@ -684,6 +701,29 @@ export default function StockDetailPage() {
   }, [chatHydrated, messages]);
 
   useEffect(() => {
+    if (recommendationsHydrated) return;
+    try {
+      const raw = window.sessionStorage.getItem(AIDEN_RECOMMENDATION_STORAGE_KEY);
+      const saved = raw ? JSON.parse(raw) as Record<string, AidenRecommendation> : {};
+      if (saved && typeof saved === "object" && !Array.isArray(saved)) {
+        setAidenRecommendations(saved);
+      }
+    } catch {
+      // Session restore is best-effort only.
+    }
+    setRecommendationsHydrated(true);
+  }, [recommendationsHydrated]);
+
+  useEffect(() => {
+    if (!recommendationsHydrated) return;
+    try {
+      window.sessionStorage.setItem(AIDEN_RECOMMENDATION_STORAGE_KEY, JSON.stringify(aidenRecommendations));
+    } catch {
+      // Session persistence is best-effort only.
+    }
+  }, [aidenRecommendations, recommendationsHydrated]);
+
+  useEffect(() => {
     return () => {
       if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
     };
@@ -720,6 +760,7 @@ export default function StockDetailPage() {
     historicalMarketPrice,
   );
   const realtimeChangePct = readRealtimeChangePct(realtimeTopic.data) ?? workbench?.ta?.changePct ?? null;
+  const activeAidenRecommendation = aidenRecommendations[resolvedTicker] ?? null;
 
   useEffect(() => {
     if (timeframe !== "1D" && !realtimeTopic.isLoading && !realtimeTopic.isValidating && realtimeCandles.length === 0 && historicalCandles.length > 0) {
@@ -766,6 +807,20 @@ export default function StockDetailPage() {
       [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
       return next;
     });
+  };
+
+  const saveAidenRecommendation = (recommendation: AidenRecommendation | null | undefined, fallbackTicker: string | null) => {
+    if (!recommendation) return;
+    const tickerKey = sanitizeTicker(recommendation.ticker) || sanitizeTicker(fallbackTicker);
+    if (!tickerKey) return;
+    const cleaned: AidenRecommendation = {
+      ticker: tickerKey,
+      entryPrice: Number.isFinite(Number(recommendation.entryPrice)) ? Number(recommendation.entryPrice) : null,
+      target: Number.isFinite(Number(recommendation.target)) ? Number(recommendation.target) : null,
+      stoploss: Number.isFinite(Number(recommendation.stoploss)) ? Number(recommendation.stoploss) : null,
+    };
+    if (cleaned.entryPrice == null && cleaned.target == null && cleaned.stoploss == null) return;
+    setAidenRecommendations((prev) => ({ ...prev, [tickerKey]: cleaned }));
   };
 
   const streamBotMessage = (fullText: string, tickers: string[] = []) => {
@@ -824,6 +879,7 @@ export default function StockDetailPage() {
       const botTickers = Array.from(new Set((data.tickers ?? [data.ticker]).map((item) => sanitizeTicker(item)).filter(Boolean)));
       streamBotMessage(botText, botTickers);
       const nextTicker = sanitizeTicker(data.ticker) || botTickers[0] || null;
+      saveAidenRecommendation(data.recommendation, nextTicker ?? requestTicker);
       if (nextTicker && nextTicker !== requestTicker) selectTicker(nextTicker);
     } catch {
       streamBotMessage("Lỗi kết nối AIDEN. Vui lòng thử lại.");
@@ -839,9 +895,9 @@ export default function StockDetailPage() {
   const handleSearchEnter = () => {
     const next = sanitizeTicker(search);
     if (!next) return;
-    void submitAidenQuery(next, {
+    void submitAidenQuery(`Phân tích ${next}`, {
       explicitTicker: next,
-      displayText: next,
+      displayText: `Phân tích ${next}`,
       clearInput: false,
     });
   };
@@ -849,6 +905,16 @@ export default function StockDetailPage() {
   const handleSearch = (event: FormEvent) => {
     event.preventDefault();
     const next = sanitizeTicker(search);
+    if (!next) return;
+    void submitAidenQuery(`Phân tích ${next}`, {
+      explicitTicker: next,
+      displayText: `Phân tích ${next}`,
+      clearInput: false,
+    });
+  };
+
+  const handleAidenTickerSelect = (nextTicker: string) => {
+    const next = sanitizeTicker(nextTicker);
     if (!next) return;
     void submitAidenQuery(`Phân tích ${next}`, {
       explicitTicker: next,
@@ -924,7 +990,12 @@ export default function StockDetailPage() {
                   onTimeframeChange={setTimeframe}
                   allowFallbackFetch={false}
                 />
-                <StockOverviewPanel workbench={workbench ?? null} realtimePrice={realtimePrice} realtimeChangePct={realtimeChangePct} />
+                <StockOverviewPanel
+                  workbench={workbench ?? null}
+                  realtimePrice={realtimePrice}
+                  realtimeChangePct={realtimeChangePct}
+                  aidenRecommendation={activeAidenRecommendation}
+                />
                 <div className="grid gap-4 2xl:grid-cols-[420px_minmax(0,1fr)]">
                   <OrderBookPanel depth={depthTopic.data} loading={depthTopic.isLoading} />
                   <WatchlistBoard
@@ -945,7 +1016,7 @@ export default function StockDetailPage() {
             input={input}
             setInput={setInput}
             onSend={handleSend}
-            onTickerSelect={selectTicker}
+            onTickerSelect={handleAidenTickerSelect}
             loading={chatLoading}
           />
         </div>

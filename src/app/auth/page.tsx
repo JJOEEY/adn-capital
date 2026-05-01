@@ -144,7 +144,7 @@ function AuthPageShell({ children, compactApp = false }: { children: ReactNode; 
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <Link
-                href="/terminal"
+                href="/aiden"
                 className="inline-flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-bold transition"
                 style={{ background: "var(--primary)", color: "#EBE2CF" }}
               >

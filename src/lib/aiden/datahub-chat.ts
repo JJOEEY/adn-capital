@@ -18,9 +18,17 @@ export type AidenDatahubChatResult = {
   message: string;
   ticker?: string;
   tickers: string[];
+  recommendation?: AidenRecommendation | null;
   usedTopics: string[];
   model: string;
   dataFreshness: Record<string, TopicEnvelope["freshness"]>;
+};
+
+export type AidenRecommendation = {
+  ticker: string;
+  entryPrice: number | null;
+  target: number | null;
+  stoploss: number | null;
 };
 
 function compactJson(value: unknown, maxLength = 5200) {
@@ -37,6 +45,19 @@ function asNumber(value: unknown): number | null {
   if (value == null || value === "") return null;
   const numberValue = Number(value);
   return Number.isFinite(numberValue) ? numberValue : null;
+}
+
+function roundedPrice(value: unknown) {
+  const numberValue = asNumber(value);
+  return numberValue == null ? null : Math.round(numberValue);
+}
+
+function firstNumber(...values: unknown[]) {
+  for (const value of values) {
+    const numberValue = roundedPrice(value);
+    if (numberValue != null) return numberValue;
+  }
+  return null;
 }
 
 function formatDecimal(value: number) {
@@ -298,6 +319,67 @@ function buildTickerContext(ticker: string, envelopes: Array<{ topic: string; en
   };
 }
 
+function buildRecommendation(context: unknown): AidenRecommendation | null {
+  const record = asRecord(context);
+  const ticker = String(record.ticker ?? "").trim().toUpperCase();
+  if (!ticker) return null;
+
+  const metrics = asRecord(record.analysisMetrics);
+  const radarAction = asRecord(metrics.radarAction);
+  const priceZones = asRecord(metrics.priceZones);
+  const entryPrice = firstNumber(radarAction.entryPrice, priceZones.safeZoneHigh, metrics.price);
+  const target = firstNumber(radarAction.target, priceZones.resistance);
+  const stoploss = firstNumber(radarAction.stoploss, priceZones.support, priceZones.safeZoneLow);
+
+  if (entryPrice == null && target == null && stoploss == null) return null;
+  return { ticker, entryPrice, target, stoploss };
+}
+
+function compactSignalList(value: unknown) {
+  const rows = Array.isArray(value) ? value : [];
+  return rows.slice(0, 20).map((item) => {
+    const row = asRecord(item);
+    return stripInternalFields({
+      ticker: row.ticker,
+      status: row.status,
+      type: row.type,
+      entryPrice: row.entryPrice,
+      target: row.target,
+      stoploss: row.stoploss,
+      currentPrice: row.currentPrice,
+      currentPnl: row.currentPnl,
+      navAllocation: row.navAllocation,
+      updatedAt: row.updatedAt,
+    });
+  });
+}
+
+async function buildGeneralMarketContext(context: TopicContext) {
+  const topics = [
+    "vn:index:overview",
+    "vn:index:composite:live",
+    "signal:market:radar",
+    "signal:market:active",
+    "brief:morning:latest",
+    "brief:eod:latest",
+  ];
+  const envelopes = await Promise.all(topics.map((topic) => readTopic(topic, context)));
+  const byTopic = new Map(envelopes.map((item) => [item.topic, item.envelope.value]));
+
+  return {
+    topics,
+    envelopes,
+    context: stripInternalFields({
+      market: byTopic.get("vn:index:overview"),
+      marketComposite: byTopic.get("vn:index:composite:live"),
+      radarSignals: compactSignalList(byTopic.get("signal:market:radar")),
+      activeSignals: compactSignalList(byTopic.get("signal:market:active")),
+      morningBrief: byTopic.get("brief:morning:latest"),
+      eodBrief: byTopic.get("brief:eod:latest"),
+    }),
+  };
+}
+
 function stripSourceFraming(text: string) {
   return text
     .replace(
@@ -359,6 +441,26 @@ ${comparison ? "- So sánh trực diện các mã được hỏi." : "- Phân t�
 - Nếu dùng kỳ báo cáo trước đó, viết ngắn gọn "theo kỳ báo cáo gần nhất" và tiếp tục phân tích.
 - Nếu chưa có số định lượng trong ngữ cảnh, vẫn viết phần Định giá/PTCB bằng nhận định định tính; không nói thiếu dữ liệu hoặc thiếu chỉ số.
 - Không đưa khuyến nghị chắc chắn; luôn nêu điều kiện quản trị rủi ro.`;
+}
+
+function buildGeneralPrompt(message: string, context: unknown) {
+  return `INTERNAL_CONTEXT:
+${compactJson(context)}
+
+OUTPUT_CONTRACT:
+- Trả lời như một cửa sổ chat tư vấn đầu tư bình thường, không ép người dùng phải nhập lệnh hay chọn thẻ phân tích.
+- Nếu câu hỏi là nhận định thị trường, top mã đáng chú ý, so sánh nhóm cổ phiếu hoặc "hôm nay mua mã gì", dùng bối cảnh thị trường, tín hiệu đang có và bản tin mới nhất trong INTERNAL_CONTEXT.
+- Nếu nhắc mã cổ phiếu cụ thể, phân tích theo cùng phong cách AIDEN trong ADN Stock: có số liệu thực tế khi có, nêu vùng giá, chiến lược, rủi ro và kết luận hành động.
+- Không bao giờ nhắc DataHub, FiinQuant, bridge, provider, API, cache, backend hoặc tên nguồn nội bộ trong câu trả lời cho khách hàng.
+- Không được nói thiếu dữ liệu FA hoặc công bố nguồn lấy dữ liệu. Nếu thiếu một phần số liệu, đưa nhận định định tính thận trọng và nêu điều kiện rủi ro.
+- Với câu hỏi cần biểu đồ chi tiết, trả lời ngắn gọn và hướng khách mở ADN Stock để xem chart.
+- Trả lời bằng Markdown GFM hợp lệ, văn phong chuyên nghiệp, tiếng Việt có dấu, bullet rõ và không viết lan man.
+- Kết thúc bằng đúng disclaimer:
+⚠️ Phân tích tham khảo, không phải khuyến nghị đầu tư.
+— ADN Capital 🤖
+
+Người dùng hỏi:
+${message}`;
 }
 
 function buildFlashUnavailableMessage(contexts: unknown[]) {
@@ -474,13 +576,29 @@ export async function runAidenDatahubChat(input: {
   const tickers = await resolveTickers(message, input.currentTicker);
 
   if (tickers.length === 0) {
+    const general = await buildGeneralMarketContext(context);
+    const dataFreshness = Object.fromEntries(
+      general.envelopes.map(({ topic, envelope }) => [topic, envelope.freshness]),
+    );
+    let answer: string;
+    try {
+      answer = await executeFlashOnlyAIRequest(
+        buildGeneralPrompt(message, general.context),
+        buildSystemInstruction(),
+      );
+    } catch (error) {
+      console.warn("[AIDEN] General Flash-only generation failed:", error);
+      answer =
+        "AIDEN đang xử lý chậm hơn bình thường. Anh/chị có thể hỏi lại sau ít phút hoặc nhập một mã cụ thể trong ADN Stock để xem biểu đồ và vùng giá chi tiết.";
+    }
+
     return {
-      message:
-        "AIDEN cần một mã cổ phiếu hợp lệ để phân tích. Anh/chị có thể nhập trực tiếp như **SSI**, **HPG** hoặc hỏi: **Phân tích cho tôi SSI**.",
+      message: ensureDisclaimer(sanitizeCustomerAnswer(answer.trim())),
       tickers: [],
-      usedTopics: [],
+      recommendation: null,
+      usedTopics: general.topics,
       model: MODEL_FLASH,
-      dataFreshness: {},
+      dataFreshness,
     };
   }
 
@@ -518,6 +636,7 @@ export async function runAidenDatahubChat(input: {
     message: ensureDisclaimer(sanitizeCustomerAnswer(ensureValuationLine(answer.trim(), contexts))),
     ticker: tickers[0],
     tickers,
+    recommendation: buildRecommendation(contexts[0]),
     usedTopics,
     model: MODEL_FLASH,
     dataFreshness,
