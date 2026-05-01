@@ -208,25 +208,6 @@ async function assertValidTicker(ticker: string) {
 }
 
 const REALTIME_TIMEFRAMES = new Set(["1m", "5m", "15m", "30m"]);
-const DCHART_BASE = "https://dchart-api.vndirect.com.vn/dchart/history";
-const DCHART_HEADERS: HeadersInit = {
-  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-  Accept: "*/*",
-  Referer: "https://dchart.vndirect.com.vn/",
-  Origin: "https://dchart.vndirect.com.vn",
-};
-
-const DCHART_RESOLUTION_BY_TIMEFRAME: Record<string, string> = {
-  "1m": "1",
-  "5m": "5",
-  "15m": "15",
-  "30m": "30",
-};
-
-function dchartDateFromUnix(seconds: number) {
-  const date = new Date(seconds * 1000);
-  return `${date.toISOString().slice(0, 10)} 00:00`;
-}
 
 function normalizeBoardTickers(raw: string) {
   return Array.from(
@@ -485,112 +466,35 @@ async function loadLeaderRadar() {
   return res.json();
 }
 
-function scaleDchartPrice(value: unknown) {
-  return applyMarketPriceScale(readMarketNumber(value), 1000);
-}
-
-async function loadDchartHistoricalTicker(ticker: string, days = 300, anchorPrice?: number | null) {
-  const symbol = ticker.toUpperCase().trim();
-  const now = Math.floor(Date.now() / 1000);
-  const from = now - days * 86400;
-  const res = await fetch(
-    `${DCHART_BASE}?resolution=D&symbol=${encodeURIComponent(symbol)}&from=${from}&to=${now}`,
-    {
-      headers: DCHART_HEADERS,
-      signal: AbortSignal.timeout(8_000),
-      cache: "no-store",
-    },
-  );
-  if (!res.ok) return null;
-
-  const json = await res.json();
-  const opens = Array.isArray(json?.o) ? json.o : [];
-  const highs = Array.isArray(json?.h) ? json.h : [];
-  const lows = Array.isArray(json?.l) ? json.l : [];
-  const closes = Array.isArray(json?.c) ? json.c : [];
-  const volumes = Array.isArray(json?.v) ? json.v : [];
-  const times = Array.isArray(json?.t) ? json.t : [];
-  if (json?.s !== "ok" || closes.length === 0 || times.length === 0) return null;
-
-  const rawData: JsonRecord[] = times
-    .map((time: unknown, index: number) => {
-      const unix = readMarketNumber(time);
-      const close = scaleDchartPrice(closes[index]);
-      if (unix == null || close == null) return null;
-      return {
-        ticker: symbol,
-        time: unix,
-        date: dchartDateFromUnix(unix),
-        open: scaleDchartPrice(opens[index]) ?? close,
-        high: scaleDchartPrice(highs[index]) ?? close,
-        low: scaleDchartPrice(lows[index]) ?? close,
-        close,
-        volume: readMarketNumber(volumes[index]) ?? 0,
-      };
-    })
-    .filter((row: JsonRecord | null): row is JsonRecord => row != null)
-    .sort((a: JsonRecord, b: JsonRecord) => Number(a.time) - Number(b.time));
-  const lastClose = readMarketNumber(rawData.at(-1)?.close);
-  const scale =
-    anchorPrice != null && lastClose != null && lastClose > 0
-      ? anchorPrice / lastClose
-      : 1;
-  const data: JsonRecord[] = Math.abs(scale - 1) >= 0.03
-    ? rawData.map((row): JsonRecord => ({
-        ...row,
-        open: applyMarketPriceScale(readMarketNumber(row.open), scale) ?? row.open,
-        high: applyMarketPriceScale(readMarketNumber(row.high), scale) ?? row.high,
-        low: applyMarketPriceScale(readMarketNumber(row.low), scale) ?? row.low,
-        close: applyMarketPriceScale(readMarketNumber(row.close), scale) ?? row.close,
-      }))
-    : rawData;
-
-  return {
-    ticker: symbol,
-    timeframe: "1d",
-    from_date: data[0]?.date ?? null,
-    to_date: data.at(-1)?.date ?? null,
-    count: data.length,
-    data,
-    source: "dchart",
-  };
-}
-
-async function loadHistoricalTicker(ticker: string) {
+async function loadBridgeHistoricalTicker(
+  ticker: string,
+  timeframe: string,
+  days: number,
+  timeout = 45_000,
+) {
   const backend = getPythonBridgeUrl();
   const symbol = ticker.toUpperCase().trim();
-
-  const recentClose = await loadBridgeRecentMarketClose(symbol).catch(() => null);
-  const dchart = await loadDchartHistoricalTicker(symbol, 300, recentClose).catch(() => null);
-  if (dchart) return dchart;
-
   const res = await fetch(
-    `${backend}/api/v1/historical/${encodeURIComponent(symbol)}?days=300&timeframe=1d`,
+    `${backend}/api/v1/historical/${encodeURIComponent(symbol)}?days=${days}&timeframe=${encodeURIComponent(timeframe)}&adjusted=false`,
     {
       cache: "no-store",
-      signal: AbortSignal.timeout(45_000),
+      signal: AbortSignal.timeout(timeout),
     },
   );
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`historical ${symbol} HTTP ${res.status}: ${text}`);
+    throw new Error(`historical ${symbol} ${timeframe} HTTP ${res.status}: ${text}`);
   }
   const payload = await res.json();
   return normalizeHistoricalPricePayload(payload);
 }
 
+async function loadHistoricalTicker(ticker: string) {
+  return loadBridgeHistoricalTicker(ticker, "1d", 300, 45_000);
+}
+
 async function loadBridgeRecentMarketClose(ticker: string) {
-  const backend = getPythonBridgeUrl();
-  const symbol = ticker.toUpperCase().trim();
-  const res = await fetch(
-    `${backend}/api/v1/historical/${encodeURIComponent(symbol)}?days=10&timeframe=1d`,
-    {
-      cache: "no-store",
-      signal: AbortSignal.timeout(20_000),
-    },
-  );
-  if (!res.ok) return null;
-  const payload = await res.json();
+  const payload = await loadBridgeHistoricalTicker(ticker, "1d", 10, 20_000).catch(() => null);
   const normalizedPayload = normalizeHistoricalPricePayload(payload);
   const normalizedClose = latestClosePriceFromPayload(normalizedPayload);
   if (normalizedClose != null && normalizedClose > 0) return normalizedClose;
@@ -605,101 +509,22 @@ async function loadBridgeRecentMarketClose(ticker: string) {
 
 async function loadRecentMarketClose(ticker: string) {
   const bridgeClose = await loadBridgeRecentMarketClose(ticker).catch(() => null);
-  if (bridgeClose != null && bridgeClose > 0) return bridgeClose;
-
-  const dchart = await loadDchartHistoricalTicker(ticker, 10).catch(() => null);
-  const dchartClose = latestClosePriceFromPayload(dchart);
-  return dchartClose != null && dchartClose > 0 ? dchartClose : null;
+  return bridgeClose != null && bridgeClose > 0 ? bridgeClose : null;
 }
 
 function hasCandleRows(payload: unknown) {
   return getMarketPayloadRows(payload).length > 0;
 }
 
-async function loadDchartIntradayTicker(ticker: string, timeframe: string) {
-  const resolution = DCHART_RESOLUTION_BY_TIMEFRAME[timeframe];
-  if (!resolution) return null;
-
-  const symbol = ticker.toUpperCase().trim();
-  const now = Math.floor(Date.now() / 1000);
-  const from = now - 30 * 86400;
-  const res = await fetch(
-    `${DCHART_BASE}?resolution=${encodeURIComponent(resolution)}&symbol=${encodeURIComponent(symbol)}&from=${from}&to=${now}`,
-    {
-      headers: DCHART_HEADERS,
-      cache: "no-store",
-      signal: AbortSignal.timeout(10_000),
-    },
-  );
-  if (!res.ok) return null;
-
-  const json = await res.json();
-  const closes = Array.isArray(json?.c) ? json.c : [];
-  const times = Array.isArray(json?.t) ? json.t : [];
-  if (json?.s !== "ok" || closes.length === 0 || times.length === 0) return null;
-
-  const historicalClose =
-    (await loadRecentMarketClose(symbol).catch(() => null)) ??
-    latestClosePriceFromPayload(await loadHistoricalTicker(symbol).catch(() => null));
-  const lastRawClose = readMarketNumber(closes.at(-1));
-  const baseLastClose = lastRawClose != null && Number.isFinite(lastRawClose) ? lastRawClose * 1000 : null;
-  const scale = historicalClose != null && baseLastClose != null && baseLastClose > 0
-    ? historicalClose / baseLastClose
-    : 1;
-
-  const rows = times
-    .map((time: unknown, index: number) => {
-      const unixTime = typeof time === "number" && Number.isFinite(time) ? Math.floor(time) : null;
-      const openRaw = Number(json.o?.[index]);
-      const highRaw = Number(json.h?.[index]);
-      const lowRaw = Number(json.l?.[index]);
-      const closeRaw = Number(json.c?.[index]);
-      if (
-        unixTime == null ||
-        !Number.isFinite(openRaw) ||
-        !Number.isFinite(highRaw) ||
-        !Number.isFinite(lowRaw) ||
-        !Number.isFinite(closeRaw)
-      ) {
-        return null;
-      }
-      return {
-        time: unixTime,
-        open: applyMarketPriceScale(openRaw * 1000, scale),
-        high: applyMarketPriceScale(highRaw * 1000, scale),
-        low: applyMarketPriceScale(lowRaw * 1000, scale),
-        close: applyMarketPriceScale(closeRaw * 1000, scale),
-        volume: Number(json.v?.[index] ?? 0),
-      };
-    })
-    .filter((row: JsonRecord | null): row is JsonRecord => Boolean(row))
-    .filter((row: JsonRecord, index: number, all: JsonRecord[]) => index === 0 || row.time !== all[index - 1].time);
-
-  if (rows.length === 0) return null;
-  return {
-    ticker: symbol,
-    timeframe,
-    date: new Date((Number(rows.at(-1)?.time) || now) * 1000).toISOString().slice(0, 10),
-    count: rows.length,
-    summary: {
-      totalBuyVolume: 0,
-      totalSellVolume: 0,
-      netVolume: 0,
-    },
-    data: rows,
-  };
-}
-
-async function loadRealtimeTicker(ticker: string, timeframe: string, preferChartFallback = false) {
-  if (preferChartFallback) {
-    const chartFallback = await loadDchartIntradayTicker(ticker, timeframe);
-    if (chartFallback) return chartFallback;
-  }
-
+async function loadRealtimeTicker(ticker: string, timeframe: string) {
   const realtime = await fetchRealtimeTradingData(ticker, timeframe, 5_000);
-  if (hasCandleRows(realtime)) return realtime;
-  const chartFallback = await loadDchartIntradayTicker(ticker, timeframe);
-  return chartFallback ?? realtime;
+  const normalizedRealtime = normalizeHistoricalPricePayload(realtime);
+  if (hasCandleRows(normalizedRealtime)) return normalizedRealtime;
+
+  const historicalIntraday = await loadBridgeHistoricalTicker(ticker, timeframe, 30, 30_000).catch(() => null);
+  if (hasCandleRows(historicalIntraday)) return historicalIntraday;
+
+  return normalizedRealtime;
 }
 
 function scalePriceField(value: number | null | undefined, scale: number) {
@@ -2312,7 +2137,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     resolve: async (_, __, params) => {
       const resolved = await assertValidTicker(params.ticker);
       const timeframe = REALTIME_TIMEFRAMES.has(params.timeframe) ? params.timeframe : "5m";
-      return loadRealtimeTicker(resolved.ticker, timeframe, true);
+      return loadRealtimeTicker(resolved.ticker, timeframe);
     },
   },
   {
