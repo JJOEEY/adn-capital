@@ -20,7 +20,15 @@ export async function POST() {
       message: "Đã gửi mã xác thực. Vui lòng kiểm tra email hoặc ứng dụng xác thực của tài khoản liên kết.",
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Không thể gửi mã xác thực.";
-    return NextResponse.json({ error: message }, { status: 502 });
+    console.warn("[DNSE auto-authorization] request OTP failed", {
+      message: error instanceof Error ? error.message : "unknown_error",
+    });
+    return NextResponse.json(
+      {
+        error:
+          "Không gửi được mã xác thực. Vui lòng kiểm tra tài khoản DNSE đã bật Email OTP hoặc đăng nhập lại DNSE.",
+      },
+      { status: 502 },
+    );
   }
 }

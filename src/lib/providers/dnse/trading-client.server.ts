@@ -1267,12 +1267,15 @@ export class DnseTradingClient {
 
   async sendEmailOTP(): Promise<void> {
     await this.requestFirstSuccess(
-      "POST",
-      ["/registration/send-email-otp"],
+      "GET",
+      ["/dnse-auth-service/api/email-otp"],
       {
         label: "Failed to send OTP",
-        includeAuthorization: false,
-        baseFilter: "openapi",
+        includeAuthorization: true,
+        baseFilter: "service",
+        extraHeaders: {
+          "Content-Type": "application/json",
+        },
       },
     );
   }
@@ -1280,16 +1283,16 @@ export class DnseTradingClient {
   async createTradingToken(otp: string): Promise<{ token: string; expiresIn: number }> {
     const payload = await this.requestFirstSuccess(
       "POST",
-      ["/registration/trading-token"],
+      ["/dnse-order-service/trading-token"],
       {
         includeBody: true,
-        body: JSON.stringify({
-          otpType: "email_otp",
-          passcode: otp,
-        }),
+        body: "",
         label: "Invalid OTP",
-        includeAuthorization: false,
-        baseFilter: "openapi",
+        includeAuthorization: true,
+        baseFilter: "service",
+        extraHeaders: {
+          otp,
+        },
       },
     );
 

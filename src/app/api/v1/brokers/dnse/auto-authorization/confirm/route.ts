@@ -61,7 +61,15 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Không thể xác nhận quyền giao dịch.";
-    return NextResponse.json({ error: message }, { status: 502 });
+    console.warn("[DNSE auto-authorization] confirm failed", {
+      message: error instanceof Error ? error.message : "unknown_error",
+    });
+    return NextResponse.json(
+      {
+        error:
+          "Không xác nhận được quyền giao dịch. Vui lòng kiểm tra mã xác thực còn hiệu lực hoặc gửi lại mã mới.",
+      },
+      { status: 502 },
+    );
   }
 }
