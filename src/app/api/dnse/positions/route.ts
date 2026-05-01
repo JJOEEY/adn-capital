@@ -56,9 +56,16 @@ export async function GET() {
       userJwtToken: resolved.context.userJwtToken,
       isolated: true,
     });
-    const candidates = resolved.context.accountCandidates.length
-      ? resolved.context.accountCandidates
-      : [resolved.context.brokerAccountNo];
+    const candidates = Array.from(
+      new Set(
+        [
+          resolved.context.subAccountId,
+          ...(resolved.context.accountCandidates.length
+            ? resolved.context.accountCandidates
+            : [resolved.context.brokerAccountNo]),
+        ].filter((value): value is string => Boolean(value?.trim())),
+      ),
+    );
 
     let positions: Awaited<ReturnType<typeof client.getPositions>> = [];
     let usedAccountNo: string | null = null;
