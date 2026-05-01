@@ -13,6 +13,7 @@ import { extractTickerCandidates as extractTickerCandidatesFromText } from "@/li
 import { resolveMarketTicker } from "@/lib/ticker-resolver";
 
 type JsonRecord = Record<string, unknown>;
+const GENERAL_CHAT_TIMEOUT_MS = 18_000;
 
 export type AidenDatahubChatResult = {
   message: string;
@@ -58,6 +59,20 @@ function firstNumber(...values: unknown[]) {
     if (numberValue != null) return numberValue;
   }
   return null;
+}
+
+async function withTimeout<T>(task: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timeoutHandle: NodeJS.Timeout | null = null;
+  try {
+    return await Promise.race([
+      task,
+      new Promise<T>((_, reject) => {
+        timeoutHandle = setTimeout(() => reject(new Error(`[${label}] timed out after ${timeoutMs}ms`)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
+  }
 }
 
 function formatDecimal(value: number) {
@@ -463,6 +478,57 @@ Người dùng hỏi:
 ${message}`;
 }
 
+function signalLine(item: unknown) {
+  const row = asRecord(item);
+  const ticker = String(row.ticker ?? "").trim().toUpperCase();
+  if (!ticker) return null;
+  const currentPrice = roundedPrice(row.currentPrice);
+  const entryPrice = roundedPrice(row.entryPrice);
+  const target = roundedPrice(row.target);
+  const stoploss = roundedPrice(row.stoploss);
+  const pieces = [
+    currentPrice != null ? `giá quanh ${formatPrice(currentPrice)}` : null,
+    entryPrice != null ? `vùng mua ${formatPrice(entryPrice)}` : null,
+    target != null ? `mục tiêu ${formatPrice(target)}` : null,
+    stoploss != null ? `cắt lỗ ${formatPrice(stoploss)}` : null,
+  ].filter(Boolean);
+  return `- **${ticker}**: ${pieces.length > 0 ? pieces.join(", ") : "đang trong danh sách cần theo dõi, ưu tiên chờ xác nhận dòng tiền."}`;
+}
+
+function buildGeneralFallbackMessage(message: string, context: unknown) {
+  const record = asRecord(context);
+  const signals = [
+    ...(Array.isArray(record.activeSignals) ? record.activeSignals : []),
+    ...(Array.isArray(record.radarSignals) ? record.radarSignals : []),
+  ];
+  const seen = new Set<string>();
+  const lines = signals
+    .map((item) => {
+      const ticker = String(asRecord(item).ticker ?? "").trim().toUpperCase();
+      if (!ticker || seen.has(ticker)) return null;
+      seen.add(ticker);
+      return signalLine(item);
+    })
+    .filter((item): item is string => Boolean(item))
+    .slice(0, 5);
+
+  const lower = message.toLowerCase();
+  const asksForIdeas = /mua|top|mã gì|cổ nào|cơ hội|lọc/i.test(lower);
+  const intro = asksForIdeas
+    ? "AIDEN ưu tiên cách tiếp cận chọn lọc, chỉ xem xét các mã có vùng giá và rủi ro đủ rõ:"
+    : "AIDEN ghi nhận thị trường cần ưu tiên quản trị rủi ro và chọn mã theo tín hiệu xác nhận:";
+
+  const body = lines.length > 0
+    ? lines.join("\n")
+    : "- Chưa nên mua đuổi. Ưu tiên quan sát cổ phiếu giữ được nền giá, thanh khoản cải thiện và không thủng vùng hỗ trợ gần nhất.";
+
+  return `${intro}
+
+${body}
+
+**Hành động phù hợp:** giải ngân từng phần, giữ tỷ trọng thấp nếu thị trường chưa xác nhận xu hướng rõ. Với từng mã cụ thể, mở ADN Stock để xem biểu đồ, vùng mua, mục tiêu và cắt lỗ chi tiết.`;
+}
+
 function buildFlashUnavailableMessage(contexts: unknown[]) {
   const statusLines = contexts.map((item) => {
     const record = asRecord(item);
@@ -582,14 +648,17 @@ export async function runAidenDatahubChat(input: {
     );
     let answer: string;
     try {
-      answer = await executeFlashOnlyAIRequest(
-        buildGeneralPrompt(message, general.context),
-        buildSystemInstruction(),
+      answer = await withTimeout(
+        executeFlashOnlyAIRequest(
+          buildGeneralPrompt(message, general.context),
+          buildSystemInstruction(),
+        ),
+        GENERAL_CHAT_TIMEOUT_MS,
+        "general-aiden",
       );
     } catch (error) {
       console.warn("[AIDEN] General Flash-only generation failed:", error);
-      answer =
-        "AIDEN đang xử lý chậm hơn bình thường. Anh/chị có thể hỏi lại sau ít phút hoặc nhập một mã cụ thể trong ADN Stock để xem biểu đồ và vùng giá chi tiết.";
+      answer = buildGeneralFallbackMessage(message, general.context);
     }
 
     return {
