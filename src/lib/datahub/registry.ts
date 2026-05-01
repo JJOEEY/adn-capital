@@ -19,7 +19,6 @@ import {
   latestTurnoverPriceFromPayload,
   marketPriceScaleFromPayload,
   normalizeHistoricalPricePayload,
-  readMarketNumber,
 } from "@/lib/market-price-normalization";
 import { resolveTopicFamily, resolveTopicStaleWindowMs } from "./policy";
 import { TopicContext, TopicDefinition } from "./types";
@@ -490,26 +489,24 @@ async function loadBridgeHistoricalTicker(
 }
 
 async function loadHistoricalTicker(ticker: string) {
-  return loadBridgeHistoricalTicker(ticker, "1d", 300, 45_000);
-}
+  const attempts = [
+    { days: 260, timeout: 45_000 },
+    { days: 180, timeout: 35_000 },
+    { days: 90, timeout: 25_000 },
+  ];
+  let lastError: unknown = null;
 
-async function loadBridgeRecentMarketClose(ticker: string) {
-  const payload = await loadBridgeHistoricalTicker(ticker, "1d", 10, 20_000).catch(() => null);
-  const normalizedPayload = normalizeHistoricalPricePayload(payload);
-  const normalizedClose = latestClosePriceFromPayload(normalizedPayload);
-  if (normalizedClose != null && normalizedClose > 0) return normalizedClose;
-
-  const rows = getMarketPayloadRows(payload);
-  for (let index = rows.length - 1; index >= 0; index -= 1) {
-    const close = readMarketNumber(rows[index].close ?? rows[index].c ?? rows[index].price);
-    if (close != null && close > 0) return close < 1000 ? close * 1000 : close;
+  for (const attempt of attempts) {
+    try {
+      const payload = await loadBridgeHistoricalTicker(ticker, "1d", attempt.days, attempt.timeout);
+      if (hasCandleRows(payload)) return payload;
+    } catch (error) {
+      lastError = error;
+      console.warn(`[DataHub market] historical ${ticker} ${attempt.days}d unavailable:`, error);
+    }
   }
-  return null;
-}
 
-async function loadRecentMarketClose(ticker: string) {
-  const bridgeClose = await loadBridgeRecentMarketClose(ticker).catch(() => null);
-  return bridgeClose != null && bridgeClose > 0 ? bridgeClose : null;
+  throw lastError instanceof Error ? lastError : new Error(`historical ${ticker} unavailable`);
 }
 
 function hasCandleRows(payload: unknown) {
@@ -835,7 +832,7 @@ async function loadResearchWorkbench(topicKey: string) {
   const resolved = await assertValidTicker(ticker);
   const normalizedTicker = resolved.ticker;
 
-  const [taRaw, faRaw, seasonality, investor, marketSnapshot, activeSignal, news, aiCaches, art, historical, recentClose] = await Promise.all([
+  const [taRaw, faRaw, seasonality, investor, marketSnapshot, activeSignal, news, aiCaches, art, historical] = await Promise.all([
     fetchTAData(normalizedTicker),
     fetchFAData(normalizedTicker),
     loadSeasonalityForTicker(normalizedTicker),
@@ -849,8 +846,8 @@ async function loadResearchWorkbench(topicKey: string) {
       console.warn("[DataHub research] optional historical normalization unavailable:", error);
       return null;
     }),
-    loadRecentMarketClose(normalizedTicker).catch(() => null),
   ]);
+  const recentClose = latestClosePriceFromPayload(historical);
   const ta = normalizeTAWithHistorical(taRaw, historical, recentClose);
   const fa = hydrateFAFromRecentAnalysis(normalizedTicker, faRaw, aiCaches, ta);
 
@@ -2083,11 +2080,11 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     },
     resolve: async (_, __, params) => {
       const resolved = await assertValidTicker(params.ticker);
-      const [ta, historical, recentClose] = await Promise.all([
+      const [ta, historical] = await Promise.all([
         fetchTAData(resolved.ticker),
         loadHistoricalTicker(resolved.ticker).catch(() => null),
-        loadRecentMarketClose(resolved.ticker).catch(() => null),
       ]);
+      const recentClose = latestClosePriceFromPayload(historical);
       return normalizeTAWithHistorical(ta, historical, recentClose);
     },
   },
