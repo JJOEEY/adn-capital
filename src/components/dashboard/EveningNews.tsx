@@ -106,6 +106,15 @@ function parseNumber(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function normalizeForMatch(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function formatNetFlow(value: number): string {
   const abs = Math.abs(value).toLocaleString("vi-VN", { maximumFractionDigits: 1 });
   return `${value >= 0 ? "Mua ròng" : "Bán ròng"} ${abs} tỷ`;
@@ -125,11 +134,59 @@ function parseForeignNetFlow(text: string | undefined): string[] {
 
 function parseNamedNetFlow(text: string | undefined, label: string): string[] {
   if (!text) return [];
-  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = text.match(new RegExp(`${escaped}\\s*[:：]?\\s*([+-]?\\d[\\d.,]*)\\s*tỷ`, "i"));
+  const normalizedLabel = normalizeForMatch(label);
+  const segment =
+    text
+      .split("|")
+      .map((part) => part.trim())
+      .find((part) => normalizeForMatch(part).includes(normalizedLabel)) ?? "";
+  const match = segment.match(/([+-]?\d[\d.,]*)\s*tỷ/i) ?? segment.match(/([+-]?\d[\d.,]*)/);
   if (!match) return [];
   const value = parseNumber(match[1]);
   return value == null ? [] : [formatNetFlow(value)];
+}
+
+function isWeakOutlook(text: string | undefined): boolean {
+  const cleaned = String(text ?? "").replace(/\s+/g, " ").trim();
+  if (!cleaned) return true;
+  const normalized = normalizeForMatch(cleaned);
+  if (normalized === "chi so chinh") return true;
+  if (normalized.includes("bang dong tien chi tiet")) return true;
+  if (/^(vn-?index|vni)\s*[:：]/i.test(cleaned) && cleaned.length < 120) return true;
+  return cleaned.length < 60;
+}
+
+function buildNextSessionOutlook(data: EodData): string {
+  const direction =
+    data.change_pct > 0 ? "tích cực nhưng vẫn cần chọn lọc" : data.change_pct < 0 ? "thận trọng" : "trung tính";
+  const indexLine =
+    data.vnindex > 0
+      ? `VN-Index đang ở ${data.vnindex.toLocaleString("vi-VN", { maximumFractionDigits: 1 })} điểm (${data.change_pct >= 0 ? "+" : ""}${data.change_pct}%).`
+      : "";
+  const breadthLine =
+    data.breadth?.total > 0
+      ? `Độ rộng ghi nhận ${data.breadth.up} mã tăng, ${data.breadth.down} mã giảm và ${data.breadth.unchanged} mã đứng giá.`
+      : "";
+  const liquidityLine =
+    data.liquidity > 0
+      ? `Thanh khoản đạt ${Math.round(data.liquidity).toLocaleString("vi-VN")} tỷ đồng.`
+      : "";
+  const foreignLine = parseForeignNetFlow(data.foreign_flow)[0];
+  const propLine = parseNamedNetFlow(data.notable_trades, "Tự doanh")[0];
+  const individualLine = parseNamedNetFlow(data.notable_trades, "Cá nhân")[0];
+  const flowParts = [
+    foreignLine ? `khối ngoại ${foreignLine.toLowerCase()}` : "",
+    propLine ? `tự doanh ${propLine.toLowerCase()}` : "",
+    individualLine ? `cá nhân ${individualLine.toLowerCase()}` : "",
+  ].filter(Boolean);
+  const flowLine = flowParts.length > 0 ? `Dòng tiền ghi nhận ${flowParts.join(", ")}.` : "";
+  const actionLine =
+    data.change_pct < 0
+      ? "Phiên tới ưu tiên quản trị rủi ro, hạn chế mua đuổi và chỉ thăm dò ở các cổ phiếu giữ nền giá tốt kèm thanh khoản xác nhận."
+      : "Phiên tới có thể tiếp tục quan sát nhóm dẫn dắt, ưu tiên cổ phiếu vượt nền với thanh khoản cải thiện và điểm mua rõ ràng.";
+  return [indexLine, liquidityLine, breadthLine, flowLine, actionLine, `Trạng thái chung: ${direction}.`]
+    .filter(Boolean)
+    .join(" ");
 }
 
 function EveningBriefEmptyState() {
@@ -188,6 +245,7 @@ export function EveningNews() {
       (data.liquidity_by_exchange.UPCOM ?? 0) > 0)
       ? `Thanh khoản theo sàn: HoSE ${(data.liquidity_by_exchange.HOSE ?? 0).toLocaleString("vi-VN")} | HNX ${(data.liquidity_by_exchange.HNX ?? 0).toLocaleString("vi-VN")} | UPCoM ${(data.liquidity_by_exchange.UPCOM ?? 0).toLocaleString("vi-VN")} tỷ đồng.`
       : null;
+  const nextSessionOutlook = isWeakOutlook(data.outlook) ? buildNextSessionOutlook(data) : data.outlook;
 
   return (
     <div className="relative w-full min-w-0 rounded-2xl border shadow-[0_4px_24px_-12px_rgba(46,77,61,0.12)] overflow-hidden transform-gpu" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
@@ -468,7 +526,7 @@ export function EveningNews() {
         </div>
 
         {/* ═══ Khối 3: Kết luận / Nhận định phiên tới ═══ */}
-        {data.outlook && (
+        {nextSessionOutlook && (
           <div className="border rounded-xl p-4" style={{ background: TONE.indigo.bg, borderColor: TONE.indigo.border }}>
             <div className="flex items-center gap-1.5 mb-2">
               <Lightbulb className="w-4 h-4" style={{ color: TONE.indigo.text }} />
@@ -477,7 +535,7 @@ export function EveningNews() {
               </h4>
             </div>
             <p className="text-[15px] leading-relaxed italic" style={{ color: "var(--text-secondary)" }}>
-              &ldquo;{data.outlook}&rdquo;
+              &ldquo;{nextSessionOutlook}&rdquo;
             </p>
           </div>
         )}
