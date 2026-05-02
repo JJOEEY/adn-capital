@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback, memo, Suspense, Component, type ReactNode } from "react";
 import Link from "next/link";
-import { RefreshCw, Bot, Zap, ShieldAlert, Flame, TrendingUp } from "lucide-react";
+import { RefreshCw, Bot, Zap, ShieldAlert, Flame, TrendingUp, TrendingDown } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/Button";
 import { TickerTape, TickerTapeSkeleton } from "@/components/dashboard/TickerTape";
@@ -16,6 +16,7 @@ import { LockOverlay } from "@/components/ui/LockOverlay";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useTopic } from "@/hooks/useTopic";
 import { BRAND, PRODUCT_NAMES } from "@/lib/brand/productNames";
+import { formatPercent, formatPrice, getRsBgStyle, getRsColor, getRsLabel } from "@/lib/utils";
 
 interface MarketData {
   status: "GOOD" | "BAD" | "NEUTRAL";
@@ -71,10 +72,13 @@ type HistoricalPayload = {
 type RsRatingStock = {
   symbol?: string;
   ticker?: string;
+  name?: string;
+  sector?: string;
   rsRating?: number;
   rsScore?: number;
   volume?: number;
   price?: number;
+  change?: number;
   changePercent?: number;
 };
 
@@ -82,6 +86,16 @@ type RsRatingPayload = {
   stocks?: RsRatingStock[];
   data?: RsRatingStock[];
   items?: RsRatingStock[];
+};
+
+type PulseRankRow = {
+  ticker: string;
+  name: string;
+  sector: string;
+  price: number;
+  changePercent: number;
+  rs: number;
+  volume: number;
 };
 
 /** Dữ liệu "Đánh giá Đáy Thị Trường" từ Python API */
@@ -356,20 +370,24 @@ export default function DashboardPage() {
         100
       : data?.vnindex?.changePercent ?? 0;
 
-  const topRankRows = useMemo(
-    () =>
-      getRsRows(rsRatingTopic.data)
-        .map((row) => {
-          const ticker = String(row.symbol ?? row.ticker ?? "").toUpperCase();
-          const rs = readFiniteNumber(row.rsRating ?? row.rsScore) ?? 0;
-          const volume = readFiniteNumber(row.volume) ?? 0;
-          return ticker ? { ticker, rs, volume } : null;
-        })
-        .filter((row): row is { ticker: string; rs: number; volume: number } => Boolean(row))
-        .sort((a, b) => b.rs - a.rs || b.volume - a.volume)
-        .slice(0, 5),
-    [rsRatingTopic.data],
-  );
+  const topRankRows = useMemo(() => {
+    const rows = getRsRows(rsRatingTopic.data)
+      .map((row) => {
+        const ticker = String(row.symbol ?? row.ticker ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+        const rs = readFiniteNumber(row.rsRating ?? row.rsScore) ?? 0;
+        const volume = readFiniteNumber(row.volume) ?? 0;
+        const price = readFiniteNumber(row.price) ?? 0;
+        const changePercent = readFiniteNumber(row.changePercent) ?? 0;
+        const name = String(row.name ?? ticker).trim() || ticker;
+        const sector = String(row.sector ?? "Khác").trim() || "Khác";
+        return ticker && rs > 0 ? { ticker, rs, volume, price, changePercent, name, sector } : null;
+      })
+      .filter((row): row is PulseRankRow => Boolean(row));
+    const liquidRows = rows.filter((row) => row.volume > 0);
+    return (liquidRows.length > 0 ? liquidRows : rows)
+      .sort((a, b) => b.rs - a.rs || b.volume - a.volume || b.price - a.price)
+      .slice(0, 6);
+  }, [rsRatingTopic.data]);
 
   // Liquidity ưu tiên tổng HoSE + HNX + UPCOM khi đủ dữ liệu.
   const effectiveLiquidityTy = useMemo(() => {
@@ -746,53 +764,92 @@ const AIBrokerDecisionCard = memo(function AIBrokerDecisionCard({
   );
 });
 
-function formatCompactVolume(value: number) {
-  if (!Number.isFinite(value) || value <= 0) return "-";
-  if (value >= 1_000_000) return `${new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 1 }).format(value / 1_000_000)}tr`;
-  if (value >= 1_000) return `${new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(value / 1_000)}k`;
-  return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(value);
-}
-
-function ADNRankMiniCard({ rows }: { rows: Array<{ ticker: string; rs: number; volume: number }> }) {
+function ADNRankMiniCard({ rows }: { rows: PulseRankRow[] }) {
   return (
-    <div className="rounded-2xl border p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+    <div className="overflow-hidden rounded-2xl border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
       <div className="mb-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <TrendingUp className="h-4 w-4" style={{ color: "#16a34a" }} />
-          <span className="text-[12px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-            ADN Rank
-          </span>
+        <div className="flex items-center gap-2 px-4 pt-4">
+          <div className="rounded-xl border p-2" style={{ background: "rgba(22,163,74,0.10)", borderColor: "rgba(22,163,74,0.25)" }}>
+            <TrendingUp className="h-4 w-4" style={{ color: "#16a34a" }} />
+          </div>
+          <div>
+            <span className="block text-[12px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+              ADN Rank
+            </span>
+            <span className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
+              Sức mạnh tương đối & thanh khoản
+            </span>
+          </div>
         </div>
         <Link
           href="/rs-rating"
-          className="rounded-full border px-2.5 py-1 text-[11px] font-bold transition hover:-translate-y-0.5"
+          className="mr-4 mt-4 rounded-full border px-2.5 py-1 text-[11px] font-bold transition hover:-translate-y-0.5"
           style={{ color: "var(--primary)", borderColor: "var(--border)", background: "var(--surface-2)" }}
         >
           Xem thêm
         </Link>
       </div>
-      <div className="space-y-2">
+      <div className="overflow-x-auto">
         {rows.length > 0 ? (
-          rows.map((row, index) => (
-            <div
-              key={row.ticker}
-              className="grid grid-cols-[auto_1fr_auto] items-center gap-2 rounded-xl px-3 py-2"
-              style={{ background: "var(--surface-2)" }}
-            >
-              <span className="text-[11px] font-black" style={{ color: "var(--text-muted)" }}>
-                {index + 1}
-              </span>
-              <span className="font-black" style={{ color: "var(--text-primary)" }}>
-                {row.ticker}
-              </span>
-              <span className="text-right text-[12px] font-bold tabular-nums" style={{ color: "var(--text-secondary)" }}>
-                RS {Math.round(row.rs)} · {formatCompactVolume(row.volume)}
-              </span>
-            </div>
-          ))
+          <table className="w-full min-w-[560px]">
+            <thead>
+              <tr className="border-y text-[10px] uppercase tracking-wider" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
+                <th className="px-4 py-2 text-left font-bold">#</th>
+                <th className="px-3 py-2 text-left font-bold">Mã CK</th>
+                <th className="px-3 py-2 text-right font-bold">Giá</th>
+                <th className="px-3 py-2 text-right font-bold">%</th>
+                <th className="px-3 py-2 text-center font-bold">ADN Rank</th>
+                <th className="px-3 py-2 text-center font-bold">Nhãn</th>
+                <th className="px-4 py-2 text-left font-bold">Ngành</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, index) => {
+                const rs = Math.round(row.rs);
+                const positive = row.changePercent >= 0;
+                return (
+                  <tr key={row.ticker} className="border-b" style={{ borderColor: "var(--border)" }}>
+                    <td className="px-4 py-3 text-xs font-mono" style={{ color: "var(--text-muted)" }}>{index + 1}</td>
+                    <td className="px-3 py-3">
+                      <div className="font-mono text-sm font-black" style={{ color: "var(--text-primary)" }}>{row.ticker}</div>
+                      <div className="max-w-[120px] truncate text-[11px]" style={{ color: "var(--text-muted)" }}>{row.name}</div>
+                    </td>
+                    <td className="px-3 py-3 text-right font-mono text-sm font-bold" style={{ color: "var(--text-primary)" }}>
+                      {row.price > 0 ? formatPrice(row.price) : "-"}
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      <span className="inline-flex items-center justify-end gap-1 text-xs font-bold" style={{ color: positive ? "#16a34a" : "var(--danger)" }}>
+                        {positive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                        {formatPercent(row.changePercent)}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="rounded-lg border px-2 py-0.5 font-mono text-xs font-black" style={getRsBgStyle(rs)}>
+                          <span style={{ color: getRsColor(rs) }}>{rs}</span>
+                        </span>
+                        <span className="h-1 w-16 overflow-hidden rounded-full" style={{ background: "var(--surface-2)" }}>
+                          <span
+                            className="block h-full rounded-full"
+                            style={{ width: `${Math.max(0, Math.min(100, rs))}%`, background: getRsColor(rs) }}
+                          />
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-3 py-3 text-center">
+                      <span className="rounded-lg border px-2 py-1 text-[10px] font-black uppercase" style={{ ...getRsBgStyle(rs), color: getRsColor(rs) }}>
+                        {getRsLabel(rs)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs" style={{ color: "var(--text-muted)" }}>{row.sector}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         ) : (
-          <div className="rounded-xl px-3 py-4 text-sm" style={{ background: "var(--surface-2)", color: "var(--text-secondary)" }}>
-            Đang cập nhật 5 mã mạnh nhất.
+          <div className="mx-4 mb-4 rounded-xl px-3 py-4 text-sm" style={{ background: "var(--surface-2)", color: "var(--text-secondary)" }}>
+            Đang đồng bộ bảng xếp hạng sức mạnh.
           </div>
         )}
       </div>

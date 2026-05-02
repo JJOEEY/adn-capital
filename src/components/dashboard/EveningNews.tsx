@@ -72,8 +72,30 @@ function normalizeSubIndices(
     const name = row.name.trim();
     if (!name) return false;
     if (/^0+$/.test(name)) return false;
+    const compactName = name.replace(/[^A-Za-z0-9]/g, "");
+    if (compactName && /^0+$/.test(compactName)) return false;
     return Number.isFinite(row.change_pts) || Number.isFinite(row.change_pct);
   });
+}
+
+function normalizeFlowItems(items: string[] | undefined): string[] {
+  if (!Array.isArray(items)) return [];
+  const output: string[] = [];
+  const seen = new Set<string>();
+  for (const item of items) {
+    const cleaned = String(item ?? "").replace(/\s+/g, " ").trim();
+    if (!cleaned) continue;
+    const leadingToken = cleaned.split(/[:：\-–—(|]/)[0]?.trim() ?? "";
+    const alnumToken = leadingToken.replace(/[^A-Za-z0-9]/g, "");
+    if (alnumToken && /^0+$/.test(alnumToken)) continue;
+    if (/^0{3,}\b/.test(cleaned)) continue;
+    if (!/[A-Za-zÀ-ỹ]/u.test(cleaned) && /^[\d.,:+\-|/()%\s]+$/.test(cleaned)) continue;
+    const key = cleaned.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    output.push(cleaned);
+  }
+  return output;
 }
 
 function EveningBriefEmptyState() {
@@ -111,6 +133,15 @@ export function EveningNews() {
 
   const up = data.change_pct >= 0;
   const normalizedSubIndices = normalizeSubIndices(data.sub_indices);
+  const foreignTopBuy = normalizeFlowItems(data.foreign_top_buy);
+  const foreignTopSell = normalizeFlowItems(data.foreign_top_sell);
+  const propTradingTopBuy = normalizeFlowItems(data.prop_trading_top_buy);
+  const propTradingTopSell = normalizeFlowItems(data.prop_trading_top_sell);
+  const sectorGainers = normalizeFlowItems(data.sector_gainers);
+  const sectorLosers = normalizeFlowItems(data.sector_losers);
+  const buySignals = normalizeFlowItems(data.buy_signals);
+  const sellSignals = normalizeFlowItems(data.sell_signals);
+  const topBreakout = normalizeFlowItems(data.top_breakout);
   const exchangeLiquidityLine =
     data.liquidity_by_exchange &&
     ((data.liquidity_by_exchange.HOSE ?? 0) > 0 ||
@@ -241,22 +272,22 @@ export function EveningNews() {
             )}
 
             {/* Row: Khối ngoại */}
-            {(data.foreign_top_buy?.length || data.foreign_top_sell?.length) && (
+            {(foreignTopBuy.length || foreignTopSell.length) && (
               <GridRow label="Giao dịch Khối ngoại">
                 <div className="space-y-1.5">
-                  {data.foreign_top_buy && data.foreign_top_buy.length > 0 && (
+                  {foreignTopBuy.length > 0 && (
                     <TagLine
                       icon={<ArrowUpCircle className="w-3 h-3" style={{ color: TONE.emerald.text }} />}
                       label="Top mua ròng:"
-                      items={data.foreign_top_buy}
+                      items={foreignTopBuy}
                       tone="emerald"
                     />
                   )}
-                  {data.foreign_top_sell && data.foreign_top_sell.length > 0 && (
+                  {foreignTopSell.length > 0 && (
                     <TagLine
                       icon={<ArrowDownCircle className="w-3 h-3" style={{ color: TONE.red.text }} />}
                       label="Top bán ròng:"
-                      items={data.foreign_top_sell}
+                      items={foreignTopSell}
                       tone="red"
                     />
                   )}
@@ -265,22 +296,22 @@ export function EveningNews() {
             )}
 
             {/* Row: Giao dịch Tự doanh */}
-            {(data.prop_trading_top_buy?.length || data.prop_trading_top_sell?.length) && (
+            {(propTradingTopBuy.length || propTradingTopSell.length) && (
               <GridRow label="Giao dịch Tự doanh">
                 <div className="space-y-1.5">
-                  {data.prop_trading_top_buy && data.prop_trading_top_buy.length > 0 && (
+                  {propTradingTopBuy.length > 0 && (
                     <TagLine
                       icon={<ArrowUpCircle className="w-3 h-3" style={{ color: TONE.emerald.text }} />}
                       label="Top mua ròng:"
-                      items={data.prop_trading_top_buy}
+                      items={propTradingTopBuy}
                       tone="emerald"
                     />
                   )}
-                  {data.prop_trading_top_sell && data.prop_trading_top_sell.length > 0 && (
+                  {propTradingTopSell.length > 0 && (
                     <TagLine
                       icon={<ArrowDownCircle className="w-3 h-3" style={{ color: TONE.red.text }} />}
                       label="Top bán ròng:"
-                      items={data.prop_trading_top_sell}
+                      items={propTradingTopSell}
                       tone="red"
                     />
                   )}
@@ -289,22 +320,22 @@ export function EveningNews() {
             )}
 
             {/* Row: Nhóm ảnh hưởng */}
-            {(data.sector_gainers?.length || data.sector_losers?.length) && (
+            {(sectorGainers.length || sectorLosers.length) && (
               <GridRow label="Nhóm ảnh hưởng">
                 <div className="space-y-1.5">
-                  {data.sector_gainers && data.sector_gainers.length > 0 && (
+                  {sectorGainers.length > 0 && (
                     <TagLine
                       icon={<TrendingUp className="w-3 h-3" style={{ color: TONE.emerald.text }} />}
                       label="Tăng giá:"
-                      items={data.sector_gainers}
+                      items={sectorGainers}
                       tone="emerald"
                     />
                   )}
-                  {data.sector_losers && data.sector_losers.length > 0 && (
+                  {sectorLosers.length > 0 && (
                     <TagLine
                       icon={<TrendingDown className="w-3 h-3" style={{ color: TONE.red.text }} />}
                       label="Giảm giá:"
-                      items={data.sector_losers}
+                      items={sectorLosers}
                       tone="red"
                     />
                   )}
@@ -313,22 +344,22 @@ export function EveningNews() {
             )}
 
             {/* Row: Tín hiệu Mua/Bán chủ động */}
-            {(data.buy_signals?.length || data.sell_signals?.length) && (
+            {(buySignals.length || sellSignals.length) && (
               <GridRow label="Tín hiệu BU/SD">
                 <div className="space-y-1.5">
-                  {data.buy_signals && data.buy_signals.length > 0 && (
+                  {buySignals.length > 0 && (
                     <TagLine
                       icon={<Zap className="w-3 h-3" style={{ color: TONE.emerald.text }} />}
                       label="BU (KLGD lớn):"
-                      items={data.buy_signals}
+                      items={buySignals}
                       tone="emerald"
                     />
                   )}
-                  {data.sell_signals && data.sell_signals.length > 0 && (
+                  {sellSignals.length > 0 && (
                     <TagLine
                       icon={<Zap className="w-3 h-3" style={{ color: TONE.red.text }} />}
                       label="SD (KLGD lớn):"
-                      items={data.sell_signals}
+                      items={sellSignals}
                       tone="red"
                     />
                   )}
@@ -337,12 +368,12 @@ export function EveningNews() {
             )}
 
             {/* Row: Top đột phá */}
-            {data.top_breakout && data.top_breakout.length > 0 && (
+            {topBreakout.length > 0 && (
               <GridRow label="Top đột phá">
                 <TagLine
                   icon={<Rocket className="w-3 h-3" style={{ color: TONE.purple.text }} />}
                   label=""
-                  items={data.top_breakout}
+                  items={topBreakout}
                   tone="purple"
                 />
               </GridRow>

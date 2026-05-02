@@ -286,6 +286,15 @@ function isGenericCategoryLine(text: string): boolean {
   return normalized === "thi truong chung khoan" || normalized === "hang hoa nguyen lieu";
 }
 
+function isRiskOpportunityHeader(text: string): boolean {
+  const cleaned = stripMarkdownAndBullets(text);
+  const n = normalizeForCheck(cleaned);
+  const compact = n.replace(/[^a-z]/g, "");
+  if (compact === "ruirocohoi" || compact === "ruiro" || compact === "cohoi") return true;
+  if (!n.includes("rui ro") && !n.includes("co hoi")) return false;
+  return cleaned.length <= 48 && !/[:：]/.test(cleaned);
+}
+
 function isHeadingLike(text: string): boolean {
   const n = normalizeForCheck(stripMarkdownAndBullets(text));
   return (
@@ -293,8 +302,7 @@ function isHeadingLike(text: string): boolean {
     n.includes("thi truong viet nam") ||
     n.includes("vi mo trong nuoc") ||
     n.includes("quoc te") ||
-    n.includes("rui ro") ||
-    n.includes("co hoi") ||
+    isRiskOpportunityHeader(text) ||
     n.includes("ban tin sang")
   );
 }
@@ -333,9 +341,18 @@ function parseMorningSections(content: string): {
       section = "macro";
       continue;
     }
-    if (normalized.includes("rui ro") || normalized.includes("co hoi")) {
+    if (isRiskOpportunityHeader(cleanedLine)) {
       section = "risk";
       continue;
+    }
+    if (
+      normalized.startsWith("rui ro") ||
+      normalized.startsWith("co hoi") ||
+      normalized.startsWith("ap luc") ||
+      normalized.startsWith("than trong") ||
+      normalized.startsWith("luu y")
+    ) {
+      section = "risk";
     }
 
     if (!section) continue;
@@ -983,7 +1000,8 @@ function pickPreferredReportDateKey(reports: ReportRow[]): string | null {
 }
 
 function isMeaningfulLine(text: string): boolean {
-  return text.trim().length > 0 && !isUnavailableText(text);
+  const cleaned = sanitizeNewsLine(text);
+  return cleaned.trim().length > 0 && !isUnavailableText(cleaned) && !isBoilerplateLine(cleaned);
 }
 
 function firstMeaningfulList(lists: string[][]): string[] {
@@ -1583,7 +1601,7 @@ export async function GET(request: NextRequest) {
       })),
       vn_market: selected.vn_market.map((line) => sanitizeNewsLine(line)).filter(Boolean),
       macro: selected.macro.map((line) => sanitizeNewsLine(line)).filter(Boolean),
-      risk_opportunity: selected.risk_opportunity.map((line) => sanitizeNewsLine(line)).filter(Boolean),
+      risk_opportunity: selected.risk_opportunity.map((line) => sanitizeNewsLine(line)).filter(isMeaningfulLine),
     };
     if (storedOnly ? !hasDisplayableMorningPayload(selected) : !hasValidMorningPayload(selected)) {
       return NextResponse.json({ error: "Morning Brief chưa đủ dữ liệu hợp lệ để publish." }, { status: 503 });
