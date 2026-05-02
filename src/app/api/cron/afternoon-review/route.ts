@@ -135,15 +135,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Không có quyền truy cập" }, { status: 401 });
   }
 
-  const forceRun = req.nextUrl.searchParams.get("force") === "1";
-
   const startTime = Date.now();
   const today = getVNDateString();
 
   try {
     const snapshot = await getMarketSnapshot();
 
-    if (!hasRequiredCloseData(snapshot) && !forceRun) {
+    if (!hasRequiredCloseData(snapshot) && req.nextUrl.searchParams.get("blockOnMissing") === "1") {
       const duration = Date.now() - startTime;
       await logCron(
         "close_brief_15h",

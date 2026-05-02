@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
       fetchAllCafefNews(),
     ]);
 
-    if (!hasRequiredMorningData(snapshot)) {
+    if (!hasRequiredMorningData(snapshot) && req.nextUrl.searchParams.get("blockOnMissing") === "1") {
       const duration = Date.now() - startTime;
       await logCron(
         "morning_brief",

@@ -586,7 +586,11 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
     const [propData, snapshot] = await Promise.all([getPropTradingData(), getMarketSnapshot()]);
     saveMarketOverviewCache(snapshot.marketOverview);
 
-    if (!hasRequiredFull19Data(snapshot) && !forceRun) {
+    if (
+      !hasRequiredFull19Data(snapshot) &&
+      !forceRun &&
+      process.env.CRON_BLOCK_MISSING_BRIEF === "1"
+    ) {
       const duration = Date.now() - startTime;
       await logCron(
         "eod_full_19h",
