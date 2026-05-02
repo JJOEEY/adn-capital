@@ -22,6 +22,7 @@ type TelegramAgentBody = {
 };
 
 type OperatorIntent =
+  | "checklist"
   | "approval"
   | "news_crawl"
   | "radar_digest"
@@ -43,6 +44,12 @@ function classifyIntent(message: string): OperatorIntent {
   const normalized = normalizeVietnamese(message);
 
   if (!normalized || normalized === "/start" || normalized === "/help") return "help";
+  if (
+    /^(\/today|\/add|\/done|\/blocker|\/summary|\/tomorrow|\/reopen|\/remove)\b/.test(normalized) ||
+    /\b(checklist|viec hom nay|hom nay can lam gi|nhac toi|them viec|xong task|tong ket ngay|viec nao con ket|ke hoach mai)\b/.test(normalized)
+  ) {
+    return "checklist";
+  }
   if (/\b(duyet|approve|xac nhan|publish|dang bai)\b/.test(normalized)) return "approval";
   if (/\b(crawl|tin tuc|seo|bai viet|viet bai)\b/.test(normalized)) return "news_crawl";
   if (/\b(radar|tin hieu|co phieu moi|digest)\b/.test(normalized)) return "radar_digest";
@@ -61,8 +68,11 @@ function isAdminChat(chatId: string) {
     process.env.TELEGRAM_ADMIN_CHAT_ID,
     process.env.TELEGRAM_CHAT_ID,
     process.env.N8N_TELEGRAM_ADMIN_CHAT_ID,
+    process.env.N8N_TELEGRAM_CHECKLIST_CHAT_ID,
+    process.env.N8N_TELEGRAM_ALLOWED_CHAT_IDS,
   ]
     .map((value) => (value ?? "").trim())
+    .flatMap((value) => value.split(",").map((item) => item.trim()))
     .filter(Boolean);
   return allowed.length === 0 || allowed.includes(chatId);
 }
@@ -166,6 +176,19 @@ export async function POST(req: NextRequest) {
   try {
     if (intent === "help") {
       reply = buildHelpText();
+    } else if (intent === "checklist") {
+      const result = await callInternalApi<Record<string, unknown>>("/api/internal/n8n/checklist", {
+        method: "POST",
+        body: {
+          chatId,
+          userId: readString(parsed.data.userId),
+          username,
+          text,
+        },
+      });
+      reply = result.ok
+        ? readString(result.data?.text, "Checklist đã xử lý xong.")
+        : `Không xử lý được checklist lúc này. Mã lỗi: ${result.status}.`;
     } else if (intent === "system_check") {
       const result = await callInternalApi<Record<string, unknown>>("/api/internal/n8n/system-check?dryRun=1");
       const issues = Array.isArray(result.data?.issues) ? result.data.issues.length : 0;

@@ -67,7 +67,7 @@
     },
     {
       "parameters": {
-        "toolDescription": "ADN Capital Tool. Use this for intent routing, market/stock analysis, Radar digest, news crawl draft, scheduled notification checks, system health checks, and approval flow. Input must include chatId and text. This tool only calls ADN internal cache-first APIs.",
+        "toolDescription": "ADN Capital Tool. Use this for intent routing, daily checklist, market/stock analysis, Radar digest, news crawl draft, scheduled notification checks, system health checks, and approval flow. Input must include chatId and text. This tool only calls ADN internal cache-first APIs.",
         "method": "POST",
         "url": "={{$env.ADN_WEB_BASE_URL}}/api/internal/n8n/telegram-agent",
         "sendHeaders": true,

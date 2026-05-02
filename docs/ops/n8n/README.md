@@ -49,6 +49,7 @@ docker-compose --profile automation exec n8n n8n import:workflow --input=/workfl
 docker-compose --profile automation exec n8n n8n import:workflow --input=/workflows/adn-system-check.json
 docker-compose --profile automation exec n8n n8n import:workflow --input=/workflows/adn-telegram-operator-relay.json
 docker-compose --profile automation exec n8n n8n import:workflow --input=/workflows/adn-telegram-openclaw-agent.json
+docker-compose --profile automation exec n8n n8n import:workflow --input=/workflows/adn-telegram-daily-checklist.json
 ```
 
 Workflow được để `active=false` sau khi import. Kiểm tra biến môi trường và test từng HTTP node trước khi bật.
@@ -77,6 +78,7 @@ Không bật Telegram Trigger khi n8n chỉ bind `127.0.0.1:5678`, vì Telegram 
 - `GET /api/internal/n8n/radar-digest`
 - `GET /api/internal/n8n/system-check`
 - `POST /api/internal/n8n/telegram-agent`
+- `POST /api/internal/n8n/checklist`
 
 Tất cả endpoint yêu cầu `x-internal-key: $ADN_INTERNAL_API_KEY`.
 
@@ -92,3 +94,33 @@ Tất cả endpoint yêu cầu `x-internal-key: $ADN_INTERNAL_API_KEY`.
 - Workflow JSON không được chứa URL provider hoặc endpoint raw market data.
 - Log không được chứa token, mật khẩu, OTP hoặc API key.
 - Nếu API trả `401`, kiểm tra `INTERNAL_API_KEY` ở cả web và n8n rồi recreate container tương ứng.
+## Telegram Daily Checklist Bot
+
+Workflow `ADN - Telegram Daily Checklist Assistant` dùng cho group vận hành hằng ngày.
+
+Luồng:
+
+```text
+Telegram Trigger
+-> Normalize Telegram Update
+-> ADN Checklist Brain
+-> Telegram Response
+```
+
+Lệnh hỗ trợ:
+
+- `/today`: xem checklist hôm nay.
+- `/add kiểm tra bản tin sáng`: thêm việc.
+- `nhắc tôi 14h kiểm tra ADN Radar`: thêm việc có giờ.
+- `/done 2`: đánh dấu xong việc số 2.
+- `/blocker crawler tin tức đang lỗi`: ghi việc đang kẹt.
+- `/summary`: tổng kết ngày.
+
+Biến môi trường liên quan:
+
+```bash
+N8N_TELEGRAM_CHECKLIST_CHAT_ID=<telegram-group-chat-id>
+N8N_TELEGRAM_ALLOWED_CHAT_IDS=<chat-id-1,chat-id-2>
+```
+
+Nếu bot được thêm vào group, hãy tắt Privacy Mode bằng BotFather hoặc cấp quyền admin cho bot để workflow nhận được tin nhắn nhóm cần xử lý.
