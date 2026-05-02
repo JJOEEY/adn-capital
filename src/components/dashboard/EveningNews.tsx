@@ -152,7 +152,7 @@ function isWeakOutlook(text: string | undefined): boolean {
   const normalized = normalizeForMatch(cleaned);
   if (normalized === "chi so chinh") return true;
   if (normalized.includes("bang dong tien chi tiet")) return true;
-  if (/^(vn-?index|vni)\s*[:：]/i.test(cleaned) && cleaned.length < 120) return true;
+  if (/^(vn-?index|vni|vn30|hnx-?index|upcom-?index)\s*[:：]/i.test(cleaned) && cleaned.length < 120) return true;
   return cleaned.length < 60;
 }
 

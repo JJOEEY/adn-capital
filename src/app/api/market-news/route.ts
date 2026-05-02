@@ -992,7 +992,7 @@ function isInvalidEodOutlook(text: string): boolean {
   if (!cleaned) return true;
   const n = normalizeForCheck(cleaned);
   const compact = n.replace(/[^a-z0-9]/g, "");
-  if (/^(vn-?index|vni)\s*[:：]/i.test(cleaned) && cleaned.length < 120) {
+  if (/^(vn-?index|vni|vn30|hnx-?index|upcom-?index)\s*[:：]/i.test(cleaned) && cleaned.length < 120) {
     return true;
   }
   if (
