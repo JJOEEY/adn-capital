@@ -52,7 +52,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Không có quyền truy cập" }, { status: 401 });
   }
 
-  if (!isTradingDay()) {
+  const forceRun = req.nextUrl.searchParams.get("force") === "1";
+  if (!forceRun && !isTradingDay()) {
+    await logCron("morning_brief", "skipped", "Không phải ngày giao dịch", 0);
     return NextResponse.json({ message: "Không phải ngày giao dịch" });
   }
 
