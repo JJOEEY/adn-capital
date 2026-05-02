@@ -72,7 +72,7 @@ const menuSections: MenuSection[] = [
         label: PRODUCT_NAMES.brokerConnect,
         icon: Wallet,
       },
-      { href: "/khac/tin-tuc", label: "Tin tức", icon: Newspaper, badge: "BETA", roles: ["ADMIN", "WRITER"] },
+      { href: "/tin-tuc", label: "Tin tức", icon: Newspaper },
     ],
   },
   {

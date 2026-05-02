@@ -38,7 +38,7 @@ export function PublicSiteFooter() {
               { href: "/pricing", label: "Bảng giá" },
               { href: "/hdsd", label: "Hướng dẫn sử dụng" },
               { href: "/backtest", label: "ADN Lab" },
-              { href: "/khac/tin-tuc", label: "Tin tức" },
+              { href: "/tin-tuc", label: "Tin tức" },
             ]}
           />
           <FooterColumn

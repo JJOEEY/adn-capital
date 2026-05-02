@@ -29,6 +29,7 @@ const nav = [
   { label: "Sản phẩm", href: "/#products", dropdown: true },
   { label: "Ứng dụng", href: "/#ecosystem" },
   { label: "Bảng giá", href: "/pricing" },
+  { label: "Tin tức", href: "/tin-tuc" },
   { label: "Liên hệ", href: "/#contact" },
 ];
 
