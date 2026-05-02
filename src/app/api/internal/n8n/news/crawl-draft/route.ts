@@ -22,8 +22,10 @@ async function getAdminUserId() {
 }
 
 async function runCrawlerViaInternalApi(baseUrl: string) {
-  const secret = (process.env.INTERNAL_API_KEY ?? process.env.CRON_SECRET ?? "").trim();
-  if (!secret) {
+  const internalKey = (process.env.INTERNAL_API_KEY ?? "").trim();
+  const cronSecret = (process.env.CRON_SECRET ?? "").trim();
+  const fallbackSecret = internalKey || cronSecret;
+  if (!fallbackSecret) {
     throw new Error("INTERNAL_API_KEY/CRON_SECRET missing");
   }
 
@@ -31,7 +33,8 @@ async function runCrawlerViaInternalApi(baseUrl: string) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-internal-key": secret,
+      "x-internal-key": internalKey || fallbackSecret,
+      "x-cron-secret": cronSecret || fallbackSecret,
     },
     body: JSON.stringify({ approvalMode: "pending" }),
     cache: "no-store",
