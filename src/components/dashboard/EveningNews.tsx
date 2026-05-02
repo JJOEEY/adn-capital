@@ -153,6 +153,7 @@ function isWeakOutlook(text: string | undefined): boolean {
   if (normalized === "chi so chinh") return true;
   if (normalized.includes("bang dong tien chi tiet")) return true;
   if (/^(vn-?index|vni|vn30|hnx-?index|upcom-?index)\s*[:：]/i.test(cleaned) && cleaned.length < 120) return true;
+  if (/^(thanh\s*kho|do\s*rong|d[oòóọỏõôộ]\s*r[oộ]ng|dong\s*tien|d[oòóọỏõ]\s*ng\s*ti[eề]n|chi\s*so|ch[iỉ]\s*s[oố]|nhan\s*dinh|nh[aậ]n\s*d[iị]nh|adn\s*capital)/i.test(cleaned)) return true;
   return cleaned.length < 60;
 }
 

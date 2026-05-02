@@ -995,6 +995,9 @@ function isInvalidEodOutlook(text: string): boolean {
   if (/^(vn-?index|vni|vn30|hnx-?index|upcom-?index)\s*[:：]/i.test(cleaned) && cleaned.length < 120) {
     return true;
   }
+  if (/^(thanh\s*kho|do\s*rong|d[oòóọỏõôộ]\s*r[oộ]ng|dong\s*tien|d[oòóọỏõ]\s*ng\s*ti[eề]n|chi\s*so|ch[iỉ]\s*s[oố]|nhan\s*dinh|nh[aậ]n\s*d[iị]nh|adn\s*capital)/i.test(cleaned)) {
+    return true;
+  }
   if (
     compact === "chisochinh" ||
     compact === "bangdongtienchitiet" ||
