@@ -20,6 +20,7 @@ const TICKER_EXCLUSIONS = new Set([
   "GDP",
   "GIA",
   "GI",
+  "GIO",
   "GIU",
   "HANG",
   "HAY",
@@ -34,6 +35,7 @@ const TICKER_EXCLUSIONS = new Set([
   "MUA",
   "MOI",
   "NAM",
+  "NAO",
   "NAY",
   "NEN",
   "NGAY",
@@ -67,6 +69,9 @@ const TICKER_EXCLUSIONS = new Set([
   "XEM",
 ]);
 
+const EXPLICIT_TICKER_CONTEXT =
+  "(?:ma|co\\s+phieu|cp|ticker|phan\\s+tich|nhan\\s+dinh|danh\\s+gia|so\\s+sanh|xem|mua|ban|gom|can\\s+mua|nen\\s+mua|co\\s+nen\\s+mua|ban\\s+bot)";
+
 export function normalizeTickerText(value: string) {
   return value
     .normalize("NFD")
@@ -89,11 +94,25 @@ export function sanitizeTicker(value: string | null | undefined) {
 export function extractTickerCandidates(message: string, currentTicker?: string | null, limit = 5) {
   const candidates = new Set<string>();
 
-  const upper = normalizeTickerText(message).toUpperCase();
-  for (const match of upper.matchAll(/\b[A-Z][A-Z0-9._-]{1,11}\b/g)) {
-    const token = sanitizeTicker(match[0]);
-    if (!token) continue;
+  const addCandidate = (value: string | undefined) => {
+    const token = sanitizeTicker(value);
+    if (!token) return;
     candidates.add(token);
+  };
+
+  const trimmed = message.trim();
+  if (/^[A-Za-z]{2,5}$/.test(trimmed)) {
+    addCandidate(trimmed);
+  }
+
+  for (const match of message.matchAll(/\b[A-Z][A-Z0-9._-]{1,11}\b/g)) {
+    addCandidate(match[0]);
+  }
+
+  const normalized = normalizeTickerText(message);
+  const explicitPattern = new RegExp(`\\b${EXPLICIT_TICKER_CONTEXT}\\s*[:\\-]?\\s*([A-Za-z0-9._-]{2,12})\\b`, "gi");
+  for (const match of normalized.matchAll(explicitPattern)) {
+    addCandidate(match[1]);
   }
 
   const current = sanitizeTicker(currentTicker);

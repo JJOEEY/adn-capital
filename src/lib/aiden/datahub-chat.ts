@@ -16,6 +16,7 @@ type JsonRecord = Record<string, unknown>;
 const GENERAL_CHAT_TIMEOUT_MS = 12_000;
 const GENERAL_TOPIC_TIMEOUT_MS = 3_500;
 const TICKER_TOPIC_TIMEOUT_MS = 7_500;
+type AidenSurface = "aiden" | "stock";
 
 export type AidenDatahubChatResult = {
   message: string;
@@ -501,6 +502,69 @@ Người dùng hỏi:
 ${message}`;
 }
 
+function buildAidenConversationPrompt(message: string, marketContext: unknown, tickerContexts: unknown[]) {
+  return `INTERNAL_CONTEXT:
+${compactJson({
+  market: marketContext,
+  tickers: tickerContexts,
+})}
+
+OUTPUT_CONTRACT:
+- Trả lời như một trợ lý đầu tư dạng ChatGPT/Gemini: hiểu câu hỏi tự nhiên, trả lời trực tiếp, không bắt khách nhập lệnh từng dòng.
+- Không ép mọi câu trả lời vào 7 heading của ADN Stock. Chỉ dùng cấu trúc dài khi khách hỏi phân tích chi tiết một mã cụ thể.
+- Nếu khách hỏi "hôm nay mua mã gì", "top mã đáng chú ý", "lọc cổ phiếu", ưu tiên 3-5 mã có bối cảnh tốt nhất trong INTERNAL_CONTEXT, nêu điều kiện theo dõi và rủi ro. Không bịa mã ngoài ngữ cảnh.
+- Nếu khách hỏi một hoặc nhiều mã cụ thể, trả lời gọn theo các ý: nhận định nhanh, điểm đáng chú ý, rủi ro, hành động phù hợp. Dùng số liệu thực tế trong INTERNAL_CONTEXT khi có.
+- Nếu khách cần biểu đồ chi tiết, gợi ý mở ADN Stock để xem chart, vùng giá và AIDEN nhận định theo mã đó.
+- Không bao giờ nhắc DataHub, FiinQuant, bridge, provider, API, cache, backend hoặc tên nguồn nội bộ trong câu trả lời khách hàng.
+- Không được nói thiếu dữ liệu FA, chưa có dữ liệu FA, chưa đủ dữ liệu hoặc công bố nguồn lấy dữ liệu. Nếu thiếu một phần số liệu, trả lời thận trọng theo dữ kiện đang có.
+- Trả lời bằng Markdown GFM hợp lệ, tiếng Việt có dấu, ngắn gọn hơn ADN Stock, không xổ một báo cáo dài nếu khách chỉ hỏi nhanh.
+- Kết thúc bằng đúng disclaimer:
+⚠️ Phân tích tham khảo, không phải khuyến nghị đầu tư.
+— ADN Capital 🤖
+
+Người dùng hỏi:
+${message}`;
+}
+
+function buildTickerFallbackLine(context: unknown) {
+  const record = asRecord(context);
+  const ticker = String(record.ticker ?? "").trim().toUpperCase();
+  if (!ticker) return null;
+
+  const metrics = asRecord(record.analysisMetrics);
+  const price = roundedPrice(metrics.price);
+  const ma20 = roundedPrice(metrics.ma20);
+  const ma50 = roundedPrice(metrics.ma50);
+  const rsi = asNumber(metrics.rsi);
+  const recommendation = buildRecommendation(context);
+  const pieces = [
+    price != null ? `giá quanh ${formatPrice(price)}` : null,
+    ma20 != null ? `MA20 ${formatPrice(ma20)}` : null,
+    ma50 != null ? `MA50 ${formatPrice(ma50)}` : null,
+    rsi != null ? `RSI ${formatDecimal(rsi)}` : null,
+    recommendation?.entryPrice != null ? `vùng mua ${formatPrice(recommendation.entryPrice)}` : null,
+    recommendation?.target != null ? `mục tiêu ${formatPrice(recommendation.target)}` : null,
+    recommendation?.stoploss != null ? `cắt lỗ ${formatPrice(recommendation.stoploss)}` : null,
+  ].filter(Boolean);
+
+  return `- **${ticker}**: ${pieces.length > 0 ? pieces.join(", ") : "ưu tiên quan sát thêm phản ứng giá và thanh khoản trước khi hành động."}`;
+}
+
+function buildAidenConversationFallbackMessage(message: string, marketContext: unknown, tickerContexts: unknown[]) {
+  if (tickerContexts.length === 0) return buildGeneralFallbackMessage(message, marketContext);
+
+  const lines = tickerContexts
+    .map((context) => buildTickerFallbackLine(context))
+    .filter((item): item is string => Boolean(item))
+    .slice(0, 5);
+
+  return `AIDEN ghi nhận các mã anh/chị đang hỏi và ưu tiên cách tiếp cận thận trọng:
+
+${lines.length > 0 ? lines.join("\n") : "- Chưa nên mua đuổi. Ưu tiên chờ nền giá và dòng tiền xác nhận rõ hơn."}
+
+**Hành động phù hợp:** nếu cần xem vùng giá chi tiết theo từng mã, mở ADN Stock để đối chiếu chart, vùng mua, mục tiêu và cắt lỗ.`;
+}
+
 function signalLine(item: unknown) {
   const row = asRecord(item);
   const ticker = String(row.ticker ?? "").trim().toUpperCase();
@@ -655,14 +719,71 @@ function ensureValuationLine(answer: string, contexts: unknown[]) {
   return `${answer.trim()}\n\n**Định giá và Phân tích cơ bản**\n${valuationLine}`;
 }
 
+async function loadTickerContexts(tickers: string[], context: TopicContext) {
+  return Promise.all(
+    tickers.map(async (ticker) => {
+      const topics = [
+        `research:workbench:${ticker}`,
+        `vn:realtime:${ticker}:5m`,
+        `vn:historical:${ticker}:1d`,
+        `vn:depth:${ticker}`,
+      ];
+      const envelopes = await Promise.all(topics.map((topic) => readTopicSoft(topic, context, TICKER_TOPIC_TIMEOUT_MS)));
+      return { ticker, topics, envelopes, context: buildTickerContext(ticker, envelopes) };
+    }),
+  );
+}
+
+function collectFreshness(
+  items: Array<{ envelopes: Array<{ topic: string; envelope: TopicEnvelope }> }>,
+  extra: Array<{ topic: string; envelope: TopicEnvelope }> = [],
+) {
+  return Object.fromEntries([
+    ...extra.map(({ topic, envelope }) => [topic, envelope.freshness] as const),
+    ...items.flatMap((item) => item.envelopes.map(({ topic, envelope }) => [topic, envelope.freshness] as const)),
+  ]);
+}
+
 export async function runAidenDatahubChat(input: {
   message: string;
   currentTicker?: string | null;
   context?: TopicContext;
+  surface?: AidenSurface | string | null;
 }): Promise<AidenDatahubChatResult> {
   const message = input.message.trim();
   const context = input.context ?? {};
-  const tickers = await resolveTickers(message, input.currentTicker);
+  const surface: AidenSurface = input.surface === "stock" ? "stock" : "aiden";
+  const tickers = await resolveTickers(message, surface === "stock" ? input.currentTicker : null);
+
+  if (surface === "aiden") {
+    const general = await buildGeneralMarketContext(context);
+    const perTicker = tickers.length > 0 ? await loadTickerContexts(tickers, context) : [];
+    const tickerContexts = perTicker.map((item) => item.context);
+    let answer: string;
+    try {
+      answer = await withTimeout(
+        executeFlashOnlyAIRequest(
+          buildAidenConversationPrompt(message, general.context, tickerContexts),
+          buildSystemInstruction(),
+        ),
+        GENERAL_CHAT_TIMEOUT_MS,
+        "aiden-conversation",
+      );
+    } catch (error) {
+      console.warn("[AIDEN] Conversation Flash-only generation failed:", error);
+      answer = buildAidenConversationFallbackMessage(message, general.context, tickerContexts);
+    }
+
+    return {
+      message: ensureDisclaimer(sanitizeCustomerAnswer(answer.trim())),
+      ticker: tickers[0],
+      tickers,
+      recommendation: tickerContexts.length === 1 ? buildRecommendation(tickerContexts[0]) : null,
+      usedTopics: [...general.topics, ...perTicker.flatMap((item) => item.topics)],
+      model: MODEL_FLASH,
+      dataFreshness: collectFreshness(perTicker, general.envelopes),
+    };
+  }
 
   if (tickers.length === 0) {
     const general = await buildGeneralMarketContext(context);
@@ -694,24 +815,7 @@ export async function runAidenDatahubChat(input: {
     };
   }
 
-  const perTicker = await Promise.all(
-    tickers.map(async (ticker) => {
-      const topics = [
-        `research:workbench:${ticker}`,
-        `vn:realtime:${ticker}:5m`,
-        `vn:historical:${ticker}:1d`,
-        `vn:depth:${ticker}`,
-      ];
-      const envelopes = await Promise.all(topics.map((topic) => readTopicSoft(topic, context, TICKER_TOPIC_TIMEOUT_MS)));
-      return { ticker, topics, envelopes, context: buildTickerContext(ticker, envelopes) };
-    }),
-  );
-
-  const usedTopics = perTicker.flatMap((item) => item.topics);
-  const dataFreshness = Object.fromEntries(
-    perTicker.flatMap((item) => item.envelopes.map(({ topic, envelope }) => [topic, envelope.freshness])),
-  );
-
+  const perTicker = await loadTickerContexts(tickers, context);
   const contexts = perTicker.map((item) => item.context);
   let answer: string;
   try {
@@ -729,8 +833,8 @@ export async function runAidenDatahubChat(input: {
     ticker: tickers[0],
     tickers,
     recommendation: buildRecommendation(contexts[0]),
-    usedTopics,
+    usedTopics: perTicker.flatMap((item) => item.topics),
     model: MODEL_FLASH,
-    dataFreshness,
+    dataFreshness: collectFreshness(perTicker),
   };
 }

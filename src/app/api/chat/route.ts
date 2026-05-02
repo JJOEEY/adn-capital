@@ -1249,9 +1249,11 @@ export async function POST(req: NextRequest) {
       guestUsage?: number;
       currentTicker?: string | null;
       ticker?: string | null;
+      surface?: string | null;
     };
     const { message, guestUsage = 0 } = body;
     const currentTicker = body.currentTicker ?? body.ticker ?? null;
+    const surface = body.surface === "stock" ? "stock" : body.surface === "aiden" ? "aiden" : currentTicker ? "stock" : "aiden";
 
     if (!message?.trim()) {
       return NextResponse.json({ error: "Thiếu nội dung tin nhắn" }, { status: 400 });
@@ -1313,6 +1315,7 @@ export async function POST(req: NextRequest) {
     const aiden = await runAidenDatahubChat({
       message,
       currentTicker,
+      surface,
       context: { userId: aidenUserId, userRole: aidenDbUser?.role ?? null, systemRole: aidenDbUser?.systemRole ?? null },
     });
     const aidenUsageAfter = await consumeChatQuota(aidenQuota);

@@ -111,6 +111,7 @@ export default function TerminalPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             message: text,
+            surface: "aiden",
             guestUsage: isAuthenticated ? undefined : chatCount,
           }),
         });

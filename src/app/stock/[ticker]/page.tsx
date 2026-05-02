@@ -872,7 +872,7 @@ export default function StockDetailPage() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, currentTicker: requestTicker }),
+        body: JSON.stringify({ message: text, currentTicker: requestTicker, surface: "stock" }),
       });
       const data = (await res.json()) as AidenResponse;
       const botText = data.message || data.error || "AIDEN chưa có phản hồi phù hợp. Vui lòng thử lại.";

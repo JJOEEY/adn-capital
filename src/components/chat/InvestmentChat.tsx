@@ -413,7 +413,7 @@ export function InvestmentChat({
         const response = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: commandMap[cardId] }),
+          body: JSON.stringify({ message: commandMap[cardId], currentTicker: ticker, surface: "stock" }),
           signal: AbortSignal.timeout(45_000),
         });
         const data = (await response.json()) as { message?: string; error?: string };

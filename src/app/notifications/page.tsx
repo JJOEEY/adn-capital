@@ -566,7 +566,7 @@ function NotificationsContent() {
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: commandMap[cardId] }),
+          body: JSON.stringify({ message: commandMap[cardId], currentTicker: ticker, surface: "stock" }),
           signal: AbortSignal.timeout(45_000),
         });
         const data = (await res.json()) as { message?: string; error?: string };
@@ -676,6 +676,7 @@ function NotificationsContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: raw,
+          surface: "aiden",
           guestUsage: status === "authenticated" ? undefined : chatMessages.filter((m) => m.role === "assistant").length,
         }),
       });

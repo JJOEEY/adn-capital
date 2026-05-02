@@ -33,6 +33,7 @@ export function useChat() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: content,
+          surface: "aiden",
           guestUsage: isAuthenticated ? undefined : currentCount,
         }),
       });
