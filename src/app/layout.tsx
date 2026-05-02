@@ -38,6 +38,7 @@ const orbitron = localFont({
 });
 
 const defaultTitle = "ADN Capital | Hệ sinh thái AI đầu tư cho chứng khoán Việt Nam";
+const googleSiteVerification = process.env.GOOGLE_SITE_VERIFICATION;
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -88,6 +89,11 @@ export const metadata: Metadata = {
       "max-video-preview": -1,
     },
   },
+  verification: googleSiteVerification
+    ? {
+        google: googleSiteVerification,
+      }
+    : undefined,
   icons: {
     icon: [
       { url: "/brand/favicon.png", type: "image/png" },
