@@ -10,6 +10,7 @@ import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 import { ReversePointIndex, RPISkeleton } from "@/components/dashboard/ReversePointIndex";
 import { useSubscription } from "@/hooks/useSubscription";
 import { LockOverlay } from "@/components/ui/LockOverlay";
+import { getArticleFallbackImage } from "@/lib/articles/image-fallback";
 
 /* ── Types ── */
 interface Article {
@@ -82,12 +83,21 @@ function SentimentBadge({ sentiment }: { sentiment: string }) {
   );
 }
 
-function ImgWithFallback({ src, alt, fill, className, sizes, priority }: {
-  src: string; alt: string; fill?: boolean; className?: string; sizes?: string; priority?: boolean;
+function ImgWithFallback({ src, fallbackSrc, alt, fill, className, sizes, priority }: {
+  src: string; fallbackSrc?: string; alt: string; fill?: boolean; className?: string; sizes?: string; priority?: boolean;
 }) {
-  const [hasError, setHasError] = useState(false);
-  const handleError = useCallback(() => setHasError(true), []);
-  if (hasError || !src) {
+  const [failedSrcs, setFailedSrcs] = useState<string[]>([]);
+  const resolvedSrc =
+    src && !failedSrcs.includes(src)
+      ? src
+      : fallbackSrc && !failedSrcs.includes(fallbackSrc)
+        ? fallbackSrc
+        : "";
+  const handleError = useCallback(() => {
+    if (!resolvedSrc) return;
+    setFailedSrcs((current) => current.includes(resolvedSrc) ? current : [...current, resolvedSrc]);
+  }, [resolvedSrc]);
+  if (!resolvedSrc) {
     return (
       <div
         className={`${fill ? "absolute inset-0" : ""} flex items-center justify-center`}
@@ -100,7 +110,7 @@ function ImgWithFallback({ src, alt, fill, className, sizes, priority }: {
     );
   }
   return (
-    <Image src={src} alt={alt} fill={fill} className={className} sizes={sizes} priority={priority} onError={handleError} />
+    <Image src={resolvedSrc} alt={alt} fill={fill} className={className} sizes={sizes} priority={priority} onError={handleError} />
   );
 }
 
@@ -197,6 +207,7 @@ function ArticleRow({ article }: { article: Article }) {
       <div className="relative w-[100px] h-[72px] md:w-[120px] md:h-[80px] flex-shrink-0 rounded-xl overflow-hidden">
         <ImgWithFallback
           src={article.imageUrl ?? ""}
+          fallbackSrc={getArticleFallbackImage(article)}
           alt={article.title}
           fill
           className="object-cover transition-transform duration-300 group-hover:scale-105"
@@ -241,7 +252,7 @@ function HeroCard({ article }: { article: Article }) {
     <Link href={`/khac/tin-tuc/${article.slug}`} className="group block mb-4">
       <div className="relative aspect-[16/9] rounded-2xl overflow-hidden">
         <ImgWithFallback
-          src={article.imageUrl ?? ""} alt={article.title} fill
+          src={article.imageUrl ?? ""} fallbackSrc={getArticleFallbackImage(article)} alt={article.title} fill
           className="object-cover transition-transform duration-500 group-hover:scale-105"
           sizes="(max-width: 768px) 100vw, 65vw" priority
         />

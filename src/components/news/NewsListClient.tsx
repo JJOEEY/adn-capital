@@ -6,6 +6,7 @@ import Image from "next/image";
 import { FileText, Loader2, Settings } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
+import { getArticleFallbackImage } from "@/lib/articles/image-fallback";
 
 // ── Types from API ──
 interface Article {
@@ -34,6 +35,7 @@ interface Category {
 // ── Image with Fallback ── renders gradient placeholder on error
 function ImgWithFallback({
   src,
+  fallbackSrc,
   alt,
   fill,
   className,
@@ -41,16 +43,26 @@ function ImgWithFallback({
   priority,
 }: {
   src: string;
+  fallbackSrc?: string;
   alt: string;
   fill?: boolean;
   className?: string;
   sizes?: string;
   priority?: boolean;
 }) {
-  const [hasError, setHasError] = useState(false);
-  const handleError = useCallback(() => setHasError(true), []);
+  const [failedSrcs, setFailedSrcs] = useState<string[]>([]);
+  const resolvedSrc =
+    src && !failedSrcs.includes(src)
+      ? src
+      : fallbackSrc && !failedSrcs.includes(fallbackSrc)
+        ? fallbackSrc
+        : "";
+  const handleError = useCallback(() => {
+    if (!resolvedSrc) return;
+    setFailedSrcs((current) => current.includes(resolvedSrc) ? current : [...current, resolvedSrc]);
+  }, [resolvedSrc]);
 
-  if (hasError || !src) {
+  if (!resolvedSrc) {
     return (
       <div className={`${fill ? "absolute inset-0" : ""} bg-gradient-to-br from-slate-800 via-slate-700 to-slate-900 flex items-center justify-center`}>
         <span className="text-xs font-bold text-slate-500 tracking-wider uppercase">ADN Capital</span>
@@ -60,7 +72,7 @@ function ImgWithFallback({
 
   return (
     <Image
-      src={src}
+      src={resolvedSrc}
       alt={alt}
       fill={fill}
       className={className}
@@ -108,6 +120,7 @@ function HeroCard({ article }: { article: Article }) {
       <div className="relative aspect-[16/9] rounded-2xl overflow-hidden">
         <ImgWithFallback
           src={article.imageUrl ?? ""}
+          fallbackSrc={getArticleFallbackImage(article)}
           alt={article.title}
           fill
           className="object-cover transition-transform duration-500 group-hover:scale-105"
@@ -155,6 +168,7 @@ function ArticleRow({ article }: { article: Article }) {
       <div className="relative w-[100px] h-[72px] md:w-[120px] md:h-[80px] flex-shrink-0 rounded-xl overflow-hidden">
         <ImgWithFallback
           src={article.imageUrl ?? ""}
+          fallbackSrc={getArticleFallbackImage(article)}
           alt={article.title}
           fill
           className="object-cover transition-transform duration-300 group-hover:scale-105"

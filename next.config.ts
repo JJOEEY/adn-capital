@@ -12,6 +12,7 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "**.cafef.vn" },
       { protocol: "https", hostname: "**.mediacdn.vn" },
       { protocol: "https", hostname: "**.cafefcdn.com" },
+      { protocol: "https", hostname: "images.unsplash.com" },
     ],
   },
   async headers() {

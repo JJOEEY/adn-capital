@@ -9,6 +9,7 @@ import {
   isFinanceArticle,
   sanitizeArticleHtml,
 } from "@/lib/articles/server";
+import { getArticleFallbackImage } from "@/lib/articles/image-fallback";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -66,20 +67,79 @@ function generateSlug(title: string): string {
 }
 
 // ── Step 1: VnExpress RSS Crawler ──
-function extractImageFromHtml(html: string): string | null {
-  const candidates = [
-    html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i),
-    html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i),
-    html.match(/<meta[^>]+itemprop=["']image["'][^>]+content=["']([^"']+)["']/i),
-    html.match(/<img[^>]+src=["']([^"']+\.(?:jpg|jpeg|png|webp)(?:\?[^"']*)?)["']/i),
-  ];
+function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .trim();
+}
 
-  for (const match of candidates) {
-    const value = match?.[1]?.replace(/&amp;/g, "&").trim();
-    if (value && /^https?:\/\//i.test(value)) return value;
+function extractAttr(tag: string, attr: string): string | null {
+  const match = tag.match(new RegExp(`\\s${attr}\\s*=\\s*("([^"]*)"|'([^']*)'|([^\\s>]+))`, "i"));
+  return decodeHtmlEntities(match?.[2] ?? match?.[3] ?? match?.[4] ?? "").trim() || null;
+}
+
+function normalizeImageUrl(value: string | null | undefined, baseUrl?: string): string | null {
+  if (!value) return null;
+  const firstCandidate = decodeHtmlEntities(value)
+    .split(/\s*,\s*/)[0]
+    .trim()
+    .split(/\s+/)[0]
+    .trim();
+
+  if (!firstCandidate || /^(data:|blob:|javascript:)/i.test(firstCandidate)) return null;
+  if (/\.svg(?:\?|$)/i.test(firstCandidate)) return null;
+
+  try {
+    const resolved = firstCandidate.startsWith("//")
+      ? `https:${firstCandidate}`
+      : /^https?:\/\//i.test(firstCandidate)
+        ? firstCandidate
+        : baseUrl
+          ? new URL(firstCandidate, baseUrl).toString()
+          : "";
+
+    if (!resolved || !/^https?:\/\//i.test(resolved)) return null;
+    return resolved;
+  } catch {
+    return null;
+  }
+}
+
+function extractImageFromSnippet(snippet: string, baseUrl?: string): string | null {
+  const mediaTags = snippet.match(/<(?:media:content|media:thumbnail|enclosure)\b[^>]*>/gi) ?? [];
+  for (const tag of mediaTags) {
+    const type = extractAttr(tag, "type");
+    const url = normalizeImageUrl(extractAttr(tag, "url"), baseUrl);
+    if (url && (!type || /^image\//i.test(type) || /\.(?:jpg|jpeg|png|webp)(?:\?|$)/i.test(url))) return url;
   }
 
-  return null;
+  const metaTags = snippet.match(/<meta\b[^>]*>/gi) ?? [];
+  for (const tag of metaTags) {
+    const key = (extractAttr(tag, "property") || extractAttr(tag, "name") || extractAttr(tag, "itemprop") || "").toLowerCase();
+    if (!["og:image", "og:image:url", "twitter:image", "twitter:image:src", "image"].includes(key)) continue;
+    const url = normalizeImageUrl(extractAttr(tag, "content"), baseUrl);
+    if (url) return url;
+  }
+
+  const imageTags = snippet.match(/<(?:img|source)\b[^>]*>/gi) ?? [];
+  for (const tag of imageTags) {
+    const srcset = extractAttr(tag, "srcset") || extractAttr(tag, "data-srcset");
+    const src = extractAttr(tag, "src") || extractAttr(tag, "data-src") || extractAttr(tag, "data-original") || srcset;
+    const url = normalizeImageUrl(src, baseUrl);
+    if (url) return url;
+  }
+
+  const looseImage = snippet.match(/https?:\/\/[^\s"'<>]+?\.(?:jpg|jpeg|png|webp)(?:\?[^\s"'<>]*)?/i);
+  return normalizeImageUrl(looseImage?.[0], baseUrl);
+}
+
+function extractImageFromHtml(html: string, baseUrl?: string): string | null {
+  return extractImageFromSnippet(html, baseUrl);
 }
 
 function validateArticleQuality(item: CrawledItem, content: string, tags: string[]) {
@@ -142,21 +202,20 @@ async function crawlNews(options: { feedLimit?: number; itemsPerFeed?: number } 
         const title = extractTag(itemXml, "title");
         const link = extractTag(itemXml, "link");
         const description = extractTag(itemXml, "description");
-        // VnExpress uses <enclosure url="..."/> for images
-        const enclosureMatch = itemXml.match(/enclosure[^>]*url="([^"]+)"/i);
-        const imgMatch = enclosureMatch
-          || itemXml.match(/url="([^"]+\.(?:jpg|jpeg|png|webp)[^"]*)"/i)
-          || description.match(/src="([^"]+\.(?:jpg|jpeg|png|webp)[^"]*)"/i);
-
         if (title && link) {
+          const sourceUrl = link.trim();
+          const imageUrl =
+            extractImageFromSnippet(itemXml, sourceUrl) ||
+            extractImageFromSnippet(description, sourceUrl);
+
           items.push({
             originalTitle: cleanHtml(title),
             excerpt: cleanHtml(description).slice(0, 300),
             content: `<p>${cleanHtml(description)}</p>`,
-            sourceUrl: link.trim(),
+            sourceUrl,
             sourceName: feed.source,
             trustedSource: true,
-            imageUrl: imgMatch?.[1]?.replace(/&amp;/g, "&") ?? null,
+            imageUrl,
             pdfUrl: null,
             categorySlug: feed.category,
           });
@@ -200,7 +259,7 @@ async function aiRewrite(item: CrawledItem): Promise<AIRewriteResult> {
       });
       if (pageRes.ok) {
         const html = await pageRes.text();
-        item.imageUrl = item.imageUrl || extractImageFromHtml(html);
+        item.imageUrl = item.imageUrl || extractImageFromHtml(html, item.sourceUrl);
         // Extract main article body from VnExpress / CafeF / generic pages
         const bodyMatch =
           html.match(/<article[^>]*class="[^"]*fck_detail[^"]*"[^>]*>([\s\S]*?)<\/article>/i) ||
@@ -327,6 +386,17 @@ async function saveArticle(
 
   const sanitizedContent = sanitizeArticleHtml(aiResult.content || item.content);
   const seoTags = ensureSeoTags(aiResult.tags, item.sourceName);
+  if (!hasArticleImage(item.imageUrl)) {
+    item.imageUrl = getArticleFallbackImage({
+      title: aiResult.title || item.originalTitle,
+      excerpt: item.excerpt,
+      aiSummary: aiResult.aiSummary,
+      tags: seoTags,
+      sourceUrl: item.sourceUrl,
+      sourceName: item.sourceName,
+      categorySlug: item.categorySlug,
+    });
+  }
   const quality = validateArticleQuality(item, sanitizedContent, seoTags);
 
   if (!quality.ok) {

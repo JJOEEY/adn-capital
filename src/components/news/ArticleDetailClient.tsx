@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { FileText, Loader2 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { getArticleFallbackImage } from "@/lib/articles/image-fallback";
 
 // ── Types from API ──
 interface Article {
@@ -25,17 +26,24 @@ interface Article {
   category: { id: string; name: string; slug: string } | null;
 }
 
-const PLACEHOLDER_IMG = "/data/placeholder-news.svg";
-
 // Detail page: hide image entirely on error (no grey placeholder)
-function HeroImage({ src, alt }: { src: string; alt: string }) {
-  const [hasError, setHasError] = useState(false);
-  const handleError = useCallback(() => setHasError(true), []);
-  if (hasError || !src) return null;
+function HeroImage({ src, fallbackSrc, alt }: { src: string; fallbackSrc?: string; alt: string }) {
+  const [failedSrcs, setFailedSrcs] = useState<string[]>([]);
+  const resolvedSrc =
+    src && !failedSrcs.includes(src)
+      ? src
+      : fallbackSrc && !failedSrcs.includes(fallbackSrc)
+        ? fallbackSrc
+        : "";
+  const handleError = useCallback(() => {
+    if (!resolvedSrc) return;
+    setFailedSrcs((current) => current.includes(resolvedSrc) ? current : [...current, resolvedSrc]);
+  }, [resolvedSrc]);
+  if (!resolvedSrc) return null;
   return (
     <div className="relative aspect-[16/9] rounded-xl overflow-hidden mb-8">
       <Image
-        src={src}
+        src={resolvedSrc}
         alt={alt}
         fill
         className="object-cover"
@@ -48,19 +56,28 @@ function HeroImage({ src, alt }: { src: string; alt: string }) {
 }
 
 // Related card: fallback gradient on error
-function ImgWithFallback({ src, alt, fill, className, sizes, priority }: {
-  src: string; alt: string; fill?: boolean; className?: string; sizes?: string; priority?: boolean;
+function ImgWithFallback({ src, fallbackSrc, alt, fill, className, sizes, priority }: {
+  src: string; fallbackSrc?: string; alt: string; fill?: boolean; className?: string; sizes?: string; priority?: boolean;
 }) {
-  const [hasError, setHasError] = useState(false);
-  const handleError = useCallback(() => setHasError(true), []);
-  if (hasError || !src) {
+  const [failedSrcs, setFailedSrcs] = useState<string[]>([]);
+  const resolvedSrc =
+    src && !failedSrcs.includes(src)
+      ? src
+      : fallbackSrc && !failedSrcs.includes(fallbackSrc)
+        ? fallbackSrc
+        : "";
+  const handleError = useCallback(() => {
+    if (!resolvedSrc) return;
+    setFailedSrcs((current) => current.includes(resolvedSrc) ? current : [...current, resolvedSrc]);
+  }, [resolvedSrc]);
+  if (!resolvedSrc) {
     return (
       <div className={`${fill ? "absolute inset-0" : ""} bg-gradient-to-br from-slate-800 via-slate-700 to-slate-900 flex items-center justify-center`}>
         <span className="text-[11px] font-bold text-slate-500 uppercase">ADN</span>
       </div>
     );
   }
-  return <Image src={src} alt={alt} fill={fill} className={className} sizes={sizes} priority={priority} onError={handleError} />;
+  return <Image src={resolvedSrc} alt={alt} fill={fill} className={className} sizes={sizes} priority={priority} onError={handleError} />;
 }
 
 function timeAgo(dateStr: string): string {
@@ -97,6 +114,7 @@ function RelatedCard({ article }: { article: Article }) {
       <div className="relative w-24 h-16 flex-shrink-0 rounded-lg overflow-hidden">
         <ImgWithFallback
           src={article.imageUrl ?? ""}
+          fallbackSrc={getArticleFallbackImage(article)}
           alt={article.title}
           fill
           className="object-cover group-hover:scale-105 transition-transform duration-300"
@@ -260,7 +278,7 @@ export function ArticleDetailClient({ slug }: { slug: string }) {
       )}
 
       {/* ── Hero Image (hidden if broken) ── */}
-      <HeroImage src={article.imageUrl ?? ""} alt={article.title} />
+      <HeroImage src={article.imageUrl ?? ""} fallbackSrc={getArticleFallbackImage(article)} alt={article.title} />
 
       {/* ── Article Body ── */}
       <article
