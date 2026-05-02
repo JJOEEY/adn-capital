@@ -47,9 +47,27 @@ Các workflow mẫu nằm trong `docs/ops/n8n/workflows`.
 docker-compose --profile automation exec n8n n8n import:workflow --input=/workflows/adn-scheduled-notifications.json
 docker-compose --profile automation exec n8n n8n import:workflow --input=/workflows/adn-news-and-radar.json
 docker-compose --profile automation exec n8n n8n import:workflow --input=/workflows/adn-system-check.json
+docker-compose --profile automation exec n8n n8n import:workflow --input=/workflows/adn-telegram-operator-relay.json
+docker-compose --profile automation exec n8n n8n import:workflow --input=/workflows/adn-telegram-openclaw-agent.json
 ```
 
 Workflow được để `active=false` sau khi import. Kiểm tra biến môi trường và test từng HTTP node trước khi bật.
+
+## Telegram AI Operator
+
+Hai workflow Telegram được cung cấp:
+
+- `ADN - Telegram AI Operator Relay`: luồng vận hành an toàn. Telegram Trigger nhận tin, gọi `/api/internal/n8n/telegram-agent` để router ý định, sau đó trả lời Telegram.
+- `ADN - Telegram OpenClaw Style AI Agent`: luồng AI Agent đúng mô hình `Telegram Trigger -> AI Agent -> Simple Memory -> ADN Capital Tool -> Telegram response`.
+
+Điều kiện trước khi bật workflow Telegram:
+
+- n8n phải có public webhook HTTPS hợp lệ qua `N8N_WEBHOOK_URL`/`WEBHOOK_URL`.
+- n8n phải có credential `Telegram API` cho bot vận hành.
+- Workflow OpenClaw-style cần thêm credential `Google Gemini(PaLM) Api`.
+- Chỉ cho phép chat admin/nhóm vận hành. Endpoint `/api/internal/n8n/telegram-agent` sẽ chặn chat ID không nằm trong `TELEGRAM_ADMIN_CHAT_ID`, `TELEGRAM_CHAT_ID` hoặc `N8N_TELEGRAM_ADMIN_CHAT_ID`.
+
+Không bật Telegram Trigger khi n8n chỉ bind `127.0.0.1:5678`, vì Telegram không gọi được webhook nội bộ.
 
 ## API nội bộ đã cung cấp
 
@@ -58,6 +76,7 @@ Workflow được để `active=false` sau khi import. Kiểm tra biến môi tr
 - `POST /api/internal/n8n/news/publish-approved`
 - `GET /api/internal/n8n/radar-digest`
 - `GET /api/internal/n8n/system-check`
+- `POST /api/internal/n8n/telegram-agent`
 
 Tất cả endpoint yêu cầu `x-internal-key: $ADN_INTERNAL_API_KEY`.
 

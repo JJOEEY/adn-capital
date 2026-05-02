@@ -1,0 +1,86 @@
+{
+  "name": "ADN - Telegram AI Operator Relay",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "updates": ["message", "callback_query"]
+      },
+      "id": "telegram-trigger",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 260]
+    },
+    {
+      "parameters": {
+        "jsCode": "const update = $json;\nconst callback = update.callback_query || null;\nconst message = callback?.message || update.message || update.edited_message || {};\nconst from = callback?.from || message.from || {};\nconst chat = message.chat || {};\nconst text = callback?.data || message.text || message.caption || '';\nreturn [{ json: {\n  updateId: update.update_id,\n  chatId: String(chat.id || ''),\n  userId: String(from.id || ''),\n  username: from.username || '',\n  text,\n  callbackQueryId: callback?.id || null,\n  isCallback: Boolean(callback)\n}}];"
+      },
+      "id": "normalize-update",
+      "name": "Normalize Telegram Update",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [260, 260]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.ADN_WEB_BASE_URL}}/api/internal/n8n/telegram-agent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-internal-key", "value": "={{$env.ADN_INTERNAL_API_KEY}}" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}"
+      },
+      "id": "operator-brain",
+      "name": "ADN Operator Brain",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [540, 260]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage'}}",
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chatId, text: $json.text, disable_web_page_preview: $json.disableWebPagePreview !== false }) }}"
+      },
+      "id": "telegram-response",
+      "name": "Telegram Response",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [820, 260]
+    },
+    {
+      "parameters": {
+        "content": "Flow an toàn V1: Telegram Trigger -> normalize -> ADN Operator Brain -> Telegram response. ADN Operator Brain tự router ý định, gọi API nội bộ cache-first và tạo approval text. Không gọi nguồn dữ liệu thô.",
+        "height": 180,
+        "width": 360
+      },
+      "id": "safety-note",
+      "name": "Safety Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [520, 20]
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [[{ "node": "Normalize Telegram Update", "type": "main", "index": 0 }]]
+    },
+    "Normalize Telegram Update": {
+      "main": [[{ "node": "ADN Operator Brain", "type": "main", "index": 0 }]]
+    },
+    "ADN Operator Brain": {
+      "main": [[{ "node": "Telegram Response", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "timezone": "Asia/Ho_Chi_Minh"
+  }
+}

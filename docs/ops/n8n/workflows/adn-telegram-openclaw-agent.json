@@ -1,0 +1,140 @@
+{
+  "name": "ADN - Telegram OpenClaw Style AI Agent",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "updates": ["message", "callback_query"]
+      },
+      "id": "telegram-trigger",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 260]
+    },
+    {
+      "parameters": {
+        "jsCode": "const update = $json;\nconst callback = update.callback_query || null;\nconst message = callback?.message || update.message || update.edited_message || {};\nconst from = callback?.from || message.from || {};\nconst chat = message.chat || {};\nconst text = callback?.data || message.text || message.caption || '';\nreturn [{ json: {\n  sessionId: String(chat.id || from.id || 'telegram'),\n  chatId: String(chat.id || ''),\n  userId: String(from.id || ''),\n  username: from.username || '',\n  text,\n  input: text,\n  callbackQueryId: callback?.id || null,\n  isCallback: Boolean(callback)\n}}];"
+      },
+      "id": "normalize-update",
+      "name": "Normalize Telegram Update",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [260, 260]
+    },
+    {
+      "parameters": {
+        "agent": "toolsAgent",
+        "promptType": "define",
+        "text": "={{$json.input}}",
+        "options": {
+          "systemMessage": "Bạn là não điều phối vận hành của ADN Capital trên Telegram. Luôn trả lời bằng tiếng Việt rõ ràng, chuyên nghiệp, ngắn gọn. Không công khai tên nguồn nội bộ, secret, token hoặc chi tiết hạ tầng. Với dữ liệu thị trường, tín hiệu, bản tin, tin tức, kiểm tra hệ thống hoặc hành động cần duyệt, bắt buộc dùng ADN Capital Tool. Không tự tạo tín hiệu đầu tư. Các thao tác public nội dung hoặc gửi hàng loạt phải đi qua approval flow."
+        }
+      },
+      "id": "ai-agent",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [620, 260]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash",
+        "options": {
+          "temperature": 0.35,
+          "maxOutputTokens": 1200,
+          "topP": 0.9,
+          "topK": 32
+        }
+      },
+      "id": "gemini-chat-model",
+      "name": "Google Gemini Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [440, 520]
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{$json.sessionId}}",
+        "contextWindowLength": 8
+      },
+      "id": "simple-memory",
+      "name": "Simple Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [620, 520]
+    },
+    {
+      "parameters": {
+        "toolDescription": "ADN Capital Tool. Use this for intent routing, market/stock analysis, Radar digest, news crawl draft, scheduled notification checks, system health checks, and approval flow. Input must include chatId and text. This tool only calls ADN internal cache-first APIs.",
+        "method": "POST",
+        "url": "={{$env.ADN_WEB_BASE_URL}}/api/internal/n8n/telegram-agent",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "parametersHeaders": {
+          "values": [
+            { "name": "x-internal-key", "value": "={{$env.ADN_INTERNAL_API_KEY}}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{ \"chatId\": \"{chatId}\", \"text\": \"{query}\" }"
+      },
+      "id": "adn-capital-tool",
+      "name": "ADN Capital Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [820, 520]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage'}}",
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $('Normalize Telegram Update').item.json.chatId, text: $json.output || $json.text || 'AIDEN chưa có phản hồi.', disable_web_page_preview: true }) }}"
+      },
+      "id": "telegram-response",
+      "name": "Telegram Response",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [940, 260]
+    },
+    {
+      "parameters": {
+        "content": "Workflow OpenClaw-style: Telegram Trigger -> AI Agent -> Simple Memory -> ADN Capital Tool -> Telegram Response. Chỉ bật khi đã cấu hình Telegram credential, Google Gemini credential và public webhook URL cho n8n.",
+        "height": 200,
+        "width": 390
+      },
+      "id": "activation-note",
+      "name": "Activation Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [260, 20]
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [[{ "node": "Normalize Telegram Update", "type": "main", "index": 0 }]]
+    },
+    "Normalize Telegram Update": {
+      "main": [[{ "node": "AI Agent", "type": "main", "index": 0 }]]
+    },
+    "AI Agent": {
+      "main": [[{ "node": "Telegram Response", "type": "main", "index": 0 }]]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [[{ "node": "AI Agent", "type": "ai_languageModel", "index": 0 }]]
+    },
+    "Simple Memory": {
+      "ai_memory": [[{ "node": "AI Agent", "type": "ai_memory", "index": 0 }]]
+    },
+    "ADN Capital Tool": {
+      "ai_tool": [[{ "node": "AI Agent", "type": "ai_tool", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "timezone": "Asia/Ho_Chi_Minh"
+  }
+}

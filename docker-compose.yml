@@ -103,6 +103,8 @@ services:
       - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD:-}
       - ADN_WEB_BASE_URL=${N8N_ADN_WEB_BASE_URL:-http://web:3000}
       - ADN_INTERNAL_API_KEY=${INTERNAL_API_KEY:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - WEBHOOK_URL=${N8N_WEBHOOK_URL:-}
     volumes:
       - ./app_data/n8n:/home/node/.n8n
       - ./docs/ops/n8n/workflows:/workflows:ro
