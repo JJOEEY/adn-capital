@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
   invalidateTopics({ tags: ["news", "public"] });
 
   const baseUrl = getPublicBaseUrl();
-  const articleUrl = `${baseUrl}/khac/tin-tuc/${article.slug}`;
+  const articleUrl = `${baseUrl}/tin-tuc/${article.slug}`;
   const title = "Bài viết đã xuất bản";
   const summary = article.title;
   const telegram = parsed.data.sendTelegram === false

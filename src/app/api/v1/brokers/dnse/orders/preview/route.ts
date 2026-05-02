@@ -158,7 +158,7 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json(
       {
-        error: message,
+        error: "Không kiểm tra được lệnh. Vui lòng đăng nhập lại tài khoản liên kết rồi thử lại.",
         deterministic: true,
       },
       { status: 500 },

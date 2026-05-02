@@ -108,7 +108,7 @@ function SentimentBadge({ sentiment }: { sentiment: string }) {
 function RelatedCard({ article }: { article: Article }) {
   return (
     <Link
-      href={`/khac/tin-tuc/${article.slug}`}
+      href={`/tin-tuc/${article.slug}`}
       className="group flex gap-3 py-3 border-b border-white/5 last:border-b-0"
     >
       <div className="relative w-24 h-16 flex-shrink-0 rounded-lg overflow-hidden">
@@ -169,7 +169,7 @@ export function ArticleDetailClient({ slug }: { slug: string }) {
       <div className="max-w-3xl mx-auto px-4 py-20 text-center">
         <h1 className="text-2xl font-bold text-white mb-4">Không tìm thấy bài viết</h1>
         <p className="text-slate-400 mb-6">Bài viết bạn tìm kiếm không tồn tại hoặc đã bị xóa.</p>
-        <Link href="/khac/tin-tuc" className="text-blue-400 hover:underline">
+        <Link href="/tin-tuc" className="text-blue-400 hover:underline">
           ← Quay lại trang tin tức
         </Link>
       </div>
@@ -189,13 +189,42 @@ export function ArticleDetailClient({ slug }: { slug: string }) {
         minute: "2-digit",
       })
     : "";
+  const baseUrl = typeof window !== "undefined" ? window.location.origin : "https://adncapital.com.vn";
+  const imageUrl = article.imageUrl || getArticleFallbackImage(article);
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "NewsArticle",
+    headline: article.title,
+    description: article.excerpt || article.aiSummary || "",
+    image: imageUrl ? [imageUrl] : undefined,
+    datePublished: article.publishedAt,
+    dateModified: article.publishedAt,
+    author: {
+      "@type": "Organization",
+      name: authorName,
+    },
+    publisher: {
+      "@type": "Organization",
+      name: "ADN Capital",
+      logo: {
+        "@type": "ImageObject",
+        url: `${baseUrl}/logo.png`,
+      },
+    },
+    mainEntityOfPage: `${baseUrl}/tin-tuc/${article.slug}`,
+    keywords: article.tags.join(", "),
+  };
 
   return (
     <MainLayout>
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+    />
     <div className="max-w-4xl mx-auto px-4 py-8">
       {/* ── Breadcrumb ── */}
       <nav className="flex items-center gap-2 text-sm text-slate-500 mb-6">
-        <Link href="/khac/tin-tuc" className="hover:text-blue-400 transition-colors">
+        <Link href="/tin-tuc" className="hover:text-blue-400 transition-colors">
           Tin tức
         </Link>
         <span>/</span>
@@ -314,7 +343,7 @@ export function ArticleDetailClient({ slug }: { slug: string }) {
       {/* ── Back Link ── */}
       <div className="mt-8 text-center">
         <Link
-          href="/khac/tin-tuc"
+          href="/tin-tuc"
           className="inline-flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300 transition-colors"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

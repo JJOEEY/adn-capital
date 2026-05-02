@@ -6,6 +6,7 @@ export type ObservabilityDomain =
   | "workflow"
   | "provider"
   | "broker"
+  | "aiden"
   | "health";
 
 type JsonValue =

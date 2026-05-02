@@ -68,14 +68,14 @@ export async function POST(req: NextRequest) {
         path: req.nextUrl.pathname,
       },
     });
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại." }, { status: 401 });
   }
 
   const flags = getDnseExecutionFlags();
   const body = parseBody(await req.json().catch(() => null));
   const previewId = body.previewId ?? "";
   if (!previewId) {
-    return NextResponse.json({ error: "previewId is required" }, { status: 400 });
+    return NextResponse.json({ error: "Vui lòng kiểm tra lệnh trước khi xác nhận." }, { status: 400 });
   }
 
   const ticket = getPreviewTicket(previewId, userContext.user.id);

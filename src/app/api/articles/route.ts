@@ -7,6 +7,7 @@ import {
   normalizeArticleTags,
   sanitizeArticleHtml,
 } from "@/lib/articles/server";
+import { getArticleFallbackImage } from "@/lib/articles/image-fallback";
 
 export const dynamic = "force-dynamic";
 
@@ -60,10 +61,14 @@ export async function GET(request: NextRequest) {
     ]);
 
     return NextResponse.json({
-      articles: articles.map((article) => ({
-        ...article,
-        tags: safeParseTags(article.tags),
-      })),
+      articles: articles.map((article) => {
+        const tags = safeParseTags(article.tags);
+        return {
+          ...article,
+          tags,
+          imageUrl: article.imageUrl || getArticleFallbackImage({ ...article, tags }),
+        };
+      }),
       total,
       page,
       totalPages: Math.ceil(total / limit),

@@ -191,7 +191,10 @@ export async function POST(req: NextRequest) {
         : `Không xử lý được checklist lúc này. Mã lỗi: ${result.status}.`;
     } else if (intent === "system_check") {
       const result = await callInternalApi<Record<string, unknown>>("/api/internal/n8n/system-check?dryRun=1");
-      const issues = Array.isArray(result.data?.issues) ? result.data.issues.length : 0;
+      const issues = Array.isArray(result.data?.issues)
+        ? result.data.issues.length
+        : (Array.isArray(result.data?.errors) ? result.data.errors.length : 0) +
+          (Array.isArray(result.data?.warnings) ? result.data.warnings.length : 0);
       reply = result.ok
         ? `Kiểm tra hệ thống xong. Số cảnh báo hiện tại: ${issues}.\n\nNếu cần gửi cảnh báo thật vào Telegram vận hành, nhắn: gửi health check.`
         : `Không kiểm tra được hệ thống lúc này. Mã lỗi: ${result.status}.`;
@@ -218,7 +221,8 @@ export async function POST(req: NextRequest) {
         method: "POST",
         body: { sendTelegram: false },
       });
-      const created = Number(result.data?.created ?? result.data?.saved ?? 0);
+      const articles = Array.isArray(result.data?.articles) ? result.data.articles : [];
+      const created = Number(result.data?.created ?? result.data?.saved ?? articles.length);
       reply = result.ok
         ? `Đã chạy crawl tin SEO và lưu bài ở trạng thái chờ duyệt.\nSố bài mới: ${Number.isFinite(created) ? created : 0}.\n\nDuyệt bài: ${getPublicBaseUrl()}/khac/tin-tuc/admin`
         : `Không chạy được crawl tin lúc này. Mã lỗi: ${result.status}.`;

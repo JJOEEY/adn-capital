@@ -1,6 +1,7 @@
 import { getTopicEnvelope } from "@/lib/datahub/core";
 import type { TopicContext, TopicEnvelope } from "@/lib/datahub/types";
 import { executeFlashOnlyAIRequest, MODEL_FLASH } from "@/lib/gemini";
+import { emitObservabilityEvent, type ObservabilityMeta } from "@/lib/observability";
 import {
   applyMarketPriceScale,
   chooseMarketDisplayPrice,
@@ -437,6 +438,13 @@ function stripSourceFraming(text: string) {
     );
 }
 
+function stripInternalSourceMentions(text: string) {
+  return text
+    .replace(/[^.!?\n]*(?:DataHub|FiinQuantX?|bridge|provider|backend|cache|API)[^.!?\n]*[.!?]?/giu, "")
+    .replace(/[^.!?\n]*(?:nguồn|nguon|nội bộ|noi bo|hệ thống dữ liệu|he thong du lieu)[^.!?\n]*(?:dữ liệu|du lieu|thông tin|thong tin)[^.!?\n]*[.!?]?/giu, "")
+    .replace(/(?:dựa trên|dua tren|theo|với|voi)\s+(?:các\s+)?(?:dữ liệu|du lieu|thông tin|thong tin)\s+(?:đã kiểm chứng|da kiem chung|hệ thống|he thong|nội bộ|noi bo)[,.]?\s*/giu, "");
+}
+
 function buildSystemInstruction() {
   return `Bạn là AIDEN của ADN Capital, trợ lý phân tích cổ phiếu Việt Nam.
 
@@ -781,7 +789,7 @@ Anh/chị gửi lại câu hỏi sau ít phút. AIDEN sẽ ưu tiên số liệu
 }
 
 function sanitizeCustomerAnswer(text: string) {
-  return stripSourceFraming(text)
+  return stripInternalSourceMentions(stripSourceFraming(text))
     .replace(/Dựa trên dữ liệu phân tích nội bộ(?: đã được chuẩn hóa)?[,.]?\s*/gi, "")
     .replace(/dựa trên dữ liệu đã kiểm chứng[,.]?\s*/gi, "")
     .replace(/\bDataHub\b/gi, "")
@@ -886,6 +894,19 @@ function collectFreshness(
   ]);
 }
 
+function emitAidenFallback(event: string, error: unknown, meta: ObservabilityMeta = {}) {
+  const message = error instanceof Error ? error.message : String(error);
+  emitObservabilityEvent({
+    domain: "aiden",
+    event,
+    level: "warn",
+    meta: {
+      ...meta,
+      error: message,
+    },
+  });
+}
+
 export async function runAidenDatahubChat(input: {
   message: string;
   currentTicker?: string | null;
@@ -918,6 +939,11 @@ export async function runAidenDatahubChat(input: {
         );
       } catch (error) {
         console.warn("[AIDEN] Conversation Flash-only generation failed:", error);
+        emitAidenFallback("conversation_fallback", error, {
+          surface,
+          tickerCount: tickerContexts.length,
+          timeoutMs: GENERAL_CHAT_TIMEOUT_MS,
+        });
         answer = buildAidenConversationFallbackMessage(message, general.context, tickerContexts);
       }
       if (tickerContexts.length > 0) {
@@ -953,6 +979,10 @@ export async function runAidenDatahubChat(input: {
       );
     } catch (error) {
       console.warn("[AIDEN] General Flash-only generation failed:", error);
+      emitAidenFallback("general_fallback", error, {
+        surface,
+        timeoutMs: GENERAL_CHAT_TIMEOUT_MS,
+      });
       answer = buildGeneralFallbackMessage(message, general.context);
     }
 
@@ -970,12 +1000,21 @@ export async function runAidenDatahubChat(input: {
   const contexts = perTicker.map((item) => item.context);
   let answer: string;
   try {
-    answer = await executeFlashOnlyAIRequest(
-      buildPrompt(message, contexts),
-      buildSystemInstruction(),
+    answer = await withTimeout(
+      executeFlashOnlyAIRequest(
+        buildPrompt(message, contexts),
+        buildSystemInstruction(),
+      ),
+      GENERAL_CHAT_TIMEOUT_MS,
+      "stock-aiden",
     );
   } catch (error) {
     console.warn("[AIDEN] Flash-only generation failed:", error);
+    emitAidenFallback("stock_fallback", error, {
+      surface,
+      tickerCount: contexts.length,
+      timeoutMs: GENERAL_CHAT_TIMEOUT_MS,
+    });
     answer = buildFlashUnavailableMessage(contexts);
   }
 

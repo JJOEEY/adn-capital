@@ -518,7 +518,7 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
 function HeroCard({ article }: { article: Article }) {
   const tags = getArticleTags(article);
   return (
-    <Link href={`/khac/tin-tuc/${article.slug}`} className="group block">
+    <Link href={`/tin-tuc/${article.slug}`} className="group block">
       <article className="relative min-h-[360px] overflow-hidden rounded-2xl border" style={{ borderColor: "var(--border)" }}>
         <ImgWithFallback
           src={article.imageUrl ?? ""}
@@ -574,7 +574,7 @@ function TopStories({ articles }: { articles: Article[] }) {
       </div>
       <div className="space-y-3">
         {articles.slice(0, 5).map((article, index) => (
-          <Link key={article.id} href={`/khac/tin-tuc/${article.slug}`} className="group flex gap-3">
+          <Link key={article.id} href={`/tin-tuc/${article.slug}`} className="group flex gap-3">
             <span
               className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black"
               style={{ background: "var(--surface-2)", color: index === 0 ? "var(--accent-fa)" : "var(--text-secondary)" }}
@@ -600,7 +600,7 @@ function ArticleRow({ article }: { article: Article }) {
   const tags = getArticleTags(article);
   return (
     <Link
-      href={`/khac/tin-tuc/${article.slug}`}
+      href={`/tin-tuc/${article.slug}`}
       className="group flex gap-4 rounded-2xl border p-3 transition hover:-translate-y-0.5"
       style={{ background: "var(--surface)", borderColor: "var(--border)" }}
     >

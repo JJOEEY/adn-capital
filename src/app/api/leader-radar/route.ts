@@ -1,47 +1,29 @@
-/**
- * API proxy → Python FastAPI  GET /api/v1/leader-radar
- * Trả về trạng thái Cầu Dao Tổng + Leaders + Circuit Breaker.
- * Cache 5 phút.
- */
+import { NextRequest, NextResponse } from "next/server";
+import { getTopicEnvelope } from "@/lib/datahub/core";
+import { buildTopicContext } from "@/lib/datahub/producer-context";
 
-import { NextResponse } from "next/server";
-import { getPythonBridgeUrl } from "@/lib/runtime-config";
+export const dynamic = "force-dynamic";
 
-export const revalidate = 300;
+export async function GET(req: NextRequest) {
+  const force = req.nextUrl.searchParams.get("force") === "1";
+  const context = await buildTopicContext({ force });
+  const envelope = await getTopicEnvelope("signal:leader-radar", context);
 
-let cache: { data: unknown; ts: number } | null = null;
-const TTL = 300_000; // 5 phút
-
-const BACKEND = getPythonBridgeUrl();
-
-export async function GET() {
-  if (cache && Date.now() - cache.ts < TTL) {
-    return NextResponse.json(cache.data);
-  }
-
-  try {
-    const res = await fetch(`${BACKEND}/api/v1/leader-radar`, {
-      cache: "no-store",
-      signal: AbortSignal.timeout(30_000),
+  if (envelope.value) {
+    return NextResponse.json(envelope.value, {
+      status: envelope.freshness === "fresh" ? 200 : 206,
+      headers: {
+        "x-data-freshness": envelope.freshness,
+      },
     });
-
-    if (!res.ok) {
-      const text = await res.text();
-      console.error("[/api/leader-radar] Backend error:", res.status, text);
-      return NextResponse.json(
-        { error: "Không lấy được dữ liệu Leader Radar" },
-        { status: 502 },
-      );
-    }
-
-    const data = await res.json();
-    cache = { data, ts: Date.now() };
-    return NextResponse.json(data);
-  } catch (err) {
-    console.error("[/api/leader-radar] Fetch error:", err);
-    return NextResponse.json(
-      { error: "Backend không phản hồi" },
-      { status: 502 },
-    );
   }
+
+  return NextResponse.json(
+    {
+      error: "Khong lay duoc du lieu Leader Radar",
+      freshness: envelope.freshness,
+      updatedAt: envelope.updatedAt,
+    },
+    { status: 503 },
+  );
 }

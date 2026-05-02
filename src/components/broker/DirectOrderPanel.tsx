@@ -162,6 +162,41 @@ function friendlyResult(result: DnseExecutionResult | null) {
   return "Chưa thể gửi lệnh ở thời điểm hiện tại.";
 }
 
+function friendlyDnseError(value: unknown, fallback: string) {
+  const raw = value instanceof Error ? value.message : typeof value === "string" ? value : "";
+  const normalized = raw.toLowerCase();
+  if (!raw) return fallback;
+  if (normalized.includes("unauthorized") || normalized.includes("401")) {
+    return "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại tài khoản liên kết.";
+  }
+  if (normalized.includes("kill_switch") || normalized.includes("safe") || normalized.includes("not_enabled")) {
+    return "Chế độ an toàn đang bật nên lệnh thật chưa được gửi.";
+  }
+  if (normalized.includes("outside_market_session")) {
+    return "Hiện ngoài phiên giao dịch. Vui lòng kiểm tra lại trong giờ giao dịch.";
+  }
+  if (normalized.includes("allowlist") || normalized.includes("pilot")) {
+    return "Tài khoản này chưa được mở quyền gửi lệnh thật.";
+  }
+  if (normalized.includes("max_notional")) {
+    return "Giá trị lệnh vượt giới hạn an toàn đang áp dụng.";
+  }
+  if (normalized.includes("duplicate") || normalized.includes("replay")) {
+    return "Lệnh tương tự vừa được thao tác. Vui lòng chờ một chút rồi thử lại.";
+  }
+  if (normalized.includes("preview") || normalized.includes("expired")) {
+    return "Phiên kiểm tra lệnh đã hết hạn. Vui lòng kiểm tra lại lệnh.";
+  }
+  if (normalized.includes("otp") || normalized.includes("verification")) {
+    return "Không xử lý được mã xác thực. Vui lòng gửi lại mã mới và nhập mã còn hiệu lực.";
+  }
+  if (normalized.includes("route matched") || normalized.includes("404")) {
+    return "Kết nối xác thực chưa sẵn sàng. Vui lòng đăng nhập lại tài khoản liên kết rồi thử lại.";
+  }
+  if (/^[a-z0-9_:-]+$/i.test(raw.trim())) return fallback;
+  return raw;
+}
+
 function DirectStatus({ children, tone = "neutral" }: { children: string; tone?: "neutral" | "good" | "warn" | "bad" }) {
   const palette = {
     neutral: { border: "var(--border)", bg: "var(--surface-2)", color: "var(--text-secondary)" },
@@ -229,7 +264,7 @@ function AutoRadarConfigPanel({ loanPackages }: { loanPackages: LoanPackageOptio
         expiresAt: data.authorization?.expiresAt ?? null,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không tải được cấu hình.");
+      setError(friendlyDnseError(err, "Không tải được cấu hình."));
     } finally {
       setLoading(false);
     }
@@ -260,7 +295,7 @@ function AutoRadarConfigPanel({ loanPackages }: { loanPackages: LoanPackageOptio
       if (!res.ok) throw new Error(data.error ?? "Không lưu được cấu hình.");
       setMessage("Đã lưu cấu hình đặt lệnh tự động theo ADN Radar.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không lưu được cấu hình.");
+      setError(friendlyDnseError(err, "Không lưu được cấu hình."));
     } finally {
       setSaving(false);
     }
@@ -278,7 +313,7 @@ function AutoRadarConfigPanel({ loanPackages }: { loanPackages: LoanPackageOptio
       if (!res.ok) throw new Error(data.error ?? "Không gửi được mã xác thực.");
       setMessage(data.message ?? "Đã gửi mã xác thực.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không gửi được mã xác thực.");
+      setError(friendlyDnseError(err, "Không gửi được mã xác thực."));
     } finally {
       setRequestingCode(false);
     }
@@ -307,7 +342,7 @@ function AutoRadarConfigPanel({ loanPackages }: { loanPackages: LoanPackageOptio
       setVerificationCode("");
       setMessage("Đã xác nhận quyền giao dịch cho đặt lệnh tự động.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không xác nhận được quyền giao dịch.");
+      setError(friendlyDnseError(err, "Không xác nhận được quyền giao dịch."));
     } finally {
       setConfirming(false);
     }
@@ -491,6 +526,7 @@ export function DirectOrderPanel({
   const [checking, setChecking] = useState(false);
   const [sending, setSending] = useState(false);
   const [preview, setPreview] = useState<OrderExecutionPreview | null>(null);
+  const [previewOnly, setPreviewOnly] = useState(false);
   const [result, setResult] = useState<DnseExecutionResult | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -505,6 +541,7 @@ export function DirectOrderPanel({
     setQuantityInput("");
     setQuantityTouched(false);
     setPreview(null);
+    setPreviewOnly(false);
     setResult(null);
     setMessage(null);
     setError(null);
@@ -593,7 +630,7 @@ export function DirectOrderPanel({
           setQuantityInput(String(fallbackQuantity));
         }
       } else {
-        setError(err instanceof Error ? err.message : "Không tính được khối lượng.");
+        setError(friendlyDnseError(err, "Không tính được khối lượng."));
       }
     } finally {
       setLoadingSizing(false);
@@ -622,6 +659,7 @@ export function DirectOrderPanel({
   const setSideAndClear = (nextSide: "BUY" | "SELL") => {
     setSide(nextSide);
     setPreview(null);
+    setPreviewOnly(false);
     setResult(null);
     setMessage(null);
   };
@@ -632,6 +670,7 @@ export function DirectOrderPanel({
     setQuantity(next);
     setQuantityInput(next > 0 ? String(next) : "");
     setPreview(null);
+    setPreviewOnly(false);
   };
 
   const changeQuantity = (delta: number) => {
@@ -661,6 +700,7 @@ export function DirectOrderPanel({
     }
     setChecking(true);
     setPreview(null);
+    setPreviewOnly(false);
     setResult(null);
     setError(null);
     setMessage(null);
@@ -686,10 +726,11 @@ export function DirectOrderPanel({
       const data = (await res.json()) as PreviewResponse;
       if (!res.ok || !data.ticket) throw new Error(data.error ?? "Không kiểm tra được lệnh.");
       setPreview(data.ticket.preview ?? null);
+      setPreviewOnly(Boolean(data.previewOnly));
       setMessage(data.previewOnly ? "Lệnh đã được kiểm tra. Chế độ an toàn đang bật nên lệnh thật chưa được gửi." : "Lệnh đã được kiểm tra. Vui lòng xác nhận nếu thông tin đúng.");
     } catch (err) {
       if (nextSide !== oldSide) setSide(oldSide);
-      setError(err instanceof Error ? err.message : "Không kiểm tra được lệnh.");
+      setError(friendlyDnseError(err, "Không kiểm tra được lệnh."));
     } finally {
       setChecking(false);
     }
@@ -698,6 +739,10 @@ export function DirectOrderPanel({
   const submitOrder = async () => {
     if (!preview?.previewId) {
       setError("Vui lòng kiểm tra lệnh trước khi gửi.");
+      return;
+    }
+    if (previewOnly) {
+      setMessage("Lệnh đã được kiểm tra. Chế độ an toàn đang bật nên lệnh thật chưa được gửi.");
       return;
     }
     setSending(true);
@@ -722,7 +767,7 @@ export function DirectOrderPanel({
         setError(friendlyResult(data.result));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không gửi được lệnh.");
+      setError(friendlyDnseError(err, "Không gửi được lệnh."));
     } finally {
       setSending(false);
     }
@@ -776,6 +821,7 @@ export function DirectOrderPanel({
               onChange={(event) => {
                 setLoanPackageId(event.target.value);
                 setPreview(null);
+                setPreviewOnly(false);
               }}
               className="mt-1 w-full rounded-xl border px-3 py-2 text-sm font-bold"
               style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-primary)" }}
@@ -820,6 +866,7 @@ export function DirectOrderPanel({
               onClick={() => {
                 setOrderType(type);
                 setPreview(null);
+                setPreviewOnly(false);
               }}
               className="rounded-xl border px-4 py-2 text-sm font-black"
               style={{
@@ -842,13 +889,36 @@ export function DirectOrderPanel({
                 onChange={(event) => {
                   setPriceInput(event.target.value);
                   setPreview(null);
+                  setPreviewOnly(false);
                 }}
                 disabled={orderType !== "LO"}
                 className="min-w-0 flex-1 rounded-l-xl bg-transparent px-3 py-2 text-lg font-black outline-none disabled:opacity-50"
                 style={{ color: "var(--text-primary)" }}
               />
-              <button type="button" onClick={() => setPriceInput(toDisplayPrice((orderPrice ?? 0) - 100))} className="border-l px-3 font-black" style={{ borderColor: "var(--border)", color: "var(--danger)" }}>−</button>
-              <button type="button" onClick={() => setPriceInput(toDisplayPrice((orderPrice ?? 0) + 100))} className="border-l px-3 font-black" style={{ borderColor: "var(--border)", color: "#16a34a" }}>+</button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPriceInput(toDisplayPrice((orderPrice ?? 0) - 100));
+                  setPreview(null);
+                  setPreviewOnly(false);
+                }}
+                className="border-l px-3 font-black"
+                style={{ borderColor: "var(--border)", color: "var(--danger)" }}
+              >
+                −
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPriceInput(toDisplayPrice((orderPrice ?? 0) + 100));
+                  setPreview(null);
+                  setPreviewOnly(false);
+                }}
+                className="border-l px-3 font-black"
+                style={{ borderColor: "var(--border)", color: "#16a34a" }}
+              >
+                +
+              </button>
             </div>
           </label>
 
@@ -866,6 +936,7 @@ export function DirectOrderPanel({
                   setQuantityInput(raw);
                   setQuantity(parseQuantityInput(raw));
                   setPreview(null);
+                  setPreviewOnly(false);
                 }}
                 onBlur={() => {
                   if (!quantity) return;
@@ -985,12 +1056,12 @@ export function DirectOrderPanel({
           <button
             type="button"
             onClick={() => void submitOrder()}
-            disabled={sending || !preview}
+            disabled={sending || !preview || previewOnly}
             className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold disabled:opacity-50"
             style={{ background: "var(--primary)", color: "var(--on-primary)" }}
           >
             <CheckCircle2 className="h-4 w-4" />
-            {sending ? "Đang gửi..." : "Xác nhận gửi lệnh"}
+            {sending ? "Đang gửi..." : previewOnly ? "Chưa mở gửi lệnh thật" : "Xác nhận gửi lệnh"}
           </button>
         </div>
 

@@ -10,6 +10,7 @@ import {
   sanitizeArticleHtml,
 } from "@/lib/articles/server";
 import { getArticleFallbackImage } from "@/lib/articles/image-fallback";
+import { emitObservabilityEvent } from "@/lib/observability";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -520,6 +521,7 @@ async function runCrawlerJob(options: {
 }
 
 export async function POST(request: Request) {
+  const startedAt = Date.now();
   // Auth: ADMIN session OR x-api-key header (for cron/automation)
   const apiKey = request.headers.get("x-api-key");
   const CRAWLER_API_KEY = process.env.CRAWLER_API_KEY;
@@ -570,9 +572,33 @@ export async function POST(request: Request) {
       feedLimit: Number.isFinite(Number(body.feedLimit)) ? Number(body.feedLimit) : undefined,
       itemsPerFeed: Number.isFinite(Number(body.itemsPerFeed)) ? Number(body.itemsPerFeed) : undefined,
     });
+    const created = Array.isArray(result.results)
+      ? result.results.filter((item) => item.status === "PENDING_APPROVAL" || item.status === "PUBLISHED").length
+      : 0;
+    emitObservabilityEvent({
+      domain: "cron",
+      event: "news_crawler_run",
+      level: created > 0 ? "info" : "warn",
+      meta: {
+        durationMs: Date.now() - startedAt,
+        scanned: result.scanned ?? 0,
+        processed: result.processed ?? 0,
+        created,
+        message: result.message,
+      },
+    });
     return NextResponse.json(result);
 
   } catch (error) {
+    emitObservabilityEvent({
+      domain: "cron",
+      event: "news_crawler_failed",
+      level: "error",
+      meta: {
+        durationMs: Date.now() - startedAt,
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
     console.error("[/api/crawler/run] Error:", error);
     return NextResponse.json({ error: "Lỗi chạy crawler" }, { status: 500 });
   }

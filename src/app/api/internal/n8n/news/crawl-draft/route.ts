@@ -9,6 +9,8 @@ import {
   writeN8nLog,
 } from "@/lib/n8n/internal";
 import { prisma } from "@/lib/prisma";
+import { getArticleFallbackImage } from "@/lib/articles/image-fallback";
+import { normalizeArticleTags } from "@/lib/articles/server";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -117,6 +119,8 @@ export async function POST(req: NextRequest) {
           aiSummary: true,
           sourceUrl: true,
           imageUrl: true,
+          tags: true,
+          category: { select: { name: true, slug: true } },
           createdAt: true,
         },
       })
@@ -125,16 +129,26 @@ export async function POST(req: NextRequest) {
   invalidateTopics({ tags: ["news", "public"] });
 
   const title = "Tin tức SEO chờ duyệt";
-  const summary = articles.length > 0
+  const articlesWithImages = articles.map((article) => {
+    const tags = safeParseTags(article.tags);
+    return {
+      ...article,
+      tags,
+      imageUrl: article.imageUrl || getArticleFallbackImage({ ...article, tags }),
+    };
+  });
+
+  const summary = articlesWithImages.length > 0
     ? `${articles.length} bài mới đã được tạo ở trạng thái chờ duyệt.`
     : result.message ?? "Không có bài mới cần duyệt.";
   const text = [
     title,
     summary,
     "",
-    ...articles.slice(0, 5).map((article, index) => [
+    ...articlesWithImages.slice(0, 5).map((article, index) => [
       `${index + 1}. ${article.title}`,
       article.aiSummary || article.excerpt ? `   ${article.aiSummary ?? article.excerpt}` : "",
+      article.imageUrl ? `   Anh: ${article.imageUrl}` : "",
       article.sourceUrl ? `   Link gốc: ${article.sourceUrl}` : "",
     ].filter(Boolean).join("\n")),
     "",
@@ -148,7 +162,7 @@ export async function POST(req: NextRequest) {
     : { ok: true, skipped: true, reason: "send_not_requested" };
 
   await writeN8nLog("n8n:news-crawl-draft", "success", summary, {
-    created: articles.length,
+    created: articlesWithImages.length,
     scanned: result.scanned ?? null,
     processed: result.processed ?? null,
   }, startedAt);
@@ -156,15 +170,24 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     ok: true,
     result,
-    articles,
+    articles: articlesWithImages,
     telegram,
     payload: {
       type: "news_crawl_draft",
       title,
       summary,
-      sourceUrl: articles[0]?.sourceUrl ?? approvalUrl,
+      sourceUrl: articlesWithImages[0]?.sourceUrl ?? approvalUrl,
+      imageUrl: articlesWithImages[0]?.imageUrl ?? null,
       approvalUrl,
       createdAt: new Date().toISOString(),
     },
   });
+}
+
+function safeParseTags(value: string): string[] {
+  try {
+    return normalizeArticleTags(JSON.parse(value || "[]"));
+  } catch {
+    return normalizeArticleTags(value);
+  }
 }
