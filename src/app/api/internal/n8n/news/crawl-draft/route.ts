@@ -36,7 +36,12 @@ async function runCrawlerViaInternalApi(baseUrl: string) {
       "x-internal-key": internalKey || fallbackSecret,
       "x-cron-secret": cronSecret || fallbackSecret,
     },
-    body: JSON.stringify({ approvalMode: "pending" }),
+    body: JSON.stringify({
+      approvalMode: "pending",
+      maxItems: 2,
+      feedLimit: 6,
+      itemsPerFeed: 3,
+    }),
     cache: "no-store",
   });
 

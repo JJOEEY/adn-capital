@@ -98,7 +98,7 @@ function validateArticleQuality(item: CrawledItem, content: string, tags: string
   };
 }
 
-async function crawlNews(): Promise<CrawledItem[]> {
+async function crawlNews(options: { feedLimit?: number; itemsPerFeed?: number } = {}): Promise<CrawledItem[]> {
   const RSS_FEEDS = [
     { source: "CafeF", url: "https://cafef.vn/thi-truong-chung-khoan.rss", category: "thi-truong" },
     { source: "VnExpress", url: "https://vnexpress.net/rss/chung-khoan.rss", category: "thi-truong" },
@@ -113,16 +113,22 @@ async function crawlNews(): Promise<CrawledItem[]> {
     { source: "VietnamNet", url: "https://vietnamnet.vn/rss/kinh-doanh.rss", category: "vi-mo" },
   ];
 
-  const items: CrawledItem[] = [];
+  const feeds = typeof options.feedLimit === "number" && options.feedLimit > 0
+    ? RSS_FEEDS.slice(0, options.feedLimit)
+    : RSS_FEEDS;
+  const itemsPerFeed = typeof options.itemsPerFeed === "number" && options.itemsPerFeed > 0
+    ? Math.min(options.itemsPerFeed, 5)
+    : 5;
 
-  for (const feed of RSS_FEEDS) {
+  const feedResults = await Promise.all(feeds.map(async (feed): Promise<CrawledItem[]> => {
+    const items: CrawledItem[] = [];
     try {
       const res = await fetch(feed.url, {
         headers: { "User-Agent": "ADN-Capital-Bot/1.0" },
         redirect: "follow",
         signal: AbortSignal.timeout(10000),
       });
-      if (!res.ok) continue;
+      if (!res.ok) return items;
 
       const xml = await res.text();
 
@@ -131,7 +137,7 @@ async function crawlNews(): Promise<CrawledItem[]> {
       let match;
       let count = 0;
 
-      while ((match = itemRegex.exec(xml)) !== null && count < 5) {
+      while ((match = itemRegex.exec(xml)) !== null && count < itemsPerFeed) {
         const itemXml = match[1];
         const title = extractTag(itemXml, "title");
         const link = extractTag(itemXml, "link");
@@ -160,9 +166,10 @@ async function crawlNews(): Promise<CrawledItem[]> {
     } catch (err) {
       console.warn(`[Crawler] Failed to fetch ${feed.url}:`, err);
     }
-  }
+    return items;
+  }));
 
-  return items;
+  return feedResults.flat();
 }
 
 // ── Step 1b: Research PDF crawler (SSI, VNDirect, HSC placeholder) ──
@@ -377,8 +384,14 @@ function cleanHtml(html: string): string {
 async function runCrawlerJob(options: {
   adminUserId: string;
   forcePendingApproval?: boolean;
+  maxItems?: number;
+  feedLimit?: number;
+  itemsPerFeed?: number;
 }) {
-  const [newsItems, pdfItems] = await Promise.all([crawlNews(), crawlResearchPDFs()]);
+  const [newsItems, pdfItems] = await Promise.all([
+    crawlNews({ feedLimit: options.feedLimit, itemsPerFeed: options.itemsPerFeed }),
+    crawlResearchPDFs(),
+  ]);
   const allItems = [...newsItems, ...pdfItems];
 
   if (allItems.length === 0) {
@@ -397,7 +410,10 @@ async function runCrawlerJob(options: {
       })
     : [];
   const existingUrls = new Set(existingRows.map((row) => row.sourceUrl).filter(Boolean));
-  const newItems = allItems.filter((item) => item.sourceUrl && !existingUrls.has(item.sourceUrl)).slice(0, 8);
+  const maxItems = typeof options.maxItems === "number" && options.maxItems > 0
+    ? Math.min(options.maxItems, 8)
+    : 8;
+  const newItems = allItems.filter((item) => item.sourceUrl && !existingUrls.has(item.sourceUrl)).slice(0, maxItems);
 
   if (newItems.length === 0) {
     return {
@@ -470,7 +486,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    let body: { approvalMode?: string } = {};
+    let body: { approvalMode?: string; maxItems?: number; feedLimit?: number; itemsPerFeed?: number } = {};
     try {
       body = await request.json();
     } catch {
@@ -480,6 +496,9 @@ export async function POST(request: Request) {
     const result = await runCrawlerJob({
       adminUserId,
       forcePendingApproval: body.approvalMode === "pending",
+      maxItems: Number.isFinite(Number(body.maxItems)) ? Number(body.maxItems) : undefined,
+      feedLimit: Number.isFinite(Number(body.feedLimit)) ? Number(body.feedLimit) : undefined,
+      itemsPerFeed: Number.isFinite(Number(body.itemsPerFeed)) ? Number(body.itemsPerFeed) : undefined,
     });
     return NextResponse.json(result);
 
