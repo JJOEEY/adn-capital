@@ -15,7 +15,7 @@ import { resolveMarketTicker } from "@/lib/ticker-resolver";
 type JsonRecord = Record<string, unknown>;
 const GENERAL_CHAT_TIMEOUT_MS = 12_000;
 const GENERAL_TOPIC_TIMEOUT_MS = 3_500;
-const TICKER_TOPIC_TIMEOUT_MS = 7_500;
+const TICKER_TOPIC_TIMEOUT_MS = 15_000;
 type AidenSurface = "aiden" | "stock";
 
 export type AidenDatahubChatResult = {
@@ -336,16 +336,23 @@ async function readTopicSoft(topic: string, context: TopicContext, timeoutMs: nu
 
 function buildTickerContext(ticker: string, envelopes: Array<{ topic: string; envelope: TopicEnvelope }>) {
   const workbench = envelopes.find((item) => item.topic.startsWith("research:workbench:"))?.envelope.value;
+  const standaloneTA = envelopes.find((item) => item.topic.startsWith("vn:ta:"))?.envelope.value;
+  const standaloneFA = envelopes.find((item) => item.topic.startsWith("vn:fa:"))?.envelope.value;
   const realtime = envelopes.find((item) => item.topic.startsWith("vn:realtime:"))?.envelope.value;
   const depth = envelopes.find((item) => item.topic.startsWith("vn:depth:"))?.envelope.value;
   const historical = envelopes.find((item) => item.topic.startsWith("vn:historical:"))?.envelope.value;
   const wb = asRecord(workbench);
+  const wbTA = asRecord(wb.ta);
+  const wbFA = asRecord(wb.fa);
+  const ta = Object.keys(wbTA).length > 0 ? wbTA : standaloneTA;
+  const fa = Object.keys(wbFA).length > 0 ? wbFA : standaloneFA;
+  const mergedWorkbench = { ...wb, ta, fa };
 
   return {
     ticker,
-    analysisMetrics: buildAnalysisMetrics(wb, realtime, historical),
-    ta: stripInternalFields(wb.ta ?? null),
-    fa: stripInternalFields(wb.fa ?? null),
+    analysisMetrics: buildAnalysisMetrics(mergedWorkbench, realtime, historical),
+    ta: stripInternalFields(ta ?? null),
+    fa: stripInternalFields(fa ?? null),
     signal: stripInternalFields(wb.signal ?? null),
     adnCore: stripInternalFields(wb.adnCore ?? null),
     adnArt: stripInternalFields(wb.art ?? null),
@@ -857,6 +864,8 @@ async function loadTickerContexts(tickers: string[], context: TopicContext) {
     tickers.map(async (ticker) => {
       const topics = [
         `research:workbench:${ticker}`,
+        `vn:ta:${ticker}`,
+        `vn:fa:${ticker}`,
         `vn:realtime:${ticker}:5m`,
         `vn:historical:${ticker}:1d`,
         `vn:depth:${ticker}`,
