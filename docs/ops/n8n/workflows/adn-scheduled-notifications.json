@@ -1,0 +1,109 @@
+{
+  "name": "ADN - Scheduled Web Telegram Notifications",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [{ "field": "cronExpression", "expression": "0 10 * * 1-5" }] } },
+      "id": "slot-1000",
+      "name": "10:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": { "rule": { "interval": [{ "field": "cronExpression", "expression": "30 11 * * 1-5" }] } },
+      "id": "slot-1130",
+      "name": "11:30",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 180]
+    },
+    {
+      "parameters": { "rule": { "interval": [{ "field": "cronExpression", "expression": "0 14 * * 1-5" }] } },
+      "id": "slot-1400",
+      "name": "14:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 360]
+    },
+    {
+      "parameters": { "rule": { "interval": [{ "field": "cronExpression", "expression": "45 14 * * 1-5" }] } },
+      "id": "slot-1445",
+      "name": "14:45",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 540]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.ADN_WEB_BASE_URL}}/api/internal/n8n/notifications/scheduled",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "x-internal-key", "value": "={{$env.ADN_INTERNAL_API_KEY}}" }] },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "{\"slot\":\"10:00\"}"
+      },
+      "id": "notify-1000",
+      "name": "Send 10:00",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.ADN_WEB_BASE_URL}}/api/internal/n8n/notifications/scheduled",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "x-internal-key", "value": "={{$env.ADN_INTERNAL_API_KEY}}" }] },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "{\"slot\":\"11:30\"}"
+      },
+      "id": "notify-1130",
+      "name": "Send 11:30",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 180]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.ADN_WEB_BASE_URL}}/api/internal/n8n/notifications/scheduled",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "x-internal-key", "value": "={{$env.ADN_INTERNAL_API_KEY}}" }] },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "{\"slot\":\"14:00\"}"
+      },
+      "id": "notify-1400",
+      "name": "Send 14:00",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 360]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.ADN_WEB_BASE_URL}}/api/internal/n8n/notifications/scheduled",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "x-internal-key", "value": "={{$env.ADN_INTERNAL_API_KEY}}" }] },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "{\"slot\":\"14:45\"}"
+      },
+      "id": "notify-1445",
+      "name": "Send 14:45",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 540]
+    }
+  ],
+  "connections": {
+    "10:00": { "main": [[{ "node": "Send 10:00", "type": "main", "index": 0 }]] },
+    "11:30": { "main": [[{ "node": "Send 11:30", "type": "main", "index": 0 }]] },
+    "14:00": { "main": [[{ "node": "Send 14:00", "type": "main", "index": 0 }]] },
+    "14:45": { "main": [[{ "node": "Send 14:45", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "timezone": "Asia/Ho_Chi_Minh" }
+}

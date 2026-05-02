@@ -83,6 +83,41 @@ services:
     networks:
       - adn-net
 
+  n8n:
+    image: n8nio/n8n:1.92.2
+    container_name: adn-n8n
+    profiles:
+      - automation
+    restart: unless-stopped
+    command: >
+      /bin/sh -c 'if [ -z "$$N8N_ENCRYPTION_KEY" ] || [ -z "$$N8N_BASIC_AUTH_PASSWORD" ]; then
+      echo "Missing N8N_ENCRYPTION_KEY or N8N_BASIC_AUTH_PASSWORD" >&2;
+      exit 1;
+      fi;
+      n8n start'
+    environment:
+      - TZ=Asia/Ho_Chi_Minh
+      - GENERIC_TIMEZONE=Asia/Ho_Chi_Minh
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY:-}
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD:-}
+      - ADN_WEB_BASE_URL=${N8N_ADN_WEB_BASE_URL:-http://web:3000}
+      - ADN_INTERNAL_API_KEY=${INTERNAL_API_KEY:-}
+    volumes:
+      - ./app_data/n8n:/home/node/.n8n
+      - ./docs/ops/n8n/workflows:/workflows:ro
+    ports:
+      - "127.0.0.1:5678:5678"
+    depends_on:
+      web:
+        condition: service_started
+    networks:
+      - adn-net
+
   nginx:
     image: nginx:alpine
     container_name: adn-nginx

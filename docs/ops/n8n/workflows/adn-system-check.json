@@ -1,0 +1,31 @@
+{
+  "name": "ADN - System Check 21h",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [{ "field": "cronExpression", "expression": "0 21 * * *" }] } },
+      "id": "system-check-schedule",
+      "name": "21:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.ADN_WEB_BASE_URL}}/api/internal/n8n/system-check?send=1",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "x-internal-key", "value": "={{$env.ADN_INTERNAL_API_KEY}}" }] }
+      },
+      "id": "system-check-http",
+      "name": "Run system check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 0]
+    }
+  ],
+  "connections": {
+    "21:00": { "main": [[{ "node": "Run system check", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "timezone": "Asia/Ho_Chi_Minh" }
+}

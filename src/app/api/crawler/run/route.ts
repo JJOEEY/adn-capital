@@ -298,7 +298,8 @@ Trả về JSON với các key:
 async function saveArticle(
   item: CrawledItem,
   aiResult: AIRewriteResult,
-  adminUserId: string
+  adminUserId: string,
+  options: { forcePendingApproval?: boolean } = {}
 ): Promise<SaveArticleResult> {
   // Check if article with same sourceUrl already exists
   if (item.sourceUrl) {
@@ -330,6 +331,7 @@ async function saveArticle(
     };
   }
 
+  const shouldPublish = item.trustedSource && !options.forcePendingApproval;
   const article = await prisma.article.create({
     data: {
       title: aiResult.title,
@@ -345,8 +347,8 @@ async function saveArticle(
       sentiment: aiResult.sentiment,
       categoryId: category?.id ?? null,
       authorId: adminUserId,
-      status: item.trustedSource ? "PUBLISHED" : "PENDING_APPROVAL",
-      publishedAt: item.trustedSource ? new Date() : null,
+      status: shouldPublish ? "PUBLISHED" : "PENDING_APPROVAL",
+      publishedAt: shouldPublish ? new Date() : null,
     },
   });
 
@@ -372,6 +374,65 @@ function cleanHtml(html: string): string {
 }
 
 // ═══ Main Handler ═══
+async function runCrawlerJob(options: {
+  adminUserId: string;
+  forcePendingApproval?: boolean;
+}) {
+  const [newsItems, pdfItems] = await Promise.all([crawlNews(), crawlResearchPDFs()]);
+  const allItems = [...newsItems, ...pdfItems];
+
+  if (allItems.length === 0) {
+    return {
+      success: true,
+      message: "Không có bài viết mới để crawl",
+      results: [] as SaveArticleResult[],
+    };
+  }
+
+  const sourceUrls = Array.from(new Set(allItems.map((item) => item.sourceUrl).filter(Boolean)));
+  const existingRows = sourceUrls.length > 0
+    ? await prisma.article.findMany({
+        where: { sourceUrl: { in: sourceUrls } },
+        select: { sourceUrl: true },
+      })
+    : [];
+  const existingUrls = new Set(existingRows.map((row) => row.sourceUrl).filter(Boolean));
+  const newItems = allItems.filter((item) => item.sourceUrl && !existingUrls.has(item.sourceUrl)).slice(0, 8);
+
+  if (newItems.length === 0) {
+    return {
+      success: true,
+      message: "Không có bài viết mới để crawl",
+      scanned: allItems.length,
+      results: [] as SaveArticleResult[],
+    };
+  }
+
+  const results: SaveArticleResult[] = [];
+
+  for (const item of newItems) {
+    const aiResult = await aiRewrite(item);
+    const saved = await saveArticle(item, aiResult, options.adminUserId, {
+      forcePendingApproval: options.forcePendingApproval,
+    });
+    results.push(saved);
+  }
+
+  const created = results.filter((r) => r.status === "PENDING_APPROVAL" || r.status === "PUBLISHED").length;
+  const published = results.filter((r) => r.status === "PUBLISHED").length;
+  const skipped = results.filter((r) => r.status === "SKIPPED" || r.status === "SKIPPED_QUALITY").length;
+  const skippedQuality = results.filter((r) => r.status === "SKIPPED_QUALITY").length;
+
+  return {
+    success: true,
+    published,
+    scanned: allItems.length,
+    processed: newItems.length,
+    message: `Crawled ${allItems.length} bài, tạo ${created} mới, bỏ qua ${skipped} bài (${skippedQuality} bài không đạt chuẩn chất lượng)`,
+    results,
+  };
+}
+
 export async function POST(request: Request) {
   // Auth: ADMIN session OR x-api-key header (for cron/automation)
   const apiKey = request.headers.get("x-api-key");
@@ -409,59 +470,19 @@ export async function POST(request: Request) {
   }
 
   try {
-    // Step 1: Crawl
-    const [newsItems, pdfItems] = await Promise.all([crawlNews(), crawlResearchPDFs()]);
-    const allItems = [...newsItems, ...pdfItems];
-
-    if (allItems.length === 0) {
-      return NextResponse.json({
-        success: true,
-        message: "Không có bài viết mới để crawl",
-        results: [],
-      });
+    let body: { approvalMode?: string } = {};
+    try {
+      body = await request.json();
+    } catch {
+      body = {};
     }
 
-    const sourceUrls = Array.from(new Set(allItems.map((item) => item.sourceUrl).filter(Boolean)));
-    const existingRows = sourceUrls.length > 0
-      ? await prisma.article.findMany({
-          where: { sourceUrl: { in: sourceUrls } },
-          select: { sourceUrl: true },
-        })
-      : [];
-    const existingUrls = new Set(existingRows.map((row) => row.sourceUrl).filter(Boolean));
-    const newItems = allItems.filter((item) => item.sourceUrl && !existingUrls.has(item.sourceUrl)).slice(0, 8);
-
-    if (newItems.length === 0) {
-      return NextResponse.json({
-        success: true,
-        message: "KhÃ´ng cÃ³ bÃ i viáº¿t má»›i Ä‘á»ƒ crawl",
-        scanned: allItems.length,
-        results: [],
-      });
-    }
-
-    // Step 2 + 3: AI Rewrite + Save (sequential to avoid rate limits)
-    const results: SaveArticleResult[] = [];
-
-    for (const item of newItems) {
-      const aiResult = await aiRewrite(item);
-      const saved = await saveArticle(item, aiResult, adminUserId);
-      results.push(saved);
-    }
-
-    const created = results.filter((r) => r.status === "PENDING_APPROVAL" || r.status === "PUBLISHED").length;
-    const published = results.filter((r) => r.status === "PUBLISHED").length;
-    const skipped = results.filter((r) => r.status === "SKIPPED" || r.status === "SKIPPED_QUALITY").length;
-    const skippedQuality = results.filter((r) => r.status === "SKIPPED_QUALITY").length;
-
-    return NextResponse.json({
-      success: true,
-      published,
-      scanned: allItems.length,
-      processed: newItems.length,
-      message: `Crawled ${allItems.length} bài, tạo ${created} mới, bỏ qua ${skipped} bài (${skippedQuality} bài không đạt chuẩn chất lượng)`,
-      results,
+    const result = await runCrawlerJob({
+      adminUserId,
+      forcePendingApproval: body.approvalMode === "pending",
     });
+    return NextResponse.json(result);
+
   } catch (error) {
     console.error("[/api/crawler/run] Error:", error);
     return NextResponse.json({ error: "Lỗi chạy crawler" }, { status: 500 });

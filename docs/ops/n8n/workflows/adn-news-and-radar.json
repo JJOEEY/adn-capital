@@ -1,0 +1,83 @@
+{
+  "name": "ADN - News Draft And Radar Digest",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [{ "field": "cronExpression", "expression": "30 8,10,13,16 * * 1-5" }] } },
+      "id": "news-schedule",
+      "name": "News crawl slots",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.ADN_WEB_BASE_URL}}/api/internal/n8n/news/crawl-draft",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "x-internal-key", "value": "={{$env.ADN_INTERNAL_API_KEY}}" }] },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "{\"sendTelegram\":true}"
+      },
+      "id": "news-crawl-draft",
+      "name": "Create news drafts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 0]
+    },
+    {
+      "parameters": { "rule": { "interval": [{ "field": "cronExpression", "expression": "5 10 * * 1-5" }] } },
+      "id": "radar-1005",
+      "name": "Radar 10:05",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 200]
+    },
+    {
+      "parameters": { "rule": { "interval": [{ "field": "cronExpression", "expression": "35 11 * * 1-5" }] } },
+      "id": "radar-1135",
+      "name": "Radar 11:35",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 380]
+    },
+    {
+      "parameters": { "rule": { "interval": [{ "field": "cronExpression", "expression": "5 14 * * 1-5" }] } },
+      "id": "radar-1405",
+      "name": "Radar 14:05",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 560]
+    },
+    {
+      "parameters": { "rule": { "interval": [{ "field": "cronExpression", "expression": "50 14 * * 1-5" }] } },
+      "id": "radar-1450",
+      "name": "Radar 14:50",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 740]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.ADN_WEB_BASE_URL}}/api/internal/n8n/radar-digest?send=1&limit=12",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "x-internal-key", "value": "={{$env.ADN_INTERNAL_API_KEY}}" }] }
+      },
+      "id": "radar-digest",
+      "name": "Send Radar digest",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [270, 470]
+    }
+  ],
+  "connections": {
+    "News crawl slots": { "main": [[{ "node": "Create news drafts", "type": "main", "index": 0 }]] },
+    "Radar 10:05": { "main": [[{ "node": "Send Radar digest", "type": "main", "index": 0 }]] },
+    "Radar 11:35": { "main": [[{ "node": "Send Radar digest", "type": "main", "index": 0 }]] },
+    "Radar 14:05": { "main": [[{ "node": "Send Radar digest", "type": "main", "index": 0 }]] },
+    "Radar 14:50": { "main": [[{ "node": "Send Radar digest", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "timezone": "Asia/Ho_Chi_Minh" }
+}
