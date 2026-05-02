@@ -356,7 +356,6 @@ function buildTickerContext(ticker: string, envelopes: Array<{ topic: string; en
     realtimeLastBar: stripInternalFields(lastRow(realtime)),
     orderbook: stripInternalFields(depth ?? null),
     dataSummary: wb.summary ?? null,
-    aiCaches: stripInternalFields(wb.aiCaches ?? null),
   };
 }
 
@@ -532,10 +531,14 @@ function buildTickerFallbackLine(context: unknown) {
   if (!ticker) return null;
 
   const metrics = asRecord(record.analysisMetrics);
+  const movingAverages = asRecord(metrics.movingAverages);
+  const momentum = asRecord(metrics.momentum);
+  const radarAction = asRecord(metrics.radarAction);
+  const priceZones = asRecord(metrics.priceZones);
   const price = roundedPrice(metrics.price);
-  const ma20 = roundedPrice(metrics.ma20);
-  const ma50 = roundedPrice(metrics.ma50);
-  const rsi = asNumber(metrics.rsi);
+  const ma20 = roundedPrice(movingAverages.ma20);
+  const ma50 = roundedPrice(movingAverages.ma50);
+  const rsi = asNumber(momentum.rsi14);
   const recommendation = buildRecommendation(context);
   const pieces = [
     price != null ? `giá quanh ${formatPrice(price)}` : null,
@@ -543,11 +546,141 @@ function buildTickerFallbackLine(context: unknown) {
     ma50 != null ? `MA50 ${formatPrice(ma50)}` : null,
     rsi != null ? `RSI ${formatDecimal(rsi)}` : null,
     recommendation?.entryPrice != null ? `vùng mua ${formatPrice(recommendation.entryPrice)}` : null,
-    recommendation?.target != null ? `mục tiêu ${formatPrice(recommendation.target)}` : null,
-    recommendation?.stoploss != null ? `cắt lỗ ${formatPrice(recommendation.stoploss)}` : null,
+    recommendation?.target != null ? `mục tiêu ${formatPrice(recommendation.target)}` : roundedPrice(radarAction.target) != null ? `mục tiêu ${formatPrice(roundedPrice(radarAction.target))}` : null,
+    recommendation?.stoploss != null ? `cắt lỗ ${formatPrice(recommendation.stoploss)}` : roundedPrice(priceZones.support) != null ? `hỗ trợ ${formatPrice(roundedPrice(priceZones.support))}` : null,
   ].filter(Boolean);
 
   return `- **${ticker}**: ${pieces.length > 0 ? pieces.join(", ") : "ưu tiên quan sát thêm phản ứng giá và thanh khoản trước khi hành động."}`;
+}
+
+function buildTickerTrendView(price: number | null, ma20: number | null, ma50: number | null, ma200: number | null) {
+  if (price == null) return "Cần ưu tiên quan sát phản ứng giá và thanh khoản trước khi hành động.";
+  if (ma20 != null && ma50 != null && ma200 != null) {
+    if (price >= ma20 && price >= ma50 && price >= ma200) {
+      return "Cấu trúc kỹ thuật đang tích cực khi giá nằm trên các đường trung bình quan trọng.";
+    }
+    if (price >= ma20 && (price < ma50 || price < ma200)) {
+      return "Ngắn hạn đang có nỗ lực hồi phục, nhưng trung và dài hạn vẫn cần thêm xác nhận.";
+    }
+    if (price < ma20 && price < ma50 && price < ma200) {
+      return "Cấu trúc kỹ thuật còn yếu, ưu tiên quản trị rủi ro hơn là mua đuổi.";
+    }
+  }
+  if (ma20 != null && price >= ma20) return "Giá đang giữ được MA20, phù hợp quan sát nhịp hồi phục ngắn hạn.";
+  if (ma20 != null && price < ma20) return "Giá đang dưới MA20, cần chờ lấy lại nền giá ngắn hạn trước khi tăng tỷ trọng.";
+  return "Cần theo dõi thêm phản ứng giá ở vùng hỗ trợ/kháng cự gần nhất.";
+}
+
+function buildTickerActionView(input: {
+  price: number | null;
+  ma20: number | null;
+  support: number | null;
+  resistance: number | null;
+  target: number | null;
+  stoploss: number | null;
+}) {
+  const watchZone = [input.support, input.ma20].filter((value): value is number => value != null);
+  const buyZone =
+    watchZone.length > 0
+      ? `${formatPrice(Math.min(...watchZone))} - ${formatPrice(Math.max(...watchZone))}`
+      : input.price != null
+        ? `quanh ${formatPrice(input.price)}`
+        : "vùng nền gần nhất";
+  const target = input.target ?? input.resistance;
+  const stoploss = input.stoploss ?? input.support;
+
+  return [
+    `- Nếu đang có sẵn vị thế: tiếp tục nắm giữ khi giá còn giữ được vùng ${buyZone}; có thể hạ tỷ trọng nếu hồi lên kháng cự nhưng thanh khoản yếu.`,
+    `- Nếu mua mới: chỉ nên thăm dò khi giá phản ứng tốt tại vùng ${buyZone}, không mua đuổi khi chưa có xác nhận dòng tiền.`,
+    target != null ? `- Vùng chốt lời/kháng cự cần theo dõi: ${formatPrice(target)}.` : null,
+    stoploss != null ? `- Vùng cắt lỗ/quản trị rủi ro: ${formatPrice(stoploss)}.` : null,
+  ].filter(Boolean).join("\n");
+}
+
+function buildAidenTickerBriefMessage(context: unknown) {
+  const record = asRecord(context);
+  const ticker = String(record.ticker ?? "").trim().toUpperCase();
+  if (!ticker) return null;
+
+  const metrics = asRecord(record.analysisMetrics);
+  const movingAverages = asRecord(metrics.movingAverages);
+  const momentum = asRecord(metrics.momentum);
+  const volume = asRecord(metrics.volume);
+  const priceZones = asRecord(metrics.priceZones);
+  const radarAction = asRecord(metrics.radarAction);
+  const valuation = asRecord(metrics.valuation);
+
+  const price = roundedPrice(metrics.price);
+  const changePct = asNumber(metrics.changePct);
+  const ma20 = roundedPrice(movingAverages.ma20);
+  const ma50 = roundedPrice(movingAverages.ma50);
+  const ma200 = roundedPrice(movingAverages.ma200);
+  const rsi = asNumber(momentum.rsi14);
+  const macdHistogram = asNumber(momentum.macdHistogram);
+  const latestVolume = roundedPrice(volume.latestVolume);
+  const volumeMa20 = roundedPrice(volume.volumeMa20);
+  const support = roundedPrice(priceZones.support);
+  const resistance = roundedPrice(priceZones.resistance);
+  const target = roundedPrice(radarAction.target);
+  const stoploss = roundedPrice(radarAction.stoploss);
+
+  const pe = asNumber(valuation.pe);
+  const pb = asNumber(valuation.pb);
+  const eps = asNumber(valuation.eps);
+  const roe = normalizePercentMetric(asNumber(valuation.roe));
+  const roa = normalizePercentMetric(asNumber(valuation.roa));
+  const reportDate = String(valuation.reportDate ?? "").trim();
+  const valuationFacts = [
+    pe != null ? `P/E ${formatDecimal(pe)}x` : null,
+    pb != null ? `P/B ${formatDecimal(pb)}x` : null,
+    eps != null ? `EPS ${formatDecimal(eps)}` : null,
+    roe != null ? `ROE ${formatDecimal(roe)}%` : null,
+    roa != null ? `ROA ${formatDecimal(roa)}%` : null,
+  ].filter(Boolean);
+
+  const maFacts = [
+    ma20 != null ? `MA20 ${formatPrice(ma20)}` : null,
+    ma50 != null ? `MA50 ${formatPrice(ma50)}` : null,
+    ma200 != null ? `MA200 ${formatPrice(ma200)}` : null,
+  ].filter(Boolean);
+  const momentumFacts = [
+    rsi != null ? `RSI ${formatDecimal(rsi)}` : null,
+    macdHistogram != null ? `MACD Histogram ${formatDecimal(macdHistogram)}` : null,
+  ].filter(Boolean);
+
+  const trendView = buildTickerTrendView(price, ma20, ma50, ma200);
+  const actionView = buildTickerActionView({ price, ma20, support, resistance, target, stoploss });
+
+  return [
+    `**Tổng hợp nhanh ${ticker}**`,
+    "",
+    "**1. Giá và cấu trúc kỹ thuật**",
+    `- Giá hiện tại: ${price != null ? formatPrice(price) : "-"}${changePct != null ? ` (${formatPct(changePct)}%)` : ""}.`,
+    maFacts.length > 0 ? `- Đường trung bình: ${maFacts.join(" · ")}.` : null,
+    momentumFacts.length > 0 ? `- Động lượng: ${momentumFacts.join(" · ")}.` : null,
+    latestVolume != null || volumeMa20 != null
+      ? `- Thanh khoản: phiên gần nhất ${latestVolume != null ? formatPrice(latestVolume) : "-"}; trung bình 20 phiên ${volumeMa20 != null ? formatPrice(volumeMa20) : "-"}.`
+      : null,
+    `- Nhận định: ${trendView}`,
+    "",
+    "**2. Vùng giá cần theo dõi**",
+    support != null ? `- Hỗ trợ: ${formatPrice(support)}.` : null,
+    resistance != null ? `- Kháng cự: ${formatPrice(resistance)}.` : null,
+    target != null || stoploss != null
+      ? `- Vùng tham chiếu hành động: ${target != null ? `mục tiêu ${formatPrice(target)}` : "mục tiêu theo kháng cự gần nhất"}; ${stoploss != null ? `cắt lỗ ${formatPrice(stoploss)}` : "cắt lỗ theo hỗ trợ gần nhất"}.`
+      : null,
+    "",
+    "**3. Định giá và chất lượng doanh nghiệp**",
+    valuationFacts.length > 0
+      ? `- Chỉ số định giá${reportDate ? ` theo kỳ báo cáo ${reportDate}` : " theo kỳ báo cáo gần nhất"}: ${valuationFacts.join(" · ")}.`
+      : "- Theo kỳ báo cáo gần nhất, cần đánh giá thận trọng theo chất lượng lợi nhuận, vùng giá hiện tại và rủi ro thị trường.",
+    pe != null && pb != null
+      ? "- Mức định giá cần được đối chiếu với tốc độ tăng trưởng lợi nhuận và vị thế ngành; không nên chỉ nhìn riêng P/E hoặc P/B để quyết định mua."
+      : null,
+    "",
+    "**4. Hành động phù hợp**",
+    actionView,
+  ].filter((line): line is string => Boolean(line)).join("\n");
 }
 
 function buildAidenConversationFallbackMessage(message: string, marketContext: unknown, tickerContexts: unknown[]) {
@@ -760,18 +893,27 @@ export async function runAidenDatahubChat(input: {
     const perTicker = tickers.length > 0 ? await loadTickerContexts(tickers, context) : [];
     const tickerContexts = perTicker.map((item) => item.context);
     let answer: string;
-    try {
-      answer = await withTimeout(
-        executeFlashOnlyAIRequest(
-          buildAidenConversationPrompt(message, general.context, tickerContexts),
-          buildSystemInstruction(),
-        ),
-        GENERAL_CHAT_TIMEOUT_MS,
-        "aiden-conversation",
-      );
-    } catch (error) {
-      console.warn("[AIDEN] Conversation Flash-only generation failed:", error);
-      answer = buildAidenConversationFallbackMessage(message, general.context, tickerContexts);
+    const deterministicTickerBrief =
+      tickerContexts.length === 1 ? buildAidenTickerBriefMessage(tickerContexts[0]) : null;
+    if (deterministicTickerBrief) {
+      answer = deterministicTickerBrief;
+    } else {
+      try {
+        answer = await withTimeout(
+          executeFlashOnlyAIRequest(
+            buildAidenConversationPrompt(message, general.context, tickerContexts),
+            buildSystemInstruction(),
+          ),
+          GENERAL_CHAT_TIMEOUT_MS,
+          "aiden-conversation",
+        );
+      } catch (error) {
+        console.warn("[AIDEN] Conversation Flash-only generation failed:", error);
+        answer = buildAidenConversationFallbackMessage(message, general.context, tickerContexts);
+      }
+      if (tickerContexts.length > 0) {
+        answer = ensureValuationLine(answer, tickerContexts);
+      }
     }
 
     return {
