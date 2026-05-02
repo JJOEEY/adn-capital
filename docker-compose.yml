@@ -89,12 +89,6 @@ services:
     profiles:
       - automation
     restart: unless-stopped
-    command: >
-      /bin/sh -c 'if [ -z "$$N8N_ENCRYPTION_KEY" ] || [ -z "$$N8N_BASIC_AUTH_PASSWORD" ]; then
-      echo "Missing N8N_ENCRYPTION_KEY or N8N_BASIC_AUTH_PASSWORD" >&2;
-      exit 1;
-      fi;
-      n8n start'
     environment:
       - TZ=Asia/Ho_Chi_Minh
       - GENERIC_TIMEZONE=Asia/Ho_Chi_Minh
