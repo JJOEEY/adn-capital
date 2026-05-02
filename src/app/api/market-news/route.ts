@@ -1012,6 +1012,40 @@ function firstMeaningfulList(lists: string[][]): string[] {
   return [];
 }
 
+function ensureMorningRiskOpportunity(
+  items: string[],
+  indices: Array<{ name: string; value: number | null; change_pct: number | null }>,
+): string[] {
+  const cleaned = dedupeKeepOrder(items.filter(isMeaningfulLine));
+  const normalized = cleaned.map((line) => normalizeForCheck(line));
+  const hasRisk = normalized.some(
+    (line) =>
+      line.includes("rui ro") ||
+      line.includes("ap luc") ||
+      line.includes("canh bao") ||
+      line.includes("than trong"),
+  );
+  const hasOpportunity = normalized.some((line) => line.includes("co hoi") || line.includes("tich cuc"));
+  const vnindex = indices.find((item) => normalizeIndexKey(item.name) === "vnindex");
+  const fallback: string[] = [];
+
+  if (!hasRisk) {
+    const value = typeof vnindex?.value === "number" && vnindex.value > 0 ? vnindex.value.toLocaleString("vi-VN", { maximumFractionDigits: 2 }) : "vùng hiện tại";
+    const change = typeof vnindex?.change_pct === "number" ? `${vnindex.change_pct >= 0 ? "+" : ""}${vnindex.change_pct.toFixed(2)}%` : "chưa rõ biên độ";
+    fallback.push(
+      `Rủi ro: VN-INDEX đang ở ${value} (${change}); cần kiểm soát tỷ trọng nếu áp lực bán lan rộng hoặc thanh khoản suy yếu.`,
+    );
+  }
+
+  if (!hasOpportunity) {
+    fallback.push(
+      "Cơ hội: Ưu tiên theo dõi nhóm cổ phiếu giữ nền giá tốt, dòng tiền cải thiện và có câu chuyện kết quả kinh doanh rõ ràng.",
+    );
+  }
+
+  return dedupeKeepOrder([...cleaned, ...fallback]).filter(isMeaningfulLine).slice(0, 4);
+}
+
 function normalizeIndexKey(name: string): string {
   return normalizeForCheck(name).replace(/[^a-z0-9]/g, "");
 }
@@ -1058,10 +1092,10 @@ function toMorningPayload(report: { createdAt: Date; content: string; rawData: s
     ...fallbackMacro,
     ...fallbackNewsLines.filter((line) => !isVietnamMarketHeadline(line)),
   ]).slice(0, 5);
-  const riskOpportunity = dedupeKeepOrder([
+  const riskOpportunity = ensureMorningRiskOpportunity(dedupeKeepOrder([
     ...parsed.riskOpportunity,
     ...fallbackRisk,
-  ]).slice(0, 4);
+  ]), indices);
 
   return {
     date: toViDateFromDateKey(reportDateKey),
