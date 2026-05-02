@@ -50,6 +50,7 @@ docker-compose --profile automation exec n8n n8n import:workflow --input=/workfl
 docker-compose --profile automation exec n8n n8n import:workflow --input=/workflows/adn-telegram-operator-relay.json
 docker-compose --profile automation exec n8n n8n import:workflow --input=/workflows/adn-telegram-openclaw-agent.json
 docker-compose --profile automation exec n8n n8n import:workflow --input=/workflows/adn-telegram-daily-checklist.json
+docker-compose --profile automation exec n8n n8n import:workflow --input=/workflows/adn-telegram-daily-checklist-polling.json
 ```
 
 Workflow được để `active=false` sau khi import. Kiểm tra biến môi trường và test từng HTTP node trước khi bật.
@@ -124,3 +125,5 @@ N8N_TELEGRAM_ALLOWED_CHAT_IDS=<chat-id-1,chat-id-2>
 ```
 
 Nếu bot được thêm vào group, hãy tắt Privacy Mode bằng BotFather hoặc cấp quyền admin cho bot để workflow nhận được tin nhắn nhóm cần xử lý.
+
+Workflow `ADN - Telegram Daily Checklist Polling` là phương án chạy ngay khi chưa public webhook n8n hoặc chưa gán Telegram credential cho Telegram Trigger. Workflow này dùng `getUpdates` mỗi phút, lưu `lastUpdateId` trong static data của n8n để tránh xử lý trùng. Khi bật Telegram Trigger thật, phải tắt workflow polling để tránh bot trả lời hai lần.

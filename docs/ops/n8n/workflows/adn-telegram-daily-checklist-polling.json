@@ -1,0 +1,120 @@
+{
+  "name": "ADN - Telegram Daily Checklist Polling",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/1 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "poll-every-minute",
+      "name": "Poll Every Minute",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 260]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $getWorkflowStaticData('global');\nconst lastUpdateId = Number(data.lastUpdateId || 0);\nreturn [{ json: { offset: lastUpdateId > 0 ? lastUpdateId + 1 : undefined } }];"
+      },
+      "id": "build-poll-request",
+      "name": "Build Poll Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 260]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/getUpdates?timeout=0&limit=20&allowed_updates=%5B%22message%22%2C%22callback_query%22%5D' + ($json.offset ? '&offset=' + $json.offset : '')}}"
+      },
+      "id": "get-telegram-updates",
+      "name": "Get Telegram Updates",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 260]
+    },
+    {
+      "parameters": {
+        "jsCode": "const updates = Array.isArray($json.result) ? $json.result : [];\nconst data = $getWorkflowStaticData('global');\nlet maxUpdateId = Number(data.lastUpdateId || 0);\nconst items = [];\nfor (const update of updates) {\n  if (Number.isFinite(Number(update.update_id))) {\n    maxUpdateId = Math.max(maxUpdateId, Number(update.update_id));\n  }\n  const callback = update.callback_query || null;\n  const message = callback?.message || update.message || update.edited_message || {};\n  const from = callback?.from || message.from || {};\n  const chat = message.chat || {};\n  const text = callback?.data || message.text || message.caption || '';\n  if (!chat.id || !text) continue;\n  items.push({ json: {\n    updateId: update.update_id,\n    chatId: String(chat.id),\n    userId: String(from.id || ''),\n    username: from.username || [from.first_name, from.last_name].filter(Boolean).join(' '),\n    text,\n    callbackQueryId: callback?.id || null,\n    isCallback: Boolean(callback)\n  }});\n}\ndata.lastUpdateId = maxUpdateId;\nreturn items;"
+      },
+      "id": "normalize-updates",
+      "name": "Normalize Updates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [760, 260]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.ADN_WEB_BASE_URL}}/api/internal/n8n/telegram-agent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-internal-key", "value": "={{$env.ADN_INTERNAL_API_KEY}}" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}"
+      },
+      "id": "checklist-brain",
+      "name": "ADN Checklist Brain",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1020, 260]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage'}}",
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chatId, text: $json.text || 'AIDEN Checklist chưa có phản hồi.', disable_web_page_preview: true }) }}"
+      },
+      "id": "telegram-response",
+      "name": "Telegram Response",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1280, 260]
+    },
+    {
+      "parameters": {
+        "content": "Polling fallback để checklist bot hoạt động khi chưa public webhook n8n hoặc chưa gán Telegram credential cho Telegram Trigger. Khi dùng Telegram Trigger thật, tắt workflow polling này để tránh trả lời trùng.",
+        "height": 180,
+        "width": 420
+      },
+      "id": "workflow-note",
+      "name": "Workflow Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [500, 20]
+    }
+  ],
+  "connections": {
+    "Poll Every Minute": {
+      "main": [[{ "node": "Build Poll Request", "type": "main", "index": 0 }]]
+    },
+    "Build Poll Request": {
+      "main": [[{ "node": "Get Telegram Updates", "type": "main", "index": 0 }]]
+    },
+    "Get Telegram Updates": {
+      "main": [[{ "node": "Normalize Updates", "type": "main", "index": 0 }]]
+    },
+    "Normalize Updates": {
+      "main": [[{ "node": "ADN Checklist Brain", "type": "main", "index": 0 }]]
+    },
+    "ADN Checklist Brain": {
+      "main": [[{ "node": "Telegram Response", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "timezone": "Asia/Ho_Chi_Minh"
+  }
+}
