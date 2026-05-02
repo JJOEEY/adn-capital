@@ -51,6 +51,7 @@ docker-compose --profile automation exec n8n n8n import:workflow --input=/workfl
 docker-compose --profile automation exec n8n n8n import:workflow --input=/workflows/adn-telegram-openclaw-agent.json
 docker-compose --profile automation exec n8n n8n import:workflow --input=/workflows/adn-telegram-daily-checklist.json
 docker-compose --profile automation exec n8n n8n import:workflow --input=/workflows/adn-telegram-daily-checklist-polling.json
+docker-compose --profile automation exec n8n n8n import:workflow --input=/workflows/adn-telegram-daily-checklist-webhook.json
 ```
 
 Workflow được để `active=false` sau khi import. Kiểm tra biến môi trường và test từng HTTP node trước khi bật.
@@ -127,3 +128,39 @@ N8N_TELEGRAM_ALLOWED_CHAT_IDS=<chat-id-1,chat-id-2>
 Nếu bot được thêm vào group, hãy tắt Privacy Mode bằng BotFather hoặc cấp quyền admin cho bot để workflow nhận được tin nhắn nhóm cần xử lý.
 
 Workflow `ADN - Telegram Daily Checklist Polling` là phương án chạy ngay khi chưa public webhook n8n hoặc chưa gán Telegram credential cho Telegram Trigger. Workflow này dùng `getUpdates` mỗi phút, lưu `lastUpdateId` trong static data của n8n để tránh xử lý trùng. Khi bật Telegram Trigger thật, phải tắt workflow polling để tránh bot trả lời hai lần.
+## Telegram Webhook Public
+
+Workflow `ADN - Telegram Daily Checklist Webhook` la ban webhook public dung cho production.
+
+Luong:
+
+```text
+Telegram -> https://adncapital.com.vn/webhook/adn-telegram-checklist
+-> Verify Telegram Secret
+-> Normalize Telegram Update
+-> ADN Checklist Brain
+-> Telegram Response
+```
+
+Bien moi truong can co trong container n8n:
+
+```bash
+N8N_WEBHOOK_URL=https://adncapital.com.vn/
+N8N_PROXY_HOPS=1
+N8N_TELEGRAM_WEBHOOK_SECRET=<random-secret>
+```
+
+Nginx host can proxy cong khai duong dan `/webhook/` ve n8n, con UI n8n van nen giu private qua SSH tunnel:
+
+```nginx
+location ^~ /webhook/ {
+    proxy_pass http://127.0.0.1:5678/webhook/;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+Khi bat webhook public, tat workflow `ADN - Telegram Daily Checklist Polling` de tranh hai luong cung xu ly Telegram update.

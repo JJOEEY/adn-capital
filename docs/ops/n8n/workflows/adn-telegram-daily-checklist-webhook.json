@@ -1,0 +1,111 @@
+{
+  "name": "ADN - Telegram Daily Checklist Webhook",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "adn-telegram-checklist",
+        "responseMode": "onReceived",
+        "responseData": "firstEntryJson",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "telegram-webhook",
+      "name": "Telegram Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 260],
+      "webhookId": "adn-telegram-checklist"
+    },
+    {
+      "parameters": {
+        "jsCode": "const expected = String($env.N8N_TELEGRAM_WEBHOOK_SECRET || '');\nconst headers = $json.headers || {};\nconst actual = String(headers['x-telegram-bot-api-secret-token'] || headers['X-Telegram-Bot-Api-Secret-Token'] || '');\nif (expected && actual !== expected) {\n  return [];\n}\nconst update = $json.body || $json;\nreturn [{ json: update }];"
+      },
+      "id": "verify-telegram-secret",
+      "name": "Verify Telegram Secret",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [260, 260]
+    },
+    {
+      "parameters": {
+        "jsCode": "const update = $json;\nconst callback = update.callback_query || null;\nconst message = callback?.message || update.message || update.edited_message || {};\nconst from = callback?.from || message.from || {};\nconst chat = message.chat || {};\nconst text = callback?.data || message.text || message.caption || '';\nif (!chat.id || !text) return [];\nreturn [{ json: {\n  updateId: update.update_id,\n  chatId: String(chat.id),\n  userId: String(from.id || ''),\n  username: from.username || [from.first_name, from.last_name].filter(Boolean).join(' '),\n  text,\n  callbackQueryId: callback?.id || null,\n  isCallback: Boolean(callback)\n}}];"
+      },
+      "id": "normalize-update",
+      "name": "Normalize Telegram Update",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [520, 260]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.ADN_WEB_BASE_URL}}/api/internal/n8n/telegram-agent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-internal-key",
+              "value": "={{$env.ADN_INTERNAL_API_KEY}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}"
+      },
+      "id": "checklist-brain",
+      "name": "ADN Checklist Brain",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [800, 260]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage'}}",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chatId, text: $json.text || 'AIDEN Checklist chưa có phản hồi.', disable_web_page_preview: true }) }}"
+      },
+      "id": "telegram-response",
+      "name": "Telegram Response",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1080, 260]
+    },
+    {
+      "parameters": {
+        "content": "Webhook public cho Telegram checklist bot. Telegram gọi https://adncapital.com.vn/webhook/adn-telegram-checklist. Workflow xác thực secret header trước khi gọi ADN Checklist Brain. Khi workflow này bật, tắt workflow polling để tránh trả lời trùng.",
+        "height": 190,
+        "width": 440
+      },
+      "id": "workflow-note",
+      "name": "Workflow Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [500, 20]
+    }
+  ],
+  "connections": {
+    "Telegram Webhook": {
+      "main": [[{ "node": "Verify Telegram Secret", "type": "main", "index": 0 }]]
+    },
+    "Verify Telegram Secret": {
+      "main": [[{ "node": "Normalize Telegram Update", "type": "main", "index": 0 }]]
+    },
+    "Normalize Telegram Update": {
+      "main": [[{ "node": "ADN Checklist Brain", "type": "main", "index": 0 }]]
+    },
+    "ADN Checklist Brain": {
+      "main": [[{ "node": "Telegram Response", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "timezone": "Asia/Ho_Chi_Minh"
+  }
+}
