@@ -3,6 +3,12 @@ import { getCurrentDbUser } from "@/lib/current-user";
 import { prisma } from "@/lib/prisma";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
 
+function normalizeEquityPrice(value: unknown) {
+  const price = Number(value);
+  if (!Number.isFinite(price) || price <= 0) return 0;
+  return Math.round(price < 1000 ? price * 1000 : price);
+}
+
 /**
  * GET /api/journal/pnl
  * Tính PnL tổng: initialJournalNAV + tổng lãi/lỗ đã chốt
@@ -61,15 +67,16 @@ export async function GET(req: NextRequest) {
       }
 
       if (j.action === "BUY") {
-        holdings[j.ticker].buys.push({ price: j.price, qty: j.quantity });
+        const buyPrice = normalizeEquityPrice(j.price);
+        holdings[j.ticker].buys.push({ price: buyPrice, qty: j.quantity });
         const totalQty = holdings[j.ticker].qty + j.quantity;
         holdings[j.ticker].avgPrice =
-          (holdings[j.ticker].avgPrice * holdings[j.ticker].qty + j.price * j.quantity) / totalQty;
+          (holdings[j.ticker].avgPrice * holdings[j.ticker].qty + buyPrice * j.quantity) / totalQty;
         holdings[j.ticker].qty = totalQty;
         holdings[j.ticker].totalCost = holdings[j.ticker].avgPrice * totalQty;
       } else if (j.action === "SELL") {
         let sellQty = j.quantity;
-        const sellPrice = j.price;
+        const sellPrice = normalizeEquityPrice(j.price);
 
         // FIFO matching
         while (sellQty > 0 && holdings[j.ticker].buys.length > 0) {
@@ -131,8 +138,8 @@ export async function GET(req: NextRequest) {
             const json = await res.json();
             const arr = json.data ?? [];
             if (arr.length > 0) {
-              // API trả giá theo đơn vị nghìn VNĐ (25.6 = 25,600₫) → nhân 1000
-              marketPrices[ticker] = Math.round((arr[arr.length - 1].close ?? 0) * 1000);
+              const marketPrice = normalizeEquityPrice(arr[arr.length - 1].close);
+              if (marketPrice > 0) marketPrices[ticker] = marketPrice;
             }
           }
         } catch { /* fallback to avgPrice */ }
@@ -177,7 +184,7 @@ export async function GET(req: NextRequest) {
       txByTicker[j.ticker].push({
         id: j.id,
         action: j.action,
-        price: j.price,
+        price: normalizeEquityPrice(j.price),
         qty: j.quantity,
         date: (j.tradeDate ?? j.createdAt).toISOString(),
         psychologyTag: j.psychologyTag,

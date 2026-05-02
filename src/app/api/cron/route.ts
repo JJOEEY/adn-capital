@@ -11,6 +11,8 @@
  * - GET /api/cron?type=signal_scan_5m   → fixed-slot gate
  */
 import { NextRequest, NextResponse } from "next/server";
+import fs from "fs";
+import path from "path";
 import { prisma } from "@/lib/prisma";
 import { generateText } from "@/lib/gemini";
 import {
@@ -42,6 +44,26 @@ export const maxDuration = 120;
 export const dynamic = "force-dynamic";
 
 const PYTHON_BRIDGE = getPythonBridgeUrl();
+const MARKET_OVERVIEW_CACHE_FILE = path.join(process.cwd(), "market_cache.json");
+
+function saveMarketOverviewCache(overview: unknown) {
+  if (!overview || typeof overview !== "object") return;
+  try {
+    fs.writeFileSync(
+      MARKET_OVERVIEW_CACHE_FILE,
+      JSON.stringify(
+        {
+          ...(overview as Record<string, unknown>),
+          last_updated: new Date().toISOString(),
+        },
+        null,
+        2,
+      ),
+    );
+  } catch (error) {
+    console.error("[cron:eod_full_19h] Failed to save ADNCore cache:", error);
+  }
+}
 
 function buildInternalCronRequest(url: string): NextRequest {
   const headers = new Headers();
@@ -557,16 +579,12 @@ _Powered by ADN Capital AI_`;
 
 async function handlePropTrading(forceRun = false): Promise<NextResponse> {
   const startTime = Date.now();
-  if (!forceRun && !isTradingDay()) {
-    await logCron("eod_full_19h", "skipped", "Không phải ngày giao dịch", 0);
-    return NextResponse.json({ message: "Skipped" });
-  }
-
   const today = getVNDateString();
   const dateISO = getVNDateISO();
 
   try {
     const [propData, snapshot] = await Promise.all([getPropTradingData(), getMarketSnapshot()]);
+    saveMarketOverviewCache(snapshot.marketOverview);
 
     if (!hasRequiredFull19Data(snapshot) && !forceRun) {
       const duration = Date.now() - startTime;
@@ -666,11 +684,6 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
 
 async function handleIntraday(forceRun = false): Promise<NextResponse> {
   const startTime = Date.now();
-  if (!forceRun && !isTradingDay()) {
-    await logCron("market_stats_type2", "skipped", "Không phải ngày giao dịch", 0);
-    return NextResponse.json({ message: "Skipped" });
-  }
-
   const today = getVNDateString();
   const vnNow = getVnNow();
   const windowInfo = getSignalWindowInfo(vnNow.toDate(), "type2");

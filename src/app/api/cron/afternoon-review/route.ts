@@ -10,7 +10,6 @@ import {
   logCron,
   pushNotification,
   saveMarketReport,
-  isTradingDay,
   getVNDateString,
 } from "@/lib/cronHelpers";
 import { getMarketSnapshot, getInvestorTradingText } from "@/lib/marketDataFetcher";
@@ -137,11 +136,6 @@ export async function GET(req: NextRequest) {
   }
 
   const forceRun = req.nextUrl.searchParams.get("force") === "1";
-
-  if (!forceRun && !isTradingDay()) {
-    await logCron("close_brief_15h", "skipped", "Không phải ngày giao dịch", 0);
-    return NextResponse.json({ message: "Không phải ngày giao dịch" });
-  }
 
   const startTime = Date.now();
   const today = getVNDateString();

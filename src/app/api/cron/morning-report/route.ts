@@ -12,7 +12,6 @@ import {
   logCron,
   pushNotification,
   saveMarketReport,
-  isTradingDay,
   getVNDateString,
 } from "@/lib/cronHelpers";
 import { getMarketSnapshot, formatSnapshotForAI } from "@/lib/marketDataFetcher";
@@ -50,12 +49,6 @@ _Powered by ADN Capital AI_`;
 export async function GET(req: NextRequest) {
   if (!validateCronSecret(req)) {
     return NextResponse.json({ error: "Không có quyền truy cập" }, { status: 401 });
-  }
-
-  const forceRun = req.nextUrl.searchParams.get("force") === "1";
-  if (!forceRun && !isTradingDay()) {
-    await logCron("morning_brief", "skipped", "Không phải ngày giao dịch", 0);
-    return NextResponse.json({ message: "Không phải ngày giao dịch" });
   }
 
   const startTime = Date.now();

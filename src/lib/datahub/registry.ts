@@ -509,6 +509,29 @@ async function loadHistoricalTicker(ticker: string) {
   throw lastError instanceof Error ? lastError : new Error(`historical ${ticker} unavailable`);
 }
 
+async function loadVNIndexChart30d() {
+  const payload = await loadBridgeHistoricalTicker("VNINDEX", "1d", 75, 5_000);
+  const data = getMarketPayloadRows(payload)
+    .map((row) => {
+      const close = readPositiveNumber(row.close ?? row.c ?? row.price);
+      const rawDate = String(row.date ?? row.timestamp ?? row.time ?? "").trim();
+      const date = rawDate.split("T")[0].split(" ")[0];
+      return close != null && date ? { date, close } : null;
+    })
+    .filter((row): row is { date: string; close: number } => Boolean(row))
+    .slice(-30);
+
+  if (data.length === 0) {
+    throw new Error("VNINDEX chart 30d unavailable");
+  }
+
+  return {
+    data,
+    count: data.length,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 function hasCandleRows(payload: unknown) {
   return getMarketPayloadRows(payload).length > 0;
 }
@@ -1682,6 +1705,16 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     tags: ["dashboard", "market", "composite"],
     match: (topicKey) => (topicKey === "vn:index:composite:live" ? { ok: true } : { ok: false }),
     resolve: async () => loadCompositeLive(),
+  },
+  {
+    id: "vn:index:chart:30d",
+    ttlMs: 300_000,
+    minIntervalMs: 60_000,
+    source: "fiinquant",
+    version: "v1",
+    tags: ["dashboard", "market", "chart", "historical"],
+    match: (topicKey) => (topicKey === "vn:index:chart:30d" ? { ok: true } : { ok: false }),
+    resolve: async () => loadVNIndexChart30d(),
   },
   {
     id: "vn:index:breadth:VNINDEX",

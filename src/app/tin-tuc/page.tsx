@@ -243,14 +243,24 @@ function SentimentBadge({ sentiment }: { sentiment: string | null }) {
   );
 }
 
-function TagList({ tags, limit = 3 }: { tags: string[]; limit?: number }) {
+function TagList({ tags, limit = 3, spread = false }: { tags: string[]; limit?: number; spread?: boolean }) {
   if (!tags.length) return null;
   return (
-    <div className="mt-2 flex flex-wrap gap-1.5">
+    <div
+      className={
+        spread
+          ? "mt-2 grid w-full grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fit,minmax(112px,1fr))]"
+          : "mt-2 flex flex-wrap gap-1.5"
+      }
+    >
       {tags.slice(0, limit).map((tag) => (
         <span
           key={tag}
-          className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium"
+          className={
+            spread
+              ? "inline-flex min-w-0 items-center justify-center truncate rounded-full px-2 py-1 text-[11px] font-medium"
+              : "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium"
+          }
           style={{ background: "var(--surface-2)", color: "var(--text-secondary)" }}
         >
           #{tag.replace(/^#/, "")}
@@ -636,7 +646,7 @@ function ArticleRow({ article }: { article: Article }) {
           <span>·</span>
           <span>{timeAgo(article.publishedAt)}</span>
         </div>
-        <TagList tags={tags} limit={4} />
+        <TagList tags={tags} limit={4} spread />
       </div>
     </Link>
   );

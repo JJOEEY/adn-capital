@@ -1,7 +1,8 @@
 ﻿"use client";
 
 import { useEffect, useState, useMemo, useCallback, memo, Suspense, Component, type ReactNode } from "react";
-import { RefreshCw, Bot, Zap, ShieldAlert, Flame, AlertTriangle, TrendingUp } from "lucide-react";
+import Link from "next/link";
+import { RefreshCw, Bot, Zap, ShieldAlert, Flame, TrendingUp } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/Button";
 import { TickerTape, TickerTapeSkeleton } from "@/components/dashboard/TickerTape";
@@ -51,6 +52,36 @@ interface EodBriefData {
 
 type SignalActivePayload = {
   id: string;
+};
+
+type HistoricalCandle = {
+  date?: string;
+  timestamp?: string;
+  time?: string;
+  close?: number | string;
+  c?: number | string;
+};
+
+type HistoricalPayload = {
+  data?: HistoricalCandle[];
+  candles?: HistoricalCandle[];
+  items?: HistoricalCandle[];
+};
+
+type RsRatingStock = {
+  symbol?: string;
+  ticker?: string;
+  rsRating?: number;
+  rsScore?: number;
+  volume?: number;
+  price?: number;
+  changePercent?: number;
+};
+
+type RsRatingPayload = {
+  stocks?: RsRatingStock[];
+  data?: RsRatingStock[];
+  items?: RsRatingStock[];
 };
 
 /** Dữ liệu "Đánh giá Đáy Thị Trường" từ Python API */
@@ -152,6 +183,33 @@ function cleanStatusBadge(value: string): string {
     .trim();
 }
 
+function readFiniteNumber(value: unknown): number | null {
+  const numberValue = typeof value === "string" ? Number(value.replace(/,/g, "")) : Number(value);
+  return Number.isFinite(numberValue) ? numberValue : null;
+}
+
+function getHistoricalRows(payload: HistoricalPayload | null | undefined): HistoricalCandle[] {
+  const rows = payload?.data ?? payload?.candles ?? payload?.items ?? [];
+  return Array.isArray(rows) ? rows : [];
+}
+
+function normalizeVNIndexChartData(payload: HistoricalPayload | null | undefined) {
+  return getHistoricalRows(payload)
+    .map((row) => {
+      const close = readFiniteNumber(row.close ?? row.c);
+      const rawDate = String(row.date ?? row.timestamp ?? row.time ?? "").trim();
+      const date = rawDate.split("T")[0].split(" ")[0];
+      return close != null && close > 0 && date ? { date, close } : null;
+    })
+    .filter((row): row is { date: string; close: number } => Boolean(row))
+    .slice(-30);
+}
+
+function getRsRows(payload: RsRatingPayload | null | undefined): RsRatingStock[] {
+  const rows = payload?.stocks ?? payload?.data ?? payload?.items ?? [];
+  return Array.isArray(rows) ? rows : [];
+}
+
 /** Component-level error boundary — hiện skeleton thay vì crash toàn trang */
 class SafeSection extends Component<
   { children: ReactNode; fallback?: ReactNode },
@@ -230,6 +288,18 @@ export default function DashboardPage() {
     revalidateOnFocus: false,
     dedupingInterval: 15_000,
   });
+  const vnIndexHistoryTopic = useTopic<HistoricalPayload>("vn:index:chart:30d", {
+    refreshInterval: 300_000,
+    revalidateOnFocus: false,
+    dedupingInterval: 120_000,
+    timeoutMs: 5_000,
+  });
+  const rsRatingTopic = useTopic<RsRatingPayload>("research:rs-rating:list", {
+    refreshInterval: 900_000,
+    revalidateOnFocus: false,
+    dedupingInterval: 300_000,
+    timeoutMs: 5_000,
+  });
 
   const data = marketOverviewTopic.data;
   const marketStatus = marketCompositeCacheTopic.data;
@@ -242,14 +312,16 @@ export default function DashboardPage() {
 
   /* ── Derived state ── */
   const loading = !mounted || (!data && marketOverviewTopic.isLoading);
-  const refreshing = mounted && !!data && marketOverviewTopic.isValidating;
+  const refreshing = mounted && !!data && (marketOverviewTopic.isValidating || vnIndexHistoryTopic.isValidating);
 
   const handleRefresh = useCallback(() => {
     void marketOverviewTopic.refresh(true);
     void marketCompositeCacheTopic.refresh(true);
     void marketCompositeLiveTopic.refresh(true);
     void eodTopic.refresh(true);
-  }, [marketOverviewTopic, marketCompositeCacheTopic, marketCompositeLiveTopic, eodTopic]);
+    void vnIndexHistoryTopic.refresh(true);
+    void rsRatingTopic.refresh(true);
+  }, [marketOverviewTopic, marketCompositeCacheTopic, marketCompositeLiveTopic, eodTopic, vnIndexHistoryTopic, rsRatingTopic]);
 
   const tickerItems = useMemo(() => {
     if (!data) return [];
@@ -266,6 +338,38 @@ export default function DashboardPage() {
       })),
     ];
   }, [data]);
+
+  const fastChartData = useMemo(
+    () => normalizeVNIndexChartData(vnIndexHistoryTopic.data),
+    [vnIndexHistoryTopic.data],
+  );
+
+  const dashboardChartData = fastChartData.length > 0 ? fastChartData : data?.chartData ?? [];
+  const dashboardChartCurrentValue =
+    dashboardChartData.length > 0
+      ? dashboardChartData[dashboardChartData.length - 1].close
+      : data?.vnindex?.value ?? 0;
+  const dashboardChartChangePercent =
+    dashboardChartData.length > 1
+      ? ((dashboardChartData[dashboardChartData.length - 1].close - dashboardChartData[dashboardChartData.length - 2].close) /
+          Math.max(1, dashboardChartData[dashboardChartData.length - 2].close)) *
+        100
+      : data?.vnindex?.changePercent ?? 0;
+
+  const topRankRows = useMemo(
+    () =>
+      getRsRows(rsRatingTopic.data)
+        .map((row) => {
+          const ticker = String(row.symbol ?? row.ticker ?? "").toUpperCase();
+          const rs = readFiniteNumber(row.rsRating ?? row.rsScore) ?? 0;
+          const volume = readFiniteNumber(row.volume) ?? 0;
+          return ticker ? { ticker, rs, volume } : null;
+        })
+        .filter((row): row is { ticker: string; rs: number; volume: number } => Boolean(row))
+        .sort((a, b) => b.rs - a.rs || b.volume - a.volume)
+        .slice(0, 5),
+    [rsRatingTopic.data],
+  );
 
   // Liquidity ưu tiên tổng HoSE + HNX + UPCOM khi đủ dữ liệu.
   const effectiveLiquidityTy = useMemo(() => {
@@ -332,26 +436,27 @@ export default function DashboardPage() {
         <div className="grid w-full min-w-0 grid-cols-1 lg:grid-cols-10 gap-4">
           {/* Cột Trái: Chart + Breadth */}
           <div className="lg:col-span-6 w-full min-w-0 flex flex-col gap-3">
-            {!data ? (
-              <>
-                <VNIndexChartSkeleton />
-                <MarketBreadthSkeleton />
-              </>
-            ) : (
-              <SafeSection fallback={<><VNIndexChartSkeleton /><MarketBreadthSkeleton /></>}>
+            <SafeSection fallback={<><VNIndexChartSkeleton /><MarketBreadthSkeleton /></>}>
+              {dashboardChartData.length > 0 ? (
                 <VNIndexChart
-                  data={data.chartData ?? []}
-                  currentValue={data.vnindex?.value ?? 0}
-                  changePercent={data.vnindex?.changePercent ?? 0}
+                  data={dashboardChartData}
+                  currentValue={dashboardChartCurrentValue}
+                  changePercent={dashboardChartChangePercent}
                 />
+              ) : (
+                <VNIndexChartSkeleton />
+              )}
+              {data ? (
                 <MarketBreadth
                   up={data.updown?.up ?? 0}
                   down={data.updown?.down ?? 0}
                   unchanged={data.updown?.unchanged ?? 0}
                   totalVolume={liquidityDisplay}
                 />
-              </SafeSection>
-            )}
+              ) : (
+                <MarketBreadthSkeleton />
+              )}
+            </SafeSection>
           </div>
 
           {/* Cột Phải: Gauge + Market Status Card */}
@@ -395,10 +500,14 @@ export default function DashboardPage() {
           </SafeSection>
 
           <LockOverlay isLocked={isDashboardLocked} message={`Nâng cấp VIP để mở nhận định ${BRAND.persona}`}>
-            <AIBrokerDecisionCard
-              summary={data?.aiSummary ?? null}
-              signalLabel={effectiveOverview?.action_message ?? null}
-            />
+            <div className="flex min-w-0 flex-col gap-4">
+              <AIBrokerDecisionCard
+                summary={data?.aiSummary ?? null}
+                signalLabel={effectiveOverview?.action_message ?? null}
+                compact
+              />
+              <ADNRankMiniCard rows={topRankRows} />
+            </div>
           </LockOverlay>
 
           <LockOverlay isLocked={isDashboardLocked} message={`Nâng cấp VIP để xem ${PRODUCT_NAMES.art}`}>
@@ -600,9 +709,11 @@ function GaugeCardSkeleton() {
 const AIBrokerDecisionCard = memo(function AIBrokerDecisionCard({
   summary,
   signalLabel,
+  compact = false,
 }: {
   summary: string | null;
   signalLabel: string | null;
+  compact?: boolean;
 }) {
   const decision = (signalLabel || summary || "GIU").toUpperCase();
   const isBuy = decision.includes("MUA");
@@ -616,7 +727,7 @@ const AIBrokerDecisionCard = memo(function AIBrokerDecisionCard({
       : `${PRODUCT_NAMES.brokerWorkflow}: GIỮ`;
 
   return (
-    <div className="rounded-2xl border p-4 sm:p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+    <div className={`rounded-2xl border ${compact ? "p-4" : "p-4 sm:p-5"}`} style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
       <div className="flex items-center justify-between gap-3 mb-3">
         <div className="flex items-center gap-2">
           <Bot className="w-4 h-4" style={{ color: "#16a34a" }} />
@@ -628,12 +739,66 @@ const AIBrokerDecisionCard = memo(function AIBrokerDecisionCard({
           {badgeLabel}
         </span>
       </div>
-      <p className="text-sm leading-relaxed" style={{ color: "var(--text-primary)" }}>
+      <p className={`text-sm leading-relaxed ${compact ? "line-clamp-4" : ""}`} style={{ color: "var(--text-primary)" }}>
         {summary || "AIDEN đang đọc dữ liệu thị trường, ưu tiên giữ tỷ trọng an toàn."}
       </p>
     </div>
   );
 });
+
+function formatCompactVolume(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return "-";
+  if (value >= 1_000_000) return `${new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 1 }).format(value / 1_000_000)}tr`;
+  if (value >= 1_000) return `${new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(value / 1_000)}k`;
+  return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(value);
+}
+
+function ADNRankMiniCard({ rows }: { rows: Array<{ ticker: string; rs: number; volume: number }> }) {
+  return (
+    <div className="rounded-2xl border p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <TrendingUp className="h-4 w-4" style={{ color: "#16a34a" }} />
+          <span className="text-[12px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+            ADN Rank
+          </span>
+        </div>
+        <Link
+          href="/rs-rating"
+          className="rounded-full border px-2.5 py-1 text-[11px] font-bold transition hover:-translate-y-0.5"
+          style={{ color: "var(--primary)", borderColor: "var(--border)", background: "var(--surface-2)" }}
+        >
+          Xem thêm
+        </Link>
+      </div>
+      <div className="space-y-2">
+        {rows.length > 0 ? (
+          rows.map((row, index) => (
+            <div
+              key={row.ticker}
+              className="grid grid-cols-[auto_1fr_auto] items-center gap-2 rounded-xl px-3 py-2"
+              style={{ background: "var(--surface-2)" }}
+            >
+              <span className="text-[11px] font-black" style={{ color: "var(--text-muted)" }}>
+                {index + 1}
+              </span>
+              <span className="font-black" style={{ color: "var(--text-primary)" }}>
+                {row.ticker}
+              </span>
+              <span className="text-right text-[12px] font-bold tabular-nums" style={{ color: "var(--text-secondary)" }}>
+                RS {Math.round(row.rs)} · {formatCompactVolume(row.volume)}
+              </span>
+            </div>
+          ))
+        ) : (
+          <div className="rounded-xl px-3 py-4 text-sm" style={{ background: "var(--surface-2)", color: "var(--text-secondary)" }}>
+            Đang cập nhật 5 mã mạnh nhất.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 /* ═══════════════════════════════════════════════════════════════════════════
  *  MarketStatusCard – Thẻ trạng thái 3D nổi khối + Backlight Glow
  *  Bọc React.memo để tránh re-render gây lag
