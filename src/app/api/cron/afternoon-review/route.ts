@@ -139,6 +139,7 @@ export async function GET(req: NextRequest) {
   const forceRun = req.nextUrl.searchParams.get("force") === "1";
 
   if (!forceRun && !isTradingDay()) {
+    await logCron("close_brief_15h", "skipped", "Không phải ngày giao dịch", 0);
     return NextResponse.json({ message: "Không phải ngày giao dịch" });
   }
 

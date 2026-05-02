@@ -85,6 +85,50 @@ grep -q '@pgbouncer:5432' <<<"${WEB_ENV}" || fail "DATABASE_URL does not point t
 grep -q '@db:5432' <<<"${WEB_ENV}" || fail "DIRECT_DATABASE_URL does not point to db"
 pass "Container DB env contract is valid"
 
+is_vn_non_trading_day() {
+  local vn_dow vn_date holidays holiday
+  vn_dow="$(TZ=Asia/Ho_Chi_Minh date +%u)"
+  vn_date="$(TZ=Asia/Ho_Chi_Minh date +%F)"
+  if [[ "${vn_dow}" == "6" || "${vn_dow}" == "7" ]]; then
+    return 0
+  fi
+
+  holidays="$(grep -m1 '^VN_TRADING_HOLIDAYS=' <<<"${WEB_ENV}" | cut -d= -f2- || true)"
+  IFS=',' read -ra holiday_list <<<"${holidays}"
+  for holiday in "${holiday_list[@]}"; do
+    holiday="$(tr -d '[:space:]' <<<"${holiday}")"
+    if [[ "${holiday}" == "${vn_date}" ]]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+refresh_non_trading_cron_markers() {
+  local cron_secret cron_name code
+  cron_secret="$(grep -m1 '^CRON_SECRET=' <<<"${WEB_ENV}" | cut -d= -f2- || true)"
+  if [[ -z "${cron_secret}" ]]; then
+    warn "CRON_SECRET not found; cannot refresh non-trading cron markers"
+    return
+  fi
+
+  for cron_name in morning_brief close_brief_15h eod_full_19h market_stats_type2 signal_scan_type1; do
+    code="$(curl -sS -o "/tmp/${cron_name}_non_trading.json" -w '%{http_code}' \
+      -H "x-cron-secret: ${cron_secret}" \
+      "http://127.0.0.1:3000/api/cron?type=${cron_name}&sync=1" || true)"
+    if [[ "${code}" =~ ^2[0-9][0-9]$ ]]; then
+      pass "Cron ${cron_name} non-trading marker refreshed"
+    else
+      warn "Cron ${cron_name} non-trading marker refresh returned ${code}"
+    fi
+  done
+}
+
+if is_vn_non_trading_day; then
+  refresh_non_trading_cron_markers
+fi
+
 USER_COUNT="$(${COMPOSE_BIN} exec -T db psql -U adnuser -d adncapital -t -A -c 'SELECT COUNT(*) FROM "User";' | tr -d '[:space:]')"
 [[ "${USER_COUNT}" =~ ^[0-9]+$ ]] || fail "User count query failed"
 if (( USER_COUNT <= 0 )); then
