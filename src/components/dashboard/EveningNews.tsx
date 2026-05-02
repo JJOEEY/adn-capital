@@ -45,6 +45,8 @@ interface EodData {
   foreign_top_sell?: string[];
   prop_trading_top_buy?: string[];
   prop_trading_top_sell?: string[];
+  individual_top_buy?: string[];
+  individual_top_sell?: string[];
   sector_gainers?: string[];
   sector_losers?: string[];
   buy_signals?: string[];
@@ -98,6 +100,38 @@ function normalizeFlowItems(items: string[] | undefined): string[] {
   return output;
 }
 
+function parseNumber(value: string): number | null {
+  const normalized = value.replace(/\./g, "").replace(",", ".");
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatNetFlow(value: number): string {
+  const abs = Math.abs(value).toLocaleString("vi-VN", { maximumFractionDigits: 1 });
+  return `${value >= 0 ? "Mua ròng" : "Bán ròng"} ${abs} tỷ`;
+}
+
+function parseForeignNetFlow(text: string | undefined): string[] {
+  if (!text) return [];
+  const cleaned = text.replace(/\s+/g, " ").trim();
+  const match = cleaned.match(/([+-]?\d[\d.,]*)\s*tỷ/i);
+  if (!match) return [];
+  const value = parseNumber(match[1]);
+  if (value == null) return [];
+  const lower = cleaned.toLowerCase();
+  const signed = lower.includes("bán ròng") ? -Math.abs(value) : Math.abs(value);
+  return [formatNetFlow(signed)];
+}
+
+function parseNamedNetFlow(text: string | undefined, label: string): string[] {
+  if (!text) return [];
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = text.match(new RegExp(`${escaped}\\s*[:：]?\\s*([+-]?\\d[\\d.,]*)\\s*tỷ`, "i"));
+  if (!match) return [];
+  const value = parseNumber(match[1]);
+  return value == null ? [] : [formatNetFlow(value)];
+}
+
 function EveningBriefEmptyState() {
   return (
     <div className="rounded-2xl border p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
@@ -137,6 +171,11 @@ export function EveningNews() {
   const foreignTopSell = normalizeFlowItems(data.foreign_top_sell);
   const propTradingTopBuy = normalizeFlowItems(data.prop_trading_top_buy);
   const propTradingTopSell = normalizeFlowItems(data.prop_trading_top_sell);
+  const individualTopBuy = normalizeFlowItems(data.individual_top_buy);
+  const individualTopSell = normalizeFlowItems(data.individual_top_sell);
+  const foreignNetSummary = parseForeignNetFlow(data.foreign_flow);
+  const propNetSummary = parseNamedNetFlow(data.notable_trades, "Tự doanh");
+  const individualNetSummary = parseNamedNetFlow(data.notable_trades, "Cá nhân");
   const sectorGainers = normalizeFlowItems(data.sector_gainers);
   const sectorLosers = normalizeFlowItems(data.sector_losers);
   const buySignals = normalizeFlowItems(data.buy_signals);
@@ -272,9 +311,17 @@ export function EveningNews() {
             )}
 
             {/* Row: Khối ngoại */}
-            {(foreignTopBuy.length || foreignTopSell.length) && (
+            {(foreignTopBuy.length || foreignTopSell.length || foreignNetSummary.length) && (
               <GridRow label="Giao dịch Khối ngoại">
                 <div className="space-y-1.5">
+                  {foreignNetSummary.length > 0 && (
+                    <TagLine
+                      icon={<Users className="w-3 h-3" style={{ color: TONE.amber.text }} />}
+                      label="Tổng hợp:"
+                      items={foreignNetSummary}
+                      tone="amber"
+                    />
+                  )}
                   {foreignTopBuy.length > 0 && (
                     <TagLine
                       icon={<ArrowUpCircle className="w-3 h-3" style={{ color: TONE.emerald.text }} />}
@@ -296,9 +343,17 @@ export function EveningNews() {
             )}
 
             {/* Row: Giao dịch Tự doanh */}
-            {(propTradingTopBuy.length || propTradingTopSell.length) && (
+            {(propTradingTopBuy.length || propTradingTopSell.length || propNetSummary.length) && (
               <GridRow label="Giao dịch Tự doanh">
                 <div className="space-y-1.5">
+                  {propNetSummary.length > 0 && (
+                    <TagLine
+                      icon={<BarChart3 className="w-3 h-3" style={{ color: TONE.purple.text }} />}
+                      label="Tổng hợp:"
+                      items={propNetSummary}
+                      tone="purple"
+                    />
+                  )}
                   {propTradingTopBuy.length > 0 && (
                     <TagLine
                       icon={<ArrowUpCircle className="w-3 h-3" style={{ color: TONE.emerald.text }} />}
@@ -312,6 +367,37 @@ export function EveningNews() {
                       icon={<ArrowDownCircle className="w-3 h-3" style={{ color: TONE.red.text }} />}
                       label="Top bán ròng:"
                       items={propTradingTopSell}
+                      tone="red"
+                    />
+                  )}
+                </div>
+              </GridRow>
+            )}
+
+            {(individualTopBuy.length || individualTopSell.length || individualNetSummary.length) && (
+              <GridRow label="Giao dịch Cá nhân">
+                <div className="space-y-1.5">
+                  {individualNetSummary.length > 0 && (
+                    <TagLine
+                      icon={<Users className="w-3 h-3" style={{ color: TONE.blue.text }} />}
+                      label="Tổng hợp:"
+                      items={individualNetSummary}
+                      tone="blue"
+                    />
+                  )}
+                  {individualTopBuy.length > 0 && (
+                    <TagLine
+                      icon={<ArrowUpCircle className="w-3 h-3" style={{ color: TONE.emerald.text }} />}
+                      label="Top mua ròng:"
+                      items={individualTopBuy}
+                      tone="emerald"
+                    />
+                  )}
+                  {individualTopSell.length > 0 && (
+                    <TagLine
+                      icon={<ArrowDownCircle className="w-3 h-3" style={{ color: TONE.red.text }} />}
+                      label="Top bán ròng:"
+                      items={individualTopSell}
                       tone="red"
                     />
                   )}

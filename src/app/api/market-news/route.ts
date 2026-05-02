@@ -49,6 +49,8 @@ type EodPayload = {
   foreign_top_sell: string[];
   prop_trading_top_buy: string[];
   prop_trading_top_sell: string[];
+  individual_top_buy: string[];
+  individual_top_sell: string[];
   sector_gainers: string[];
   sector_losers: string[];
   buy_signals: string[];
@@ -108,6 +110,8 @@ function fromBridgeEodPayload(raw: FiinEodNews): EodPayload {
     foreign_top_sell: Array.isArray(raw.foreign_top_sell) ? raw.foreign_top_sell : [],
     prop_trading_top_buy: Array.isArray(raw.prop_trading_top_buy) ? raw.prop_trading_top_buy : [],
     prop_trading_top_sell: Array.isArray(raw.prop_trading_top_sell) ? raw.prop_trading_top_sell : [],
+    individual_top_buy: Array.isArray(rawRecord.individual_top_buy) ? (rawRecord.individual_top_buy as string[]) : [],
+    individual_top_sell: Array.isArray(rawRecord.individual_top_sell) ? (rawRecord.individual_top_sell as string[]) : [],
     sector_gainers: Array.isArray(raw.sector_gainers) ? raw.sector_gainers : [],
     sector_losers: Array.isArray(raw.sector_losers) ? raw.sector_losers : [],
     buy_signals: Array.isArray(raw.buy_signals) ? raw.buy_signals : [],
@@ -948,6 +952,88 @@ function parseStringArray(raw: unknown): string[] {
   return Array.isArray(raw) ? raw.filter((x): x is string => typeof x === "string" && x.trim().length > 0) : [];
 }
 
+function sanitizeFlowList(items: string[]): string[] {
+  const output: string[] = [];
+  const seen = new Set<string>();
+  for (const item of items) {
+    const cleaned = sanitizeNarrativeLine(item);
+    if (!cleaned) continue;
+    const firstToken = cleaned.split(/[:：\-–—(|]/)[0]?.trim() ?? "";
+    const compactToken = firstToken.replace(/[^A-Za-z0-9]/g, "");
+    if (compactToken && /^0+$/.test(compactToken)) continue;
+    if (/^0{3,}\b/.test(cleaned)) continue;
+    if (!/[A-Za-zÀ-ỹ]/u.test(cleaned) && /^[\d.,:+\-|/()%\s]+$/.test(cleaned)) continue;
+    const key = normalizeForCheck(cleaned);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    output.push(cleaned);
+  }
+  return output;
+}
+
+function hasDetailedFlowLists(payload: EodPayload): boolean {
+  return [
+    payload.foreign_top_buy,
+    payload.foreign_top_sell,
+    payload.prop_trading_top_buy,
+    payload.prop_trading_top_sell,
+    payload.individual_top_buy,
+    payload.individual_top_sell,
+    payload.sector_gainers,
+    payload.sector_losers,
+    payload.buy_signals,
+    payload.sell_signals,
+    payload.top_breakout,
+  ].some((list) => sanitizeFlowList(list).length > 0);
+}
+
+function isInvalidEodOutlook(text: string): boolean {
+  const cleaned = sanitizeNarrativeLine(text);
+  if (!cleaned) return true;
+  const n = normalizeForCheck(cleaned);
+  const compact = n.replace(/[^a-z0-9]/g, "");
+  if (
+    compact === "chisochinh" ||
+    compact === "bangdongtienchitiet" ||
+    compact === "adncapitalflashnote" ||
+    compact === "nhanđinhphiento" ||
+    compact === "nhandinhphiento"
+  ) {
+    return true;
+  }
+  return (
+    n.includes("ban tin tong hop") ||
+    n.includes("end-of-day") ||
+    n.includes("chi so chinh") ||
+    n.includes("bang dong tien chi tiet") ||
+    n.includes("adn capital flashnote")
+  );
+}
+
+function buildDeterministicEodOutlook(payload: EodPayload): string {
+  const direction =
+    payload.change_pct > 0 ? "tích cực" : payload.change_pct < 0 ? "thận trọng" : "trung tính";
+  const breadth =
+    payload.breadth.total > 0
+      ? `Độ rộng ghi nhận ${payload.breadth.up} mã tăng, ${payload.breadth.down} mã giảm và ${payload.breadth.unchanged} mã đứng giá.`
+      : "";
+  const liquidity =
+    payload.liquidity > 0
+      ? `Thanh khoản đạt ${Math.round(payload.liquidity).toLocaleString("vi-VN")} tỷ đồng.`
+      : "";
+  const foreign = payload.foreign_flow && !isUnavailableText(payload.foreign_flow) ? ` ${payload.foreign_flow}` : "";
+  const action =
+    payload.change_pct < 0
+      ? "Phiên tới ưu tiên kiểm soát tỷ trọng, quan sát phản ứng tại vùng hỗ trợ gần và chỉ tăng mua khi lực cầu cải thiện rõ."
+      : payload.change_pct > 0
+        ? "Phiên tới có thể tiếp tục quan sát nhóm giữ nền tốt, nhưng tránh mua đuổi khi thanh khoản chưa xác nhận bền vững."
+        : "Phiên tới ưu tiên theo dõi nhóm có dòng tiền riêng, hạn chế giải ngân mạnh khi xu hướng chung chưa rõ ràng.";
+
+  return [`Nhận định phiên tới ở trạng thái ${direction}.`, liquidity, breadth, foreign, action]
+    .filter(Boolean)
+    .join(" ");
+}
+
 function parseSubIndices(raw: unknown): Array<{ name: string; change_pts: number; change_pct: number }> {
   if (!Array.isArray(raw)) return [];
   return raw
@@ -1182,14 +1268,14 @@ function toEodPayload(report: { createdAt: Date; content: string; rawData: strin
   );
 
   const sentimentLine =
-    lines.find((line) => normalizeForCheck(line).includes("nhan dinh")) ??
+    lines.find((line) => normalizeForCheck(line).includes("nhan dinh") && !isInvalidEodOutlook(line)) ??
     lines.find((line) => normalizeForCheck(line).includes("smart money")) ??
-    lines[1] ??
+    lines.find((line) => !isInvalidEodOutlook(line) && !isSectionHeaderLine(line)) ??
     "";
 
   const hasExchangeLiquidity = (exchangeLiquidity.HNX ?? 0) > 0 || (exchangeLiquidity.UPCOM ?? 0) > 0;
 
-  return {
+  const payload: EodPayload = {
     date: toViDateFromDateKey(reportDateKey),
     vnindex: toNumber(vnindex?.value),
     change_pct: toNumber(vnindex?.change_pct),
@@ -1224,16 +1310,22 @@ function toEodPayload(report: { createdAt: Date; content: string; rawData: strin
         : [propLineFromContent, retailLineFromContent].filter(Boolean).join(" | "),
     outlook: sentimentLine,
     sub_indices: parseSubIndices(raw?.sub_indices),
-    foreign_top_buy: parseStringArray(raw?.foreign_top_buy),
-    foreign_top_sell: parseStringArray(raw?.foreign_top_sell),
-    prop_trading_top_buy: parseStringArray(raw?.prop_trading_top_buy),
-    prop_trading_top_sell: parseStringArray(raw?.prop_trading_top_sell),
-    sector_gainers: parseStringArray(raw?.sector_gainers),
-    sector_losers: parseStringArray(raw?.sector_losers),
-    buy_signals: parseStringArray(raw?.buy_signals),
-    sell_signals: parseStringArray(raw?.sell_signals),
-    top_breakout: parseStringArray(raw?.top_breakout),
+    foreign_top_buy: sanitizeFlowList(parseStringArray(raw?.foreign_top_buy)),
+    foreign_top_sell: sanitizeFlowList(parseStringArray(raw?.foreign_top_sell)),
+    prop_trading_top_buy: sanitizeFlowList(parseStringArray(raw?.prop_trading_top_buy)),
+    prop_trading_top_sell: sanitizeFlowList(parseStringArray(raw?.prop_trading_top_sell)),
+    individual_top_buy: sanitizeFlowList(parseStringArray(raw?.individual_top_buy)),
+    individual_top_sell: sanitizeFlowList(parseStringArray(raw?.individual_top_sell)),
+    sector_gainers: sanitizeFlowList(parseStringArray(raw?.sector_gainers)),
+    sector_losers: sanitizeFlowList(parseStringArray(raw?.sector_losers)),
+    buy_signals: sanitizeFlowList(parseStringArray(raw?.buy_signals)),
+    sell_signals: sanitizeFlowList(parseStringArray(raw?.sell_signals)),
+    top_breakout: sanitizeFlowList(parseStringArray(raw?.top_breakout)),
   };
+  if (isInvalidEodOutlook(payload.outlook)) {
+    payload.outlook = buildDeterministicEodOutlook(payload);
+  }
+  return payload;
 }
 
 function morningPayloadScore(payload: MorningPayload): number {
@@ -1376,8 +1468,12 @@ function backfillEodPayload(base: EodPayload, history: EodPayload[]): EodPayload
   if (!result.notable_trades || isUnavailableText(result.notable_trades)) {
     result.notable_trades = pickTextField((payload) => payload.notable_trades);
   }
-  if (!result.outlook || isUnavailableText(result.outlook)) {
-    result.outlook = pickTextField((payload) => payload.outlook);
+  if (!result.outlook || isUnavailableText(result.outlook) || isInvalidEodOutlook(result.outlook)) {
+    result.outlook =
+      history
+        .map((payload) => sanitizeNarrativeLine(payload.outlook))
+        .find((value) => value && !isUnavailableText(value) && !isInvalidEodOutlook(value)) ??
+      "";
   }
 
   if (result.sub_indices.length === 0) {
@@ -1392,11 +1488,27 @@ function backfillEodPayload(base: EodPayload, history: EodPayload[]): EodPayload
     result.prop_trading_top_buy = pickArrayField((payload) => payload.prop_trading_top_buy);
   if (result.prop_trading_top_sell.length === 0)
     result.prop_trading_top_sell = pickArrayField((payload) => payload.prop_trading_top_sell);
+  if (result.individual_top_buy.length === 0)
+    result.individual_top_buy = pickArrayField((payload) => payload.individual_top_buy);
+  if (result.individual_top_sell.length === 0)
+    result.individual_top_sell = pickArrayField((payload) => payload.individual_top_sell);
   if (result.sector_gainers.length === 0) result.sector_gainers = pickArrayField((payload) => payload.sector_gainers);
   if (result.sector_losers.length === 0) result.sector_losers = pickArrayField((payload) => payload.sector_losers);
   if (result.buy_signals.length === 0) result.buy_signals = pickArrayField((payload) => payload.buy_signals);
   if (result.sell_signals.length === 0) result.sell_signals = pickArrayField((payload) => payload.sell_signals);
   if (result.top_breakout.length === 0) result.top_breakout = pickArrayField((payload) => payload.top_breakout);
+
+  result.foreign_top_buy = sanitizeFlowList(result.foreign_top_buy);
+  result.foreign_top_sell = sanitizeFlowList(result.foreign_top_sell);
+  result.prop_trading_top_buy = sanitizeFlowList(result.prop_trading_top_buy);
+  result.prop_trading_top_sell = sanitizeFlowList(result.prop_trading_top_sell);
+  result.individual_top_buy = sanitizeFlowList(result.individual_top_buy);
+  result.individual_top_sell = sanitizeFlowList(result.individual_top_sell);
+  result.sector_gainers = sanitizeFlowList(result.sector_gainers);
+  result.sector_losers = sanitizeFlowList(result.sector_losers);
+  result.buy_signals = sanitizeFlowList(result.buy_signals);
+  result.sell_signals = sanitizeFlowList(result.sell_signals);
+  result.top_breakout = sanitizeFlowList(result.top_breakout);
 
   const exchangeLiquidityTotal = sumExchangeLiquidity(result.liquidity_by_exchange);
   if (exchangeLiquidityTotal != null) {
@@ -1412,6 +1524,9 @@ function backfillEodPayload(base: EodPayload, history: EodPayload[]): EodPayload
 
   if (!result.session_summary || isUnavailableText(result.session_summary)) {
     result.session_summary = buildDeterministicSessionSummary(result);
+  }
+  if (!result.outlook || isUnavailableText(result.outlook) || isInvalidEodOutlook(result.outlook)) {
+    result.outlook = buildDeterministicEodOutlook(result);
   }
   return result;
 }
@@ -1447,7 +1562,17 @@ function shouldUseBridgeEod(payload: EodPayload): boolean {
   const weakBreadth = !payload.breadth || payload.breadth.total <= 0;
   const missingExchangeLiquidity = !hasFullExchangeLiquidity(payload.liquidity_by_exchange);
   const missingFlows = isUnavailableText(payload.foreign_flow) && isUnavailableText(payload.notable_trades);
-  return lowLiquidity || weakBreadth || missingExchangeLiquidity || missingFlows || !hasValidEodPayload(payload);
+  const missingDetailedFlows = !hasDetailedFlowLists(payload);
+  const badOutlook = isInvalidEodOutlook(payload.outlook);
+  return (
+    lowLiquidity ||
+    weakBreadth ||
+    missingExchangeLiquidity ||
+    missingFlows ||
+    missingDetailedFlows ||
+    badOutlook ||
+    !hasValidEodPayload(payload)
+  );
 }
 
 function eodPayloadScore(payload: EodPayload): number {
@@ -1458,6 +1583,8 @@ function eodPayloadScore(payload: EodPayload): number {
   if (payload.breadth.total > 0) score += 20;
   if (payload.foreign_flow.length > 0 && !isUnavailableText(payload.foreign_flow)) score += 10;
   if (payload.notable_trades.length > 0 && !isUnavailableText(payload.notable_trades)) score += 10;
+  if (hasDetailedFlowLists(payload)) score += 20;
+  if (payload.outlook.length > 0 && !isInvalidEodOutlook(payload.outlook)) score += 10;
   return score;
 }
 
@@ -1485,12 +1612,14 @@ function hasDisplayableEodPayload(payload: EodPayload): boolean {
     payload.foreign_top_sell,
     payload.prop_trading_top_buy,
     payload.prop_trading_top_sell,
+    payload.individual_top_buy,
+    payload.individual_top_sell,
     payload.sector_gainers,
     payload.sector_losers,
     payload.buy_signals,
     payload.sell_signals,
     payload.top_breakout,
-  ].some((list) => list.length > 0);
+  ].some((list) => sanitizeFlowList(list).length > 0);
   return hasMarketNumber || hasNarrative || hasLists;
 }
 
@@ -1529,6 +1658,8 @@ async function buildLiveEodFallbackPayload(): Promise<EodPayload | null> {
           foreign_top_sell: [],
           prop_trading_top_buy: [],
           prop_trading_top_sell: [],
+          individual_top_buy: [],
+          individual_top_sell: [],
           sector_gainers: [],
           sector_losers: [],
           buy_signals: [],
@@ -1574,6 +1705,8 @@ async function buildLiveEodFallbackPayload(): Promise<EodPayload | null> {
           foreign_top_sell: [],
           prop_trading_top_buy: [],
           prop_trading_top_sell: [],
+          individual_top_buy: [],
+          individual_top_sell: [],
           sector_gainers: [],
           sector_losers: [],
           buy_signals: [],
@@ -1716,16 +1849,21 @@ export async function GET(request: NextRequest) {
     foreign_flow: sanitizeNarrativeLine(selected.foreign_flow),
     notable_trades: sanitizeNarrativeLine(selected.notable_trades),
     outlook: sanitizeNarrativeLine(selected.outlook),
-    foreign_top_buy: selected.foreign_top_buy.map((line) => sanitizeNewsLine(line)).filter(Boolean),
-    foreign_top_sell: selected.foreign_top_sell.map((line) => sanitizeNewsLine(line)).filter(Boolean),
-    prop_trading_top_buy: selected.prop_trading_top_buy.map((line) => sanitizeNewsLine(line)).filter(Boolean),
-    prop_trading_top_sell: selected.prop_trading_top_sell.map((line) => sanitizeNewsLine(line)).filter(Boolean),
-    sector_gainers: selected.sector_gainers.map((line) => sanitizeNewsLine(line)).filter(Boolean),
-    sector_losers: selected.sector_losers.map((line) => sanitizeNewsLine(line)).filter(Boolean),
-    buy_signals: selected.buy_signals.map((line) => sanitizeNewsLine(line)).filter(Boolean),
-    sell_signals: selected.sell_signals.map((line) => sanitizeNewsLine(line)).filter(Boolean),
-    top_breakout: selected.top_breakout.map((line) => sanitizeNewsLine(line)).filter(Boolean),
+    foreign_top_buy: sanitizeFlowList(selected.foreign_top_buy),
+    foreign_top_sell: sanitizeFlowList(selected.foreign_top_sell),
+    prop_trading_top_buy: sanitizeFlowList(selected.prop_trading_top_buy),
+    prop_trading_top_sell: sanitizeFlowList(selected.prop_trading_top_sell),
+    individual_top_buy: sanitizeFlowList(selected.individual_top_buy),
+    individual_top_sell: sanitizeFlowList(selected.individual_top_sell),
+    sector_gainers: sanitizeFlowList(selected.sector_gainers),
+    sector_losers: sanitizeFlowList(selected.sector_losers),
+    buy_signals: sanitizeFlowList(selected.buy_signals),
+    sell_signals: sanitizeFlowList(selected.sell_signals),
+    top_breakout: sanitizeFlowList(selected.top_breakout),
   };
+  if (isInvalidEodOutlook(selected.outlook)) {
+    selected.outlook = buildDeterministicEodOutlook(selected);
+  }
   if (storedOnly ? !hasDisplayableEodPayload(selected) : !hasValidEodPayload(selected)) {
     return NextResponse.json({ error: "EOD Brief chưa đủ dữ liệu hợp lệ để publish." }, { status: 503 });
   }
