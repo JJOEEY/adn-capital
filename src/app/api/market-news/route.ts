@@ -453,6 +453,8 @@ function isBoilerplateLine(line: string): boolean {
   return (
     n.includes("powered by adn capital") ||
     n.includes("adncapital.com.vn") ||
+    n.includes("khuyen nghi dua tren thuat toan") ||
+    n.includes("nha dau tu vui long tuan thu") ||
     n.includes("he thong") ||
     n.includes("ban tin sang adn capital") ||
     isTemplateHeadingLine(line)
@@ -1020,10 +1022,10 @@ function ensureMorningRiskOpportunity(
   const normalized = cleaned.map((line) => normalizeForCheck(line));
   const hasRisk = normalized.some(
     (line) =>
-      line.includes("rui ro") ||
-      line.includes("ap luc") ||
-      line.includes("canh bao") ||
-      line.includes("than trong"),
+      line.startsWith("rui ro") ||
+      line.startsWith("ap luc") ||
+      line.startsWith("canh bao") ||
+      line.startsWith("than trong"),
   );
   const hasOpportunity = normalized.some((line) => line.includes("co hoi") || line.includes("tich cuc"));
   const vnindex = indices.find((item) => normalizeIndexKey(item.name) === "vnindex");
