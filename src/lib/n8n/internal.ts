@@ -144,9 +144,20 @@ export async function writeN8nLog(
   });
 }
 
-export async function sendAdminTelegram(text: string, options: { dedupeKey?: string; dryRun?: boolean } = {}) {
+function getTelegramTargetChatId(override?: string) {
+  return (
+    override ??
+    process.env.TELEGRAM_ADMIN_CHAT_ID ??
+    process.env.TELEGRAM_CHAT_ID ??
+    process.env.N8N_TELEGRAM_ADMIN_CHAT_ID ??
+    process.env.N8N_TELEGRAM_CHECKLIST_CHAT_ID ??
+    ""
+  ).trim();
+}
+
+export async function sendAdminTelegram(text: string, options: { dedupeKey?: string; dryRun?: boolean; chatId?: string } = {}) {
   const token = process.env.TELEGRAM_BOT_TOKEN ?? "";
-  const chatId = process.env.TELEGRAM_ADMIN_CHAT_ID ?? process.env.TELEGRAM_CHAT_ID ?? "";
+  const chatId = getTelegramTargetChatId(options.chatId);
   const textHash = createHash("sha256").update(text).digest("hex").slice(0, 24);
   const dedupeKey = options.dedupeKey ?? `telegram:${textHash}`;
 
@@ -184,6 +195,58 @@ export async function sendAdminTelegram(text: string, options: { dedupeKey?: str
 
   await writeN8nLog("n8n:telegram", "success", "sent", { dedupeKey, textHash });
   return { ok: true, skipped: false, status: response.status, payload, textHash, dedupeKey };
+}
+
+export async function sendAdminTelegramPhoto(
+  photo: Uint8Array,
+  caption: string,
+  options: { dedupeKey?: string; dryRun?: boolean; chatId?: string; filename?: string } = {},
+) {
+  const token = process.env.TELEGRAM_BOT_TOKEN ?? "";
+  const chatId = getTelegramTargetChatId(options.chatId);
+  const captionHash = createHash("sha256")
+    .update(`${caption}:${photo.byteLength}`)
+    .digest("hex")
+    .slice(0, 24);
+  const dedupeKey = options.dedupeKey ?? `telegram-photo:${captionHash}`;
+
+  if (options.dryRun) {
+    return { ok: true, skipped: true, reason: "dry_run", captionHash, dedupeKey };
+  }
+  if (!token || !chatId) {
+    return { ok: true, skipped: true, reason: "telegram_not_configured", captionHash, dedupeKey };
+  }
+  if (await hasDedupeLog("n8n:telegram-photo", dedupeKey, 24)) {
+    return { ok: true, skipped: true, reason: "duplicate_suppressed", captionHash, dedupeKey };
+  }
+
+  const form = new FormData();
+  form.set("chat_id", chatId);
+  form.set("caption", caption.slice(0, 1024));
+  form.set("photo", new Blob([new Uint8Array(photo)], { type: "image/png" }), options.filename ?? "adn-brief.png");
+
+  const response = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+    method: "POST",
+    body: form,
+  });
+
+  let payload: unknown = null;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    await writeN8nLog("n8n:telegram-photo", "error", `telegram_http_${response.status}`, {
+      dedupeKey,
+      captionHash,
+    });
+    return { ok: false, skipped: false, status: response.status, payload, captionHash, dedupeKey };
+  }
+
+  await writeN8nLog("n8n:telegram-photo", "success", "sent", { dedupeKey, captionHash });
+  return { ok: true, skipped: false, status: response.status, payload, captionHash, dedupeKey };
 }
 
 export function nowForOpsLabel() {

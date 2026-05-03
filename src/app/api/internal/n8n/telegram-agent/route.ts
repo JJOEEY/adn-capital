@@ -26,6 +26,7 @@ type OperatorIntent =
   | "approval"
   | "news_crawl"
   | "radar_digest"
+  | "brief_image"
   | "system_check"
   | "scheduled_notification"
   | "marketing_idea"
@@ -51,6 +52,13 @@ function classifyIntent(message: string): OperatorIntent {
     return "checklist";
   }
   if (/\b(duyet|approve|xac nhan|publish|dang bai)\b/.test(normalized)) return "approval";
+  if (
+    /^(\/morning_image|\/eod_image|\/brief_image)\b/.test(normalized) ||
+    (/\b(anh|hinh|png|image|xuat anh|gui anh|render anh)\b/.test(normalized) &&
+      /\b(ban tin|brief|morning|eod|sang|tong hop|cuoi ngay)\b/.test(normalized))
+  ) {
+    return "brief_image";
+  }
   if (/\b(crawl|tin tuc|seo|bai viet|viet bai)\b/.test(normalized)) return "news_crawl";
   if (/\b(radar|tin hieu|co phieu moi|digest)\b/.test(normalized)) return "radar_digest";
   if (/\b(health|kiem tra he thong|system|cron|loi|stale)\b/.test(normalized)) return "system_check";
@@ -83,6 +91,12 @@ function pickSlot(message: string) {
   if (normalized.includes("14h45")) return "14:45";
   if (normalized.includes("14h")) return "14:00";
   return "10:00";
+}
+
+function pickBriefImageType(message: string): "morning" | "eod" {
+  const normalized = normalizeVietnamese(message);
+  if (/\b(eod|tong hop|cuoi ngay|ket phien|ban tin toi|evening|close)\b/.test(normalized)) return "eod";
+  return "morning";
 }
 
 async function callInternalApi<T>(
@@ -216,6 +230,16 @@ export async function POST(req: NextRequest) {
           ].join("\n")
         : "ADN Radar hiện chưa có tín hiệu mới cần duyệt trong ngày.";
       approval = { required: signals.length > 0, type: "radar_digest", url: `${getPublicBaseUrl()}/dashboard/signal-map` };
+    } else if (intent === "brief_image") {
+      const type = pickBriefImageType(text);
+      const result = await callInternalApi<Record<string, unknown>>("/api/internal/n8n/brief-image", {
+        method: "POST",
+        body: { type, sendTelegram: true, chatId },
+      });
+      const label = type === "morning" ? "bản tin sáng" : "bản tin tổng hợp";
+      reply = result.ok
+        ? `Đã xuất ảnh ${label} và gửi vào Telegram.`
+        : `Chưa xuất được ảnh ${label}. Mã lỗi: ${result.status}.`;
     } else if (intent === "news_crawl") {
       const result = await callInternalApi<Record<string, unknown>>("/api/internal/n8n/news/crawl-draft", {
         method: "POST",
