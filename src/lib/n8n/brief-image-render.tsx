@@ -53,8 +53,9 @@ const pageStyle: CSSProperties = {
   height: BRIEF_IMAGE_HEIGHT,
   display: "flex",
   flexDirection: "column",
-  background:
-    "radial-gradient(circle at 15% 10%, rgba(64, 120, 100, 0.28), transparent 34%), radial-gradient(circle at 85% 5%, rgba(190, 148, 63, 0.18), transparent 28%), #111317",
+  position: "relative",
+  overflow: "hidden",
+  backgroundColor: "#111317",
   color: "#f6f1e8",
   fontFamily: "Arial, Helvetica, sans-serif",
   padding: 44,
@@ -229,6 +230,46 @@ function Header({ title, subtitle, date }: { title: string; subtitle: string; da
   );
 }
 
+function Backdrop() {
+  return (
+    <>
+      <div
+        style={{
+          position: "absolute",
+          left: -140,
+          top: -160,
+          width: 460,
+          height: 460,
+          borderRadius: 460,
+          backgroundColor: "rgba(64, 120, 100, 0.18)",
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          right: -120,
+          top: -110,
+          width: 390,
+          height: 390,
+          borderRadius: 390,
+          backgroundColor: "rgba(190, 148, 63, 0.12)",
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          right: 120,
+          bottom: -210,
+          width: 520,
+          height: 520,
+          borderRadius: 520,
+          backgroundColor: "rgba(96, 102, 255, 0.10)",
+        }}
+      />
+    </>
+  );
+}
+
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div style={{ ...cardStyle, padding: 26, gap: 14, flex: 1 }}>
@@ -306,6 +347,7 @@ function MorningImage({ data }: { data: NormalizedMorningBrief }) {
   const changeTone = (firstIndex?.changePct ?? 0) >= 0 ? "green" : "red";
   return (
     <div style={pageStyle}>
+      <Backdrop />
       <Header title="Bản Tin Sáng" subtitle="Morning Brief - cập nhật thị trường" date={data.date} />
 
       <div style={{ display: "flex", gap: 18, marginBottom: 24 }}>
@@ -361,6 +403,7 @@ function EodImage({ data }: { data: NormalizedEodBrief }) {
   const exchange = data.exchangeLiquidity;
   return (
     <div style={pageStyle}>
+      <Backdrop />
       <Header title="Bản Tin Tổng Hợp" subtitle="End-of-day Brief - tổng kết giao dịch" date={data.date} />
 
       <div style={{ ...cardStyle, padding: 28, marginBottom: 22, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
