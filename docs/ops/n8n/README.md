@@ -52,6 +52,7 @@ docker-compose --profile automation exec n8n n8n import:workflow --input=/workfl
 docker-compose --profile automation exec n8n n8n import:workflow --input=/workflows/adn-telegram-daily-checklist.json
 docker-compose --profile automation exec n8n n8n import:workflow --input=/workflows/adn-telegram-daily-checklist-polling.json
 docker-compose --profile automation exec n8n n8n import:workflow --input=/workflows/adn-telegram-daily-checklist-webhook.json
+docker-compose --profile automation exec n8n n8n import:workflow --input=/workflows/adn-brief-images.json
 ```
 
 Workflow được để `active=false` sau khi import. Kiểm tra biến môi trường và test từng HTTP node trước khi bật.
@@ -83,6 +84,23 @@ Không bật Telegram Trigger khi n8n chỉ bind `127.0.0.1:5678`, vì Telegram 
 - `POST /api/internal/n8n/checklist`
 
 Tất cả endpoint yêu cầu `x-internal-key: $ADN_INTERNAL_API_KEY`.
+
+## Xuất ảnh bản tin bằng Telegram
+
+Endpoint nội bộ:
+
+- `GET /api/internal/n8n/brief-image?type=morning`: trả PNG bản tin sáng.
+- `GET /api/internal/n8n/brief-image?type=eod`: trả PNG bản tin tổng hợp.
+- `POST /api/internal/n8n/brief-image`: render ảnh và gửi Telegram nếu body có `sendTelegram=true`.
+
+Có thể nhắn trong group vận hành:
+
+- `gửi ảnh bản tin sáng`
+- `xuất ảnh eod`
+- `/morning_image`
+- `/eod_image`
+
+Ảnh chỉ lấy dữ liệu từ DataHub topic `brief:morning:latest` và `brief:eod:latest`.
 
 ## Lịch đề xuất
 

@@ -1,0 +1,83 @@
+{
+  "name": "ADN - Brief Image Export",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [{ "field": "cronExpression", "expression": "15 8 * * *" }] } },
+      "id": "morning-image-schedule",
+      "name": "08:15 Brief sáng",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 120]
+    },
+    {
+      "parameters": { "rule": { "interval": [{ "field": "cronExpression", "expression": "5 19 * * *" }] } },
+      "id": "eod-image-schedule",
+      "name": "19:05 Brief tổng hợp",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.ADN_WEB_BASE_URL}}/api/internal/n8n/brief-image",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-internal-key", "value": "={{$env.ADN_INTERNAL_API_KEY}}" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "{\"type\":\"morning\",\"sendTelegram\":true}"
+      },
+      "id": "send-morning-image",
+      "name": "Gửi ảnh brief sáng",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [300, 120]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.ADN_WEB_BASE_URL}}/api/internal/n8n/brief-image",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-internal-key", "value": "={{$env.ADN_INTERNAL_API_KEY}}" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "{\"type\":\"eod\",\"sendTelegram\":true}"
+      },
+      "id": "send-eod-image",
+      "name": "Gửi ảnh brief tổng hợp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [300, 320]
+    },
+    {
+      "parameters": {
+        "content": "Workflow nay chi goi API noi bo /api/internal/n8n/brief-image. API doc DataHub topic brief:*:latest, render PNG va gui Telegram. Khong goi FiinQuant/DNSE/bridge/provider.",
+        "height": 160,
+        "width": 380
+      },
+      "id": "safety-note",
+      "name": "Safety Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [260, -80]
+    }
+  ],
+  "connections": {
+    "08:15 Brief sáng": {
+      "main": [[{ "node": "Gửi ảnh brief sáng", "type": "main", "index": 0 }]]
+    },
+    "19:05 Brief tổng hợp": {
+      "main": [[{ "node": "Gửi ảnh brief tổng hợp", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "timezone": "Asia/Ho_Chi_Minh" }
+}
