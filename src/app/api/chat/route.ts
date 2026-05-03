@@ -31,6 +31,17 @@ const CHAT_BRIDGE_LIGHT_CONTEXT_TIMEOUT_MS = 4_000;
 const CHAT_AI_FALLBACK_TIMEOUT_MS = 10_000;
 const CHAT_PERSONA_REWRITE_TIMEOUT_MS = 4_000;
 
+type ChatSurface = "aiden" | "stock";
+
+function normalizeChatSurface(input?: string | null, fallback: ChatSurface = "aiden"): ChatSurface {
+  if (input === "stock" || input === "aiden") return input;
+  return fallback;
+}
+
+function chatData(userId: string, message: string, role: string, surface: ChatSurface) {
+  return { userId, message, role, surface };
+}
+
 // ─── Knowledge Base Cache ─────────────────────────────────────
 let knowledgeCache: { content: string; ts: number } | null = null;
 const KNOWLEDGE_CACHE_TTL = 300_000; // 5 phút
@@ -68,11 +79,11 @@ ${sections.join("\n\n")}
 }
 
 // ─── Recent Chat History ──────────────────────────────────────
-async function getRecentChatHistory(userId: string | null, limit = 6): Promise<string> {
+async function getRecentChatHistory(userId: string | null, limit = 6, surface?: ChatSurface): Promise<string> {
   if (!userId) return "";
   try {
     const chats = await prisma.chat.findMany({
-      where: { userId },
+      where: surface ? { userId, surface } : { userId },
       orderBy: { createdAt: "desc" },
       take: limit,
     });
@@ -1253,7 +1264,7 @@ export async function POST(req: NextRequest) {
     };
     const { message, guestUsage = 0 } = body;
     const currentTicker = body.currentTicker ?? body.ticker ?? null;
-    const surface = body.surface === "stock" ? "stock" : body.surface === "aiden" ? "aiden" : currentTicker ? "stock" : "aiden";
+    const surface = normalizeChatSurface(body.surface, currentTicker ? "stock" : "aiden");
 
     if (!message?.trim()) {
       return NextResponse.json({ error: "Thiếu nội dung tin nhắn" }, { status: 400 });
@@ -1296,8 +1307,8 @@ export async function POST(req: NextRequest) {
       const responseText = formatReportedSignalSummary(summary, { limit: 50 });
       if (aidenUserId) {
         await prisma.$transaction([
-          prisma.chat.create({ data: { userId: aidenUserId, message, role: "user" } }),
-          prisma.chat.create({ data: { userId: aidenUserId, message: responseText, role: "assistant" } }),
+          prisma.chat.create({ data: chatData(aidenUserId, message, "user", surface) }),
+          prisma.chat.create({ data: chatData(aidenUserId, responseText, "assistant", surface) }),
         ]);
       }
       return NextResponse.json({
@@ -1321,8 +1332,8 @@ export async function POST(req: NextRequest) {
     const aidenUsageAfter = await consumeChatQuota(aidenQuota);
     if (aidenUserId) {
       await prisma.$transaction([
-        prisma.chat.create({ data: { userId: aidenUserId, message, role: "user" } }),
-        prisma.chat.create({ data: { userId: aidenUserId, message: aiden.message, role: "assistant" } }),
+        prisma.chat.create({ data: chatData(aidenUserId, message, "user", surface) }),
+        prisma.chat.create({ data: chatData(aidenUserId, aiden.message, "assistant", surface) }),
       ]);
     }
 
@@ -1402,8 +1413,8 @@ export async function POST(req: NextRequest) {
         const mockData = MockFactory.getTicker(ticker);
         if (userId) {
           prisma.$transaction([
-            prisma.chat.create({ data: { userId, message, role: "user" } }),
-            prisma.chat.create({ data: { userId, message: `[WIDGET:MOCK:${ticker}]`, role: "assistant" } }),
+            prisma.chat.create({ data: chatData(userId, message, "user", surface) }),
+            prisma.chat.create({ data: chatData(userId, `[WIDGET:MOCK:${ticker}]`, "assistant", surface) }),
           ]).catch(console.error);
         }
         const usageAfter = await consumeChatQuota(quota);
@@ -1433,8 +1444,8 @@ export async function POST(req: NextRequest) {
       const usageAfter = await consumeChatQuota(quota);
       if (userId) {
         prisma.$transaction([
-          prisma.chat.create({ data: { userId, message, role: "user" } }),
-          prisma.chat.create({ data: { userId, message: `[WIDGET:${ticker}]`, role: "assistant" } }),
+          prisma.chat.create({ data: chatData(userId, message, "user", surface) }),
+          prisma.chat.create({ data: chatData(userId, `[WIDGET:${ticker}]`, "assistant", surface) }),
         ]).catch(console.error);
       }
 
@@ -1495,8 +1506,8 @@ export async function POST(req: NextRequest) {
       const responseText = formatReportedSignalSummary(summary, { limit: 50 });
       if (userId) {
         await prisma.$transaction([
-          prisma.chat.create({ data: { userId, message, role: "user" } }),
-          prisma.chat.create({ data: { userId, message: responseText, role: "assistant" } }),
+          prisma.chat.create({ data: chatData(userId, message, "user", surface) }),
+          prisma.chat.create({ data: chatData(userId, responseText, "assistant", surface) }),
         ]);
       }
       return NextResponse.json({
@@ -1539,7 +1550,7 @@ export async function POST(req: NextRequest) {
     if (shouldLoadFullContext) {
       const [knowledgeCtx, chatHistoryCtx] = await Promise.all([
         getKnowledgeContext(),
-        getRecentChatHistory(userId),
+        getRecentChatHistory(userId, 6, surface),
       ]);
 
       if (userId) {
@@ -1565,7 +1576,7 @@ export async function POST(req: NextRequest) {
 
       journalCtx = knowledgeCtx + journalCtx + chatHistoryCtx;
     } else if (userId) {
-      journalCtx = await getRecentChatHistory(userId, 2);
+      journalCtx = await getRecentChatHistory(userId, 2, surface);
     }
 
     // ── Xử lý các lệnh với RAG (Giữ nguyên logic cũ) ──
@@ -1753,8 +1764,8 @@ Nhà đầu tư hỏi: ${message}`;
     const usageAfter = await consumeChatQuota(quota);
     if (userId) {
       await prisma.$transaction([
-        prisma.chat.create({ data: { userId, message, role: "user" } }),
-        prisma.chat.create({ data: { userId, message: responseText, role: "assistant" } }),
+        prisma.chat.create({ data: chatData(userId, message, "user", surface) }),
+        prisma.chat.create({ data: chatData(userId, responseText, "assistant", surface) }),
       ]);
     }
 

@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { fetchMarketBoard, fetchMarketDepth, fetchRealtimeTradingData } from "@/lib/fiinquantClient";
+import { fetchIndexValuation, fetchMarketBoard, fetchMarketDepth, fetchRealtimeTradingData } from "@/lib/fiinquantClient";
 import { getMarketSnapshot } from "@/lib/marketDataFetcher";
 import { prisma } from "@/lib/prisma";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
@@ -54,9 +54,25 @@ async function loadCompositeCache() {
 
 async function loadCompositeLive() {
   const mod = await import("@/app/api/market-overview/route");
-  const res = await mod.GET();
+  const res = await mod.GET(new NextRequest("http://localhost/api/market-overview"));
   if (!res.ok) throw new Error(`market-overview HTTP ${res.status}`);
   return res.json();
+}
+
+async function loadIndexValuation(ticker: string) {
+  if (ticker.toUpperCase() !== "VNINDEX") throw new Error(`Unsupported index valuation ticker: ${ticker}`);
+  const valuation = await fetchIndexValuation(ticker);
+  if (!valuation) throw new Error(`index valuation unavailable: ${ticker}`);
+  return {
+    ticker: "VNINDEX",
+    pe: valuation.pe ?? null,
+    pb: valuation.pb ?? null,
+    valuationScore: valuation.valuation_score ?? null,
+    peScore: valuation.pe_score ?? null,
+    pbScore: valuation.pb_score ?? null,
+    timestamp: valuation.timestamp ?? new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 async function loadNews(type: "morning" | "eod" | "close") {
@@ -1706,6 +1722,16 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     tags: ["dashboard", "market", "composite"],
     match: (topicKey) => (topicKey === "vn:index:composite:live" ? { ok: true } : { ok: false }),
     resolve: async () => loadCompositeLive(),
+  },
+  {
+    id: "vn:index:valuation:VNINDEX",
+    ttlMs: 15 * 60 * 1000,
+    minIntervalMs: 60_000,
+    source: "api:index-valuation",
+    version: "v1",
+    tags: ["dashboard", "market", "composite", "valuation"],
+    match: (topicKey) => (topicKey === "vn:index:valuation:VNINDEX" ? { ok: true } : { ok: false }),
+    resolve: async () => loadIndexValuation("VNINDEX"),
   },
   {
     id: "vn:index:chart:30d",

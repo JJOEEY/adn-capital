@@ -204,6 +204,7 @@ async function getMarketStatus() {
     opportunityBullets,
     chartData,
     snapshotLiquidity: snapshot?.liquidity ?? null,
+    adnCore: snapshot?.marketOverview ?? null,
   };
 }
 
@@ -217,12 +218,14 @@ export async function GET() {
 
     // Lấy dữ liệu THỰC từ Python backend cho AI summary (tầm nhìn 30 phiên)
     let aiSummary = "";
+    let liveOverview = marketData.adnCore ?? null;
     try {
       const overviewRes = await fetch(`${FIINQUANT_BRIDGE}/api/v1/market-overview`, {
         signal: AbortSignal.timeout(8000),
       });
       if (overviewRes.ok) {
         const ov = await overviewRes.json();
+        liveOverview = ov;
         const realLiquidity =
           marketData.snapshotLiquidity && marketData.snapshotLiquidity > 0
             ? `${Math.round(marketData.snapshotLiquidity).toLocaleString("vi-VN")} tỷ`
@@ -274,7 +277,7 @@ export async function GET() {
         : `VN-Index giảm sâu về ${fmtIdx(marketData.vnindex.value)} điểm (${fmtP(pct)}). Bảo toàn vốn là ưu tiên số 1.`;
     }
 
-    const result = { ...marketData, aiSummary };
+    const result = { ...marketData, adnCore: liveOverview, aiSummary };
     cachedMarket = { data: result, timestamp: Date.now() };
     return NextResponse.json(result);
   } catch (error) {

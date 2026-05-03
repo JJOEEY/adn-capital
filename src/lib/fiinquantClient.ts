@@ -21,6 +21,14 @@ export interface FiinMarketOverview {
   ticker: string;
   score: number;
   max_score: number;
+  ta_score?: number;
+  ta_max?: number;
+  valuation_score?: number;
+  valuation_max?: number;
+  pe?: number | null;
+  pb?: number | null;
+  pe_score?: number;
+  pb_score?: number;
   level: number;
   status_badge: string;
   market_breadth: string | {
@@ -35,11 +43,23 @@ export interface FiinMarketOverview {
     divergence: string;
     monthly: string;
     weekly: string;
+    valuation?: string;
   };
   reasons: string[];
   action_message: string;
   liquidity: number | { total: number; change_pct: number };
   price: number | { current: number; change: number; change_pct: number };
+}
+
+export interface FiinIndexValuation {
+  ticker?: string;
+  pe?: number | null;
+  pb?: number | null;
+  timestamp?: string;
+  valuation_score?: number;
+  pe_score?: number;
+  pb_score?: number;
+  reasons?: string[];
 }
 
 export interface FiinTASummary {
@@ -320,6 +340,12 @@ async function fiinFetch<T>(path: string, options?: { timeout?: number }): Promi
 /** Market Overview (VNINDEX health score) */
 export async function fetchMarketOverview(): Promise<FiinMarketOverview | null> {
   return fiinFetch<FiinMarketOverview>("/api/v1/market-overview");
+}
+
+/** P/E, P/B chuẩn cho chỉ số thị trường */
+export async function fetchIndexValuation(ticker = "VNINDEX"): Promise<FiinIndexValuation | null> {
+  if (ticker.toUpperCase() !== "VNINDEX") return null;
+  return fiinFetch<FiinIndexValuation>("/api/v1/index-valuation");
 }
 
 /** TA Summary cho 1 mã cổ phiếu */

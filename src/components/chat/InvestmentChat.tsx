@@ -59,11 +59,11 @@ function detectTicker(input: string): string | null {
   return null;
 }
 
-async function saveChatHistory(role: "user" | "assistant", message: string) {
+async function saveChatHistory(role: "user" | "assistant", message: string, surface: "aiden" | "stock" = "aiden") {
   await fetch("/api/chat/history", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ role, message }),
+    body: JSON.stringify({ role, message, surface }),
   });
 }
 
@@ -353,7 +353,7 @@ export function InvestmentChat({
 
     const hydrateHistory = async () => {
       try {
-        const response = await fetch("/api/chat/history?limit=80", { cache: "no-store" });
+        const response = await fetch("/api/chat/history?limit=80&surface=aiden", { cache: "no-store" });
         const payload = (await response.json()) as { messages?: HistoryMessage[] };
         if (!isActive || !Array.isArray(payload.messages)) return;
 
@@ -442,7 +442,7 @@ export function InvestmentChat({
 
         if (userId) {
           const persistedText = cardId === "ta" ? `[WIDGET:${ticker}:${taBadge ?? "GIỮ"}] ${text}` : text;
-          await saveChatHistory("assistant", persistedText).catch(() => undefined);
+          await saveChatHistory("assistant", persistedText, "stock").catch(() => undefined);
         }
       } catch {
         addMessage({
@@ -482,8 +482,8 @@ export function InvestmentChat({
       });
       if (userId) {
         Promise.all([
-          saveChatHistory("user", trimmed),
-          saveChatHistory("assistant", `Nhà đầu tư muốn phân tích ${ticker}? Hãy chọn loại phân tích bên dưới.`),
+          saveChatHistory("user", trimmed, "stock"),
+          saveChatHistory("assistant", `Nhà đầu tư muốn phân tích ${ticker}? Hãy chọn loại phân tích bên dưới.`, "stock"),
         ]).catch(() => undefined);
       }
       return;

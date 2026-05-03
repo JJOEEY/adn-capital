@@ -11,6 +11,13 @@ type CachePayload = Record<string, unknown> & {
   last_updated?: string;
 };
 
+function hasCompleteValuation(data: CachePayload | null | undefined): boolean {
+  if (!data) return false;
+  const pe = Number(data.pe);
+  const pb = Number(data.pb);
+  return Number.isFinite(pe) && pe > 0 && Number.isFinite(pb) && pb > 0;
+}
+
 function readCacheFromFile(): { data: CachePayload; ageMs: number } | null {
   try {
     if (!fs.existsSync(CACHE_FILE)) return null;
@@ -60,9 +67,10 @@ async function fetchLiveOverview(): Promise<CachePayload | null> {
   }
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const forceRefresh = new URL(req.url).searchParams.get("force") === "1";
   const cached = readCacheFromFile();
-  if (cached && cached.ageMs <= TTL_MS) {
+  if (cached && cached.ageMs <= TTL_MS && !forceRefresh && hasCompleteValuation(cached.data)) {
     return NextResponse.json({
       ...cached.data,
       stale: false,
@@ -80,7 +88,7 @@ export async function GET() {
     });
   }
 
-  if (cached) {
+  if (cached && hasCompleteValuation(cached.data)) {
     return NextResponse.json({
       ...cached.data,
       stale: true,

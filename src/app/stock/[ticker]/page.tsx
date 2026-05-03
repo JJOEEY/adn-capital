@@ -153,9 +153,18 @@ type AidenResponse = {
   recommendation?: AidenRecommendation | null;
 };
 
+type PendingAidenQuery = {
+  id: string;
+  ticker: string;
+  text: string;
+  displayText: string;
+  createdAt: number;
+};
+
 const DEFAULT_WATCHLIST = ["SSI", "HPG", "FPT", "GVR", "MBB", "VND", "VCB", "VHM"];
 const AIDEN_CHAT_STORAGE_KEY = "adn-stock-aiden-chat-v1";
 const AIDEN_RECOMMENDATION_STORAGE_KEY = "adn-stock-aiden-recommendations-v1";
+const AIDEN_PENDING_QUERY_STORAGE_KEY = "adn-stock-aiden-pending-query-v1";
 
 function fmtValue(value: number | null | undefined, suffix = "") {
   if (value == null || !Number.isFinite(value)) return "--";
@@ -862,9 +871,25 @@ export default function StockDetailPage() {
     const text = rawText.trim();
     if (!text || chatLoading) return;
     const parsedTicker = sanitizeTicker(options.explicitTicker) || extractExplicitTickerCandidate(text);
-    const requestTicker = parsedTicker ? (selectTicker(parsedTicker) ?? parsedTicker) : resolvedTicker;
-    const userTickers = parsedTicker ? [parsedTicker] : [];
     const displayText = options.displayText?.trim() || text;
+    if (parsedTicker && parsedTicker !== resolvedTicker) {
+      try {
+        const pending: PendingAidenQuery = {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          ticker: parsedTicker,
+          text,
+          displayText,
+          createdAt: Date.now(),
+        };
+        window.sessionStorage.setItem(AIDEN_PENDING_QUERY_STORAGE_KEY, JSON.stringify(pending));
+      } catch {
+        // Pending query persistence is best-effort only.
+      }
+      selectTicker(parsedTicker);
+      return;
+    }
+    const requestTicker = parsedTicker ?? resolvedTicker;
+    const userTickers = parsedTicker ? [parsedTicker] : [];
     if (options.clearInput ?? true) setInput("");
     setMessages((prev) => [...prev, { id: `user-${Date.now()}`, role: "user", text: displayText, tickers: userTickers }]);
     setChatLoading(true);
@@ -887,6 +912,31 @@ export default function StockDetailPage() {
       setChatLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!chatHydrated || chatLoading) return;
+    let pending: PendingAidenQuery | null = null;
+    try {
+      const raw = window.sessionStorage.getItem(AIDEN_PENDING_QUERY_STORAGE_KEY);
+      pending = raw ? JSON.parse(raw) as PendingAidenQuery : null;
+    } catch {
+      window.sessionStorage.removeItem(AIDEN_PENDING_QUERY_STORAGE_KEY);
+      return;
+    }
+    if (!pending) return;
+    if (Date.now() - pending.createdAt > 2 * 60 * 1000) {
+      window.sessionStorage.removeItem(AIDEN_PENDING_QUERY_STORAGE_KEY);
+      return;
+    }
+    if (sanitizeTicker(pending.ticker) !== resolvedTicker) return;
+
+    window.sessionStorage.removeItem(AIDEN_PENDING_QUERY_STORAGE_KEY);
+    void submitAidenQuery(pending.text, {
+      explicitTicker: pending.ticker,
+      displayText: pending.displayText,
+      clearInput: false,
+    });
+  }, [chatHydrated, chatLoading, resolvedTicker]);
 
   const handleSend = async () => {
     await submitAidenQuery(input, { clearInput: true });

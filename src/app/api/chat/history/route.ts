@@ -4,6 +4,8 @@ import { getCurrentDbUser } from "@/lib/current-user";
 
 export const dynamic = "force-dynamic";
 
+type ChatSurface = "aiden" | "stock";
+
 type BrokerBadge = "MUA" | "GIỮ" | "BÁN";
 
 type HistoryMessage = {
@@ -47,6 +49,11 @@ function parseWidgetMessage(raw: string): { ticker?: string; badge: BrokerBadge;
   };
 }
 
+function normalizeSurface(input: string | null): ChatSurface | null {
+  if (input === "aiden" || input === "stock") return input;
+  return null;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const dbUser = await getCurrentDbUser();
@@ -58,9 +65,10 @@ export async function GET(request: NextRequest) {
       parseInt(request.nextUrl.searchParams.get("limit") ?? "50", 10) || 50,
       200
     );
+    const surface = normalizeSurface(request.nextUrl.searchParams.get("surface"));
 
     const rows = await prisma.chat.findMany({
-      where: { userId: dbUser.id },
+      where: surface ? { userId: dbUser.id, surface } : { userId: dbUser.id },
       orderBy: { createdAt: "desc" },
       take: limit,
       select: {
@@ -117,18 +125,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true, skipped: true });
     }
 
-    const body = (await request.json()) as { role?: string; message?: string };
+    const body = (await request.json()) as { role?: string; message?: string; surface?: string | null };
     const message = (body.message ?? "").trim();
     if (!message) {
       return NextResponse.json({ error: "Missing message" }, { status: 400 });
     }
 
     const normalizedRole = body.role === "user" ? "user" : "assistant";
+    const surface = normalizeSurface(body.surface ?? null) ?? "aiden";
     await prisma.chat.create({
       data: {
         userId: dbUser.id,
         role: normalizedRole,
         message: message.slice(0, 12000),
+        surface,
       },
     });
 
