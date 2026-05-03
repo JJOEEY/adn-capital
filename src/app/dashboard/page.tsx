@@ -451,7 +451,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* ═══ HERO: Chart + Gauge (7:3) ═══ */}
+        {/* ═══ HERO: Chart + ADNCore ═══ */}
         <div className="grid w-full min-w-0 grid-cols-1 lg:grid-cols-10 gap-4">
           {/* Cột Trái: Chart + Breadth */}
           <div className="lg:col-span-6 w-full min-w-0 flex flex-col gap-3">
@@ -504,8 +504,17 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* ═══ BOTTOM: Adaptive full-width card grid ═══ */}
-        <div className="grid w-full min-w-0 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {/* ═══ AIDEN: Compact full-width decision under market breadth ═══ */}
+        <LockOverlay isLocked={isDashboardLocked} message={`Nâng cấp VIP để mở nhận định ${BRAND.persona}`}>
+          <AIBrokerDecisionCard
+            summary={data?.aiSummary ?? null}
+            signalLabel={effectiveOverview?.action_message ?? null}
+            compact
+          />
+        </LockOverlay>
+
+        {/* ═══ BOTTOM: Morning + EOD + ART/Rank ═══ */}
+        <div className="grid w-full min-w-0 grid-cols-1 xl:grid-cols-3 gap-4 items-start">
           <SafeSection fallback={<MorningNewsSkeleton />}>
             <Suspense fallback={<MorningNewsSkeleton />}>
               <MorningNews />
@@ -518,22 +527,17 @@ export default function DashboardPage() {
             </Suspense>
           </SafeSection>
 
-          <LockOverlay isLocked={isDashboardLocked} message={`Nâng cấp VIP để mở nhận định ${BRAND.persona}`}>
-            <div className="flex min-w-0 flex-col gap-4">
-              <AIBrokerDecisionCard
-                summary={data?.aiSummary ?? null}
-                signalLabel={effectiveOverview?.action_message ?? null}
-                compact
-              />
-              <ADNRankMiniCard rows={topRankRows} />
-            </div>
-          </LockOverlay>
+          <div className="flex min-w-0 flex-col gap-4">
+            <LockOverlay isLocked={isDashboardLocked} message={`Nâng cấp VIP để xem ${PRODUCT_NAMES.art}`}>
+              <SafeSection fallback={<RPISkeleton />}>
+                {!mounted ? <RPISkeleton /> : <ReversePointIndex />}
+              </SafeSection>
+            </LockOverlay>
 
-          <LockOverlay isLocked={isDashboardLocked} message={`Nâng cấp VIP để xem ${PRODUCT_NAMES.art}`}>
-            <SafeSection fallback={<RPISkeleton />}>
-              {!mounted ? <RPISkeleton /> : <ReversePointIndex />}
-            </SafeSection>
-          </LockOverlay>
+            <LockOverlay isLocked={isDashboardLocked} message={`Nâng cấp VIP để xem ${PRODUCT_NAMES.rank}`}>
+              <ADNRankMiniCard rows={topRankRows} />
+            </LockOverlay>
+          </div>
         </div>
       </div>
     </MainLayout>
@@ -758,7 +762,7 @@ const AIBrokerDecisionCard = memo(function AIBrokerDecisionCard({
           {badgeLabel}
         </span>
       </div>
-      <p className={`text-sm leading-relaxed ${compact ? "line-clamp-4" : ""}`} style={{ color: "var(--text-primary)" }}>
+      <p className={`text-sm leading-relaxed ${compact ? "line-clamp-2 sm:line-clamp-3" : ""}`} style={{ color: "var(--text-primary)" }}>
         {summary || "AIDEN đang đọc dữ liệu thị trường, ưu tiên giữ tỷ trọng an toàn."}
       </p>
     </div>
