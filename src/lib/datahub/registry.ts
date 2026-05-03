@@ -62,7 +62,8 @@ async function loadCompositeLive() {
 async function loadNews(type: "morning" | "eod" | "close") {
   const mod = await import("@/app/api/market-news/route");
   const newsType = type === "close" ? "eod" : type;
-  const req = new NextRequest(`http://localhost/api/market-news?type=${newsType}&stored=1`);
+  const mode = type === "eod" ? "" : "&stored=1";
+  const req = new NextRequest(`http://localhost/api/market-news?type=${newsType}${mode}`);
   const res = await mod.GET(req);
   if (!res.ok) throw new Error(`market-news ${newsType} HTTP ${res.status}`);
   const payload = await res.json();

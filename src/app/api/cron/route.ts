@@ -31,6 +31,7 @@ import {
   getInvestorTradingText,
   getPropTradingData,
 } from "@/lib/marketDataFetcher";
+import { fetchEodNews } from "@/lib/fiinquantClient";
 import { fetchAllCafefNews, buildCafefContext } from "@/lib/cafefScraper";
 import { getVnNow } from "@/lib/time";
 import { invalidateTopics } from "@/lib/datahub/core";
@@ -583,7 +584,11 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
   const dateISO = getVNDateISO();
 
   try {
-    const [propData, snapshot] = await Promise.all([getPropTradingData(), getMarketSnapshot()]);
+    const [propData, snapshot, eodDetail] = await Promise.all([
+      getPropTradingData(),
+      getMarketSnapshot(),
+      fetchEodNews().catch(() => null),
+    ]);
     saveMarketOverviewCache(snapshot.marketOverview);
 
     if (
@@ -643,7 +648,7 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
       "eod_full_19h",
       `Bản tin tổng hợp 19:00 ${today}`,
       safeReport,
-      { snapshot, propData },
+      { snapshot, propData, eodDetail },
       {
         investorAvailability: snapshot.investorTrading.availability,
         liquidity: snapshot.liquidity,
@@ -651,6 +656,7 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
         breadth: snapshot.breadth,
         breadthByExchange: snapshot.breadthByExchange,
         source: snapshot.source,
+        eodDetailAvailable: Boolean(eodDetail),
         publishBlockers: snapshot.publishBlockers,
       }
     );

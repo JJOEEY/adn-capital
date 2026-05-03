@@ -37,6 +37,9 @@ type EodPayload = {
   vnindex: number;
   change_pct: number;
   liquidity: number;
+  total_liquidity?: number | null;
+  matched_liquidity?: number | null;
+  negotiated_liquidity?: number | null;
   liquidity_by_exchange?: ExchangeLiquidity;
   breadth: { up: number; down: number; unchanged: number; total: number };
   session_summary: string;
@@ -56,6 +59,7 @@ type EodPayload = {
   buy_signals: string[];
   sell_signals: string[];
   top_breakout: string[];
+  top_new_high: string[];
 };
 
 function fromBridgeMorningPayload(raw: FiinMorningNews): MorningPayload {
@@ -87,12 +91,18 @@ function fromBridgeEodPayload(raw: FiinEodNews): EodPayload {
     HNX: toNumberOrNull(rawRecord.hnx_val),
     UPCOM: toNumberOrNull(rawRecord.upcom_val),
   });
+  const liquidityBreakdown = extractLiquidityBreakdown(rawRecord, rawRecord, raw.liquidity_detail ?? "", liquidityByExchange);
+  const matchedLiquidity = liquidityBreakdown.matched ?? sumExchangeLiquidity(liquidityByExchange) ?? toNumberOrNull(raw.liquidity);
+  const displayLiquidity = liquidityBreakdown.total ?? matchedLiquidity ?? toNumber(raw.liquidity);
 
   return {
     date: raw.date,
     vnindex: toNumber(raw.vnindex),
     change_pct: toNumber(raw.change_pct),
-    liquidity: toNumber(raw.liquidity),
+    liquidity: toNumber(displayLiquidity),
+    total_liquidity: liquidityBreakdown.total,
+    matched_liquidity: matchedLiquidity,
+    negotiated_liquidity: liquidityBreakdown.negotiated,
     liquidity_by_exchange: liquidityByExchange,
     breadth: {
       up: toNumber(raw.breadth?.up),
@@ -101,22 +111,27 @@ function fromBridgeEodPayload(raw: FiinEodNews): EodPayload {
       total: toNumber(raw.breadth?.total),
     },
     session_summary: raw.session_summary ?? "",
-    liquidity_detail: raw.liquidity_detail ?? "",
+    liquidity_detail: buildLiquidityDetail(toNumber(displayLiquidity), liquidityByExchange, {
+      total: liquidityBreakdown.total,
+      matched: matchedLiquidity,
+      negotiated: liquidityBreakdown.negotiated,
+    }) || raw.liquidity_detail || "",
     foreign_flow: raw.foreign_flow ?? "",
     notable_trades: raw.notable_trades ?? "",
     outlook: raw.outlook ?? "",
     sub_indices: Array.isArray(raw.sub_indices) ? raw.sub_indices : [],
-    foreign_top_buy: Array.isArray(raw.foreign_top_buy) ? raw.foreign_top_buy : [],
-    foreign_top_sell: Array.isArray(raw.foreign_top_sell) ? raw.foreign_top_sell : [],
-    prop_trading_top_buy: Array.isArray(raw.prop_trading_top_buy) ? raw.prop_trading_top_buy : [],
-    prop_trading_top_sell: Array.isArray(raw.prop_trading_top_sell) ? raw.prop_trading_top_sell : [],
-    individual_top_buy: Array.isArray(rawRecord.individual_top_buy) ? (rawRecord.individual_top_buy as string[]) : [],
-    individual_top_sell: Array.isArray(rawRecord.individual_top_sell) ? (rawRecord.individual_top_sell as string[]) : [],
-    sector_gainers: Array.isArray(raw.sector_gainers) ? raw.sector_gainers : [],
-    sector_losers: Array.isArray(raw.sector_losers) ? raw.sector_losers : [],
-    buy_signals: Array.isArray(raw.buy_signals) ? raw.buy_signals : [],
-    sell_signals: Array.isArray(raw.sell_signals) ? raw.sell_signals : [],
-    top_breakout: Array.isArray(raw.top_breakout) ? raw.top_breakout : [],
+    foreign_top_buy: parseStringArray(raw.foreign_top_buy),
+    foreign_top_sell: parseStringArray(raw.foreign_top_sell),
+    prop_trading_top_buy: parseStringArray(raw.prop_trading_top_buy),
+    prop_trading_top_sell: parseStringArray(raw.prop_trading_top_sell),
+    individual_top_buy: parseStringArray(rawRecord.individual_top_buy),
+    individual_top_sell: parseStringArray(rawRecord.individual_top_sell),
+    sector_gainers: parseStringArray(raw.sector_gainers),
+    sector_losers: parseStringArray(raw.sector_losers),
+    buy_signals: parseStringArray(raw.buy_signals),
+    sell_signals: parseStringArray(raw.sell_signals),
+    top_breakout: parseStringArray(raw.top_breakout),
+    top_new_high: parseStringArray(rawRecord.top_new_high),
   };
 }
 
@@ -909,21 +924,140 @@ function sumExchangeLiquidity(exchanges: ExchangeLiquidity | undefined | null): 
   return Number.isFinite(total) && total > 0 ? total : null;
 }
 
-function buildLiquidityDetail(totalLiquidityRaw: number, exchanges: ExchangeLiquidity): string {
-  const exchangeTotal = sumExchangeLiquidity(exchanges);
-  const displayTotal = exchangeTotal ?? totalLiquidityRaw;
-  if (!(displayTotal > 0)) return "";
-  totalLiquidityRaw = displayTotal;
-  const exchangeParts = [
-    exchanges.HOSE != null && exchanges.HOSE > 0 ? `HoSE ${Math.round(exchanges.HOSE).toLocaleString("vi-VN")}` : null,
-    exchanges.HNX != null && exchanges.HNX > 0 ? `HNX ${Math.round(exchanges.HNX).toLocaleString("vi-VN")}` : null,
-    exchanges.UPCOM != null && exchanges.UPCOM > 0 ? `UPCoM ${Math.round(exchanges.UPCOM).toLocaleString("vi-VN")}` : null,
-  ].filter((item): item is string => Boolean(item));
+type LiquidityBreakdown = {
+  total: number | null;
+  matched: number | null;
+  negotiated: number | null;
+};
 
-  if (exchangeParts.length === 0) {
-    return `Thanh khoản toàn thị trường đạt ${Math.round(totalLiquidityRaw).toLocaleString("vi-VN")} tỷ đồng.`;
+function readFirstNumber(records: Array<JsonRecord | null | undefined>, keys: string[]): number | null {
+  for (const record of records) {
+    if (!record) continue;
+    for (const key of keys) {
+      const value = toNumberOrNull(record[key]);
+      if (value != null && Number.isFinite(value) && value > 0) return value;
+    }
   }
-  return `Thanh khoản toàn thị trường đạt ${Math.round(totalLiquidityRaw).toLocaleString("vi-VN")} tỷ đồng (${exchangeParts.join(" | ")}).`;
+  return null;
+}
+
+function parseLiquidityNearLabel(content: string, labels: string[]): number | null {
+  const compact = normalizeForCheck(content.replace(/\n/g, " "));
+  for (const label of labels) {
+    const index = compact.indexOf(label);
+    if (index < 0) continue;
+    const segment = compact.slice(index, index + 160);
+    const match = segment.match(/([\d.,]+)\s*(?:ty|ti|tỷ)?/i);
+    const value = match ? toNumberOrNull(match[1]) : null;
+    if (value != null && value > 0) return value;
+  }
+  return null;
+}
+
+function extractLiquidityBreakdown(
+  raw: JsonRecord | null,
+  snapshot: JsonRecord,
+  content: string,
+  exchanges: ExchangeLiquidity | undefined,
+): LiquidityBreakdown {
+  const liquidityRoot = pickRecord(snapshot, ["liquidity", "marketLiquidity", "liquidityBreakdown", "liquidity_breakdown"]);
+  const rawLiquidityRoot = raw
+    ? pickRecord(raw, ["liquidity", "marketLiquidity", "liquidityBreakdown", "liquidity_breakdown"])
+    : null;
+  const eodRoot = raw ? pickRecord(raw, ["eodDetail", "eod_detail", "eod", "brief", "payload"]) : null;
+  const records = [raw, snapshot, liquidityRoot, rawLiquidityRoot, eodRoot];
+  const exchangeTotal = sumExchangeLiquidity(exchanges);
+
+  const negotiated =
+    readFirstNumber(records, [
+      "negotiated_liquidity",
+      "negotiatedLiquidity",
+      "put_through_liquidity",
+      "putThroughLiquidity",
+      "agreement_liquidity",
+      "agreementLiquidity",
+      "dealValue",
+      "deal_value",
+      "totalDealValue",
+      "TotalDealValue",
+      "gtgdThoaThuan",
+    ]) ??
+    parseLiquidityNearLabel(content, ["gtgd thoa thuan", "thoa thuan", "giao dich thoa thuan"]);
+
+  const matched =
+    readFirstNumber(records, [
+      "matched_liquidity",
+      "matchedLiquidity",
+      "match_liquidity",
+      "matchLiquidity",
+      "matchValue",
+      "match_value",
+      "totalMatchValue",
+      "TotalMatchValue",
+      "gtgdKhopLenh",
+    ]) ??
+    parseLiquidityNearLabel(content, ["gtgd khop lenh", "khop lenh", "gia tri khop lenh"]) ??
+    exchangeTotal ??
+    null;
+
+  const totalCandidate =
+    readFirstNumber(records, [
+      "total_liquidity",
+      "totalLiquidity",
+      "total_market_liquidity",
+      "totalMarketLiquidity",
+      "totalTradingValue",
+      "total_trading_value",
+      "totalValue",
+      "total_value",
+      "all",
+      "gtgd",
+    ]) ??
+    parseLiquidityNearLabel(content, ["thanh khoan toan thi truong", "tong gtgd", "tong gia tri giao dich"]);
+  const totalLooksLikeMatchedOnly =
+    totalCandidate != null &&
+    negotiated == null &&
+    exchangeTotal != null &&
+    Math.abs(totalCandidate - exchangeTotal) / exchangeTotal < 0.02;
+  const total =
+    totalLooksLikeMatchedOnly
+      ? null
+      : totalCandidate ?? (matched != null && negotiated != null ? matched + negotiated : null);
+
+  return { total, matched, negotiated };
+}
+
+function formatTy(value: number): string {
+  return Math.round(value).toLocaleString("vi-VN");
+}
+
+function buildLiquidityDetail(
+  totalLiquidityRaw: number,
+  exchanges: ExchangeLiquidity,
+  breakdown: LiquidityBreakdown = { total: null, matched: null, negotiated: null },
+): string {
+  const exchangeTotal = sumExchangeLiquidity(exchanges);
+  const matched = breakdown.matched ?? exchangeTotal ?? totalLiquidityRaw;
+  const negotiated = breakdown.negotiated ?? null;
+  const total = breakdown.total ?? (matched > 0 && negotiated != null ? matched + negotiated : null);
+  const displayValue = total ?? matched;
+  if (!(displayValue > 0)) return "";
+  const exchangeParts = [
+    exchanges.HOSE != null && exchanges.HOSE > 0 ? `HoSE ${formatTy(exchanges.HOSE)}` : null,
+    exchanges.HNX != null && exchanges.HNX > 0 ? `HNX ${formatTy(exchanges.HNX)}` : null,
+    exchanges.UPCOM != null && exchanges.UPCOM > 0 ? `UPCoM ${formatTy(exchanges.UPCOM)}` : null,
+  ].filter((item): item is string => Boolean(item));
+  const exchangeSuffix = exchangeParts.length > 0 ? ` (${exchangeParts.join(" | ")})` : "";
+
+  if (total != null && total > 0 && negotiated != null && negotiated > 0) {
+    return `Thanh khoản toàn thị trường đạt ${formatTy(total)} tỷ đồng. GTGD khớp lệnh ${formatTy(
+      matched,
+    )} tỷ, thỏa thuận ${formatTy(negotiated)} tỷ${exchangeSuffix}.`;
+  }
+  if (total != null && total > 0 && total !== matched) {
+    return `Thanh khoản toàn thị trường đạt ${formatTy(total)} tỷ đồng; GTGD khớp lệnh ${formatTy(matched)} tỷ${exchangeSuffix}.`;
+  }
+  return `GTGD khớp lệnh toàn thị trường đạt ${formatTy(matched)} tỷ đồng${exchangeSuffix}.`;
 }
 
 function hasImpossibleBreadthClaim(summary: string): boolean {
@@ -949,7 +1083,33 @@ function buildDeterministicSessionSummary(payload: EodPayload): string {
 }
 
 function parseStringArray(raw: unknown): string[] {
-  return Array.isArray(raw) ? raw.filter((x): x is string => typeof x === "string" && x.trim().length > 0) : [];
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item) => {
+      if (typeof item === "string") return item;
+      if (!isRecord(item)) return "";
+      const ticker = String(item.ticker ?? item.symbol ?? item.code ?? "").trim().toUpperCase();
+      const value =
+        toNumberOrNull(item.value) ??
+        toNumberOrNull(item.netValue) ??
+        toNumberOrNull(item.net_bn) ??
+        toNumberOrNull(item.value_bn) ??
+        toNumberOrNull(item.amount);
+      if (!ticker) return "";
+      return value != null && value > 0 ? `${ticker} (${formatTy(value)} tỷ)` : ticker;
+    })
+    .filter((x): x is string => typeof x === "string" && x.trim().length > 0);
+}
+
+function pickStringArray(records: Array<JsonRecord | null | undefined>, keys: string[]): string[] {
+  for (const record of records) {
+    if (!record) continue;
+    for (const key of keys) {
+      const value = parseStringArray(record[key]);
+      if (value.length > 0) return value;
+    }
+  }
+  return [];
 }
 
 function sanitizeFlowList(items: string[]): string[] {
@@ -984,6 +1144,7 @@ function hasDetailedFlowLists(payload: EodPayload): boolean {
     payload.buy_signals,
     payload.sell_signals,
     payload.top_breakout,
+    payload.top_new_high,
   ].some((list) => sanitizeFlowList(list).length > 0);
 }
 
@@ -1235,12 +1396,21 @@ function toEodPayload(report: { createdAt: Date; content: string; rawData: strin
     total: toNumberOrNull(liquidityByExchangeRaw.total),
   };
   const inferredTotalFromExchanges = sumExchangeLiquidity(exchangeLiquidity);
-  const totalLiquidityRaw =
+  const liquidityBreakdown = extractLiquidityBreakdown(raw, snapshot, normalizedContent, exchangeLiquidity);
+  const matchedLiquidity =
+    liquidityBreakdown.matched ??
     inferredTotalFromExchanges ??
-    liquidityByExchange.total ??
-    toNumberOrNull(snapshot.totalLiquidity) ??
+    toNumberOrNull(snapshot.matchedLiquidity) ??
     toNumberOrNull(snapshot.liquidity) ??
     parseLiquidityFromContent(normalizedContent) ??
+    0;
+  const totalLiquidityRaw =
+    liquidityBreakdown.total ??
+    liquidityByExchange.total ??
+    (liquidityBreakdown.negotiated != null && matchedLiquidity > 0
+      ? matchedLiquidity + liquidityBreakdown.negotiated
+      : null) ??
+    matchedLiquidity ??
     0;
 
   const investorRoot =
@@ -1275,6 +1445,9 @@ function toEodPayload(report: { createdAt: Date; content: string; rawData: strin
     normalizedContent,
     "Bản tin kết phiên đã được tạo. Hệ thống đang đồng bộ thêm dữ liệu hiển thị.",
   );
+  const eodDetail = raw ? pickRecord(raw, ["eodDetail", "eod_detail", "eod", "brief", "payload"]) : null;
+  const propDataRecord = raw ? pickRecord(raw, ["propData", "prop_data", "proprietaryTrading"]) : null;
+  const arrayRecords = [raw, eodDetail, snapshot, propDataRecord];
 
   const sentimentLine =
     lines.find((line) => normalizeForCheck(line).includes("nhan dinh") && !isInvalidEodOutlook(line)) ??
@@ -1282,27 +1455,24 @@ function toEodPayload(report: { createdAt: Date; content: string; rawData: strin
     lines.find((line) => !isInvalidEodOutlook(line) && !isSectionHeaderLine(line)) ??
     "";
 
-  const hasExchangeLiquidity = (exchangeLiquidity.HNX ?? 0) > 0 || (exchangeLiquidity.UPCOM ?? 0) > 0;
-
   const payload: EodPayload = {
     date: toViDateFromDateKey(reportDateKey),
     vnindex: toNumber(vnindex?.value),
     change_pct: toNumber(vnindex?.change_pct),
     liquidity: Math.max(totalLiquidityRaw, 0),
+    total_liquidity: liquidityBreakdown.total,
+    matched_liquidity: matchedLiquidity > 0 ? matchedLiquidity : null,
+    negotiated_liquidity: liquidityBreakdown.negotiated,
     liquidity_by_exchange: exchangeLiquidity,
     breadth,
     session_summary: lines[0] && !hasImpossibleBreadthClaim(lines[0]) ? lines[0] : "",
     liquidity_detail:
       totalLiquidityRaw > 0
-        ? `Thanh khoản toàn thị trường đạt ${Math.round(totalLiquidityRaw).toLocaleString("vi-VN")} tỷ đồng${
-            hasExchangeLiquidity
-              ? ` (HoSE ${Math.round(toNumber(liquidityByExchange.HOSE)).toLocaleString("vi-VN")} | HNX ${Math.round(
-                  toNumber(liquidityByExchange.HNX),
-                ).toLocaleString("vi-VN")} | UPCoM ${Math.round(toNumber(liquidityByExchange.UPCOM)).toLocaleString(
-                  "vi-VN",
-                )})`
-              : ""
-          }.`
+        ? buildLiquidityDetail(totalLiquidityRaw, exchangeLiquidity, {
+            total: liquidityBreakdown.total,
+            matched: matchedLiquidity > 0 ? matchedLiquidity : null,
+            negotiated: liquidityBreakdown.negotiated,
+          })
         : "",
     foreign_flow:
       foreignNet != null
@@ -1319,17 +1489,18 @@ function toEodPayload(report: { createdAt: Date; content: string; rawData: strin
         : [propLineFromContent, retailLineFromContent].filter(Boolean).join(" | "),
     outlook: sentimentLine,
     sub_indices: parseSubIndices(raw?.sub_indices),
-    foreign_top_buy: sanitizeFlowList(parseStringArray(raw?.foreign_top_buy)),
-    foreign_top_sell: sanitizeFlowList(parseStringArray(raw?.foreign_top_sell)),
-    prop_trading_top_buy: sanitizeFlowList(parseStringArray(raw?.prop_trading_top_buy)),
-    prop_trading_top_sell: sanitizeFlowList(parseStringArray(raw?.prop_trading_top_sell)),
-    individual_top_buy: sanitizeFlowList(parseStringArray(raw?.individual_top_buy)),
-    individual_top_sell: sanitizeFlowList(parseStringArray(raw?.individual_top_sell)),
-    sector_gainers: sanitizeFlowList(parseStringArray(raw?.sector_gainers)),
-    sector_losers: sanitizeFlowList(parseStringArray(raw?.sector_losers)),
-    buy_signals: sanitizeFlowList(parseStringArray(raw?.buy_signals)),
-    sell_signals: sanitizeFlowList(parseStringArray(raw?.sell_signals)),
-    top_breakout: sanitizeFlowList(parseStringArray(raw?.top_breakout)),
+    foreign_top_buy: sanitizeFlowList(pickStringArray(arrayRecords, ["foreign_top_buy", "foreignTopBuy"])),
+    foreign_top_sell: sanitizeFlowList(pickStringArray(arrayRecords, ["foreign_top_sell", "foreignTopSell"])),
+    prop_trading_top_buy: sanitizeFlowList(pickStringArray(arrayRecords, ["prop_trading_top_buy", "propTradingTopBuy", "topBuy", "top_buy"])),
+    prop_trading_top_sell: sanitizeFlowList(pickStringArray(arrayRecords, ["prop_trading_top_sell", "propTradingTopSell", "topSell", "top_sell"])),
+    individual_top_buy: sanitizeFlowList(pickStringArray(arrayRecords, ["individual_top_buy", "individualTopBuy"])),
+    individual_top_sell: sanitizeFlowList(pickStringArray(arrayRecords, ["individual_top_sell", "individualTopSell"])),
+    sector_gainers: sanitizeFlowList(pickStringArray(arrayRecords, ["sector_gainers", "sectorGainers"])),
+    sector_losers: sanitizeFlowList(pickStringArray(arrayRecords, ["sector_losers", "sectorLosers"])),
+    buy_signals: sanitizeFlowList(pickStringArray(arrayRecords, ["buy_signals", "buySignals"])),
+    sell_signals: sanitizeFlowList(pickStringArray(arrayRecords, ["sell_signals", "sellSignals"])),
+    top_breakout: sanitizeFlowList(pickStringArray(arrayRecords, ["top_breakout", "topBreakout"])),
+    top_new_high: sanitizeFlowList(pickStringArray(arrayRecords, ["top_new_high", "topNewHigh", "new_highs", "newHighs"])),
   };
   if (isInvalidEodOutlook(payload.outlook)) {
     payload.outlook = buildDeterministicEodOutlook(payload);
@@ -1441,6 +1612,16 @@ function backfillEodPayload(base: EodPayload, history: EodPayload[]): EodPayload
   if (!(Number.isFinite(result.liquidity) && result.liquidity > 0)) {
     result.liquidity = pickNumberField((payload) => payload.liquidity) ?? result.liquidity;
   }
+  if (!(Number.isFinite(result.total_liquidity) && (result.total_liquidity ?? 0) > 0)) {
+    result.total_liquidity = pickNumberField((payload) => payload.total_liquidity ?? 0) ?? result.total_liquidity ?? null;
+  }
+  if (!(Number.isFinite(result.matched_liquidity) && (result.matched_liquidity ?? 0) > 0)) {
+    result.matched_liquidity = pickNumberField((payload) => payload.matched_liquidity ?? 0) ?? result.matched_liquidity ?? null;
+  }
+  if (!(Number.isFinite(result.negotiated_liquidity) && (result.negotiated_liquidity ?? 0) > 0)) {
+    result.negotiated_liquidity =
+      pickNumberField((payload) => payload.negotiated_liquidity ?? 0) ?? result.negotiated_liquidity ?? null;
+  }
   if (!result.liquidity_by_exchange) {
     const source = history.find((payload) => payload.liquidity_by_exchange != null);
     if (source?.liquidity_by_exchange) {
@@ -1506,6 +1687,7 @@ function backfillEodPayload(base: EodPayload, history: EodPayload[]): EodPayload
   if (result.buy_signals.length === 0) result.buy_signals = pickArrayField((payload) => payload.buy_signals);
   if (result.sell_signals.length === 0) result.sell_signals = pickArrayField((payload) => payload.sell_signals);
   if (result.top_breakout.length === 0) result.top_breakout = pickArrayField((payload) => payload.top_breakout);
+  if (result.top_new_high.length === 0) result.top_new_high = pickArrayField((payload) => payload.top_new_high);
 
   result.foreign_top_buy = sanitizeFlowList(result.foreign_top_buy);
   result.foreign_top_sell = sanitizeFlowList(result.foreign_top_sell);
@@ -1518,17 +1700,33 @@ function backfillEodPayload(base: EodPayload, history: EodPayload[]): EodPayload
   result.buy_signals = sanitizeFlowList(result.buy_signals);
   result.sell_signals = sanitizeFlowList(result.sell_signals);
   result.top_breakout = sanitizeFlowList(result.top_breakout);
+  result.top_new_high = sanitizeFlowList(result.top_new_high);
 
   const exchangeLiquidityTotal = sumExchangeLiquidity(result.liquidity_by_exchange);
-  if (exchangeLiquidityTotal != null) {
-    result.liquidity = exchangeLiquidityTotal;
+  if (exchangeLiquidityTotal != null && !(Number.isFinite(result.matched_liquidity) && (result.matched_liquidity ?? 0) > 0)) {
+    result.matched_liquidity = exchangeLiquidityTotal;
   }
+  if (
+    !(Number.isFinite(result.total_liquidity) && (result.total_liquidity ?? 0) > 0) &&
+    (result.matched_liquidity ?? 0) > 0 &&
+    (result.negotiated_liquidity ?? 0) > 0
+  ) {
+    result.total_liquidity = (result.matched_liquidity ?? 0) + (result.negotiated_liquidity ?? 0);
+  }
+  result.liquidity = result.total_liquidity ?? result.matched_liquidity ?? result.liquidity;
 
   if (result.liquidity > 0 && result.liquidity_by_exchange) {
-    result.liquidity_detail = buildLiquidityDetail(result.liquidity, result.liquidity_by_exchange);
+    result.liquidity_detail = buildLiquidityDetail(result.liquidity, result.liquidity_by_exchange, {
+      total: result.total_liquidity ?? null,
+      matched: result.matched_liquidity ?? null,
+      negotiated: result.negotiated_liquidity ?? null,
+    });
   }
   if (result.liquidity > 0 && (!result.liquidity_detail || isUnavailableText(result.liquidity_detail))) {
-    result.liquidity_detail = `Thanh khoản toàn thị trường đạt ${Math.round(result.liquidity).toLocaleString("vi-VN")} tỷ đồng.`;
+    result.liquidity_detail =
+      result.total_liquidity != null && result.total_liquidity > 0
+        ? `Thanh khoản toàn thị trường đạt ${Math.round(result.total_liquidity).toLocaleString("vi-VN")} tỷ đồng.`
+        : `GTGD khớp lệnh toàn thị trường đạt ${Math.round(result.liquidity).toLocaleString("vi-VN")} tỷ đồng.`;
   }
 
   if (!result.session_summary || isUnavailableText(result.session_summary)) {
@@ -1628,6 +1826,7 @@ function hasDisplayableEodPayload(payload: EodPayload): boolean {
     payload.buy_signals,
     payload.sell_signals,
     payload.top_breakout,
+    payload.top_new_high,
   ].some((list) => sanitizeFlowList(list).length > 0);
   return hasMarketNumber || hasNarrative || hasLists;
 }
@@ -1656,9 +1855,12 @@ async function buildLiveEodFallbackPayload(): Promise<EodPayload | null> {
           vnindex: vnValue,
           change_pct: vnChange,
           liquidity,
+          total_liquidity: null,
+          matched_liquidity: liquidity,
+          negotiated_liquidity: null,
           breadth: { up, down, unchanged, total: up + down + unchanged },
           session_summary: "Bản tin EOD tạm thời từ dữ liệu thị trường trực tiếp.",
-          liquidity_detail: `Thanh khoản toàn thị trường đạt ${Math.round(liquidity).toLocaleString("vi-VN")} tỷ đồng.`,
+          liquidity_detail: `GTGD khớp lệnh toàn thị trường đạt ${Math.round(liquidity).toLocaleString("vi-VN")} tỷ đồng.`,
           foreign_flow: "",
           notable_trades: "",
           outlook: "",
@@ -1674,6 +1876,7 @@ async function buildLiveEodFallbackPayload(): Promise<EodPayload | null> {
           buy_signals: [],
           sell_signals: [],
           top_breakout: [],
+          top_new_high: [],
         });
       }
     }
@@ -1702,6 +1905,9 @@ async function buildLiveEodFallbackPayload(): Promise<EodPayload | null> {
           vnindex: vnindex.value,
           change_pct: vnindex.changePct,
           liquidity: snapshot.liquidity,
+          total_liquidity: null,
+          matched_liquidity: snapshot.liquidity,
+          negotiated_liquidity: null,
           liquidity_by_exchange: snapshotExchangeLiquidity,
           breadth: snapshotBreadth,
           session_summary: `Bản tin EOD tạm thời từ snapshot trực tiếp (${snapshot.requestDateVN}).`,
@@ -1721,6 +1927,7 @@ async function buildLiveEodFallbackPayload(): Promise<EodPayload | null> {
           buy_signals: [],
           sell_signals: [],
           top_breakout: [],
+          top_new_high: [],
         });
       }
     }
@@ -1834,9 +2041,12 @@ export async function GET(request: NextRequest) {
 
     const snapshotLiquidity = sumExchangeLiquidity(snapshotLiquidityByExchange) ?? toNumberOrNull(liveSnapshot.liquidity);
     if (snapshotLiquidity != null && snapshotLiquidity > 0) {
+      if (!(Number.isFinite(selected.matched_liquidity) && (selected.matched_liquidity ?? 0) > 0)) {
+        selected.matched_liquidity = snapshotLiquidity;
+      }
       const selectedLiquidity = toNumberOrNull(selected.liquidity) ?? 0;
       if (selectedLiquidity <= 0 || selectedLiquidity < snapshotLiquidity * 0.4) {
-        selected.liquidity = snapshotLiquidity;
+        selected.liquidity = selected.total_liquidity ?? snapshotLiquidity;
       }
     }
   }
@@ -1845,11 +2055,23 @@ export async function GET(request: NextRequest) {
     selected.liquidity_by_exchange = normalizeExchangeLiquidity(selected.liquidity_by_exchange);
   }
   const selectedExchangeLiquidityTotal = sumExchangeLiquidity(selected.liquidity_by_exchange);
-  if (selectedExchangeLiquidityTotal != null) {
-    selected.liquidity = selectedExchangeLiquidityTotal;
+  if (selectedExchangeLiquidityTotal != null && !(Number.isFinite(selected.matched_liquidity) && (selected.matched_liquidity ?? 0) > 0)) {
+    selected.matched_liquidity = selectedExchangeLiquidityTotal;
   }
+  if (
+    !(Number.isFinite(selected.total_liquidity) && (selected.total_liquidity ?? 0) > 0) &&
+    (selected.matched_liquidity ?? 0) > 0 &&
+    (selected.negotiated_liquidity ?? 0) > 0
+  ) {
+    selected.total_liquidity = (selected.matched_liquidity ?? 0) + (selected.negotiated_liquidity ?? 0);
+  }
+  selected.liquidity = selected.total_liquidity ?? selected.matched_liquidity ?? selected.liquidity;
   if (selected.liquidity > 0 && selected.liquidity_by_exchange) {
-    selected.liquidity_detail = buildLiquidityDetail(selected.liquidity, selected.liquidity_by_exchange);
+    selected.liquidity_detail = buildLiquidityDetail(selected.liquidity, selected.liquidity_by_exchange, {
+      total: selected.total_liquidity ?? null,
+      matched: selected.matched_liquidity ?? null,
+      negotiated: selected.negotiated_liquidity ?? null,
+    });
   }
   selected = {
     ...selected,
@@ -1869,6 +2091,7 @@ export async function GET(request: NextRequest) {
     buy_signals: sanitizeFlowList(selected.buy_signals),
     sell_signals: sanitizeFlowList(selected.sell_signals),
     top_breakout: sanitizeFlowList(selected.top_breakout),
+    top_new_high: sanitizeFlowList(selected.top_new_high),
   };
   if (isInvalidEodOutlook(selected.outlook)) {
     selected.outlook = buildDeterministicEodOutlook(selected);

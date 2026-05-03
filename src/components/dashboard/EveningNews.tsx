@@ -28,6 +28,9 @@ interface EodData {
   vnindex: number;
   change_pct: number;
   liquidity: number;
+  total_liquidity?: number | null;
+  matched_liquidity?: number | null;
+  negotiated_liquidity?: number | null;
   liquidity_by_exchange?: {
     HOSE?: number | null;
     HNX?: number | null;
@@ -52,6 +55,7 @@ interface EodData {
   buy_signals?: string[];
   sell_signals?: string[];
   top_breakout?: string[];
+  top_new_high?: string[];
 }
 
 type Tone = "emerald" | "red" | "blue" | "amber" | "purple" | "indigo";
@@ -239,7 +243,9 @@ export function EveningNews() {
   const buySignals = normalizeFlowItems(data.buy_signals);
   const sellSignals = normalizeFlowItems(data.sell_signals);
   const topBreakout = normalizeFlowItems(data.top_breakout);
+  const topNewHigh = normalizeFlowItems(data.top_new_high);
   const exchangeLiquidityLine =
+    !normalizeForMatch(data.liquidity_detail ?? "").includes("hose") &&
     data.liquidity_by_exchange &&
     ((data.liquidity_by_exchange.HOSE ?? 0) > 0 ||
       (data.liquidity_by_exchange.HNX ?? 0) > 0 ||
@@ -466,7 +472,7 @@ export function EveningNews() {
 
             {/* Row: Nhóm ảnh hưởng */}
             {(sectorGainers.length || sectorLosers.length) && (
-              <GridRow label="Nhóm ảnh hưởng">
+              <GridRow label="Nhóm ảnh hưởng chỉ số">
                 <div className="space-y-1.5">
                   {sectorGainers.length > 0 && (
                     <TagLine
@@ -490,7 +496,7 @@ export function EveningNews() {
 
             {/* Row: Tín hiệu Mua/Bán chủ động */}
             {(buySignals.length || sellSignals.length) && (
-              <GridRow label="Tín hiệu BU/SD">
+              <GridRow label="Tín hiệu mua/bán chủ động">
                 <div className="space-y-1.5">
                   {buySignals.length > 0 && (
                     <TagLine
@@ -520,6 +526,17 @@ export function EveningNews() {
                   label=""
                   items={topBreakout}
                   tone="purple"
+                />
+              </GridRow>
+            )}
+
+            {topNewHigh.length > 0 && (
+              <GridRow label="Top vượt đỉnh">
+                <TagLine
+                  icon={<TrendingUp className="w-3 h-3" style={{ color: TONE.emerald.text }} />}
+                  label=""
+                  items={topNewHigh}
+                  tone="emerald"
                 />
               </GridRow>
             )}

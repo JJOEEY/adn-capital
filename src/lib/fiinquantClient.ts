@@ -159,6 +159,9 @@ export interface FiinEodNews {
   vnindex: number;
   change_pct: number;
   liquidity: number;
+  total_liquidity?: number;
+  matched_liquidity?: number;
+  negotiated_liquidity?: number;
   breadth: { up: number; down: number; unchanged: number; total: number };
   session_summary: string;
   liquidity_detail: string;
@@ -170,11 +173,14 @@ export interface FiinEodNews {
   foreign_top_sell: string[];
   prop_trading_top_buy: string[];
   prop_trading_top_sell: string[];
+  individual_top_buy?: string[];
+  individual_top_sell?: string[];
   sector_gainers: string[];
   sector_losers: string[];
   buy_signals: string[];
   sell_signals: string[];
   top_breakout: string[];
+  top_new_high?: string[];
 }
 
 export interface FiinIntradaySnapshot {
