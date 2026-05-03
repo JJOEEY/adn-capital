@@ -16,6 +16,7 @@ import { LockOverlay } from "@/components/ui/LockOverlay";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useTopic } from "@/hooks/useTopic";
 import { BRAND, PRODUCT_NAMES } from "@/lib/brand/productNames";
+import { classifyTickerSector } from "@/lib/market/sector-classification";
 import { formatPercent, formatPrice, getRsBgStyle, getRsColor, getRsLabel } from "@/lib/utils";
 
 interface MarketData {
@@ -379,7 +380,7 @@ export default function DashboardPage() {
         const price = readFiniteNumber(row.price) ?? 0;
         const changePercent = readFiniteNumber(row.changePercent) ?? 0;
         const name = String(row.name ?? ticker).trim() || ticker;
-        const sector = String(row.sector ?? "Khác").trim() || "Khác";
+        const sector = classifyTickerSector(ticker, String(row.sector ?? ""));
         return ticker && rs > 0 ? { ticker, rs, volume, price, changePercent, name, sector } : null;
       })
       .filter((row): row is PulseRankRow => Boolean(row));
@@ -673,7 +674,7 @@ const GaugeCard = memo(function GaugeCard({
         className="text-[12px] font-bold uppercase tracking-wider mb-2 self-start"
         style={{ color: "var(--text-muted)" }}
       >
-        ADNCore
+        ADNCore - Chấm điểm thị trường
       </p>
 
       {overview ? (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { RatingTable } from "@/components/rs-rating/RatingTable";
 import { LockOverlay } from "@/components/ui/LockOverlay";
@@ -22,6 +22,8 @@ type RsRatingPayload = {
     sector: string;
   }>;
   updatedAt?: string | null;
+  asOfDate?: string | null;
+  requestedDate?: string | null;
 };
 
 function FreshnessBadge({ freshness }: { freshness: string | null }) {
@@ -52,14 +54,55 @@ function formatUpdatedAt(value: string) {
 
 export default function RSRatingPage() {
   const { isRsRatingLocked } = useSubscription();
+  const [selectedDate, setSelectedDate] = useState("");
+  const [datedPayload, setDatedPayload] = useState<RsRatingPayload | null>(null);
+  const [datedLoading, setDatedLoading] = useState(false);
+  const [datedError, setDatedError] = useState<string | null>(null);
   const rsTopic = useTopic<RsRatingPayload>("research:rs-rating:list", {
     refreshInterval: 900_000,
     revalidateOnFocus: false,
     dedupingInterval: 60_000,
   });
 
+  useEffect(() => {
+    if (!selectedDate) {
+      setDatedPayload(null);
+      setDatedError(null);
+      setDatedLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setDatedLoading(true);
+    setDatedError(null);
+
+    fetch(`/api/rs-rating?date=${encodeURIComponent(selectedDate)}`, {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        const payload = (await res.json()) as RsRatingPayload & { error?: string };
+        if (!res.ok) {
+          throw new Error(payload.error || "Không thể tải bảng xếp hạng theo ngày đã chọn.");
+        }
+        setDatedPayload(payload);
+      })
+      .catch((err) => {
+        if (controller.signal.aborted) return;
+        setDatedPayload(null);
+        setDatedError(err instanceof Error ? err.message : "Không thể tải bảng xếp hạng theo ngày đã chọn.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setDatedLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [selectedDate]);
+
+  const effectivePayload = selectedDate ? datedPayload : rsTopic.data;
+
   const stocks = useMemo<StockData[]>(() => {
-    const raw = rsTopic.data?.stocks ?? [];
+    const raw = effectivePayload?.stocks ?? [];
     return raw.map((s) => ({
       symbol: s.symbol,
       name: s.name,
@@ -70,7 +113,43 @@ export default function RSRatingPage() {
       rsRating: s.rsRating,
       sector: s.sector,
     }));
-  }, [rsTopic.data?.stocks]);
+  }, [effectivePayload?.stocks]);
+
+  const effectiveUpdatedAt = effectivePayload?.updatedAt ?? null;
+  const effectiveAsOfDate = effectivePayload?.asOfDate ?? (selectedDate || null);
+  const isInitialLoading = !selectedDate && rsTopic.isLoading && stocks.length === 0;
+  const effectiveError = selectedDate ? datedError : rsTopic.error;
+
+  const handleDownload = useCallback(() => {
+    if (stocks.length === 0) return;
+    const reportDate = effectiveAsOfDate ?? new Date().toISOString().slice(0, 10);
+    const rows = [
+      ["Ngày", "Mã CK", "Tên", "Giá", "% thay đổi", "Khối lượng", "ADN Rank", "Xếp loại", "Ngành"],
+      ...stocks.map((stock) => [
+        reportDate,
+        stock.symbol,
+        stock.name,
+        String(stock.price),
+        String(stock.changePercent),
+        String(stock.volume),
+        String(stock.rsRating),
+        stock.rsRating > 90 ? "Super Star" : stock.rsRating >= 80 ? "Star" : stock.rsRating >= 60 ? "Watch" : "Farmer",
+        stock.sector,
+      ]),
+    ];
+    const csv = rows
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `adn-rank-${reportDate}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }, [effectiveAsOfDate, stocks]);
 
   return (
     <MainLayout>
@@ -97,9 +176,9 @@ export default function RSRatingPage() {
 
           <div className="flex items-center gap-3">
             <FreshnessBadge freshness={rsTopic.freshness} />
-            {rsTopic.data?.updatedAt ? (
+            {effectiveUpdatedAt ? (
               <span className="hidden text-[12px] sm:inline" style={{ color: "var(--text-muted)" }}>
-                Cập nhật: {formatUpdatedAt(rsTopic.data.updatedAt)}
+                Cập nhật: {formatUpdatedAt(effectiveUpdatedAt)}
               </span>
             ) : null}
             <button
@@ -113,7 +192,7 @@ export default function RSRatingPage() {
           </div>
         </div>
 
-        {rsTopic.isLoading && stocks.length === 0 ? (
+        {isInitialLoading ? (
           <div className="space-y-3">
             {Array.from({ length: 8 }).map((_, i) => (
               <div
@@ -125,13 +204,21 @@ export default function RSRatingPage() {
               Đang tải dữ liệu {PRODUCT_NAMES.rsRating}...
             </p>
           </div>
-        ) : rsTopic.error ? (
+        ) : effectiveError ? (
           <div className="py-12 text-center">
             <p className="text-sm" style={{ color: "var(--danger)" }}>
-              {typeof rsTopic.error === "string" ? rsTopic.error : `Không thể tải dữ liệu ${PRODUCT_NAMES.rsRating}.`}
+              {typeof effectiveError === "string" ? effectiveError : `Không thể tải dữ liệu ${PRODUCT_NAMES.rsRating}.`}
             </p>
             <button
-              onClick={() => void rsTopic.refresh(true)}
+              onClick={() => {
+                if (selectedDate) {
+                  const date = selectedDate;
+                  setSelectedDate("");
+                  window.setTimeout(() => setSelectedDate(date), 0);
+                } else {
+                  void rsTopic.refresh(true);
+                }
+              }}
               className="mt-3 text-xs hover:underline"
               style={{ color: "#10b981" }}
             >
@@ -143,7 +230,15 @@ export default function RSRatingPage() {
             isLocked={isRsRatingLocked}
             message={`Nâng cấp VIP/Premium để xem bảng xếp hạng ${PRODUCT_NAMES.rsRating} đầy đủ`}
           >
-            <RatingTable stocks={stocks} />
+            <RatingTable
+              stocks={stocks}
+              selectedDate={selectedDate}
+              asOfDate={effectiveAsOfDate}
+              dateLoading={datedLoading}
+              onDateChange={setSelectedDate}
+              onClearDate={() => setSelectedDate("")}
+              onDownload={handleDownload}
+            />
           </LockOverlay>
         )}
       </div>

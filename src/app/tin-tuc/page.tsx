@@ -398,10 +398,10 @@ function ARTGaugeCard() {
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: "var(--text-muted)" }}>
-            ART
+            ADN ART
           </p>
           <h2 className="mt-1 text-lg font-extrabold" style={{ color: "var(--text-primary)" }}>
-            Đồng hồ đảo chiều
+            Đồng hồ đảo chiều thị trường
           </h2>
           <p className="mt-1 text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
             Theo dõi trạng thái hưng phấn và cạn kiệt của rổ VN30 trong 1 tháng gần nhất.
@@ -433,7 +433,7 @@ function ARTGaugeCard() {
       </div>
 
       <div className="mt-5 grid grid-cols-2 gap-2">
-        <MetricMini label="ART MA7" value={ma7 ? formatNumber(ma7, 2) : "-"} />
+        <MetricMini label="ADN ART MA7" value={ma7 ? formatNumber(ma7, 2) : "-"} />
         <MetricMini label="Lịch sử" value={`${monthPoints.length || 0} phiên`} />
       </div>
 
@@ -457,7 +457,7 @@ function ADNCoreGaugeCard({ overview }: { overview: MarketOverview | null }) {
             ADNCore
           </p>
           <h2 className="mt-1 text-lg font-extrabold" style={{ color: "var(--text-primary)" }}>
-            Đồng hồ thị trường
+            Chấm điểm thị trường
           </h2>
           <p className="mt-1 text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
             Tổng hợp xu hướng, độ rộng và chất lượng vận động của thị trường.

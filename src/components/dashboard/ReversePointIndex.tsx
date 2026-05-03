@@ -44,6 +44,14 @@ function classifyART(v: number) {
   return         { label: "HƯNG PHẤN CỰC ĐỘ - NGUY HIỂM", sublabel: "Nguy hiểm cao nhất",  color: "#EF4444" };
 }
 
+const ART_ZONE_ROWS = [
+  { text: "Hưng phấn cực độ (> 4.8)", value: "4.8+", bg: "#EF4444" },
+  { text: "Hưng phấn - Nguy hiểm (4-4.8)", value: "4.0", bg: "#F97316" },
+  { text: "Trung tính (2.5-4)", value: "2.5", bg: "#EAB308" },
+  { text: "Hoảng loạn - An toàn (1-2.5)", value: "1.5", bg: "#22C55E" },
+  { text: "Hoảng loạn cực độ (< 1)", value: "<1", bg: "#16A34A" },
+];
+
 function getColorConfig(color: string) {
   if (color === "#16A34A" || color === "#22C55E")
     return {
@@ -289,7 +297,7 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
         <div className="flex items-center justify-between mb-1">
           <div className="flex flex-col gap-0.5">
             <span className="text-[12px] font-bold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
-              ART — Analytical Reversal Tracker
+              ADN ART
             </span>
             <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>Bộ theo dõi đảo chiều xu hướng · VN30</span>
           </div>
@@ -332,16 +340,10 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
             </div>
           </div>
 
-          {/* Phân vùng ART */}
+          {/* Phân vùng ADN ART */}
           <div className="flex-1 w-full">
             <div className="border rounded-xl p-3" style={{ background: "var(--surface-2)", borderColor: "var(--border)" }}>
-              {[
-                { text: "Hứng phán cục độ (> 4.8)",          value: "4.8+", bg: "#EF4444" },
-                { text: "Hứng phán - Nguy hiẻm (4–4.8)",  value: "4.0",  bg: "#F97316" },
-                { text: "Trung tính (2.5–4)",                value: "2.5",  bg: "#EAB308" },
-                { text: "Hoảng loạn - An toàn (1–2.5)",    value: "1.5",  bg: "#22C55E" },
-                { text: "Hoảng loạn cục độ (< 1)",            value: "<1",   bg: "#16A34A" },
-              ].map((item, i) => (
+              {ART_ZONE_ROWS.map((item, i) => (
                 <div key={item.value}
                   className={`flex items-center justify-between py-2 ${i < 4 ? "border-b" : ""}`}
                   style={{ borderColor: "var(--border)" }}>
@@ -372,7 +374,7 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1.5">
                   <span className="inline-block w-3 h-3 rounded-sm" style={{ background: "var(--text-primary)" }} />
-                  <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>ART</span>
+                  <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>ADN ART</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="inline-block w-3 h-3 bg-[#F59E0B] rounded-sm" />
@@ -414,7 +416,7 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
                     <Area type="monotone" dataKey="ma7" name="Trung Bình (MA7)"
                       fill="url(#artMa7Fill)" stroke="#F59E0B" strokeWidth={2}
                       dot={false} connectNulls={false} isAnimationActive={false} />
-                    <Line type="monotone" dataKey="rpi" name="ART"
+                    <Line type="monotone" dataKey="rpi" name="ADN ART"
                       stroke="var(--text-primary)" strokeWidth={2}
                       dot={<ARTDot />} activeDot={{ r: 5, fill: CHART_THEME.dot, stroke: CHART_THEME.dot }}
                       isAnimationActive={false} />
@@ -432,7 +434,7 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
         {/* Footer */}
         <div className="flex items-center mt-3 pt-2 border-t" style={{ borderColor: "var(--border)" }}>
           <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>
-            ART MA7: <span className="font-bold" style={{ color: cfg.text }}>{artMA7.toFixed(2)}</span>
+            ADN ART MA7: <span className="font-bold" style={{ color: cfg.text }}>{artMA7.toFixed(2)}</span>
           </span>
         </div>
       </div>

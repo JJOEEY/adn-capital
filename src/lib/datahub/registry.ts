@@ -205,7 +205,7 @@ async function loadSignalMapLatest() {
 
 async function loadRsRatingList() {
   const mod = await import("@/app/api/rs-rating/route");
-  const res = await mod.GET();
+  const res = await mod.GET(new NextRequest("http://localhost/api/rs-rating"));
   if (!res.ok) throw new Error(`rs-rating HTTP ${res.status}`);
   return res.json();
 }

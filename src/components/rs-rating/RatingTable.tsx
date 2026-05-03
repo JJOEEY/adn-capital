@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Search, TrendingUp, TrendingDown } from "lucide-react";
+import { CalendarDays, Download, Search, TrendingDown, TrendingUp, X } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { PRODUCT_NAMES } from "@/lib/brand/productNames";
@@ -11,11 +11,34 @@ import type { StockData } from "@/types";
 
 interface RatingTableProps {
   stocks: StockData[];
+  selectedDate?: string;
+  asOfDate?: string | null;
+  dateLoading?: boolean;
+  onDateChange?: (date: string) => void;
+  onClearDate?: () => void;
+  onDownload?: () => void;
 }
 
-export function RatingTable({ stocks }: RatingTableProps) {
+export function RatingTable({
+  stocks,
+  selectedDate = "",
+  asOfDate,
+  dateLoading = false,
+  onDateChange,
+  onClearDate,
+  onDownload,
+}: RatingTableProps) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "superstar" | "star" | "watch" | "farmer">("all");
+  const [sectorFilter, setSectorFilter] = useState("all");
+
+  const sectors = useMemo(
+    () =>
+      Array.from(new Set(stocks.map((stock) => stock.sector).filter(Boolean))).sort((a, b) =>
+        a.localeCompare(b, "vi"),
+      ),
+    [stocks],
+  );
 
   const filtered = stocks.filter((s) => {
     const matchSearch =
@@ -30,7 +53,9 @@ export function RatingTable({ stocks }: RatingTableProps) {
       (filter === "watch" && s.rsRating >= 60 && s.rsRating < 80) ||
       (filter === "farmer" && s.rsRating < 60);
 
-    return matchSearch && matchFilter;
+    const matchSector = sectorFilter === "all" || s.sector === sectorFilter;
+
+    return matchSearch && matchFilter && matchSector;
   });
 
   const filterBtn = (label: string, val: typeof filter, count: number) => (
@@ -51,8 +76,10 @@ export function RatingTable({ stocks }: RatingTableProps) {
   return (
     <div className="space-y-4">
       {/* Controls */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1 max-w-xs">
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+            <div className="relative w-full sm:w-72">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "var(--text-muted)" }} />
           <input
             value={search}
@@ -61,13 +88,78 @@ export function RatingTable({ stocks }: RatingTableProps) {
             className="w-full pl-9 pr-4 py-2 bg-[var(--surface)] border border-[var(--border)] text-sm rounded-xl outline-none transition-all"
             style={{ color: "var(--text-primary)" }}
           />
+            </div>
+
+            <div className="relative w-full sm:w-56">
+              <select
+                value={sectorFilter}
+                onChange={(e) => setSectorFilter(e.target.value)}
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition-all"
+                style={{ color: "var(--text-primary)" }}
+                aria-label="Lọc theo ngành"
+              >
+                <option value="all">Tất cả ngành</option>
+                {sectors.map((sector) => (
+                  <option key={sector} value={sector}>
+                    {sector}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+            <label className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm">
+              <CalendarDays className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => onDateChange?.(e.target.value)}
+                className="bg-transparent outline-none"
+                style={{ color: "var(--text-primary)" }}
+                aria-label="Lọc theo ngày"
+              />
+            </label>
+            {selectedDate ? (
+              <button
+                onClick={onClearDate}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm transition hover:text-[var(--text-primary)]"
+                style={{ color: "var(--text-muted)" }}
+              >
+                <X className="h-4 w-4" />
+                Bỏ lọc ngày
+              </button>
+            ) : null}
+            <button
+              onClick={onDownload}
+              disabled={stocks.length === 0 || dateLoading}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm font-bold transition hover:text-[var(--text-primary)] disabled:opacity-50"
+              style={{ color: "var(--text-muted)" }}
+            >
+              <Download className="h-4 w-4" />
+              Tải bảng theo ngày
+            </button>
+          </div>
         </div>
+
         <div className="flex gap-2 flex-wrap">
           {filterBtn("Tất cả", "all", stocks.length)}
           {filterBtn("Super Star", "superstar", stocks.filter((s) => s.rsRating > 90).length)}
           {filterBtn("Star", "star", stocks.filter((s) => s.rsRating >= 80 && s.rsRating <= 90).length)}
           {filterBtn("Watch", "watch", stocks.filter((s) => s.rsRating >= 60 && s.rsRating < 80).length)}
           {filterBtn("Farmer", "farmer", stocks.filter((s) => s.rsRating < 60).length)}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 text-xs" style={{ color: "var(--text-muted)" }}>
+          <span>Ngày dữ liệu: {asOfDate || "mới nhất"}</span>
+          <span>·</span>
+          <span>Đang hiển thị {filtered.length}/{stocks.length} mã</span>
+          {dateLoading ? (
+            <>
+              <span>·</span>
+              <span>Đang tải ngày đã chọn...</span>
+            </>
+          ) : null}
         </div>
       </div>
 

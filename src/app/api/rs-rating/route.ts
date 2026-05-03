@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { classifyTickerSector } from "@/lib/market/sector-classification";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
 
 type BridgeRsItem = Record<string, unknown>;
@@ -21,7 +22,7 @@ type NormalizedRsStock = {
 };
 
 const CACHE_TTL = 15 * 60 * 1000;
-let cache: { data: unknown; ts: number } | null = null;
+const cache = new Map<string, { data: unknown; ts: number }>();
 
 function readString(item: BridgeRsItem, keys: string[], fallback = "") {
   for (const key of keys) {
@@ -65,7 +66,7 @@ function normalizeRsStock(item: BridgeRsItem, defaultBenchmark: string): Normali
   return {
     symbol,
     name: readString(item, ["name", "companyName", "company_name"], symbol),
-    sector: readString(item, ["sector", "industry", "icbName"], "Khac"),
+    sector: classifyTickerSector(symbol, readString(item, ["sector", "industry", "icbName"], "")),
     price,
     change,
     changePercent,
@@ -88,15 +89,33 @@ function getRawItems(payload: Record<string, unknown>) {
   return [];
 }
 
-export async function GET() {
-  if (cache && Date.now() - cache.ts < CACHE_TTL) {
-    return NextResponse.json(cache.data);
+export async function GET(request: NextRequest) {
+  return handleGet(request);
+}
+
+function readRequestDate(request?: NextRequest | Request) {
+  if (!request?.url) return null;
+  const url = new URL(request.url);
+  const date = url.searchParams.get("date")?.trim() ?? "";
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
+}
+
+async function handleGet(request?: NextRequest | Request) {
+  const requestedDate = readRequestDate(request);
+  const cacheKey = requestedDate ? `date:${requestedDate}` : "latest";
+  const cached = cache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < CACHE_TTL) {
+    return NextResponse.json(cached.data);
   }
 
   const backend = getPythonBridgeUrl();
+  const bridgeUrl = new URL("/api/v1/rs-rating", backend.endsWith("/") ? backend : `${backend}/`);
+  if (requestedDate) {
+    bridgeUrl.searchParams.set("date", requestedDate);
+  }
 
   try {
-    const res = await fetch(`${backend}/api/v1/rs-rating`, {
+    const res = await fetch(bridgeUrl.toString(), {
       cache: "no-store",
       signal: AbortSignal.timeout(60_000),
     });
@@ -106,7 +125,7 @@ export async function GET() {
       console.error("[/api/rs-rating] FiinQuant bridge error:", res.status, responseText.slice(0, 800));
       return NextResponse.json(
         {
-          error: "Khong lay duoc du lieu RS tu FiinQuant bridge",
+          error: "Không tải được bảng ADN Rank lúc này.",
           source: "fiinquant_bridge",
           publish: false,
         },
@@ -122,6 +141,7 @@ export async function GET() {
           ? (parsed as Record<string, unknown>)
           : {};
     const benchmark = readString(json, ["benchmark", "base"], "VNINDEX");
+    const asOfDate = readString(json, ["asOfDate", "tradingDate", "date"], requestedDate ?? "");
     const stocks = getRawItems(json)
       .map((item) => normalizeRsStock(item, benchmark))
       .filter((item): item is NormalizedRsStock => Boolean(item));
@@ -129,7 +149,7 @@ export async function GET() {
     if (stocks.length === 0) {
       return NextResponse.json(
         {
-          error: "FiinQuant bridge khong tra ve danh sach RS hop le",
+          error: "Không có bảng ADN Rank hợp lệ cho thời điểm này.",
           source: "fiinquant_bridge",
           publish: false,
           updatedAt: new Date().toISOString(),
@@ -148,16 +168,18 @@ export async function GET() {
       provider: "FiinQuant",
       calculation: "bridge_rs_calculator",
       benchmark,
+      asOfDate: asOfDate || null,
+      requestedDate,
       updatedAt: readString(json, ["updated_at", "updatedAt", "timestamp"], new Date().toISOString()),
     };
 
-    cache = { data: response, ts: Date.now() };
+    cache.set(cacheKey, { data: response, ts: Date.now() });
     return NextResponse.json(response);
   } catch (err) {
     console.error("[/api/rs-rating] Fetch error:", err);
     return NextResponse.json(
       {
-        error: "FiinQuant bridge khong phan hoi",
+        error: "Không tải được bảng ADN Rank lúc này.",
         source: "fiinquant_bridge",
         publish: false,
       },
