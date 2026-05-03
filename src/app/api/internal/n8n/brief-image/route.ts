@@ -28,6 +28,7 @@ type BriefImageBody = {
   sendTelegram?: unknown;
   chatId?: unknown;
   dryRun?: unknown;
+  dedupe?: unknown;
 };
 
 function normalizeKind(value: unknown): BriefImageKind | null {
@@ -100,6 +101,7 @@ export async function POST(req: NextRequest) {
 
   const sendTelegram = parsed.data.sendTelegram !== false;
   const dryRun = parsed.data.dryRun === true || readString(parsed.data.dryRun).toLowerCase() === "true";
+  const dedupe = parsed.data.dedupe !== false && readString(parsed.data.dedupe).toLowerCase() !== "false";
   const chatId = readString(parsed.data.chatId);
   const image = await createBriefPng(kind);
   if (!image.ok) {
@@ -115,7 +117,9 @@ export async function POST(req: NextRequest) {
       chatId: chatId || undefined,
       dryRun,
       filename: `adn-${kind}-brief.png`,
-      dedupeKey: getTodayDedupeKey(["brief-image", kind, chatId || "default"]),
+      dedupeKey: dedupe
+        ? getTodayDedupeKey(["brief-image", kind, chatId || "default"])
+        : getTodayDedupeKey(["brief-image", kind, chatId || "manual", String(Date.now())]),
     });
   }
 

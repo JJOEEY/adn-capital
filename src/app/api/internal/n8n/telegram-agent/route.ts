@@ -234,7 +234,7 @@ export async function POST(req: NextRequest) {
       const type = pickBriefImageType(text);
       const result = await callInternalApi<Record<string, unknown>>("/api/internal/n8n/brief-image", {
         method: "POST",
-        body: { type, sendTelegram: true, chatId },
+        body: { type, sendTelegram: true, chatId, dedupe: false },
       });
       const label = type === "morning" ? "bản tin sáng" : "bản tin tổng hợp";
       reply = result.ok
