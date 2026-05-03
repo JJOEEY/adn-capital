@@ -65,6 +65,7 @@ const pageStyle: CSSProperties = {
 const cardStyle: CSSProperties = {
   display: "flex",
   flexDirection: "column",
+  overflow: "hidden",
   border: "1px solid rgba(255, 255, 255, 0.12)",
   background: "rgba(25, 28, 34, 0.76)",
   borderRadius: 26,
@@ -132,9 +133,9 @@ function normalizeMorningBrief(value: unknown): NormalizedMorningBrief {
       value: numberValue(item.value),
       changePct: numberValue(item.change_pct),
     })),
-    market: textList(source.vn_market).slice(0, 5),
-    macro: textList(source.macro).slice(0, 5),
-    riskOpportunity: textList(source.risk_opportunity).slice(0, 5),
+    market: textList(source.vn_market).slice(0, 4),
+    macro: textList(source.macro).slice(0, 4),
+    riskOpportunity: textList(source.risk_opportunity).slice(0, 4),
   };
 }
 
@@ -172,18 +173,18 @@ function normalizeEodBrief(value: unknown): NormalizedEodBrief {
         const pct = numberValue(item.change_pct);
         return `${name}: ${formatNumber(pts, 2)} điểm / ${formatNumber(pct, 2)}%`;
       }),
-    foreignTopBuy: textList(source.foreign_top_buy).slice(0, 5),
-    foreignTopSell: textList(source.foreign_top_sell).slice(0, 5),
-    propTopBuy: textList(source.prop_trading_top_buy).slice(0, 5),
-    propTopSell: textList(source.prop_trading_top_sell).slice(0, 5),
-    individualTopBuy: textList(source.individual_top_buy).slice(0, 5),
-    individualTopSell: textList(source.individual_top_sell).slice(0, 5),
-    sectorGainers: textList(source.sector_gainers).slice(0, 6),
-    sectorLosers: textList(source.sector_losers).slice(0, 6),
-    buySignals: textList(source.buy_signals).slice(0, 8),
-    sellSignals: textList(source.sell_signals).slice(0, 8),
-    topBreakout: textList(source.top_breakout).slice(0, 10),
-    topNewHigh: textList(source.top_new_high).slice(0, 5),
+    foreignTopBuy: textList(source.foreign_top_buy).slice(0, 4),
+    foreignTopSell: textList(source.foreign_top_sell).slice(0, 4),
+    propTopBuy: textList(source.prop_trading_top_buy).slice(0, 4),
+    propTopSell: textList(source.prop_trading_top_sell).slice(0, 4),
+    individualTopBuy: textList(source.individual_top_buy).slice(0, 4),
+    individualTopSell: textList(source.individual_top_sell).slice(0, 4),
+    sectorGainers: textList(source.sector_gainers).slice(0, 5),
+    sectorLosers: textList(source.sector_losers).slice(0, 5),
+    buySignals: textList(source.buy_signals).slice(0, 6),
+    sellSignals: textList(source.sell_signals).slice(0, 6),
+    topBreakout: textList(source.top_breakout).slice(0, 7),
+    topNewHigh: textList(source.top_new_high).slice(0, 4),
   };
 }
 
@@ -214,13 +215,13 @@ function Badge({ children, tone = "green" }: { children: ReactNode; tone?: "gree
 
 function Header({ title, subtitle, date }: { title: string; subtitle: string; date: string }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 28 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 22 }}>
       <div style={{ display: "flex", flexDirection: "column" }}>
-        <div style={{ display: "flex", color: "#c5d4c6", fontSize: 18, fontWeight: 800, letterSpacing: 7, marginBottom: 12 }}>
+        <div style={{ display: "flex", color: "#c5d4c6", fontSize: 16, fontWeight: 800, letterSpacing: 7, marginBottom: 10 }}>
           ADN CAPITAL
         </div>
-        <div style={{ display: "flex", fontSize: 46, fontWeight: 900, lineHeight: 1.08 }}>{title}</div>
-        <div style={{ display: "flex", color: "#aeb4ae", fontSize: 24, marginTop: 8 }}>{subtitle}</div>
+        <div style={{ display: "flex", fontSize: 42, fontWeight: 900, lineHeight: 1.05 }}>{title}</div>
+        <div style={{ display: "flex", color: "#aeb4ae", fontSize: 22, marginTop: 8 }}>{subtitle}</div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 12 }}>
         <Badge>FRESH</Badge>
@@ -270,10 +271,10 @@ function Backdrop() {
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({ title, children, style }: { title: string; children: ReactNode; style?: CSSProperties }) {
   return (
-    <div style={{ ...cardStyle, padding: 26, gap: 14, flex: 1 }}>
-      <div style={{ display: "flex", color: "#7f87ff", fontSize: 22, fontWeight: 900, letterSpacing: 1.5, textTransform: "uppercase" }}>
+    <div style={{ ...cardStyle, padding: 24, gap: 12, flex: 1, ...style }}>
+      <div style={{ display: "flex", color: "#8b94ff", fontSize: 20, fontWeight: 900, letterSpacing: 1.3, textTransform: "uppercase" }}>
         {title}
       </div>
       {children}
@@ -281,17 +282,29 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function BulletList({ items, color = "#f1eadf", max = 5 }: { items: string[]; color?: string; max?: number }) {
+function BulletList({
+  items,
+  color = "#f1eadf",
+  max = 3,
+  limit = 120,
+  fontSize = 22,
+}: {
+  items: string[];
+  color?: string;
+  max?: number;
+  limit?: number;
+  fontSize?: number;
+}) {
   const usable = items.slice(0, max);
   if (!usable.length) {
     return <div style={{ display: "flex", color: "#a6aca6", fontSize: 24 }}>Đang chờ cập nhật nội dung.</div>;
   }
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       {usable.map((item, index) => (
         <div key={`${item}-${index}`} style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-          <div style={{ display: "flex", width: 8, height: 8, borderRadius: 8, background: color, marginTop: 12 }} />
-          <div style={{ display: "flex", color: "#eee8dd", fontSize: 25, lineHeight: 1.35, flex: 1 }}>{limitText(item, 150)}</div>
+          <div style={{ display: "flex", width: 8, height: 8, borderRadius: 8, background: color, marginTop: 10 }} />
+          <div style={{ display: "flex", color: "#eee8dd", fontSize, lineHeight: 1.28, flex: 1 }}>{limitText(item, limit)}</div>
         </div>
       ))}
     </div>
@@ -312,29 +325,29 @@ function FlowRow({
   tone?: "green" | "gold" | "red" | "blue";
 }) {
   return (
-    <div style={{ display: "flex", borderTop: "1px solid rgba(255,255,255,0.09)" }}>
-      <div style={{ display: "flex", width: 230, padding: "18px 20px", color: "#c9c3b8", fontSize: 22, fontWeight: 800, background: "rgba(255,255,255,0.035)" }}>
+    <div style={{ display: "flex", height: 92, overflow: "hidden", borderTop: "1px solid rgba(255,255,255,0.09)" }}>
+      <div style={{ display: "flex", width: 212, padding: "15px 18px", color: "#c9c3b8", fontSize: 20, fontWeight: 800, lineHeight: 1.25, background: "rgba(255,255,255,0.035)" }}>
         {label}
       </div>
-      <div style={{ display: "flex", flexDirection: "column", flex: 1, padding: "16px 20px", gap: 8 }}>
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, padding: "13px 18px", gap: 6, overflow: "hidden" }}>
         {primary ? (
-          <div style={{ display: "flex", color: "#eee8dd", fontSize: 22, lineHeight: 1.25 }}>
+          <div style={{ display: "flex", color: "#eee8dd", fontSize: 19, lineHeight: 1.2 }}>
             <span style={{ color: tone === "green" ? "#39d98a" : tone === "red" ? "#ff907f" : tone === "blue" ? "#80a1ff" : "#f0bd61", fontWeight: 900 }}>
               Tổng hợp:&nbsp;
             </span>
-            {limitText(primary, 122)}
+            {limitText(primary, 98)}
           </div>
         ) : null}
         {buy && buy.length ? (
-          <div style={{ display: "flex", color: "#eee8dd", fontSize: 21, lineHeight: 1.25 }}>
+          <div style={{ display: "flex", color: "#eee8dd", fontSize: 19, lineHeight: 1.2 }}>
             <span style={{ color: "#39d98a", fontWeight: 900 }}>Mua nổi bật:&nbsp;</span>
-            {limitText(buy.join(", "), 120)}
+            {limitText(buy.join(", "), 98)}
           </div>
         ) : null}
         {sell && sell.length ? (
-          <div style={{ display: "flex", color: "#eee8dd", fontSize: 21, lineHeight: 1.25 }}>
+          <div style={{ display: "flex", color: "#eee8dd", fontSize: 19, lineHeight: 1.2 }}>
             <span style={{ color: "#ff907f", fontWeight: 900 }}>Bán nổi bật:&nbsp;</span>
-            {limitText(sell.join(", "), 120)}
+            {limitText(sell.join(", "), 98)}
           </div>
         ) : null}
       </div>
@@ -347,17 +360,16 @@ function MorningImage({ data }: { data: NormalizedMorningBrief }) {
   const changeTone = (firstIndex?.changePct ?? 0) >= 0 ? "green" : "red";
   return (
     <div style={pageStyle}>
-      <Backdrop />
       <Header title="Bản Tin Sáng" subtitle="Morning Brief - cập nhật thị trường" date={data.date} />
 
-      <div style={{ display: "flex", gap: 18, marginBottom: 24 }}>
+      <div style={{ display: "flex", gap: 16, height: 138, marginBottom: 20 }}>
         {data.indices.slice(0, 5).map((item) => {
           const positive = (item.changePct ?? 0) >= 0;
           return (
-            <div key={item.name} style={{ ...cardStyle, flex: 1, padding: 20, gap: 8 }}>
-              <div style={{ display: "flex", color: "#aeb4ae", fontSize: 18, fontWeight: 800 }}>{item.name}</div>
-              <div style={{ display: "flex", color: "#f6f1e8", fontSize: 30, fontWeight: 900 }}>{formatNumber(item.value, 2)}</div>
-              <div style={{ display: "flex", color: positive ? "#39d98a" : "#ff907f", fontSize: 21, fontWeight: 900 }}>
+            <div key={item.name} style={{ ...cardStyle, flex: 1, height: 138, padding: 18, gap: 8 }}>
+              <div style={{ display: "flex", color: "#aeb4ae", fontSize: 17, fontWeight: 800 }}>{item.name}</div>
+              <div style={{ display: "flex", color: "#f6f1e8", fontSize: 28, fontWeight: 900 }}>{formatNumber(item.value, 2)}</div>
+              <div style={{ display: "flex", color: positive ? "#39d98a" : "#ff907f", fontSize: 19, fontWeight: 900 }}>
                 {positive ? "+" : ""}
                 {formatNumber(item.changePct, 2)}%
               </div>
@@ -366,32 +378,32 @@ function MorningImage({ data }: { data: NormalizedMorningBrief }) {
         })}
       </div>
 
-      <div style={{ ...cardStyle, padding: 28, marginBottom: 24, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+      <div style={{ ...cardStyle, height: 118, padding: 24, marginBottom: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ display: "flex", color: "#7f87ff", fontSize: 22, fontWeight: 900, letterSpacing: 1.5 }}>ADN CAPITAL FLASHNOTE</div>
-          <div style={{ display: "flex", color: "#eee8dd", fontSize: 29, fontWeight: 900 }}>
+          <div style={{ display: "flex", color: "#8b94ff", fontSize: 20, fontWeight: 900, letterSpacing: 1.4 }}>ADN CAPITAL FLASHNOTE</div>
+          <div style={{ display: "flex", color: "#eee8dd", fontSize: 28, fontWeight: 900 }}>
             {firstIndex?.name || "VNINDEX"} {formatNumber(firstIndex?.value ?? null, 2)}
           </div>
         </div>
         <Badge tone={changeTone}>{formatNumber(firstIndex?.changePct ?? null, 2)}%</Badge>
       </div>
 
-      <div style={{ display: "flex", gap: 22, flex: 1 }}>
+      <div style={{ display: "flex", gap: 20, height: 335, marginBottom: 20 }}>
         <Section title="Thị trường Việt Nam">
-          <BulletList items={data.market} color="#39d98a" max={6} />
+          <BulletList items={data.market} color="#39d98a" max={3} limit={118} />
         </Section>
         <Section title="Vĩ mô">
-          <BulletList items={data.macro} color="#f0bd61" max={6} />
+          <BulletList items={data.macro} color="#f0bd61" max={3} limit={118} />
         </Section>
       </div>
 
-      <div style={{ display: "flex", marginTop: 22, minHeight: 250 }}>
+      <div style={{ display: "flex", height: 305 }}>
         <Section title="Rủi ro / Cơ hội">
-          <BulletList items={data.riskOpportunity} color="#7f87ff" max={5} />
+          <BulletList items={data.riskOpportunity} color="#8b94ff" max={3} limit={152} />
         </Section>
       </div>
 
-      <div style={{ display: "flex", justifyContent: "center", color: "#aeb4ae", fontSize: 20, fontWeight: 800, marginTop: 24 }}>
+      <div style={{ display: "flex", justifyContent: "center", color: "#aeb4ae", fontSize: 20, fontWeight: 800, marginTop: 22 }}>
         ADNCAPITAL.COM.VN
       </div>
     </div>
@@ -403,13 +415,12 @@ function EodImage({ data }: { data: NormalizedEodBrief }) {
   const exchange = data.exchangeLiquidity;
   return (
     <div style={pageStyle}>
-      <Backdrop />
       <Header title="Bản Tin Tổng Hợp" subtitle="End-of-day Brief - tổng kết giao dịch" date={data.date} />
 
-      <div style={{ ...cardStyle, padding: 28, marginBottom: 22, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+      <div style={{ ...cardStyle, height: 104, padding: 24, marginBottom: 18, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <div style={{ display: "flex", color: "#aeb4ae", fontSize: 20, fontWeight: 800 }}>VNINDEX</div>
-          <div style={{ display: "flex", color: "#f6f1e8", fontSize: 42, fontWeight: 900 }}>{formatNumber(data.vnindex, 2)}</div>
+          <div style={{ display: "flex", color: "#f6f1e8", fontSize: 38, fontWeight: 900 }}>{formatNumber(data.vnindex, 2)}</div>
         </div>
         <Badge tone={negative ? "red" : "green"}>
           {negative ? "" : "+"}
@@ -417,30 +428,30 @@ function EodImage({ data }: { data: NormalizedEodBrief }) {
         </Badge>
       </div>
 
-      <div style={{ ...cardStyle, padding: 24, marginBottom: 22, gap: 14 }}>
-        <div style={{ display: "flex", color: "#7f87ff", fontSize: 22, fontWeight: 900, letterSpacing: 1.5 }}>ADN CAPITAL FLASHNOTE</div>
+      <div style={{ ...cardStyle, height: 142, padding: 22, marginBottom: 18, gap: 12 }}>
+        <div style={{ display: "flex", color: "#8b94ff", fontSize: 20, fontWeight: 900, letterSpacing: 1.4 }}>ADN CAPITAL FLASHNOTE</div>
         <div style={{ display: "flex", gap: 14 }}>
           <div style={{ display: "flex", flex: 1, flexDirection: "column", gap: 8 }}>
-            <div style={{ display: "flex", color: "#eee8dd", fontSize: 23, lineHeight: 1.32 }}>
+            <div style={{ display: "flex", color: "#eee8dd", fontSize: 21, lineHeight: 1.25 }}>
               Thanh khoản toàn thị trường đạt&nbsp;<span style={{ color: "#7f87ff", fontWeight: 900 }}>{formatBillion(data.totalLiquidity)}</span>.
             </div>
-            <div style={{ display: "flex", color: "#d7d0c2", fontSize: 21, lineHeight: 1.32 }}>
+            <div style={{ display: "flex", color: "#d7d0c2", fontSize: 19, lineHeight: 1.25 }}>
               Khớp lệnh: {formatBillion(data.matchedLiquidity)} · Thỏa thuận: {formatBillion(data.negotiatedLiquidity)}
             </div>
           </div>
           <div style={{ display: "flex", flex: 1, flexDirection: "column", gap: 8 }}>
-            <div style={{ display: "flex", color: "#d7d0c2", fontSize: 21, lineHeight: 1.32 }}>
+            <div style={{ display: "flex", color: "#d7d0c2", fontSize: 19, lineHeight: 1.25 }}>
               HoSE {formatBillion(exchange.HoSE)} · HNX {formatBillion(exchange.HNX)}
             </div>
-            <div style={{ display: "flex", color: "#d7d0c2", fontSize: 21, lineHeight: 1.32 }}>
+            <div style={{ display: "flex", color: "#d7d0c2", fontSize: 19, lineHeight: 1.25 }}>
               UPCoM {formatBillion(exchange.UPCoM)} · Độ rộng: {data.breadth.up ?? "-"} tăng / {data.breadth.down ?? "-"} giảm
             </div>
           </div>
         </div>
       </div>
 
-      <div style={{ ...cardStyle, overflow: "hidden", marginBottom: 22 }}>
-        <div style={{ display: "flex", padding: "18px 24px", background: "rgba(96, 102, 255, 0.12)", color: "#7f87ff", fontSize: 22, fontWeight: 900, letterSpacing: 1.3 }}>
+      <div style={{ ...cardStyle, height: 616, marginBottom: 18 }}>
+        <div style={{ display: "flex", padding: "16px 22px", background: "rgba(96, 102, 255, 0.12)", color: "#8b94ff", fontSize: 20, fontWeight: 900, letterSpacing: 1.3 }}>
           BẢNG DÒNG TIỀN CHI TIẾT
         </div>
         <FlowRow label="Giao dịch khối ngoại" primary={data.foreignFlow} buy={data.foreignTopBuy} sell={data.foreignTopSell} tone="gold" />
@@ -451,10 +462,10 @@ function EodImage({ data }: { data: NormalizedEodBrief }) {
         <FlowRow label="Đột phá / Vượt đỉnh" primary={data.topBreakout.length ? data.topBreakout.join(", ") : ""} buy={data.topNewHigh} tone="gold" />
       </div>
 
-      <div style={{ ...cardStyle, padding: 24, gap: 12 }}>
-        <div style={{ display: "flex", color: "#7f87ff", fontSize: 22, fontWeight: 900, letterSpacing: 1.5 }}>NHẬN ĐỊNH PHIÊN TỚI</div>
-        <div style={{ display: "flex", color: "#eee8dd", fontSize: 26, lineHeight: 1.38, fontStyle: "italic" }}>
-          {limitText(data.outlook || data.summary || "Bản tin đang chờ cập nhật nhận định phiên tới.", 220)}
+      <div style={{ ...cardStyle, height: 166, padding: 22, gap: 10 }}>
+        <div style={{ display: "flex", color: "#8b94ff", fontSize: 20, fontWeight: 900, letterSpacing: 1.4 }}>NHẬN ĐỊNH PHIÊN TỚI</div>
+        <div style={{ display: "flex", color: "#eee8dd", fontSize: 23, lineHeight: 1.3, fontStyle: "italic" }}>
+          {limitText(data.outlook || data.summary || "Bản tin đang chờ cập nhật nhận định phiên tới.", 180)}
         </div>
       </div>
 
