@@ -146,13 +146,21 @@ export function getVNDayRange(dateISO = getVnDateISO()) {
   return { start, end };
 }
 
-export async function findMarketReportForVNDate(type: string, dateISO = getVnDateISO()) {
+export async function findMarketReportForVNDate(
+  type: string,
+  dateISO = getVnDateISO(),
+  options: { notBeforeMinuteVN?: number } = {},
+) {
   const { start, end } = getVNDayRange(dateISO);
+  const notBefore =
+    typeof options.notBeforeMinuteVN === "number"
+      ? new Date(start.getTime() + options.notBeforeMinuteVN * 60 * 1000)
+      : start;
   return prisma.marketReport.findFirst({
     where: {
       type,
       createdAt: {
-        gte: start,
+        gte: notBefore,
         lt: end,
       },
     },

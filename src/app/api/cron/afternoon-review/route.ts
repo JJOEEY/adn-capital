@@ -141,7 +141,9 @@ export async function GET(req: NextRequest) {
   const forceRun = req.nextUrl.searchParams.get("force") === "1";
 
   try {
-    const existingReport = forceRun ? null : await findMarketReportForVNDate("close_brief_15h");
+    const existingReport = forceRun
+      ? null
+      : await findMarketReportForVNDate("close_brief_15h", undefined, { notBeforeMinuteVN: 15 * 60 });
     if (existingReport) {
       const duration = Date.now() - startTime;
       await logCron("close_brief_15h", "skipped", "Close Brief already generated for today", duration, {

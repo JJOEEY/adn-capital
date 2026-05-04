@@ -585,7 +585,9 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
   const dateISO = getVNDateISO();
 
   try {
-    const existingReport = forceRun ? null : await findMarketReportForVNDate("eod_full_19h", dateISO);
+    const existingReport = forceRun
+      ? null
+      : await findMarketReportForVNDate("eod_full_19h", dateISO, { notBeforeMinuteVN: 19 * 60 });
     if (existingReport) {
       const duration = Date.now() - startTime;
       await logCron("eod_full_19h", "skipped", "EOD Brief already generated for today", duration, {
