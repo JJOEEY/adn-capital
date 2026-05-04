@@ -1826,6 +1826,10 @@ function hasCompleteScheduledEodPayload(payload: EodPayload): boolean {
   return hasDetailedFlowLists(payload) && flowBuckets >= 3;
 }
 
+function hasArchivedScheduledEodPayload(payload: EodPayload): boolean {
+  return hasValidEodPayload(payload) && !isInvalidEodOutlook(payload.outlook);
+}
+
 type ScheduledEodCandidate = {
   report: ReportRow;
   dateKey: string;
@@ -1836,10 +1840,13 @@ type ScheduledEodCandidate = {
 function isScheduledEodCandidateAllowed(candidate: ScheduledEodCandidate, now: Date): boolean {
   const type = candidate.report.type;
   if (type !== "eod_full_19h" && type !== "close_brief_15h") return false;
-  if (!hasCompleteScheduledEodPayload(candidate.payload)) return false;
 
   const todayKey = reportDateFromCreatedAt(now);
-  if (candidate.dateKey !== todayKey) return true;
+  if (candidate.dateKey !== todayKey) {
+    return hasArchivedScheduledEodPayload(candidate.payload);
+  }
+
+  if (!hasCompleteScheduledEodPayload(candidate.payload)) return false;
 
   const nowMinute = getVnMinuteOfDay(now);
   if (type === "eod_full_19h") {
@@ -2139,7 +2146,7 @@ export async function GET(request: NextRequest) {
   if (isInvalidEodOutlook(selected.outlook)) {
     selected.outlook = buildDeterministicEodOutlook(selected);
   }
-  if (!hasCompleteScheduledEodPayload(selected)) {
+  if (!hasArchivedScheduledEodPayload(selected)) {
     return NextResponse.json({ error: "EOD Brief chưa đủ dữ liệu hợp lệ để publish." }, { status: 503 });
   }
   return NextResponse.json(selected);
