@@ -55,6 +55,16 @@ function getVnMinuteOfDay(): number {
   return now.hour() * 60 + now.minute();
 }
 
+function toDateKey(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+  const viMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!viMatch) return null;
+  const [, day, month, year] = viMatch;
+  return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+}
+
 function saveMarketOverviewCache(overview: unknown) {
   if (!overview || typeof overview !== "object") return;
   try {
@@ -659,6 +669,22 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
         type: "eod_full_19h",
         published: false,
         reason: "eod_detail_incomplete",
+      });
+    }
+
+    const eodDetailDateKey = toDateKey(eodDetail?.date);
+    if (eodDetailDateKey !== dateISO) {
+      const duration = Date.now() - startTime;
+      await logCron("eod_full_19h", "skipped", "EOD detail date mismatch, keep previous complete report", duration, {
+        eodDetailDateKey,
+        expectedDateKey: dateISO,
+      });
+      return NextResponse.json({
+        type: "eod_full_19h",
+        published: false,
+        reason: "eod_detail_date_mismatch",
+        eodDetailDateKey,
+        expectedDateKey: dateISO,
       });
     }
 

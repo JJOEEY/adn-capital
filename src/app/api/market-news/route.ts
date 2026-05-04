@@ -275,6 +275,16 @@ function toViDateFromDateKey(dateKey: string): string {
   return toViDate(value);
 }
 
+function toDateKey(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+  const viMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!viMatch) return null;
+  const [, day, month, year] = viMatch;
+  return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+}
+
 function stripMarkdownAndBullets(text: string): string {
   return text
     .replace(/[*_`]/g, "")
@@ -1239,6 +1249,9 @@ function reportDateFromCreatedAt(createdAt: Date): string {
 
 function getReportDateKey(report: ReportRow): string {
   const raw = parseJsonMaybe(report.rawData);
+  const eodDetail = raw ? pickRecord(raw, ["eodDetail", "eod_detail", "eod", "brief", "payload"]) : null;
+  const dateFromEodDetail = toDateKey(eodDetail?.date);
+  if (dateFromEodDetail) return dateFromEodDetail;
   const snapshot = getSnapshot(raw);
   const dateFromSnapshot = typeof snapshot.requestDateVN === "string" ? snapshot.requestDateVN : null;
   if (dateFromSnapshot && /^\d{4}-\d{2}-\d{2}$/.test(dateFromSnapshot)) return dateFromSnapshot;
@@ -1366,6 +1379,13 @@ function toMorningPayload(report: { createdAt: Date; content: string; rawData: s
 function toEodPayload(report: { createdAt: Date; content: string; rawData: string | null }): EodPayload {
   const normalizedContent = repairMojibake(report.content);
   const raw = parseJsonMaybe(report.rawData);
+  const eodDetailFromRaw = raw ? pickRecord(raw, ["eodDetail", "eod_detail", "eod", "brief", "payload"]) : null;
+  if (eodDetailFromRaw) {
+    const bridgePayload = fromBridgeEodPayload(eodDetailFromRaw as unknown as FiinEodNews);
+    if (hasDetailedFlowLists(bridgePayload) && Number.isFinite(bridgePayload.liquidity) && bridgePayload.liquidity > 0) {
+      return bridgePayload;
+    }
+  }
   const snapshot = getSnapshot(raw);
   const indices = extractIndices(snapshot, normalizedContent);
   const reportDateKey = getReportDateKey(report);
