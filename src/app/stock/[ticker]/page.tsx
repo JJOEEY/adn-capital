@@ -264,6 +264,17 @@ function marketDefaultTimeframe(): ChartTimeframe {
   return "1D";
 }
 
+const MIN_USABLE_INTRADAY_CANDLES = 20;
+const MAX_INTRADAY_DAILY_DEVIATION = 0.08;
+
+function hasUsableIntradayCandles(intraday: Candle[], daily: Candle[]) {
+  if (intraday.length < MIN_USABLE_INTRADAY_CANDLES) return false;
+  const intradayClose = intraday.at(-1)?.close;
+  const dailyClose = daily.at(-1)?.close;
+  if (!intradayClose || !dailyClose) return true;
+  return Math.abs(intradayClose - dailyClose) / Math.max(1, dailyClose) <= MAX_INTRADAY_DAILY_DEVIATION;
+}
+
 function readHistoricalMarketPrice(payload: unknown) {
   const rows = getMarketPayloadRows(payload);
   const last = rows.at(-1);
@@ -761,7 +772,11 @@ export default function StockDetailPage() {
 
   const historicalCandles = useMemo(() => normalizeCandles(historicalTopic.data), [historicalTopic.data]);
   const realtimeCandles = useMemo(() => normalizeCandles(realtimeTopic.data), [realtimeTopic.data]);
-  const chartCandles = timeframe === "1D" ? historicalCandles : realtimeCandles;
+  const intradayUsable = useMemo(
+    () => hasUsableIntradayCandles(realtimeCandles, historicalCandles),
+    [historicalCandles, realtimeCandles],
+  );
+  const chartCandles = timeframe === "1D" || !intradayUsable ? historicalCandles : realtimeCandles;
   const workbench = workbenchTopic.data;
   const historicalMarketPrice = useMemo(() => readHistoricalMarketPrice(historicalTopic.data), [historicalTopic.data]);
   const realtimePrice = chooseMarketDisplayPrice(
@@ -772,10 +787,10 @@ export default function StockDetailPage() {
   const activeAidenRecommendation = aidenRecommendations[resolvedTicker] ?? null;
 
   useEffect(() => {
-    if (timeframe !== "1D" && !realtimeTopic.isLoading && !realtimeTopic.isValidating && realtimeCandles.length === 0 && historicalCandles.length > 0) {
+    if (timeframe !== "1D" && !realtimeTopic.isLoading && !realtimeTopic.isValidating && !intradayUsable && historicalCandles.length > 0) {
       setTimeframe("1D");
     }
-  }, [timeframe, realtimeTopic.isLoading, realtimeTopic.isValidating, realtimeCandles.length, historicalCandles.length]);
+  }, [timeframe, realtimeTopic.isLoading, realtimeTopic.isValidating, intradayUsable, historicalCandles.length]);
 
   const refreshAll = () => {
     void tickerResolutionTopic.refresh(true);

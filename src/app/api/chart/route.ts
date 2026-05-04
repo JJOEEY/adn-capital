@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPythonBridgeUrl } from "@/lib/runtime-config";
+import { getTopicEnvelope } from "@/lib/datahub/core";
+import {
+  applyMarketPriceScale,
+  getMarketPayloadRows,
+  marketPriceScaleFromPayload,
+} from "@/lib/market-price-normalization";
 
-const FIINQUANT_BRIDGE = getPythonBridgeUrl();
-
-const DCHART_BASE = "https://dchart-api.vndirect.com.vn/dchart/history";
-const DCHART_HEADERS: HeadersInit = {
-  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-  Accept: "*/*",
-  Referer: "https://dchart.vndirect.com.vn/",
-  Origin: "https://dchart.vndirect.com.vn",
-};
+const VALID_TIMEFRAMES = new Set(["1m", "5m", "15m", "30m", "1D"]);
 
 type Candle = {
   time: number;
@@ -23,7 +20,8 @@ type Candle = {
 type ChartPayload = {
   symbol: string;
   candles: Candle[];
-  source: "vndirect" | "fiinquant";
+  timeframe: string;
+  source: "datahub";
   cached?: boolean;
 };
 
@@ -36,8 +34,8 @@ const chartCache = new Map<string, CacheEntry>();
 const inFlightRequests = new Map<string, Promise<ChartPayload>>();
 const CHART_CACHE_TTL_MS = 5 * 60 * 1000;
 
-function getCache(symbol: string): ChartPayload | null {
-  const key = symbol.toUpperCase();
+function getCache(cacheKey: string): ChartPayload | null {
+  const key = cacheKey.toUpperCase();
   const cached = chartCache.get(key);
   if (!cached) return null;
   if (cached.expiresAt < Date.now()) {
@@ -48,102 +46,84 @@ function getCache(symbol: string): ChartPayload | null {
 }
 
 function setCache(payload: ChartPayload): void {
-  chartCache.set(payload.symbol.toUpperCase(), {
+  chartCache.set(`${payload.symbol.toUpperCase()}:${payload.timeframe.toUpperCase()}`, {
     expiresAt: Date.now() + CHART_CACHE_TTL_MS,
     payload,
   });
 }
 
-async function fetchFromVnDirect(symbol: string): Promise<Candle[] | null> {
-  const now = Math.floor(Date.now() / 1000);
-  const from = now - 365 * 86400;
-  const url = `${DCHART_BASE}?resolution=D&symbol=${symbol}&from=${from}&to=${now}`;
-
-  const res = await fetch(url, {
-    headers: DCHART_HEADERS,
-    signal: AbortSignal.timeout(8000),
-    cache: "no-store",
-  });
-  if (!res.ok) return null;
-
-  const json = await res.json();
-  if (json.s !== "ok" || !json.c?.length) return null;
-
-  const SCALE = 1000;
-  return json.t
-    .map((t: number, i: number) => ({
-      time: t,
-      open: +(json.o[i] * SCALE).toFixed(0),
-      high: +(json.h[i] * SCALE).toFixed(0),
-      low: +(json.l[i] * SCALE).toFixed(0),
-      close: +(json.c[i] * SCALE).toFixed(0),
-      volume: json.v?.[i] ?? 0,
-    }))
-    .sort((a: Candle, b: Candle) => a.time - b.time)
-    .filter((c: Candle, i: number, arr: Candle[]) => i === 0 || c.time !== arr[i - 1].time);
+function normalizeTimeframe(value: string | null): string {
+  const raw = value?.trim() || "1D";
+  const normalized = raw.toLowerCase() === "1d" || raw.toUpperCase() === "D" ? "1D" : raw;
+  return VALID_TIMEFRAMES.has(normalized) ? normalized : "1D";
 }
 
-async function fetchFromFiinQuant(symbol: string): Promise<Candle[] | null> {
-  const bridgeUrl = `${FIINQUANT_BRIDGE}/api/v1/historical/${symbol}?days=365&timeframe=1d`;
+function readUnixTime(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value > 10_000_000_000 ? Math.floor(value / 1000) : Math.floor(value);
+  }
+  if (typeof value !== "string" || !value.trim()) return null;
+  const text = value.trim();
+  const normalized = text.includes("T")
+    ? text
+    : text.includes(" ")
+      ? `${text.replace(" ", "T")}+07:00`
+      : `${text}T00:00:00+07:00`;
+  const timestamp = Date.parse(normalized);
+  return Number.isFinite(timestamp) ? Math.floor(timestamp / 1000) : null;
+}
 
-  const res = await fetch(bridgeUrl, {
-    signal: AbortSignal.timeout(10000),
-    cache: "no-store",
-  });
-  if (!res.ok) return null;
+function readNumber(row: Record<string, unknown>, keys: string[]): number | null {
+  for (const key of keys) {
+    const value = Number(row[key]);
+    if (Number.isFinite(value)) return value;
+  }
+  return null;
+}
 
-  const json = await res.json();
-  if (!json.data?.length) return null;
+function normalizeCandles(payload: unknown): Candle[] {
+  if (!payload || typeof payload !== "object") return [];
+  const rows = getMarketPayloadRows(payload);
+  const scale = marketPriceScaleFromPayload(payload);
 
-  return json.data
-    .map((d: Record<string, unknown>) => {
-      let time: number;
-      if (typeof d.date === "string") {
-        const dateOnly = (d.date as string).split(" ")[0];
-        time = Math.floor(new Date(`${dateOnly}T00:00:00Z`).getTime() / 1000);
-      } else if (typeof d.timestamp === "string") {
-        const dateOnly = (d.timestamp as string).split(" ")[0];
-        time = Math.floor(new Date(`${dateOnly}T00:00:00Z`).getTime() / 1000);
-      } else if (typeof d.timestamp === "number") {
-        time = d.timestamp as number;
-      } else {
-        return null;
-      }
-
-      return {
-        time,
-        open: Number(d.open ?? 0),
-        high: Number(d.high ?? 0),
-        low: Number(d.low ?? 0),
-        close: Number(d.close ?? 0),
-        volume: Number(d.volume ?? 0),
-      };
+  return rows
+    .map((row) => {
+      const item = row as Record<string, unknown>;
+      const time = readUnixTime(item.time ?? item.timestamp ?? item.date);
+      const open = applyMarketPriceScale(readNumber(item, ["open", "o"]), scale);
+      const high = applyMarketPriceScale(readNumber(item, ["high", "h"]), scale);
+      const low = applyMarketPriceScale(readNumber(item, ["low", "l"]), scale);
+      const close = applyMarketPriceScale(readNumber(item, ["close", "c", "price"]), scale);
+      const volume = readNumber(item, ["volume", "v"]) ?? 0;
+      if (time == null || open == null || high == null || low == null || close == null) return null;
+      return { time, open, high, low, close, volume };
     })
-    .filter((value: Candle | null): value is Candle => value !== null)
-    .sort((a: Candle, b: Candle) => a.time - b.time)
-    .filter((c: Candle, i: number, arr: Candle[]) => i === 0 || c.time !== arr[i - 1].time);
+    .filter((value): value is Candle => value !== null)
+    .sort((a, b) => a.time - b.time)
+    .filter((c, i, arr) => i === 0 || c.time !== arr[i - 1].time);
 }
 
-async function loadChartData(symbol: string): Promise<ChartPayload> {
-  try {
-    const vnCandles = await fetchFromVnDirect(symbol);
-    if (vnCandles?.length) {
-      const payload: ChartPayload = { symbol, candles: vnCandles, source: "vndirect" };
-      setCache(payload);
-      return payload;
-    }
-  } catch (error) {
-    console.warn(`[Chart] ${symbol}: VNDirect error`, error);
+async function loadCandlesFromTopic(symbol: string, timeframe: string, force: boolean): Promise<Candle[]> {
+  const topic =
+    timeframe === "1D"
+      ? `vn:historical:${symbol}:1d`
+      : `vn:realtime:${symbol}:${timeframe}`;
+  const envelope = await getTopicEnvelope(topic, { force });
+  const candles = normalizeCandles(envelope.value);
+  if (candles.length > 0) return candles;
+  throw new Error(envelope.error?.message ?? "CHART_DATA_UNAVAILABLE");
+}
+
+async function loadChartData(symbol: string, timeframe: string, force: boolean): Promise<ChartPayload> {
+  let candles = await loadCandlesFromTopic(symbol, timeframe, force);
+
+  if (timeframe !== "1D" && candles.length < 20) {
+    candles = await loadCandlesFromTopic(symbol, "1D", force);
   }
 
-  const fiinCandles = await fetchFromFiinQuant(symbol);
-  if (fiinCandles?.length) {
-    const payload: ChartPayload = { symbol, candles: fiinCandles, source: "fiinquant" };
-    setCache(payload);
-    return payload;
-  }
-
-  throw new Error("CHART_DATA_UNAVAILABLE");
+  const payload: ChartPayload = { symbol, timeframe, candles, source: "datahub" };
+  setCache(payload);
+  return payload;
 }
 
 export async function GET(req: NextRequest) {
@@ -151,11 +131,14 @@ export async function GET(req: NextRequest) {
   if (!symbol || !/^[A-Z0-9]{2,10}$/.test(symbol)) {
     return NextResponse.json({ error: "Invalid symbol" }, { status: 400 });
   }
+  const timeframe = normalizeTimeframe(req.nextUrl.searchParams.get("timeframe"));
+  const force = req.nextUrl.searchParams.get("force") === "1";
 
-  const cached = getCache(symbol);
+  const cached = force ? null : getCache(`${symbol}:${timeframe}`);
   if (cached) return NextResponse.json(cached);
 
-  const inflight = inFlightRequests.get(symbol);
+  const requestKey = `${symbol}:${timeframe.toUpperCase()}`;
+  const inflight = inFlightRequests.get(requestKey);
   if (inflight) {
     try {
       const payload = await inflight;
@@ -165,8 +148,8 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const requestPromise = loadChartData(symbol);
-  inFlightRequests.set(symbol, requestPromise);
+  const requestPromise = loadChartData(symbol, timeframe, force);
+  inFlightRequests.set(requestKey, requestPromise);
 
   try {
     const payload = await requestPromise;
@@ -177,6 +160,6 @@ export async function GET(req: NextRequest) {
       { status: 503 }
     );
   } finally {
-    inFlightRequests.delete(symbol);
+    inFlightRequests.delete(requestKey);
   }
 }
