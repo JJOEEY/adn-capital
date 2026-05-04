@@ -46,7 +46,7 @@ export const WORKFLOW_DEFINITIONS: WorkflowDefinition[] = [
         type: "refresh_topic",
         continueOnError: true,
         params: {
-          topics: ["news:morning:latest", "vn:index:overview", "vn:index:snapshot"],
+          topics: ["brief:morning:latest", "news:morning:latest", "vn:index:overview", "vn:index:snapshot"],
         },
         deterministic: true,
       },
@@ -63,10 +63,65 @@ export const WORKFLOW_DEFINITIONS: WorkflowDefinition[] = [
         deterministic: true,
       },
       {
+        type: "send_telegram",
+        continueOnError: true,
+        params: {
+          text: "{{payload.title}}\n\n{{payload.content}}",
+          dedupeWindowMinutes: 1440,
+        },
+        deterministic: false,
+      },
+      {
         type: "write_log",
         params: {
           action: "WORKFLOW_BRIEF_READY",
           description: "Workflow morning brief refresh completed for {{payload.reportType}}",
+        },
+        deterministic: true,
+      },
+    ],
+  },
+  {
+    workflowKey: "eod-brief-ready-refresh",
+    title: "EOD Brief Ready Refresh",
+    enabled: true,
+    tags: ["brief", "dashboard", "datahub", "telegram"],
+    trigger: {
+      type: "brief_ready",
+      config: {
+        reportTypes: ["close_brief_15h", "eod_full_19h"],
+      },
+    },
+    actions: [
+      {
+        type: "invalidate_topic",
+        params: {
+          tags: ["news", "brief", "dashboard", "market"],
+        },
+        deterministic: true,
+      },
+      {
+        type: "refresh_topic",
+        continueOnError: true,
+        params: {
+          topics: ["brief:eod:latest", "news:eod:latest"],
+        },
+        deterministic: true,
+      },
+      {
+        type: "send_telegram",
+        continueOnError: true,
+        params: {
+          text: "{{payload.title}}\n\n{{payload.content}}",
+          dedupeWindowMinutes: 1440,
+        },
+        deterministic: false,
+      },
+      {
+        type: "write_log",
+        params: {
+          action: "WORKFLOW_BRIEF_READY",
+          description: "Workflow EOD brief refresh completed for {{payload.reportType}}",
         },
         deterministic: true,
       },

@@ -133,6 +133,40 @@ export async function pushNotification(
 }
 
 /** Map giờ VN hiện tại sang window type */
+export function getVNDayRange(dateISO = getVnDateISO()) {
+  const [yearRaw, monthRaw, dayRaw] = dateISO.split("-");
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+  const day = Number(dayRaw);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+    throw new Error(`Invalid VN date: ${dateISO}`);
+  }
+  const start = new Date(Date.UTC(year, month - 1, day, 0, 0, 0) - 7 * 60 * 60 * 1000);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  return { start, end };
+}
+
+export async function findMarketReportForVNDate(type: string, dateISO = getVnDateISO()) {
+  const { start, end } = getVNDayRange(dateISO);
+  return prisma.marketReport.findFirst({
+    where: {
+      type,
+      createdAt: {
+        gte: start,
+        lt: end,
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      type: true,
+      title: true,
+      content: true,
+      createdAt: true,
+    },
+  });
+}
+
 export function getSignalWindowInfo(
   at?: Date,
   mode: "type1" | "type2" = "type1",

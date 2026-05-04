@@ -24,6 +24,7 @@ import {
   getVNDateString,
   getVNDateISO,
   getSignalWindowInfo,
+  findMarketReportForVNDate,
 } from "@/lib/cronHelpers";
 import {
   getMarketSnapshot,
@@ -584,6 +585,21 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
   const dateISO = getVNDateISO();
 
   try {
+    const existingReport = forceRun ? null : await findMarketReportForVNDate("eod_full_19h", dateISO);
+    if (existingReport) {
+      const duration = Date.now() - startTime;
+      await logCron("eod_full_19h", "skipped", "EOD Brief already generated for today", duration, {
+        existingReportId: existingReport.id,
+      });
+      return NextResponse.json({
+        type: "eod_full_19h",
+        skipped: true,
+        reason: "already_generated_today",
+        reportId: existingReport.id,
+        report: existingReport.content,
+      });
+    }
+
     const [propData, snapshot, eodDetail] = await Promise.all([
       getPropTradingData(),
       getMarketSnapshot(),

@@ -78,8 +78,7 @@ async function loadIndexValuation(ticker: string) {
 async function loadNews(type: "morning" | "eod" | "close") {
   const mod = await import("@/app/api/market-news/route");
   const newsType = type === "close" ? "eod" : type;
-  const mode = type === "eod" ? "" : "&stored=1";
-  const req = new NextRequest(`http://localhost/api/market-news?type=${newsType}${mode}`);
+  const req = new NextRequest(`http://localhost/api/market-news?type=${newsType}&stored=1`);
   const res = await mod.GET(req);
   if (!res.ok) throw new Error(`market-news ${newsType} HTTP ${res.status}`);
   const payload = await res.json();
@@ -1767,7 +1766,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
   },
   {
     id: "news:morning:latest",
-    ttlMs: 6 * 60 * 60 * 1000,
+    ttlMs: 24 * 60 * 60 * 1000,
     minIntervalMs: 60_000,
     staleWhileRevalidateMs: 24 * 60 * 60 * 1000,
     source: "db:market-report",
@@ -1778,7 +1777,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
   },
   {
     id: "brief:morning:latest",
-    ttlMs: 6 * 60 * 60 * 1000,
+    ttlMs: 24 * 60 * 60 * 1000,
     minIntervalMs: 60_000,
     staleWhileRevalidateMs: 24 * 60 * 60 * 1000,
     source: "db:market-report",
@@ -1802,7 +1801,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
   },
   {
     id: "news:eod:latest",
-    ttlMs: 6 * 60 * 60 * 1000,
+    ttlMs: 24 * 60 * 60 * 1000,
     minIntervalMs: 60_000,
     staleWhileRevalidateMs: 24 * 60 * 60 * 1000,
     source: "db:market-report",
@@ -1836,7 +1835,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
   },
   {
     id: "brief:eod:latest",
-    ttlMs: 6 * 60 * 60 * 1000,
+    ttlMs: 24 * 60 * 60 * 1000,
     minIntervalMs: 60_000,
     staleWhileRevalidateMs: 24 * 60 * 60 * 1000,
     source: "db:market-report",

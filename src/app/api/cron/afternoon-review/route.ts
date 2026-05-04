@@ -11,6 +11,7 @@ import {
   pushNotification,
   saveMarketReport,
   getVNDateString,
+  findMarketReportForVNDate,
 } from "@/lib/cronHelpers";
 import { getMarketSnapshot, getInvestorTradingText } from "@/lib/marketDataFetcher";
 import { getVnNow } from "@/lib/time";
@@ -137,8 +138,24 @@ export async function GET(req: NextRequest) {
 
   const startTime = Date.now();
   const today = getVNDateString();
+  const forceRun = req.nextUrl.searchParams.get("force") === "1";
 
   try {
+    const existingReport = forceRun ? null : await findMarketReportForVNDate("close_brief_15h");
+    if (existingReport) {
+      const duration = Date.now() - startTime;
+      await logCron("close_brief_15h", "skipped", "Close Brief already generated for today", duration, {
+        existingReportId: existingReport.id,
+      });
+      return NextResponse.json({
+        type: "close_brief_15h",
+        skipped: true,
+        reason: "already_generated_today",
+        reportId: existingReport.id,
+        report: existingReport.content,
+      });
+    }
+
     const snapshot = await getMarketSnapshot();
 
     if (!hasRequiredCloseData(snapshot) && req.nextUrl.searchParams.get("blockOnMissing") === "1") {

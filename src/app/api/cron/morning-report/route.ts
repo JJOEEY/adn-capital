@@ -13,6 +13,7 @@ import {
   pushNotification,
   saveMarketReport,
   getVNDateString,
+  findMarketReportForVNDate,
 } from "@/lib/cronHelpers";
 import { getMarketSnapshot, formatSnapshotForAI } from "@/lib/marketDataFetcher";
 import { fetchAllCafefNews, buildCafefContext } from "@/lib/cafefScraper";
@@ -53,8 +54,24 @@ export async function GET(req: NextRequest) {
 
   const startTime = Date.now();
   const today = getVNDateString();
+  const forceRun = req.nextUrl.searchParams.get("force") === "1";
 
   try {
+    const existingReport = forceRun ? null : await findMarketReportForVNDate("morning_brief");
+    if (existingReport) {
+      const duration = Date.now() - startTime;
+      await logCron("morning_brief", "skipped", "Morning Brief already generated for today", duration, {
+        existingReportId: existingReport.id,
+      });
+      return NextResponse.json({
+        type: "morning_brief",
+        skipped: true,
+        reason: "already_generated_today",
+        reportId: existingReport.id,
+        report: existingReport.content,
+      });
+    }
+
     // ── 1. Lấy data song song (1 API call FiinQuant + 3 CafeF RSS) ──
     const [snapshot, cafefNews] = await Promise.all([
       getMarketSnapshot(),

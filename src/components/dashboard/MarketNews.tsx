@@ -20,7 +20,6 @@ const TONE = {
  * ═══════════════════════════════════════════════════════════════════════════ */
 export function MorningNews() {
   const morningTopic = useTopic<any>("brief:morning:latest", {
-    refreshInterval: 300_000,
     revalidateOnFocus: false,
     dedupingInterval: 60_000,
     staleWhileRevalidate: true,
@@ -124,7 +123,6 @@ export function MorningNews() {
  * ═══════════════════════════════════════════════════════════════════════════ */
 export function EODSummary() {
   const eodTopic = useTopic<any>("brief:eod:latest", {
-    refreshInterval: 300_000,
     revalidateOnFocus: false,
     dedupingInterval: 60_000,
     staleWhileRevalidate: true,
