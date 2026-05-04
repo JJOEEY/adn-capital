@@ -48,6 +48,12 @@ export const dynamic = "force-dynamic";
 
 const PYTHON_BRIDGE = getPythonBridgeUrl();
 const MARKET_OVERVIEW_CACHE_FILE = path.join(process.cwd(), "market_cache.json");
+const EOD_FULL_MINUTE_VN = 19 * 60;
+
+function getVnMinuteOfDay(): number {
+  const now = getVnNow();
+  return now.hour() * 60 + now.minute();
+}
 
 function saveMarketOverviewCache(overview: unknown) {
   if (!overview || typeof overview !== "object") return;
@@ -586,6 +592,19 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
   const dateISO = getVNDateISO();
 
   try {
+    if (!forceRun && getVnMinuteOfDay() < EOD_FULL_MINUTE_VN) {
+      const duration = Date.now() - startTime;
+      await logCron("eod_full_19h", "skipped", "EOD Full skipped before 19:00 VN", duration, {
+        nextSlot: "19:00",
+      });
+      return NextResponse.json({
+        type: "eod_full_19h",
+        skipped: true,
+        reason: "before_scheduled_slot",
+        nextSlot: "19:00",
+      });
+    }
+
     const existingReport = forceRun
       ? null
       : await findMarketReportForVNDate("eod_full_19h", dateISO, { notBeforeMinuteVN: 19 * 60 });
