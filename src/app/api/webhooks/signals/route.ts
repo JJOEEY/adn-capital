@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSignalWindowInfo, getVNDateISO, logCron, pushNotification } from "@/lib/cronHelpers";
 import { invalidateTopics } from "@/lib/datahub/core";
 import { ingestSignalScanBatch } from "@/lib/signals/ingest";
+import { sendClaimedSignalsToTelegram } from "@/lib/signals/telegram-notify";
 import { emitWorkflowTrigger } from "@/lib/workflows";
 
 const WEBHOOK_SECRET = process.env.SCANNER_SECRET ?? "adn-scanner-secret-key";
@@ -70,6 +71,12 @@ export async function POST(req: NextRequest) {
         `Tin hieu moi ${slotLabel} - ${notifiedSignals.length} ma`,
         `## Tin hieu moi (${slotLabel})\n\n${signalText}`
       );
+      await sendClaimedSignalsToTelegram({
+        signals: notifiedSignals,
+        tradingDate,
+        slotLabel,
+        batchId: ingest.artifact.batchId,
+      });
     }
 
     if (ingest.activatedSignals.length > 0) {

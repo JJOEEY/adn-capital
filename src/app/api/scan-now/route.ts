@@ -4,6 +4,7 @@ import { getVNDateISO, logCron } from "@/lib/cronHelpers";
 import { invalidateTopics } from "@/lib/datahub/core";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
 import { ingestSignalScanBatch } from "@/lib/signals/ingest";
+import { sendClaimedSignalsToTelegram } from "@/lib/signals/telegram-notify";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +60,13 @@ export async function POST() {
     });
 
     invalidateTopics({ tags: ["signal", "signal-scan", "broker", "portfolio"] });
+
+    await sendClaimedSignalsToTelegram({
+      signals: ingest.artifact.notifiedSignals,
+      tradingDate,
+      slotLabel: "manual",
+      batchId: ingest.artifact.batchId,
+    });
 
     await logCron(
       "signal_scan_type1",

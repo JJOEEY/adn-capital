@@ -110,9 +110,14 @@ export function SignalMapClient({
   const reportedSummary = signalMapTopic.data?.reportedToday ?? reportedTopic.data;
   const reportedRows = reportedSummary?.groups.flatMap((group) => group.rows) ?? [];
   const reportedPreview = reportedRows.slice(0, 24);
+  const isRadarVisible = (s: Signal) => {
+    const status = s.status ?? "RADAR";
+    return status === "RADAR" || (s.reportedToday === true && (status === "ACTIVE" || status === "HOLD_TO_DIE"));
+  };
   const tabSignals = allSignals.filter((s) => {
     const status = s.status ?? "RADAR";
     if (tab === "ACTIVE") return status === "ACTIVE" || status === "HOLD_TO_DIE";
+    if (tab === "RADAR") return isRadarVisible(s);
     return status === tab;
   });
   const filtered = tierFilter === "all"
@@ -141,7 +146,7 @@ export function SignalMapClient({
   const displayedPnlSignals = activePnlSignals.length > 0 ? activePnlSignals : closedPnlSignals;
 
   const stats = {
-    radar:  allSignals.filter((s) => (s.status ?? "RADAR") === "RADAR").length,
+    radar:  allSignals.filter(isRadarVisible).length,
     active: allSignals.filter((s) => s.status === "ACTIVE" || s.status === "HOLD_TO_DIE").length,
     closed: allSignals.filter((s) => s.status === "CLOSED").length,
     totalPnl: activePnlSignals.length > 0 ? activeWeightedPnl : closedTotalPnl,

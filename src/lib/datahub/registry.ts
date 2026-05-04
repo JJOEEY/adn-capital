@@ -254,8 +254,28 @@ async function loadMarketBoardForTickers(rawTickers: string) {
 }
 
 async function loadSignalList(status: "RADAR" | "ACTIVE") {
+  const reportedToday = status === "RADAR" ? await loadReportedSignalSummary() : null;
+  const reportedIdentities =
+    reportedToday?.rows.map((row) => ({
+      ticker: row.ticker.toUpperCase().trim(),
+      type: row.signalType.toUpperCase().trim(),
+    })) ?? [];
+  const where =
+    status === "RADAR" && reportedIdentities.length > 0
+      ? {
+          OR: [
+            { status: "RADAR" },
+            ...reportedIdentities.map((identity) => ({
+              ticker: identity.ticker,
+              type: identity.type,
+              status: { in: ["RADAR", "ACTIVE", "HOLD_TO_DIE"] },
+            })),
+          ],
+        }
+      : { status };
+
   const rows = await prisma.signal.findMany({
-    where: { status },
+    where,
     orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
     take: 120,
     select: {

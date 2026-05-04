@@ -41,6 +41,7 @@ import { getPythonBridgeUrl } from "@/lib/runtime-config";
 import { emitWorkflowTrigger } from "@/lib/workflows";
 import { emitObservabilityEvent } from "@/lib/observability";
 import { SIGNAL_SCAN_SLOT_SET, ingestSignalScanBatch } from "@/lib/signals/ingest";
+import { sendClaimedSignalsToTelegram } from "@/lib/signals/telegram-notify";
 
 export const maxDuration = 120;
 export const dynamic = "force-dynamic";
@@ -971,6 +972,12 @@ async function handleSignalScan5mWithMojibakeRetired(): Promise<NextResponse> {
         `âš¡ ${windowInfo.label} â€” ${webNotifySignals.length} tÃ­n hiá»‡u má»›i`,
         `## TÃN HIá»†U Má»šI (${windowInfo.label})\n\n${signalText}`,
       );
+      await sendClaimedSignalsToTelegram({
+        signals: webNotifySignals,
+        tradingDate: todayISO,
+        slotLabel: windowInfo.label,
+        batchId: ingestResult.artifact.batchId,
+      });
     }
 
     if (ingestResult.activatedSignals.length > 0) {
