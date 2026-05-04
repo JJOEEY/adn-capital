@@ -1,4 +1,5 @@
-import { sendAdminTelegram } from "@/lib/n8n/internal";
+import { createHash } from "crypto";
+import { prisma } from "@/lib/prisma";
 import type { SignalScanArtifactItem } from "./ingest";
 
 const SIGNAL_TYPE_LABELS: Record<string, string> = {
@@ -51,6 +52,88 @@ function formatTelegramText(params: {
   return lines.join("\n").trim();
 }
 
+function getSignalTelegramTarget() {
+  const token = (
+    process.env.TELEGRAM_SIGNAL_BOT_TOKEN ??
+    process.env.ADN_SUPPORT_TELEGRAM_BOT_TOKEN ??
+    process.env.TELEGRAM_SUPPORT_BOT_TOKEN ??
+    process.env.ADN_SUPPORT_BOT_TOKEN ??
+    ""
+  ).trim();
+  const chatId = (
+    process.env.TELEGRAM_SIGNAL_CHAT_ID ??
+    process.env.ADN_SUPPORT_TELEGRAM_CHAT_ID ??
+    process.env.TELEGRAM_SUPPORT_CHAT_ID ??
+    process.env.ADN_SUPPORT_CHAT_ID ??
+    ""
+  ).trim();
+  return { token, chatId };
+}
+
+async function sendSupportTelegram(text: string, dedupeKey: string) {
+  const { token, chatId } = getSignalTelegramTarget();
+  const textHash = createHash("sha256").update(text).digest("hex").slice(0, 24);
+
+  if (!token || !chatId) {
+    return { ok: true, skipped: true, reason: "support_telegram_not_configured", textHash, dedupeKey };
+  }
+
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const existing = await prisma.cronLog.findFirst({
+    where: {
+      cronName: "telegram:signal-scan",
+      status: "success",
+      createdAt: { gte: cutoff },
+      resultData: { contains: dedupeKey },
+    },
+    select: { id: true },
+  });
+  if (existing) {
+    return { ok: true, skipped: true, reason: "duplicate_suppressed", textHash, dedupeKey };
+  }
+
+  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text,
+      disable_web_page_preview: true,
+    }),
+  });
+
+  let payload: unknown = null;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    await prisma.cronLog.create({
+      data: {
+        cronName: "telegram:signal-scan",
+        status: "error",
+        message: `telegram_http_${response.status}`,
+        duration: 0,
+        resultData: JSON.stringify({ dedupeKey, textHash }),
+      },
+    });
+    return { ok: false, skipped: false, status: response.status, payload, textHash, dedupeKey };
+  }
+
+  await prisma.cronLog.create({
+    data: {
+      cronName: "telegram:signal-scan",
+      status: "success",
+      message: "sent",
+      duration: 0,
+      resultData: JSON.stringify({ dedupeKey, textHash }),
+    },
+  });
+  return { ok: true, skipped: false, status: response.status, payload, textHash, dedupeKey };
+}
+
 export async function sendClaimedSignalsToTelegram(params: {
   signals: SignalScanArtifactItem[];
   tradingDate: string;
@@ -62,7 +145,5 @@ export async function sendClaimedSignalsToTelegram(params: {
   }
 
   const text = formatTelegramText(params);
-  return sendAdminTelegram(text, {
-    dedupeKey: `telegram:signal-scan:${params.tradingDate}:${params.batchId}`,
-  });
+  return sendSupportTelegram(text, `telegram:signal-scan:${params.tradingDate}:${params.batchId}`);
 }

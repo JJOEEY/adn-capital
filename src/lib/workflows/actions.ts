@@ -226,15 +226,25 @@ const createNotificationAction: ActionHandler = async (action, context) => {
 };
 
 const sendTelegramAction: ActionHandler = async (action, context) => {
-  const token = process.env.TELEGRAM_BOT_TOKEN ?? "";
-  const chatId = process.env.TELEGRAM_CHAT_ID ?? "";
+  const token = (
+    process.env.TELEGRAM_SUPPORT_BOT_TOKEN ??
+    process.env.ADN_SUPPORT_TELEGRAM_BOT_TOKEN ??
+    process.env.TELEGRAM_SIGNAL_BOT_TOKEN ??
+    ""
+  ).trim();
+  const chatId = (
+    process.env.TELEGRAM_SUPPORT_CHAT_ID ??
+    process.env.ADN_SUPPORT_TELEGRAM_CHAT_ID ??
+    process.env.TELEGRAM_SIGNAL_CHAT_ID ??
+    ""
+  ).trim();
 
   if (!token || !chatId) {
     return {
       status: "skipped",
       retryable: false,
       deterministic: false,
-      warning: "TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID not configured",
+      warning: "support_telegram_not_configured",
       data: null,
     };
   }

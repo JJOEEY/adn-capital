@@ -32,7 +32,7 @@ import {
   getInvestorTradingText,
   getPropTradingData,
 } from "@/lib/marketDataFetcher";
-import { fetchEodNews } from "@/lib/fiinquantClient";
+import { fetchEodNews, type FiinEodNews } from "@/lib/fiinquantClient";
 import { fetchAllCafefNews, buildCafefContext } from "@/lib/cafefScraper";
 import { getVnNow } from "@/lib/time";
 import { invalidateTopics } from "@/lib/datahub/core";
@@ -586,6 +586,26 @@ ${investorSection}
 _Powered by ADN Capital AI_`;
 }
 
+function countEodDetailBuckets(eodDetail: FiinEodNews | null | undefined): number {
+  if (!eodDetail) return 0;
+  const buckets = [
+    [...(eodDetail.foreign_top_buy ?? []), ...(eodDetail.foreign_top_sell ?? [])],
+    [...(eodDetail.prop_trading_top_buy ?? []), ...(eodDetail.prop_trading_top_sell ?? [])],
+    [...(eodDetail.individual_top_buy ?? []), ...(eodDetail.individual_top_sell ?? [])],
+    [...(eodDetail.sector_gainers ?? []), ...(eodDetail.sector_losers ?? [])],
+    [...(eodDetail.buy_signals ?? []), ...(eodDetail.sell_signals ?? [])],
+    [...(eodDetail.top_breakout ?? []), ...(eodDetail.top_new_high ?? [])],
+  ];
+  return buckets.filter((items) => items.some((item) => String(item ?? "").trim().length > 0)).length;
+}
+
+function hasCompleteEodDetail(eodDetail: FiinEodNews | null | undefined): boolean {
+  if (!eodDetail) return false;
+  const liquidity = Number(eodDetail.total_liquidity ?? eodDetail.liquidity ?? 0);
+  const hasOutlook = typeof eodDetail.outlook === "string" && eodDetail.outlook.trim().length >= 40;
+  return Number.isFinite(liquidity) && liquidity > 0 && hasOutlook && countEodDetailBuckets(eodDetail) >= 3;
+}
+
 async function handlePropTrading(forceRun = false): Promise<NextResponse> {
   const startTime = Date.now();
   const today = getVNDateString();
@@ -628,6 +648,19 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
       fetchEodNews().catch(() => null),
     ]);
     saveMarketOverviewCache(snapshot.marketOverview);
+
+    if (!hasCompleteEodDetail(eodDetail)) {
+      const duration = Date.now() - startTime;
+      await logCron("eod_full_19h", "skipped", "EOD detail incomplete, keep previous complete report", duration, {
+        detailBuckets: countEodDetailBuckets(eodDetail),
+        eodDetailAvailable: Boolean(eodDetail),
+      });
+      return NextResponse.json({
+        type: "eod_full_19h",
+        published: false,
+        reason: "eod_detail_incomplete",
+      });
+    }
 
     if (
       !hasRequiredFull19Data(snapshot) &&
@@ -695,6 +728,7 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
         breadthByExchange: snapshot.breadthByExchange,
         source: snapshot.source,
         eodDetailAvailable: Boolean(eodDetail),
+        eodDetailComplete: hasCompleteEodDetail(eodDetail),
         publishBlockers: snapshot.publishBlockers,
       }
     );

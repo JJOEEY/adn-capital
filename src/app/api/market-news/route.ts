@@ -1827,7 +1827,7 @@ function hasCompleteScheduledEodPayload(payload: EodPayload): boolean {
 }
 
 function hasArchivedScheduledEodPayload(payload: EodPayload): boolean {
-  return hasValidEodPayload(payload) && !isInvalidEodOutlook(payload.outlook);
+  return hasCompleteScheduledEodPayload(payload);
 }
 
 type ScheduledEodCandidate = {
