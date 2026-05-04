@@ -1250,10 +1250,6 @@ function isWeekdayDateKey(dateKey: string): boolean {
 }
 
 function pickPreferredReportDateKey(reports: ReportRow[]): string | null {
-  for (const report of reports) {
-    const key = getReportDateKey(report);
-    if (isWeekdayDateKey(key)) return key;
-  }
   return reports[0] ? getReportDateKey(reports[0]) : null;
 }
 
