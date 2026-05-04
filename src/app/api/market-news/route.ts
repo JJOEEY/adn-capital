@@ -136,6 +136,9 @@ function fromBridgeEodPayload(raw: FiinEodNews): EodPayload {
 }
 
 type ReportRow = {
+  id?: string;
+  type?: string;
+  title?: string;
   createdAt: Date;
   content: string;
   rawData: string | null;
@@ -1791,6 +1794,93 @@ function eodPayloadScore(payload: EodPayload): number {
   return score;
 }
 
+function getVnMinuteOfDay(value: Date): number {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(value);
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? "0");
+  const minute = Number(parts.find((part) => part.type === "minute")?.value ?? "0");
+  return hour * 60 + minute;
+}
+
+function countMeaningfulLists(lists: string[][]): number {
+  return lists.filter((list) => sanitizeFlowList(list).length > 0).length;
+}
+
+function hasCompleteScheduledEodPayload(payload: EodPayload): boolean {
+  if (!hasValidEodPayload(payload)) return false;
+  if (isInvalidEodOutlook(payload.outlook)) return false;
+
+  const flowBuckets = countMeaningfulLists([
+    [...payload.foreign_top_buy, ...payload.foreign_top_sell],
+    [...payload.prop_trading_top_buy, ...payload.prop_trading_top_sell],
+    [...payload.individual_top_buy, ...payload.individual_top_sell],
+    [...payload.sector_gainers, ...payload.sector_losers],
+    [...payload.buy_signals, ...payload.sell_signals],
+    [...payload.top_breakout, ...payload.top_new_high],
+  ]);
+
+  return hasDetailedFlowLists(payload) && flowBuckets >= 3;
+}
+
+type ScheduledEodCandidate = {
+  report: ReportRow;
+  dateKey: string;
+  createdMinuteVN: number;
+  payload: EodPayload;
+};
+
+function isScheduledEodCandidateAllowed(candidate: ScheduledEodCandidate, now: Date): boolean {
+  const type = candidate.report.type;
+  if (type !== "eod_full_19h" && type !== "close_brief_15h") return false;
+  if (!hasCompleteScheduledEodPayload(candidate.payload)) return false;
+
+  const todayKey = reportDateFromCreatedAt(now);
+  if (candidate.dateKey !== todayKey) return true;
+
+  const nowMinute = getVnMinuteOfDay(now);
+  if (type === "eod_full_19h") {
+    return nowMinute >= 19 * 60 && candidate.createdMinuteVN >= 19 * 60;
+  }
+  return nowMinute >= 15 * 60 && candidate.createdMinuteVN >= 15 * 60;
+}
+
+function pickScheduledEodCandidate(reports: ReportRow[], now = new Date()): ScheduledEodCandidate | null {
+  const baseCandidates = reports.map((report) => ({
+    report,
+    dateKey: getReportDateKey(report),
+    createdMinuteVN: getVnMinuteOfDay(report.createdAt),
+    payload: toEodPayload(report),
+  }));
+
+  const candidates = baseCandidates.map((candidate) => {
+    const sameDatePayloads = baseCandidates
+      .filter((item) => item.dateKey === candidate.dateKey)
+      .map((item) => item.payload)
+      .sort((a, b) => eodPayloadScore(b) - eodPayloadScore(a));
+    return {
+      ...candidate,
+      payload: backfillEodPayload(candidate.payload, sameDatePayloads),
+    };
+  });
+
+  const allowed = candidates
+    .filter((candidate) => isScheduledEodCandidateAllowed(candidate, now))
+    .sort((a, b) => {
+      const dateCompare = b.dateKey.localeCompare(a.dateKey);
+      if (dateCompare !== 0) return dateCompare;
+      const typeRank = (type: string | undefined) => (type === "eod_full_19h" ? 2 : 1);
+      const typeCompare = typeRank(b.report.type) - typeRank(a.report.type);
+      if (typeCompare !== 0) return typeCompare;
+      return b.report.createdAt.getTime() - a.report.createdAt.getTime();
+    });
+
+  return allowed[0] ?? null;
+}
+
 function hasDisplayableMorningPayload(payload: MorningPayload): boolean {
   const hasAnyIndex = payload.reference_indices.some(
     (item) => typeof item.value === "number" && item.value > 0,
@@ -1995,57 +2085,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Chưa có EOD Brief hợp lệ để hiển thị." }, { status: 404 });
   }
 
-  const enriched = reports.map((report) => ({
-    dateKey: getReportDateKey(report),
-    payload: toEodPayload(report),
-  }));
-  const preferredDateKey = pickPreferredReportDateKey(reports);
-  const sameDatePayloads = preferredDateKey
-    ? enriched.filter((item) => item.dateKey === preferredDateKey).map((item) => item.payload)
-    : [];
-  const orderedPayloads = [...enriched.map((item) => item.payload)].sort((a, b) => eodPayloadScore(b) - eodPayloadScore(a));
-
-  let selected = [...sameDatePayloads].sort((a, b) => eodPayloadScore(b) - eodPayloadScore(a))[0] ?? orderedPayloads[0];
-  selected = backfillEodPayload(selected, orderedPayloads);
-
-  if (!storedOnly && (shouldUseBridgeEod(selected) || !hasFullExchangeLiquidity(selected.liquidity_by_exchange))) {
-    const bridgeEod = await fetchEodNews().catch(() => null);
-    if (bridgeEod) {
-      selected = backfillEodPayload(fromBridgeEodPayload(bridgeEod), [selected, ...orderedPayloads]);
-    }
+  const selectedCandidate = pickScheduledEodCandidate(reports);
+  if (!selectedCandidate) {
+    return NextResponse.json(
+      { error: "ChÆ°a cÃ³ EOD Brief Ä‘Ãºng lá»‹ch 15h/19h vÃ  Ä‘á»§ dá»¯ liá»‡u Ä‘á»ƒ hiá»ƒn thá»‹." },
+      { status: 404 },
+    );
   }
-
-  if (!storedOnly && (!hasValidEodPayload(selected) || !hasFullExchangeLiquidity(selected.liquidity_by_exchange))) {
-    const liveFallback = await buildLiveEodFallbackPayload();
-    if (liveFallback) selected = backfillEodPayload(selected, [liveFallback]);
-  }
-
-  const liveSnapshot = storedOnly ? null : await getMarketSnapshot().catch(() => null);
-  if (liveSnapshot) {
-    const snapshotLiquidityByExchange: ExchangeLiquidity = normalizeExchangeLiquidity({
-      HOSE: toNumberOrNull(liveSnapshot.liquidityByExchange.HOSE),
-      HNX: toNumberOrNull(liveSnapshot.liquidityByExchange.HNX),
-      UPCOM: toNumberOrNull(liveSnapshot.liquidityByExchange.UPCOM),
-    });
-
-    const shouldFillExchange =
-      !hasFullExchangeLiquidity(selected.liquidity_by_exchange) &&
-      hasFullExchangeLiquidity(snapshotLiquidityByExchange);
-    if (shouldFillExchange) {
-      selected.liquidity_by_exchange = snapshotLiquidityByExchange;
-    }
-
-    const snapshotLiquidity = sumExchangeLiquidity(snapshotLiquidityByExchange) ?? toNumberOrNull(liveSnapshot.liquidity);
-    if (snapshotLiquidity != null && snapshotLiquidity > 0) {
-      if (!(Number.isFinite(selected.matched_liquidity) && (selected.matched_liquidity ?? 0) > 0)) {
-        selected.matched_liquidity = snapshotLiquidity;
-      }
-      const selectedLiquidity = toNumberOrNull(selected.liquidity) ?? 0;
-      if (selectedLiquidity <= 0 || selectedLiquidity < snapshotLiquidity * 0.4) {
-        selected.liquidity = selected.total_liquidity ?? snapshotLiquidity;
-      }
-    }
-  }
+  let selected = selectedCandidate.payload;
 
   if (selected.liquidity_by_exchange) {
     selected.liquidity_by_exchange = normalizeExchangeLiquidity(selected.liquidity_by_exchange);
@@ -2092,7 +2139,7 @@ export async function GET(request: NextRequest) {
   if (isInvalidEodOutlook(selected.outlook)) {
     selected.outlook = buildDeterministicEodOutlook(selected);
   }
-  if (storedOnly ? !hasDisplayableEodPayload(selected) : !hasValidEodPayload(selected)) {
+  if (!hasCompleteScheduledEodPayload(selected)) {
     return NextResponse.json({ error: "EOD Brief chưa đủ dữ liệu hợp lệ để publish." }, { status: 503 });
   }
   return NextResponse.json(selected);
