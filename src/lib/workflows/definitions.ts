@@ -156,14 +156,10 @@ export const WORKFLOW_DEFINITIONS: WorkflowDefinition[] = [
         },
         deterministic: false,
       },
-      {
-        type: "send_telegram",
-        continueOnError: true,
-        params: {
-          text: "🟢 *Signal ACTIVE* {{payload.ticker}} ({{payload.signalType}}) - Entry {{payload.entryPrice}}",
-        },
-        deterministic: false,
-      },
+      // send_telegram removed: Telegram group notification is already sent by
+      // sendClaimedSignalsToTelegram() in the scan ingest path (cron + webhook).
+      // Keeping send_telegram here caused 1+N duplicate messages per batch
+      // (1 group message + N per-signal messages for the same scan).
       {
         type: "write_log",
         params: {

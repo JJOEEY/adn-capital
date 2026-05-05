@@ -979,6 +979,15 @@ async function handleSignalScan5m(): Promise<NextResponse> {
         `⚡ ${windowInfo.label} — ${webNotifySignals.length} tín hiệu mới`,
         `## TÍN HIỆU MỚI (${windowInfo.label})\n\n${signalText}`,
       );
+      // Gửi group Telegram (cùng cơ chế với webhook path).
+      // sendClaimedSignalsToTelegram có dedupe nội bộ theo batchId nên
+      // nếu webhook cũng đã gửi trước đó thì lần này sẽ bị skip.
+      await sendClaimedSignalsToTelegram({
+        signals: webNotifySignals,
+        tradingDate: todayISO,
+        slotLabel: windowInfo.label,
+        batchId: ingestResult.artifact.batchId,
+      });
     }
 
     if (ingestResult.activatedSignals.length > 0) {
