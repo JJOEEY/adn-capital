@@ -88,7 +88,7 @@ export function SignalMapClient({
   const refreshInterval =
     tab === "ACTIVE"
       ? isTradingSession
-        ? 30_000
+        ? 120_000   // was 30s — /api/signals now returns instantly; bridge updates in background
         : 15 * 60_000
       : isTradingSession
         ? 5 * 60_000

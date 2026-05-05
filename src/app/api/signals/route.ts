@@ -5,6 +5,7 @@ import { fetchTAData } from "@/lib/stockData";
 import { loadReportedSignalSummary } from "@/lib/signals/report-history";
 import { buildSignalMapPayload } from "@/lib/signals/signal-map";
 import { normalizeSignalPrice } from "@/lib/signals/price-units";
+import { invalidateTopics } from "@/lib/datahub/core";
 
 export const dynamic = "force-dynamic";
 
@@ -187,21 +188,24 @@ export async function GET(request: NextRequest) {
         .filter(Boolean),
     )];
 
-    let livePriceMap: Record<string, { close: number }> = {};
+    // Build response immediately using DB prices (currentPrice already stored from last fetch).
+    // Price refresh runs in background — next cache invalidation will serve fresh prices.
+    const livePriceMap: Record<string, { close: number }> = {};
+
     if (liveTickers.length > 0) {
-      try {
-        livePriceMap = await getBatchPrices(liveTickers);
-        livePriceMap = await hydrateLivePrices(liveTickers, livePriceMap, true);
-        const liveUpdate = await persistLivePrices(signals, liveStatuses, livePriceMap);
-        if ((liveUpdate?.closedCount ?? 0) > 0) {
-          signals = await prisma.signal.findMany({
-            where,
-            orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
-          });
+      void (async () => {
+        try {
+          let freshPriceMap = await getBatchPrices(liveTickers);
+          freshPriceMap = await hydrateLivePrices(liveTickers, freshPriceMap, true);
+          const liveUpdate = await persistLivePrices(signals, liveStatuses, freshPriceMap);
+          // Stoploss triggered → invalidate cache so next client fetch sees updated statuses
+          if ((liveUpdate?.closedCount ?? 0) > 0) {
+            invalidateTopics({ topics: ["signal:map:latest"], tags: ["signal"] });
+          }
+        } catch (err) {
+          console.error("[/api/signals] background price update failed:", err);
         }
-      } catch (error) {
-        console.error("[/api/signals] live price fallback to DB:", error);
-      }
+      })();
     }
 
     const now = Date.now();
