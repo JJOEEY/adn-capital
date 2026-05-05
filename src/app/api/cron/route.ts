@@ -545,7 +545,32 @@ function formatBreadthPublic(
   return `Tăng ${breadth.up} | Giảm ${breadth.down} | Đứng ${breadth.unchanged}${limitText}`;
 }
 
-function buildFull19PublicReport(today: string, snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>) {
+/**
+ * Extract per-exchange liquidity from the Python bridge EOD response.
+ * The bridge returns hose_val / hnx_val / upcom_val as undeclared raw fields
+ * after the trading session ends — same fields used by /api/market-news.
+ */
+function extractBridgeExchangeLiquidity(
+  eodDetail: FiinEodNews | null | undefined,
+): { HOSE: number | null; HNX: number | null; UPCOM: number | null } {
+  if (!eodDetail) return { HOSE: null, HNX: null, UPCOM: null };
+  const raw = eodDetail as unknown as Record<string, unknown>;
+  const toNum = (v: unknown) => {
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
+  return {
+    HOSE: toNum(raw.hose_val),
+    HNX: toNum(raw.hnx_val),
+    UPCOM: toNum(raw.upcom_val),
+  };
+}
+
+function buildFull19PublicReport(
+  today: string,
+  snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>,
+  eodDetail?: FiinEodNews | null,
+) {
   const vnindex = snapshot.indices.find((item) => item.ticker === "VNINDEX");
   const vn30 = snapshot.indices.find((item) => item.ticker === "VN30");
   const investorLines = getInvestorTradingText(snapshot, "full19");
@@ -555,6 +580,12 @@ function buildFull19PublicReport(today: string, snapshot: Awaited<ReturnType<typ
       : "• Khối ngoại: chưa cập nhật\n• Tự doanh: chưa cập nhật\n• Cá nhân: chưa cập nhật";
   const byExchange = snapshot.breadthByExchange;
   const foreignNet = snapshot.investorTrading.foreign.net ?? 0;
+
+  // Prefer bridge post-session values for per-exchange liquidity (more accurate than intraday snapshot)
+  const bridgeLiq = extractBridgeExchangeLiquidity(eodDetail);
+  const liqHOSE = bridgeLiq.HOSE ?? snapshot.liquidityByExchange.HOSE;
+  const liqHNX  = bridgeLiq.HNX  ?? snapshot.liquidityByExchange.HNX;
+  const liqUPCOM = bridgeLiq.UPCOM ?? snapshot.liquidityByExchange.UPCOM;
   const indexDirection =
     (vnindex?.changePct ?? 0) > 0
       ? "Thị trường duy trì sắc xanh, ưu tiên lọc nhóm giữ nền tích cực."
@@ -576,9 +607,9 @@ function buildFull19PublicReport(today: string, snapshot: Awaited<ReturnType<typ
 
 💧 *THANH KHOẢN THEO SÀN*
 • Tổng: ${formatTyPublic(snapshot.liquidity)}
-• HoSE: ${formatTyPublic(snapshot.liquidityByExchange.HOSE)}
-• HNX: ${formatTyPublic(snapshot.liquidityByExchange.HNX)}
-• UPCoM: ${formatTyPublic(snapshot.liquidityByExchange.UPCOM)}
+• HoSE: ${formatTyPublic(liqHOSE)}
+• HNX: ${formatTyPublic(liqHNX)}
+• UPCoM: ${formatTyPublic(liqUPCOM)}
 
 📈 *ĐỘ RỘNG THỊ TRƯỜNG*
 • Toàn thị trường: ${formatBreadthPublic(snapshot.breadth)}
@@ -739,7 +770,7 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
       });
     }
 
-    const safeReport = buildFull19PublicReport(today, snapshot);
+    const safeReport = buildFull19PublicReport(today, snapshot, eodDetail);
 
     await saveMarketReport(
       "eod_full_19h",
