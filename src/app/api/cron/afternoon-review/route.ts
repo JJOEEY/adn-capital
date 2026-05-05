@@ -11,6 +11,7 @@ import {
   pushNotification,
   saveMarketReport,
   getVNDateString,
+  findMarketReportForVNDate,
 } from "@/lib/cronHelpers";
 import { getMarketSnapshot, getInvestorTradingText } from "@/lib/marketDataFetcher";
 import { getVnNow } from "@/lib/time";
@@ -23,6 +24,12 @@ type MarketSnapshot = Awaited<ReturnType<typeof getMarketSnapshot>>;
 type ExchangeKey = "HOSE" | "HNX" | "UPCOM";
 
 const EXCHANGES: ExchangeKey[] = ["HOSE", "HNX", "UPCOM"];
+const CLOSE_BRIEF_MINUTE_VN = 15 * 60;
+
+function getVnMinuteOfDay(): number {
+  const now = getVnNow();
+  return now.hour() * 60 + now.minute();
+}
 
 function hasFullExchangeLiquidity(snapshot: MarketSnapshot): boolean {
   return EXCHANGES.every((exchange) => {
@@ -137,8 +144,39 @@ export async function GET(req: NextRequest) {
 
   const startTime = Date.now();
   const today = getVNDateString();
+  const forceRun = req.nextUrl.searchParams.get("force") === "1";
 
   try {
+    if (!forceRun && getVnMinuteOfDay() < CLOSE_BRIEF_MINUTE_VN) {
+      const duration = Date.now() - startTime;
+      await logCron("close_brief_15h", "skipped", "Close Brief skipped before 15:00 VN", duration, {
+        nextSlot: "15:00",
+      });
+      return NextResponse.json({
+        type: "close_brief_15h",
+        skipped: true,
+        reason: "before_scheduled_slot",
+        nextSlot: "15:00",
+      });
+    }
+
+    const existingReport = forceRun
+      ? null
+      : await findMarketReportForVNDate("close_brief_15h", undefined, { notBeforeMinuteVN: 15 * 60 });
+    if (existingReport) {
+      const duration = Date.now() - startTime;
+      await logCron("close_brief_15h", "skipped", "Close Brief already generated for today", duration, {
+        existingReportId: existingReport.id,
+      });
+      return NextResponse.json({
+        type: "close_brief_15h",
+        skipped: true,
+        reason: "already_generated_today",
+        reportId: existingReport.id,
+        report: existingReport.content,
+      });
+    }
+
     const snapshot = await getMarketSnapshot();
 
     if (!hasRequiredCloseData(snapshot) && req.nextUrl.searchParams.get("blockOnMissing") === "1") {

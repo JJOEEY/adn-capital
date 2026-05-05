@@ -24,6 +24,7 @@ import {
   getVNDateString,
   getVNDateISO,
   getSignalWindowInfo,
+  findMarketReportForVNDate,
 } from "@/lib/cronHelpers";
 import {
   getMarketSnapshot,
@@ -31,7 +32,7 @@ import {
   getInvestorTradingText,
   getPropTradingData,
 } from "@/lib/marketDataFetcher";
-import { fetchEodNews } from "@/lib/fiinquantClient";
+import { fetchEodNews, type FiinEodNews } from "@/lib/fiinquantClient";
 import { fetchAllCafefNews, buildCafefContext } from "@/lib/cafefScraper";
 import { getVnNow } from "@/lib/time";
 import { invalidateTopics } from "@/lib/datahub/core";
@@ -40,12 +41,29 @@ import { getPythonBridgeUrl } from "@/lib/runtime-config";
 import { emitWorkflowTrigger } from "@/lib/workflows";
 import { emitObservabilityEvent } from "@/lib/observability";
 import { SIGNAL_SCAN_SLOT_SET, ingestSignalScanBatch } from "@/lib/signals/ingest";
+import { sendClaimedSignalsToTelegram } from "@/lib/signals/telegram-notify";
 
 export const maxDuration = 120;
 export const dynamic = "force-dynamic";
 
 const PYTHON_BRIDGE = getPythonBridgeUrl();
 const MARKET_OVERVIEW_CACHE_FILE = path.join(process.cwd(), "market_cache.json");
+const EOD_FULL_MINUTE_VN = 19 * 60;
+
+function getVnMinuteOfDay(): number {
+  const now = getVnNow();
+  return now.hour() * 60 + now.minute();
+}
+
+function toDateKey(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+  const viMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!viMatch) return null;
+  const [, day, month, year] = viMatch;
+  return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+}
 
 function saveMarketOverviewCache(overview: unknown) {
   if (!overview || typeof overview !== "object") return;
@@ -527,7 +545,32 @@ function formatBreadthPublic(
   return `Tăng ${breadth.up} | Giảm ${breadth.down} | Đứng ${breadth.unchanged}${limitText}`;
 }
 
-function buildFull19PublicReport(today: string, snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>) {
+/**
+ * Extract per-exchange liquidity from the Python bridge EOD response.
+ * The bridge returns hose_val / hnx_val / upcom_val as undeclared raw fields
+ * after the trading session ends — same fields used by /api/market-news.
+ */
+function extractBridgeExchangeLiquidity(
+  eodDetail: FiinEodNews | null | undefined,
+): { HOSE: number | null; HNX: number | null; UPCOM: number | null } {
+  if (!eodDetail) return { HOSE: null, HNX: null, UPCOM: null };
+  const raw = eodDetail as unknown as Record<string, unknown>;
+  const toNum = (v: unknown) => {
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
+  return {
+    HOSE: toNum(raw.hose_val),
+    HNX: toNum(raw.hnx_val),
+    UPCOM: toNum(raw.upcom_val),
+  };
+}
+
+function buildFull19PublicReport(
+  today: string,
+  snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>,
+  eodDetail?: FiinEodNews | null,
+) {
   const vnindex = snapshot.indices.find((item) => item.ticker === "VNINDEX");
   const vn30 = snapshot.indices.find((item) => item.ticker === "VN30");
   const investorLines = getInvestorTradingText(snapshot, "full19");
@@ -537,6 +580,12 @@ function buildFull19PublicReport(today: string, snapshot: Awaited<ReturnType<typ
       : "• Khối ngoại: chưa cập nhật\n• Tự doanh: chưa cập nhật\n• Cá nhân: chưa cập nhật";
   const byExchange = snapshot.breadthByExchange;
   const foreignNet = snapshot.investorTrading.foreign.net ?? 0;
+
+  // Prefer bridge post-session values for per-exchange liquidity (more accurate than intraday snapshot)
+  const bridgeLiq = extractBridgeExchangeLiquidity(eodDetail);
+  const liqHOSE = bridgeLiq.HOSE ?? snapshot.liquidityByExchange.HOSE;
+  const liqHNX  = bridgeLiq.HNX  ?? snapshot.liquidityByExchange.HNX;
+  const liqUPCOM = bridgeLiq.UPCOM ?? snapshot.liquidityByExchange.UPCOM;
   const indexDirection =
     (vnindex?.changePct ?? 0) > 0
       ? "Thị trường duy trì sắc xanh, ưu tiên lọc nhóm giữ nền tích cực."
@@ -558,9 +607,9 @@ function buildFull19PublicReport(today: string, snapshot: Awaited<ReturnType<typ
 
 💧 *THANH KHOẢN THEO SÀN*
 • Tổng: ${formatTyPublic(snapshot.liquidity)}
-• HoSE: ${formatTyPublic(snapshot.liquidityByExchange.HOSE)}
-• HNX: ${formatTyPublic(snapshot.liquidityByExchange.HNX)}
-• UPCoM: ${formatTyPublic(snapshot.liquidityByExchange.UPCOM)}
+• HoSE: ${formatTyPublic(liqHOSE)}
+• HNX: ${formatTyPublic(liqHNX)}
+• UPCoM: ${formatTyPublic(liqUPCOM)}
 
 📈 *ĐỘ RỘNG THỊ TRƯỜNG*
 • Toàn thị trường: ${formatBreadthPublic(snapshot.breadth)}
@@ -578,18 +627,97 @@ ${investorSection}
 _Powered by ADN Capital AI_`;
 }
 
+function countEodDetailBuckets(eodDetail: FiinEodNews | null | undefined): number {
+  if (!eodDetail) return 0;
+  const buckets = [
+    [...(eodDetail.foreign_top_buy ?? []), ...(eodDetail.foreign_top_sell ?? [])],
+    [...(eodDetail.prop_trading_top_buy ?? []), ...(eodDetail.prop_trading_top_sell ?? [])],
+    [...(eodDetail.individual_top_buy ?? []), ...(eodDetail.individual_top_sell ?? [])],
+    [...(eodDetail.sector_gainers ?? []), ...(eodDetail.sector_losers ?? [])],
+    [...(eodDetail.buy_signals ?? []), ...(eodDetail.sell_signals ?? [])],
+    [...(eodDetail.top_breakout ?? []), ...(eodDetail.top_new_high ?? [])],
+  ];
+  return buckets.filter((items) => items.some((item) => String(item ?? "").trim().length > 0)).length;
+}
+
+function hasCompleteEodDetail(eodDetail: FiinEodNews | null | undefined): boolean {
+  if (!eodDetail) return false;
+  const liquidity = Number(eodDetail.total_liquidity ?? eodDetail.liquidity ?? 0);
+  const hasOutlook = typeof eodDetail.outlook === "string" && eodDetail.outlook.trim().length >= 40;
+  return Number.isFinite(liquidity) && liquidity > 0 && hasOutlook && countEodDetailBuckets(eodDetail) >= 3;
+}
+
 async function handlePropTrading(forceRun = false): Promise<NextResponse> {
   const startTime = Date.now();
   const today = getVNDateString();
   const dateISO = getVNDateISO();
 
   try {
+    if (!forceRun && getVnMinuteOfDay() < EOD_FULL_MINUTE_VN) {
+      const duration = Date.now() - startTime;
+      await logCron("eod_full_19h", "skipped", "EOD Full skipped before 19:00 VN", duration, {
+        nextSlot: "19:00",
+      });
+      return NextResponse.json({
+        type: "eod_full_19h",
+        skipped: true,
+        reason: "before_scheduled_slot",
+        nextSlot: "19:00",
+      });
+    }
+
+    const existingReport = forceRun
+      ? null
+      : await findMarketReportForVNDate("eod_full_19h", dateISO, { notBeforeMinuteVN: 19 * 60 });
+    if (existingReport) {
+      const duration = Date.now() - startTime;
+      await logCron("eod_full_19h", "skipped", "EOD Brief already generated for today", duration, {
+        existingReportId: existingReport.id,
+      });
+      return NextResponse.json({
+        type: "eod_full_19h",
+        skipped: true,
+        reason: "already_generated_today",
+        reportId: existingReport.id,
+        report: existingReport.content,
+      });
+    }
+
     const [propData, snapshot, eodDetail] = await Promise.all([
       getPropTradingData(),
       getMarketSnapshot(),
       fetchEodNews().catch(() => null),
     ]);
     saveMarketOverviewCache(snapshot.marketOverview);
+
+    if (!hasCompleteEodDetail(eodDetail)) {
+      const duration = Date.now() - startTime;
+      await logCron("eod_full_19h", "skipped", "EOD detail incomplete, keep previous complete report", duration, {
+        detailBuckets: countEodDetailBuckets(eodDetail),
+        eodDetailAvailable: Boolean(eodDetail),
+      });
+      return NextResponse.json({
+        type: "eod_full_19h",
+        published: false,
+        reason: "eod_detail_incomplete",
+      });
+    }
+
+    const eodDetailDateKey = toDateKey(eodDetail?.date);
+    if (eodDetailDateKey !== dateISO) {
+      const duration = Date.now() - startTime;
+      await logCron("eod_full_19h", "skipped", "EOD detail date mismatch, keep previous complete report", duration, {
+        eodDetailDateKey,
+        expectedDateKey: dateISO,
+      });
+      return NextResponse.json({
+        type: "eod_full_19h",
+        published: false,
+        reason: "eod_detail_date_mismatch",
+        eodDetailDateKey,
+        expectedDateKey: dateISO,
+      });
+    }
 
     if (
       !hasRequiredFull19Data(snapshot) &&
@@ -642,7 +770,7 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
       });
     }
 
-    const safeReport = buildFull19PublicReport(today, snapshot);
+    const safeReport = buildFull19PublicReport(today, snapshot, eodDetail);
 
     await saveMarketReport(
       "eod_full_19h",
@@ -657,6 +785,7 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
         breadthByExchange: snapshot.breadthByExchange,
         source: snapshot.source,
         eodDetailAvailable: Boolean(eodDetail),
+        eodDetailComplete: hasCompleteEodDetail(eodDetail),
         publishBlockers: snapshot.publishBlockers,
       }
     );
@@ -953,6 +1082,12 @@ async function handleSignalScan5mWithMojibakeRetired(): Promise<NextResponse> {
         `âš¡ ${windowInfo.label} â€” ${webNotifySignals.length} tÃ­n hiá»‡u má»›i`,
         `## TÃN HIá»†U Má»šI (${windowInfo.label})\n\n${signalText}`,
       );
+      await sendClaimedSignalsToTelegram({
+        signals: webNotifySignals,
+        tradingDate: todayISO,
+        slotLabel: windowInfo.label,
+        batchId: ingestResult.artifact.batchId,
+      });
     }
 
     if (ingestResult.activatedSignals.length > 0) {

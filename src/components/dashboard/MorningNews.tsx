@@ -39,6 +39,32 @@ const INDEX_ICONS: Record<string, string> = {
   "DẦU WTI": "🛢️",
 };
 
+const DISPLAY_INDEX_ORDER = ["VN-INDEX", "HNX-INDEX", "UPCOM-INDEX", "VN30", "DOW JONES"];
+const DISPLAY_INDEX_ICONS: Record<string, string> = {
+  "VN-INDEX": "VN",
+  "HNX-INDEX": "HNX",
+  "UPCOM-INDEX": "UP",
+  VN30: "30",
+  "DOW JONES": "US",
+};
+const DISPLAY_INDEX_ALIASES: Record<string, string[]> = {
+  "VN-INDEX": ["VNINDEX", "VN-INDEX"],
+  "HNX-INDEX": ["HNX", "HNXINDEX", "HNX-INDEX"],
+  "UPCOM-INDEX": ["UPCOM", "UPCOMINDEX", "UPCOM-INDEX"],
+  VN30: ["VN30"],
+  "DOW JONES": ["DOW", "DOWJONES", "DOW JONES"],
+};
+
+function normalizeDisplayIndexKey(name: string): string {
+  return name.toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+function isSameDisplayIndexName(source: string, target: string): boolean {
+  const sourceKey = normalizeDisplayIndexKey(source);
+  const targetKeys = [target, ...(DISPLAY_INDEX_ALIASES[target] ?? [])].map(normalizeDisplayIndexKey);
+  return targetKeys.includes(sourceKey);
+}
+
 function cleanDisplayLine(line: string): string {
   return line
     .replace(/[*_`]/g, "")
@@ -96,7 +122,6 @@ function MorningBriefEmptyState() {
 
 export function MorningNews() {
   const morningTopic = useTopic<MorningData>("brief:morning:latest", {
-    pollMs: 300_000,
     timeoutMs: 8_000,
     revalidateOnFocus: false,
     dedupingInterval: 60_000,
@@ -112,13 +137,11 @@ export function MorningNews() {
   const riskItems = normalizeListForDisplay(data.risk_opportunity);
 
   /* Sắp xếp reference_indices theo INDEX_ORDER */
-  const indices = INDEX_ORDER.map((name) => {
+  const indices = DISPLAY_INDEX_ORDER.map((name) => {
     const found = data.reference_indices?.find(
-      (i) =>
-        i.name.toUpperCase().includes(name) ||
-        name.includes(i.name.toUpperCase()),
+      (i) => isSameDisplayIndexName(i.name, name),
     );
-    return found ?? { name, value: null, change_pct: null };
+    return found ? { ...found, name } : { name, value: null, change_pct: null };
   });
 
   return (
@@ -175,7 +198,7 @@ export function MorningNews() {
                       {idx.name}
                     </span>
                     <span className="text-sm">
-                      {INDEX_ICONS[idx.name] ?? "📊"}
+                      {DISPLAY_INDEX_ICONS[idx.name] ?? "IDX"}
                     </span>
                   </div>
                   <p className="text-lg font-bold leading-tight" style={{ color: "var(--text-primary)" }}>

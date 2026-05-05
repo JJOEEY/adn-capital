@@ -1053,7 +1053,7 @@ export default function StockDetailPage() {
                   sourceLabel="ADN Stock"
                   timeframe={timeframe}
                   onTimeframeChange={setTimeframe}
-                  allowFallbackFetch={false}
+                  allowFallbackFetch={true}
                 />
                 <StockOverviewPanel
                   workbench={workbench ?? null}

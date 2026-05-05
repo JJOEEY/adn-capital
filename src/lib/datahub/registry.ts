@@ -78,8 +78,7 @@ async function loadIndexValuation(ticker: string) {
 async function loadNews(type: "morning" | "eod" | "close") {
   const mod = await import("@/app/api/market-news/route");
   const newsType = type === "close" ? "eod" : type;
-  const mode = type === "eod" ? "" : "&stored=1";
-  const req = new NextRequest(`http://localhost/api/market-news?type=${newsType}${mode}`);
+  const req = new NextRequest(`http://localhost/api/market-news?type=${newsType}&stored=1`);
   const res = await mod.GET(req);
   if (!res.ok) throw new Error(`market-news ${newsType} HTTP ${res.status}`);
   const payload = await res.json();
@@ -255,8 +254,28 @@ async function loadMarketBoardForTickers(rawTickers: string) {
 }
 
 async function loadSignalList(status: "RADAR" | "ACTIVE") {
+  const reportedToday = status === "RADAR" ? await loadReportedSignalSummary() : null;
+  const reportedIdentities =
+    reportedToday?.rows.map((row) => ({
+      ticker: row.ticker.toUpperCase().trim(),
+      type: row.signalType.toUpperCase().trim(),
+    })) ?? [];
+  const where =
+    status === "RADAR" && reportedIdentities.length > 0
+      ? {
+          OR: [
+            { status: "RADAR" },
+            ...reportedIdentities.map((identity) => ({
+              ticker: identity.ticker,
+              type: identity.type,
+              status: { in: ["RADAR", "ACTIVE", "HOLD_TO_DIE"] },
+            })),
+          ],
+        }
+      : { status };
+
   const rows = await prisma.signal.findMany({
-    where: { status },
+    where,
     orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
     take: 120,
     select: {
@@ -1767,18 +1786,18 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
   },
   {
     id: "news:morning:latest",
-    ttlMs: 6 * 60 * 60 * 1000,
+    ttlMs: 24 * 60 * 60 * 1000,
     minIntervalMs: 60_000,
     staleWhileRevalidateMs: 24 * 60 * 60 * 1000,
     source: "db:market-report",
     version: "v1",
-    tags: ["news", "brief", "dashboard"],
+    tags: ["brief", "morning-brief", "public"],
     match: (topicKey) => (topicKey === "news:morning:latest" ? { ok: true } : { ok: false }),
     resolve: async () => loadNews("morning"),
   },
   {
     id: "brief:morning:latest",
-    ttlMs: 6 * 60 * 60 * 1000,
+    ttlMs: 24 * 60 * 60 * 1000,
     minIntervalMs: 60_000,
     staleWhileRevalidateMs: 24 * 60 * 60 * 1000,
     source: "db:market-report",
@@ -1802,12 +1821,12 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
   },
   {
     id: "news:eod:latest",
-    ttlMs: 6 * 60 * 60 * 1000,
+    ttlMs: 24 * 60 * 60 * 1000,
     minIntervalMs: 60_000,
     staleWhileRevalidateMs: 24 * 60 * 60 * 1000,
     source: "db:market-report",
     version: "v1",
-    tags: ["news", "brief", "dashboard"],
+    tags: ["brief", "eod-brief", "public"],
     match: (topicKey) => (topicKey === "news:eod:latest" ? { ok: true } : { ok: false }),
     resolve: async () => loadNews("eod"),
   },
@@ -1836,12 +1855,12 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
   },
   {
     id: "brief:eod:latest",
-    ttlMs: 6 * 60 * 60 * 1000,
+    ttlMs: 24 * 60 * 60 * 1000,
     minIntervalMs: 60_000,
     staleWhileRevalidateMs: 24 * 60 * 60 * 1000,
     source: "db:market-report",
     version: "v1",
-    tags: ["brief", "eod-brief", "news", "dashboard", "public"],
+    tags: ["brief", "eod-brief", "public"],
     match: (topicKey) => (topicKey === "brief:eod:latest" ? { ok: true } : { ok: false }),
     resolve: async () => loadNews("eod"),
   },

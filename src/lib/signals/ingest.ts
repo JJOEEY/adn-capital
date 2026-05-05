@@ -195,7 +195,7 @@ export async function ingestSignalScanBatch(params: {
 
   let created = 0;
   let updated = 0;
-  const createCandidatesForNotify: SignalNotificationCandidate[] = [];
+  const candidatesForNotify: SignalNotificationCandidate[] = [];
   const activatedSignals: SignalScanArtifact["activatedSignals"] = [];
   const artifactSignals: SignalScanArtifactItem[] = [];
 
@@ -244,6 +244,15 @@ export async function ingestSignalScanBatch(params: {
             }
           : {};
 
+      if (isNextLive) {
+        candidatesForNotify.push({
+          ticker: normalizedTicker,
+          type: signal.type,
+          entryPrice: signal.entryPrice,
+          reason: signal.reason,
+        });
+      }
+
       artifactSignals.push(summarizeSignal({ ...signal, ticker: normalizedTicker, status: nextStatus }, "updated", existing.id));
       return prisma.signal.update({
         where: { id: existing.id },
@@ -276,7 +285,7 @@ export async function ingestSignalScanBatch(params: {
         reason: signal.reason ?? null,
       });
     }
-    createCandidatesForNotify.push({
+    candidatesForNotify.push({
       ticker: normalizedTicker,
       type: signal.type,
       entryPrice: signal.entryPrice,
@@ -315,7 +324,7 @@ export async function ingestSignalScanBatch(params: {
     await rebalanceActiveBasketNav(aiBrokerConfig.maxTotalNav);
   }
 
-  const notified = await claimSignalNotifications(createCandidatesForNotify, params.tradingDate);
+  const notified = await claimSignalNotifications(candidatesForNotify, params.tradingDate);
   const notifiedSignals = notified.map(summarizeCandidate);
   const batchId = `${params.tradingDate}-${params.slot.replace(":", "")}-${scannedAt.getTime()}`;
 

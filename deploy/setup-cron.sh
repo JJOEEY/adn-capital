@@ -25,36 +25,37 @@ CURL_CMD="curl -fsS -H 'x-cron-secret: ${CRON_SECRET}'"
 CRON_FILE="/tmp/adn-crontab"
 
 cat > "${CRON_FILE}" <<EOF
-# ADN Capital canonical scheduler (UTC time, VN=UTC+7)
+# ADN Capital canonical scheduler (VPS local time: Asia/Ho_Chi_Minh)
 # Generated: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+CRON_TZ=Asia/Ho_Chi_Minh
 
 # Type 3 - Morning brief (08:00 VN)
-${CRON_MORNING_SCHEDULE:-0 1 * * *} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_MORNING:-morning_brief}" >> ${LOG_DIR}/morning_brief.log 2>&1
+${CRON_MORNING_SCHEDULE:-0 8 * * *} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_MORNING:-morning_brief}" >> ${LOG_DIR}/morning_brief.log 2>&1
 
 # Type 1 - Signal scan (10:00, 10:30, 14:00, 14:25 VN)
-${CRON_SIGNAL_1000_SCHEDULE:-0 3 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_SIGNAL_TYPE1:-signal_scan_type1}" >> ${LOG_DIR}/signal_type1.log 2>&1
-${CRON_SIGNAL_1030_SCHEDULE:-30 3 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_SIGNAL_TYPE1:-signal_scan_type1}" >> ${LOG_DIR}/signal_type1.log 2>&1
-${CRON_SIGNAL_1400_SCHEDULE:-0 7 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_SIGNAL_TYPE1:-signal_scan_type1}" >> ${LOG_DIR}/signal_type1.log 2>&1
-${CRON_SIGNAL_1425_SCHEDULE:-25 7 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_SIGNAL_TYPE1:-signal_scan_type1}" >> ${LOG_DIR}/signal_type1.log 2>&1
+${CRON_SIGNAL_1000_SCHEDULE:-0 10 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_SIGNAL_TYPE1:-signal_scan_type1}" >> ${LOG_DIR}/signal_type1.log 2>&1
+${CRON_SIGNAL_1030_SCHEDULE:-30 10 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_SIGNAL_TYPE1:-signal_scan_type1}" >> ${LOG_DIR}/signal_type1.log 2>&1
+${CRON_SIGNAL_1400_SCHEDULE:-0 14 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_SIGNAL_TYPE1:-signal_scan_type1}" >> ${LOG_DIR}/signal_type1.log 2>&1
+${CRON_SIGNAL_1425_SCHEDULE:-25 14 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_SIGNAL_TYPE1:-signal_scan_type1}" >> ${LOG_DIR}/signal_type1.log 2>&1
 
 # Type 2 - Market stats (10:00, 11:30, 14:00, 14:45 VN)
-${CRON_MARKET_1000_SCHEDULE:-0 3 * * *} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_MARKET_TYPE2:-market_stats_type2}" >> ${LOG_DIR}/market_type2.log 2>&1
-${CRON_MARKET_1130_SCHEDULE:-30 4 * * *} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_MARKET_TYPE2:-market_stats_type2}" >> ${LOG_DIR}/market_type2.log 2>&1
-${CRON_MARKET_1400_SCHEDULE:-0 7 * * *} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_MARKET_TYPE2:-market_stats_type2}" >> ${LOG_DIR}/market_type2.log 2>&1
-${CRON_MARKET_1445_SCHEDULE:-45 7 * * *} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_MARKET_TYPE2:-market_stats_type2}" >> ${LOG_DIR}/market_type2.log 2>&1
+${CRON_MARKET_1000_SCHEDULE:-0 10 * * *} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_MARKET_TYPE2:-market_stats_type2}" >> ${LOG_DIR}/market_type2.log 2>&1
+${CRON_MARKET_1130_SCHEDULE:-30 11 * * *} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_MARKET_TYPE2:-market_stats_type2}" >> ${LOG_DIR}/market_type2.log 2>&1
+${CRON_MARKET_1400_SCHEDULE:-0 14 * * *} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_MARKET_TYPE2:-market_stats_type2}" >> ${LOG_DIR}/market_type2.log 2>&1
+${CRON_MARKET_1445_SCHEDULE:-45 14 * * *} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_MARKET_TYPE2:-market_stats_type2}" >> ${LOG_DIR}/market_type2.log 2>&1
 
 # Type 3 - Close brief 15:00 VN
-${CRON_CLOSE_15H_SCHEDULE:-0 8 * * *} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_CLOSE_15H:-close_brief_15h}" >> ${LOG_DIR}/close_brief_15h.log 2>&1
+${CRON_CLOSE_15H_SCHEDULE:-0 15 * * *} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_CLOSE_15H:-close_brief_15h}" >> ${LOG_DIR}/close_brief_15h.log 2>&1
 
 # Type 3 - Full EOD 19:00 VN
-${CRON_EOD_19H_SCHEDULE:-0 12 * * *} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_EOD_19H:-eod_full_19h}" >> ${LOG_DIR}/eod_full_19h.log 2>&1
+${CRON_EOD_19H_SCHEDULE:-0 19 * * *} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_EOD_19H:-eod_full_19h}" >> ${LOG_DIR}/eod_full_19h.log 2>&1
 
 # News crawler (07:00-22:30 VN, every 30 minutes)
-${CRON_NEWS_CRAWLER_SCHEDULE:-*/30 0-15 * * *} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_NEWS_CRAWLER:-news_crawler}" >> ${LOG_DIR}/news_crawler.log 2>&1
+${CRON_NEWS_CRAWLER_SCHEDULE:-*/30 7-22 * * *} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_NEWS_CRAWLER:-news_crawler}" >> ${LOG_DIR}/news_crawler.log 2>&1
 
 # Additional workers (non-canonical event jobs)
-*/5 2-8 * * 1-5 ${CURL_CMD} "${APP_URL}/api/cron/signal-lifecycle" >> ${LOG_DIR}/signal_lifecycle.log 2>&1
-0 10 * * 5 ${CURL_CMD} "${APP_URL}/api/cron/ai-weekly-review" >> ${LOG_DIR}/weekly_review.log 2>&1
+*/5 9-15 * * 1-5 ${CURL_CMD} "${APP_URL}/api/cron/signal-lifecycle" >> ${LOG_DIR}/signal_lifecycle.log 2>&1
+0 17 * * 5 ${CURL_CMD} "${APP_URL}/api/cron/ai-weekly-review" >> ${LOG_DIR}/weekly_review.log 2>&1
 
 # Log cleanup
 0 0 * * 0 find ${LOG_DIR} -name "*.log" -mtime +30 -delete

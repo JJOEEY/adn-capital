@@ -37,6 +37,29 @@ function toStringValue(value: unknown, fallback = "") {
   return String(value);
 }
 
+function splitTelegramText(text: string, maxLength = 3900) {
+  const chunks: string[] = [];
+  let current = "";
+  for (const part of text.split(/\n{2,}/)) {
+    const next = current ? `${current}\n\n${part}` : part;
+    if (next.length <= maxLength) {
+      current = next;
+      continue;
+    }
+    if (current) chunks.push(current);
+    if (part.length <= maxLength) {
+      current = part;
+      continue;
+    }
+    for (let i = 0; i < part.length; i += maxLength) {
+      chunks.push(part.slice(i, i + maxLength));
+    }
+    current = "";
+  }
+  if (current) chunks.push(current);
+  return chunks.length > 0 ? chunks : [text.slice(0, maxLength)];
+}
+
 function resolveRunSummary(context: WorkflowContext) {
   const event = context.event;
   return {
@@ -203,15 +226,25 @@ const createNotificationAction: ActionHandler = async (action, context) => {
 };
 
 const sendTelegramAction: ActionHandler = async (action, context) => {
-  const token = process.env.TELEGRAM_BOT_TOKEN ?? "";
-  const chatId = process.env.TELEGRAM_CHAT_ID ?? "";
+  const token = (
+    process.env.TELEGRAM_SUPPORT_BOT_TOKEN ??
+    process.env.ADN_SUPPORT_TELEGRAM_BOT_TOKEN ??
+    process.env.TELEGRAM_SIGNAL_BOT_TOKEN ??
+    ""
+  ).trim();
+  const chatId = (
+    process.env.TELEGRAM_SUPPORT_CHAT_ID ??
+    process.env.ADN_SUPPORT_TELEGRAM_CHAT_ID ??
+    process.env.TELEGRAM_SIGNAL_CHAT_ID ??
+    ""
+  ).trim();
 
   if (!token || !chatId) {
     return {
       status: "skipped",
       retryable: false,
       deterministic: false,
-      warning: "TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID not configured",
+      warning: "support_telegram_not_configured",
       data: null,
     };
   }
@@ -250,32 +283,45 @@ const sendTelegramAction: ActionHandler = async (action, context) => {
     };
   }
 
-  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text,
-      parse_mode: "Markdown",
-      disable_web_page_preview: true,
-    }),
-  });
-
-  let payload: unknown = null;
-  try {
-    payload = await response.json();
-  } catch {
-    payload = null;
-  }
-
-  if (!response.ok) {
-    return {
-      status: "error",
-      retryable: true,
-      deterministic: false,
-      error: `telegram_http_${response.status}`,
-      data: payload && typeof payload === "object" ? (payload as Record<string, unknown>) : null,
+  const chunks = splitTelegramText(text);
+  const sentPayloads: Record<string, unknown>[] = [];
+  for (const [index, chunk] of chunks.entries()) {
+    const send = async (withMarkdown: boolean) => {
+      const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: chunks.length > 1 ? `${chunk}\n\n(${index + 1}/${chunks.length})` : chunk,
+          ...(withMarkdown ? { parse_mode: "Markdown" } : {}),
+          disable_web_page_preview: true,
+        }),
+      });
+      let payload: unknown = null;
+      try {
+        payload = await response.json();
+      } catch {
+        payload = null;
+      }
+      return { response, payload };
     };
+
+    let result = await send(true);
+    if (!result.response.ok && result.response.status === 400) {
+      result = await send(false);
+    }
+    if (!result.response.ok) {
+      return {
+        status: "error",
+        retryable: true,
+        deterministic: false,
+        error: `telegram_http_${result.response.status}`,
+        data: result.payload && typeof result.payload === "object" ? (result.payload as Record<string, unknown>) : null,
+      };
+    }
+    if (result.payload && typeof result.payload === "object") {
+      sentPayloads.push(result.payload as Record<string, unknown>);
+    }
   }
 
   await prisma.cronLog.create({
@@ -297,7 +343,7 @@ const sendTelegramAction: ActionHandler = async (action, context) => {
     status: "success",
     retryable: false,
     deterministic: false,
-    data: payload && typeof payload === "object" ? (payload as Record<string, unknown>) : null,
+    data: { parts: chunks.length, payloads: sentPayloads },
   };
 };
 
