@@ -691,32 +691,40 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
     saveMarketOverviewCache(snapshot.marketOverview);
 
     if (!hasCompleteEodDetail(eodDetail)) {
-      const duration = Date.now() - startTime;
-      await logCron("eod_full_19h", "skipped", "EOD detail incomplete, keep previous complete report", duration, {
-        detailBuckets: countEodDetailBuckets(eodDetail),
-        eodDetailAvailable: Boolean(eodDetail),
-      });
-      return NextResponse.json({
-        type: "eod_full_19h",
-        published: false,
-        reason: "eod_detail_incomplete",
-      });
+      if (!forceRun) {
+        const duration = Date.now() - startTime;
+        await logCron("eod_full_19h", "skipped", "EOD detail incomplete, keep previous complete report", duration, {
+          detailBuckets: countEodDetailBuckets(eodDetail),
+          eodDetailAvailable: Boolean(eodDetail),
+        });
+        return NextResponse.json({
+          type: "eod_full_19h",
+          published: false,
+          reason: "eod_detail_incomplete",
+        });
+      }
+      // forceRun=true: generate từ snapshot (eodDetail=null), bỏ qua bridge data
+      console.log("[eod_full_19h] forceRun: bypassing incomplete eodDetail, using snapshot only");
     }
 
     const eodDetailDateKey = toDateKey(eodDetail?.date);
     if (eodDetailDateKey !== dateISO) {
-      const duration = Date.now() - startTime;
-      await logCron("eod_full_19h", "skipped", "EOD detail date mismatch, keep previous complete report", duration, {
-        eodDetailDateKey,
-        expectedDateKey: dateISO,
-      });
-      return NextResponse.json({
-        type: "eod_full_19h",
-        published: false,
-        reason: "eod_detail_date_mismatch",
-        eodDetailDateKey,
-        expectedDateKey: dateISO,
-      });
+      if (!forceRun) {
+        const duration = Date.now() - startTime;
+        await logCron("eod_full_19h", "skipped", "EOD detail date mismatch, keep previous complete report", duration, {
+          eodDetailDateKey,
+          expectedDateKey: dateISO,
+        });
+        return NextResponse.json({
+          type: "eod_full_19h",
+          published: false,
+          reason: "eod_detail_date_mismatch",
+          eodDetailDateKey,
+          expectedDateKey: dateISO,
+        });
+      }
+      // forceRun=true: dùng snapshot, bỏ eodDetail sai ngày
+      console.log(`[eod_full_19h] forceRun: bypassing date mismatch (bridge=${eodDetailDateKey}, expected=${dateISO}), using snapshot only`);
     }
 
     if (
@@ -770,7 +778,12 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
       });
     }
 
-    const safeReport = buildFull19PublicReport(today, snapshot, eodDetail);
+    // Nếu eodDetail sai ngày hoặc incomplete nhưng forceRun=true → dùng snapshot, không dùng bridge data sai
+    const eodDetailForReport =
+      hasCompleteEodDetail(eodDetail) && toDateKey(eodDetail?.date) === dateISO
+        ? eodDetail
+        : null;
+    const safeReport = buildFull19PublicReport(today, snapshot, eodDetailForReport);
 
     await saveMarketReport(
       "eod_full_19h",
