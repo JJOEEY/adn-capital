@@ -1207,6 +1207,12 @@ function parseInvestorTradingData(raw: FiinInvestorTradingResponse | null) {
   if (retail.sell != null) retail.sell = toBillion(retail.sell);
   if (retail.net != null) retail.net = toBillion(retail.net);
 
+  // Sanity check: retail values should not exceed 10,000 tỷ (Vietnam market ~20,000 tỷ/day total)
+  const RETAIL_MAX_TY = 10_000;
+  if (retail.buy != null && Math.abs(retail.buy) > RETAIL_MAX_TY) retail.buy = null;
+  if (retail.sell != null && Math.abs(retail.sell) > RETAIL_MAX_TY) retail.sell = null;
+  if (retail.net != null && Math.abs(retail.net) > RETAIL_MAX_TY) retail.net = null;
+
   return {
     investorTrading: {
       foreign,
@@ -1903,7 +1909,7 @@ type InvestorMode = "intraday" | "close15" | "full19";
 
 function formatInvestorValue(v: number | null): string {
   if (v == null || !Number.isFinite(v)) return "chưa cập nhật";
-  return `${v >= 0 ? "+" : ""}${Math.abs(v).toFixed(1)} tỷ`;
+  return `${v >= 0 ? "+" : "-"}${Math.abs(v).toFixed(1)} tỷ`;
 }
 
 export function getInvestorTradingText(snap: MarketSnapshot, mode: InvestorMode): string[] {
