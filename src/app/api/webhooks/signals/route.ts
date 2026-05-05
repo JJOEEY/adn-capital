@@ -66,17 +66,28 @@ export async function POST(req: NextRequest) {
         })
         .join("\n");
 
+      // Web/PWA push: tất cả signals mới (RADAR + ACTIVE)
       await pushNotification(
         windowInfo.type,
         `Tin hieu moi ${slotLabel} - ${notifiedSignals.length} ma`,
         `## Tin hieu moi (${slotLabel})\n\n${signalText}`
       );
-      await sendClaimedSignalsToTelegram({
-        signals: notifiedSignals,
-        tradingDate,
-        slotLabel,
-        batchId: ingest.artifact.batchId,
-      });
+
+      // Telegram group: chỉ RADAR signals (ACTIVE signals có tin riêng từ workflow signal-active-notify)
+      const activatedKeys = new Set(
+        ingest.activatedSignals.map((s) => `${s.ticker}|${s.signalType}`),
+      );
+      const radarSignals = notifiedSignals.filter(
+        (s) => !activatedKeys.has(`${s.ticker}|${s.type}`),
+      );
+      if (radarSignals.length > 0) {
+        await sendClaimedSignalsToTelegram({
+          signals: radarSignals,
+          tradingDate,
+          slotLabel,
+          batchId: ingest.artifact.batchId,
+        });
+      }
     }
 
     if (ingest.activatedSignals.length > 0) {

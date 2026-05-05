@@ -974,20 +974,29 @@ async function handleSignalScan5m(): Promise<NextResponse> {
       const signalText = webNotifySignals
         .map((signal) => `• ${signal.ticker}: ${signal.entryPrice.toLocaleString("vi-VN")} VNĐ${signal.reason ? ` — ${signal.reason}` : ""}`)
         .join("\n");
+
+      // Web/PWA push: tất cả signals mới (RADAR + ACTIVE)
       await pushNotification(
         windowInfo.type,
         `⚡ ${windowInfo.label} — ${webNotifySignals.length} tín hiệu mới`,
         `## TÍN HIỆU MỚI (${windowInfo.label})\n\n${signalText}`,
       );
-      // Gửi group Telegram (cùng cơ chế với webhook path).
-      // sendClaimedSignalsToTelegram có dedupe nội bộ theo batchId nên
-      // nếu webhook cũng đã gửi trước đó thì lần này sẽ bị skip.
-      await sendClaimedSignalsToTelegram({
-        signals: webNotifySignals,
-        tradingDate: todayISO,
-        slotLabel: windowInfo.label,
-        batchId: ingestResult.artifact.batchId,
-      });
+
+      // Telegram group: chỉ RADAR signals (ACTIVE signals có tin riêng từ workflow signal-active-notify)
+      const activatedKeys = new Set(
+        ingestResult.activatedSignals.map((s) => `${s.ticker}|${s.signalType}`),
+      );
+      const radarSignals = webNotifySignals.filter(
+        (s) => !activatedKeys.has(`${s.ticker}|${s.type}`),
+      );
+      if (radarSignals.length > 0) {
+        await sendClaimedSignalsToTelegram({
+          signals: radarSignals,
+          tradingDate: todayISO,
+          slotLabel: windowInfo.label,
+          batchId: ingestResult.artifact.batchId,
+        });
+      }
     }
 
     if (ingestResult.activatedSignals.length > 0) {
