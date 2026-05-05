@@ -195,7 +195,7 @@ export async function GET(request: NextRequest) {
     if (liveTickers.length > 0) {
       void (async () => {
         try {
-          let freshPriceMap = await getBatchPrices(liveTickers);
+          let freshPriceMap: LivePriceMap = await getBatchPrices(liveTickers);
           freshPriceMap = await hydrateLivePrices(liveTickers, freshPriceMap, true);
           const liveUpdate = await persistLivePrices(signals, liveStatuses, freshPriceMap);
           // Stoploss triggered → invalidate cache so next client fetch sees updated statuses
