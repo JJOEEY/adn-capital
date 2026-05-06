@@ -1,5 +1,5 @@
-import { createHash } from "crypto";
 import { prisma } from "@/lib/prisma";
+import { sendTelegramOnce, telegramHash } from "@/lib/telegram/dispatch";
 import type { SignalScanArtifactItem } from "./ingest";
 
 const SIGNAL_TYPE_LABELS: Record<string, string> = {
@@ -9,9 +9,24 @@ const SIGNAL_TYPE_LABELS: Record<string, string> = {
   TAM_NGAM: "Tầm ngắm",
 };
 
+type ActiveSignalRow = {
+  ticker: string;
+  signalType: string;
+  status?: string | null;
+  entryPrice?: number | null;
+  currentPrice?: number | null;
+  navAllocation?: number | null;
+  reason?: string | null;
+};
+
 function formatPrice(value: number | null | undefined) {
   if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return "-";
   return value.toLocaleString("vi-VN", { maximumFractionDigits: 0 });
+}
+
+function formatPercent(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "-";
+  return `${value.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}%`;
 }
 
 function formatSignalType(type: string) {
@@ -19,7 +34,53 @@ function formatSignalType(type: string) {
   return SIGNAL_TYPE_LABELS[normalized] ?? normalized;
 }
 
-function formatTelegramText(params: {
+function getSignalTelegramTarget() {
+  const token = (
+    process.env.TELEGRAM_SIGNAL_BOT_TOKEN ??
+    process.env.ADN_SUPPORT_TELEGRAM_BOT_TOKEN ??
+    process.env.TELEGRAM_SUPPORT_BOT_TOKEN ??
+    process.env.ADN_SUPPORT_BOT_TOKEN ??
+    ""
+  ).trim();
+  const chatId = (
+    process.env.TELEGRAM_SIGNAL_CHAT_ID ??
+    process.env.ADN_SUPPORT_TELEGRAM_CHAT_ID ??
+    process.env.TELEGRAM_SUPPORT_CHAT_ID ??
+    process.env.ADN_SUPPORT_CHAT_ID ??
+    ""
+  ).trim();
+  return { token, chatId };
+}
+
+function signalIdentity(signals: SignalScanArtifactItem[]) {
+  return signals
+    .map((signal) =>
+      [
+        signal.ticker.toUpperCase(),
+        signal.type.toUpperCase(),
+        formatPrice(signal.entryPrice),
+      ].join(":"),
+    )
+    .sort()
+    .join("|");
+}
+
+function activeIdentity(signals: ActiveSignalRow[]) {
+  return signals
+    .map((signal) =>
+      [
+        signal.ticker.toUpperCase(),
+        signal.signalType.toUpperCase(),
+        signal.status ?? "",
+        formatPrice(signal.entryPrice),
+        formatPrice(signal.currentPrice),
+      ].join(":"),
+    )
+    .sort()
+    .join("|");
+}
+
+function formatSignalBatchText(params: {
   signals: SignalScanArtifactItem[];
   tradingDate: string;
   slotLabel: string;
@@ -52,86 +113,53 @@ function formatTelegramText(params: {
   return lines.join("\n").trim();
 }
 
-function getSignalTelegramTarget() {
-  const token = (
-    process.env.TELEGRAM_SIGNAL_BOT_TOKEN ??
-    process.env.ADN_SUPPORT_TELEGRAM_BOT_TOKEN ??
-    process.env.TELEGRAM_SUPPORT_BOT_TOKEN ??
-    process.env.ADN_SUPPORT_BOT_TOKEN ??
-    ""
-  ).trim();
-  const chatId = (
-    process.env.TELEGRAM_SIGNAL_CHAT_ID ??
-    process.env.ADN_SUPPORT_TELEGRAM_CHAT_ID ??
-    process.env.TELEGRAM_SUPPORT_CHAT_ID ??
-    process.env.ADN_SUPPORT_CHAT_ID ??
-    ""
-  ).trim();
-  return { token, chatId };
+function formatActiveSignalsText(params: {
+  signals: ActiveSignalRow[];
+  tradingDate: string;
+  slotLabel: string;
+}) {
+  const lines = [
+    `🟢 CỔ PHIẾU ACTIVE - ${params.tradingDate}`,
+    `Khung quét: ${params.slotLabel}`,
+    `Số mã: ${params.signals.length}`,
+    "",
+  ];
+
+  for (const signal of params.signals) {
+    const reason = signal.reason ? ` - ${signal.reason}` : "";
+    lines.push(
+      `• ${signal.ticker} (${formatSignalType(signal.signalType)}) - Entry ${formatPrice(
+        signal.entryPrice,
+      )}${reason}`,
+    );
+  }
+
+  lines.push("");
+  lines.push("— ADN Capital Scanner 🤖");
+  return lines.join("\n").trim();
 }
 
-async function sendSupportTelegram(text: string, dedupeKey: string) {
-  const { token, chatId } = getSignalTelegramTarget();
-  const textHash = createHash("sha256").update(text).digest("hex").slice(0, 24);
+function formatActiveHoldingsText(params: {
+  signals: ActiveSignalRow[];
+  tradingDate: string;
+}) {
+  const lines = [
+    `📌 CỔ PHIẾU ĐANG NẮM GIỮ - ${params.tradingDate}`,
+    "",
+    "Danh sách lấy từ tín hiệu đang ACTIVE/HOLD:",
+  ];
 
-  if (!token || !chatId) {
-    return { ok: true, skipped: true, reason: "support_telegram_not_configured", textHash, dedupeKey };
+  for (const signal of params.signals) {
+    lines.push(
+      `• ${signal.ticker}: Entry ${formatPrice(signal.entryPrice)} | Hiện tại ${formatPrice(
+        signal.currentPrice,
+      )} | Tỷ trọng NAV ${formatPercent(signal.navAllocation)}`,
+    );
   }
 
-  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const existing = await prisma.cronLog.findFirst({
-    where: {
-      cronName: "telegram:signal-scan",
-      status: "success",
-      createdAt: { gte: cutoff },
-      resultData: { contains: dedupeKey },
-    },
-    select: { id: true },
-  });
-  if (existing) {
-    return { ok: true, skipped: true, reason: "duplicate_suppressed", textHash, dedupeKey };
-  }
-
-  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text,
-      disable_web_page_preview: true,
-    }),
-  });
-
-  let payload: unknown = null;
-  try {
-    payload = await response.json();
-  } catch {
-    payload = null;
-  }
-
-  if (!response.ok) {
-    await prisma.cronLog.create({
-      data: {
-        cronName: "telegram:signal-scan",
-        status: "error",
-        message: `telegram_http_${response.status}`,
-        duration: 0,
-        resultData: JSON.stringify({ dedupeKey, textHash }),
-      },
-    });
-    return { ok: false, skipped: false, status: response.status, payload, textHash, dedupeKey };
-  }
-
-  await prisma.cronLog.create({
-    data: {
-      cronName: "telegram:signal-scan",
-      status: "success",
-      message: "sent",
-      duration: 0,
-      resultData: JSON.stringify({ dedupeKey, textHash }),
-    },
-  });
-  return { ok: true, skipped: false, status: response.status, payload, textHash, dedupeKey };
+  lines.push("");
+  lines.push("— ADN Capital Scanner 🤖");
+  return lines.join("\n").trim();
 }
 
 export async function sendClaimedSignalsToTelegram(params: {
@@ -144,6 +172,90 @@ export async function sendClaimedSignalsToTelegram(params: {
     return { ok: true, skipped: true, reason: "no_claimed_signals" };
   }
 
-  const text = formatTelegramText(params);
-  return sendSupportTelegram(text, `telegram:signal-scan:${params.tradingDate}:${params.batchId}`);
+  const { token, chatId } = getSignalTelegramTarget();
+  const identity = signalIdentity(params.signals);
+  const digest = telegramHash(identity).slice(0, 16);
+  const eventKey = `signal-batch:${params.tradingDate}:${params.slotLabel}:${digest}`;
+  const text = formatSignalBatchText(params);
+
+  return sendTelegramOnce({
+    eventType: "SIGNAL_BATCH",
+    eventKey,
+    text,
+    token,
+    chatId,
+    tradingDate: params.tradingDate,
+    slot: params.slotLabel,
+  });
+}
+
+export async function sendActiveSignalsToTelegram(params: {
+  signals: ActiveSignalRow[];
+  tradingDate: string;
+  slotLabel: string;
+}) {
+  if (params.signals.length === 0) {
+    return { ok: true, skipped: true, reason: "no_active_signals" };
+  }
+
+  const { token, chatId } = getSignalTelegramTarget();
+  const digest = telegramHash(activeIdentity(params.signals)).slice(0, 16);
+  const eventKey = `signal-active:${params.tradingDate}:${params.slotLabel}:${digest}`;
+  const text = formatActiveSignalsText(params);
+
+  return sendTelegramOnce({
+    eventType: "SIGNAL_ACTIVE",
+    eventKey,
+    text,
+    token,
+    chatId,
+    tradingDate: params.tradingDate,
+    slot: params.slotLabel,
+  });
+}
+
+export async function sendActiveHoldingsToTelegram(params: {
+  tradingDate: string;
+  slotLabel?: string;
+}) {
+  const rows = await prisma.signal.findMany({
+    where: { status: { in: ["ACTIVE", "HOLD_TO_DIE"] } },
+    orderBy: [{ updatedAt: "desc" }],
+    take: 50,
+    select: {
+      ticker: true,
+      type: true,
+      status: true,
+      entryPrice: true,
+      currentPrice: true,
+      navAllocation: true,
+    },
+  });
+
+  if (rows.length === 0) {
+    return { ok: true, skipped: true, reason: "no_active_holdings" };
+  }
+
+  const { token, chatId } = getSignalTelegramTarget();
+  const signals = rows.map((row) => ({
+    ticker: row.ticker,
+    signalType: row.type,
+    status: row.status,
+    entryPrice: row.entryPrice,
+    currentPrice: row.currentPrice,
+    navAllocation: row.navAllocation,
+  }));
+  const digest = telegramHash(activeIdentity(signals)).slice(0, 16);
+  const eventKey = `active-holdings-19h:${params.tradingDate}:${digest}`;
+  const text = formatActiveHoldingsText({ signals, tradingDate: params.tradingDate });
+
+  return sendTelegramOnce({
+    eventType: "ACTIVE_HOLDINGS_19H",
+    eventKey,
+    text,
+    token,
+    chatId,
+    tradingDate: params.tradingDate,
+    slot: params.slotLabel ?? "19:00",
+  });
 }

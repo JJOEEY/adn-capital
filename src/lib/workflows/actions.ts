@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
-import { createHash } from "crypto";
 import { getTopicEnvelope, invalidateTopics } from "@/lib/datahub/core";
 import { pushNotification, saveMarketReport } from "@/lib/cronHelpers";
+import { sendTelegramOnce, telegramHash } from "@/lib/telegram/dispatch";
 import { resolveTemplateString } from "./helpers";
 import { WorkflowActionDefinition, WorkflowActionType, WorkflowContext } from "./types";
 
@@ -35,29 +35,6 @@ function toStringValue(value: unknown, fallback = "") {
   if (typeof value === "string") return value;
   if (value == null) return fallback;
   return String(value);
-}
-
-function splitTelegramText(text: string, maxLength = 3900) {
-  const chunks: string[] = [];
-  let current = "";
-  for (const part of text.split(/\n{2,}/)) {
-    const next = current ? `${current}\n\n${part}` : part;
-    if (next.length <= maxLength) {
-      current = next;
-      continue;
-    }
-    if (current) chunks.push(current);
-    if (part.length <= maxLength) {
-      current = part;
-      continue;
-    }
-    for (let i = 0; i < part.length; i += maxLength) {
-      chunks.push(part.slice(i, i + maxLength));
-    }
-    current = "";
-  }
-  if (current) chunks.push(current);
-  return chunks.length > 0 ? chunks : [text.slice(0, maxLength)];
 }
 
 function resolveRunSummary(context: WorkflowContext) {
@@ -225,6 +202,59 @@ const createNotificationAction: ActionHandler = async (action, context) => {
   };
 };
 
+function resolveTelegramEventType(context: WorkflowContext) {
+  const reportType = String(context.event.payload?.reportType ?? "").toLowerCase();
+  if (context.event.type === "brief_ready") {
+    if (reportType.includes("morning")) return "MORNING_BRIEF";
+    if (reportType.includes("15h")) return "EOD_15H";
+    if (reportType.includes("19h") || reportType.includes("eod")) return "EOD_19H";
+  }
+  if (context.workflow.workflowKey === "signal-active-notify") return "SIGNAL_ACTIVE";
+  return `WORKFLOW:${context.workflow.workflowKey}`;
+}
+
+function resolveTelegramTradingDate(context: WorkflowContext) {
+  const payload = context.event.payload ?? {};
+  const raw =
+    payload.tradingDate ??
+    payload.date ??
+    payload.reportDate ??
+    payload.targetDate ??
+    context.event.at ??
+    new Date().toISOString();
+  return String(raw).slice(0, 10);
+}
+
+function resolveTelegramSlot(context: WorkflowContext) {
+  const payload = context.event.payload ?? {};
+  const raw = payload.slot ?? payload.slotLabel ?? payload.reportSlot ?? null;
+  return raw == null ? null : String(raw);
+}
+
+function resolveTelegramEventKey(
+  action: WorkflowActionDefinition,
+  context: WorkflowContext,
+  text: string,
+) {
+  const explicit = resolveTemplateString(action.params?.eventKey ?? "", context.event).trim();
+  if (explicit) return explicit;
+
+  const eventType = resolveTelegramEventType(context);
+  const tradingDate = resolveTelegramTradingDate(context);
+  if (eventType === "MORNING_BRIEF" || eventType === "EOD_15H" || eventType === "EOD_19H") {
+    return `${eventType}:${tradingDate}`;
+  }
+
+  const payload = context.event.payload ?? {};
+  if (eventType === "SIGNAL_ACTIVE" && payload.ticker) {
+    return `SIGNAL_ACTIVE:${tradingDate}:${String(payload.ticker).toUpperCase()}:${String(
+      payload.signalType ?? payload.type ?? "UNKNOWN",
+    ).toUpperCase()}`;
+  }
+
+  return `${eventType}:${context.event.type}:${telegramHash(text).slice(0, 16)}`;
+}
+
 const sendTelegramAction: ActionHandler = async (action, context) => {
   const token = (
     process.env.TELEGRAM_SUPPORT_BOT_TOKEN ??
@@ -257,93 +287,43 @@ const sendTelegramAction: ActionHandler = async (action, context) => {
       context.event,
     ) || `Workflow ${context.workflow.workflowKey}`;
 
-  const textHash = createHash("sha256").update(text).digest("hex").slice(0, 32);
-  const dedupeWindowMinutes =
-    Number(action.params?.dedupeWindowMinutes) ||
-    (context.workflow.workflowKey === "signal-active-notify" ? 24 * 60 : 30);
-  const dedupeCutoff = new Date(Date.now() - dedupeWindowMinutes * 60_000);
-  const dedupeCronName = `telegram:${context.workflow.workflowKey}`;
-  const existingSend = await prisma.cronLog.findFirst({
-    where: {
-      cronName: dedupeCronName,
-      status: "success",
-      createdAt: { gte: dedupeCutoff },
-      resultData: { contains: textHash },
-    },
-    select: { id: true },
+  const eventType = resolveTelegramEventType(context);
+  const eventKey = resolveTelegramEventKey(action, context, text);
+  const result = await sendTelegramOnce({
+    eventType,
+    eventKey,
+    text,
+    token,
+    chatId,
+    tradingDate: resolveTelegramTradingDate(context),
+    slot: resolveTelegramSlot(context),
+    parseMode: "Markdown",
   });
 
-  if (existingSend) {
+  if (result.ok && "skipped" in result && result.skipped) {
     return {
       status: "skipped",
       retryable: false,
       deterministic: true,
-      warning: "telegram_duplicate_suppressed",
-      data: { textHash, dedupeWindowMinutes },
+      warning: result.reason,
+      data: { eventKey, eventType },
     };
   }
-
-  const chunks = splitTelegramText(text);
-  const sentPayloads: Record<string, unknown>[] = [];
-  for (const [index, chunk] of chunks.entries()) {
-    const send = async (withMarkdown: boolean) => {
-      const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: chunks.length > 1 ? `${chunk}\n\n(${index + 1}/${chunks.length})` : chunk,
-          ...(withMarkdown ? { parse_mode: "Markdown" } : {}),
-          disable_web_page_preview: true,
-        }),
-      });
-      let payload: unknown = null;
-      try {
-        payload = await response.json();
-      } catch {
-        payload = null;
-      }
-      return { response, payload };
+  if (!result.ok) {
+    return {
+      status: "error",
+      retryable: true,
+      deterministic: false,
+      error: result.error,
+      data: { eventKey, eventType },
     };
-
-    let result = await send(true);
-    if (!result.response.ok && result.response.status === 400) {
-      result = await send(false);
-    }
-    if (!result.response.ok) {
-      return {
-        status: "error",
-        retryable: true,
-        deterministic: false,
-        error: `telegram_http_${result.response.status}`,
-        data: result.payload && typeof result.payload === "object" ? (result.payload as Record<string, unknown>) : null,
-      };
-    }
-    if (result.payload && typeof result.payload === "object") {
-      sentPayloads.push(result.payload as Record<string, unknown>);
-    }
   }
-
-  await prisma.cronLog.create({
-    data: {
-      cronName: dedupeCronName,
-      status: "success",
-      message: "telegram_sent",
-      duration: 0,
-      resultData: JSON.stringify({
-        textHash,
-        workflowKey: context.workflow.workflowKey,
-        triggerType: context.event.type,
-        triggerSource: context.event.source,
-      }),
-    },
-  });
 
   return {
     status: "success",
     retryable: false,
     deterministic: false,
-    data: { parts: chunks.length, payloads: sentPayloads },
+    data: { eventKey, eventType },
   };
 };
 

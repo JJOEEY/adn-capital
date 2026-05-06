@@ -12,6 +12,7 @@ import { sendClaimedSignalsToTelegram } from "@/lib/signals/telegram-notify";
 import { emitWorkflowTrigger } from "@/lib/workflows";
 
 const WEBHOOK_SECRET = process.env.SCANNER_SECRET ?? "adn-scanner-secret-key";
+const SIGNAL_WEBHOOK_INGEST_ENABLED = process.env.SCANNER_WEBHOOK_INGEST_ENABLED === "1";
 
 interface IncomingSignal {
   ticker: string;
@@ -34,6 +35,23 @@ export async function POST(req: NextRequest) {
 
     if (body.secret !== WEBHOOK_SECRET) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!SIGNAL_WEBHOOK_INGEST_ENABLED) {
+      await logCron(
+        "signal_scan_type1",
+        "skipped",
+        "Signal webhook disabled; web cron owns scanner ingest and Telegram publish",
+        Date.now() - startedAt,
+        { source: "webhook:signals", received: Array.isArray(body.signals) ? body.signals.length : 0 },
+      );
+      return NextResponse.json({
+        disabled: true,
+        saved: 0,
+        updated: 0,
+        notified: 0,
+        message: "Signal webhook disabled; web cron is source of truth",
+      });
     }
 
     const rawSignals = Array.isArray(body.signals) ? body.signals : [];

@@ -51,6 +51,7 @@ services:
       - NODE_ENV=production
       - HOSTNAME=0.0.0.0
       - PYTHON_BRIDGE_URL=http://fiinquant:8000
+      - SCANNER_WEBHOOK_INGEST_ENABLED=false
       - GUIDE_UPLOAD_DIR=/app/storage/guides
       - DATABASE_URL=postgresql://${POSTGRES_USER:-adnuser}:${POSTGRES_PASSWORD}@pgbouncer:5432/${POSTGRES_DB:-adncapital}?schema=public&pgbouncer=true
       - DIRECT_DATABASE_URL=postgresql://${POSTGRES_USER:-adnuser}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-adncapital}?schema=public
@@ -77,7 +78,9 @@ services:
     env_file: .env
     environment:
       - WEBHOOK_URL=http://web:3000/api/webhooks/signals
+      - BRIDGE_SCHEDULER_ENABLED=false
       - BRIDGE_DIRECT_TELEGRAM_ENABLED=false
+      - BRIDGE_WEBHOOK_ENABLED=false
     ports:
       - "8000:8000"
     networks:

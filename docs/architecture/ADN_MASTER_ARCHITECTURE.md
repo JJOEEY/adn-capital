@@ -18,10 +18,11 @@ Last updated: 2026-04-20
 ## 3) Architecture Overview
 - `web` (Next.js):
   - Owns DataHub topic APIs and cache orchestration.
+  - Owns cron execution, Telegram publish, and message-level dispatch dedupe.
   - Owns UI, auth/session, admin/debug views, broker execution gate APIs.
 - `fiinquant` (Python bridge):
-  - Owns deterministic compute/scanner/brief scheduler runtime.
-  - Produces deterministic outputs for web consumption.
+  - Owns raw provider data and deterministic compute endpoints for web consumption.
+  - Must not self-publish Telegram, self-webhook signals, or run publish schedulers in production.
 - `db` + `pgbouncer`:
   - `db` is persistent state.
   - `pgbouncer` is pooled connection entry point for app runtime.
@@ -44,14 +45,15 @@ Last updated: 2026-04-20
 |---|---|---|
 | Topic cache lifecycle | web | TTL, freshness, invalidate, batch reads |
 | Hub API | web | `/api/hub/topic/*`, `/api/hub/topics`, `/api/hub/invalidate` |
-| Scheduler slots | fiinquant | Slot-gated deterministic jobs |
+| Scheduler slots | web | Slot-gated deterministic jobs |
 | Market/scan deterministic outputs | fiinquant | AI cannot override |
+| Telegram publish | web | Uses `TelegramDispatchLog` idempotency |
 | User/session/admin control plane | web | NextAuth/session-based |
 | Persistent domain state | db | user/report/signal/broker/audit |
 
 ## 6) Scheduler Canonical Contract
 Canonical names:
-- `signal_scan_type1` (`10:00, 10:30, 14:00, 14:20`)
+- `signal_scan_type1` (`10:00, 10:30, 14:00, 14:25`)
 - `market_stats_type2` (`10:00, 11:30, 14:00, 14:45`)
 - `morning_brief` (`08:00`)
 - `close_brief_15h` (`15:00`)

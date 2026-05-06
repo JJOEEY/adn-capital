@@ -157,14 +157,6 @@ export const WORKFLOW_DEFINITIONS: WorkflowDefinition[] = [
         deterministic: false,
       },
       {
-        type: "send_telegram",
-        continueOnError: true,
-        params: {
-          text: "🟢 *Signal ACTIVE* {{payload.ticker}} ({{payload.signalType}}) - Entry {{payload.entryPrice}}",
-        },
-        deterministic: false,
-      },
-      {
         type: "write_log",
         params: {
           action: "WORKFLOW_SIGNAL_ACTIVE",

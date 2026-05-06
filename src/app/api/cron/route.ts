@@ -41,7 +41,11 @@ import { getPythonBridgeUrl } from "@/lib/runtime-config";
 import { emitWorkflowTrigger } from "@/lib/workflows";
 import { emitObservabilityEvent } from "@/lib/observability";
 import { SIGNAL_SCAN_SLOT_SET, ingestSignalScanBatch } from "@/lib/signals/ingest";
-import { sendClaimedSignalsToTelegram } from "@/lib/signals/telegram-notify";
+import {
+  sendActiveHoldingsToTelegram,
+  sendActiveSignalsToTelegram,
+  sendClaimedSignalsToTelegram,
+} from "@/lib/signals/telegram-notify";
 
 export const maxDuration = 120;
 export const dynamic = "force-dynamic";
@@ -801,6 +805,10 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
         dateLabel: today,
       },
     });
+    const telegramActiveHoldingsResult = await sendActiveHoldingsToTelegram({
+      tradingDate: dateISO,
+      slotLabel: "19:00",
+    }).catch((error) => ({ ok: false, error: String(error) }));
 
     const duration = Date.now() - startTime;
     await logCron("eod_full_19h", "success", `EOD full 19h, ${duration}ms`, duration, {
@@ -808,6 +816,7 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
       providerDiagnostics: snapshot.providerDiagnostics,
       requestDateVN: snapshot.requestDateVN,
       fallbackUsed: snapshot.providerDiagnostics.length > 0,
+      telegramActiveHoldingsResult,
     });
     return NextResponse.json({ type: "eod_full_19h", timestamp: new Date().toISOString(), report: safeReport });
   } catch (error) {
@@ -970,6 +979,8 @@ async function handleSignalScan5m(): Promise<NextResponse> {
     });
 
     const webNotifySignals = ingestResult.artifact.notifiedSignals;
+    let telegramSignalBatchResult: unknown = null;
+    let telegramActiveBatchResult: unknown = null;
     if (webNotifySignals.length > 0) {
       const signalText = webNotifySignals
         .map((signal) => `• ${signal.ticker}: ${signal.entryPrice.toLocaleString("vi-VN")} VNĐ${signal.reason ? ` — ${signal.reason}` : ""}`)
@@ -979,6 +990,12 @@ async function handleSignalScan5m(): Promise<NextResponse> {
         `⚡ ${windowInfo.label} — ${webNotifySignals.length} tín hiệu mới`,
         `## TÍN HIỆU MỚI (${windowInfo.label})\n\n${signalText}`,
       );
+      telegramSignalBatchResult = await sendClaimedSignalsToTelegram({
+        signals: webNotifySignals,
+        tradingDate: todayISO,
+        slotLabel: windowInfo.label,
+        batchId: ingestResult.artifact.batchId,
+      }).catch((error) => ({ ok: false, error: String(error) }));
     }
 
     if (ingestResult.activatedSignals.length > 0) {
@@ -991,6 +1008,11 @@ async function handleSignalScan5m(): Promise<NextResponse> {
           }),
         ),
       );
+      telegramActiveBatchResult = await sendActiveSignalsToTelegram({
+        signals: ingestResult.activatedSignals,
+        tradingDate: todayISO,
+        slotLabel: windowInfo.label,
+      }).catch((error) => ({ ok: false, error: String(error) }));
     }
 
     invalidateTopics({ tags: ["signal", "signal-scan", "broker", "portfolio"] });
@@ -1010,6 +1032,8 @@ async function handleSignalScan5m(): Promise<NextResponse> {
         notified: ingestResult.notified.length,
         reconciledWebOnly: 0,
         scanArtifact: ingestResult.artifact,
+        telegramSignalBatchResult,
+        telegramActiveBatchResult,
       },
     );
 
