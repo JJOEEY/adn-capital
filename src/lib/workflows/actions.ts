@@ -255,6 +255,18 @@ function resolveTelegramEventKey(
   return `${eventType}:${context.event.type}:${telegramHash(text).slice(0, 16)}`;
 }
 
+function toTelegramPlainText(text: string) {
+  return text
+    .replace(/\\([\\`*_{}\[\]()#+\-.!|])/g, "$1")
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/\*(.*?)\*/g, "$1")
+    .replace(/__(.*?)__/g, "$1")
+    .replace(/_(.*?)_/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 const sendTelegramAction: ActionHandler = async (action, context) => {
   const token = (
     process.env.TELEGRAM_SUPPORT_BOT_TOKEN ??
@@ -279,13 +291,14 @@ const sendTelegramAction: ActionHandler = async (action, context) => {
     };
   }
 
-  const text =
+  const rawText =
     resolveTemplateString(
       action.params?.text ??
         action.params?.message ??
         `Workflow ${context.workflow.workflowKey} triggered by ${context.event.type}.`,
       context.event,
     ) || `Workflow ${context.workflow.workflowKey}`;
+  const text = toTelegramPlainText(rawText);
 
   const eventType = resolveTelegramEventType(context);
   const eventKey = resolveTelegramEventKey(action, context, text);
@@ -297,7 +310,6 @@ const sendTelegramAction: ActionHandler = async (action, context) => {
     chatId,
     tradingDate: resolveTelegramTradingDate(context),
     slot: resolveTelegramSlot(context),
-    parseMode: "Markdown",
   });
 
   if (result.ok && "skipped" in result && result.skipped) {
