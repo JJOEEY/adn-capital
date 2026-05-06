@@ -157,18 +157,6 @@ export const WORKFLOW_DEFINITIONS: WorkflowDefinition[] = [
         deterministic: false,
       },
       {
-        type: "send_telegram",
-        continueOnError: true,
-        params: {
-          // Only ACTIVE signals reach this workflow (toStatuses: ["ACTIVE"]).
-          // The scan group message (sendClaimedSignalsToTelegram) is filtered to
-          // exclude ACTIVE signals, so this per-signal message is NOT a duplicate.
-          text: "🟢 *Signal ACTIVE* {{payload.ticker}} ({{payload.signalType}}) - Entry {{payload.entryPrice}}",
-          dedupeWindowMinutes: 1440,
-        },
-        deterministic: false,
-      },
-      {
         type: "write_log",
         params: {
           action: "WORKFLOW_SIGNAL_ACTIVE",

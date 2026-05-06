@@ -41,8 +41,8 @@ Decision records: [docs/architecture/ADR_INDEX.md](../architecture/ADR_INDEX.md)
   - [docs/ops/POST_EXECUTION_AUDIT_PLAYBOOK.md](./POST_EXECUTION_AUDIT_PLAYBOOK.md)
 
 ## 1) Runtime Ownership
-- `web` owns DataHub cache/topic APIs (`/api/hub/*`).
-- `fiinquant` owns scheduler execution (slot-gated jobs).
+- `web` owns DataHub cache/topic APIs (`/api/hub/*`), cron execution, Telegram publish, and dispatch dedupe.
+- `fiinquant` owns raw provider data/compute endpoints only. It must not self-publish Telegram, self-webhook signals, or run publish schedulers unless explicitly enabled for local diagnostics.
 - `db` stores persistent state (user/signal/report/cron log/broker sync).
 
 ## 2) Environment Contracts
@@ -56,14 +56,24 @@ Expected:
 PYTHON_BRIDGE_URL=http://fiinquant:8000
 DATABASE_URL=postgresql://adnuser:***@pgbouncer:5432/adncapital?schema=public&pgbouncer=true
 DIRECT_DATABASE_URL=postgresql://adnuser:***@db:5432/adncapital?schema=public
+BRIDGE_SCHEDULER_ENABLED=false
+BRIDGE_DIRECT_TELEGRAM_ENABLED=false
+BRIDGE_WEBHOOK_ENABLED=false
+SCANNER_WEBHOOK_INGEST_ENABLED=false
 ```
 
 ## 3) Scheduler Canonical Types
-- `signal_scan_type1` (10:00, 10:30, 14:00, 14:20)
+- `signal_scan_type1` (10:00, 10:30, 14:00, 14:25)
 - `market_stats_type2` (10:00, 11:30, 14:00, 14:45)
 - `morning_brief` (08:00)
 - `close_brief_15h` (15:00)
 - `eod_full_19h` (19:00)
+
+Telegram publish contract:
+- All customer/admin Telegram messages must go through web, never directly from `fiinquant`.
+- `TelegramDispatchLog.eventKey` is the message-level idempotency key.
+- `SignalHistory` remains ticker/day dedupe for newly reported signals.
+- ACTIVE notifications must be batched; avoid one Telegram message per ticker.
 
 Legacy aliases (supported for compatibility only):
 - `signal_scan_5m` -> `signal_scan_type1`

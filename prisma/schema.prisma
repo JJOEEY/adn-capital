@@ -478,6 +478,25 @@ model SignalHistory {
   @@index([sentDate])
 }
 
+model TelegramDispatchLog {
+  id               String    @id @default(cuid())
+  eventKey         String    @unique
+  eventType        String
+  tradingDate      String?
+  slot             String?
+  payloadHash      String
+  status           String    @default("sending")
+  targetChatIdHash String?
+  sentAt           DateTime?
+  error            String?   @db.Text
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([eventType, tradingDate])
+  @@index([status, createdAt])
+  @@index([sentAt])
+}
+
 model GuideCategory {
   id        String         @id @default(cuid())
   title     String
