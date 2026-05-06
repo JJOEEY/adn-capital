@@ -1249,12 +1249,12 @@ function reportDateFromCreatedAt(createdAt: Date): string {
 
 function getReportDateKey(report: ReportRow): string {
   const raw = parseJsonMaybe(report.rawData);
-  const eodDetail = raw ? pickRecord(raw, ["eodDetail", "eod_detail", "eod", "brief", "payload"]) : null;
-  const dateFromEodDetail = toDateKey(eodDetail?.date);
-  if (dateFromEodDetail) return dateFromEodDetail;
   const snapshot = getSnapshot(raw);
   const dateFromSnapshot = typeof snapshot.requestDateVN === "string" ? snapshot.requestDateVN : null;
   if (dateFromSnapshot && /^\d{4}-\d{2}-\d{2}$/.test(dateFromSnapshot)) return dateFromSnapshot;
+  const eodDetail = raw ? pickRecord(raw, ["eodDetail", "eod_detail", "eod", "brief", "payload"]) : null;
+  const dateFromEodDetail = toDateKey(eodDetail?.date);
+  if (dateFromEodDetail) return dateFromEodDetail;
   return reportDateFromCreatedAt(report.createdAt);
 }
 
@@ -1379,16 +1379,19 @@ function toMorningPayload(report: { createdAt: Date; content: string; rawData: s
 function toEodPayload(report: { createdAt: Date; content: string; rawData: string | null }): EodPayload {
   const normalizedContent = repairMojibake(report.content);
   const raw = parseJsonMaybe(report.rawData);
-  const eodDetailFromRaw = raw ? pickRecord(raw, ["eodDetail", "eod_detail", "eod", "brief", "payload"]) : null;
+  const snapshot = getSnapshot(raw);
+  const reportDateKey = getReportDateKey(report);
+  const rawEodDetail = raw ? pickRecord(raw, ["eodDetail", "eod_detail", "eod", "brief", "payload"]) : null;
+  const eodDetailDateKey = toDateKey(rawEodDetail?.date);
+  const eodDetailFromRaw =
+    rawEodDetail && (!eodDetailDateKey || eodDetailDateKey === reportDateKey) ? rawEodDetail : null;
   if (eodDetailFromRaw) {
     const bridgePayload = fromBridgeEodPayload(eodDetailFromRaw as unknown as FiinEodNews);
     if (hasDetailedFlowLists(bridgePayload) && Number.isFinite(bridgePayload.liquidity) && bridgePayload.liquidity > 0) {
       return bridgePayload;
     }
   }
-  const snapshot = getSnapshot(raw);
   const indices = extractIndices(snapshot, normalizedContent);
-  const reportDateKey = getReportDateKey(report);
   const vnindex = indices.find((item) => item.name === "VN-INDEX");
 
   const breadth = parseBreadth(snapshot.breadth ?? snapshot.market_breadth, normalizedContent);
@@ -1464,7 +1467,7 @@ function toEodPayload(report: { createdAt: Date; content: string; rawData: strin
     normalizedContent,
     "Bản tin kết phiên đã được tạo. Hệ thống đang đồng bộ thêm dữ liệu hiển thị.",
   );
-  const eodDetail = raw ? pickRecord(raw, ["eodDetail", "eod_detail", "eod", "brief", "payload"]) : null;
+  const eodDetail = eodDetailFromRaw;
   const propDataRecord = raw ? pickRecord(raw, ["propData", "prop_data", "proprietaryTrading"]) : null;
   const arrayRecords = [raw, eodDetail, snapshot, propDataRecord];
 
