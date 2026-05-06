@@ -10,6 +10,7 @@ import {
   latestTurnoverPriceFromPayload,
   marketPriceScaleFromPayload,
 } from "@/lib/market-price-normalization";
+import { normalizeHistoricalPriceWithSnapshot, type StockPriceSnapshot } from "@/lib/market-price-snapshot";
 import { extractTickerCandidates as extractTickerCandidatesFromText } from "@/lib/ticker-text";
 import { resolveMarketTicker } from "@/lib/ticker-resolver";
 
@@ -156,39 +157,45 @@ function classifyLastCandle(candles: ReturnType<typeof normalizeHistoricalCandle
   return { ...last, direction, bodyPct, rangePct, volumeVsMa20, vsaWyckoff };
 }
 
-function buildAnalysisMetrics(wb: JsonRecord, realtime: unknown, historical: unknown) {
+function buildAnalysisMetrics(wb: JsonRecord, realtime: unknown, historical: unknown, priceSnapshotValue?: unknown) {
   const ta = asRecord(wb.ta);
   const fa = asRecord(wb.fa);
   const signal = asRecord(wb.signal);
+  const priceSnapshot = asRecord(priceSnapshotValue ?? wb.priceSnapshot);
+  const typedPriceSnapshot = priceSnapshot as unknown as StockPriceSnapshot;
   const realtimeLast = asRecord(lastRow(realtime));
   const candles = normalizeHistoricalCandles(historical);
   const payloadScale = marketPriceScaleFromPayload(historical);
   const historicalMarketPrice = latestTurnoverPriceFromPayload(historical);
   const historicalClosePrice = latestClosePriceFromPayload(historical);
   const anchorPrice = chooseMarketDisplayPrice(historicalClosePrice, historicalMarketPrice);
-  const rawCurrentPrice = asNumber(ta.currentPrice) ?? asNumber(realtimeLast.close ?? realtimeLast.price);
+  const snapshotPrice = asNumber(priceSnapshot.price);
+  const rawCurrentPrice = snapshotPrice ?? asNumber(ta.currentPrice) ?? asNumber(realtimeLast.close ?? realtimeLast.price);
   const anchorScale = anchorPrice != null && rawCurrentPrice != null && rawCurrentPrice > 0
     ? anchorPrice / rawCurrentPrice
     : 1;
-  const historicalScale = Math.abs(anchorScale - 1) >= 0.08
+  const snapshotHistoricalScale = asNumber(priceSnapshot.historicalScale);
+  const historicalScale = snapshotHistoricalScale != null && snapshotHistoricalScale > 0
+    ? snapshotHistoricalScale
+    : Math.abs(anchorScale - 1) >= 0.08
     ? anchorScale
     : payloadScale !== 1
       ? payloadScale
       : 1;
-  const currentPrice = chooseMarketDisplayPrice(applyMarketPriceScale(rawCurrentPrice, historicalScale), anchorPrice);
+  const currentPrice = snapshotPrice ?? chooseMarketDisplayPrice(applyMarketPriceScale(rawCurrentPrice, historicalScale), anchorPrice);
   const ma20 = applyMarketPriceScale(asNumber(ta.sma20) ?? asNumber(ta.ema20), historicalScale);
   const ma50 = applyMarketPriceScale(asNumber(ta.sma50) ?? asNumber(ta.ema50), historicalScale);
   const ma200 = applyMarketPriceScale(asNumber(ta.sma200) ?? asNumber(ta.ema200), historicalScale);
-  const volumeMa20 = asNumber(ta.avgVolume20);
+  const volumeMa20 = asNumber(priceSnapshot.volumeMa20) ?? asNumber(ta.avgVolume20);
   const volume10 = Array.isArray(ta.volume10) ? ta.volume10 : [];
-  const latestVolume = asNumber(realtimeLast.volume) ?? asNumber(volume10.at(-1));
-  const support = applyMarketPriceScale(asNumber(signal.stoploss), historicalScale)
+  const latestVolume = asNumber(priceSnapshot.latestVolume) ?? asNumber(realtimeLast.volume) ?? asNumber(volume10.at(-1));
+  const support = normalizeHistoricalPriceWithSnapshot(asNumber(signal.stoploss), typedPriceSnapshot)
     ?? applyMarketPriceScale(readNestedNumber(ta, ["bollinger", "lower"]), historicalScale)
     ?? applyMarketPriceScale(asNumber(ta.low52w), historicalScale);
-  const resistance = applyMarketPriceScale(asNumber(signal.target), historicalScale)
+  const resistance = normalizeHistoricalPriceWithSnapshot(asNumber(signal.target), typedPriceSnapshot)
     ?? applyMarketPriceScale(readNestedNumber(ta, ["bollinger", "upper"]), historicalScale)
     ?? applyMarketPriceScale(asNumber(ta.high52w), historicalScale);
-  const entry = applyMarketPriceScale(asNumber(signal.entryPrice), historicalScale);
+  const entry = normalizeHistoricalPriceWithSnapshot(asNumber(signal.entryPrice), typedPriceSnapshot);
   const safeZoneLow = support;
   const safeZoneHigh = entry ?? ma20 ?? currentPrice;
   const macdHistogram = readNestedNumber(ta, ["macd", "histogram"]);
@@ -232,12 +239,21 @@ function buildAnalysisMetrics(wb: JsonRecord, realtime: unknown, historical: unk
       status: signal.status ?? null,
       type: signal.type ?? null,
       entryPrice: entry,
-      target: applyMarketPriceScale(asNumber(signal.target), historicalScale),
-      stoploss: applyMarketPriceScale(asNumber(signal.stoploss), historicalScale),
+      target: normalizeHistoricalPriceWithSnapshot(asNumber(signal.target), typedPriceSnapshot),
+      stoploss: normalizeHistoricalPriceWithSnapshot(asNumber(signal.stoploss), typedPriceSnapshot),
       currentPnl: asNumber(signal.currentPnl),
       winRate: asNumber(signal.winRate),
       rrRatio: signal.rrRatio ?? null,
     },
+    priceSnapshot: stripInternalFields({
+      price: currentPrice,
+      close: asNumber(priceSnapshot.close) ?? anchorPrice,
+      previousClose: asNumber(priceSnapshot.previousClose),
+      changePct: asNumber(priceSnapshot.changePct) ?? asNumber(ta.changePct),
+      latestVolume,
+      priceDate: priceSnapshot.priceDate ?? null,
+      realtimeAt: priceSnapshot.realtimeAt ?? null,
+    }),
     valuation: {
       pe: asNumber(fa.pe),
       pb: asNumber(fa.pb),
@@ -339,20 +355,31 @@ function buildTickerContext(ticker: string, envelopes: Array<{ topic: string; en
   const workbench = envelopes.find((item) => item.topic.startsWith("research:workbench:"))?.envelope.value;
   const standaloneTA = envelopes.find((item) => item.topic.startsWith("vn:ta:"))?.envelope.value;
   const standaloneFA = envelopes.find((item) => item.topic.startsWith("vn:fa:"))?.envelope.value;
+  const priceSnapshot = envelopes.find((item) => item.topic.startsWith("vn:price-snapshot:"))?.envelope.value;
   const realtime = envelopes.find((item) => item.topic.startsWith("vn:realtime:"))?.envelope.value;
   const depth = envelopes.find((item) => item.topic.startsWith("vn:depth:"))?.envelope.value;
   const historical = envelopes.find((item) => item.topic.startsWith("vn:historical:"))?.envelope.value;
   const wb = asRecord(workbench);
   const wbTA = asRecord(wb.ta);
   const wbFA = asRecord(wb.fa);
-  const ta = Object.keys(wbTA).length > 0 ? wbTA : standaloneTA;
-  const fa = Object.keys(wbFA).length > 0 ? wbFA : standaloneFA;
-  const mergedWorkbench = { ...wb, ta, fa };
+  const ta = Object.keys(asRecord(standaloneTA)).length > 0 ? standaloneTA : wbTA;
+  const fa = Object.keys(asRecord(standaloneFA)).length > 0 ? standaloneFA : wbFA;
+  const mergedWorkbench = { ...wb, ta, fa, priceSnapshot: priceSnapshot ?? wb.priceSnapshot };
+  const analysisMetrics = buildAnalysisMetrics(mergedWorkbench, realtime, historical, priceSnapshot);
 
   return {
     ticker,
-    analysisMetrics: buildAnalysisMetrics(mergedWorkbench, realtime, historical),
-    ta: stripInternalFields(ta ?? null),
+    priceSnapshot: stripInternalFields(priceSnapshot ?? wb.priceSnapshot ?? null),
+    analysisMetrics,
+    ta: stripInternalFields({
+      currentPrice: asRecord(analysisMetrics).price ?? asRecord(priceSnapshot).price ?? asRecord(ta).currentPrice ?? null,
+      changePct: asRecord(priceSnapshot).changePct ?? asRecord(ta).changePct ?? null,
+      sma20: asRecord(asRecord(analysisMetrics).movingAverages).ma20 ?? asRecord(ta).sma20 ?? null,
+      sma50: asRecord(asRecord(analysisMetrics).movingAverages).ma50 ?? asRecord(ta).sma50 ?? null,
+      sma200: asRecord(asRecord(analysisMetrics).movingAverages).ma200 ?? asRecord(ta).sma200 ?? null,
+      rsi14: asRecord(asRecord(analysisMetrics).momentum).rsi14 ?? asRecord(ta).rsi14 ?? null,
+      avgVolume20: asRecord(asRecord(analysisMetrics).volume).volumeMa20 ?? asRecord(ta).avgVolume20 ?? null,
+    }),
     fa: stripInternalFields(fa ?? null),
     signal: stripInternalFields(wb.signal ?? null),
     adnCore: stripInternalFields(wb.adnCore ?? null),
@@ -360,8 +387,10 @@ function buildTickerContext(ticker: string, envelopes: Array<{ topic: string; en
     market: stripInternalFields(wb.market ?? null),
     investor: stripInternalFields(wb.investor ?? null),
     news: stripInternalFields(Array.isArray(wb.news) ? wb.news.slice(0, 5) : []),
-    realtimeSummary: stripInternalFields(asRecord(realtime).summary ?? null),
-    realtimeLastBar: stripInternalFields(lastRow(realtime)),
+    realtimeSummary: stripInternalFields({
+      price: asRecord(priceSnapshot).price ?? null,
+      updatedAt: asRecord(priceSnapshot).realtimeAt ?? asRecord(priceSnapshot).priceDate ?? null,
+    }),
     orderbook: stripInternalFields(depth ?? null),
     dataSummary: wb.summary ?? null,
   };
@@ -450,6 +479,7 @@ function buildSystemInstruction() {
 
 Quy tắc bắt buộc:
 - Chỉ dùng dữ liệu trong INTERNAL_CONTEXT. Không tự bịa giá, P/E, P/B, target, stoploss, khối lượng hoặc tin tức.
+- Với mã cổ phiếu, giá hiện tại, % thay đổi, MA, volume và vùng giá phải ưu tiên analysisMetrics và priceSnapshot. Nếu raw realtime/orderbook/candle khác số này thì bỏ qua raw để tránh mâu thuẫn.
 - Không bao giờ nhắc DataHub, FiinQuant, bridge, provider, API, cache, backend hoặc tên nguồn nội bộ trong câu trả lời cho khách hàng.
 - Không mở đầu bằng câu mô tả AIDEN đang dựa trên nguồn dữ liệu nào. Đi thẳng vào mã cổ phiếu và nhận định.
 - Không được viết "chưa có dữ liệu FA", "không có dữ liệu FA", "FA null" hoặc các câu tương tự.
@@ -872,6 +902,7 @@ async function loadTickerContexts(tickers: string[], context: TopicContext) {
     tickers.map(async (ticker) => {
       const topics = [
         `research:workbench:${ticker}`,
+        `vn:price-snapshot:${ticker}`,
         `vn:ta:${ticker}`,
         `vn:fa:${ticker}`,
         `vn:realtime:${ticker}:5m`,

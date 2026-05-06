@@ -20,6 +20,7 @@ import {
   marketPriceScaleFromPayload,
   normalizeHistoricalPricePayload,
 } from "@/lib/market-price-normalization";
+import { buildStockPriceSnapshot, type StockPriceSnapshot } from "@/lib/market-price-snapshot";
 import { resolveTopicFamily, resolveTopicStaleWindowMs } from "./policy";
 import { TopicContext, TopicDefinition } from "./types";
 
@@ -583,6 +584,21 @@ async function loadRealtimeTicker(ticker: string, timeframe: string) {
   return normalizedRealtime;
 }
 
+async function loadPriceSnapshotForTicker(ticker: string) {
+  const [historical, realtime, ta] = await Promise.all([
+    loadHistoricalTicker(ticker).catch(() => null),
+    loadRealtimeTicker(ticker, "5m").catch(() => null),
+    fetchTAData(ticker).catch(() => null),
+  ]);
+
+  return buildStockPriceSnapshot({
+    ticker,
+    historical,
+    realtime,
+    ta,
+  });
+}
+
 function scalePriceField(value: number | null | undefined, scale: number) {
   return applyMarketPriceScale(value, scale);
 }
@@ -651,6 +667,25 @@ function normalizeTAWithHistorical(
           lower: scalePriceField(ta.bollinger.lower, scale) ?? ta.bollinger.lower,
         }
       : ta.bollinger,
+  };
+}
+
+function applyPriceSnapshotToTA(ta: TAData | null, snapshot: StockPriceSnapshot): TAData | null {
+  if (!ta) return ta;
+  const currentPrice = snapshot.price ?? ta.currentPrice;
+  const refPrice = snapshot.previousClose ?? ta.refPrice;
+  const change = currentPrice != null && refPrice != null ? currentPrice - refPrice : ta.change;
+  const changePct = currentPrice != null && refPrice != null && refPrice > 0
+    ? Number(((change / refPrice) * 100).toFixed(2))
+    : ta.changePct;
+
+  return {
+    ...ta,
+    currentPrice,
+    refPrice,
+    prevClose: snapshot.previousClose ?? ta.prevClose,
+    change,
+    changePct,
   };
 }
 
@@ -906,8 +941,14 @@ async function loadResearchWorkbench(topicKey: string) {
       return null;
     }),
   ]);
-  const recentClose = latestClosePriceFromPayload(historical);
-  const ta = normalizeTAWithHistorical(taRaw, historical, recentClose);
+  const priceSnapshot = buildStockPriceSnapshot({
+    ticker: normalizedTicker,
+    historical,
+    realtime: investor,
+    ta: taRaw,
+  });
+  const recentClose = priceSnapshot.price ?? latestClosePriceFromPayload(historical);
+  const ta = applyPriceSnapshotToTA(normalizeTAWithHistorical(taRaw, historical, recentClose), priceSnapshot);
   const fa = hydrateFAFromRecentAnalysis(normalizedTicker, faRaw, aiCaches, ta);
 
   return {
@@ -921,6 +962,7 @@ async function loadResearchWorkbench(topicKey: string) {
     },
     adnCore: marketSnapshot.marketOverview,
     art,
+    priceSnapshot,
     ta,
     fa,
     seasonality,
@@ -2151,6 +2193,23 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     resolve: async () => loadRecentResearchTickers(),
   },
   {
+    id: "vn:price-snapshot:{ticker}",
+    ttlMs: 60_000,
+    minIntervalMs: 10_000,
+    staleWhileRevalidateMs: 120_000,
+    source: "aggregator:price-snapshot",
+    version: "v1",
+    tags: ["research", "price", "snapshot", "market"],
+    match: (topicKey) => {
+      const match = topicKey.match(/^vn:price-snapshot:([A-Z0-9._-]{1,12})$/);
+      return match ? { ok: true, params: { ticker: match[1] } } : { ok: false };
+    },
+    resolve: async (_, __, params) => {
+      const resolved = await assertValidTicker(params.ticker);
+      return loadPriceSnapshotForTicker(resolved.ticker);
+    },
+  },
+  {
     id: "vn:ta:{ticker}",
     ttlMs: 120_000,
     minIntervalMs: 15_000,
@@ -2163,12 +2222,19 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     },
     resolve: async (_, __, params) => {
       const resolved = await assertValidTicker(params.ticker);
-      const [ta, historical] = await Promise.all([
+      const [ta, historical, realtime] = await Promise.all([
         fetchTAData(resolved.ticker),
         loadHistoricalTicker(resolved.ticker).catch(() => null),
+        loadRealtimeTicker(resolved.ticker, "5m").catch(() => null),
       ]);
-      const recentClose = latestClosePriceFromPayload(historical);
-      return normalizeTAWithHistorical(ta, historical, recentClose);
+      const priceSnapshot = buildStockPriceSnapshot({
+        ticker: resolved.ticker,
+        historical,
+        realtime,
+        ta,
+      });
+      const recentClose = priceSnapshot.price ?? latestClosePriceFromPayload(historical);
+      return applyPriceSnapshotToTA(normalizeTAWithHistorical(ta, historical, recentClose), priceSnapshot);
     },
   },
   {

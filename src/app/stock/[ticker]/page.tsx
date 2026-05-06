@@ -43,6 +43,7 @@ type SignalData = {
 
 type WorkbenchPayload = {
   ticker: string;
+  priceSnapshot?: PriceSnapshotPayload | null;
   ta?: {
     currentPrice?: number;
     changePct?: number;
@@ -78,6 +79,20 @@ type WorkbenchPayload = {
     status?: string | null;
   } | null;
   signal?: SignalData | null;
+};
+
+type PriceSnapshotPayload = {
+  ticker: string;
+  price?: number | null;
+  close?: number | null;
+  previousClose?: number | null;
+  change?: number | null;
+  changePct?: number | null;
+  latestVolume?: number | null;
+  volumeMa20?: number | null;
+  priceDate?: string | null;
+  realtimeAt?: string | null;
+  selected?: string | null;
 };
 
 type TickerResolution = {
@@ -309,15 +324,25 @@ function FreshnessBadge({ label, freshness }: { label: string; freshness: string
   );
 }
 
-function StockOverviewPanel({ workbench, realtimePrice, realtimeChangePct, aidenRecommendation }: {
+function StockOverviewPanel({ workbench, priceSnapshot, realtimePrice, realtimeChangePct, aidenRecommendation }: {
   workbench: WorkbenchPayload | null;
+  priceSnapshot?: PriceSnapshotPayload | null;
   realtimePrice: number | null;
   realtimeChangePct: number | null;
   aidenRecommendation: AidenRecommendation | null;
 }) {
   const signal = workbench?.signal ?? null;
-  const ta = workbench?.ta ?? null;
+  let ta = workbench?.ta ?? null;
   const fa = workbench?.fa ?? null;
+  const snapshot = priceSnapshot ?? workbench?.priceSnapshot ?? null;
+  ta = snapshot
+    ? {
+        ...(ta ?? {}),
+        currentPrice: snapshot.price ?? ta?.currentPrice,
+        changePct: snapshot.changePct ?? ta?.changePct,
+        avgVolume20: snapshot.volumeMa20 ?? ta?.avgVolume20,
+      }
+    : ta;
   const reference = aidenRecommendation ?? {
     entryPrice: signal?.entryPrice,
     target: signal?.target,
@@ -662,6 +687,12 @@ export default function StockDetailPage() {
     revalidateOnFocus: false,
     dedupingInterval: 30_000,
   });
+  const priceSnapshotTopic = useTopic<PriceSnapshotPayload>(`vn:price-snapshot:${resolvedTicker}`, {
+    enabled: isTickerValid,
+    refreshInterval: 15_000,
+    revalidateOnFocus: false,
+    dedupingInterval: 10_000,
+  });
   const realtimeTopic = useTopic<unknown>(`vn:realtime:${resolvedTicker}:${timeframe === "1D" ? "5m" : timeframe}`, {
     enabled: isTickerValid,
     refreshInterval: timeframe === "1D" ? 0 : 5_000,
@@ -778,12 +809,13 @@ export default function StockDetailPage() {
   );
   const chartCandles = timeframe === "1D" || !intradayUsable ? historicalCandles : realtimeCandles;
   const workbench = workbenchTopic.data;
+  const priceSnapshot = priceSnapshotTopic.data ?? workbench?.priceSnapshot ?? null;
   const historicalMarketPrice = useMemo(() => readHistoricalMarketPrice(historicalTopic.data), [historicalTopic.data]);
-  const realtimePrice = chooseMarketDisplayPrice(
+  const realtimePrice = priceSnapshot?.price ?? chooseMarketDisplayPrice(
     readRealtimePrice(realtimeTopic.data) ?? workbench?.ta?.currentPrice ?? null,
     historicalMarketPrice,
   );
-  const realtimeChangePct = readRealtimeChangePct(realtimeTopic.data) ?? workbench?.ta?.changePct ?? null;
+  const realtimeChangePct = priceSnapshot?.changePct ?? readRealtimeChangePct(realtimeTopic.data) ?? workbench?.ta?.changePct ?? null;
   const activeAidenRecommendation = aidenRecommendations[resolvedTicker] ?? null;
 
   useEffect(() => {
@@ -795,6 +827,7 @@ export default function StockDetailPage() {
   const refreshAll = () => {
     void tickerResolutionTopic.refresh(true);
     void workbenchTopic.refresh(true);
+    void priceSnapshotTopic.refresh(true);
     void realtimeTopic.refresh(true);
     void historicalTopic.refresh(true);
     void depthTopic.refresh(true);
@@ -1000,7 +1033,7 @@ export default function StockDetailPage() {
             <div className="mt-1 flex flex-wrap gap-1.5">
               <FreshnessBadge label="Mã" freshness={tickerResolutionTopic.freshness} />
               <FreshnessBadge label="Phân tích" freshness={workbenchTopic.freshness} />
-              <FreshnessBadge label="Giá" freshness={realtimeTopic.freshness} />
+              <FreshnessBadge label="Giá" freshness={priceSnapshotTopic.freshness ?? realtimeTopic.freshness} />
               <FreshnessBadge label="Sổ lệnh" freshness={depthTopic.freshness} />
             </div>
           </div>
@@ -1031,7 +1064,7 @@ export default function StockDetailPage() {
               </button>
             </form>
             <button onClick={refreshAll} className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold" style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--text-secondary)" }}>
-              <RefreshCw className={`h-4 w-4 ${workbenchTopic.isValidating || realtimeTopic.isValidating ? "animate-spin" : ""}`} />
+              <RefreshCw className={`h-4 w-4 ${workbenchTopic.isValidating || priceSnapshotTopic.isValidating || realtimeTopic.isValidating ? "animate-spin" : ""}`} />
               Làm mới
             </button>
           </div>
@@ -1057,6 +1090,7 @@ export default function StockDetailPage() {
                 />
                 <StockOverviewPanel
                   workbench={workbench ?? null}
+                  priceSnapshot={priceSnapshot}
                   realtimePrice={realtimePrice}
                   realtimeChangePct={realtimeChangePct}
                   aidenRecommendation={activeAidenRecommendation}
