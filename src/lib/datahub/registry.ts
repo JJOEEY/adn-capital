@@ -8,7 +8,8 @@ import { resolveMarketTicker } from "@/lib/ticker-resolver";
 import { listDnseOrderHistory } from "@/lib/brokers/dnse/order-history";
 import { decryptDnseToken } from "@/lib/brokers/dnse/crypto";
 import { getDnseTradingClient } from "@/lib/providers/dnse/trading-client";
-import type { SignalScanArtifact } from "@/lib/signals/ingest";
+import { SIGNAL_SCAN_SLOTS, type SignalScanArtifact } from "@/lib/signals/ingest";
+import { RADAR_SCAN_BUDGET } from "@/lib/signals/radar-scan-config";
 import { loadReportedSignalSummary } from "@/lib/signals/report-history";
 import { normalizeSignalPrice } from "@/lib/signals/price-units";
 import {
@@ -58,6 +59,27 @@ async function loadCompositeLive() {
   const res = await mod.GET(new NextRequest("http://localhost/api/market-overview"));
   if (!res.ok) throw new Error(`market-overview HTTP ${res.status}`);
   return res.json();
+}
+
+async function loadRadarWatchlistActive() {
+  return {
+    kind: "radar_watchlist_active",
+    version: "v1",
+    policy: "hot_plus_wide_confirm",
+    slots: SIGNAL_SCAN_SLOTS,
+    budget: RADAR_SCAN_BUDGET,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+async function loadRadarPrefilterLatest() {
+  const latestScan = await loadLatestSignalScanArtifact();
+  return {
+    kind: "radar_prefilter_latest",
+    version: "v1",
+    latestScan,
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 async function loadIndexValuation(ticker: string) {
@@ -1928,6 +1950,26 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     tags: ["signal", "public"],
     match: (topicKey) => (topicKey === "signal:market:radar" ? { ok: true } : { ok: false }),
     resolve: async () => loadSignalList("RADAR"),
+  },
+  {
+    id: "radar:watchlist:active",
+    ttlMs: 60_000,
+    minIntervalMs: 10_000,
+    source: "config:radar",
+    version: "v1",
+    tags: ["signal", "signal-scan", "radar", "internal"],
+    match: (topicKey) => (topicKey === "radar:watchlist:active" ? { ok: true } : { ok: false }),
+    resolve: async () => loadRadarWatchlistActive(),
+  },
+  {
+    id: "radar:prefilter:latest",
+    ttlMs: 60_000,
+    minIntervalMs: 10_000,
+    source: "db:cron-log",
+    version: "v1",
+    tags: ["signal", "signal-scan", "radar", "internal"],
+    match: (topicKey) => (topicKey === "radar:prefilter:latest" ? { ok: true } : { ok: false }),
+    resolve: async () => loadRadarPrefilterLatest(),
   },
   {
     id: "signal:market:active",

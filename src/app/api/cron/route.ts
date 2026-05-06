@@ -41,6 +41,7 @@ import { getPythonBridgeUrl } from "@/lib/runtime-config";
 import { emitWorkflowTrigger } from "@/lib/workflows";
 import { emitObservabilityEvent } from "@/lib/observability";
 import { SIGNAL_SCAN_SLOT_SET, ingestSignalScanBatch } from "@/lib/signals/ingest";
+import { chooseRadarScanMode, RADAR_SCAN_BUDGET } from "@/lib/signals/radar-scan-config";
 import {
   sendActiveHoldingsToTelegram,
   sendActiveSignalsToTelegram,
@@ -53,6 +54,43 @@ export const dynamic = "force-dynamic";
 const PYTHON_BRIDGE = getPythonBridgeUrl();
 const MARKET_OVERVIEW_CACHE_FILE = path.join(process.cwd(), "market_cache.json");
 const EOD_FULL_MINUTE_VN = 19 * 60;
+
+interface RadarQuotaEstimate {
+  monthlyUsed: number;
+  monthlyUsedPct: number;
+}
+
+function readRadarQuotaCost(resultData: string | null): number {
+  if (!resultData) return 0;
+  try {
+    const parsed = JSON.parse(resultData) as {
+      radarQuota?: { estimatedCost?: unknown };
+      radarScan?: { estimatedQuotaCost?: unknown };
+    };
+    const value = parsed.radarQuota?.estimatedCost ?? parsed.radarScan?.estimatedQuotaCost;
+    return typeof value === "number" && Number.isFinite(value) ? value : 0;
+  } catch {
+    return 0;
+  }
+}
+
+async function getRadarMonthlyQuotaEstimate(): Promise<RadarQuotaEstimate> {
+  const monthStart = getVnNow().startOf("month").toDate();
+  const rows = await prisma.cronLog.findMany({
+    where: {
+      cronName: "signal_scan_type1",
+      createdAt: { gte: monthStart },
+    },
+    select: { resultData: true },
+    take: 500,
+    orderBy: { createdAt: "desc" },
+  });
+  const monthlyUsed = rows.reduce((sum, row) => sum + readRadarQuotaCost(row.resultData), 0);
+  return {
+    monthlyUsed,
+    monthlyUsedPct: RADAR_SCAN_BUDGET.monthlyQuota > 0 ? (monthlyUsed / RADAR_SCAN_BUDGET.monthlyQuota) * 100 : 0,
+  };
+}
 
 function getVnMinuteOfDay(): number {
   const now = getVnNow();
@@ -973,13 +1011,39 @@ async function handleSignalScan5m(): Promise<NextResponse> {
   try {
     const todayISO = getVNDateISO();
     const windowInfo = getSignalWindowInfo(vnNow.toDate());
-    const res = await fetch(`${PYTHON_BRIDGE}/api/v1/scan-now`, {
+    const radarQuota = await getRadarMonthlyQuotaEstimate();
+    const scanMode = chooseRadarScanMode(timeKey, radarQuota.monthlyUsedPct);
+    if (!scanMode) {
+      const duration = Date.now() - startTime;
+      await logCron("signal_scan_type1", "skipped", "Radar quota guard: skip non-critical scan", duration, {
+        radarQuota,
+        budget: RADAR_SCAN_BUDGET,
+        slot: timeKey,
+      });
+      return NextResponse.json({
+        type: "signal_scan_type1",
+        skipped: true,
+        reason: "quota_guard",
+        radarQuota,
+      });
+    }
+
+    const scanUrl = new URL("/api/v1/scan-now", PYTHON_BRIDGE);
+    scanUrl.searchParams.set("mode", scanMode);
+    const res = await fetch(scanUrl.toString(), {
       method: "POST",
       signal: AbortSignal.timeout(90_000),
     });
     if (!res.ok) throw new Error(`Python scanner HTTP ${res.status}`);
 
-    const scanResult: { detected?: number; signals?: PythonScanSignal[] } = await res.json();
+    const scanResult: {
+      detected?: number;
+      estimated_quota_cost?: number;
+      scan_mode?: string;
+      signals?: PythonScanSignal[];
+      universe_size?: number;
+      watchlist_size?: number;
+    } = await res.json();
     const signals = Array.isArray(scanResult.signals) ? scanResult.signals : [];
     const ingestResult = await ingestSignalScanBatch({
       signals,
@@ -1055,6 +1119,24 @@ async function handleSignalScan5m(): Promise<NextResponse> {
         updated: ingestResult.updated,
         notified: ingestResult.notified.length,
         reconciledWebOnly: 0,
+        radarScan: {
+          requestedMode: scanMode,
+          bridgeMode: scanResult.scan_mode ?? scanMode,
+          universeSize: scanResult.universe_size ?? null,
+          watchlistSize: scanResult.watchlist_size ?? null,
+          estimatedQuotaCost:
+            typeof scanResult.estimated_quota_cost === "number" && Number.isFinite(scanResult.estimated_quota_cost)
+              ? scanResult.estimated_quota_cost
+              : scanResult.universe_size ?? 0,
+        },
+        radarQuota: {
+          ...radarQuota,
+          budget: RADAR_SCAN_BUDGET.monthlyQuota,
+          estimatedCost:
+            typeof scanResult.estimated_quota_cost === "number" && Number.isFinite(scanResult.estimated_quota_cost)
+              ? scanResult.estimated_quota_cost
+              : scanResult.universe_size ?? 0,
+        },
         scanArtifact: ingestResult.artifact,
         telegramSignalBatchResult,
         telegramActiveBatchResult,
@@ -1074,6 +1156,8 @@ async function handleSignalScan5m(): Promise<NextResponse> {
       created: ingestResult.created,
       updated: ingestResult.updated,
       notified: ingestResult.notified.length,
+      scanMode,
+      universeSize: scanResult.universe_size ?? null,
       reconciledWebOnly: 0,
       totalSignaledToday,
     });

@@ -69,6 +69,11 @@ SCANNER_WEBHOOK_INGEST_ENABLED=false
 - `close_brief_15h` (15:00)
 - `eod_full_19h` (19:00)
 
+ADN Radar scan contract:
+- Universe chính là `RADAR_WATCHLIST_500`; hot scan dùng `RADAR_HOT_WATCHLIST`.
+- Không quét sâu toàn bộ thị trường hoặc 1.700 mã theo chu kỳ 5 phút.
+- Web cron chọn `hot`/`wide` theo slot và quota guard; bridge chỉ trả raw scan payload.
+
 Telegram publish contract:
 - All customer/admin Telegram messages must go through web, never directly from `fiinquant`.
 - `TelegramDispatchLog.eventKey` is the message-level idempotency key.
