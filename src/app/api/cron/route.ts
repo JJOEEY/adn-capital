@@ -689,6 +689,49 @@ function hasCompleteEodDetail(eodDetail: FiinEodNews | null | undefined): boolea
   return Number.isFinite(liquidity) && liquidity > 0 && hasOutlook && countEodDetailBuckets(eodDetail) >= 3;
 }
 
+function readBridgeNumber(value: unknown): number | null {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : null;
+}
+
+function nearlyEqual(a: number | null | undefined, b: number | null | undefined, tolerance: number): boolean {
+  if (a == null || b == null) return false;
+  return Math.abs(a - b) <= tolerance;
+}
+
+function isEodDetailCurrentForSnapshot(
+  eodDetail: FiinEodNews | null | undefined,
+  snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>,
+  expectedDateKey: string,
+): boolean {
+  if (!eodDetail || !hasCompleteEodDetail(eodDetail)) return false;
+  const detailDateKey = toDateKey(eodDetail.date);
+  if (detailDateKey === expectedDateKey) return true;
+
+  const vnindex = snapshot.indices.find((item) => item.ticker === "VNINDEX");
+  const detailVnindex = readBridgeNumber(eodDetail.vnindex);
+  const detailChangePct = readBridgeNumber(eodDetail.change_pct);
+  const indexMatches = nearlyEqual(detailVnindex, vnindex?.value, 0.25);
+  const changeMatches = nearlyEqual(detailChangePct, vnindex?.changePct, 0.08);
+
+  // Bridge may refresh numbers before its date label. Accept only when the
+  // VNINDEX numeric fingerprint matches the canonical market snapshot.
+  return indexMatches && changeMatches;
+}
+
+function normalizeEodDetailDate(
+  eodDetail: FiinEodNews | null | undefined,
+  dateLabel: string,
+  snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>,
+  expectedDateKey: string,
+): FiinEodNews | null {
+  if (!isEodDetailCurrentForSnapshot(eodDetail, snapshot, expectedDateKey)) return null;
+  return {
+    ...eodDetail!,
+    date: dateLabel,
+  };
+}
+
 async function handlePropTrading(forceRun = false): Promise<NextResponse> {
   const startTime = Date.now();
   const today = getVNDateString();
@@ -732,7 +775,12 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
     ]);
     saveMarketOverviewCache(snapshot.marketOverview);
 
-    if (!hasCompleteEodDetail(eodDetail)) {
+    const eodDetailComplete = hasCompleteEodDetail(eodDetail);
+    const eodDetailCurrent = isEodDetailCurrentForSnapshot(eodDetail, snapshot, dateISO);
+    const eodDetailDateKey = toDateKey(eodDetail?.date);
+    const normalizedEodDetail = normalizeEodDetailDate(eodDetail, today, snapshot, dateISO);
+
+    if (!eodDetailComplete) {
       if (!forceRun) {
         const duration = Date.now() - startTime;
         await logCron("eod_full_19h", "skipped", "EOD detail incomplete, keep previous complete report", duration, {
@@ -749,8 +797,7 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
       console.log("[eod_full_19h] forceRun: bypassing incomplete eodDetail, using snapshot only");
     }
 
-    const eodDetailDateKey = toDateKey(eodDetail?.date);
-    if (eodDetailDateKey !== dateISO) {
+    if (eodDetailComplete && !eodDetailCurrent) {
       if (!forceRun) {
         const duration = Date.now() - startTime;
         await logCron("eod_full_19h", "skipped", "EOD detail date mismatch, keep previous complete report", duration, {
@@ -767,6 +814,8 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
       }
       // forceRun=true: dùng snapshot, bỏ eodDetail sai ngày
       console.log(`[eod_full_19h] forceRun: bypassing date mismatch (bridge=${eodDetailDateKey}, expected=${dateISO}), using snapshot only`);
+    } else if (eodDetailComplete && eodDetailDateKey !== dateISO) {
+      console.warn(`[eod_full_19h] bridge date label mismatch accepted by numeric fingerprint (bridge=${eodDetailDateKey}, expected=${dateISO})`);
     }
 
     if (
@@ -821,17 +870,19 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
     }
 
     // Nếu eodDetail sai ngày hoặc incomplete nhưng forceRun=true → dùng snapshot, không dùng bridge data sai
-    const eodDetailForReport =
-      hasCompleteEodDetail(eodDetail) && toDateKey(eodDetail?.date) === dateISO
-        ? eodDetail
-        : null;
+    const eodDetailForReport = normalizedEodDetail;
     const safeReport = buildFull19PublicReport(today, snapshot, eodDetailForReport);
 
     await saveMarketReport(
       "eod_full_19h",
       `Bản tin tổng hợp 19:00 ${today}`,
       safeReport,
-      { snapshot, propData, eodDetail },
+      {
+        snapshot,
+        propData,
+        eodDetail: eodDetailForReport,
+        rawEodDetailDate: eodDetail?.date ?? null,
+      },
       {
         investorAvailability: snapshot.investorTrading.availability,
         liquidity: snapshot.liquidity,
@@ -840,7 +891,9 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
         breadthByExchange: snapshot.breadthByExchange,
         source: snapshot.source,
         eodDetailAvailable: Boolean(eodDetail),
-        eodDetailComplete: hasCompleteEodDetail(eodDetail),
+        eodDetailComplete,
+        eodDetailCurrent,
+        rawEodDetailDate: eodDetail?.date ?? null,
         publishBlockers: snapshot.publishBlockers,
       }
     );
