@@ -13,16 +13,12 @@ import {
   Save,
   ShieldAlert,
   SlidersHorizontal,
-  Sparkles,
   Target,
-  TrendingDown,
-  TrendingUp,
 } from "lucide-react";
 import { fetchBacktestManifest, runBacktestProvider } from "@/lib/providers/client";
-import type { BacktestProviderManifest, ProviderInputValue, ProviderRunResponse } from "@/types/provider-manifest";
+import type { ProviderInputValue, ProviderRunResponse } from "@/types/provider-manifest";
 
 type ScopeType = "index" | "ticker" | "watchlist" | "sector";
-type ConditionSide = "buy" | "sell";
 type UnknownRecord = Record<string, unknown>;
 
 interface ConditionOption {
@@ -46,23 +42,16 @@ interface LabAssumptions {
   benchmark: string;
 }
 
-interface EquityPoint {
-  label: string;
-  strategy: number;
-  benchmark?: number;
-}
-
 const MAX_CONDITIONS = 20;
 
 const scopeOptions: Array<{ value: ScopeType; label: string; helper: string }> = [
   { value: "index", label: "Rổ chỉ số", helper: "VN30, VN100, HOSE, HNX, UPCOM" },
-  { value: "ticker", label: "Cổ phiếu riêng", helper: "Kiểm định trên một mã cụ thể" },
+  { value: "ticker", label: "Cổ phiếu riêng", helper: "Kiểm định một mã cụ thể" },
   { value: "watchlist", label: "Danh mục", helper: "Watchlist hoặc danh mục nội bộ" },
   { value: "sector", label: "Nhóm ngành", helper: "Ngân hàng, chứng khoán, dầu khí..." },
 ];
 
 const indexOptions = ["VN30", "VN100", "HOSE", "HNX", "UPCOM"];
-const tickerOptions = ["FPT", "HPG", "SSI", "GVR", "TCB", "VND", "VRE", "BSR", "MBB", "STB"];
 const watchlistOptions = ["ADN Radar 500", "Cổ phiếu thanh khoản cao", "VN30 mở rộng", "Danh mục tự chọn"];
 const sectorOptions = [
   "Ngân hàng",
@@ -82,11 +71,11 @@ const buyConditions: ConditionOption[] = [
   { id: "price", label: "Giá cổ phiếu", group: "Thông tin cổ phiếu", description: "Lọc theo vùng giá tối thiểu hoặc tối đa." },
   { id: "market_cap", label: "Vốn hóa", group: "Thông tin cổ phiếu", description: "Ưu tiên cổ phiếu có quy mô phù hợp." },
   { id: "avg_value", label: "GTGD trung bình", group: "Thông tin cổ phiếu", description: "Loại bỏ mã có thanh khoản quá thấp." },
-  { id: "volume_spike", label: "%KLGD đột biến", group: "Thông tin cổ phiếu", description: "Phát hiện dòng tiền tăng bất thường." },
+  { id: "volume_spike", label: "%KLGD đột biến", group: "Thông tin cổ phiếu", description: "Phát hiện khối lượng tăng bất thường." },
   { id: "ema_ma", label: "EMA/MA", group: "Kỹ thuật", description: "Giá nằm trên hoặc vượt đường trung bình." },
   { id: "macd", label: "MACD", group: "Kỹ thuật", description: "Động lượng cải thiện hoặc xác nhận xu hướng." },
   { id: "rsi", label: "RSI", group: "Kỹ thuật", description: "Đánh giá sức mạnh ngắn hạn, tránh mua quá nóng." },
-  { id: "bollinger", label: "Bollinger Band", group: "Kỹ thuật", description: "Kiểm tra nền giá, biên dao động và điểm bung nén." },
+  { id: "bollinger", label: "Bollinger Band", group: "Kỹ thuật", description: "Kiểm tra nền giá, biên dao động và điểm bung nền." },
   { id: "stoch_rsi", label: "StochRSI", group: "Kỹ thuật", description: "Bắt nhịp hồi phục động lượng ngắn hạn." },
   { id: "rs", label: "RS", group: "Kỹ thuật", description: "Ưu tiên mã khỏe hơn thị trường chung." },
   { id: "technical_cross", label: "Giá vượt/giá cắt đường kỹ thuật", group: "Kỹ thuật", description: "Giá vượt kháng cự, MA hoặc vùng kỹ thuật quan trọng." },
@@ -106,7 +95,7 @@ const sellConditions: ConditionOption[] = [
   { id: "ema_ma_sell", label: "EMA/MA", group: "Kỹ thuật", description: "Thoát khi giá thủng đường trung bình quan trọng." },
   { id: "macd_sell", label: "MACD", group: "Kỹ thuật", description: "Thoát khi động lượng suy yếu rõ." },
   { id: "rsi_sell", label: "RSI", group: "Kỹ thuật", description: "Thoát khi lực tăng suy yếu hoặc quá nóng." },
-  { id: "bollinger_sell", label: "Bollinger Band", group: "Kỹ thuật", description: "Thoát khi giá phá biên rủi ro hoặc thất bại sau bung nén." },
+  { id: "bollinger_sell", label: "Bollinger Band", group: "Kỹ thuật", description: "Thoát khi giá phá biên rủi ro hoặc thất bại sau bung nền." },
   { id: "stoch_rsi_sell", label: "StochRSI", group: "Kỹ thuật", description: "Thoát khi động lượng ngắn hạn đảo chiều." },
   { id: "rs_sell", label: "RS", group: "Kỹ thuật", description: "Thoát khi cổ phiếu yếu đi so với thị trường." },
   { id: "technical_cross_sell", label: "Giá vượt/giá cắt đường kỹ thuật", group: "Kỹ thuật", description: "Thoát khi giá cắt xuống hỗ trợ hoặc vùng kỹ thuật." },
@@ -143,18 +132,18 @@ function formatMoney(value: number) {
 }
 
 function formatNumber(value: unknown, suffix = "") {
-  if (typeof value !== "number" || !Number.isFinite(value)) return "Chưa có";
+  if (typeof value !== "number" || !Number.isFinite(value)) return "Chưa chạy";
   return `${new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 }).format(value)}${suffix}`;
 }
 
 function formatPercent(value: unknown) {
-  if (typeof value !== "number" || !Number.isFinite(value)) return "Chưa có";
+  if (typeof value !== "number" || !Number.isFinite(value)) return "Chưa chạy";
   const normalized = Math.abs(value) <= 1 ? value * 100 : value;
   return `${normalized > 0 ? "+" : ""}${normalized.toFixed(1)}%`;
 }
 
 function formatDrawdown(value: unknown) {
-  if (typeof value !== "number" || !Number.isFinite(value)) return "Chưa có";
+  if (typeof value !== "number" || !Number.isFinite(value)) return "Chưa chạy";
   const normalized = Math.abs(value) <= 1 ? Math.abs(value * 100) : Math.abs(value);
   return `-${normalized.toFixed(1)}%`;
 }
@@ -194,25 +183,6 @@ function getTrades(result: ProviderRunResponse | null): UnknownRecord[] {
   return rawTrades.filter(isRecord).slice(0, 30);
 }
 
-function getEquityCurve(result: ProviderRunResponse | null): EquityPoint[] {
-  const record = getResultRecord(result);
-  if (!record) return [];
-  const candidates = [record.equityCurve, record.equity_curve, record.chart_data, record.curve, record.series];
-  const raw = candidates.find(Array.isArray);
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .filter(isRecord)
-    .map((point, index) => ({
-      label: String(point.date ?? point.label ?? point.time ?? index + 1),
-      strategy: Number(point.strategy ?? point.adn ?? point.equity ?? point.value ?? point.portfolio ?? 100),
-      benchmark:
-        point.benchmark != null || point.vnindex != null
-          ? Number(point.benchmark ?? point.vnindex)
-          : undefined,
-    }))
-    .filter((point) => Number.isFinite(point.strategy));
-}
-
 function groupConditions(options: ConditionOption[]) {
   return options.reduce<Record<string, ConditionOption[]>>((acc, option) => {
     acc[option.group] = [...(acc[option.group] ?? []), option];
@@ -227,9 +197,12 @@ function shortList(labels: string[]) {
 }
 
 function buildCoachDiagnosis(metrics: UnknownRecord | null, result: ProviderRunResponse | null) {
-  if (result?.insight) return result.insight;
-  if (result?.summary) return result.summary;
-  if (!metrics) return "AIDEN chỉ phân tích sau khi có kết quả kiểm định. Không có kết quả thì không đưa nhận định.";
+  const response = result as unknown as UnknownRecord | null;
+  if (typeof response?.insight === "string") return response.insight;
+  if (typeof response?.summary === "string") return response.summary;
+  if (!metrics) {
+    return "ADN Coach chỉ phân tích sau khi có kết quả kiểm định thật. Nếu bộ kiểm định chưa trả kết quả, hãy xem demo ADN hiện tại bên dưới để đối chiếu cách trình bày.";
+  }
 
   const netReturn = pickNumber(metrics, ["netReturn", "net_return", "totalReturn", "total_return", "return"]);
   const maxDrawdown = pickNumber(metrics, ["maxDrawdown", "max_drawdown", "drawdown"]);
@@ -237,621 +210,632 @@ function buildCoachDiagnosis(metrics: UnknownRecord | null, result: ProviderRunR
 
   const notes: string[] = [];
   if (typeof netReturn === "number") {
-    notes.push(netReturn > 0 ? "Chiến thuật có lợi nhuận dương trong giai đoạn kiểm định." : "Chiến thuật chưa tạo lợi nhuận dương trong giai đoạn kiểm định.");
+    notes.push(
+      netReturn > 0
+        ? "Chiến thuật có lợi nhuận dương trong giai đoạn kiểm định."
+        : "Chiến thuật chưa tạo lợi nhuận dương trong giai đoạn kiểm định.",
+    );
   }
   if (typeof maxDrawdown === "number") {
     const dd = Math.abs(Math.abs(maxDrawdown) <= 1 ? maxDrawdown * 100 : maxDrawdown);
-    notes.push(dd > 20 ? "Drawdown cao, cần giảm tỷ trọng hoặc siết điều kiện thoát lệnh." : "Drawdown đang ở vùng có thể kiểm soát, nhưng vẫn cần kiểm tra thêm theo từng giai đoạn.");
+    notes.push(
+      dd > 20
+        ? "Drawdown cao, cần giảm tỷ trọng hoặc siết điều kiện thoát lệnh."
+        : "Drawdown đang ở vùng có thể kiểm soát, nhưng vẫn cần kiểm tra thêm theo từng giai đoạn.",
+    );
   }
   if (typeof trades === "number") {
-    notes.push(trades < 20 ? "Số lượng lệnh còn ít, chưa đủ mẫu để kết luận chiến thuật ổn định." : "Số lượng lệnh đủ để đọc xu hướng ban đầu, nên tiếp tục kiểm tra độ bền.");
+    notes.push(
+      trades < 20
+        ? "Số lệnh còn thấp, chưa đủ mẫu để kết luận chắc chắn."
+        : "Số lệnh đủ để bắt đầu đọc chất lượng chiến thuật, nhưng vẫn nên forward test.",
+    );
   }
-  notes.push("Kết luận có điều kiện: cần đọc thêm danh sách lệnh, phí, trượt giá và forward test trước khi dùng tiền thật.");
+  notes.push("Không nên dùng tiền thật ngay; hãy kiểm tra thêm phí, trượt giá và giai đoạn thị trường xấu.");
   return notes.join(" ");
 }
 
-function ConditionPicker({
-  title,
-  side,
+function safeText(value: unknown, fallback = "-") {
+  if (value == null) return fallback;
+  if (typeof value === "number") return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 }).format(value);
+  return String(value);
+}
+
+function ConditionGrid({
   options,
   selected,
-  totalSelected,
   onToggle,
 }: {
-  title: string;
-  side: ConditionSide;
   options: ConditionOption[];
   selected: string[];
-  totalSelected: number;
   onToggle: (id: string) => void;
 }) {
   const grouped = groupConditions(options);
-  const accent = side === "buy" ? "#22c55e" : "#ef4444";
-
   return (
-    <section className="rounded-2xl border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-      <div className="flex items-center justify-between gap-3 border-b px-4 py-3" style={{ borderColor: "var(--border)" }}>
-        <div className="flex items-center gap-3">
-          <span
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-sm font-black text-white"
-            style={{ background: accent }}
-          >
-            {side === "buy" ? "M" : "B"}
-          </span>
-          <div>
-            <h2 className="font-black" style={{ color: "var(--text-primary)" }}>
-              {title}
-            </h2>
-            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-              Đã chọn {selected.length} điều kiện. Tổng Mua/Bán tối đa {MAX_CONDITIONS}.
-            </p>
-          </div>
-        </div>
-        <ChevronDown className="h-5 w-5" style={{ color: "var(--text-muted)" }} />
-      </div>
-
-      <div className="space-y-5 p-4">
-        {Object.entries(grouped).map(([group, items]) => (
-          <div key={group}>
-            <h3 className="text-xs font-black uppercase tracking-[0.18em]" style={{ color: "var(--text-muted)" }}>
-              {group}
-            </h3>
-            <div className="mt-3 grid gap-2 lg:grid-cols-2">
-              {items.map((option) => {
-                const checked = selected.includes(option.id);
-                const disabled = !checked && totalSelected >= MAX_CONDITIONS;
-                return (
-                  <label
-                    key={option.id}
-                    className="flex min-h-[76px] cursor-pointer gap-3 rounded-xl border p-3 transition disabled:opacity-60"
-                    style={{
-                      background: checked ? "rgba(34,197,94,0.08)" : "var(--surface-2)",
-                      borderColor: checked ? "rgba(34,197,94,0.35)" : "var(--border)",
-                      opacity: disabled ? 0.55 : 1,
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      disabled={disabled}
-                      onChange={() => onToggle(option.id)}
-                      className="mt-1 h-4 w-4 accent-emerald-600"
-                    />
+    <div className="space-y-5">
+      {Object.entries(grouped).map(([group, items]) => (
+        <div key={group}>
+          <h4 className="mb-3 text-xs font-black uppercase tracking-[0.16em]" style={{ color: "var(--text-muted)" }}>
+            {group}
+          </h4>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {items.map((item) => {
+              const checked = selected.includes(item.id);
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => onToggle(item.id)}
+                  className="rounded-2xl border p-4 text-left transition"
+                  style={{
+                    background: checked ? "var(--primary-light)" : "var(--surface)",
+                    borderColor: checked ? "var(--primary)" : "var(--border)",
+                  }}
+                >
+                  <div className="flex items-start gap-3">
+                    <span
+                      className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border"
+                      style={{
+                        borderColor: checked ? "var(--primary)" : "var(--border)",
+                        background: checked ? "var(--primary)" : "transparent",
+                      }}
+                    >
+                      {checked ? <CheckCircle2 className="h-3.5 w-3.5 text-white" /> : null}
+                    </span>
                     <span>
                       <span className="block text-sm font-black" style={{ color: "var(--text-primary)" }}>
-                        {option.label}
+                        {item.label}
                       </span>
                       <span className="mt-1 block text-xs leading-5" style={{ color: "var(--text-secondary)" }}>
-                        {option.description}
+                        {item.description}
                       </span>
                     </span>
-                  </label>
-                );
-              })}
-            </div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
-        ))}
-      </div>
-    </section>
+        </div>
+      ))}
+    </div>
   );
 }
 
-function MetricCard({ label, value, tone }: { label: string; value: string; tone?: "good" | "bad" | "neutral" | "warn" }) {
-  const toneColor =
-    tone === "good" ? "#22c55e" : tone === "bad" ? "#ef4444" : tone === "warn" ? "#f59e0b" : "var(--text-primary)";
+function NumberInput({
+  label,
+  value,
+  suffix,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  suffix?: string;
+  onChange: (value: number) => void;
+}) {
   return (
-    <div className="rounded-2xl border p-4" style={{ background: "var(--surface-2)", borderColor: "var(--border)" }}>
-      <div className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: "var(--text-muted)" }}>
+    <label className="block">
+      <span className="mb-2 block text-xs font-bold uppercase" style={{ color: "var(--text-muted)" }}>
         {label}
+      </span>
+      <div className="flex items-center rounded-xl border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+        <input
+          className="min-w-0 flex-1 bg-transparent px-3 py-3 text-sm font-bold outline-none"
+          style={{ color: "var(--text-primary)" }}
+          type="number"
+          value={value}
+          onChange={(event) => onChange(Number(event.target.value))}
+        />
+        {suffix ? (
+          <span className="px-3 text-xs font-bold" style={{ color: "var(--text-muted)" }}>
+            {suffix}
+          </span>
+        ) : null}
       </div>
-      <div className="mt-2 text-2xl font-black" style={{ color: toneColor }}>
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function EquityCurvePreview({ points }: { points: EquityPoint[] }) {
-  if (points.length < 2) {
-    return (
-      <div className="flex min-h-[300px] items-center justify-center rounded-2xl border p-5 text-center" style={{ background: "var(--surface-2)", borderColor: "var(--border)" }}>
-        <div>
-          <LineChart className="mx-auto h-8 w-8" style={{ color: "var(--text-muted)" }} />
-          <p className="mt-3 text-sm font-bold" style={{ color: "var(--text-primary)" }}>
-            Equity curve sẽ hiển thị sau khi chạy kiểm định.
-          </p>
-          <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
-            Đường chiến thuật sẽ được so sánh với VNINDEX khi engine trả dữ liệu.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  const width = 720;
-  const height = 260;
-  const allValues = points.flatMap((point) => [point.strategy, point.benchmark].filter((value): value is number => typeof value === "number" && Number.isFinite(value)));
-  const min = Math.min(...allValues);
-  const max = Math.max(...allValues);
-  const range = max - min || 1;
-  const toX = (index: number) => (index / Math.max(points.length - 1, 1)) * width;
-  const toY = (value: number) => height - ((value - min) / range) * height;
-  const strategyPath = points.map((point, index) => `${index === 0 ? "M" : "L"} ${toX(index)} ${toY(point.strategy)}`).join(" ");
-  const benchmarkPoints = points.filter((point) => typeof point.benchmark === "number");
-  const benchmarkPath = benchmarkPoints
-    .map((point, index) => `${index === 0 ? "M" : "L"} ${toX(points.indexOf(point))} ${toY(point.benchmark as number)}`)
-    .join(" ");
-
-  return (
-    <div className="rounded-2xl border p-4" style={{ background: "var(--surface-2)", borderColor: "var(--border)" }}>
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-black" style={{ color: "var(--text-primary)" }}>
-          Equity curve so với VNINDEX
-        </h3>
-        <div className="flex gap-3 text-xs" style={{ color: "var(--text-muted)" }}>
-          <span className="flex items-center gap-1"><i className="h-2 w-2 rounded-full bg-emerald-500" /> Chiến thuật</span>
-          <span className="flex items-center gap-1"><i className="h-2 w-2 rounded-full bg-sky-500" /> VNINDEX</span>
-        </div>
-      </div>
-      <svg viewBox={`0 0 ${width} ${height}`} className="h-[260px] w-full overflow-visible">
-        <path d={strategyPath} fill="none" stroke="#22c55e" strokeWidth="4" strokeLinecap="round" />
-        {benchmarkPath ? <path d={benchmarkPath} fill="none" stroke="#38bdf8" strokeWidth="3" strokeLinecap="round" strokeDasharray="8 8" /> : null}
-      </svg>
-    </div>
-  );
-}
-
-function TradeExplorer({ trades }: { trades: UnknownRecord[] }) {
-  return (
-    <div className="rounded-2xl border" style={{ background: "var(--surface-2)", borderColor: "var(--border)" }}>
-      <div className="border-b px-4 py-3" style={{ borderColor: "var(--border)" }}>
-        <h3 className="text-sm font-black" style={{ color: "var(--text-primary)" }}>
-          Trade Explorer
-        </h3>
-      </div>
-      {trades.length > 0 ? (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-sm">
-            <thead style={{ color: "var(--text-muted)" }}>
-              <tr className="border-b text-left" style={{ borderColor: "var(--border)" }}>
-                <th className="px-4 py-3">Mã</th>
-                <th className="px-4 py-3">Ngày mua</th>
-                <th className="px-4 py-3">Giá mua</th>
-                <th className="px-4 py-3">Ngày bán</th>
-                <th className="px-4 py-3">Giá bán</th>
-                <th className="px-4 py-3">P&L</th>
-                <th className="px-4 py-3">Lý do</th>
-              </tr>
-            </thead>
-            <tbody>
-              {trades.map((trade, index) => (
-                <tr key={index} className="border-b last:border-b-0" style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}>
-                  <td className="px-4 py-3 font-bold">{String(trade.ticker ?? trade.symbol ?? "-")}</td>
-                  <td className="px-4 py-3">{String(trade.entryDate ?? trade.entry_date ?? trade.dateIn ?? "-")}</td>
-                  <td className="px-4 py-3">{String(trade.entryPrice ?? trade.entry_price ?? "-")}</td>
-                  <td className="px-4 py-3">{String(trade.exitDate ?? trade.exit_date ?? trade.dateOut ?? "-")}</td>
-                  <td className="px-4 py-3">{String(trade.exitPrice ?? trade.exit_price ?? "-")}</td>
-                  <td className="px-4 py-3">{typeof trade.pnl === "number" ? formatPercent(trade.pnl) : String(trade.pnl ?? "-")}</td>
-                  <td className="px-4 py-3">{String(trade.reason ?? trade.exitReason ?? "Theo luật chiến thuật")}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <div className="p-5 text-sm" style={{ color: "var(--text-muted)" }}>
-          Danh sách lệnh sẽ hiển thị khi bộ kiểm định trả chi tiết từng giao dịch.
-        </div>
-      )}
-    </div>
+    </label>
   );
 }
 
 export function StrategyValidationStudio() {
-  const [strategyName, setStrategyName] = useState("VN Momentum Breakout");
-  const [scopeType, setScopeType] = useState<ScopeType>("index");
-  const [universe, setUniverse] = useState("VN30");
-  const [ticker, setTicker] = useState("FPT");
-  const [watchlist, setWatchlist] = useState(watchlistOptions[0]);
-  const [sector, setSector] = useState(sectorOptions[0]);
-  const [buySelected, setBuySelected] = useState(["ema_ma", "volume_spike", "rsi"]);
-  const [sellSelected, setSellSelected] = useState(["ema_ma_sell", "stop_loss", "take_profit"]);
+  const [strategyName, setStrategyName] = useState("Chiến thuật mới");
+  const [scope, setScope] = useState<ScopeType>("ticker");
+  const [selection, setSelection] = useState("FPT");
+  const [buySelected, setBuySelected] = useState<string[]>(["ema_ma", "volume_spike", "rsi"]);
+  const [sellSelected, setSellSelected] = useState<string[]>(["ema_ma_sell", "stop_loss"]);
   const [assumptions, setAssumptions] = useState<LabAssumptions>(defaultAssumptions);
-  const [running, setRunning] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [runError, setRunError] = useState<string | null>(null);
-  const [runResult, setRunResult] = useState<ProviderRunResponse | null>(null);
+  const [openPanel, setOpenPanel] = useState<"buy" | "sell">("buy");
+  const [result, setResult] = useState<ProviderRunResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isRunning, setIsRunning] = useState(false);
 
-  const totalSelected = buySelected.length + sellSelected.length;
-  const selectedBuyLabels = buyConditions.filter((item) => buySelected.includes(item.id)).map((item) => item.label);
-  const selectedSellLabels = sellConditions.filter((item) => sellSelected.includes(item.id)).map((item) => item.label);
-  const scopeLabel = useMemo(() => {
-    if (scopeType === "index") return universe;
-    if (scopeType === "ticker") return ticker;
-    if (scopeType === "watchlist") return watchlist;
-    return sector;
-  }, [scopeType, universe, ticker, watchlist, sector]);
+  const selectedCount = buySelected.length + sellSelected.length;
+  const buyLabels = useMemo(
+    () => buyConditions.filter((item) => buySelected.includes(item.id)).map((item) => item.label),
+    [buySelected],
+  );
+  const sellLabels = useMemo(
+    () => sellConditions.filter((item) => sellSelected.includes(item.id)).map((item) => item.label),
+    [sellSelected],
+  );
+  const metrics = getMetrics(result);
+  const trades = getTrades(result);
 
-  const metrics = getMetrics(runResult);
-  const trades = getTrades(runResult);
-  const curve = getEquityCurve(runResult);
-  const coachDiagnosis = buildCoachDiagnosis(metrics, runResult);
+  const scopeValues = scope === "index" ? indexOptions : scope === "watchlist" ? watchlistOptions : scope === "sector" ? sectorOptions : [];
 
-  const metricCards = [
-    { label: "Net Return", value: formatPercent(pickNumber(metrics, ["netReturn", "net_return", "totalReturn", "total_return", "return"])), tone: "good" as const },
-    { label: "CAGR", value: formatPercent(pickNumber(metrics, ["cagr", "annualizedReturn", "annualized_return"])), tone: "good" as const },
-    { label: "Max Drawdown", value: formatDrawdown(pickNumber(metrics, ["maxDrawdown", "max_drawdown", "drawdown"])), tone: "bad" as const },
-    { label: "Win Rate", value: formatPercent(pickNumber(metrics, ["winRate", "win_rate"])), tone: "neutral" as const },
-    { label: "Profit Factor", value: formatNumber(pickNumber(metrics, ["profitFactor", "profit_factor"])), tone: "neutral" as const },
-    {
-      label: "Avg Win / Avg Loss",
-      value: `${formatPercent(pickNumber(metrics, ["avgWin", "avg_win"]))} / ${formatPercent(pickNumber(metrics, ["avgLoss", "avg_loss"]))}`,
-      tone: "neutral" as const,
-    },
-    { label: "Sharpe / Sortino", value: `${formatNumber(pickNumber(metrics, ["sharpe"]))} / ${formatNumber(pickNumber(metrics, ["sortino"]))}`, tone: "neutral" as const },
-    { label: "Number of Trades", value: formatNumber(pickNumber(metrics, ["numberOfTrades", "totalTrades", "total_trades", "trades"])), tone: "neutral" as const },
-    { label: "Avg Holding Period", value: formatNumber(pickNumber(metrics, ["avgHoldingPeriod", "avg_holding_period"]), " ngày"), tone: "neutral" as const },
-    { label: "Exposure", value: formatPercent(pickNumber(metrics, ["exposure"])), tone: "neutral" as const },
-    { label: "Turnover", value: formatPercent(pickNumber(metrics, ["turnover"])), tone: "neutral" as const },
-    { label: "Fee / Slippage Impact", value: `${formatPercent(pickNumber(metrics, ["feeImpact", "fee_impact"]))} / ${formatPercent(pickNumber(metrics, ["slippageImpact", "slippage_impact"]))}`, tone: "warn" as const },
-  ];
+  const updateAssumption = <K extends keyof LabAssumptions>(key: K, value: LabAssumptions[K]) => {
+    setAssumptions((current) => ({ ...current, [key]: value }));
+  };
 
-  function updateAssumption<K extends keyof LabAssumptions>(key: K, value: string) {
-    setAssumptions((current) => ({
-      ...current,
-      [key]: key === "benchmark" || key === "startDate" || key === "endDate" ? value : Number(value),
-    }));
-  }
-
-  function toggleCondition(side: ConditionSide, id: string) {
+  const toggleCondition = (id: string, side: "buy" | "sell") => {
+    const selected = side === "buy" ? buySelected : sellSelected;
     const setter = side === "buy" ? setBuySelected : setSellSelected;
-    setter((current) => {
-      if (current.includes(id)) return current.filter((item) => item !== id);
-      if (totalSelected >= MAX_CONDITIONS) return current;
-      return [...current, id];
-    });
-  }
+    const exists = selected.includes(id);
+    if (!exists && selectedCount >= MAX_CONDITIONS) {
+      setError(`Chỉ được chọn tối đa ${MAX_CONDITIONS} điều kiện mua và bán.`);
+      return;
+    }
+    setError(null);
+    setter(exists ? selected.filter((item) => item !== id) : [...selected, id]);
+  };
 
-  function saveDraft() {
-    const draft = {
-      strategyName,
-      scopeType,
-      universe,
-      ticker,
-      watchlist,
-      sector,
-      buySelected,
-      sellSelected,
-      assumptions,
-      savedAt: new Date().toISOString(),
-    };
-    window.localStorage.setItem("adn_lab_strategy_v2_draft", JSON.stringify(draft));
-    setSaved(true);
-    window.setTimeout(() => setSaved(false), 2200);
-  }
-
-  async function selectProvider() {
-    const manifest = await fetchBacktestManifest();
-    const provider = manifest.providers.find((item: BacktestProviderManifest) => item.providerType === "backtest") ?? manifest.providers[0];
-    if (!provider) throw new Error("NO_PROVIDER");
-    return provider;
-  }
-
-  async function runBacktest() {
-    setRunning(true);
-    setRunError(null);
+  const runBacktest = async () => {
+    setIsRunning(true);
+    setError(null);
+    setResult(null);
     try {
-      const provider = await selectProvider();
+      const manifest = await fetchBacktestManifest();
+      const provider = manifest.providers[0];
+      if (!provider) throw new Error("Chưa có bộ kiểm định chiến thuật khả dụng.");
+
       const inputs: Record<string, ProviderInputValue> = {
-        ticker: scopeType === "ticker" ? ticker : ticker,
-        dateRange: { start: assumptions.startDate, end: assumptions.endDate },
-        lookback: buySelected.includes("ema_ma") ? 20 : 30,
-        minVolumeRatio: buySelected.includes("volume_spike") ? 1.5 : 1,
-        universe: scopeType === "index" ? universe : scopeType === "sector" ? sector : scopeType === "watchlist" ? watchlist : "CUSTOM",
-        includeDelisted: false,
-        note: JSON.stringify({
-          name: strategyName,
-          scope: scopeLabel,
-          buy: selectedBuyLabels,
-          sell: selectedSellLabels,
-          assumptions,
-        }),
+        strategyName,
+        scope,
+        universe: selection,
+        startDate: assumptions.startDate,
+        endDate: assumptions.endDate,
+        capital: assumptions.capital,
+        fee: assumptions.fee,
+        slippage: assumptions.slippage,
+        minLiquidity: assumptions.minLiquidity,
+        maxPositions: assumptions.maxPositions,
+        weightPercent: assumptions.weightPercent,
+        positionDrawdown: assumptions.positionDrawdown,
+        strategyDrawdown: assumptions.strategyDrawdown,
+        benchmark: assumptions.benchmark,
+        buyConditions: buySelected,
+        sellConditions: sellSelected,
       };
 
       const response = await runBacktestProvider({
         providerKey: provider.providerKey,
         inputs,
         context: {
-          labVersion: "adn-lab-v2",
-          strategy: {
-            name: strategyName,
-            scopeType,
-            scopeLabel,
-            buyConditions: buySelected,
-            sellConditions: sellSelected,
-            assumptions,
-          },
+          label: "ADN Lab v2 no-code strategy",
+          buyLabels,
+          sellLabels,
         },
         requestInsight: true,
       });
-      setRunResult(response);
-    } catch {
-      setRunError("Chưa thể chạy kiểm định lúc này. Vui lòng thử lại sau hoặc giảm bớt điều kiện.");
+      setResult(response);
+    } catch (runError) {
+      const message = runError instanceof Error ? runError.message : "Bộ kiểm định chiến thuật chưa trả kết quả.";
+      setError(`${message} Demo ADN hiện tại vẫn nằm bên dưới để xem lại kết quả đã lưu.`);
     } finally {
-      setRunning(false);
+      setIsRunning(false);
     }
-  }
+  };
+
+  const metricCards = [
+    {
+      label: "Net Return",
+      value: formatPercent(pickNumber(metrics, ["netReturn", "net_return", "totalReturn", "total_return", "return"])),
+    },
+    {
+      label: "CAGR",
+      value: formatPercent(pickNumber(metrics, ["cagr", "annualizedReturn", "annualized_return"])),
+    },
+    {
+      label: "Max Drawdown",
+      value: formatDrawdown(pickNumber(metrics, ["maxDrawdown", "max_drawdown", "drawdown"])),
+    },
+    {
+      label: "Win Rate",
+      value: formatPercent(pickNumber(metrics, ["winRate", "win_rate"])),
+    },
+    {
+      label: "Profit Factor",
+      value: formatNumber(pickNumber(metrics, ["profitFactor", "profit_factor"])),
+    },
+    {
+      label: "Số lệnh",
+      value: formatNumber(pickNumber(metrics, ["numberOfTrades", "totalTrades", "total_trades", "trades"])),
+    },
+  ];
 
   return (
-    <div className="mx-auto max-w-[1800px] space-y-6 p-4 md:p-6">
-      <section className="rounded-[2rem] border p-5 md:p-7" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-4xl">
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-black uppercase tracking-[0.18em]" style={{ borderColor: "var(--border)", color: "var(--primary)" }}>
-              <FlaskConical className="h-4 w-4" /> ADN Lab v2
+    <section className="space-y-6">
+      <div
+        className="rounded-[2rem] border p-5 md:p-7"
+        style={{ background: "var(--surface)", borderColor: "var(--border)" }}
+      >
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div className="max-w-3xl">
+            <div className="flex items-center gap-3">
+              <div className="rounded-2xl p-3" style={{ background: "var(--primary-light)" }}>
+                <FlaskConical className="h-6 w-6" style={{ color: "var(--primary)" }} />
+              </div>
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.2em]" style={{ color: "var(--primary)" }}>
+                  ADN Lab v2
+                </p>
+                <h1 className="text-2xl font-black md:text-4xl" style={{ color: "var(--text-primary)" }}>
+                  Strategy Validation Studio
+                </h1>
+              </div>
             </div>
-            <h1 className="text-3xl font-black leading-tight md:text-5xl" style={{ color: "var(--text-primary)" }}>
-              Phòng thí nghiệm kiểm định chiến thuật đầu tư.
-            </h1>
-            <p className="mt-4 max-w-3xl text-base leading-7" style={{ color: "var(--text-secondary)" }}>
-              Chọn điều kiện mua/bán bằng no-code builder, chạy mô phỏng trên dữ liệu lịch sử, đọc rủi ro và cải thiện chiến thuật trước khi dùng tiền thật.
+            <p className="mt-4 max-w-2xl text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
+              Phòng thí nghiệm kiểm định chiến thuật đầu tư bằng dữ liệu thị trường Việt Nam.
+              ADN Lab giúp kiểm tra chiến thuật trước khi dùng tiền thật, không cam kết kết quả tương lai.
             </p>
           </div>
-          <div className="rounded-2xl border p-4 text-sm leading-6" style={{ background: "rgba(245,158,11,0.08)", borderColor: "rgba(245,158,11,0.25)", color: "var(--text-primary)" }}>
-            <div className="flex items-center gap-2 font-black" style={{ color: "#f59e0b" }}>
-              <ShieldAlert className="h-4 w-4" /> Nguyên tắc sản phẩm
-            </div>
-            <p className="mt-2">Quá khứ không bảo đảm kết quả tương lai. ADN Lab giúp loại bỏ chiến thuật tệ, không phải công cụ phím hàng.</p>
+          <div className="grid gap-3 sm:grid-cols-3 lg:w-[520px]">
+            {[
+              ["Backtest", "Mô phỏng quá khứ"],
+              ["AI Coach", "Giải thích kết quả"],
+              ["Risk Review", "Đọc rủi ro trước"],
+            ].map(([title, body]) => (
+              <div key={title} className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+                <p className="text-sm font-black" style={{ color: "var(--text-primary)" }}>{title}</p>
+                <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>{body}</p>
+              </div>
+            ))}
           </div>
         </div>
-      </section>
+      </div>
 
-      <section className="rounded-[1.5rem] border p-3 text-sm font-bold" style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--text-secondary)" }}>
-        {scopeLabel} · Daily · {assumptions.startDate} đến {assumptions.endDate} · Fee {assumptions.fee}% · Slippage {assumptions.slippage}% · Max {assumptions.maxPositions} mã · Benchmark {assumptions.benchmark}
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)_360px]">
+      <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)_360px]">
         <aside className="space-y-4">
-          <div className="rounded-2xl border p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-            <label className="block">
-              <span className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: "var(--text-muted)" }}>Tên chiến thuật</span>
+          <div className="rounded-[1.5rem] border p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+            <div className="flex items-center gap-2">
+              <SlidersHorizontal className="h-4 w-4" style={{ color: "var(--primary)" }} />
+              <h2 className="font-black" style={{ color: "var(--text-primary)" }}>Phạm vi kiểm định</h2>
+            </div>
+
+            <label className="mt-5 block">
+              <span className="mb-2 block text-xs font-bold uppercase" style={{ color: "var(--text-muted)" }}>
+                Tên chiến thuật
+              </span>
               <input
+                className="w-full rounded-xl border bg-transparent px-3 py-3 text-sm font-bold outline-none"
+                style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
                 value={strategyName}
                 onChange={(event) => setStrategyName(event.target.value)}
-                className="mt-2 w-full rounded-xl border bg-transparent px-3 py-3 text-lg font-black outline-none"
-                style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
               />
             </label>
 
-            <div className="mt-4 grid gap-2">
-              {scopeOptions.map((option) => (
+            <div className="mt-5 grid gap-3">
+              {scopeOptions.map((item) => (
                 <button
-                  key={option.value}
+                  key={item.value}
                   type="button"
-                  onClick={() => setScopeType(option.value)}
-                  className="rounded-xl border p-3 text-left transition"
+                  onClick={() => {
+                    setScope(item.value);
+                    const nextOptions =
+                      item.value === "index"
+                        ? indexOptions
+                        : item.value === "watchlist"
+                          ? watchlistOptions
+                          : item.value === "sector"
+                            ? sectorOptions
+                            : [];
+                    setSelection(item.value === "ticker" ? "FPT" : nextOptions[0] ?? "FPT");
+                  }}
+                  className="rounded-2xl border p-4 text-left transition"
                   style={{
-                    background: scopeType === option.value ? "rgba(34,197,94,0.12)" : "var(--surface-2)",
-                    borderColor: scopeType === option.value ? "rgba(34,197,94,0.35)" : "var(--border)",
-                    color: "var(--text-primary)",
+                    background: scope === item.value ? "var(--primary-light)" : "var(--surface)",
+                    borderColor: scope === item.value ? "var(--primary)" : "var(--border)",
                   }}
                 >
-                  <span className="block text-sm font-black">{option.label}</span>
-                  <span className="mt-1 block text-xs" style={{ color: "var(--text-muted)" }}>{option.helper}</span>
+                  <p className="text-sm font-black" style={{ color: "var(--text-primary)" }}>{item.label}</p>
+                  <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>{item.helper}</p>
                 </button>
               ))}
             </div>
 
-            <select
-              value={scopeType === "index" ? universe : scopeType === "watchlist" ? watchlist : scopeType === "sector" ? sector : ticker}
-              onChange={(event) => {
-                if (scopeType === "index") setUniverse(event.target.value);
-                if (scopeType === "watchlist") setWatchlist(event.target.value);
-                if (scopeType === "sector") setSector(event.target.value);
-                if (scopeType === "ticker") setTicker(event.target.value);
-              }}
-              className="mt-4 w-full rounded-xl border px-3 py-3 text-sm font-bold outline-none"
-              style={{ background: "var(--surface-2)", borderColor: "var(--border)", color: "var(--text-primary)" }}
-            >
-              {(scopeType === "index" ? indexOptions : scopeType === "watchlist" ? watchlistOptions : scopeType === "sector" ? sectorOptions : tickerOptions).map((option) => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </select>
+            {scope === "ticker" ? (
+              <label className="mt-4 block">
+                <span className="mb-2 block text-xs font-bold uppercase" style={{ color: "var(--text-muted)" }}>
+                  Mã cổ phiếu
+                </span>
+                <input
+                  className="w-full rounded-xl border bg-transparent px-3 py-3 text-sm font-black uppercase outline-none"
+                  style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
+                  value={selection}
+                  onChange={(event) => setSelection(event.target.value.toUpperCase())}
+                />
+              </label>
+            ) : (
+              <label className="mt-4 block">
+                <span className="mb-2 block text-xs font-bold uppercase" style={{ color: "var(--text-muted)" }}>
+                  Lựa chọn
+                </span>
+                <select
+                  className="w-full rounded-xl border bg-transparent px-3 py-3 text-sm font-black outline-none"
+                  style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
+                  value={selection}
+                  onChange={(event) => setSelection(event.target.value)}
+                >
+                  {scopeValues.map((item) => (
+                    <option key={item} value={item}>{item}</option>
+                  ))}
+                </select>
+              </label>
+            )}
           </div>
 
-          <div className="rounded-2xl border p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-            <h2 className="flex items-center gap-2 text-sm font-black" style={{ color: "var(--text-primary)" }}>
-              <SlidersHorizontal className="h-4 w-4" /> Giả định kiểm định
-            </h2>
-            <div className="mt-4 grid gap-3">
-              <div className="grid grid-cols-2 gap-2">
-                <label>
-                  <span className="text-xs font-bold" style={{ color: "var(--text-muted)" }}>Từ ngày</span>
-                  <input type="date" value={assumptions.startDate} onChange={(event) => updateAssumption("startDate", event.target.value)} className="mt-1 w-full rounded-xl border px-3 py-2 text-sm font-bold outline-none" style={{ background: "var(--surface-2)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+          <div className="rounded-[1.5rem] border p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+            <div className="flex items-center gap-2">
+              <Target className="h-4 w-4" style={{ color: "var(--primary)" }} />
+              <h2 className="font-black" style={{ color: "var(--text-primary)" }}>Giả định kiểm định</h2>
+            </div>
+            <div className="mt-5 grid gap-4">
+              <NumberInput label="Vốn giả lập" value={assumptions.capital} suffix="đ" onChange={(value) => updateAssumption("capital", value)} />
+              <NumberInput label="Phí giao dịch" value={assumptions.fee} suffix="%" onChange={(value) => updateAssumption("fee", value)} />
+              <NumberInput label="Trượt giá" value={assumptions.slippage} suffix="%" onChange={(value) => updateAssumption("slippage", value)} />
+              <NumberInput label="Thanh khoản tối thiểu" value={assumptions.minLiquidity} suffix="tỷ/ngày" onChange={(value) => updateAssumption("minLiquidity", value)} />
+              <NumberInput label="Số mã tối đa" value={assumptions.maxPositions} onChange={(value) => updateAssumption("maxPositions", value)} />
+              <NumberInput label="Tỷ trọng mỗi lệnh" value={assumptions.weightPercent} suffix="%" onChange={(value) => updateAssumption("weightPercent", value)} />
+              <NumberInput label="Drawdown từng vị thế" value={assumptions.positionDrawdown} suffix="%" onChange={(value) => updateAssumption("positionDrawdown", value)} />
+              <NumberInput label="Drawdown toàn chiến thuật" value={assumptions.strategyDrawdown} suffix="%" onChange={(value) => updateAssumption("strategyDrawdown", value)} />
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="mb-2 block text-xs font-bold uppercase" style={{ color: "var(--text-muted)" }}>Từ ngày</span>
+                  <input
+                    type="date"
+                    value={assumptions.startDate}
+                    onChange={(event) => updateAssumption("startDate", event.target.value)}
+                    className="w-full rounded-xl border bg-transparent px-3 py-3 text-sm font-bold outline-none"
+                    style={{ color: "var(--text-primary)", borderColor: "var(--border)" }}
+                  />
                 </label>
-                <label>
-                  <span className="text-xs font-bold" style={{ color: "var(--text-muted)" }}>Đến ngày</span>
-                  <input type="date" value={assumptions.endDate} onChange={(event) => updateAssumption("endDate", event.target.value)} className="mt-1 w-full rounded-xl border px-3 py-2 text-sm font-bold outline-none" style={{ background: "var(--surface-2)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+                <label className="block">
+                  <span className="mb-2 block text-xs font-bold uppercase" style={{ color: "var(--text-muted)" }}>Đến ngày</span>
+                  <input
+                    type="date"
+                    value={assumptions.endDate}
+                    onChange={(event) => updateAssumption("endDate", event.target.value)}
+                    className="w-full rounded-xl border bg-transparent px-3 py-3 text-sm font-bold outline-none"
+                    style={{ color: "var(--text-primary)", borderColor: "var(--border)" }}
+                  />
                 </label>
               </div>
-
-              {[
-                ["capital", "Vốn giả lập", "VNĐ"],
-                ["fee", "Phí giao dịch", "%"],
-                ["slippage", "Trượt giá", "%"],
-                ["minLiquidity", "Thanh khoản tối thiểu", "tỷ/ngày"],
-                ["maxPositions", "Số mã tối đa", "mã"],
-                ["weightPercent", "Tỷ trọng mỗi lệnh", "%"],
-                ["positionDrawdown", "Drawdown mỗi vị thế", "%"],
-                ["strategyDrawdown", "Drawdown toàn chiến thuật", "%"],
-              ].map(([key, label, suffix]) => (
-                <label key={key} className="block">
-                  <span className="text-xs font-bold" style={{ color: "var(--text-muted)" }}>{label}</span>
-                  <div className="mt-1 flex rounded-xl border" style={{ background: "var(--surface-2)", borderColor: "var(--border)" }}>
-                    <input
-                      type="number"
-                      value={assumptions[key as keyof LabAssumptions] as number}
-                      onChange={(event) => updateAssumption(key as keyof LabAssumptions, event.target.value)}
-                      className="w-full bg-transparent px-3 py-2 text-sm font-bold outline-none"
-                      style={{ color: "var(--text-primary)" }}
-                    />
-                    <span className="px-3 py-2 text-xs" style={{ color: "var(--text-muted)" }}>{suffix}</span>
-                  </div>
-                </label>
-              ))}
-
-              <label>
-                <span className="text-xs font-bold" style={{ color: "var(--text-muted)" }}>Mốc so sánh</span>
+              <label className="block">
+                <span className="mb-2 block text-xs font-bold uppercase" style={{ color: "var(--text-muted)" }}>Benchmark</span>
                 <select
                   value={assumptions.benchmark}
                   onChange={(event) => updateAssumption("benchmark", event.target.value)}
-                  className="mt-1 w-full rounded-xl border px-3 py-2 text-sm font-bold outline-none"
-                  style={{ background: "var(--surface-2)", borderColor: "var(--border)", color: "var(--text-primary)" }}
+                  className="w-full rounded-xl border bg-transparent px-3 py-3 text-sm font-black outline-none"
+                  style={{ color: "var(--text-primary)", borderColor: "var(--border)" }}
                 >
-                  {benchmarkOptions.map((option) => <option key={option}>{option}</option>)}
+                  {benchmarkOptions.map((item) => <option key={item} value={item}>{item}</option>)}
                 </select>
               </label>
             </div>
           </div>
         </aside>
 
-        <div className="space-y-4">
-          <ConditionPicker
-            title="Điều kiện Mua"
-            side="buy"
-            options={buyConditions}
-            selected={buySelected}
-            totalSelected={totalSelected}
-            onToggle={(id) => toggleCondition("buy", id)}
-          />
-          <ConditionPicker
-            title="Điều kiện Bán"
-            side="sell"
-            options={sellConditions}
-            selected={sellSelected}
-            totalSelected={totalSelected}
-            onToggle={(id) => toggleCondition("sell", id)}
-          />
-          <EquityCurvePreview points={curve} />
+        <div className="space-y-5">
+          <div className="rounded-[1.5rem] border p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+            <div className="flex flex-wrap items-center gap-2 text-xs font-bold" style={{ color: "var(--text-secondary)" }}>
+              <span>{selection}</span>
+              <span>· Daily</span>
+              <span>· {assumptions.startDate} đến {assumptions.endDate}</span>
+              <span>· Phí {assumptions.fee}%</span>
+              <span>· Trượt giá {assumptions.slippage}%</span>
+              <span>· Tối đa {assumptions.maxPositions} mã</span>
+              <span>· Benchmark {assumptions.benchmark}</span>
+            </div>
+          </div>
+
+          <div className="rounded-[1.5rem] border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+            <button
+              type="button"
+              onClick={() => setOpenPanel(openPanel === "buy" ? "sell" : "buy")}
+              className="flex w-full items-center justify-between px-5 py-4 text-left"
+            >
+              <span className="flex items-center gap-3">
+                <span className="rounded-lg bg-emerald-500 px-2 py-1 text-xs font-black text-white">M</span>
+                <span className="font-black" style={{ color: "var(--text-primary)" }}>Điều kiện mua</span>
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>{buySelected.length} điều kiện</span>
+              </span>
+              <ChevronDown className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
+            </button>
+            {openPanel === "buy" ? (
+              <div className="border-t p-5" style={{ borderColor: "var(--border)" }}>
+                <p className="mb-5 text-sm font-bold" style={{ color: selectedCount >= MAX_CONDITIONS ? "#f59e0b" : "var(--text-muted)" }}>
+                  Chỉ được chọn tối đa {MAX_CONDITIONS} điều kiện mua và bán. Đã chọn: {selectedCount}/{MAX_CONDITIONS}.
+                </p>
+                <ConditionGrid options={buyConditions} selected={buySelected} onToggle={(id) => toggleCondition(id, "buy")} />
+              </div>
+            ) : null}
+          </div>
+
+          <div className="rounded-[1.5rem] border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+            <button
+              type="button"
+              onClick={() => setOpenPanel(openPanel === "sell" ? "buy" : "sell")}
+              className="flex w-full items-center justify-between px-5 py-4 text-left"
+            >
+              <span className="flex items-center gap-3">
+                <span className="rounded-lg bg-red-500 px-2 py-1 text-xs font-black text-white">B</span>
+                <span className="font-black" style={{ color: "var(--text-primary)" }}>Điều kiện bán</span>
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>{sellSelected.length} điều kiện</span>
+              </span>
+              <ChevronDown className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
+            </button>
+            {openPanel === "sell" ? (
+              <div className="border-t p-5" style={{ borderColor: "var(--border)" }}>
+                <p className="mb-5 text-sm font-bold" style={{ color: selectedCount >= MAX_CONDITIONS ? "#f59e0b" : "var(--text-muted)" }}>
+                  Chỉ được chọn tối đa {MAX_CONDITIONS} điều kiện mua và bán. Đã chọn: {selectedCount}/{MAX_CONDITIONS}.
+                </p>
+                <ConditionGrid options={sellConditions} selected={sellSelected} onToggle={(id) => toggleCondition(id, "sell")} />
+              </div>
+            ) : null}
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={runBacktest}
+              disabled={isRunning}
+              className="inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-black text-white disabled:opacity-60"
+              style={{ background: "var(--primary)" }}
+            >
+              <Play className="h-4 w-4" />
+              {isRunning ? "Đang kiểm định..." : "Chạy kiểm định"}
+            </button>
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 rounded-2xl border px-5 py-3 text-sm font-black"
+              style={{ borderColor: "var(--border)", color: "var(--text-primary)", background: "var(--surface)" }}
+            >
+              <Save className="h-4 w-4" />
+              Lưu phiên bản
+            </button>
+          </div>
+
+          {error ? (
+            <div className="rounded-2xl border p-4 text-sm" style={{ borderColor: "rgba(245,158,11,0.35)", color: "#f59e0b", background: "rgba(245,158,11,0.08)" }}>
+              {error}
+            </div>
+          ) : null}
+
+          <div className="rounded-[1.5rem] border p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+            <div className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" style={{ color: "var(--primary)" }} />
+              <h2 className="font-black" style={{ color: "var(--text-primary)" }}>ADN Strategy Report</h2>
+            </div>
+            <div className="mt-5 grid gap-3 md:grid-cols-3">
+              {metricCards.map((item) => (
+                <div key={item.label} className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+                  <p className="text-xs font-bold uppercase" style={{ color: "var(--text-muted)" }}>{item.label}</p>
+                  <p className="mt-2 text-xl font-black" style={{ color: "var(--text-primary)" }}>{item.value}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+              <div className="flex items-center gap-2">
+                <LineChart className="h-4 w-4" style={{ color: "var(--primary)" }} />
+                <p className="text-sm font-black" style={{ color: "var(--text-primary)" }}>Equity curve so với {assumptions.benchmark}</p>
+              </div>
+              <div className="mt-4 flex h-56 items-center justify-center rounded-xl border border-dashed" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
+                {result ? "Bộ kiểm định đã trả kết quả. Biểu đồ chi tiết sẽ hiển thị theo contract equity curve." : "Chưa chạy kiểm định."}
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-[1.5rem] border p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+            <div className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" style={{ color: "var(--primary)" }} />
+              <h2 className="font-black" style={{ color: "var(--text-primary)" }}>Trade Explorer</h2>
+            </div>
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-[720px] text-sm">
+                <thead style={{ color: "var(--text-muted)" }}>
+                  <tr className="border-b text-left" style={{ borderColor: "var(--border)" }}>
+                    <th className="py-3">Ngày mua</th>
+                    <th>Mã</th>
+                    <th>Giá mua</th>
+                    <th>Giá bán</th>
+                    <th>Nắm giữ</th>
+                    <th>P&L</th>
+                    <th>Lý do</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {trades.length ? (
+                    trades.map((trade, index) => (
+                      <tr key={`${safeText(trade.ticker, "TRADE")}-${index}`} className="border-b" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
+                        <td className="py-3">{safeText(trade.entryDate ?? trade.dateIn ?? trade.date)}</td>
+                        <td className="font-black" style={{ color: "var(--text-primary)" }}>{safeText(trade.ticker)}</td>
+                        <td>{safeText(trade.entry ?? trade.entryPrice)}</td>
+                        <td>{safeText(trade.exit ?? trade.exitPrice)}</td>
+                        <td>{safeText(trade.holdingDays ?? trade.holding)}</td>
+                        <td>{safeText(trade.pnl ?? trade.return)}</td>
+                        <td>{safeText(trade.reason ?? trade.exitReason, "Theo điều kiện chiến thuật")}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td className="py-5 text-center" colSpan={7} style={{ color: "var(--text-muted)" }}>
+                        Chưa có danh sách lệnh. Hãy chạy kiểm định hoặc xem demo ADN hiện tại bên dưới.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
 
         <aside className="space-y-4">
-          <div className="rounded-2xl border p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-            <h2 className="flex items-center gap-2 text-sm font-black" style={{ color: "var(--text-primary)" }}>
-              <Target className="h-4 w-4" /> Strategy DNA
-            </h2>
-            <div className="mt-4 space-y-3 text-sm">
-              <p style={{ color: "var(--text-secondary)" }}><strong style={{ color: "var(--text-primary)" }}>Tên:</strong> {strategyName}</p>
-              <p style={{ color: "var(--text-secondary)" }}><strong style={{ color: "var(--text-primary)" }}>Phạm vi:</strong> {scopeLabel}</p>
-              <p style={{ color: "var(--text-secondary)" }}><strong style={{ color: "var(--text-primary)" }}>Mua khi:</strong> {shortList(selectedBuyLabels)}</p>
-              <p style={{ color: "var(--text-secondary)" }}><strong style={{ color: "var(--text-primary)" }}>Bán khi:</strong> {shortList(selectedSellLabels)}</p>
+          <div className="rounded-[1.5rem] border p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="h-4 w-4" style={{ color: "#f59e0b" }} />
+              <h2 className="font-black" style={{ color: "var(--text-primary)" }}>Strategy DNA</h2>
+            </div>
+            <div className="mt-5 space-y-4 text-sm">
+              {[
+                ["Loại", "No-code strategy"],
+                ["Phạm vi", selection],
+                ["Timeframe", "Daily"],
+                ["Điều kiện mua", shortList(buyLabels)],
+                ["Điều kiện bán", shortList(sellLabels)],
+                ["Quản trị vốn", `${formatMoney(assumptions.capital)}đ · ${assumptions.weightPercent}%/lệnh`],
+                ["Benchmark", assumptions.benchmark],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+                  <p className="text-xs font-bold uppercase" style={{ color: "var(--text-muted)" }}>{label}</p>
+                  <p className="mt-1 font-bold" style={{ color: "var(--text-primary)" }}>{value}</p>
+                </div>
+              ))}
             </div>
           </div>
 
-          <div className="rounded-2xl border p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-            <h2 className="flex items-center gap-2 text-sm font-black" style={{ color: "var(--text-primary)" }}>
-              <Bot className="h-4 w-4" /> ADN Coach
-            </h2>
-            <div className="mt-3 space-y-3 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
-              <p>{coachDiagnosis}</p>
-              {!runResult ? (
-                <p>Nên bắt đầu bằng ít điều kiện, sau đó đọc drawdown, phí và trượt giá trước khi thêm bộ lọc mới.</p>
-              ) : null}
+          <div className="rounded-[1.5rem] border p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+            <div className="flex items-center gap-2">
+              <Bot className="h-4 w-4" style={{ color: "var(--primary)" }} />
+              <h2 className="font-black" style={{ color: "var(--text-primary)" }}>ADN Coach</h2>
             </div>
-          </div>
-
-          <div className="rounded-2xl border p-4" style={{ background: "rgba(245,158,11,0.08)", borderColor: "rgba(245,158,11,0.25)" }}>
-            <h2 className="flex items-center gap-2 text-sm font-black" style={{ color: "#f59e0b" }}>
-              <ShieldAlert className="h-4 w-4" /> Risk Warning
-            </h2>
-            <p className="mt-2 text-sm leading-6" style={{ color: "var(--text-primary)" }}>
-              Không triển khai tiền thật chỉ vì backtest đẹp. Chiến thuật cần kiểm tra thêm qua nhiều giai đoạn và forward test 30-60 tín hiệu.
+            <p className="mt-4 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
+              {buildCoachDiagnosis(metrics, result)}
             </p>
+            <div className="mt-5 space-y-3">
+              {["Thêm bộ lọc xu hướng thị trường", "Kiểm tra lại với trượt giá cao hơn", "Xem các lệnh thua lớn nhất"].map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  className="w-full rounded-xl border px-3 py-2 text-left text-xs font-bold"
+                  style={{ borderColor: "var(--border)", color: "var(--text-primary)", background: "var(--surface-2)" }}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="flex flex-col gap-2">
-            <button
-              onClick={runBacktest}
-              disabled={running || buySelected.length === 0 || sellSelected.length === 0}
-              className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-black disabled:opacity-60"
-              style={{ background: "var(--primary)", color: "var(--on-primary)" }}
-            >
-              <Play className="h-4 w-4" /> {running ? "Đang kiểm định..." : "Chạy kiểm định"}
-            </button>
-            <button
-              onClick={saveDraft}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-black"
-              style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--text-primary)" }}
-            >
-              <Save className="h-4 w-4" /> {saved ? "Đã lưu bản nháp" : "Lưu phiên bản"}
-            </button>
+          <div className="rounded-[1.5rem] border p-5" style={{ background: "rgba(245,158,11,0.08)", borderColor: "rgba(245,158,11,0.35)" }}>
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4" style={{ color: "#f59e0b" }} />
+              <h2 className="font-black" style={{ color: "#f59e0b" }}>Cảnh báo rủi ro</h2>
+            </div>
+            <p className="mt-3 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
+              Backtest chỉ cho biết chiến thuật từng hoạt động ra sao trong quá khứ. Kết quả tốt vẫn cần kiểm tra
+              forward test, phí, trượt giá, thanh khoản và giai đoạn thị trường xấu.
+            </p>
           </div>
         </aside>
-      </section>
-
-      <section className="rounded-2xl border p-4 sm:p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-        <div className="flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: "var(--border)" }}>
-          <div>
-            <h2 className="flex items-center gap-2 text-xl font-black" style={{ color: "var(--text-primary)" }}>
-              <BarChart3 className="h-5 w-5" /> ADN Strategy Report
-            </h2>
-            <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
-              Report chỉ hiển thị kết quả sau khi bộ kiểm định deterministic chạy xong.
-            </p>
-          </div>
-          <span
-            className="rounded-full border px-3 py-1 text-xs font-black"
-            style={{
-              background: runResult ? "rgba(34,197,94,0.10)" : "var(--surface-2)",
-              borderColor: runResult ? "rgba(34,197,94,0.35)" : "var(--border)",
-              color: runResult ? "#22c55e" : "var(--text-muted)",
-            }}
-          >
-            {runResult ? "Đã có kết quả" : "Chưa chạy"}
-          </span>
-        </div>
-
-        {runError ? (
-          <div className="mt-4 rounded-xl border p-4 text-sm" style={{ borderColor: "rgba(239,68,68,0.35)", background: "rgba(239,68,68,0.08)", color: "var(--text-primary)" }}>
-            <div className="flex items-center gap-2 font-bold"><AlertTriangle className="h-4 w-4 text-red-500" /> {runError}</div>
-          </div>
-        ) : null}
-
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {metricCards.map((card) => <MetricCard key={card.label} {...card} />)}
-        </div>
-
-        <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(300px,0.8fr)]">
-          <TradeExplorer trades={trades} />
-          <div className="rounded-2xl border p-4" style={{ background: "var(--surface-2)", borderColor: "var(--border)" }}>
-            <h3 className="flex items-center gap-2 text-sm font-black" style={{ color: "var(--text-primary)" }}>
-              <Sparkles className="h-4 w-4" /> Kết luận có điều kiện
-            </h3>
-            <p className="mt-3 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
-              {runResult
-                ? "Chiến thuật cần được đọc cùng Max Drawdown, số lượng lệnh, phí, trượt giá và độ ổn định. Không dùng kết quả này như khuyến nghị đầu tư."
-                : "Sau khi chạy kiểm định, ADN Lab sẽ tóm tắt chiến thuật có vượt mốc so sánh không, rủi ro nằm ở đâu và bước kiểm tra tiếp theo là gì."}
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-3">
-        {[
-          { icon: TrendingUp, title: "Robustness Lab", body: "Phase 2: kiểm tra out-of-sample, độ nhạy tham số, bối cảnh thị trường và phí/trượt giá." },
-          { icon: TrendingDown, title: "Strategy Compare", body: "So sánh nhiều phiên bản chiến thuật để tránh chọn bản chỉ đẹp ở quá khứ." },
-          { icon: CheckCircle2, title: "Forward Test", body: "Đưa chiến thuật vào paper validation trước khi tạo cảnh báo hoặc watchlist." },
-        ].map((item) => {
-          const Icon = item.icon;
-          return (
-            <article key={item.title} className="rounded-2xl border p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-              <Icon className="h-5 w-5" style={{ color: "var(--primary)" }} />
-              <h3 className="mt-3 font-black" style={{ color: "var(--text-primary)" }}>{item.title}</h3>
-              <p className="mt-2 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>{item.body}</p>
-            </article>
-          );
-        })}
-      </section>
-    </div>
+      </div>
+    </section>
   );
 }
