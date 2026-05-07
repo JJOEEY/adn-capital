@@ -12,7 +12,9 @@ import { prisma } from "@/lib/prisma";
 import {
   buildExcerptFromHtml,
   createArticleSlug,
+  hasBrokenArticleEncoding,
   normalizeArticleTags,
+  repairMojibakeText,
   sanitizeArticleHtml,
 } from "@/lib/articles/server";
 
@@ -127,15 +129,26 @@ export async function POST(req: NextRequest) {
   const parsed = await readJsonBody<OpenClawArticleBody>(req);
   if (!parsed.ok) return parsed.response;
 
-  const title = readString(parsed.data.title);
-  const rawContent = readString(parsed.data.content);
+  const title = repairMojibakeText(readString(parsed.data.title));
+  const rawContent = repairMojibakeText(readString(parsed.data.content));
   if (!title || !rawContent) {
     return badRequestResponse("title and content are required");
+  }
+  if (hasBrokenArticleEncoding(`${title}\n${rawContent}`)) {
+    return badRequestResponse("Vietnamese encoding is invalid. Save the draft as UTF-8 and publish again.");
   }
 
   const status = normalizeStatus(readString(parsed.data.status, "PUBLISHED"));
   if (!status) {
     return badRequestResponse("status must be DRAFT, PENDING_APPROVAL, or PUBLISHED");
+  }
+
+  const originalTitle = repairMojibakeText(readString(parsed.data.originalTitle));
+  const excerpt = repairMojibakeText(readString(parsed.data.excerpt));
+  const aiSummary = repairMojibakeText(readString(parsed.data.aiSummary));
+  const sentiment = repairMojibakeText(readString(parsed.data.sentiment));
+  if (hasBrokenArticleEncoding([originalTitle, excerpt, aiSummary, sentiment].filter(Boolean).join("\n"))) {
+    return badRequestResponse("Vietnamese encoding is invalid. Save the draft as UTF-8 and publish again.");
   }
 
   const safeContent = sanitizeArticleHtml(rawContent);
@@ -154,16 +167,16 @@ export async function POST(req: NextRequest) {
 
   const payload = {
     title: title.trim(),
-    originalTitle: readString(parsed.data.originalTitle) || null,
+    originalTitle: originalTitle || null,
     slug: createArticleSlug(title),
     content: safeContent,
-    excerpt: readString(parsed.data.excerpt) || buildExcerptFromHtml(safeContent),
-    aiSummary: readString(parsed.data.aiSummary) || null,
+    excerpt: excerpt || buildExcerptFromHtml(safeContent),
+    aiSummary: aiSummary || null,
     sourceUrl: readString(parsed.data.sourceUrl) || null,
     imageUrl: readString(parsed.data.imageUrl) || null,
     pdfUrl: readString(parsed.data.pdfUrl) || null,
     tags: JSON.stringify(normalizeArticleTags(parsed.data.tags ?? parsed.data.hashtags)),
-    sentiment: readString(parsed.data.sentiment) || null,
+    sentiment: sentiment || null,
     categoryId,
     authorId: author.id,
     status,
