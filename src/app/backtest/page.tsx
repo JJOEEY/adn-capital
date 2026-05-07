@@ -3,12 +3,16 @@
 import { MainLayout } from "@/components/layout/MainLayout";
 import { BacktestSection } from "@/components/dashboard/BacktestSection";
 import { StrategyValidationStudio } from "@/components/lab/StrategyValidationStudio";
+import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 
 export default function BacktestPage() {
+  const { isAdmin, isLoading } = useCurrentDbUser();
+  const showStrategyStudio = !isLoading && isAdmin;
+
   return (
     <MainLayout>
       <main className="mx-auto max-w-[1800px] space-y-8 p-4 md:p-6">
-        <StrategyValidationStudio />
+        {showStrategyStudio && <StrategyValidationStudio />}
 
         <section
           className="rounded-[2rem] border p-5 md:p-7"
