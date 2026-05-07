@@ -2,7 +2,7 @@
 
 import { memo, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import { TrendingUp, Zap, BarChart3, Rocket, ShieldCheck, TrendingDown, Flame } from "lucide-react";
+import { TrendingUp, Zap, Rocket, ShieldCheck, TrendingDown, Flame } from "lucide-react";
 import { PRODUCT_NAMES } from "@/lib/brand/productNames";
 
 const DynamicBacktestChart = dynamic(
@@ -81,7 +81,7 @@ export const BacktestSection = memo(function BacktestSection() {
     winRate: 60,
     totalReturn: 260,
     multiplier: 3.6,
-    totalTrades: 420,
+    maxDrawdown: 18,
   };
 
   const stats = [
@@ -110,10 +110,10 @@ export const BacktestSection = memo(function BacktestSection() {
       bg: "rgba(245,158,11,0.10)",
     },
     {
-      label: "Tổng Lệnh",
-      value: kpi ? `${kpi.total_trades}` : `${baseline.totalTrades}`,
-      sub: "Tổng giao dịch kiểm chứng",
-      Icon: BarChart3,
+      label: "Max Drawdown",
+      value: kpi ? `-${kpi.max_drawdown.toFixed(1)}%` : `-${baseline.maxDrawdown}%`,
+      sub: "Mức sụt giảm lớn nhất",
+      Icon: TrendingDown,
       color: "#f97316",
       bg: "rgba(249,115,22,0.10)",
     },
