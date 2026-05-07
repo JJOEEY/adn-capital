@@ -115,6 +115,20 @@ function readWorkbenchPrice(value: unknown): number | null {
   );
 }
 
+async function readCurrentUserBrokerTopic(topic: string, userId: string): Promise<unknown | null> {
+  try {
+    const envelope = await getTopicEnvelope(topic, { userId });
+    return envelope.error ? null : envelope.value;
+  } catch {
+    return null;
+  }
+}
+
+function unwrapTopicPayload(value: unknown, key: string): unknown {
+  const row = toRecord(value);
+  return row && key in row ? row[key] : value;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const resolved = await requireDnseAccountContext();
@@ -182,7 +196,28 @@ export async function POST(req: NextRequest) {
       firstSuccess(candidates, (accountNo) => client.getPositions(accountNo)),
       firstSuccess(candidates, (accountNo) => client.getLoanPackages(accountNo, "STOCK", ticker)),
     ]);
-    const packageRows = extractArrayPayload(loanPackagesResult.value);
+    const directPositions = extractArrayPayload(positionsResult.value);
+    const directPackageRows = extractArrayPayload(loanPackagesResult.value);
+    const [balanceTopicValue, positionsTopicValue, holdingsTopicValue, loanPackagesTopicValue] = await Promise.all([
+      isUsefulBalance(balanceResult.value)
+        ? Promise.resolve(null)
+        : readCurrentUserBrokerTopic("broker:dnse:current-user:balance", resolved.context.userId),
+      directPositions.length
+        ? Promise.resolve(null)
+        : readCurrentUserBrokerTopic("broker:dnse:current-user:positions", resolved.context.userId),
+      directPositions.length
+        ? Promise.resolve(null)
+        : readCurrentUserBrokerTopic("broker:dnse:current-user:holdings", resolved.context.userId),
+      directPackageRows.length
+        ? Promise.resolve(null)
+        : readCurrentUserBrokerTopic("broker:dnse:current-user:loan-packages", resolved.context.userId),
+    ]);
+    const fallbackPositions = extractArrayPayload(positionsTopicValue).length
+      ? extractArrayPayload(positionsTopicValue)
+      : extractArrayPayload(holdingsTopicValue);
+    const packageRows = directPackageRows.length
+      ? directPackageRows
+      : extractArrayPayload(loanPackagesTopicValue);
     const loanPackages = normalizeLoanPackageRows(packageRows);
     const preferredCashPackage =
       loanPackages.find((item) => item.isCash && item.loanPackageId !== "CASH") ??
@@ -199,15 +234,24 @@ export async function POST(req: NextRequest) {
         loanPackageId: selectedLoanPackageId !== "CASH" ? selectedLoanPackageId : undefined,
       }),
     );
+    const ppseTopicValue = ppseResult.value
+      ? null
+      : await readCurrentUserBrokerTopic(`broker:dnse:current-user:ppse:${ticker}`, resolved.context.userId);
+    const brokerWarningStart = warnings.length;
 
     if (balanceResult.error) warnings.push("Chưa đọc được tổng tài sản ròng mới nhất.");
     if (positionsResult.error) warnings.push("Chưa đọc được danh mục nắm giữ mới nhất.");
     if (loanPackagesResult.error) warnings.push("Chưa đọc được danh sách gói giao dịch mới nhất.");
     if (ppseResult.error) warnings.push("Chưa đọc được sức mua/sức bán theo mã ở thời điểm hiện tại.");
 
-    const balance = balanceResult.value;
-    const positions = Array.isArray(positionsResult.value) ? positionsResult.value : [];
-    const ppse = ppseResult.value;
+    const balance = isUsefulBalance(balanceResult.value) ? balanceResult.value : balanceTopicValue;
+    const positions = directPositions.length ? directPositions : fallbackPositions;
+    const ppse = ppseResult.value ?? unwrapTopicPayload(ppseTopicValue, "ppse");
+    warnings.splice(brokerWarningStart);
+    if (balanceResult.error && !isUsefulBalance(balance)) warnings.push("Chưa đọc được tổng tài sản ròng mới nhất.");
+    if (positionsResult.error && positions.length === 0) warnings.push("Chưa đọc được danh mục nắm giữ mới nhất.");
+    if (loanPackagesResult.error && packageRows.length === 0) warnings.push("Chưa đọc được danh sách gói giao dịch mới nhất.");
+    if (ppseResult.error && !ppse) warnings.push("Chưa đọc được sức mua/sức bán theo mã ở thời điểm hiện tại.");
 
     const totalAsset =
       readBestPositiveNumber(balance, BALANCE_TOTAL_ASSET_KEYS, null) ??

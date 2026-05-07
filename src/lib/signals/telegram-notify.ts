@@ -34,6 +34,22 @@ function formatSignalType(type: string) {
   return SIGNAL_TYPE_LABELS[normalized] ?? normalized;
 }
 
+function signalIcon(type: string) {
+  const normalized = type.toUpperCase().trim();
+  if (normalized === "SIEU_CO_PHIEU") return "💎";
+  if (normalized === "TRUNG_HAN") return "⭐";
+  if (normalized === "DAU_CO") return "🚀";
+  if (normalized === "TAM_NGAM") return "🔥";
+  return "🚀";
+}
+
+function formatCompactRow(index: number, ticker: string, price: number | null | undefined, type: string) {
+  const no = `${index})`.padStart(3, "0");
+  const code = ticker.toUpperCase().trim().padEnd(4, " ");
+  const entry = formatPrice(price).padStart(8, " ");
+  return `${no} ${code} ${entry} ${signalIcon(type)}`;
+}
+
 function getSignalTelegramTarget() {
   const token = (
     process.env.TELEGRAM_SIGNAL_BOT_TOKEN ??
@@ -100,12 +116,15 @@ function formatSignalBatchText(params: {
     "",
   ];
 
+  let index = 1;
   for (const [type, rows] of groups.entries()) {
     lines.push(`⚡ ${formatSignalType(type)} (${rows.length})`);
+    lines.push("```");
     for (const signal of rows) {
-      const reason = signal.reason ? ` - ${signal.reason}` : "";
-      lines.push(`• ${signal.ticker} - ${formatPrice(signal.entryPrice)}${reason}`);
+      lines.push(formatCompactRow(index, signal.ticker, signal.entryPrice, type));
+      index += 1;
     }
+    lines.push("```");
     lines.push("");
   }
 
@@ -125,14 +144,11 @@ function formatActiveSignalsText(params: {
     "",
   ];
 
-  for (const signal of params.signals) {
-    const reason = signal.reason ? ` - ${signal.reason}` : "";
-    lines.push(
-      `• ${signal.ticker} (${formatSignalType(signal.signalType)}) - Entry ${formatPrice(
-        signal.entryPrice,
-      )}${reason}`,
-    );
-  }
+  lines.push("```");
+  params.signals.forEach((signal, index) => {
+    lines.push(formatCompactRow(index + 1, signal.ticker, signal.entryPrice, signal.signalType));
+  });
+  lines.push("```");
 
   lines.push("");
   lines.push("— ADN Capital Scanner 🤖");
@@ -186,6 +202,7 @@ export async function sendClaimedSignalsToTelegram(params: {
     chatId,
     tradingDate: params.tradingDate,
     slot: params.slotLabel,
+    parseMode: "Markdown",
   });
 }
 
@@ -211,6 +228,7 @@ export async function sendActiveSignalsToTelegram(params: {
     chatId,
     tradingDate: params.tradingDate,
     slot: params.slotLabel,
+    parseMode: "Markdown",
   });
 }
 

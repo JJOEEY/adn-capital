@@ -34,7 +34,7 @@ export type OrderSizingResult = {
   recommendedNavPct: number;
 };
 
-const LOT_SIZE = 100;
+const MIN_SHARE_STEP = 1;
 const DEFAULT_RECOMMENDED_NAV_PCT = 5;
 
 export function toFiniteNumber(value: unknown): number | null {
@@ -64,7 +64,7 @@ export function toDisplayPrice(value: unknown): number | null {
   return price >= 1000 ? Number((price / 1000).toFixed(2)) : price;
 }
 
-export function floorToLot(quantity: number, lotSize = LOT_SIZE) {
+export function floorToQuantity(quantity: number, lotSize = MIN_SHARE_STEP) {
   if (!Number.isFinite(quantity) || quantity <= 0) return 0;
   return Math.floor(quantity / lotSize) * lotSize;
 }
@@ -214,21 +214,21 @@ export function calculateOrderSizing(input: OrderSizingInput): OrderSizingResult
   );
 
   const buyByAmount =
-    price && buyingPower != null ? floorToLot(Math.floor(buyingPower / price)) : null;
-  const buyByDnse = input.dnseMaxBuyQty != null ? floorToLot(input.dnseMaxBuyQty) : null;
+    price && buyingPower != null ? floorToQuantity(Math.floor(buyingPower / price)) : null;
+  const buyByDnse = input.dnseMaxBuyQty != null ? floorToQuantity(input.dnseMaxBuyQty) : null;
   const buyMaxQuantity = minDefinedNonNegative([buyByAmount, buyByDnse]);
 
-  const sellByHolding = input.availableSellQty != null ? floorToLot(input.availableSellQty) : null;
-  const sellByDnse = input.dnseMaxSellQty != null ? floorToLot(input.dnseMaxSellQty) : null;
+  const sellByHolding = input.availableSellQty != null ? floorToQuantity(input.availableSellQty) : null;
+  const sellByDnse = input.dnseMaxSellQty != null ? floorToQuantity(input.dnseMaxSellQty) : null;
   const sellMaxQuantity = minDefinedNonNegative([sellByHolding, sellByDnse]);
 
   const recommendedByAsset =
     price && totalAsset
-      ? floorToLot(Math.floor((totalAsset * recommendedNavPct) / 100 / price))
+      ? floorToQuantity(Math.floor((totalAsset * recommendedNavPct) / 100 / price))
       : 0;
   const sideCap = input.side === "SELL" ? sellMaxQuantity : buyMaxQuantity;
   const recommendedQuantity = sideCap > 0
-    ? floorToLot(Math.min(sideCap, recommendedByAsset || sideCap))
+    ? floorToQuantity(Math.min(sideCap, recommendedByAsset || sideCap))
     : 0;
 
   return {

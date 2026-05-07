@@ -333,6 +333,75 @@ async function fiinFetch<T>(path: string, options?: { timeout?: number }): Promi
   }
 }
 
+const CP1252_TO_BYTE: Record<string, number> = {
+  "€": 0x80,
+  "‚": 0x82,
+  "ƒ": 0x83,
+  "„": 0x84,
+  "…": 0x85,
+  "†": 0x86,
+  "‡": 0x87,
+  "ˆ": 0x88,
+  "‰": 0x89,
+  "Š": 0x8a,
+  "‹": 0x8b,
+  "Œ": 0x8c,
+  "Ž": 0x8e,
+  "‘": 0x91,
+  "’": 0x92,
+  "“": 0x93,
+  "”": 0x94,
+  "•": 0x95,
+  "–": 0x96,
+  "—": 0x97,
+  "˜": 0x98,
+  "™": 0x99,
+  "š": 0x9a,
+  "›": 0x9b,
+  "œ": 0x9c,
+  "ž": 0x9e,
+  "Ÿ": 0x9f,
+};
+
+function mojibakeScore(value: string): number {
+  const matches = value.match(/[ÃÄÆÂðŸ�]|áº|á»|â€|â†|â”/g);
+  return matches?.length ?? 0;
+}
+
+function repairMojibakeText(value: string): string {
+  if (mojibakeScore(value) === 0) return value;
+
+  const bytes: number[] = [];
+  for (const char of value) {
+    const mapped = CP1252_TO_BYTE[char];
+    if (mapped != null) {
+      bytes.push(mapped);
+      continue;
+    }
+
+    const code = char.codePointAt(0) ?? 0;
+    if (code <= 0xff) {
+      bytes.push(code);
+      continue;
+    }
+
+    return value;
+  }
+
+  const decoded = Buffer.from(bytes).toString("utf8");
+  return mojibakeScore(decoded) < mojibakeScore(value) ? decoded : value;
+}
+
+function repairMojibakeDeep<T>(value: T): T {
+  if (typeof value === "string") return repairMojibakeText(value) as T;
+  if (Array.isArray(value)) return value.map((item) => repairMojibakeDeep(item)) as T;
+  if (!value || typeof value !== "object") return value;
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, repairMojibakeDeep(item)]),
+  ) as T;
+}
+
 // ═══════════════════════════════════════════════
 //  API Endpoints
 // ═══════════════════════════════════════════════
@@ -403,7 +472,8 @@ export async function fetchMorningNews(): Promise<FiinMorningNews | null> {
 
 /** EOD News */
 export async function fetchEodNews(): Promise<FiinEodNews | null> {
-  return fiinFetch<FiinEodNews>("/api/v1/news/eod", { timeout: 60_000 });
+  const eod = await fiinFetch<FiinEodNews>("/api/v1/news/eod", { timeout: 60_000 });
+  return eod ? repairMojibakeDeep(eod) : null;
 }
 
 /** Intraday Market Snapshot (realtime) */

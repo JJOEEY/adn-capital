@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import useSWR from "swr";
 import {
   Crown,
   FileText,
@@ -65,12 +64,6 @@ const sentimentOptions: Array<{ key: SentimentKey; label: string }> = [
   { key: "neutral", label: "Trung tính" },
   { key: "negative", label: "Tiêu cực" },
 ];
-
-const swrFetcher = (url: string) =>
-  fetch(url, { signal: AbortSignal.timeout(30_000) }).then((response) => {
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return response.json();
-  });
 
 function stripVietnamese(value: string) {
   return value
@@ -775,11 +768,12 @@ export default function TinTucPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const { data: overview } = useSWR<MarketOverview>("/api/market-overview", swrFetcher, {
-    keepPreviousData: true,
+  const overviewTopic = useTopic<MarketOverview>("vn:index:composite:live", {
+    refreshInterval: 300_000,
     revalidateOnFocus: false,
     dedupingInterval: 60_000,
   });
+  const overview = overviewTopic.data;
 
   useEffect(() => {
     let cancelled = false;

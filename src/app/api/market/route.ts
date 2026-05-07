@@ -75,6 +75,22 @@ async function fetchChartData(ticker: string): Promise<Array<{ date: string; clo
   }
 }
 
+type PublicIndexData = { value: number; change: number; changePercent: number; volume: number };
+
+function findSnapshotIndex(
+  snapshot: Awaited<ReturnType<typeof getMarketSnapshot>> | null,
+  tickers: string[],
+): PublicIndexData | null {
+  const item = snapshot?.indices.find((index) => tickers.includes(index.ticker));
+  if (!item) return null;
+  return {
+    value: item.value,
+    change: item.change,
+    changePercent: item.changePct,
+    volume: item.volume,
+  };
+}
+
 async function getMarketStatus() {
   const hour = new Date().getHours();
   const isAfter3pm = hour >= 15;
@@ -89,9 +105,9 @@ async function getMarketStatus() {
     getMarketSnapshot().catch(() => null),
   ]);
 
-  const vnindex = vnidxData ?? { value: 1287.45, change: 12.3, changePercent: 0.96, volume: 0 };
-  const hnx = hnxData ?? { value: 236.82, change: 1.8, changePercent: 0.77, volume: 0 };
-  const vn30 = vn30Data ?? { value: 1350.20, change: 8.5, changePercent: 0.63, volume: 0 };
+  const vnindex = findSnapshotIndex(snapshot, ["VNINDEX"]) ?? vnidxData ?? { value: 1287.45, change: 12.3, changePercent: 0.96, volume: 0 };
+  const hnx = findSnapshotIndex(snapshot, ["HNXINDEX", "HNX"]) ?? hnxData ?? { value: 236.82, change: 1.8, changePercent: 0.77, volume: 0 };
+  const vn30 = findSnapshotIndex(snapshot, ["VN30"]) ?? vn30Data ?? { value: 1350.20, change: 8.5, changePercent: 0.63, volume: 0 };
 
   // Chấm điểm thị trường
   const indicators = {

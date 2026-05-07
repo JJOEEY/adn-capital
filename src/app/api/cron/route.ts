@@ -48,10 +48,11 @@ import {
   sendClaimedSignalsToTelegram,
 } from "@/lib/signals/telegram-notify";
 
-export const maxDuration = 120;
+export const maxDuration = 600;
 export const dynamic = "force-dynamic";
 
 const PYTHON_BRIDGE = getPythonBridgeUrl();
+const SIGNAL_SCAN_TIMEOUT_MS = 600_000;
 const MARKET_OVERVIEW_CACHE_FILE = path.join(process.cwd(), "market_cache.json");
 const EOD_FULL_MINUTE_VN = 19 * 60;
 const ADN_RANK_REFRESH_MINUTE_VN = 15 * 60;
@@ -501,7 +502,7 @@ _Powered by ADN Capital AI_`;
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  Router
+//  Route
 // ═══════════════════════════════════════════════════════════════
 
 export async function GET(req: NextRequest) {
@@ -564,7 +565,7 @@ export async function GET(req: NextRequest) {
     if (type === "adn_rank_15h") {
       return runCronHandlerWithWorkflowHook(type, () => handleAdnRank15h(forceRun), "cron-dispatch:sync");
     }
-    return runCronHandlerWithWorkflowHook(type, () => handleSignalScan5m(), "cron-dispatch:sync");
+    return runCronHandlerWithWorkflowHook(type, () => handleSignalScan5m(forceRun), "cron-dispatch:sync");
   }
 
   const queued = await prisma.cronLog.create({
@@ -593,7 +594,7 @@ export async function GET(req: NextRequest) {
       } else if (type === "adn_rank_15h") {
         await runCronHandlerWithWorkflowHook(type, () => handleAdnRank15h(forceRun), "cron-dispatch:async");
       } else {
-        await runCronHandlerWithWorkflowHook(type, () => handleSignalScan5m(), "cron-dispatch:async");
+        await runCronHandlerWithWorkflowHook(type, () => handleSignalScan5m(forceRun), "cron-dispatch:async");
       }
       await prisma.cronLog.update({
         where: { id: queued.id },
@@ -685,7 +686,7 @@ function extractBridgeExchangeLiquidity(
   };
 }
 
-function buildFull19PublicReport(
+function buildFull19PublicReportLegacy(
   today: string,
   snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>,
   eodDetail?: FiinEodNews | null,
@@ -746,6 +747,152 @@ ${investorSection}
 _Powered by ADN Capital AI_`;
 }
 
+
+function buildFull19PublicReport(
+  today: string,
+  snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>,
+  eodDetail?: FiinEodNews | null,
+) {
+  const toNumber = (value: unknown): number | null => {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  };
+  const formatNumber = (value: number | null | undefined, digits = 1) => {
+    if (value == null || !Number.isFinite(value)) return "-";
+    return value.toLocaleString("vi-VN", {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    });
+  };
+  const formatTy = (value: number | null | undefined) => {
+    if (value == null || !Number.isFinite(value)) return "-";
+    return value.toLocaleString("vi-VN", { maximumFractionDigits: 0 });
+  };
+  const formatPct = (value: number | null | undefined) => {
+    if (value == null || !Number.isFinite(value)) return "-";
+    return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+  };
+  const stripListPrefix = (value: string) => {
+    const prefixes = [
+      "T\u0103ng \u0111i\u1ec3m:",
+      "Gi\u1ea3m \u0111i\u1ec3m:",
+      "Mua r\u00f2ng:",
+      "B\u00e1n r\u00f2ng:",
+    ];
+    const matched = prefixes.find((prefix) => value.startsWith(prefix));
+    return matched ? value.slice(matched.length).trim() : value;
+  };
+
+  const formatList = (items: string[] | undefined, limit = 8) =>
+    (items ?? [])
+      .map((item) => String(item ?? "").trim())
+      .filter(Boolean)
+      .map(stripListPrefix)
+      .slice(0, limit)
+      .join(", ");
+  const addSection = (lines: string[], title: string, body: string | null | undefined) => {
+    const content = String(body ?? "").trim();
+    if (content) lines.push(`${title}\n${content}`);
+  };
+
+  const vnindex = snapshot.indices.find((item) => item.ticker === "VNINDEX");
+  const vnIndexValue = toNumber(eodDetail?.vnindex) ?? vnindex?.value ?? null;
+  const vnIndexChangePct = toNumber(eodDetail?.change_pct) ?? vnindex?.changePct ?? null;
+  const directionIcon = (vnIndexChangePct ?? 0) >= 0 ? "🟢" : "🔴";
+  const bridgeLiq = extractBridgeExchangeLiquidity(eodDetail);
+  const matchedLiquidity =
+    toNumber(eodDetail?.matched_liquidity) ?? toNumber(eodDetail?.liquidity) ?? snapshot.liquidity ?? null;
+  const negotiatedLiquidity = toNumber(eodDetail?.negotiated_liquidity);
+  const totalLiquidity =
+    toNumber(eodDetail?.total_liquidity) ??
+    (matchedLiquidity != null && negotiatedLiquidity != null ? matchedLiquidity + negotiatedLiquidity : null) ??
+    matchedLiquidity;
+  const liquidityByExchange = {
+    HOSE: bridgeLiq.HOSE ?? snapshot.liquidityByExchange.HOSE,
+    HNX: bridgeLiq.HNX ?? snapshot.liquidityByExchange.HNX,
+    UPCOM: bridgeLiq.UPCOM ?? snapshot.liquidityByExchange.UPCOM,
+  };
+  const breadth = eodDetail?.breadth ?? snapshot.breadth;
+  const dateLabel = eodDetail?.date
+    ? eodDetail.date.split("-").reverse().join("/")
+    : today;
+  const sessionSummary =
+    eodDetail?.session_summary?.trim() ||
+    `VN-Index đóng cửa tại ${formatNumber(vnIndexValue)} điểm (${formatPct(vnIndexChangePct)}). Thanh khoản toàn thị trường đạt ${formatTy(totalLiquidity)} tỷ đồng.`;
+  const outlook =
+    eodDetail?.outlook?.trim() ||
+    `Phiên tới ưu tiên trạng thái trung tính. Thanh khoản toàn thị trường đạt ${formatTy(totalLiquidity)} tỷ đồng; độ rộng ghi nhận ${breadth?.up ?? "-"} mã tăng, ${breadth?.down ?? "-"} mã giảm và ${breadth?.unchanged ?? "-"} mã đứng giá.`;
+
+  const lines: string[] = [
+    `📊 EOD FLASH NOTE — ${dateLabel}`,
+    "",
+    `${directionIcon} VN-INDEX: ${formatNumber(vnIndexValue)} (${formatPct(vnIndexChangePct)})`,
+    `💰 TK: ${formatTy(totalLiquidity)} tỷ (HoSE ${formatTy(liquidityByExchange.HOSE)} | HNX ${formatTy(liquidityByExchange.HNX)} | UPCoM ${formatTy(liquidityByExchange.UPCOM)})`,
+    `📏 Độ rộng: ↑${breadth?.up ?? "-"} ↓${breadth?.down ?? "-"} ─${breadth?.unchanged ?? "-"}`,
+    "",
+    `📝 ${sessionSummary}`,
+  ];
+
+  const foreignBuy = formatList(eodDetail?.foreign_top_buy, 5);
+  const foreignSell = formatList(eodDetail?.foreign_top_sell, 5);
+  addSection(
+    lines,
+    "🏦 Khối ngoại:",
+    [
+      eodDetail?.foreign_flow?.trim(),
+      foreignBuy ? `  🟢 Mua ròng: ${foreignBuy}` : "",
+      foreignSell ? `  🔴 Bán ròng: ${foreignSell}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n"),
+  );
+
+  const propBuy = formatList(eodDetail?.prop_trading_top_buy, 5);
+  const propSell = formatList(eodDetail?.prop_trading_top_sell, 5);
+  addSection(
+    lines,
+    "🏢 Tự doanh:",
+    [propBuy ? `  🟢 Mua: ${propBuy}` : "", propSell ? `  🔴 Bán: ${propSell}` : ""].filter(Boolean).join("\n"),
+  );
+
+  const individualBuy = formatList(eodDetail?.individual_top_buy, 5);
+  const individualSell = formatList(eodDetail?.individual_top_sell, 5);
+  addSection(
+    lines,
+    "👤 Cá nhân:",
+    [individualBuy ? `  🟢 Mua: ${individualBuy}` : "", individualSell ? `  🔴 Bán: ${individualSell}` : ""]
+      .filter(Boolean)
+      .join("\n"),
+  );
+
+  const sectorGainers = formatList(eodDetail?.sector_gainers, 8);
+  const sectorLosers = formatList(eodDetail?.sector_losers, 8);
+  addSection(
+    lines,
+    "🏭 Nhóm ảnh hưởng chỉ số:",
+    [sectorGainers ? `  🟢 Tăng điểm: ${sectorGainers}` : "", sectorLosers ? `  🔴 Giảm điểm: ${sectorLosers}` : ""]
+      .filter(Boolean)
+      .join("\n"),
+  );
+
+  const buySignals = formatList(eodDetail?.buy_signals, 12);
+  const sellSignals = formatList(eodDetail?.sell_signals, 12);
+  addSection(
+    lines,
+    "⚡ Tín hiệu mua/bán chủ động:",
+    [buySignals ? `  🟢 Mua chủ động: ${buySignals}` : "", sellSignals ? `  🔴 Bán chủ động: ${sellSignals}` : ""]
+      .filter(Boolean)
+      .join("\n"),
+  );
+
+  addSection(lines, "🚀 Nhóm đột phá:", formatList(eodDetail?.top_breakout, 12));
+  addSection(lines, "🏁 Top vượt đỉnh:", formatList(eodDetail?.top_new_high, 8));
+  lines.push("", `🔮 Nhận định phiên tới: ${outlook}`, "", "— ADN Capital");
+
+  return lines.join("\n");
+}
+
+
 function countEodDetailBuckets(eodDetail: FiinEodNews | null | undefined): number {
   if (!eodDetail) return 0;
   const buckets = [
@@ -764,49 +911,6 @@ function hasCompleteEodDetail(eodDetail: FiinEodNews | null | undefined): boolea
   const liquidity = Number(eodDetail.total_liquidity ?? eodDetail.liquidity ?? 0);
   const hasOutlook = typeof eodDetail.outlook === "string" && eodDetail.outlook.trim().length >= 40;
   return Number.isFinite(liquidity) && liquidity > 0 && hasOutlook && countEodDetailBuckets(eodDetail) >= 3;
-}
-
-function readBridgeNumber(value: unknown): number | null {
-  const numberValue = Number(value);
-  return Number.isFinite(numberValue) ? numberValue : null;
-}
-
-function nearlyEqual(a: number | null | undefined, b: number | null | undefined, tolerance: number): boolean {
-  if (a == null || b == null) return false;
-  return Math.abs(a - b) <= tolerance;
-}
-
-function isEodDetailCurrentForSnapshot(
-  eodDetail: FiinEodNews | null | undefined,
-  snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>,
-  expectedDateKey: string,
-): boolean {
-  if (!eodDetail || !hasCompleteEodDetail(eodDetail)) return false;
-  const detailDateKey = toDateKey(eodDetail.date);
-  if (detailDateKey === expectedDateKey) return true;
-
-  const vnindex = snapshot.indices.find((item) => item.ticker === "VNINDEX");
-  const detailVnindex = readBridgeNumber(eodDetail.vnindex);
-  const detailChangePct = readBridgeNumber(eodDetail.change_pct);
-  const indexMatches = nearlyEqual(detailVnindex, vnindex?.value, 0.25);
-  const changeMatches = nearlyEqual(detailChangePct, vnindex?.changePct, 0.08);
-
-  // Bridge may refresh numbers before its date label. Accept only when the
-  // VNINDEX numeric fingerprint matches the canonical market snapshot.
-  return indexMatches && changeMatches;
-}
-
-function normalizeEodDetailDate(
-  eodDetail: FiinEodNews | null | undefined,
-  dateLabel: string,
-  snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>,
-  expectedDateKey: string,
-): FiinEodNews | null {
-  if (!isEodDetailCurrentForSnapshot(eodDetail, snapshot, expectedDateKey)) return null;
-  return {
-    ...eodDetail!,
-    date: dateLabel,
-  };
 }
 
 async function handlePropTrading(forceRun = false): Promise<NextResponse> {
@@ -852,47 +956,33 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
     ]);
     saveMarketOverviewCache(snapshot.marketOverview);
 
-    const eodDetailComplete = hasCompleteEodDetail(eodDetail);
-    const eodDetailCurrent = isEodDetailCurrentForSnapshot(eodDetail, snapshot, dateISO);
-    const eodDetailDateKey = toDateKey(eodDetail?.date);
-    const normalizedEodDetail = normalizeEodDetailDate(eodDetail, today, snapshot, dateISO);
-
-    if (!eodDetailComplete) {
-      if (!forceRun) {
-        const duration = Date.now() - startTime;
-        await logCron("eod_full_19h", "skipped", "EOD detail incomplete, keep previous complete report", duration, {
-          detailBuckets: countEodDetailBuckets(eodDetail),
-          eodDetailAvailable: Boolean(eodDetail),
-        });
-        return NextResponse.json({
-          type: "eod_full_19h",
-          published: false,
-          reason: "eod_detail_incomplete",
-        });
-      }
-      // forceRun=true: generate từ snapshot (eodDetail=null), bỏ qua bridge data
-      console.log("[eod_full_19h] forceRun: bypassing incomplete eodDetail, using snapshot only");
+    if (!hasCompleteEodDetail(eodDetail)) {
+      const duration = Date.now() - startTime;
+      await logCron("eod_full_19h", "skipped", "EOD detail incomplete, keep previous complete report", duration, {
+        detailBuckets: countEodDetailBuckets(eodDetail),
+        eodDetailAvailable: Boolean(eodDetail),
+      });
+      return NextResponse.json({
+        type: "eod_full_19h",
+        published: false,
+        reason: "eod_detail_incomplete",
+      });
     }
 
-    if (eodDetailComplete && !eodDetailCurrent) {
-      if (!forceRun) {
-        const duration = Date.now() - startTime;
-        await logCron("eod_full_19h", "skipped", "EOD detail date mismatch, keep previous complete report", duration, {
-          eodDetailDateKey,
-          expectedDateKey: dateISO,
-        });
-        return NextResponse.json({
-          type: "eod_full_19h",
-          published: false,
-          reason: "eod_detail_date_mismatch",
-          eodDetailDateKey,
-          expectedDateKey: dateISO,
-        });
-      }
-      // forceRun=true: dùng snapshot, bỏ eodDetail sai ngày
-      console.log(`[eod_full_19h] forceRun: bypassing date mismatch (bridge=${eodDetailDateKey}, expected=${dateISO}), using snapshot only`);
-    } else if (eodDetailComplete && eodDetailDateKey !== dateISO) {
-      console.warn(`[eod_full_19h] bridge date label mismatch accepted by numeric fingerprint (bridge=${eodDetailDateKey}, expected=${dateISO})`);
+    const eodDetailDateKey = toDateKey(eodDetail?.date);
+    if (eodDetailDateKey !== dateISO) {
+      const duration = Date.now() - startTime;
+      await logCron("eod_full_19h", "skipped", "EOD detail date mismatch, keep previous complete report", duration, {
+        eodDetailDateKey,
+        expectedDateKey: dateISO,
+      });
+      return NextResponse.json({
+        type: "eod_full_19h",
+        published: false,
+        reason: "eod_detail_date_mismatch",
+        eodDetailDateKey,
+        expectedDateKey: dateISO,
+      });
     }
 
     if (
@@ -946,20 +1036,13 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
       });
     }
 
-    // Nếu eodDetail sai ngày hoặc incomplete nhưng forceRun=true → dùng snapshot, không dùng bridge data sai
-    const eodDetailForReport = normalizedEodDetail;
-    const safeReport = buildFull19PublicReport(today, snapshot, eodDetailForReport);
+    const safeReport = buildFull19PublicReport(today, snapshot, eodDetail);
 
     await saveMarketReport(
       "eod_full_19h",
       `Bản tin tổng hợp 19:00 ${today}`,
       safeReport,
-      {
-        snapshot,
-        propData,
-        eodDetail: eodDetailForReport,
-        rawEodDetailDate: eodDetail?.date ?? null,
-      },
+      { snapshot, propData, eodDetail },
       {
         investorAvailability: snapshot.investorTrading.availability,
         liquidity: snapshot.liquidity,
@@ -968,9 +1051,7 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
         breadthByExchange: snapshot.breadthByExchange,
         source: snapshot.source,
         eodDetailAvailable: Boolean(eodDetail),
-        eodDetailComplete,
-        eodDetailCurrent,
-        rawEodDetailDate: eodDetail?.date ?? null,
+        eodDetailComplete: hasCompleteEodDetail(eodDetail),
         publishBlockers: snapshot.publishBlockers,
       }
     );
@@ -1122,7 +1203,7 @@ interface PythonScanSignal {
   reason?: string;
 }
 
-async function handleSignalScan5m(): Promise<NextResponse> {
+async function handleSignalScan5m(forceRun = false): Promise<NextResponse> {
   const startTime = Date.now();
   if (!isTradingDay()) {
     await logCron("signal_scan_type1", "skipped", "Không phải ngày giao dịch", 0);
@@ -1134,7 +1215,7 @@ async function handleSignalScan5m(): Promise<NextResponse> {
   const min = vnNow.minute();
   const timeKey = `${hour}:${min.toString().padStart(2, "0")}`;
 
-  if (!SIGNAL_SCAN_SLOT_SET.has(timeKey)) {
+  if (!forceRun && !SIGNAL_SCAN_SLOT_SET.has(timeKey)) {
     return NextResponse.json({ message: `Fixed Gate: skip ${timeKey}` });
   }
 
@@ -1142,7 +1223,7 @@ async function handleSignalScan5m(): Promise<NextResponse> {
     const todayISO = getVNDateISO();
     const windowInfo = getSignalWindowInfo(vnNow.toDate());
     const radarQuota = await getRadarMonthlyQuotaEstimate();
-    const scanMode = chooseRadarScanMode(timeKey, radarQuota.monthlyUsedPct);
+    const scanMode = forceRun ? "hot" : chooseRadarScanMode(timeKey, radarQuota.monthlyUsedPct);
     if (!scanMode) {
       const duration = Date.now() - startTime;
       await logCron("signal_scan_type1", "skipped", "Radar quota guard: skip non-critical scan", duration, {
@@ -1158,11 +1239,13 @@ async function handleSignalScan5m(): Promise<NextResponse> {
       });
     }
 
+    const slot = forceRun ? "manual" : timeKey;
+    const slotLabel = forceRun ? "manual" : windowInfo.label;
     const scanUrl = new URL("/api/v1/scan-now", PYTHON_BRIDGE);
     scanUrl.searchParams.set("mode", scanMode);
     const res = await fetch(scanUrl.toString(), {
       method: "POST",
-      signal: AbortSignal.timeout(90_000),
+      signal: AbortSignal.timeout(SIGNAL_SCAN_TIMEOUT_MS),
     });
     if (!res.ok) throw new Error(`Python scanner HTTP ${res.status}`);
 
@@ -1179,8 +1262,8 @@ async function handleSignalScan5m(): Promise<NextResponse> {
       signals,
       detected: Number.isFinite(scanResult.detected) ? Number(scanResult.detected) : signals.length,
       tradingDate: todayISO,
-      slot: timeKey,
-      slotLabel: windowInfo.label,
+      slot,
+      slotLabel,
       source: "cron",
       scannedAt: new Date(),
     });
@@ -1192,28 +1275,17 @@ async function handleSignalScan5m(): Promise<NextResponse> {
       const signalText = webNotifySignals
         .map((signal) => `• ${signal.ticker}: ${signal.entryPrice.toLocaleString("vi-VN")} VNĐ${signal.reason ? ` — ${signal.reason}` : ""}`)
         .join("\n");
-
-      // Web/PWA push: tất cả signals mới (RADAR + ACTIVE)
       await pushNotification(
         windowInfo.type,
-        `⚡ ${windowInfo.label} — ${webNotifySignals.length} tín hiệu mới`,
-        `## TÍN HIỆU MỚI (${windowInfo.label})\n\n${signalText}`,
+        `⚡ ${slotLabel} — ${webNotifySignals.length} tín hiệu mới`,
+        `## TÍN HIỆU MỚI (${slotLabel})\n\n${signalText}`,
       );
-      // Telegram group: chi RADAR signals. ACTIVE signals duoc gui rieng theo batch phia duoi.
-      const activatedKeys = new Set(
-        ingestResult.activatedSignals.map((s) => `${s.ticker}|${s.signalType}`),
-      );
-      const radarSignals = webNotifySignals.filter(
-        (s) => !activatedKeys.has(`${s.ticker}|${s.type}`),
-      );
-      if (radarSignals.length > 0) {
-        telegramSignalBatchResult = await sendClaimedSignalsToTelegram({
-          signals: radarSignals,
-          tradingDate: todayISO,
-          slotLabel: windowInfo.label,
-          batchId: ingestResult.artifact.batchId,
-        }).catch((error) => ({ ok: false, error: String(error) }));
-      }
+      telegramSignalBatchResult = await sendClaimedSignalsToTelegram({
+        signals: webNotifySignals,
+        tradingDate: todayISO,
+        slotLabel,
+        batchId: ingestResult.artifact.batchId,
+      }).catch((error) => ({ ok: false, error: String(error) }));
     }
 
     if (ingestResult.activatedSignals.length > 0) {
@@ -1229,7 +1301,7 @@ async function handleSignalScan5m(): Promise<NextResponse> {
       telegramActiveBatchResult = await sendActiveSignalsToTelegram({
         signals: ingestResult.activatedSignals,
         tradingDate: todayISO,
-        slotLabel: windowInfo.label,
+        slotLabel,
       }).catch((error) => ({ ok: false, error: String(error) }));
     }
 
@@ -1435,7 +1507,7 @@ async function handleSignalScan5mLegacy(): Promise<NextResponse> {
     });
     const alreadySent = new Set(sentTodayRows.map((r) => toSignalKey(r.ticker, r.signalType)));
 
-    // 1 API call → Python scanner
+    // 1 API call → Python scanne
     const res = await fetch(`${PYTHON_BRIDGE}/api/v1/scan-now`, { method: "POST", signal: AbortSignal.timeout(90_000) });
     if (!res.ok) throw new Error(`Python scanner HTTP ${res.status}`);
     const scanResult: { detected: number; signals: PythonScanSignal[] } = await res.json();
