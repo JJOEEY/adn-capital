@@ -225,9 +225,11 @@ async function loadSignalMapLatest() {
   return res.json();
 }
 
-async function loadRsRatingList() {
+async function loadRsRatingList(force = false) {
   const mod = await import("@/app/api/rs-rating/route");
-  const res = await mod.GET(new NextRequest("http://localhost/api/rs-rating"));
+  const url = new URL("http://localhost/api/rs-rating");
+  if (force) url.searchParams.set("force", "1");
+  const res = await mod.GET(new NextRequest(url.toString()));
   if (!res.ok) throw new Error(`rs-rating HTTP ${res.status}`);
   return res.json();
 }
@@ -2771,7 +2773,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
       ["research:rs-rating:list", "market:rs:latest", "scan:rs-rating:list"].includes(topicKey)
         ? { ok: true }
         : { ok: false },
-    resolve: async () => loadRsRatingList(),
+    resolve: async (_, context) => loadRsRatingList(context.force === true),
   },
 ];
 

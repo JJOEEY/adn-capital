@@ -53,6 +53,11 @@ const CRON_JOB_POLICIES: Record<CanonicalCronType, CronJobPolicy> = {
     staleGraceMinutes: 90,
     tradingWindowOnly: false,
   },
+  adn_rank_15h: {
+    slotsMinutes: [15 * 60],
+    staleGraceMinutes: 90,
+    tradingWindowOnly: false,
+  },
 };
 
 function toMinuteLabel(totalMinutes: number) {

@@ -57,6 +57,7 @@ Canonical names:
 - `market_stats_type2` (`10:00, 11:30, 14:00, 14:45`)
 - `morning_brief` (`08:00`)
 - `close_brief_15h` (`15:00`)
+- `adn_rank_15h` (`15:00`, T2-T6)
 - `eod_full_19h` (`19:00`)
 
 Legacy aliases are compatibility-only and not source-of-truth.

@@ -47,6 +47,9 @@ ${CRON_MARKET_1445_SCHEDULE:-45 14 * * *} ${CURL_CMD} "${APP_URL}/api/cron?type=
 # Type 3 - Close brief 15:00 VN
 ${CRON_CLOSE_15H_SCHEDULE:-0 15 * * *} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_CLOSE_15H:-close_brief_15h}" >> ${LOG_DIR}/close_brief_15h.log 2>&1
 
+# ADN Rank - price/RS refresh 15:00 VN, Mon-Fri
+${CRON_ADN_RANK_15H_SCHEDULE:-0 15 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_ADN_RANK_15H:-adn_rank_15h}" >> ${LOG_DIR}/adn_rank_15h.log 2>&1
+
 # Type 3 - Full EOD 19:00 VN
 ${CRON_EOD_19H_SCHEDULE:-0 19 * * *} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_EOD_19H:-eod_full_19h}" >> ${LOG_DIR}/eod_full_19h.log 2>&1
 
@@ -64,5 +67,5 @@ EOF
 crontab "${CRON_FILE}"
 
 echo "[setup-cron] Installed crontab from ${CRON_FILE}"
-echo "[setup-cron] Canonical cron types: signal_scan_type1, market_stats_type2, morning_brief, close_brief_15h, eod_full_19h, news_crawler"
+echo "[setup-cron] Canonical cron types: signal_scan_type1, market_stats_type2, morning_brief, close_brief_15h, eod_full_19h, news_crawler, adn_rank_15h"
 echo "[setup-cron] Verify with: crontab -l"

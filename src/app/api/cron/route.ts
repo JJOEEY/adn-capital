@@ -35,7 +35,7 @@ import {
 import { fetchEodNews, type FiinEodNews } from "@/lib/fiinquantClient";
 import { fetchAllCafefNews, buildCafefContext } from "@/lib/cafefScraper";
 import { getVnNow } from "@/lib/time";
-import { invalidateTopics } from "@/lib/datahub/core";
+import { getTopicEnvelope, invalidateTopics } from "@/lib/datahub/core";
 import { normalizeCronType, LEGACY_CRON_ALIASES } from "@/lib/cron-contracts";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
 import { emitWorkflowTrigger } from "@/lib/workflows";
@@ -54,6 +54,8 @@ export const dynamic = "force-dynamic";
 const PYTHON_BRIDGE = getPythonBridgeUrl();
 const MARKET_OVERVIEW_CACHE_FILE = path.join(process.cwd(), "market_cache.json");
 const EOD_FULL_MINUTE_VN = 19 * 60;
+const ADN_RANK_REFRESH_MINUTE_VN = 15 * 60;
+const ADN_RANK_TOPIC_KEYS = ["research:rs-rating:list", "market:rs:latest", "scan:rs-rating:list"] as const;
 
 interface RadarQuotaEstimate {
   monthlyUsed: number;
@@ -207,6 +209,75 @@ async function handleNewsCrawler(): Promise<NextResponse> {
     const duration = Date.now() - startTime;
     await logCron("news_crawler", "error", String(error), duration);
     return NextResponse.json({ error: "Lỗi cập nhật tin tức" }, { status: 500 });
+  }
+}
+
+async function handleAdnRank15h(forceRun = false): Promise<NextResponse> {
+  const startTime = Date.now();
+  const vnNow = getVnNow();
+  const day = vnNow.day();
+  const minuteOfDay = vnNow.hour() * 60 + vnNow.minute();
+
+  if (!forceRun && (day === 0 || day === 6)) {
+    const duration = Date.now() - startTime;
+    await logCron("adn_rank_15h", "skipped", "ADN Rank refresh skipped on weekend", duration, { weekday: day });
+    return NextResponse.json({ type: "adn_rank_15h", skipped: true, reason: "weekend" });
+  }
+
+  if (!forceRun && minuteOfDay < ADN_RANK_REFRESH_MINUTE_VN) {
+    const duration = Date.now() - startTime;
+    await logCron("adn_rank_15h", "skipped", "ADN Rank refresh skipped before 15:00 VN", duration, { nextSlot: "15:00" });
+    return NextResponse.json({ type: "adn_rank_15h", skipped: true, reason: "before_scheduled_slot", nextSlot: "15:00" });
+  }
+
+  try {
+    const invalidated = invalidateTopics({ topics: [...ADN_RANK_TOPIC_KEYS], tags: ["rs-rating"] });
+    const envelope = await getTopicEnvelope("research:rs-rating:list", { force: true });
+    const payload = envelope.value as { stocks?: unknown[]; asOfDate?: string | null; updatedAt?: string | null } | null;
+    const count = Array.isArray(payload?.stocks) ? payload.stocks.length : 0;
+    const duration = Date.now() - startTime;
+
+    if (envelope.freshness === "error" || count === 0) {
+      await logCron("adn_rank_15h", "error", "ADN Rank refresh returned no valid rows", duration, {
+        freshness: envelope.freshness,
+        error: envelope.error,
+        invalidated,
+      });
+      return NextResponse.json(
+        {
+          type: "adn_rank_15h",
+          published: false,
+          reason: "empty_or_error",
+          freshness: envelope.freshness,
+          error: envelope.error,
+        },
+        { status: 502 },
+      );
+    }
+
+    await logCron("adn_rank_15h", "success", `ADN Rank refreshed ${count} rows`, duration, {
+      topicUpdatedAt: envelope.updatedAt,
+      payloadUpdatedAt: payload?.updatedAt ?? null,
+      asOfDate: payload?.asOfDate ?? null,
+      count,
+      invalidated,
+    });
+    return NextResponse.json({
+      type: "adn_rank_15h",
+      published: true,
+      count,
+      topicUpdatedAt: envelope.updatedAt,
+      payloadUpdatedAt: payload?.updatedAt ?? null,
+      asOfDate: payload?.asOfDate ?? null,
+      invalidated,
+    });
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    await logCron("adn_rank_15h", "error", String(error), duration);
+    return NextResponse.json(
+      { type: "adn_rank_15h", published: false, error: "Khong cap nhat duoc ADN Rank" },
+      { status: 500 },
+    );
   }
 }
 
@@ -454,6 +525,7 @@ export async function GET(req: NextRequest) {
           "market_stats_type2",
           "signal_scan_type1",
           "news_crawler",
+          "adn_rank_15h",
         ],
         legacyAliases: LEGACY_CRON_ALIASES,
       },
@@ -489,6 +561,9 @@ export async function GET(req: NextRequest) {
     if (type === "news_crawler") {
       return runCronHandlerWithWorkflowHook(type, () => handleNewsCrawler(), "cron-dispatch:sync");
     }
+    if (type === "adn_rank_15h") {
+      return runCronHandlerWithWorkflowHook(type, () => handleAdnRank15h(forceRun), "cron-dispatch:sync");
+    }
     return runCronHandlerWithWorkflowHook(type, () => handleSignalScan5m(), "cron-dispatch:sync");
   }
 
@@ -515,6 +590,8 @@ export async function GET(req: NextRequest) {
         await runCronHandlerWithWorkflowHook(type, () => handleIntraday(forceRun), "cron-dispatch:async");
       } else if (type === "news_crawler") {
         await runCronHandlerWithWorkflowHook(type, () => handleNewsCrawler(), "cron-dispatch:async");
+      } else if (type === "adn_rank_15h") {
+        await runCronHandlerWithWorkflowHook(type, () => handleAdnRank15h(forceRun), "cron-dispatch:async");
       } else {
         await runCronHandlerWithWorkflowHook(type, () => handleSignalScan5m(), "cron-dispatch:async");
       }

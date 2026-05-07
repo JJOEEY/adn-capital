@@ -17,6 +17,7 @@ Auth for API checks:
 - `morning_brief`
 - `close_brief_15h`
 - `eod_full_19h`
+- `adn_rank_15h`
 
 Legacy aliases are accepted only for compatibility and normalized internally.
 

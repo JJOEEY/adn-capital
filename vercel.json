@@ -32,6 +32,11 @@
       "comment": "15:00 VN (08:00 UTC) - EOD close brief"
     },
     {
+      "path": "/api/cron?type=adn_rank_15h",
+      "schedule": "0 8 * * 1-5",
+      "comment": "15:00 VN (08:00 UTC) - ADN Rank price and RS refresh"
+    },
+    {
       "path": "/api/cron?type=eod_full_19h",
       "schedule": "0 12 * * 1-5",
       "comment": "19:00 VN (12:00 UTC) - EOD full brief"
