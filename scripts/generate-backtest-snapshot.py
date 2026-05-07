@@ -1,122 +1,269 @@
 #!/usr/bin/env python3
 """
-generate-backtest-snapshot.py  ─  V5-PRO
-─────────────────────────────────────────
-Backtest V5-PRO (ADN Capital) 2015–2025
-PORTFOLIO-LEVEL Dynamic Compounding.
-10 cổ phiếu chia sẻ 1 pool vốn 100 triệu VNĐ.
-Risk-based Position Sizing: N = (Equity × 1.5%) / (Price × |SL|)
+Generate ADN Lab backtest snapshot.
 
-Yêu cầu: pip install vnstock pandas pandas_ta
+Scope:
+- Offline historical backtest only.
+- Does not publish signals, does not call Telegram, does not touch broker flow.
+- Uses deterministic ADN Radar-style rules; AI is not involved.
+
+Requirements:
+  python -m pip install pandas vnstock
 """
 
-import json, warnings
+from __future__ import annotations
+
+import json
+import math
+import os
+import sys
+import time
+import warnings
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
-import pandas_ta as ta
 from vnstock import Vnstock
 
 warnings.filterwarnings("ignore")
 
-# ══ Config ════════════════════════════════════════════════════════════
-TICKER_SECTORS = {
-    "FPT": "Công nghệ",
-    "HPG": "Thép/Vật liệu",
-    "VCB": "Ngân hàng",
-    "DGC": "Hoá chất/XK",
-    "PVD": "Dầu khí",
-    "PVS": "Dầu khí DV",
-    "SSI": "Chứng khoán",
-    "VCG": "Xây dựng",
-    "REE": "Tiện ích/Điện",
-    "MWG": "Bán lẻ",
-}
-TICKERS = list(TICKER_SECTORS.keys())
-INITIAL_CAPITAL = 100_000_000  # 100 triệu VNĐ
-START_DATE = "2015-01-01"
-END_DATE   = "2025-12-31"
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
 
-SCRIPT_DIR  = Path(__file__).resolve().parent
+
+TICKER_SECTORS = {
+    # Bank
+    "VCB": "Ngan hang",
+    "BID": "Ngan hang",
+    "CTG": "Ngan hang",
+    "TCB": "Ngan hang",
+    "MBB": "Ngan hang",
+    "ACB": "Ngan hang",
+    "VPB": "Ngan hang",
+    "STB": "Ngan hang",
+    "HDB": "Ngan hang",
+    "LPB": "Ngan hang",
+    # Securities
+    "SSI": "Chung khoan",
+    "VND": "Chung khoan",
+    "HCM": "Chung khoan",
+    "VCI": "Chung khoan",
+    "MBS": "Chung khoan",
+    "VIX": "Chung khoan",
+    "SHS": "Chung khoan",
+    "ORS": "Chung khoan",
+    "VDS": "Chung khoan",
+    "TCI": "Chung khoan",
+    "CTS": "Chung khoan",
+    # Real estate / industrial park
+    "VHM": "Bat dong san",
+    "VIC": "Bat dong san",
+    "VRE": "Bat dong san",
+    "NVL": "Bat dong san",
+    "PDR": "Bat dong san",
+    "DXG": "Bat dong san",
+    "DIG": "Bat dong san",
+    "KBC": "Khu cong nghiep",
+    "IDC": "Khu cong nghiep",
+    "SZC": "Khu cong nghiep",
+    # Materials / chemicals
+    "HPG": "Thep",
+    "HSG": "Thep",
+    "NKG": "Thep",
+    "DGC": "Hoa chat",
+    "DCM": "Hoa chat",
+    "DPM": "Hoa chat",
+    "GVR": "Cao su",
+    "AAA": "Nhua",
+    "BMP": "Nhua",
+    # Oil and gas
+    "BSR": "Dau khi",
+    "PVD": "Dau khi",
+    "PVS": "Dau khi",
+    "GAS": "Dau khi",
+    "PLX": "Dau khi",
+    # Retail / consumer
+    "MWG": "Ban le",
+    "FRT": "Ban le",
+    "DGW": "Ban le",
+    "MSN": "Tieu dung",
+    "VNM": "Tieu dung",
+    "SAB": "Tieu dung",
+    # Tech / logistics / utilities
+    "FPT": "Cong nghe",
+    "CTR": "Cong nghe",
+    "REE": "Tien ich",
+    "PC1": "Tien ich",
+    "POW": "Dien",
+    "NT2": "Dien",
+    "GMD": "Logistics",
+    "HAH": "Logistics",
+    "VJC": "Hang khong",
+    "HVN": "Hang khong",
+}
+
+INITIAL_CAPITAL = int(os.getenv("BACKTEST_INITIAL_CAPITAL", "100000000"))
+START_DATE = os.getenv("BACKTEST_START", "2018-01-01")
+END_DATE = os.getenv("BACKTEST_END", datetime.now().strftime("%Y-%m-%d"))
+DATA_SOURCE = os.getenv("BACKTEST_DATA_SOURCE", "KBS")
+REQUEST_DELAY_SEC = float(os.getenv("BACKTEST_REQUEST_DELAY_SEC", "1.15"))
+
+SCRIPT_DIR = Path(__file__).resolve().parent
 OUTPUT_PATH = SCRIPT_DIR.parent / "public" / "data" / "latest-backtest-snapshot.json"
 
-# ══ Strategy Parameters V5-PRO ════════════════════════════════════════════
-COOLDOWN_DAYS    = 5          # V5-PRO+: giảm 10→5 để vào lại nhanh
-T_PLUS           = 3
-STOP_LOSS_PCT    = -0.07
-FLOOR_PCT        = -0.065
-MKT_VOL_SPIKE    = 1.5
-TRAIL_ACTIVATE   = 0.15       # Trailing kích hoạt khi lãi ≥ 15%
-TRAIL_PCT        = 0.10       # Trail 10% từ đỉnh
-RISK_PERCENT     = 0.04       # 4% NAV mỗi lệnh
-MAX_POS_PCT      = 0.25       # Tối đa 25% NAV/lệnh (4 vị thế cùng lúc)
-VOLUME_BREAKOUT  = 1.0        # V5-PRO+: hạ 1.5→1.0 cho nhiều cơ hội
-PARTIAL_TP_PCT   = 0.08       # Chốt 50% tại +8%
-PARTIAL_TP_RATIO = 0.50
-BREAKOUT_PCT     = 1.005      # V5-PRO+: hạ 1.015→1.005 (close > prev * 0.5%)
+COOLDOWN_DAYS = 5
+T_PLUS = 3
+RISK_PERCENT = 0.02
+MKT_FLOOR_PCT = -0.065
+MKT_VOL_SPIKE = 1.5
+TRAIL_ACTIVATE = 0.15
+TRAIL_PCT = 0.10
+MIN_BARS = 220
+
+TIER_CONFIG = {
+    "LEADER": {"base_nav": 0.30, "target_pct": 0.20, "stop_pct": 0.07},
+    "TRUNG_HAN": {"base_nav": 0.20, "target_pct": 0.10, "stop_pct": 0.05},
+    "NGAN_HAN": {"base_nav": 0.10, "target_pct": 0.07, "stop_pct": 0.03},
+    "TAM_NGAM": {"base_nav": 0.00, "target_pct": 0.10, "stop_pct": 0.05},
+}
+
+TYPE_TO_TIER = {
+    "SIEU_CO_PHIEU": "LEADER",
+    "TRUNG_HAN": "TRUNG_HAN",
+    "DAU_CO": "NGAN_HAN",
+    "TAM_NGAM": "TAM_NGAM",
+}
+
+MAX_HOLD_DAYS = {
+    "LEADER": 120,
+    "TRUNG_HAN": 80,
+    "NGAN_HAN": 20,
+}
 
 
-# ── Helper: Ngày đáo hạn phái sinh (Thứ 5 tuần 3) ──────────────────────
-def is_derivatives_expiry_day(d) -> bool:
-    if isinstance(d, pd.Timestamp):
-        d = d.to_pydatetime()
-    if d.weekday() != 3:
+def configured_tickers() -> list[str]:
+    raw = os.getenv("BACKTEST_TICKERS")
+    if not raw:
+        return list(TICKER_SECTORS.keys())
+    tickers = [x.strip().upper() for x in raw.split(",") if x.strip()]
+    return list(dict.fromkeys(tickers))
+
+
+TICKERS = configured_tickers()
+
+
+def ema(s: pd.Series, span: int) -> pd.Series:
+    return s.ewm(span=span, adjust=False).mean()
+
+
+def rsi(s: pd.Series, length: int = 14) -> pd.Series:
+    delta = s.diff()
+    gain = delta.clip(lower=0).rolling(length).mean()
+    loss = (-delta.clip(upper=0)).rolling(length).mean()
+    rs = gain / loss.replace(0, pd.NA)
+    return 100 - (100 / (1 + rs))
+
+
+def macd(s: pd.Series) -> tuple[pd.Series, pd.Series, pd.Series]:
+    line = ema(s, 12) - ema(s, 26)
+    signal = ema(line, 9)
+    hist = line - signal
+    return line, signal, hist
+
+
+def atr(df: pd.DataFrame, length: int = 20) -> pd.Series:
+    high_low = df["high"] - df["low"]
+    high_close = (df["high"] - df["close"].shift()).abs()
+    low_close = (df["low"] - df["close"].shift()).abs()
+    true_range = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+    return true_range.rolling(length).mean()
+
+
+def is_derivatives_expiry_day(d: pd.Timestamp) -> bool:
+    return d.weekday() == 3 and 15 <= d.day <= 21
+
+
+def finite(value: Any) -> bool:
+    try:
+        return value is not None and math.isfinite(float(value))
+    except Exception:
         return False
-    return 15 <= d.day <= 21
 
 
-# ── Lấy dữ liệu ─────────────────────────────────────────────────────
 def get_data(symbol: str, start: str, end: str) -> pd.DataFrame | None:
     try:
-        stock = Vnstock().stock(symbol=symbol, source="KBS")
+        if REQUEST_DELAY_SEC > 0:
+            time.sleep(REQUEST_DELAY_SEC)
+        stock = Vnstock().stock(symbol=symbol, source=DATA_SOURCE)
         df = stock.quote.history(start=start, end=end)
         if df is None or df.empty:
             return None
-        df.columns = [c.lower() for c in df.columns]
-        df = df.rename(columns={
-            "time": "date", "open": "open", "high": "high",
-            "low": "low", "close": "close", "volume": "volume",
-        })
+
+        df.columns = [str(c).lower() for c in df.columns]
+        df = df.rename(
+            columns={
+                "time": "date",
+                "open": "open",
+                "high": "high",
+                "low": "low",
+                "close": "close",
+                "volume": "volume",
+            }
+        )
+        if "date" not in df.columns:
+            return None
+
         df["date"] = pd.to_datetime(df["date"])
-        df.set_index("date", inplace=True)
+        df = df.set_index("date").sort_index()
         for col in ["open", "high", "low", "close", "volume"]:
             df[col] = pd.to_numeric(df[col], errors="coerce")
-        df = df.sort_index().ffill()
+        df = df.dropna(subset=["open", "high", "low", "close"]).ffill()
         df = df[~df.index.duplicated(keep="last")]
         return df
-    except Exception as e:
-        print(f"  ⚠ Không lấy được dữ liệu {symbol}: {e}")
+    except Exception as exc:
+        print(f"  WARN: cannot fetch {symbol}: {exc}")
         return None
 
 
-# ── Thêm indicators vào DF của 1 mã ────────────────────────────────────
 def prepare_stock(df: pd.DataFrame, df_mkt: pd.DataFrame | None) -> pd.DataFrame:
     df = df.copy()
-    df["ema10"] = ta.ema(df["close"], length=10)
-    df["ema20"] = ta.ema(df["close"], length=20)
-    df["ema30"] = ta.ema(df["close"], length=30)
-    macd = ta.macd(df["close"])
-    df["macd"], df["macds"] = macd.iloc[:, 0], macd.iloc[:, 2]
-    df["vol_sma20"] = df["volume"].rolling(window=20).mean()
-    df["atr20"] = ta.atr(df["high"], df["low"], df["close"], length=20)
+    df["ema10"] = ema(df["close"], 10)
+    df["ema20"] = ema(df["close"], 20)
+    df["ema30"] = ema(df["close"], 30)
+    df["ema50"] = ema(df["close"], 50)
+    df["ema100"] = ema(df["close"], 100)
+    df["ema200"] = ema(df["close"], 200)
+    df["rsi14"] = rsi(df["close"], 14)
+    df["macd"], df["macds"], df["macdh"] = macd(df["close"])
+    df["vol_sma20"] = df["volume"].rolling(20).mean()
+    df["atr20"] = atr(df, 20)
+    df["high_20_prev"] = df["high"].rolling(20).max().shift(1)
+    df["low_20_prev"] = df["low"].rolling(20).min().shift(1)
+    df["range_20_pct"] = (df["high"].rolling(20).max() - df["low"].rolling(20).min()) / df["close"]
+    df["range_60_pct"] = (df["high"].rolling(60).max() - df["low"].rolling(60).min()) / df["close"]
+    df["low_60"] = df["low"].rolling(60).min()
 
-    # Weekly MA30 (Multi-Timeframe)
-    wk = df[["close"]].resample("W").last().dropna()
-    wk["wk_ma30"] = wk["close"].rolling(30).mean()
-    df["weekly_ma30"] = wk["wk_ma30"].reindex(df.index, method="ffill")
+    mid = df["close"].rolling(20).mean()
+    std = df["close"].rolling(20).std()
+    df["bb_upper"] = mid + 2 * std
+    df["bb_lower"] = mid - 2 * std
 
-    # Market join
-    if df_mkt is not None:
-        mc = df_mkt[["close", "volume"]].copy()
-        mc.columns = ["mkt_close", "mkt_volume"]
-        mc["mkt_ema50"]     = ta.ema(mc["mkt_close"], length=50)
-        mc["mkt_ema20"]     = ta.ema(mc["mkt_close"], length=20)
-        mc["mkt_vol_sma20"] = mc["mkt_volume"].rolling(window=20).mean()
-        mc["mkt_prev_close"] = mc["mkt_close"].shift(1)
-        df = df.join(mc, how="left").ffill()
+    weekly = df[["close"]].resample("W").last().dropna()
+    weekly["weekly_ma30"] = weekly["close"].rolling(30).mean()
+    df["weekly_ma30"] = weekly["weekly_ma30"].reindex(df.index, method="ffill")
 
-    # RS Rating (3-month relative strength)
+    if df_mkt is not None and not df_mkt.empty:
+        market = df_mkt[["close", "volume"]].copy()
+        market.columns = ["mkt_close", "mkt_volume"]
+        market["mkt_ema20"] = ema(market["mkt_close"], 20)
+        market["mkt_ema50"] = ema(market["mkt_close"], 50)
+        market["mkt_vol_sma20"] = market["mkt_volume"].rolling(20).mean()
+        market["mkt_prev_close"] = market["mkt_close"].shift(1)
+        df = df.join(market, how="left").ffill()
+
     df["stock_ret_q"] = df["close"].pct_change(63)
     if "mkt_close" in df.columns:
         df["mkt_ret_q"] = df["mkt_close"].pct_change(63)
@@ -126,371 +273,427 @@ def prepare_stock(df: pd.DataFrame, df_mkt: pd.DataFrame | None) -> pd.DataFrame
     return df
 
 
-# ══ Portfolio-level Backtest V5-PRO ═══════════════════════════════════════
-def backtest_portfolio(stocks: dict[str, pd.DataFrame]) -> dict:
-    """
-    10 cổ phiếu chia sẻ 1 pool vốn 100 triệu.
-    Dynamic Compounding: N = (Equity × 1.5%) / (Price × |SL|)
-    Full reinvestment: lãi chốt → cộng dồn cash → lãi kép.
-    """
-    # Unified timeline
+def build_rs_ratings(stocks: dict[str, pd.DataFrame]) -> dict[pd.Timestamp, dict[str, int]]:
+    all_dates = sorted(set(d for df in stocks.values() for d in df.index))
+    ratings: dict[pd.Timestamp, dict[str, int]] = {}
+
+    for date in all_dates:
+        values: list[tuple[str, float]] = []
+        for ticker, df in stocks.items():
+            if date not in df.index:
+                continue
+            value = df.loc[date].get("stock_ret_q")
+            if finite(value):
+                values.append((ticker, float(value)))
+
+        if not values:
+            continue
+
+        values.sort(key=lambda x: x[1])
+        date_rating: dict[str, int] = {}
+        if len(values) == 1:
+            date_rating[values[0][0]] = 50
+        else:
+            for rank, (ticker, _value) in enumerate(values):
+                date_rating[ticker] = int(round(1 + rank * 98 / (len(values) - 1)))
+        ratings[date] = date_rating
+
+    return ratings
+
+
+def market_ok(curr: pd.Series) -> bool:
+    if not finite(curr.get("mkt_close")) or not finite(curr.get("mkt_ema20")):
+        return True
+    return float(curr["mkt_close"]) > float(curr["mkt_ema20"])
+
+
+def classify_adn_radar_signal(df: pd.DataFrame, idx: int, rs_rating: int) -> dict[str, Any] | None:
+    curr = df.iloc[idx]
+    prev = df.iloc[idx - 1]
+
+    required = ["close", "open", "ema10", "ema20", "ema30", "ema50", "macd", "macds", "rsi14", "vol_sma20"]
+    if any(not finite(curr.get(col)) for col in required):
+        return None
+
+    close = float(curr["close"])
+    prev_close = float(prev["close"])
+    volume = float(curr["volume"]) if finite(curr.get("volume")) else 0.0
+    vol_sma20 = float(curr["vol_sma20"]) if finite(curr.get("vol_sma20")) and float(curr["vol_sma20"]) > 0 else 0.0
+    vol_ratio = volume / vol_sma20 if vol_sma20 > 0 else 0.0
+    day_gain = close / prev_close - 1 if prev_close > 0 else 0.0
+
+    ema_stack = float(curr["ema10"]) > float(curr["ema20"]) > float(curr["ema50"])
+    ema_medium = float(curr["ema10"]) > float(curr["ema30"]) and close > float(curr["ema20"])
+    macd_positive = float(curr["macd"]) > float(curr["macds"])
+    macd_cross_up = macd_positive and finite(prev.get("macd")) and finite(prev.get("macds")) and float(prev["macd"]) <= float(prev["macds"])
+    rsi_value = float(curr["rsi14"])
+
+    high_20_prev = float(curr["high_20_prev"]) if finite(curr.get("high_20_prev")) else None
+    range_20 = float(curr["range_20_pct"]) if finite(curr.get("range_20_pct")) else None
+    range_60 = float(curr["range_60_pct"]) if finite(curr.get("range_60_pct")) else None
+
+    breakout_20 = high_20_prev is not None and close > high_20_prev and vol_ratio >= 1.3
+    vcp_like = (
+        range_20 is not None
+        and range_60 is not None
+        and range_20 <= min(range_60 * 0.75, 0.18)
+        and close > float(curr["ema20"])
+    )
+    double_bottom_like = (
+        finite(curr.get("low_60"))
+        and float(curr["low_60"]) > 0
+        and float(curr["low_20_prev"]) <= float(curr["low_60"]) * 1.08 if finite(curr.get("low_20_prev")) else False
+    )
+    bb_bounce = (
+        finite(curr.get("bb_lower"))
+        and float(curr["low"]) <= float(curr["bb_lower"]) * 1.02
+        and close > float(curr["open"])
+        and vol_ratio >= 1.2
+        and rsi_value >= 30
+    )
+
+    if market_ok(curr) and rs_rating >= 85 and ema_stack and breakout_20 and vol_ratio >= 2.0:
+        return {
+            "type": "SIEU_CO_PHIEU",
+            "tier": TYPE_TO_TIER["SIEU_CO_PHIEU"],
+            "reason": "RS cao, breakout 20 phien, volume dot bien",
+            "vol_ratio": vol_ratio,
+            "rs_rating": rs_rating,
+        }
+
+    if market_ok(curr) and rs_rating >= 60 and ema_stack and (macd_cross_up or vcp_like or double_bottom_like) and vol_ratio >= 1.5:
+        return {
+            "type": "TRUNG_HAN",
+            "tier": TYPE_TO_TIER["TRUNG_HAN"],
+            "reason": "Xu huong EMA, MACD/VCP/W-base, volume xac nhan",
+            "vol_ratio": vol_ratio,
+            "rs_rating": rs_rating,
+        }
+
+    if market_ok(curr) and ema_medium and macd_positive and day_gain > 0 and vol_ratio >= 1.2 and 35 <= rsi_value <= 75:
+        return {
+            "type": "DAU_CO",
+            "tier": TYPE_TO_TIER["DAU_CO"],
+            "reason": "Song ngan han, EMA 10/30, MACD duong, volume cai thien",
+            "vol_ratio": vol_ratio,
+            "rs_rating": rs_rating,
+        }
+
+    if market_ok(curr) and rs_rating >= 50 and (vcp_like or bb_bounce or double_bottom_like) and close >= float(curr["ema20"]) * 0.97:
+        return {
+            "type": "TAM_NGAM",
+            "tier": TYPE_TO_TIER["TAM_NGAM"],
+            "reason": "Dang trong tam ngam, cho xac nhan volume/gia",
+            "vol_ratio": vol_ratio,
+            "rs_rating": rs_rating,
+        }
+
+    return None
+
+
+def floor_lot(shares: float) -> int:
+    return max(0, int(shares // 100) * 100)
+
+
+def backtest_portfolio(stocks: dict[str, pd.DataFrame]) -> dict[str, Any]:
     all_dates = sorted(set(d for df in stocks.values() for d in df.index))
     if len(all_dates) < 2:
         return {}
 
+    rs_ratings = build_rs_ratings(stocks)
     cash = float(INITIAL_CAPITAL)
-    positions = {}    # {ticker: {shares, buy_p, pos_peak, buy_day_i, partial_tp, orig_shares}}
-    cooldowns = {}    # {ticker: remaining_days}
-    all_trades = []
-    trades_by_ticker = {t: [] for t in stocks}
-    equity_daily = {}
+    positions: dict[str, dict[str, Any]] = {}
+    cooldowns: dict[str, int] = {}
+    all_trades: list[dict[str, Any]] = []
+    trades_by_ticker: dict[str, list[float]] = {ticker: [] for ticker in stocks}
+    signal_counts = {"SIEU_CO_PHIEU": 0, "TRUNG_HAN": 0, "DAU_CO": 0, "TAM_NGAM": 0}
+    equity_daily: dict[str, float] = {}
     peak_equity = float(INITIAL_CAPITAL)
     max_dd = 0.0
 
     for day_i in range(1, len(all_dates)):
         date = all_dates[day_i]
 
-        # ══ Leader Floor Detection (global, once per day) ══
         leader_cb = False
-        is_expiry = is_derivatives_expiry_day(date)
-
-        for _t, _df in stocks.items():
-            if date not in _df.index or "mkt_close" not in _df.columns:
-                continue
-            _curr = _df.loc[date]
-            mpc = _curr.get("mkt_prev_close")
-            if pd.notna(mpc) and pd.notna(_curr["mkt_close"]) and mpc > 0:
-                mkt_chg = (_curr["mkt_close"] - mpc) / mpc
-                if mkt_chg <= FLOOR_PCT and not is_expiry:
-                    leader_cb = True
-
-                _prev_date = all_dates[day_i - 1]
-                if _prev_date in _df.index:
-                    _prev = _df.loc[_prev_date]
-                    if (not is_expiry
-                        and pd.notna(_curr.get("mkt_ema20"))
-                        and pd.notna(_prev.get("mkt_close"))
-                        and pd.notna(_prev.get("mkt_ema20"))
-                        and _prev["mkt_close"] >= _prev["mkt_ema20"]
-                        and _curr["mkt_close"] < _curr["mkt_ema20"]
-                        and pd.notna(_curr.get("mkt_vol_sma20"))
-                        and _curr["mkt_vol_sma20"] > 0
-                        and _curr["mkt_volume"] > _curr["mkt_vol_sma20"] * MKT_VOL_SPIKE):
+        if not is_derivatives_expiry_day(date):
+            for _ticker, _df in stocks.items():
+                if date not in _df.index:
+                    continue
+                row = _df.loc[date]
+                if finite(row.get("mkt_prev_close")) and finite(row.get("mkt_close")):
+                    prev_mkt = float(row["mkt_prev_close"])
+                    mkt_chg = (float(row["mkt_close"]) - prev_mkt) / prev_mkt if prev_mkt > 0 else 0
+                    if mkt_chg <= MKT_FLOOR_PCT:
                         leader_cb = True
-            break  # Only need 1 stock for market check
+                    if (
+                        finite(row.get("mkt_ema20"))
+                        and finite(row.get("mkt_vol_sma20"))
+                        and float(row["mkt_close"]) < float(row["mkt_ema20"])
+                        and float(row["mkt_volume"]) > float(row["mkt_vol_sma20"]) * MKT_VOL_SPIKE
+                    ):
+                        leader_cb = True
+                break
 
-        # ══ PHASE 1: SELL (free up cash before buying) ══
-        to_close = []
-        for ticker in list(positions.keys()):
+        # Sell first.
+        to_close: list[str] = []
+        for ticker, pos in list(positions.items()):
             df = stocks[ticker]
             if date not in df.index:
                 continue
-            pos = positions[ticker]
-            idx = df.index.get_loc(date)
-            if idx == 0:
-                continue
-            curr = df.iloc[idx]
+            curr = df.loc[date]
+            close = float(curr["close"])
+            pos["pos_peak"] = max(float(pos["pos_peak"]), close)
+            days_held = day_i - int(pos["buy_day_i"])
 
-            pnl_pct = (curr["close"] - pos["buy_p"]) / pos["buy_p"]
-            days_held = day_i - pos["buy_day_i"]
-            if curr["close"] > pos["pos_peak"]:
-                pos["pos_peak"] = curr["close"]
+            exit_price = None
+            exit_reason = None
 
-            # Partial Take Profit ─ chốt 50% tại +8%
-            if not pos["partial_tp"] and pnl_pct >= PARTIAL_TP_PCT:
-                sell_qty = int(pos["shares"] * PARTIAL_TP_RATIO)
-                if sell_qty > 0:
-                    proceed = sell_qty * curr["close"]
-                    cost_b  = sell_qty * pos["buy_p"]
-                    pnl_r = (proceed - cost_b) / (pos["orig_shares"] * pos["buy_p"]) if (pos["orig_shares"] * pos["buy_p"]) > 0 else 0
-                    cash += proceed       # Tiền về túi ngay -> reinvest
-                    pos["shares"] -= sell_qty
-                    all_trades.append(pnl_r)
-                    trades_by_ticker[ticker].append(pnl_r)
-                    pos["partial_tp"] = True
+            if float(curr["low"]) <= float(pos["stoploss"]):
+                exit_price = float(pos["stoploss"])
+                exit_reason = "stoploss"
+            elif float(curr["high"]) >= float(pos["target"]):
+                exit_price = float(pos["target"])
+                exit_reason = "target"
+            elif leader_cb:
+                exit_price = close
+                exit_reason = "market_risk"
+            else:
+                peak_gain = (float(pos["pos_peak"]) - float(pos["buy_p"])) / float(pos["buy_p"])
+                trail_fall = (close - float(pos["pos_peak"])) / float(pos["pos_peak"]) if float(pos["pos_peak"]) > 0 else 0
+                max_hold = MAX_HOLD_DAYS.get(str(pos["tier"]), 60)
+                weak_after_t = days_held >= T_PLUS and finite(curr.get("ema20")) and close < float(curr["ema20"])
+                timed_out = days_held >= max_hold and finite(curr.get("ema10")) and close < float(curr["ema10"])
+                if peak_gain >= TRAIL_ACTIVATE and trail_fall <= -TRAIL_PCT:
+                    exit_price = close
+                    exit_reason = "trailing_stop"
+                elif weak_after_t:
+                    exit_price = close
+                    exit_reason = "lost_ema20"
+                elif timed_out:
+                    exit_price = close
+                    exit_reason = "time_exit"
 
-            # Sell conditions
-            trail_fp = (curr["close"] - pos["pos_peak"]) / pos["pos_peak"] if pos["pos_peak"] > 0 else 0
-            trail_trig = (
-                (pos["pos_peak"] - pos["buy_p"]) / pos["buy_p"] >= TRAIL_ACTIVATE
-                and trail_fp <= -TRAIL_PCT
-            )
-
-            sold = False
-            if leader_cb:
-                sold = True
-            elif pnl_pct <= STOP_LOSS_PCT:
-                sold = True
-            elif trail_trig:
-                sold = True
-            elif days_held >= T_PLUS and curr["close"] < curr["ema20"]:
-                sold = True
-
-            if sold:
-                proceed = pos["shares"] * curr["close"]
-                cost_b  = pos["shares"] * pos["buy_p"]
-                pnl_r = (proceed - cost_b) / (pos["orig_shares"] * pos["buy_p"]) if (pos["orig_shares"] * pos["buy_p"]) > 0 else 0
-                cash += proceed           # Full reinvestment
-                all_trades.append(pnl_r)
-                trades_by_ticker[ticker].append(pnl_r)
+            if exit_price is not None:
+                proceed = float(pos["shares"]) * exit_price
+                cost = float(pos["shares"]) * float(pos["buy_p"])
+                pnl_pct = (exit_price - float(pos["buy_p"])) / float(pos["buy_p"])
+                cash += proceed
+                all_trades.append(
+                    {
+                        "ticker": ticker,
+                        "type": pos["type"],
+                        "tier": pos["tier"],
+                        "entry_date": pos["entry_date"],
+                        "exit_date": date.strftime("%Y-%m-%d"),
+                        "entry": round(float(pos["buy_p"]), 2),
+                        "exit": round(exit_price, 2),
+                        "shares": int(pos["shares"]),
+                        "pnl_pct": pnl_pct,
+                        "pnl_value": proceed - cost,
+                        "reason": exit_reason,
+                    }
+                )
+                trades_by_ticker[ticker].append(pnl_pct)
                 to_close.append(ticker)
                 cooldowns[ticker] = COOLDOWN_DAYS
 
-        for t in to_close:
-            del positions[t]
+        for ticker in to_close:
+            del positions[ticker]
 
-        # Recalculate equity after sells
-        unrealized = 0.0
-        for t, pos in positions.items():
-            if date in stocks[t].index:
-                unrealized += pos["shares"] * stocks[t].loc[date, "close"]
+        unrealized = sum(
+            float(pos["shares"]) * float(stocks[ticker].loc[date, "close"])
+            for ticker, pos in positions.items()
+            if date in stocks[ticker].index
+        )
         total_equity = cash + unrealized
 
-        # ══ PHASE 2: BUY ══
+        # Buy with ADN Radar deterministic selection style.
+        date_rs = rs_ratings.get(date, {})
         for ticker, df in stocks.items():
-            if ticker in positions:
-                continue
-            if date not in df.index:
+            if ticker in positions or date not in df.index:
                 continue
             idx = df.index.get_loc(date)
-            if idx == 0:
+            if idx < MIN_BARS or leader_cb:
                 continue
-
-            # Cooldown (giảm mỗi ngày giao dịch của mã này)
             if cooldowns.get(ticker, 0) > 0:
                 cooldowns[ticker] -= 1
                 continue
-            if leader_cb:
+
+            signal = classify_adn_radar_signal(df, idx, date_rs.get(ticker, 0))
+            if not signal:
+                continue
+            signal_counts[signal["type"]] += 1
+            if signal["type"] == "TAM_NGAM":
                 continue
 
             curr = df.iloc[idx]
-            prev = df.iloc[idx - 1]
+            entry = float(curr["close"])
+            tier_cfg = TIER_CONFIG[signal["tier"]]
+            target = entry * (1 + tier_cfg["target_pct"])
+            stoploss = entry * (1 - tier_cfg["stop_pct"])
+            risk_per_share = entry - stoploss
+            if entry <= 0 or risk_per_share <= 0:
+                continue
 
-            v_gap = curr["volume"] / curr["vol_sma20"] if pd.notna(curr["vol_sma20"]) and curr["vol_sma20"] > 0 else 0
-            mkt_ok = True
-            if "mkt_close" in curr.index and "mkt_ema50" in curr.index:
-                if pd.notna(curr["mkt_close"]) and pd.notna(curr["mkt_ema50"]):
-                    mkt_ok = curr["mkt_close"] > curr["mkt_ema50"]
+            max_by_risk = (total_equity * RISK_PERCENT) / risk_per_share
+            max_by_nav = (total_equity * tier_cfg["base_nav"]) / entry
+            max_by_cash = cash / entry
+            shares = floor_lot(min(max_by_risk, max_by_nav, max_by_cash))
+            cost = shares * entry
 
-            weekly_ok = pd.notna(curr.get("weekly_ma30")) and curr["close"] > curr["weekly_ma30"]
-            rs_ok = (
-                pd.notna(curr.get("stock_ret_q"))
-                and pd.notna(curr.get("mkt_ret_q"))
-                and curr["stock_ret_q"] > curr["mkt_ret_q"]
-                and curr["stock_ret_q"] > 0
-            )
+            if shares >= 100 and cash >= cost:
+                cash -= cost
+                positions[ticker] = {
+                    "shares": shares,
+                    "buy_p": entry,
+                    "target": target,
+                    "stoploss": stoploss,
+                    "pos_peak": entry,
+                    "buy_day_i": day_i,
+                    "entry_date": date.strftime("%Y-%m-%d"),
+                    "type": signal["type"],
+                    "tier": signal["tier"],
+                    "rs_rating": signal["rs_rating"],
+                    "vol_ratio": signal["vol_ratio"],
+                    "reason": signal["reason"],
+                }
+                total_equity = cash + sum(
+                    float(p["shares"]) * float(stocks[tk].loc[date, "close"])
+                    for tk, p in positions.items()
+                    if date in stocks[tk].index
+                )
 
-            if (mkt_ok and weekly_ok and rs_ok
-                and curr["ema10"] > curr["ema30"]
-                and curr["macd"] > curr["macds"]
-                and curr["close"] > prev["close"] * BREAKOUT_PCT
-                and v_gap >= VOLUME_BREAKOUT):
+        current_equity = cash + sum(
+            float(pos["shares"]) * float(stocks[ticker].loc[date, "close"])
+            for ticker, pos in positions.items()
+            if date in stocks[ticker].index
+        )
+        peak_equity = max(peak_equity, current_equity)
+        drawdown = (peak_equity - current_equity) / peak_equity if peak_equity > 0 else 0
+        max_dd = max(max_dd, drawdown)
+        equity_daily[date.strftime("%Y-%m-%d")] = current_equity
 
-                # V5-PRO: Dynamic Compounding Position Sizing
-                # N = (Equity × Risk%) / (Price × |SL%|)
-                sl_amount = curr["close"] * abs(STOP_LOSS_PCT)
-                raw_n = (total_equity * RISK_PERCENT) / sl_amount if sl_amount > 0 else 0
-                max_n = (total_equity * MAX_POS_PCT) / curr["close"] if curr["close"] > 0 else 0
-                n_shares = int(min(raw_n, max_n))
-                n_shares = (n_shares // 100) * 100   # Lô 100 (sàn VN)
-                cost = n_shares * curr["close"]
+    final_date = all_dates[-1]
+    final_equity = cash + sum(
+        float(pos["shares"]) * float(stocks[ticker].loc[final_date, "close"])
+        for ticker, pos in positions.items()
+        if final_date in stocks[ticker].index
+    )
 
-                if n_shares >= 100 and cash >= cost:
-                    cash -= cost
-                    positions[ticker] = {
-                        "shares": n_shares,
-                        "buy_p": curr["close"],
-                        "pos_peak": curr["close"],
-                        "buy_day_i": day_i,
-                        "partial_tp": False,
-                        "orig_shares": n_shares,
-                    }
-                    # Update total_equity after buy
-                    total_equity = cash + sum(
-                        p["shares"] * stocks[tk].loc[date, "close"]
-                        for tk, p in positions.items()
-                        if date in stocks[tk].index
-                    )
+    wins = [trade for trade in all_trades if trade["pnl_pct"] > 0]
+    win_rate = len(wins) / len(all_trades) * 100 if all_trades else 0
+    total_return = (final_equity - INITIAL_CAPITAL) / INITIAL_CAPITAL * 100
 
-        # ══ Track equity ══
-        unrealized = 0.0
-        for t, pos in positions.items():
-            if date in stocks[t].index:
-                unrealized += pos["shares"] * stocks[t].loc[date, "close"]
-        cur_eq = cash + unrealized
-
-        if cur_eq > peak_equity:
-            peak_equity = cur_eq
-        dd = (peak_equity - cur_eq) / peak_equity if peak_equity > 0 else 0
-        if dd > max_dd:
-            max_dd = dd
-
-        equity_daily[date.strftime("%Y-%m-%d")] = cur_eq
-
-    # Final: liquidate remaining positions
-    final_eq = cash
-    for t, pos in positions.items():
-        final_eq += pos["shares"] * stocks[t].iloc[-1]["close"]
-
-    wins = [x for x in all_trades if x > 0]
-    win_rate = (len(wins) / len(all_trades) * 100) if all_trades else 0
-    total_return = ((final_eq - INITIAL_CAPITAL) / INITIAL_CAPITAL) * 100
-    multiplier = final_eq / INITIAL_CAPITAL
-
-    # Per-ticker stats
     ticker_stats = {}
-    for t, trd in trades_by_ticker.items():
-        if trd:
-            w = [x for x in trd if x > 0]
-            ticker_stats[t] = {
-                "num_trades": len(trd),
-                "win_rate": round(len(w) / len(trd) * 100, 0),
-            }
+    for ticker, trades in trades_by_ticker.items():
+        if not trades:
+            continue
+        ticker_stats[ticker] = {
+            "num_trades": len(trades),
+            "win_rate": round(len([x for x in trades if x > 0]) / len(trades) * 100, 1),
+            "avg_return": round(sum(trades) / len(trades) * 100, 2),
+        }
 
     return {
-        "balance": final_eq,
+        "balance": final_equity,
         "total_return": total_return,
         "win_rate": win_rate,
         "max_drawdown": max_dd * 100,
         "num_trades": len(all_trades),
-        "multiplier": round(multiplier, 1),
+        "multiplier": round(final_equity / INITIAL_CAPITAL, 2),
         "equity_daily": equity_daily,
         "ticker_stats": ticker_stats,
+        "signal_counts": signal_counts,
+        "sample_trades": all_trades[-30:],
     }
 
 
-# ── Equity curve monthly (single portfolio) ──────────────────────────
-def build_monthly_equity(equity_daily: dict[str, float]) -> tuple[list[dict], float]:
-    """Convert daily equity → monthly + compute portfolio max DD."""
-    s = pd.Series(equity_daily, dtype=float)
-    s.index = pd.to_datetime(s.index)
-    s = s.sort_index()
-    if s.empty:
+def build_monthly_equity(equity_daily: dict[str, float]) -> tuple[list[dict[str, Any]], float]:
+    series = pd.Series(equity_daily, dtype=float)
+    series.index = pd.to_datetime(series.index)
+    series = series.sort_index()
+    if series.empty:
         return [], 0.0
 
-    # Normalize from 100
-    first = s.iloc[0]
-    if first and first > 0:
-        s_norm = s / first * 100
-    else:
-        s_norm = s
-
-    # Portfolio max drawdown
-    peak = s_norm.expanding().max()
-    dd_series = (peak - s_norm) / peak
-    max_dd_pct = dd_series.max() * 100
-
-    # Monthly resample
-    monthly = s_norm.resample("ME").last().dropna()
-    result = [{"date": dt.strftime("%m/%Y"), "adn": round(v, 1)} for dt, v in monthly.items()]
-
-    return result, max_dd_pct
+    normalized = series / series.iloc[0] * 100 if series.iloc[0] > 0 else series
+    peak = normalized.expanding().max()
+    max_dd_pct = ((peak - normalized) / peak).max() * 100
+    monthly = normalized.resample("ME").last().dropna()
+    return [{"date": dt.strftime("%m/%Y"), "adn": round(value, 1)} for dt, value in monthly.items()], max_dd_pct
 
 
-# ── VNINDEX benchmark ──────────────────────────────────────────────
-def get_vnindex_monthly(start: str, end: str) -> dict[str, float]:
-    try:
-        idx = Vnstock().stock(symbol="VNINDEX", source="KBS")
-        df = idx.quote.history(start=start, end=end)
-        if df is None or df.empty:
-            return {}
-        df.columns = [c.lower() for c in df.columns]
-        df = df.rename(columns={"time": "date", "close": "close"})
-        df["date"] = pd.to_datetime(df["date"])
-        df.set_index("date", inplace=True)
-        df["close"] = pd.to_numeric(df["close"], errors="coerce")
-        monthly = df["close"].resample("ME").last().dropna()
-        first = monthly.iloc[0]
-        if first and first > 0:
-            monthly = monthly / first * 100
-        return {dt.strftime("%m/%Y"): round(v, 1) for dt, v in monthly.items()}
-    except Exception as e:
-        print(f"  ⚠ Không lấy được VNINDEX: {e}")
+def vnindex_monthly(df_mkt: pd.DataFrame | None) -> dict[str, float]:
+    if df_mkt is None or df_mkt.empty:
         return {}
+    monthly = df_mkt["close"].resample("ME").last().dropna()
+    if monthly.empty:
+        return {}
+    normalized = monthly / monthly.iloc[0] * 100 if monthly.iloc[0] > 0 else monthly
+    return {dt.strftime("%m/%Y"): round(value, 1) for dt, value in normalized.items()}
 
 
-# ══ Main ════════════════════════════════════════════════════════════════
-def main():
-    print(f"🚀 Backtest V5-PRO Portfolio: {START_DATE} → {END_DATE}")
-    print(f"   💰 Vốn ban đầu: {INITIAL_CAPITAL:,.0f} VNĐ")
-    print(f"   Risk/lệnh: {RISK_PERCENT*100:.1f}% NAV | SL: {STOP_LOSS_PCT*100:.0f}% | Max pos: {MAX_POS_PCT*100:.0f}% NAV")
-    print(f"   Danh mục: {TICKERS}")
-    print("=" * 60)
+def main() -> None:
+    print(f"ADN Lab backtest: {START_DATE} -> {END_DATE}")
+    print(f"Initial capital: {INITIAL_CAPITAL:,.0f} VND")
+    print(f"Universe: {len(TICKERS)} tickers")
+    print(f"Data source: {DATA_SOURCE}")
+    print("=" * 72)
 
-    # Market index
-    df_mkt = get_data("E1VFVN30", START_DATE, END_DATE)
+    df_mkt = get_data("VNINDEX", START_DATE, END_DATE)
+    if df_mkt is None:
+        print("WARN: VNINDEX unavailable, market filter will be relaxed.")
 
-    # Prepare all stocks
-    prepared = {}
+    prepared: dict[str, pd.DataFrame] = {}
+    skipped: list[str] = []
+
     for ticker in TICKERS:
-        sector = TICKER_SECTORS.get(ticker, "?")
-        print(f"  📊 {ticker} ({sector})...", end=" ")
+        sector = TICKER_SECTORS.get(ticker, "Khac")
+        print(f"  {ticker:<4} {sector:<16}", end=" ")
         df = get_data(ticker, START_DATE, END_DATE)
-        if df is None or len(df) < 60:
+        if df is None or len(df) < MIN_BARS:
             print("SKIP")
+            skipped.append(ticker)
             continue
         prepared[ticker] = prepare_stock(df, df_mkt)
-        print(f"{len(df)} bars OK")
+        print(f"{len(df)} bars")
 
     if not prepared:
-        print("❌ Không có mã nào chạy được!")
-        return
+        raise SystemExit("No ticker data available. Snapshot not generated.")
 
-    # Run portfolio backtest
-    print(f"\n  🎯 Running portfolio backtest ({len(prepared)} stocks)...")
+    print("=" * 72)
+    print(f"Running deterministic ADN Radar-style backtest on {len(prepared)} tickers...")
     result = backtest_portfolio(prepared)
-
     if not result:
-        print("❌ Backtest failed!")
-        return
+        raise SystemExit("Backtest failed. Snapshot not generated.")
 
-    # Print per-ticker stats
-    print("\n  ─── Per-Ticker Stats ───")
-    for t in TICKERS:
-        if t in result.get("ticker_stats", {}):
-            st = result["ticker_stats"][t]
-            print(f"    {t}: {st['num_trades']} trades | WR {st['win_rate']:.0f}%")
-
-    # Equity curve
-    print("\n  📈 Building equity curve...")
     chart_adn, portfolio_dd = build_monthly_equity(result["equity_daily"])
+    vni = vnindex_monthly(df_mkt)
 
-    # VNINDEX
-    print("  📉 Fetching VNINDEX...")
-    vnindex_map = get_vnindex_monthly(START_DATE, END_DATE)
-
-    # Merge
-    chart_data = []
-    first_vni = None
+    chart_data: list[dict[str, Any]] = []
     for point in chart_adn:
-        d = point["date"]
-        vni_raw = vnindex_map.get(d)
-        entry = {"date": d, "adn": point["adn"]}
-        if vni_raw is not None:
-            if first_vni is None:
-                first_vni = vni_raw
-            entry["vnindex"] = round(vni_raw / first_vni * 100, 1)
-        chart_data.append(entry)
+        item = {"date": point["date"], "adn": point["adn"]}
+        if point["date"] in vni:
+            item["vnindex"] = vni[point["date"]]
+        chart_data.append(item)
 
-    # CB annotations
-    cb_on = None
-    cb_off = None
-    for i in range(1, len(chart_data)):
-        vni = chart_data[i].get("vnindex")
-        vni_prev = chart_data[i - 1].get("vnindex")
-        if vni and vni_prev:
-            if not cb_on and vni < vni_prev * 0.95 and vni_prev > 120:
-                cb_on = chart_data[i]["date"]
-            if cb_on and not cb_off and vni > vni_prev * 1.05:
-                cb_off = chart_data[i]["date"]
-
-    # Snapshot
     snapshot = {
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "period": f"{START_DATE[:4]}–{END_DATE[:4]}",
+        "period": f"{START_DATE[:4]}-{END_DATE[:4]}",
         "start_year": int(START_DATE[:4]),
         "end_year": int(END_DATE[:4]),
-        "tickers": TICKERS,
+        "initial_capital": INITIAL_CAPITAL,
+        "strategy": {
+            "name": "ADN Radar deterministic selection",
+            "signal_types": ["SIEU_CO_PHIEU", "TRUNG_HAN", "DAU_CO", "TAM_NGAM"],
+            "traded_types": ["SIEU_CO_PHIEU", "TRUNG_HAN", "DAU_CO"],
+            "risk_model": {
+                "LEADER": TIER_CONFIG["LEADER"],
+                "TRUNG_HAN": TIER_CONFIG["TRUNG_HAN"],
+                "NGAN_HAN": TIER_CONFIG["NGAN_HAN"],
+            },
+        },
+        "tickers": sorted(prepared.keys()),
+        "skipped_tickers": skipped,
         "kpi": {
             "total_return": round(result["total_return"], 1),
             "win_rate": round(result["win_rate"], 1),
@@ -498,28 +701,30 @@ def main():
             "total_trades": result["num_trades"],
             "multiplier": result["multiplier"],
         },
+        "signal_counts": result["signal_counts"],
+        "ticker_stats": result["ticker_stats"],
+        "sample_trades": result["sample_trades"],
         "chart_data": chart_data,
         "annotations": {
-            "cb_on": cb_on,
-            "cb_off": cb_off,
-            "bear_label": "Bear market — VN-INDEX giảm sâu, ADN CAPITAL flat (Circuit Breaker → 100% tiền mặt)",
+            "cb_on": None,
+            "cb_off": None,
+            "bear_label": "ADN Radar risk guard reduces exposure when market risk expands.",
         },
     }
 
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
-        json.dump(snapshot, f, ensure_ascii=False, indent=2)
+    with open(OUTPUT_PATH, "w", encoding="utf-8") as file:
+        json.dump(snapshot, file, ensure_ascii=False, indent=2)
 
-    print("\n" + "=" * 60)
-    print(f"✅ Snapshot đã ghi: {OUTPUT_PATH}")
-    print(f"   Vốn cuối: {result['balance']:,.0f} VNĐ")
-    print(f"   Lợi nhuận: +{result['total_return']:.1f}%")
-    print(f"   💥 NHÂN VỐN: x{result['multiplier']:.1f} ({INITIAL_CAPITAL/1e6:.0f}M → {result['balance']/1e6:.0f}M)")
-    print(f"   Win Rate: {result['win_rate']:.0f}%")
-    print(f"   Max DD: -{portfolio_dd:.1f}% (portfolio)")
-    print(f"   Trades: {result['num_trades']}")
-    print(f"   Chart: {len(chart_data)} months")
-    print(f"   CB ON: {cb_on or 'N/A'} | CB OFF: {cb_off or 'N/A'}")
+    print("=" * 72)
+    print(f"Snapshot written: {OUTPUT_PATH}")
+    print(f"Final equity: {result['balance']:,.0f} VND")
+    print(f"Total return: {result['total_return']:.1f}%")
+    print(f"Winrate: {result['win_rate']:.1f}%")
+    print(f"Max drawdown: {portfolio_dd:.1f}%")
+    print(f"Total trades: {result['num_trades']}")
+    print(f"Signal counts: {result['signal_counts']}")
+    print(f"Chart points: {len(chart_data)}")
 
 
 if __name__ == "__main__":

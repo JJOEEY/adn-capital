@@ -1,652 +1,1326 @@
 {
-  "generated_at": "2026-04-02 04:33",
-  "period": "2015–2025",
-  "start_year": 2015,
-  "end_year": 2025,
+  "generated_at": "2026-05-08 00:21",
+  "period": "2018-2026",
+  "start_year": 2018,
+  "end_year": 2026,
+  "initial_capital": 100000000,
+  "strategy": {
+    "name": "ADN Radar deterministic selection",
+    "signal_types": [
+      "SIEU_CO_PHIEU",
+      "TRUNG_HAN",
+      "DAU_CO",
+      "TAM_NGAM"
+    ],
+    "traded_types": [
+      "SIEU_CO_PHIEU",
+      "TRUNG_HAN",
+      "DAU_CO"
+    ],
+    "risk_model": {
+      "LEADER": {
+        "base_nav": 0.3,
+        "target_pct": 0.2,
+        "stop_pct": 0.07
+      },
+      "TRUNG_HAN": {
+        "base_nav": 0.2,
+        "target_pct": 0.1,
+        "stop_pct": 0.05
+      },
+      "NGAN_HAN": {
+        "base_nav": 0.1,
+        "target_pct": 0.07,
+        "stop_pct": 0.03
+      }
+    }
+  },
   "tickers": [
-    "FPT",
-    "HPG",
-    "VCB",
+    "AAA",
+    "ACB",
+    "BID",
+    "BMP",
+    "BSR",
+    "CTG",
+    "CTR",
+    "CTS",
+    "DCM",
     "DGC",
+    "DGW",
+    "DIG",
+    "DPM",
+    "DXG",
+    "FPT",
+    "FRT",
+    "GAS",
+    "GMD",
+    "GVR",
+    "HAH",
+    "HCM",
+    "HDB",
+    "HPG",
+    "HSG",
+    "HVN",
+    "IDC",
+    "KBC",
+    "LPB",
+    "MBB",
+    "MBS",
+    "MSN",
+    "MWG",
+    "NKG",
+    "NT2",
+    "NVL",
+    "ORS",
+    "PC1",
+    "PDR",
+    "PLX",
+    "POW",
     "PVD",
     "PVS",
-    "SSI",
-    "VCG",
     "REE",
-    "MWG"
+    "SAB",
+    "SHS",
+    "SSI",
+    "STB",
+    "SZC",
+    "TCB",
+    "TCI",
+    "VCB",
+    "VCI",
+    "VDS",
+    "VHM",
+    "VIC",
+    "VIX",
+    "VJC",
+    "VND",
+    "VNM",
+    "VPB",
+    "VRE"
   ],
+  "skipped_tickers": [],
   "kpi": {
-    "total_return": 310.8,
-    "win_rate": 56.7,
-    "max_drawdown": 51.0,
-    "total_trades": 337,
-    "multiplier": 4.1
+    "total_return": 531.7,
+    "win_rate": 40.3,
+    "max_drawdown": 16.1,
+    "total_trades": 1585,
+    "multiplier": 6.32
   },
+  "signal_counts": {
+    "SIEU_CO_PHIEU": 191,
+    "TRUNG_HAN": 1524,
+    "DAU_CO": 2568,
+    "TAM_NGAM": 13902
+  },
+  "ticker_stats": {
+    "VCB": {
+      "num_trades": 37,
+      "win_rate": 35.1,
+      "avg_return": 0.52
+    },
+    "BID": {
+      "num_trades": 41,
+      "win_rate": 31.7,
+      "avg_return": 0.13
+    },
+    "CTG": {
+      "num_trades": 38,
+      "win_rate": 44.7,
+      "avg_return": 1.62
+    },
+    "TCB": {
+      "num_trades": 30,
+      "win_rate": 40.0,
+      "avg_return": 1.41
+    },
+    "MBB": {
+      "num_trades": 36,
+      "win_rate": 47.2,
+      "avg_return": 1.7
+    },
+    "ACB": {
+      "num_trades": 33,
+      "win_rate": 42.4,
+      "avg_return": 1.42
+    },
+    "VPB": {
+      "num_trades": 35,
+      "win_rate": 31.4,
+      "avg_return": 0.42
+    },
+    "STB": {
+      "num_trades": 33,
+      "win_rate": 42.4,
+      "avg_return": 1.35
+    },
+    "HDB": {
+      "num_trades": 40,
+      "win_rate": 37.5,
+      "avg_return": 0.84
+    },
+    "LPB": {
+      "num_trades": 32,
+      "win_rate": 53.1,
+      "avg_return": 3.1
+    },
+    "SSI": {
+      "num_trades": 30,
+      "win_rate": 56.7,
+      "avg_return": 2.21
+    },
+    "VND": {
+      "num_trades": 27,
+      "win_rate": 48.1,
+      "avg_return": 2.48
+    },
+    "HCM": {
+      "num_trades": 37,
+      "win_rate": 48.6,
+      "avg_return": 1.59
+    },
+    "VCI": {
+      "num_trades": 30,
+      "win_rate": 43.3,
+      "avg_return": 1.54
+    },
+    "MBS": {
+      "num_trades": 32,
+      "win_rate": 43.8,
+      "avg_return": 1.47
+    },
+    "VIX": {
+      "num_trades": 33,
+      "win_rate": 51.5,
+      "avg_return": 2.55
+    },
+    "SHS": {
+      "num_trades": 37,
+      "win_rate": 37.8,
+      "avg_return": 0.89
+    },
+    "ORS": {
+      "num_trades": 42,
+      "win_rate": 33.3,
+      "avg_return": 0.47
+    },
+    "VDS": {
+      "num_trades": 30,
+      "win_rate": 43.3,
+      "avg_return": 1.72
+    },
+    "TCI": {
+      "num_trades": 22,
+      "win_rate": 50.0,
+      "avg_return": 1.79
+    },
+    "CTS": {
+      "num_trades": 23,
+      "win_rate": 52.2,
+      "avg_return": 2.77
+    },
+    "VHM": {
+      "num_trades": 27,
+      "win_rate": 33.3,
+      "avg_return": 0.45
+    },
+    "VIC": {
+      "num_trades": 18,
+      "win_rate": 22.2,
+      "avg_return": -0.46
+    },
+    "VRE": {
+      "num_trades": 25,
+      "win_rate": 32.0,
+      "avg_return": 0.15
+    },
+    "NVL": {
+      "num_trades": 21,
+      "win_rate": 38.1,
+      "avg_return": 1.54
+    },
+    "PDR": {
+      "num_trades": 22,
+      "win_rate": 36.4,
+      "avg_return": 2.14
+    },
+    "DXG": {
+      "num_trades": 24,
+      "win_rate": 58.3,
+      "avg_return": 2.84
+    },
+    "DIG": {
+      "num_trades": 24,
+      "win_rate": 45.8,
+      "avg_return": 1.94
+    },
+    "KBC": {
+      "num_trades": 24,
+      "win_rate": 33.3,
+      "avg_return": 0.27
+    },
+    "IDC": {
+      "num_trades": 29,
+      "win_rate": 41.4,
+      "avg_return": 0.98
+    },
+    "SZC": {
+      "num_trades": 32,
+      "win_rate": 25.0,
+      "avg_return": -0.15
+    },
+    "HPG": {
+      "num_trades": 19,
+      "win_rate": 31.6,
+      "avg_return": 0.16
+    },
+    "HSG": {
+      "num_trades": 30,
+      "win_rate": 33.3,
+      "avg_return": 0.53
+    },
+    "NKG": {
+      "num_trades": 20,
+      "win_rate": 30.0,
+      "avg_return": -0.1
+    },
+    "DGC": {
+      "num_trades": 21,
+      "win_rate": 38.1,
+      "avg_return": 0.77
+    },
+    "DCM": {
+      "num_trades": 28,
+      "win_rate": 53.6,
+      "avg_return": 3.08
+    },
+    "DPM": {
+      "num_trades": 30,
+      "win_rate": 40.0,
+      "avg_return": 1.56
+    },
+    "GVR": {
+      "num_trades": 34,
+      "win_rate": 35.3,
+      "avg_return": 0.95
+    },
+    "AAA": {
+      "num_trades": 30,
+      "win_rate": 30.0,
+      "avg_return": -0.49
+    },
+    "BMP": {
+      "num_trades": 19,
+      "win_rate": 42.1,
+      "avg_return": 0.36
+    },
+    "BSR": {
+      "num_trades": 24,
+      "win_rate": 37.5,
+      "avg_return": 0.45
+    },
+    "PVD": {
+      "num_trades": 20,
+      "win_rate": 50.0,
+      "avg_return": 2.23
+    },
+    "PVS": {
+      "num_trades": 25,
+      "win_rate": 48.0,
+      "avg_return": 2.78
+    },
+    "GAS": {
+      "num_trades": 24,
+      "win_rate": 41.7,
+      "avg_return": 1.74
+    },
+    "PLX": {
+      "num_trades": 19,
+      "win_rate": 31.6,
+      "avg_return": 0.38
+    },
+    "MWG": {
+      "num_trades": 26,
+      "win_rate": 42.3,
+      "avg_return": 1.17
+    },
+    "FRT": {
+      "num_trades": 22,
+      "win_rate": 36.4,
+      "avg_return": 0.79
+    },
+    "DGW": {
+      "num_trades": 21,
+      "win_rate": 57.1,
+      "avg_return": 3.14
+    },
+    "MSN": {
+      "num_trades": 20,
+      "win_rate": 20.0,
+      "avg_return": -0.76
+    },
+    "VNM": {
+      "num_trades": 10,
+      "win_rate": 50.0,
+      "avg_return": 0.99
+    },
+    "SAB": {
+      "num_trades": 12,
+      "win_rate": 25.0,
+      "avg_return": 0.56
+    },
+    "FPT": {
+      "num_trades": 20,
+      "win_rate": 40.0,
+      "avg_return": 1.99
+    },
+    "CTR": {
+      "num_trades": 14,
+      "win_rate": 21.4,
+      "avg_return": -1.54
+    },
+    "REE": {
+      "num_trades": 16,
+      "win_rate": 31.2,
+      "avg_return": 0.59
+    },
+    "PC1": {
+      "num_trades": 23,
+      "win_rate": 43.5,
+      "avg_return": 1.52
+    },
+    "POW": {
+      "num_trades": 26,
+      "win_rate": 26.9,
+      "avg_return": -0.33
+    },
+    "NT2": {
+      "num_trades": 22,
+      "win_rate": 45.5,
+      "avg_return": 1.09
+    },
+    "GMD": {
+      "num_trades": 19,
+      "win_rate": 47.4,
+      "avg_return": 2.12
+    },
+    "HAH": {
+      "num_trades": 21,
+      "win_rate": 47.6,
+      "avg_return": 1.9
+    },
+    "VJC": {
+      "num_trades": 9,
+      "win_rate": 22.2,
+      "avg_return": -1.56
+    },
+    "HVN": {
+      "num_trades": 17,
+      "win_rate": 58.8,
+      "avg_return": 2.89
+    }
+  },
+  "sample_trades": [
+    {
+      "ticker": "STB",
+      "type": "TRUNG_HAN",
+      "tier": "TRUNG_HAN",
+      "entry_date": "2026-02-25",
+      "exit_date": "2026-03-04",
+      "entry": 66.7,
+      "exit": 66.7,
+      "shares": 826000,
+      "pnl_pct": 0.0,
+      "pnl_value": 0.0,
+      "reason": "market_risk"
+    },
+    {
+      "ticker": "VCI",
+      "type": "TRUNG_HAN",
+      "tier": "TRUNG_HAN",
+      "entry_date": "2026-02-27",
+      "exit_date": "2026-03-04",
+      "entry": 28.32,
+      "exit": 30.05,
+      "shares": 4273000,
+      "pnl_pct": 0.06108757062146894,
+      "pnl_value": 7392290.0,
+      "reason": "market_risk"
+    },
+    {
+      "ticker": "SZC",
+      "type": "TRUNG_HAN",
+      "tier": "TRUNG_HAN",
+      "entry_date": "2026-03-02",
+      "exit_date": "2026-03-04",
+      "entry": 34.5,
+      "exit": 32.77,
+      "shares": 3626900,
+      "pnl_pct": -0.050000000000000044,
+      "pnl_value": -6256402.5,
+      "reason": "stoploss"
+    },
+    {
+      "ticker": "GVR",
+      "type": "TRUNG_HAN",
+      "tier": "TRUNG_HAN",
+      "entry_date": "2026-03-02",
+      "exit_date": "2026-03-04",
+      "entry": 42.8,
+      "exit": 43.6,
+      "shares": 1496900,
+      "pnl_pct": 0.018691588785046828,
+      "pnl_value": 1197520.0000000075,
+      "reason": "market_risk"
+    },
+    {
+      "ticker": "POW",
+      "type": "TRUNG_HAN",
+      "tier": "TRUNG_HAN",
+      "entry_date": "2026-03-02",
+      "exit_date": "2026-03-04",
+      "entry": 15.5,
+      "exit": 15.45,
+      "shares": 100,
+      "pnl_pct": -0.003225806451612949,
+      "pnl_value": -5.0,
+      "reason": "market_risk"
+    },
+    {
+      "ticker": "NVL",
+      "type": "DAU_CO",
+      "tier": "NGAN_HAN",
+      "entry_date": "2026-04-08",
+      "exit_date": "2026-04-10",
+      "entry": 15.75,
+      "exit": 16.85,
+      "shares": 3999800,
+      "pnl_pct": 0.07000000000000017,
+      "pnl_value": 4409779.500000015,
+      "reason": "target"
+    },
+    {
+      "ticker": "VCI",
+      "type": "TRUNG_HAN",
+      "tier": "TRUNG_HAN",
+      "entry_date": "2026-04-08",
+      "exit_date": "2026-04-13",
+      "entry": 29.0,
+      "exit": 27.55,
+      "shares": 4344600,
+      "pnl_pct": -0.0500000000000001,
+      "pnl_value": -6299670.000000015,
+      "reason": "stoploss"
+    },
+    {
+      "ticker": "ORS",
+      "type": "DAU_CO",
+      "tier": "NGAN_HAN",
+      "entry_date": "2026-04-08",
+      "exit_date": "2026-04-13",
+      "entry": 13.8,
+      "exit": 13.39,
+      "shares": 4564900,
+      "pnl_pct": -0.029999999999999978,
+      "pnl_value": -1889868.599999994,
+      "reason": "stoploss"
+    },
+    {
+      "ticker": "VHM",
+      "type": "DAU_CO",
+      "tier": "NGAN_HAN",
+      "entry_date": "2026-04-08",
+      "exit_date": "2026-04-13",
+      "entry": 123.0,
+      "exit": 119.31,
+      "shares": 512100,
+      "pnl_pct": -0.02999999999999998,
+      "pnl_value": -1889649.0,
+      "reason": "stoploss"
+    },
+    {
+      "ticker": "NKG",
+      "type": "DAU_CO",
+      "tier": "NGAN_HAN",
+      "entry_date": "2026-04-14",
+      "exit_date": "2026-04-16",
+      "entry": 15.05,
+      "exit": 14.6,
+      "shares": 4161300,
+      "pnl_pct": -0.030000000000000072,
+      "pnl_value": -1878826.950000003,
+      "reason": "stoploss"
+    },
+    {
+      "ticker": "VIX",
+      "type": "DAU_CO",
+      "tier": "NGAN_HAN",
+      "entry_date": "2026-04-15",
+      "exit_date": "2026-04-16",
+      "entry": 18.2,
+      "exit": 17.65,
+      "shares": 3438500,
+      "pnl_pct": -0.029999999999999968,
+      "pnl_value": -1877421.0,
+      "reason": "stoploss"
+    },
+    {
+      "ticker": "HCM",
+      "type": "TRUNG_HAN",
+      "tier": "TRUNG_HAN",
+      "entry_date": "2026-04-08",
+      "exit_date": "2026-04-17",
+      "entry": 25.4,
+      "exit": 27.94,
+      "shares": 4960300,
+      "pnl_pct": 0.10000000000000012,
+      "pnl_value": 12599162.0,
+      "reason": "target"
+    },
+    {
+      "ticker": "VRE",
+      "type": "DAU_CO",
+      "tier": "NGAN_HAN",
+      "entry_date": "2026-04-16",
+      "exit_date": "2026-04-17",
+      "entry": 29.6,
+      "exit": 28.71,
+      "shares": 500,
+      "pnl_pct": -0.030000000000000054,
+      "pnl_value": -444.0,
+      "reason": "stoploss"
+    },
+    {
+      "ticker": "SHS",
+      "type": "DAU_CO",
+      "tier": "NGAN_HAN",
+      "entry_date": "2026-04-15",
+      "exit_date": "2026-04-20",
+      "entry": 18.2,
+      "exit": 17.65,
+      "shares": 3239400,
+      "pnl_pct": -0.029999999999999968,
+      "pnl_value": -1768712.3999999985,
+      "reason": "stoploss"
+    },
+    {
+      "ticker": "VIC",
+      "type": "TRUNG_HAN",
+      "tier": "TRUNG_HAN",
+      "entry_date": "2026-04-16",
+      "exit_date": "2026-04-20",
+      "entry": 189.3,
+      "exit": 179.84,
+      "shares": 641500,
+      "pnl_pct": -0.05000000000000002,
+      "pnl_value": -6071797.5,
+      "reason": "stoploss"
+    },
+    {
+      "ticker": "DIG",
+      "type": "DAU_CO",
+      "tier": "NGAN_HAN",
+      "entry_date": "2026-04-13",
+      "exit_date": "2026-04-21",
+      "entry": 14.65,
+      "exit": 14.21,
+      "shares": 4267000,
+      "pnl_pct": -0.030000000000000044,
+      "pnl_value": -1875346.5,
+      "reason": "stoploss"
+    },
+    {
+      "ticker": "IDC",
+      "type": "DAU_CO",
+      "tier": "NGAN_HAN",
+      "entry_date": "2026-04-17",
+      "exit_date": "2026-04-21",
+      "entry": 49.1,
+      "exit": 47.63,
+      "shares": 1280600,
+      "pnl_pct": -0.029999999999999978,
+      "pnl_value": -1886323.799999997,
+      "reason": "stoploss"
+    },
+    {
+      "ticker": "ACB",
+      "type": "DAU_CO",
+      "tier": "NGAN_HAN",
+      "entry_date": "2026-04-14",
+      "exit_date": "2026-04-22",
+      "entry": 24.0,
+      "exit": 23.6,
+      "shares": 2609500,
+      "pnl_pct": -0.016666666666666607,
+      "pnl_value": -1043800.0,
+      "reason": "lost_ema20"
+    },
+    {
+      "ticker": "VPB",
+      "type": "DAU_CO",
+      "tier": "NGAN_HAN",
+      "entry_date": "2026-04-17",
+      "exit_date": "2026-04-22",
+      "entry": 28.25,
+      "exit": 27.4,
+      "shares": 2225700,
+      "pnl_pct": -0.030000000000000006,
+      "pnl_value": -1886280.75,
+      "reason": "stoploss"
+    },
+    {
+      "ticker": "DGW",
+      "type": "DAU_CO",
+      "tier": "NGAN_HAN",
+      "entry_date": "2026-04-17",
+      "exit_date": "2026-04-23",
+      "entry": 45.95,
+      "exit": 44.57,
+      "shares": 279700,
+      "pnl_pct": -0.03000000000000005,
+      "pnl_value": -385566.44999999925,
+      "reason": "stoploss"
+    },
+    {
+      "ticker": "MWG",
+      "type": "DAU_CO",
+      "tier": "NGAN_HAN",
+      "entry_date": "2026-04-20",
+      "exit_date": "2026-04-23",
+      "entry": 87.3,
+      "exit": 84.68,
+      "shares": 712700,
+      "pnl_pct": -0.03,
+      "pnl_value": -1866561.3000000045,
+      "reason": "stoploss"
+    },
+    {
+      "ticker": "MSN",
+      "type": "DAU_CO",
+      "tier": "NGAN_HAN",
+      "entry_date": "2026-04-08",
+      "exit_date": "2026-04-24",
+      "entry": 77.7,
+      "exit": 77.2,
+      "shares": 200,
+      "pnl_pct": -0.006435006435006435,
+      "pnl_value": -100.0,
+      "reason": "lost_ema20"
+    },
+    {
+      "ticker": "VCB",
+      "type": "DAU_CO",
+      "tier": "NGAN_HAN",
+      "entry_date": "2026-04-23",
+      "exit_date": "2026-04-24",
+      "entry": 62.8,
+      "exit": 60.92,
+      "shares": 976600,
+      "pnl_pct": -0.030000000000000006,
+      "pnl_value": -1839914.400000006,
+      "reason": "stoploss"
+    },
+    {
+      "ticker": "SAB",
+      "type": "DAU_CO",
+      "tier": "NGAN_HAN",
+      "entry_date": "2026-04-23",
+      "exit_date": "2026-04-24",
+      "entry": 48.2,
+      "exit": 46.75,
+      "shares": 1272500,
+      "pnl_pct": -0.029999999999999957,
+      "pnl_value": -1840034.9999999925,
+      "reason": "stoploss"
+    },
+    {
+      "ticker": "VHM",
+      "type": "DAU_CO",
+      "tier": "NGAN_HAN",
+      "entry_date": "2026-04-28",
+      "exit_date": "2026-04-29",
+      "entry": 151.0,
+      "exit": 146.47,
+      "shares": 407400,
+      "pnl_pct": -0.030000000000000006,
+      "pnl_value": -1845522.0,
+      "reason": "stoploss"
+    },
+    {
+      "ticker": "HPG",
+      "type": "DAU_CO",
+      "tier": "NGAN_HAN",
+      "entry_date": "2026-04-08",
+      "exit_date": "2026-05-04",
+      "entry": 28.0,
+      "exit": 27.6,
+      "shares": 2249800,
+      "pnl_pct": -0.014285714285714235,
+      "pnl_value": -899920.0,
+      "reason": "lost_ema20"
+    },
+    {
+      "ticker": "CTR",
+      "type": "DAU_CO",
+      "tier": "NGAN_HAN",
+      "entry_date": "2026-04-24",
+      "exit_date": "2026-05-04",
+      "entry": 87.2,
+      "exit": 85.1,
+      "shares": 701900,
+      "pnl_pct": -0.024082568807339548,
+      "pnl_value": -1473990.0000000075,
+      "reason": "lost_ema20"
+    },
+    {
+      "ticker": "HDB",
+      "type": "DAU_CO",
+      "tier": "NGAN_HAN",
+      "entry_date": "2026-04-20",
+      "exit_date": "2026-05-05",
+      "entry": 26.9,
+      "exit": 26.09,
+      "shares": 2313100,
+      "pnl_pct": -0.030000000000000082,
+      "pnl_value": -1866671.7000000104,
+      "reason": "stoploss"
+    },
+    {
+      "ticker": "VRE",
+      "type": "TRUNG_HAN",
+      "tier": "TRUNG_HAN",
+      "entry_date": "2026-04-28",
+      "exit_date": "2026-05-05",
+      "entry": 30.8,
+      "exit": 33.88,
+      "shares": 1702600,
+      "pnl_pct": 0.10000000000000006,
+      "pnl_value": 5244008.000000007,
+      "reason": "target"
+    },
+    {
+      "ticker": "GVR",
+      "type": "DAU_CO",
+      "tier": "NGAN_HAN",
+      "entry_date": "2026-05-04",
+      "exit_date": "2026-05-05",
+      "entry": 36.05,
+      "exit": 34.97,
+      "shares": 1700800,
+      "pnl_pct": -0.029999999999999957,
+      "pnl_value": -1839415.1999999955,
+      "reason": "stoploss"
+    }
+  ],
   "chart_data": [
     {
-      "date": "09/2015",
-      "adn": 100.0,
-      "vnindex": 100.0
-    },
-    {
-      "date": "10/2015",
-      "adn": 100.0,
-      "vnindex": 108.9
-    },
-    {
-      "date": "11/2015",
-      "adn": 100.0,
-      "vnindex": 101.8
-    },
-    {
-      "date": "12/2015",
-      "adn": 100.0,
-      "vnindex": 103.5
-    },
-    {
-      "date": "01/2016",
-      "adn": 100.0,
-      "vnindex": 98.1
-    },
-    {
-      "date": "02/2016",
-      "adn": 100.0,
-      "vnindex": 100.0
-    },
-    {
-      "date": "03/2016",
-      "adn": 100.0,
-      "vnindex": 100.0
-    },
-    {
-      "date": "04/2016",
-      "adn": 100.0,
-      "vnindex": 107.0
-    },
-    {
-      "date": "05/2016",
-      "adn": 100.8,
-      "vnindex": 110.7
-    },
-    {
-      "date": "06/2016",
-      "adn": 112.2,
-      "vnindex": 112.4
-    },
-    {
-      "date": "07/2016",
-      "adn": 117.4,
-      "vnindex": 116.0
-    },
-    {
-      "date": "08/2016",
-      "adn": 116.1,
-      "vnindex": 119.6
-    },
-    {
-      "date": "09/2016",
-      "adn": 120.7,
-      "vnindex": 123.2
-    },
-    {
-      "date": "10/2016",
-      "adn": 119.0,
-      "vnindex": 121.3
-    },
-    {
-      "date": "11/2016",
-      "adn": 119.0,
-      "vnindex": 119.6
-    },
-    {
-      "date": "12/2016",
-      "adn": 119.0,
-      "vnindex": 117.8
-    },
-    {
-      "date": "01/2017",
-      "adn": 118.7,
-      "vnindex": 124.9
-    },
-    {
-      "date": "02/2017",
-      "adn": 116.4,
-      "vnindex": 126.7
-    },
-    {
-      "date": "03/2017",
-      "adn": 116.3,
-      "vnindex": 128.5
-    },
-    {
-      "date": "04/2017",
-      "adn": 115.4,
-      "vnindex": 128.5
-    },
-    {
-      "date": "05/2017",
-      "adn": 124.9,
-      "vnindex": 132.1
-    },
-    {
-      "date": "06/2017",
-      "adn": 138.3,
-      "vnindex": 139.2
-    },
-    {
-      "date": "07/2017",
-      "adn": 138.0,
-      "vnindex": 139.2
-    },
-    {
-      "date": "08/2017",
-      "adn": 136.4,
-      "vnindex": 139.2
-    },
-    {
-      "date": "09/2017",
-      "adn": 138.1,
-      "vnindex": 142.8
-    },
-    {
-      "date": "10/2017",
-      "adn": 139.5,
-      "vnindex": 149.9
-    },
-    {
-      "date": "11/2017",
-      "adn": 151.6,
-      "vnindex": 169.6
-    },
-    {
-      "date": "12/2017",
-      "adn": 153.4,
-      "vnindex": 174.9
-    },
-    {
       "date": "01/2018",
-      "adn": 176.9,
-      "vnindex": 198.1
+      "adn": 100.0,
+      "vnindex": 100.0
     },
     {
       "date": "02/2018",
-      "adn": 173.7,
-      "vnindex": 199.9
+      "adn": 100.0,
+      "vnindex": 101.0
     },
     {
       "date": "03/2018",
-      "adn": 168.7,
-      "vnindex": 208.8
+      "adn": 100.0,
+      "vnindex": 105.8
     },
     {
       "date": "04/2018",
-      "adn": 169.6,
-      "vnindex": 187.4
+      "adn": 100.0,
+      "vnindex": 94.6
     },
     {
       "date": "05/2018",
-      "adn": 169.6,
-      "vnindex": 173.1
+      "adn": 100.0,
+      "vnindex": 87.5
     },
     {
       "date": "06/2018",
-      "adn": 167.0,
-      "vnindex": 171.3
+      "adn": 100.0,
+      "vnindex": 86.5
     },
     {
       "date": "07/2018",
-      "adn": 167.0,
-      "vnindex": 171.3
+      "adn": 100.0,
+      "vnindex": 86.1
     },
     {
       "date": "08/2018",
-      "adn": 168.5,
-      "vnindex": 176.7
+      "adn": 100.0,
+      "vnindex": 89.1
     },
     {
       "date": "09/2018",
-      "adn": 175.9,
-      "vnindex": 182.1
+      "adn": 100.0,
+      "vnindex": 91.6
     },
     {
       "date": "10/2018",
-      "adn": 168.5,
-      "vnindex": 162.4
+      "adn": 100.0,
+      "vnindex": 82.4
     },
     {
       "date": "11/2018",
-      "adn": 168.5,
-      "vnindex": 165.9
+      "adn": 102.2,
+      "vnindex": 83.4
     },
     {
       "date": "12/2018",
-      "adn": 168.0,
-      "vnindex": 158.8
+      "adn": 102.2,
+      "vnindex": 80.4
     },
     {
       "date": "01/2019",
-      "adn": 168.0,
-      "vnindex": 162.4
+      "adn": 101.5,
+      "vnindex": 82.0
     },
     {
       "date": "02/2019",
-      "adn": 172.6,
-      "vnindex": 173.1
+      "adn": 98.5,
+      "vnindex": 87.0
     },
     {
       "date": "03/2019",
-      "adn": 175.7,
-      "vnindex": 174.9
+      "adn": 104.4,
+      "vnindex": 88.3
     },
     {
       "date": "04/2019",
-      "adn": 176.5,
-      "vnindex": 174.9
+      "adn": 106.5,
+      "vnindex": 88.2
     },
     {
       "date": "05/2019",
-      "adn": 169.9,
-      "vnindex": 171.3
+      "adn": 106.6,
+      "vnindex": 86.4
     },
     {
       "date": "06/2019",
-      "adn": 169.9,
-      "vnindex": 169.6
+      "adn": 104.6,
+      "vnindex": 85.6
     },
     {
       "date": "07/2019",
-      "adn": 173.9,
-      "vnindex": 176.7
+      "adn": 108.0,
+      "vnindex": 89.3
     },
     {
       "date": "08/2019",
-      "adn": 177.8,
-      "vnindex": 174.9
+      "adn": 111.6,
+      "vnindex": 88.6
     },
     {
       "date": "09/2019",
-      "adn": 175.9,
-      "vnindex": 178.5
+      "adn": 113.4,
+      "vnindex": 89.8
     },
     {
       "date": "10/2019",
-      "adn": 174.7,
-      "vnindex": 178.5
+      "adn": 110.4,
+      "vnindex": 90.0
     },
     {
       "date": "11/2019",
-      "adn": 174.8,
-      "vnindex": 173.1
+      "adn": 109.1,
+      "vnindex": 87.4
     },
     {
       "date": "12/2019",
-      "adn": 174.8,
-      "vnindex": 171.3
+      "adn": 108.9,
+      "vnindex": 86.5
     },
     {
       "date": "01/2020",
-      "adn": 172.2,
-      "vnindex": 167.8
+      "adn": 110.6,
+      "vnindex": 84.4
     },
     {
       "date": "02/2020",
-      "adn": 172.2,
-      "vnindex": 157.0
+      "adn": 110.4,
+      "vnindex": 79.5
     },
     {
       "date": "03/2020",
-      "adn": 172.2,
-      "vnindex": 117.8
+      "adn": 110.4,
+      "vnindex": 59.7
     },
     {
       "date": "04/2020",
-      "adn": 172.2,
-      "vnindex": 137.5
+      "adn": 115.5,
+      "vnindex": 69.3
     },
     {
       "date": "05/2020",
-      "adn": 183.8,
-      "vnindex": 153.5
+      "adn": 129.3,
+      "vnindex": 77.9
     },
     {
       "date": "06/2020",
-      "adn": 180.5,
-      "vnindex": 148.1
+      "adn": 122.4,
+      "vnindex": 74.3
     },
     {
       "date": "07/2020",
-      "adn": 175.5,
-      "vnindex": 142.8
+      "adn": 120.6,
+      "vnindex": 71.9
     },
     {
       "date": "08/2020",
-      "adn": 186.3,
-      "vnindex": 157.0
+      "adn": 130.5,
+      "vnindex": 79.4
     },
     {
       "date": "09/2020",
-      "adn": 196.3,
-      "vnindex": 162.4
+      "adn": 140.2,
+      "vnindex": 81.5
     },
     {
       "date": "10/2020",
-      "adn": 202.1,
-      "vnindex": 165.9
+      "adn": 140.8,
+      "vnindex": 83.3
     },
     {
       "date": "11/2020",
-      "adn": 216.1,
-      "vnindex": 178.5
+      "adn": 152.0,
+      "vnindex": 90.3
     },
     {
       "date": "12/2020",
-      "adn": 259.8,
-      "vnindex": 196.4
+      "adn": 172.1,
+      "vnindex": 99.4
     },
     {
       "date": "01/2021",
-      "adn": 262.3,
-      "vnindex": 189.2
+      "adn": 170.2,
+      "vnindex": 95.2
     },
     {
       "date": "02/2021",
-      "adn": 274.7,
-      "vnindex": 208.8
+      "adn": 175.8,
+      "vnindex": 105.2
     },
     {
       "date": "03/2021",
-      "adn": 274.9,
-      "vnindex": 212.4
+      "adn": 180.5,
+      "vnindex": 107.3
     },
     {
       "date": "04/2021",
-      "adn": 279.9,
-      "vnindex": 221.3
+      "adn": 187.7,
+      "vnindex": 111.6
     },
     {
       "date": "05/2021",
-      "adn": 312.5,
-      "vnindex": 237.4
+      "adn": 220.1,
+      "vnindex": 119.6
     },
     {
       "date": "06/2021",
-      "adn": 317.3,
-      "vnindex": 251.7
+      "adn": 253.3,
+      "vnindex": 126.9
     },
     {
       "date": "07/2021",
-      "adn": 319.4,
-      "vnindex": 233.9
+      "adn": 241.3,
+      "vnindex": 118.0
     },
     {
       "date": "08/2021",
-      "adn": 335.7,
-      "vnindex": 237.4
+      "adn": 258.0,
+      "vnindex": 119.9
     },
     {
       "date": "09/2021",
-      "adn": 346.0,
-      "vnindex": 239.1
+      "adn": 278.1,
+      "vnindex": 120.9
     },
     {
       "date": "10/2021",
-      "adn": 365.4,
-      "vnindex": 257.0
+      "adn": 295.0,
+      "vnindex": 130.1
     },
     {
       "date": "11/2021",
-      "adn": 382.8,
-      "vnindex": 264.2
+      "adn": 305.0,
+      "vnindex": 133.1
     },
     {
       "date": "12/2021",
-      "adn": 365.5,
-      "vnindex": 267.7
+      "adn": 309.7,
+      "vnindex": 134.9
     },
     {
       "date": "01/2022",
-      "adn": 365.7,
-      "vnindex": 264.2
+      "adn": 311.4,
+      "vnindex": 133.2
     },
     {
       "date": "02/2022",
-      "adn": 381.6,
-      "vnindex": 265.9
+      "adn": 319.3,
+      "vnindex": 134.2
     },
     {
       "date": "03/2022",
-      "adn": 374.0,
-      "vnindex": 265.9
+      "adn": 317.4,
+      "vnindex": 134.4
     },
     {
       "date": "04/2022",
-      "adn": 357.4,
-      "vnindex": 244.5
+      "adn": 303.0,
+      "vnindex": 123.1
     },
     {
       "date": "05/2022",
-      "adn": 357.4,
-      "vnindex": 230.2
+      "adn": 306.8,
+      "vnindex": 116.4
     },
     {
       "date": "06/2022",
-      "adn": 357.4,
-      "vnindex": 214.2
+      "adn": 302.8,
+      "vnindex": 107.9
     },
     {
       "date": "07/2022",
-      "adn": 357.4,
-      "vnindex": 215.9
+      "adn": 309.2,
+      "vnindex": 108.6
     },
     {
       "date": "08/2022",
-      "adn": 360.6,
-      "vnindex": 228.5
+      "adn": 334.6,
+      "vnindex": 115.3
     },
     {
       "date": "09/2022",
-      "adn": 344.0,
-      "vnindex": 201.7
+      "adn": 325.7,
+      "vnindex": 102.0
     },
     {
       "date": "10/2022",
-      "adn": 344.0,
-      "vnindex": 183.9
+      "adn": 325.7,
+      "vnindex": 92.6
     },
     {
       "date": "11/2022",
-      "adn": 344.0,
-      "vnindex": 187.4
+      "adn": 332.0,
+      "vnindex": 94.4
     },
     {
       "date": "12/2022",
-      "adn": 344.0,
-      "vnindex": 180.2
+      "adn": 310.7,
+      "vnindex": 90.7
     },
     {
       "date": "01/2023",
-      "adn": 363.3,
-      "vnindex": 198.1
+      "adn": 326.0,
+      "vnindex": 100.1
     },
     {
       "date": "02/2023",
-      "adn": 339.9,
-      "vnindex": 182.1
+      "adn": 301.5,
+      "vnindex": 92.3
     },
     {
       "date": "03/2023",
-      "adn": 338.4,
-      "vnindex": 189.2
+      "adn": 304.2,
+      "vnindex": 95.9
     },
     {
       "date": "04/2023",
-      "adn": 330.3,
-      "vnindex": 187.4
+      "adn": 302.6,
+      "vnindex": 94.5
     },
     {
       "date": "05/2023",
-      "adn": 340.5,
-      "vnindex": 192.8
+      "adn": 320.7,
+      "vnindex": 96.8
     },
     {
       "date": "06/2023",
-      "adn": 369.1,
-      "vnindex": 199.9
+      "adn": 337.9,
+      "vnindex": 100.9
     },
     {
       "date": "07/2023",
-      "adn": 413.6,
-      "vnindex": 217.7
+      "adn": 373.8,
+      "vnindex": 110.1
     },
     {
       "date": "08/2023",
-      "adn": 430.2,
-      "vnindex": 217.7
+      "adn": 363.5,
+      "vnindex": 110.2
     },
     {
       "date": "09/2023",
-      "adn": 417.3,
-      "vnindex": 205.3
+      "adn": 359.7,
+      "vnindex": 103.9
     },
     {
       "date": "10/2023",
-      "adn": 415.2,
-      "vnindex": 183.9
+      "adn": 359.7,
+      "vnindex": 92.6
     },
     {
       "date": "11/2023",
-      "adn": 415.2,
-      "vnindex": 194.5
+      "adn": 367.6,
+      "vnindex": 98.5
     },
     {
       "date": "12/2023",
-      "adn": 410.1,
-      "vnindex": 201.7
+      "adn": 356.3,
+      "vnindex": 101.8
     },
     {
       "date": "01/2024",
-      "adn": 400.3,
-      "vnindex": 207.0
+      "adn": 362.5,
+      "vnindex": 104.9
     },
     {
       "date": "02/2024",
-      "adn": 410.1,
-      "vnindex": 223.1
+      "adn": 383.1,
+      "vnindex": 112.8
     },
     {
       "date": "03/2024",
-      "adn": 415.7,
-      "vnindex": 228.5
+      "adn": 379.0,
+      "vnindex": 115.6
     },
     {
       "date": "04/2024",
-      "adn": 400.3,
-      "vnindex": 215.9
+      "adn": 348.8,
+      "vnindex": 108.9
     },
     {
       "date": "05/2024",
-      "adn": 426.0,
-      "vnindex": 224.8
+      "adn": 364.7,
+      "vnindex": 113.6
     },
     {
       "date": "06/2024",
-      "adn": 426.3,
-      "vnindex": 223.1
+      "adn": 386.9,
+      "vnindex": 112.2
     },
     {
       "date": "07/2024",
-      "adn": 427.5,
-      "vnindex": 223.1
+      "adn": 418.3,
+      "vnindex": 112.7
     },
     {
       "date": "08/2024",
-      "adn": 430.9,
-      "vnindex": 228.5
+      "adn": 417.7,
+      "vnindex": 115.6
     },
     {
       "date": "09/2024",
-      "adn": 421.7,
-      "vnindex": 230.2
+      "adn": 418.6,
+      "vnindex": 116.0
     },
     {
       "date": "10/2024",
-      "adn": 420.5,
-      "vnindex": 224.8
+      "adn": 403.7,
+      "vnindex": 113.9
     },
     {
       "date": "11/2024",
-      "adn": 420.5,
-      "vnindex": 223.1
+      "adn": 403.7,
+      "vnindex": 112.6
     },
     {
       "date": "12/2024",
-      "adn": 411.4,
-      "vnindex": 226.7
+      "adn": 420.9,
+      "vnindex": 114.1
     },
     {
       "date": "01/2025",
-      "adn": 406.6,
-      "vnindex": 226.7
+      "adn": 423.0,
+      "vnindex": 113.9
     },
     {
       "date": "02/2025",
-      "adn": 422.9,
-      "vnindex": 233.9
+      "adn": 434.4,
+      "vnindex": 117.6
     },
     {
       "date": "03/2025",
-      "adn": 414.6,
-      "vnindex": 233.9
+      "adn": 435.9,
+      "vnindex": 117.7
     },
     {
       "date": "04/2025",
-      "adn": 414.6,
-      "vnindex": 219.6
+      "adn": 427.1,
+      "vnindex": 110.4
     },
     {
       "date": "05/2025",
-      "adn": 409.1,
-      "vnindex": 237.4
+      "adn": 436.6,
+      "vnindex": 120.0
     },
     {
       "date": "06/2025",
-      "adn": 410.8,
-      "vnindex": 246.3
+      "adn": 453.5,
+      "vnindex": 123.9
     },
     {
       "date": "07/2025",
-      "adn": 441.6,
-      "vnindex": 267.7
+      "adn": 523.0,
+      "vnindex": 135.3
     },
     {
       "date": "08/2025",
-      "adn": 436.4,
-      "vnindex": 299.9
+      "adn": 573.8,
+      "vnindex": 151.5
     },
     {
       "date": "09/2025",
-      "adn": 418.0,
-      "vnindex": 296.3
+      "adn": 579.7,
+      "vnindex": 149.7
     },
     {
       "date": "10/2025",
-      "adn": 407.3,
-      "vnindex": 292.8
+      "adn": 569.1,
+      "vnindex": 147.7
     },
     {
       "date": "11/2025",
-      "adn": 417.6,
-      "vnindex": 301.7
+      "adn": 562.0,
+      "vnindex": 152.3
     },
     {
       "date": "12/2025",
-      "adn": 410.8,
-      "vnindex": 317.7
+      "adn": 549.8,
+      "vnindex": 160.7
+    },
+    {
+      "date": "01/2026",
+      "adn": 621.1,
+      "vnindex": 164.7
+    },
+    {
+      "date": "02/2026",
+      "adn": 621.4,
+      "vnindex": 169.3
+    },
+    {
+      "date": "03/2026",
+      "adn": 630.0,
+      "vnindex": 150.8
+    },
+    {
+      "date": "04/2026",
+      "adn": 612.4,
+      "vnindex": 167.0
+    },
+    {
+      "date": "05/2026",
+      "adn": 631.7,
+      "vnindex": 171.9
     }
   ],
   "annotations": {
-    "cb_on": "04/2018",
-    "cb_off": "02/2019",
-    "bear_label": "Bear market — VN-INDEX giảm sâu, ADN CAPITAL flat (Circuit Breaker → 100% tiền mặt)"
+    "cb_on": null,
+    "cb_off": null,
+    "bear_label": "ADN Radar risk guard reduces exposure when market risk expands."
   }
 }
