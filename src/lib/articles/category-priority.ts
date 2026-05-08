@@ -4,7 +4,7 @@ export const NEWS_PRIMARY_CATEGORIES = [
   { name: "ADN REPORT", slug: "adn-report", sortOrder: 3 },
 ] as const;
 
-const PRIMARY_ORDER = new Map(
+const PRIMARY_ORDER = new Map<string, number>(
   NEWS_PRIMARY_CATEGORIES.map((category, index) => [category.slug, index]),
 );
 
