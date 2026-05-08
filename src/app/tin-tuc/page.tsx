@@ -836,7 +836,7 @@ export default function TinTucPage() {
 
   const orderedCategories = useMemo(() => sortNewsCategories(categories), [categories]);
   const primaryCategorySlugs = useMemo(
-    () => new Set(NEWS_PRIMARY_CATEGORIES.map((category) => category.slug)),
+    () => new Set<string>(NEWS_PRIMARY_CATEGORIES.map((category) => category.slug)),
     [],
   );
   const primaryCategories = useMemo(
