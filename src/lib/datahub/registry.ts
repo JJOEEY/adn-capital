@@ -569,8 +569,16 @@ async function loadHistoricalTicker(ticker: string) {
 }
 
 async function loadVNIndexChart30d() {
-  const payload = await loadBridgeHistoricalTicker("VNINDEX", "1d", 75, 5_000);
-  const data = getMarketPayloadRows(payload)
+  const [payload, snapshot, marketOverview] = await Promise.all([
+    loadBridgeHistoricalTicker("VNINDEX", "1d", 75, 4_000).catch(() => null),
+    getMarketSnapshot().catch(() => null),
+    loadMarketOverview().catch(() => null),
+  ]);
+  const fallbackRows = Array.isArray((marketOverview as { chartData?: unknown } | null)?.chartData)
+    ? ((marketOverview as { chartData: unknown[] }).chartData as JsonRecord[])
+    : [];
+  const sourceRows = payload && hasCandleRows(payload) ? getMarketPayloadRows(payload) : fallbackRows;
+  const data = sourceRows
     .map((row) => {
       const close = readPositiveNumber(row.close ?? row.c ?? row.price);
       const rawDate = String(row.date ?? row.timestamp ?? row.time ?? "").trim();
@@ -580,15 +588,43 @@ async function loadVNIndexChart30d() {
     .filter((row): row is { date: string; close: number } => Boolean(row))
     .slice(-30);
 
-  if (data.length === 0) {
+  const withLivePoint = mergeLiveVNIndexChartPoint(data, snapshot);
+
+  if (withLivePoint.length === 0) {
     throw new Error("VNINDEX chart 30d unavailable");
   }
 
   return {
-    data,
-    count: data.length,
+    data: withLivePoint,
+    count: withLivePoint.length,
     updatedAt: new Date().toISOString(),
+    liveUpdatedAt: snapshot?.timestamp ?? null,
   };
+}
+
+function normalizeChartDateKey(value: string) {
+  const raw = value.split("T")[0].split(" ")[0].trim();
+  const ddmmyyyy = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (ddmmyyyy) return `${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}`;
+  return raw;
+}
+
+function mergeLiveVNIndexChartPoint(
+  data: Array<{ date: string; close: number }>,
+  snapshot: Awaited<ReturnType<typeof getMarketSnapshot>> | null,
+) {
+  const liveIndex = snapshot?.indices?.find((item) => item.ticker === "VNINDEX");
+  const liveClose = readPositiveNumber(liveIndex?.value);
+  const liveDate = snapshot?.requestDateVN;
+  if (liveClose == null || !liveDate) return data;
+
+  const last = data[data.length - 1];
+  const lastDate = last ? normalizeChartDateKey(last.date) : null;
+  if (lastDate === liveDate) {
+    return [...data.slice(0, -1), { ...last, close: liveClose }];
+  }
+
+  return [...data.slice(-29), { date: liveDate, close: liveClose }];
 }
 
 function hasCandleRows(payload: unknown) {
@@ -1818,9 +1854,9 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
   },
   {
     id: "vn:index:chart:30d",
-    ttlMs: 300_000,
-    minIntervalMs: 60_000,
-    source: "fiinquant",
+    ttlMs: 60_000,
+    minIntervalMs: 15_000,
+    source: "datahub:index-history+snapshot",
     version: "v1",
     tags: ["dashboard", "market", "chart", "historical"],
     match: (topicKey) => (topicKey === "vn:index:chart:30d" ? { ok: true } : { ok: false }),
@@ -1850,9 +1886,9 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
   },
   {
     id: "news:morning:latest",
-    ttlMs: 24 * 60 * 60 * 1000,
+    ttlMs: 300_000,
     minIntervalMs: 60_000,
-    staleWhileRevalidateMs: 24 * 60 * 60 * 1000,
+    staleWhileRevalidateMs: 300_000,
     source: "db:market-report",
     version: "v1",
     tags: ["brief", "morning-brief", "public"],
@@ -1861,9 +1897,9 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
   },
   {
     id: "brief:morning:latest",
-    ttlMs: 24 * 60 * 60 * 1000,
+    ttlMs: 300_000,
     minIntervalMs: 60_000,
-    staleWhileRevalidateMs: 24 * 60 * 60 * 1000,
+    staleWhileRevalidateMs: 300_000,
     source: "db:market-report",
     version: "v1",
     tags: ["brief", "morning-brief", "public"],
@@ -1885,9 +1921,9 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
   },
   {
     id: "news:eod:latest",
-    ttlMs: 24 * 60 * 60 * 1000,
+    ttlMs: 300_000,
     minIntervalMs: 60_000,
-    staleWhileRevalidateMs: 24 * 60 * 60 * 1000,
+    staleWhileRevalidateMs: 300_000,
     source: "db:market-report",
     version: "v1",
     tags: ["brief", "eod-brief", "public"],
@@ -1919,9 +1955,9 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
   },
   {
     id: "brief:eod:latest",
-    ttlMs: 24 * 60 * 60 * 1000,
+    ttlMs: 300_000,
     minIntervalMs: 60_000,
-    staleWhileRevalidateMs: 24 * 60 * 60 * 1000,
+    staleWhileRevalidateMs: 300_000,
     source: "db:market-report",
     version: "v1",
     tags: ["brief", "eod-brief", "public"],

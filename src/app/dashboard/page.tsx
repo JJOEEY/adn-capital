@@ -220,6 +220,39 @@ function normalizeVNIndexChartData(payload: HistoricalPayload | null | undefined
     .slice(-30);
 }
 
+function getCurrentVnDateKey() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+function normalizeChartDateKey(value: string) {
+  const raw = value.split("T")[0].split(" ")[0].trim();
+  const ddmmyyyy = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (ddmmyyyy) return `${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}`;
+  return raw;
+}
+
+function mergeLiveVNIndexIntoChart(
+  rows: Array<{ date: string; close: number }>,
+  vnindex: MarketData["vnindex"] | undefined,
+) {
+  const liveClose = readFiniteNumber(vnindex?.value);
+  if (liveClose == null || liveClose <= 0) return rows;
+
+  const liveDate = getCurrentVnDateKey();
+  const last = rows[rows.length - 1];
+  const lastDate = last ? normalizeChartDateKey(last.date) : null;
+  if (lastDate === liveDate) {
+    return [...rows.slice(0, -1), { ...last, close: liveClose }];
+  }
+
+  return [...rows.slice(-29), { date: liveDate, close: liveClose }];
+}
+
 function getRsRows(payload: RsRatingPayload | null | undefined): RsRatingStock[] {
   const rows = payload?.stocks ?? payload?.data ?? payload?.items ?? [];
   return Array.isArray(rows) ? rows : [];
@@ -294,6 +327,7 @@ export default function DashboardPage() {
     dedupingInterval: 60_000,
   });
   const eodTopic = useTopic<EodBriefData>("brief:eod:latest", {
+    refreshInterval: 300_000,
     revalidateOnFocus: false,
     dedupingInterval: 60_000,
   });
@@ -303,9 +337,9 @@ export default function DashboardPage() {
     dedupingInterval: 15_000,
   });
   const vnIndexHistoryTopic = useTopic<HistoricalPayload>("vn:index:chart:30d", {
-    refreshInterval: 300_000,
+    refreshInterval: 60_000,
     revalidateOnFocus: false,
-    dedupingInterval: 120_000,
+    dedupingInterval: 15_000,
     timeoutMs: 5_000,
   });
   const rsRatingTopic = useTopic<RsRatingPayload>("research:rs-rating:list", {
@@ -358,7 +392,10 @@ export default function DashboardPage() {
     [vnIndexHistoryTopic.data],
   );
 
-  const dashboardChartData = fastChartData.length > 0 ? fastChartData : data?.chartData ?? [];
+  const dashboardChartData = useMemo(
+    () => mergeLiveVNIndexIntoChart(fastChartData.length > 0 ? fastChartData : data?.chartData ?? [], data?.vnindex),
+    [fastChartData, data?.chartData, data?.vnindex],
+  );
   const dashboardChartCurrentValue =
     dashboardChartData.length > 0
       ? dashboardChartData[dashboardChartData.length - 1].close

@@ -216,6 +216,7 @@ function EveningBriefEmptyState() {
 
 export function EveningNews() {
   const eodTopic = useTopic<EodData>("brief:eod:latest", {
+    refreshInterval: 300_000,
     timeoutMs: 30_000,
     revalidateOnFocus: false,
     dedupingInterval: 60_000,
