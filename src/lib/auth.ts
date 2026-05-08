@@ -12,6 +12,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import authConfig from "@/lib/auth.config";
 import { reconcileUserEntitlementState } from "@/lib/entitlements";
+import { grantPremiumTrialForNewUser } from "@/lib/premium-trial";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...authConfig,
@@ -96,6 +97,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.vipUntil = (token.vipUntil as string) ?? null;
       }
       return session;
+    },
+  },
+  events: {
+    async createUser(message) {
+      const userId = message.user.id;
+      if (!userId) return;
+      try {
+        await grantPremiumTrialForNewUser(userId);
+      } catch (error) {
+        console.error("[premium-trial] failed to grant OAuth trial", {
+          userId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     },
   },
 });
