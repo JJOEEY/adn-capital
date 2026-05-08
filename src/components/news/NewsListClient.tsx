@@ -7,6 +7,7 @@ import { FileText, Loader2, Settings } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 import { getArticleFallbackImage } from "@/lib/articles/image-fallback";
+import { NEWS_PRIMARY_CATEGORIES, sortNewsCategories } from "@/lib/articles/category-priority";
 
 // ── Types from API ──
 interface Article {
@@ -268,6 +269,20 @@ export function NewsListClient() {
     return articles.filter((a) => a.category?.slug === activeCategory);
   }, [activeCategory, articles]);
 
+  const orderedCategories = useMemo(() => sortNewsCategories(categories), [categories]);
+  const primaryCategorySlugs = useMemo(
+    () => new Set(NEWS_PRIMARY_CATEGORIES.map((category) => category.slug)),
+    [],
+  );
+  const primaryCategories = useMemo(
+    () => orderedCategories.filter((category) => primaryCategorySlugs.has(category.slug)),
+    [orderedCategories, primaryCategorySlugs],
+  );
+  const secondaryCategories = useMemo(
+    () => orderedCategories.filter((category) => !primaryCategorySlugs.has(category.slug)),
+    [orderedCategories, primaryCategorySlugs],
+  );
+
   const researchArticles = useMemo(
     () => articles.filter((a) => a.pdfUrl),
     [articles]
@@ -311,10 +326,15 @@ export function NewsListClient() {
 
       {/* ── Category Tabs ── */}
       <div className="flex items-center gap-1 overflow-x-auto pb-3 mb-5 scrollbar-hide border-b border-white/[0.06]">
+        {primaryCategories.map((cat) => (
+          <TabButton key={cat.id} active={activeCategory === cat.slug} onClick={() => setActiveCategory(cat.slug)}>
+            {cat.name}
+          </TabButton>
+        ))}
         <TabButton active={activeCategory === "tat-ca"} onClick={() => setActiveCategory("tat-ca")}>
           Tất cả
         </TabButton>
-        {categories.map((cat) => (
+        {secondaryCategories.map((cat) => (
           <TabButton key={cat.id} active={activeCategory === cat.slug} onClick={() => setActiveCategory(cat.slug)}>
             {cat.name}
           </TabButton>
