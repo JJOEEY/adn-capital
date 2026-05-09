@@ -17,7 +17,7 @@ import { executeAIRequest, INTENT } from "@/lib/gemini";
 
 // Seasonality in-memory cache: TTL 30 ngày (2592000s)
 // Key format: "ticker:YYYY-MM" — chỉ fetch lại khi sang tháng mới
-const _seasonalityMonthCache = new NodeCache({ stdTTL: 2592000, checkperiod: 86400 });
+const _seasonalityMonthCache = new NodeCache({ stdTTL: 2592000, checkperiod: 0 });
 
 // ═══════════════════════════════════════════════════════════════════
 //  Types

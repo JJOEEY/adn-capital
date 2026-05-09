@@ -9,8 +9,7 @@ import { getVnNow } from "@/lib/time";
 import { claimSignalNotifications, type SignalNotificationCandidate } from "./notification-dedupe";
 import { normalizeSignalPrice } from "./price-units";
 
-export const SIGNAL_SCAN_SLOTS = ["10:00", "10:30", "14:00", "14:25"] as const;
-export const SIGNAL_SCAN_SLOT_SET = new Set<string>(SIGNAL_SCAN_SLOTS);
+export { SIGNAL_SCAN_SLOTS, SIGNAL_SCAN_SLOT_SET } from "./scan-slots";
 
 type SignalStatus = "RADAR" | "ACTIVE" | "CLOSED" | "HOLD_TO_DIE";
 

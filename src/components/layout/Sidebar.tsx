@@ -39,7 +39,7 @@ const navItems: Array<{
   { href: "/dashboard/dnse-trading", label: PRODUCT_NAMES.brokerConnect, icon: Wallet, badge: null },
   { href: "/art", label: PRODUCT_NAMES.art, icon: TrendingUp, badge: "MỚI" },
   { href: "/pricing", label: "Bảng giá", icon: DollarSign, badge: null },
-  { href: "/margin", label: "Ký quỹ - Mua nhanh", icon: Banknote, badge: "MỚI" },
+  { href: "/margin", label: "Giải pháp Margin", icon: Banknote, badge: "MỚI" },
 ];
 
 function getBadgeStyle(badge: string | null): CSSProperties {

@@ -82,7 +82,7 @@ export const ROUTE_DISPLAY_NAMES: Record<string, { title: string; breadcrumb: st
   "/dashboard/signal-map": { title: PRODUCT_NAMES.signalMap, breadcrumb: "Sản phẩm - ADN Radar" },
   "/dashboard/dnse-trading": { title: PRODUCT_NAMES.brokerConnect, breadcrumb: "Sản phẩm - Đặt lệnh ADN Link" },
   "/rs-rating": { title: PRODUCT_NAMES.rsRating, breadcrumb: "Sản phẩm - Xếp hạng sức mạnh" },
-  "/margin": { title: "Ký quỹ - Mua nhanh", breadcrumb: "Dịch vụ - Ký quỹ" },
+  "/margin": { title: "Giải pháp Margin", breadcrumb: "Dịch vụ - Giải pháp Margin" },
   "/journal": { title: PRODUCT_NAMES.diary, breadcrumb: `Dịch vụ - ${PRODUCT_NAMES.diary}` },
   "/pricing": { title: "Bảng giá", breadcrumb: "Khác - Gói dịch vụ" },
   "/backtest": { title: PRODUCT_NAMES.backtest, breadcrumb: "Khác - Kiểm chứng chiến thuật" },
