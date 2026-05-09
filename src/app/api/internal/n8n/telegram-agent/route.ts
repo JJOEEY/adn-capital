@@ -285,7 +285,7 @@ export async function POST(req: NextRequest) {
         type: "aiden",
         ticker: aiden.ticker,
         tickers: aiden.tickers,
-        actionUrl: aiden.ticker ? `${getPublicBaseUrl()}/dashboard/dnse-trading?ticker=${aiden.ticker}&source=aiden` : null,
+        actionUrl: null,
       };
     }
 

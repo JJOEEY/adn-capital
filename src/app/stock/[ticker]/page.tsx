@@ -20,6 +20,7 @@ import {
 import { MainLayout } from "@/components/layout/MainLayout";
 import { StockChart, type Candle, type ChartTimeframe } from "@/components/chat/StockChart";
 import { useTopic } from "@/hooks/useTopic";
+import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 import {
   applyMarketPriceScale,
   chooseMarketDisplayPrice,
@@ -541,6 +542,7 @@ function AidenPanel({
   onSend,
   onTickerSelect,
   loading,
+  canShowOrderAction,
 }: {
   ticker: string;
   messages: ChatMessage[];
@@ -549,6 +551,7 @@ function AidenPanel({
   onSend: () => Promise<void>;
   onTickerSelect: (ticker: string) => void;
   loading: boolean;
+  canShowOrderAction: boolean;
 }) {
   const bottomRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -599,7 +602,7 @@ function AidenPanel({
                       >
                         {tickerItem}
                       </button>
-                      {message.role === "bot" ? (
+                      {canShowOrderAction && message.role === "bot" ? (
                         <a
                           href={buildAdnLinkHref(tickerItem)}
                           className="rounded-full border px-2 py-0.5 text-[11px] font-bold"
@@ -663,6 +666,7 @@ function AidenPanel({
 export default function StockDetailPage() {
   const params = useParams<{ ticker: string }>();
   const router = useRouter();
+  const { isAdmin } = useCurrentDbUser();
   const ticker = useMemo(() => (params?.ticker ?? "VNINDEX").toUpperCase(), [params?.ticker]);
   const [timeframe, setTimeframe] = useState<ChartTimeframe>(() => marketDefaultTimeframe());
   const [search, setSearch] = useState(ticker);
@@ -1117,6 +1121,7 @@ export default function StockDetailPage() {
             onSend={handleSend}
             onTickerSelect={handleAidenTickerSelect}
             loading={chatLoading}
+            canShowOrderAction={isAdmin}
           />
         </div>
       </div>

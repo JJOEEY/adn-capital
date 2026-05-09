@@ -115,7 +115,7 @@ export const PRODUCT_MODULES: ProductModule[] = [
     name: PRODUCT_NAMES.broker,
     pillar: "Network",
     route: "/dashboard/dnse-trading",
-    status: "Premium",
+    status: "Admin",
     scene: "link",
     outcome: "Kết nối tài khoản DNSE, kiểm tra sức mua và đặt lệnh có kiểm soát.",
     tagline: PRODUCT_TAGLINES.broker,
