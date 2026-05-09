@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAdmin } from "@/lib/admin-check";
 
+const SYSTEM_ROLES = new Set(["ADMIN", "WRITER", "USER"]);
+
 /**
  * PATCH /api/admin/users/[id] — Cập nhật user (systemRole, dnseVerified...)
  * Lưu ý: role/vipUntil được quản lý qua entitlements append-only.
@@ -19,7 +21,13 @@ export async function PATCH(
 
   // Chỉ cho phép cập nhật các trường an toàn
   const allowed: Record<string, unknown> = {};
-  if (body.systemRole !== undefined) allowed.systemRole = body.systemRole;
+  if (body.systemRole !== undefined) {
+    const systemRole = String(body.systemRole).toUpperCase();
+    if (!SYSTEM_ROLES.has(systemRole)) {
+      return NextResponse.json({ error: "Invalid systemRole" }, { status: 400 });
+    }
+    allowed.systemRole = systemRole;
+  }
   if (body.dnseVerified !== undefined) allowed.dnseVerified = body.dnseVerified;
   if (body.dnseId !== undefined) allowed.dnseId = body.dnseId || null;
 

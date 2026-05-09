@@ -77,6 +77,34 @@ interface UserRow {
 }
 
 type Tab = "registrations" | "users" | "margin" | "journals" | "landing-products" | "landing-process";
+type SystemRole = "ADMIN" | "WRITER" | "USER";
+
+const getSystemRoleMeta = (role?: string) => {
+  if (role === "ADMIN") {
+    return {
+      label: "ADMIN",
+      background: "rgba(22,163,74,0.10)",
+      color: "#16a34a",
+      borderColor: "rgba(22,163,74,0.20)",
+    };
+  }
+
+  if (role === "WRITER") {
+    return {
+      label: "WRITER",
+      background: "rgba(16,185,129,0.12)",
+      color: "#10b981",
+      borderColor: "rgba(16,185,129,0.28)",
+    };
+  }
+
+  return {
+    label: "USER",
+    background: "rgba(100,116,139,0.10)",
+    color: "var(--text-muted)",
+    borderColor: "rgba(100,116,139,0.20)",
+  };
+};
 
 interface MarginRow {
   id: string;
@@ -274,7 +302,7 @@ function UsersTab() {
     userId: string;
     email: string;
     badge?: "FREE" | "VIP" | "PREMIUM";
-    systemRole?: string;
+    systemRole?: SystemRole;
     days?: number;
     label: string;
   } | null>(null);
@@ -360,7 +388,7 @@ function UsersTab() {
     }
   };
 
-  const handleSetSystemRole = async (userId: string, systemRole: string) => {
+  const handleSetSystemRole = async (userId: string, systemRole: SystemRole) => {
     const res = await fetch(`/api/admin/users/${userId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -772,13 +800,18 @@ function UsersTab() {
                   </td>
 
                   <td className="px-4 py-3">
-                    <span className="inline-block px-2 py-0.5 rounded-full border text-[12px] font-bold" style={{
-                      background: user.systemRole === "ADMIN" ? "rgba(22,163,74,0.10)" : "rgba(100,116,139,0.10)",
-                      color: user.systemRole === "ADMIN" ? "#16a34a" : "var(--text-muted)",
-                      borderColor: user.systemRole === "ADMIN" ? "rgba(22,163,74,0.20)" : "rgba(100,116,139,0.20)",
-                    }}>
-                      {user.systemRole === "ADMIN" ? "ADMIN" : "USER"}
-                    </span>
+                    {(() => {
+                      const roleMeta = getSystemRoleMeta(user.systemRole);
+                      return (
+                        <span className="inline-block px-2 py-0.5 rounded-full border text-[12px] font-bold" style={{
+                          background: roleMeta.background,
+                          color: roleMeta.color,
+                          borderColor: roleMeta.borderColor,
+                        }}>
+                          {roleMeta.label}
+                        </span>
+                      );
+                    })()}
                   </td>
 
                   <td className="px-4 py-3 text-xs" style={{ color: "var(--text-muted)" }}>
@@ -1068,6 +1101,26 @@ function UsersTab() {
                       >
                         <ShieldCheck className="w-3.5 h-3.5" />
                       </button>
+
+                      {/* Cấp WRITER (systemRole) */}
+                      <button
+                        disabled={user.systemRole === "ADMIN"}
+                        onClick={() =>
+                          setConfirmAction(
+                            user.systemRole === "WRITER"
+                              ? { userId: user.id, email: user.email, systemRole: "USER", label: "Thu hồi quyền WRITER → USER" }
+                              : { userId: user.id, email: user.email, systemRole: "WRITER", label: "Cấp quyền WRITER" }
+                          )
+                        }
+                        className="p-1.5 rounded-md transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                        style={user.systemRole === "WRITER"
+                          ? { background: "rgba(16,185,129,0.12)", color: "#10b981" }
+                          : { color: "var(--text-muted)" }
+                        }
+                        title={user.systemRole === "ADMIN" ? "ADMIN đã có quyền cao hơn" : user.systemRole === "WRITER" ? "Thu hồi WRITER" : "Cấp quyền WRITER"}
+                      >
+                        <BookOpen className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -1087,16 +1140,20 @@ function UsersTab() {
                 style={{
                   background: confirmAction.badge === "FREE" || confirmAction.systemRole === "USER"
                     ? "rgba(192,57,43,0.10)" : confirmAction.systemRole === "ADMIN"
-                    ? "rgba(22,163,74,0.10)" : "rgba(168,85,247,0.10)",
+                    ? "rgba(22,163,74,0.10)" : confirmAction.systemRole === "WRITER"
+                    ? "rgba(16,185,129,0.12)" : "rgba(168,85,247,0.10)",
                   borderColor: confirmAction.badge === "FREE" || confirmAction.systemRole === "USER"
                     ? "rgba(192,57,43,0.20)" : confirmAction.systemRole === "ADMIN"
-                    ? "rgba(22,163,74,0.20)" : "rgba(168,85,247,0.20)",
+                    ? "rgba(22,163,74,0.20)" : confirmAction.systemRole === "WRITER"
+                    ? "rgba(16,185,129,0.28)" : "rgba(168,85,247,0.20)",
                 }}
               >
                 {confirmAction.badge === "FREE" || confirmAction.systemRole === "USER" ? (
                   <ShieldX className="w-5 h-5" style={{ color: "var(--danger)" }} />
                 ) : confirmAction.systemRole === "ADMIN" ? (
                   <ShieldCheck className="w-5 h-5" style={{ color: "#16a34a" }} />
+                ) : confirmAction.systemRole === "WRITER" ? (
+                  <BookOpen className="w-5 h-5" style={{ color: "#10b981" }} />
                 ) : (
                   <Crown className="w-5 h-5" style={{ color: "#a855f7" }} />
                 )}
@@ -1113,7 +1170,7 @@ function UsersTab() {
               <p style={{ color: "var(--text-muted)" }}>
                 Thao tác:{" "}
                 <span className="font-bold" style={{
-                  color: confirmAction.badge === "FREE" || confirmAction.systemRole === "USER" ? "var(--danger)" : confirmAction.systemRole === "ADMIN" ? "#16a34a" : "#a855f7"
+                  color: confirmAction.badge === "FREE" || confirmAction.systemRole === "USER" ? "var(--danger)" : confirmAction.systemRole === "ADMIN" ? "#16a34a" : confirmAction.systemRole === "WRITER" ? "#10b981" : "#a855f7"
                 }}>
                   {confirmAction.label}
                 </span>
@@ -1152,7 +1209,8 @@ function UsersTab() {
                 style={{
                   background: confirmAction.badge === "FREE" || confirmAction.systemRole === "USER"
                     ? "var(--danger)" : confirmAction.systemRole === "ADMIN"
-                    ? "#16a34a" : "#a855f7",
+                    ? "#16a34a" : confirmAction.systemRole === "WRITER"
+                    ? "#10b981" : "#a855f7",
                   color: "#fff",
                 }}
               >
