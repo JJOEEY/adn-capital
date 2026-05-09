@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
@@ -16,6 +16,7 @@ import {
   Link as LinkIcon,
   List,
   ListOrdered,
+  Loader2,
   Quote,
   Underline as UnderlineIcon,
 } from "lucide-react";
@@ -38,18 +39,19 @@ function ToolbarButton({
   active?: boolean;
   disabled?: boolean;
   onClick: () => void;
-  children: React.ReactNode;
+  children: ReactNode;
   label: string;
 }) {
   return (
     <button
       type="button"
       aria-label={label}
+      title={label}
       disabled={disabled}
       onClick={onClick}
       className={`rounded-lg border px-2.5 py-2 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
         active
-          ? "border-blue-400/40 bg-blue-500/20 text-blue-200"
+          ? "border-emerald-400/40 bg-emerald-500/20 text-emerald-100"
           : "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"
       }`}
     >
@@ -61,34 +63,47 @@ function ToolbarButton({
 export default function RichTextEditor({
   content,
   onChange,
-  placeholder = "Nội dung bài viết...",
+  placeholder = "Viết nội dung bài viết...",
   uploadEndpoint = "/api/articles/upload-image",
   onImageUploaded,
 }: RichTextEditorProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const editorRef = useRef<Editor | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const uploadImage = useCallback(
     async (file: File) => {
       if (!file.type.startsWith("image/")) return;
 
-      const formData = new FormData();
-      formData.append("file", file);
+      setUploading(true);
+      setUploadError(null);
 
-      const res = await fetch(uploadEndpoint, {
-        method: "POST",
-        body: formData,
-      });
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
 
-      const data = (await res.json().catch(() => null)) as { url?: string; error?: string } | null;
-      if (!res.ok || !data?.url) {
-        throw new Error(data?.error || "Không thể tải ảnh lên máy chủ");
+        const res = await fetch(uploadEndpoint, {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = (await res.json().catch(() => null)) as { url?: string; error?: string } | null;
+        if (!res.ok || !data?.url) {
+          throw new Error(data?.error || "Không thể tải ảnh lên máy chủ");
+        }
+
+        editorRef.current?.chain().focus().setImage({ src: data.url, alt: file.name }).run();
+        onImageUploaded?.(data.url);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Không thể tải ảnh lên";
+        setUploadError(message);
+        throw error;
+      } finally {
+        setUploading(false);
       }
-
-      editorRef.current?.chain().focus().setImage({ src: data.url, alt: file.name }).run();
-      onImageUploaded?.(data.url);
     },
-    [onImageUploaded, uploadEndpoint]
+    [onImageUploaded, uploadEndpoint],
   );
 
   const editor = useEditor({
@@ -104,7 +119,7 @@ export default function RichTextEditor({
         autolink: true,
         linkOnPaste: true,
         HTMLAttributes: {
-          class: "text-blue-400 underline underline-offset-2",
+          class: "text-emerald-300 underline underline-offset-2",
           rel: "noopener noreferrer nofollow",
           target: "_blank",
         },
@@ -112,7 +127,7 @@ export default function RichTextEditor({
       Image.configure({
         allowBase64: false,
         HTMLAttributes: {
-          class: "my-4 h-auto max-w-full rounded-lg",
+          class: "my-4 h-auto max-w-full rounded-xl border border-white/10",
         },
       }),
       TextAlign.configure({
@@ -126,11 +141,11 @@ export default function RichTextEditor({
     editorProps: {
       attributes: {
         class:
-          "prose prose-invert max-w-none min-h-[320px] px-4 py-3 text-sm text-slate-200 focus:outline-none",
+          "prose prose-invert max-w-none min-h-[380px] px-4 py-4 text-base leading-relaxed text-slate-100 focus:outline-none prose-p:my-3 prose-headings:text-white prose-strong:text-white",
       },
       handlePaste: (_view, event) => {
         const files = Array.from(event.clipboardData?.files ?? []).filter((file) =>
-          file.type.startsWith("image/")
+          file.type.startsWith("image/"),
         );
         if (files.length === 0) return false;
 
@@ -144,7 +159,7 @@ export default function RichTextEditor({
       },
       handleDrop: (_view, event) => {
         const files = Array.from(event.dataTransfer?.files ?? []).filter((file) =>
-          file.type.startsWith("image/")
+          file.type.startsWith("image/"),
         );
         if (files.length === 0) return false;
 
@@ -174,7 +189,7 @@ export default function RichTextEditor({
   const addLink = () => {
     if (!editor) return;
     const previousUrl = editor.getAttributes("link").href as string | undefined;
-    const url = window.prompt("URL liên kết", previousUrl ?? "https://");
+    const url = window.prompt("Nhập URL liên kết", previousUrl ?? "https://");
     if (url === null) return;
     if (!url.trim()) {
       editor.chain().focus().unsetLink().run();
@@ -184,7 +199,7 @@ export default function RichTextEditor({
   };
 
   return (
-    <div className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]">
+    <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035]">
       <div className="flex flex-wrap items-center gap-2 border-b border-white/10 bg-black/20 px-3 py-2">
         <ToolbarButton
           label="In đậm"
@@ -242,15 +257,15 @@ export default function RichTextEditor({
         >
           <Quote className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton label="Liên kết" disabled={!editor} active={editor?.isActive("link")} onClick={addLink}>
+        <ToolbarButton label="Gắn liên kết" disabled={!editor} active={editor?.isActive("link")} onClick={addLink}>
           <LinkIcon className="h-4 w-4" />
         </ToolbarButton>
         <ToolbarButton
-          label="Tải ảnh"
-          disabled={!editor}
+          label="Thêm ảnh"
+          disabled={!editor || uploading}
           onClick={() => fileInputRef.current?.click()}
         >
-          <ImagePlus className="h-4 w-4" />
+          {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
         </ToolbarButton>
         <input
           ref={fileInputRef}
@@ -269,10 +284,14 @@ export default function RichTextEditor({
         />
       </div>
       <EditorContent editor={editor} />
-      <div className="border-t border-white/10 px-3 py-2 text-[11px] text-slate-500">
-        Có thể dán trực tiếp hình ảnh hoặc kéo thả file ảnh. Ảnh sẽ được upload lên máy chủ,
-        không nhúng base64 vào bài viết.
+      <div className="border-t border-white/10 px-3 py-2 text-xs text-slate-400">
+        Có thể dán ảnh trực tiếp, kéo thả ảnh hoặc bấm nút thêm ảnh. Ảnh sẽ được tải lên máy chủ trước khi chèn vào bài.
       </div>
+      {uploadError && (
+        <div className="border-t border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+          {uploadError}
+        </div>
+      )}
     </div>
   );
 }

@@ -8,9 +8,10 @@ import {
 import { getVnNow } from "@/lib/time";
 import { claimSignalNotifications, type SignalNotificationCandidate } from "./notification-dedupe";
 import { normalizeSignalPrice } from "./price-units";
+import type { SignalScanArtifact, SignalScanArtifactItem, SignalScanSource } from "./scan-artifact";
 
-export const SIGNAL_SCAN_SLOTS = ["10:00", "10:30", "14:00", "14:25"] as const;
-export const SIGNAL_SCAN_SLOT_SET = new Set<string>(SIGNAL_SCAN_SLOTS);
+export { SIGNAL_SCAN_SLOTS, SIGNAL_SCAN_SLOT_SET } from "./radar-scan-config";
+export type { SignalScanArtifact, SignalScanArtifactItem, SignalScanSource } from "./scan-artifact";
 
 type SignalStatus = "RADAR" | "ACTIVE" | "CLOSED" | "HOLD_TO_DIE";
 
@@ -21,54 +22,6 @@ type PersistedSignalRef = {
   status: SignalStatus;
   entryPrice: number;
 };
-
-export type SignalScanSource = "cron" | "webhook" | "bridge" | "manual";
-
-export interface SignalScanArtifactItem {
-  id?: string;
-  ticker: string;
-  type: string;
-  status?: string;
-  entryPrice: number;
-  target?: number;
-  stoploss?: number;
-  navAllocation?: number;
-  winRate?: number;
-  rrRatio?: string;
-  reason?: string | null;
-  action: "created" | "updated" | "claimed" | "skipped";
-}
-
-export interface SignalScanArtifact {
-  kind: "signal_scan";
-  version: "v1";
-  batchId: string;
-  tradingDate: string;
-  slot: string;
-  slotLabel: string;
-  source: SignalScanSource;
-  timestamp: string;
-  publish: boolean;
-  summary: {
-    detected: number;
-    accepted: number;
-    processed: number;
-    created: number;
-    updated: number;
-    notified: number;
-    activated: number;
-  };
-  signals: SignalScanArtifactItem[];
-  notifiedSignals: SignalScanArtifactItem[];
-  activatedSignals: Array<{
-    ticker: string;
-    signalType: string;
-    fromStatus: string;
-    toStatus: string;
-    entryPrice: number;
-    reason: string | null;
-  }>;
-}
 
 export interface SignalScanIngestResult {
   detected: number;

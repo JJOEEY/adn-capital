@@ -35,24 +35,65 @@ import {
 import { fetchEodNews, type FiinEodNews } from "@/lib/fiinquantClient";
 import { fetchAllCafefNews, buildCafefContext } from "@/lib/cafefScraper";
 import { getVnNow } from "@/lib/time";
-import { invalidateTopics } from "@/lib/datahub/core";
+import { getTopicEnvelope, invalidateTopics } from "@/lib/datahub/core";
 import { normalizeCronType, LEGACY_CRON_ALIASES } from "@/lib/cron-contracts";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
 import { emitWorkflowTrigger } from "@/lib/workflows";
 import { emitObservabilityEvent } from "@/lib/observability";
 import { SIGNAL_SCAN_SLOT_SET, ingestSignalScanBatch } from "@/lib/signals/ingest";
+import { chooseRadarScanMode, RADAR_SCAN_BUDGET } from "@/lib/signals/radar-scan-config";
 import {
   sendActiveHoldingsToTelegram,
   sendActiveSignalsToTelegram,
   sendClaimedSignalsToTelegram,
 } from "@/lib/signals/telegram-notify";
 
-export const maxDuration = 120;
+export const maxDuration = 600;
 export const dynamic = "force-dynamic";
 
 const PYTHON_BRIDGE = getPythonBridgeUrl();
+const SIGNAL_SCAN_TIMEOUT_MS = 600_000;
 const MARKET_OVERVIEW_CACHE_FILE = path.join(process.cwd(), "market_cache.json");
 const EOD_FULL_MINUTE_VN = 19 * 60;
+const ADN_RANK_REFRESH_MINUTE_VN = 15 * 60;
+const ADN_RANK_TOPIC_KEYS = ["research:rs-rating:list", "market:rs:latest", "scan:rs-rating:list"] as const;
+
+interface RadarQuotaEstimate {
+  monthlyUsed: number;
+  monthlyUsedPct: number;
+}
+
+function readRadarQuotaCost(resultData: string | null): number {
+  if (!resultData) return 0;
+  try {
+    const parsed = JSON.parse(resultData) as {
+      radarQuota?: { estimatedCost?: unknown };
+      radarScan?: { estimatedQuotaCost?: unknown };
+    };
+    const value = parsed.radarQuota?.estimatedCost ?? parsed.radarScan?.estimatedQuotaCost;
+    return typeof value === "number" && Number.isFinite(value) ? value : 0;
+  } catch {
+    return 0;
+  }
+}
+
+async function getRadarMonthlyQuotaEstimate(): Promise<RadarQuotaEstimate> {
+  const monthStart = getVnNow().startOf("month").toDate();
+  const rows = await prisma.cronLog.findMany({
+    where: {
+      cronName: "signal_scan_type1",
+      createdAt: { gte: monthStart },
+    },
+    select: { resultData: true },
+    take: 500,
+    orderBy: { createdAt: "desc" },
+  });
+  const monthlyUsed = rows.reduce((sum, row) => sum + readRadarQuotaCost(row.resultData), 0);
+  return {
+    monthlyUsed,
+    monthlyUsedPct: RADAR_SCAN_BUDGET.monthlyQuota > 0 ? (monthlyUsed / RADAR_SCAN_BUDGET.monthlyQuota) * 100 : 0,
+  };
+}
 
 function getVnMinuteOfDay(): number {
   const now = getVnNow();
@@ -169,6 +210,92 @@ async function handleNewsCrawler(): Promise<NextResponse> {
     const duration = Date.now() - startTime;
     await logCron("news_crawler", "error", String(error), duration);
     return NextResponse.json({ error: "Lỗi cập nhật tin tức" }, { status: 500 });
+  }
+}
+
+async function handleAdnRank15h(forceRun = false): Promise<NextResponse> {
+  const startTime = Date.now();
+  const vnNow = getVnNow();
+  const day = vnNow.day();
+  const minuteOfDay = vnNow.hour() * 60 + vnNow.minute();
+
+  if (!forceRun && (day === 0 || day === 6)) {
+    const duration = Date.now() - startTime;
+    await logCron("adn_rank_15h", "skipped", "ADN Rank refresh skipped on weekend", duration, {
+      weekday: day,
+    });
+    return NextResponse.json({
+      type: "adn_rank_15h",
+      skipped: true,
+      reason: "weekend",
+    });
+  }
+
+  if (!forceRun && minuteOfDay < ADN_RANK_REFRESH_MINUTE_VN) {
+    const duration = Date.now() - startTime;
+    await logCron("adn_rank_15h", "skipped", "ADN Rank refresh skipped before 15:00 VN", duration, {
+      nextSlot: "15:00",
+    });
+    return NextResponse.json({
+      type: "adn_rank_15h",
+      skipped: true,
+      reason: "before_scheduled_slot",
+      nextSlot: "15:00",
+    });
+  }
+
+  try {
+    const invalidated = invalidateTopics({ topics: [...ADN_RANK_TOPIC_KEYS], tags: ["rs-rating"] });
+    const envelope = await getTopicEnvelope("research:rs-rating:list", { force: true });
+    const payload = envelope.value as { stocks?: unknown[]; asOfDate?: string | null; updatedAt?: string | null } | null;
+    const count = Array.isArray(payload?.stocks) ? payload.stocks.length : 0;
+    const duration = Date.now() - startTime;
+
+    if (envelope.freshness === "error" || count === 0) {
+      await logCron("adn_rank_15h", "error", "ADN Rank refresh returned no valid rows", duration, {
+        freshness: envelope.freshness,
+        error: envelope.error,
+        invalidated,
+      });
+      return NextResponse.json(
+        {
+          type: "adn_rank_15h",
+          published: false,
+          reason: "empty_or_error",
+          freshness: envelope.freshness,
+          error: envelope.error,
+        },
+        { status: 502 },
+      );
+    }
+
+    await logCron("adn_rank_15h", "success", `ADN Rank refreshed ${count} rows`, duration, {
+      topicUpdatedAt: envelope.updatedAt,
+      payloadUpdatedAt: payload?.updatedAt ?? null,
+      asOfDate: payload?.asOfDate ?? null,
+      count,
+      invalidated,
+    });
+    return NextResponse.json({
+      type: "adn_rank_15h",
+      published: true,
+      count,
+      topicUpdatedAt: envelope.updatedAt,
+      payloadUpdatedAt: payload?.updatedAt ?? null,
+      asOfDate: payload?.asOfDate ?? null,
+      invalidated,
+    });
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    await logCron("adn_rank_15h", "error", String(error), duration);
+    return NextResponse.json(
+      {
+        type: "adn_rank_15h",
+        published: false,
+        error: "Khong cap nhat duoc ADN Rank",
+      },
+      { status: 500 },
+    );
   }
 }
 
@@ -416,6 +543,7 @@ export async function GET(req: NextRequest) {
           "market_stats_type2",
           "signal_scan_type1",
           "news_crawler",
+          "adn_rank_15h",
         ],
         legacyAliases: LEGACY_CRON_ALIASES,
       },
@@ -451,7 +579,10 @@ export async function GET(req: NextRequest) {
     if (type === "news_crawler") {
       return runCronHandlerWithWorkflowHook(type, () => handleNewsCrawler(), "cron-dispatch:sync");
     }
-    return runCronHandlerWithWorkflowHook(type, () => handleSignalScan5m(), "cron-dispatch:sync");
+    if (type === "adn_rank_15h") {
+      return runCronHandlerWithWorkflowHook(type, () => handleAdnRank15h(forceRun), "cron-dispatch:sync");
+    }
+    return runCronHandlerWithWorkflowHook(type, () => handleSignalScan5m(forceRun), "cron-dispatch:sync");
   }
 
   const queued = await prisma.cronLog.create({
@@ -477,8 +608,10 @@ export async function GET(req: NextRequest) {
         await runCronHandlerWithWorkflowHook(type, () => handleIntraday(forceRun), "cron-dispatch:async");
       } else if (type === "news_crawler") {
         await runCronHandlerWithWorkflowHook(type, () => handleNewsCrawler(), "cron-dispatch:async");
+      } else if (type === "adn_rank_15h") {
+        await runCronHandlerWithWorkflowHook(type, () => handleAdnRank15h(forceRun), "cron-dispatch:async");
       } else {
-        await runCronHandlerWithWorkflowHook(type, () => handleSignalScan5m(), "cron-dispatch:async");
+        await runCronHandlerWithWorkflowHook(type, () => handleSignalScan5m(forceRun), "cron-dispatch:async");
       }
       await prisma.cronLog.update({
         where: { id: queued.id },
@@ -570,7 +703,7 @@ function extractBridgeExchangeLiquidity(
   };
 }
 
-function buildFull19PublicReport(
+function buildFull19PublicReportLegacy(
   today: string,
   snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>,
   eodDetail?: FiinEodNews | null,
@@ -629,6 +762,150 @@ ${investorSection}
 • ${flowNote}
 
 _Powered by ADN Capital AI_`;
+}
+
+function buildFull19PublicReport(
+  today: string,
+  snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>,
+  eodDetail?: FiinEodNews | null,
+) {
+  const toNumber = (value: unknown): number | null => {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  };
+  const formatNumber = (value: number | null | undefined, digits = 1) => {
+    if (value == null || !Number.isFinite(value)) return "-";
+    return value.toLocaleString("vi-VN", {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    });
+  };
+  const formatTy = (value: number | null | undefined) => {
+    if (value == null || !Number.isFinite(value)) return "-";
+    return value.toLocaleString("vi-VN", { maximumFractionDigits: 0 });
+  };
+  const formatPct = (value: number | null | undefined) => {
+    if (value == null || !Number.isFinite(value)) return "-";
+    return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+  };
+  const stripListPrefix = (value: string) => {
+    const prefixes = [
+      "T\u0103ng \u0111i\u1ec3m:",
+      "Gi\u1ea3m \u0111i\u1ec3m:",
+      "Mua r\u00f2ng:",
+      "B\u00e1n r\u00f2ng:",
+    ];
+    const matched = prefixes.find((prefix) => value.startsWith(prefix));
+    return matched ? value.slice(matched.length).trim() : value;
+  };
+
+  const formatList = (items: string[] | undefined, limit = 8) =>
+    (items ?? [])
+      .map((item) => String(item ?? "").trim())
+      .filter(Boolean)
+      .map(stripListPrefix)
+      .slice(0, limit)
+      .join(", ");
+  const addSection = (lines: string[], title: string, body: string | null | undefined) => {
+    const content = String(body ?? "").trim();
+    if (content) lines.push(`${title}\n${content}`);
+  };
+
+  const vnindex = snapshot.indices.find((item) => item.ticker === "VNINDEX");
+  const vnIndexValue = toNumber(eodDetail?.vnindex) ?? vnindex?.value ?? null;
+  const vnIndexChangePct = toNumber(eodDetail?.change_pct) ?? vnindex?.changePct ?? null;
+  const directionIcon = (vnIndexChangePct ?? 0) >= 0 ? "🟢" : "🔴";
+  const bridgeLiq = extractBridgeExchangeLiquidity(eodDetail);
+  const matchedLiquidity =
+    toNumber(eodDetail?.matched_liquidity) ?? toNumber(eodDetail?.liquidity) ?? snapshot.liquidity ?? null;
+  const negotiatedLiquidity = toNumber(eodDetail?.negotiated_liquidity);
+  const totalLiquidity =
+    toNumber(eodDetail?.total_liquidity) ??
+    (matchedLiquidity != null && negotiatedLiquidity != null ? matchedLiquidity + negotiatedLiquidity : null) ??
+    matchedLiquidity;
+  const liquidityByExchange = {
+    HOSE: bridgeLiq.HOSE ?? snapshot.liquidityByExchange.HOSE,
+    HNX: bridgeLiq.HNX ?? snapshot.liquidityByExchange.HNX,
+    UPCOM: bridgeLiq.UPCOM ?? snapshot.liquidityByExchange.UPCOM,
+  };
+  const breadth = eodDetail?.breadth ?? snapshot.breadth;
+  const dateLabel = eodDetail?.date
+    ? eodDetail.date.split("-").reverse().join("/")
+    : today;
+  const sessionSummary =
+    eodDetail?.session_summary?.trim() ||
+    `VN-Index đóng cửa tại ${formatNumber(vnIndexValue)} điểm (${formatPct(vnIndexChangePct)}). Thanh khoản toàn thị trường đạt ${formatTy(totalLiquidity)} tỷ đồng.`;
+  const outlook =
+    eodDetail?.outlook?.trim() ||
+    `Phiên tới ưu tiên trạng thái trung tính. Thanh khoản toàn thị trường đạt ${formatTy(totalLiquidity)} tỷ đồng; độ rộng ghi nhận ${breadth?.up ?? "-"} mã tăng, ${breadth?.down ?? "-"} mã giảm và ${breadth?.unchanged ?? "-"} mã đứng giá.`;
+
+  const lines: string[] = [
+    `📊 EOD FLASH NOTE — ${dateLabel}`,
+    "",
+    `${directionIcon} VN-INDEX: ${formatNumber(vnIndexValue)} (${formatPct(vnIndexChangePct)})`,
+    `💰 TK: ${formatTy(totalLiquidity)} tỷ (HoSE ${formatTy(liquidityByExchange.HOSE)} | HNX ${formatTy(liquidityByExchange.HNX)} | UPCoM ${formatTy(liquidityByExchange.UPCOM)})`,
+    `📏 Độ rộng: ↑${breadth?.up ?? "-"} ↓${breadth?.down ?? "-"} ─${breadth?.unchanged ?? "-"}`,
+    "",
+    `📝 ${sessionSummary}`,
+  ];
+
+  const foreignBuy = formatList(eodDetail?.foreign_top_buy, 5);
+  const foreignSell = formatList(eodDetail?.foreign_top_sell, 5);
+  addSection(
+    lines,
+    "🏦 Khối ngoại:",
+    [
+      eodDetail?.foreign_flow?.trim(),
+      foreignBuy ? `  🟢 Mua ròng: ${foreignBuy}` : "",
+      foreignSell ? `  🔴 Bán ròng: ${foreignSell}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n"),
+  );
+
+  const propBuy = formatList(eodDetail?.prop_trading_top_buy, 5);
+  const propSell = formatList(eodDetail?.prop_trading_top_sell, 5);
+  addSection(
+    lines,
+    "🏢 Tự doanh:",
+    [propBuy ? `  🟢 Mua: ${propBuy}` : "", propSell ? `  🔴 Bán: ${propSell}` : ""].filter(Boolean).join("\n"),
+  );
+
+  const individualBuy = formatList(eodDetail?.individual_top_buy, 5);
+  const individualSell = formatList(eodDetail?.individual_top_sell, 5);
+  addSection(
+    lines,
+    "👤 Cá nhân:",
+    [individualBuy ? `  🟢 Mua: ${individualBuy}` : "", individualSell ? `  🔴 Bán: ${individualSell}` : ""]
+      .filter(Boolean)
+      .join("\n"),
+  );
+
+  const sectorGainers = formatList(eodDetail?.sector_gainers, 8);
+  const sectorLosers = formatList(eodDetail?.sector_losers, 8);
+  addSection(
+    lines,
+    "🏭 Nhóm ảnh hưởng chỉ số:",
+    [sectorGainers ? `  🟢 Tăng điểm: ${sectorGainers}` : "", sectorLosers ? `  🔴 Giảm điểm: ${sectorLosers}` : ""]
+      .filter(Boolean)
+      .join("\n"),
+  );
+
+  const buySignals = formatList(eodDetail?.buy_signals, 12);
+  const sellSignals = formatList(eodDetail?.sell_signals, 12);
+  addSection(
+    lines,
+    "⚡ Tín hiệu mua/bán chủ động:",
+    [buySignals ? `  🟢 Mua chủ động: ${buySignals}` : "", sellSignals ? `  🔴 Bán chủ động: ${sellSignals}` : ""]
+      .filter(Boolean)
+      .join("\n"),
+  );
+
+  addSection(lines, "🚀 Nhóm đột phá:", formatList(eodDetail?.top_breakout, 12));
+  addSection(lines, "🏁 Top vượt đỉnh:", formatList(eodDetail?.top_new_high, 8));
+  lines.push("", `🔮 Nhận định phiên tới: ${outlook}`, "", "— ADN Capital");
+
+  return lines.join("\n");
 }
 
 function countEodDetailBuckets(eodDetail: FiinEodNews | null | undefined): number {
@@ -941,7 +1218,7 @@ interface PythonScanSignal {
   reason?: string;
 }
 
-async function handleSignalScan5m(): Promise<NextResponse> {
+async function handleSignalScan5m(forceRun = false): Promise<NextResponse> {
   const startTime = Date.now();
   if (!isTradingDay()) {
     await logCron("signal_scan_type1", "skipped", "Không phải ngày giao dịch", 0);
@@ -953,27 +1230,55 @@ async function handleSignalScan5m(): Promise<NextResponse> {
   const min = vnNow.minute();
   const timeKey = `${hour}:${min.toString().padStart(2, "0")}`;
 
-  if (!SIGNAL_SCAN_SLOT_SET.has(timeKey)) {
+  if (!forceRun && !SIGNAL_SCAN_SLOT_SET.has(timeKey)) {
     return NextResponse.json({ message: `Fixed Gate: skip ${timeKey}` });
   }
 
   try {
     const todayISO = getVNDateISO();
     const windowInfo = getSignalWindowInfo(vnNow.toDate());
-    const res = await fetch(`${PYTHON_BRIDGE}/api/v1/scan-now`, {
+    const radarQuota = await getRadarMonthlyQuotaEstimate();
+    const scanMode = forceRun ? "hot" : chooseRadarScanMode(timeKey, radarQuota.monthlyUsedPct);
+    if (!scanMode) {
+      const duration = Date.now() - startTime;
+      await logCron("signal_scan_type1", "skipped", "Radar quota guard: skip non-critical scan", duration, {
+        radarQuota,
+        budget: RADAR_SCAN_BUDGET,
+        slot: timeKey,
+      });
+      return NextResponse.json({
+        type: "signal_scan_type1",
+        skipped: true,
+        reason: "quota_guard",
+        radarQuota,
+      });
+    }
+
+    const slot = forceRun ? "manual" : timeKey;
+    const slotLabel = forceRun ? "manual" : windowInfo.label;
+    const scanUrl = new URL("/api/v1/scan-now", PYTHON_BRIDGE);
+    scanUrl.searchParams.set("mode", scanMode);
+    const res = await fetch(scanUrl.toString(), {
       method: "POST",
-      signal: AbortSignal.timeout(90_000),
+      signal: AbortSignal.timeout(SIGNAL_SCAN_TIMEOUT_MS),
     });
     if (!res.ok) throw new Error(`Python scanner HTTP ${res.status}`);
 
-    const scanResult: { detected?: number; signals?: PythonScanSignal[] } = await res.json();
+    const scanResult: {
+      detected?: number;
+      estimated_quota_cost?: number;
+      scan_mode?: string;
+      signals?: PythonScanSignal[];
+      universe_size?: number;
+      watchlist_size?: number;
+    } = await res.json();
     const signals = Array.isArray(scanResult.signals) ? scanResult.signals : [];
     const ingestResult = await ingestSignalScanBatch({
       signals,
       detected: Number.isFinite(scanResult.detected) ? Number(scanResult.detected) : signals.length,
       tradingDate: todayISO,
-      slot: timeKey,
-      slotLabel: windowInfo.label,
+      slot,
+      slotLabel,
       source: "cron",
       scannedAt: new Date(),
     });
@@ -987,13 +1292,13 @@ async function handleSignalScan5m(): Promise<NextResponse> {
         .join("\n");
       await pushNotification(
         windowInfo.type,
-        `⚡ ${windowInfo.label} — ${webNotifySignals.length} tín hiệu mới`,
-        `## TÍN HIỆU MỚI (${windowInfo.label})\n\n${signalText}`,
+        `⚡ ${slotLabel} — ${webNotifySignals.length} tín hiệu mới`,
+        `## TÍN HIỆU MỚI (${slotLabel})\n\n${signalText}`,
       );
       telegramSignalBatchResult = await sendClaimedSignalsToTelegram({
         signals: webNotifySignals,
         tradingDate: todayISO,
-        slotLabel: windowInfo.label,
+        slotLabel,
         batchId: ingestResult.artifact.batchId,
       }).catch((error) => ({ ok: false, error: String(error) }));
     }
@@ -1011,7 +1316,7 @@ async function handleSignalScan5m(): Promise<NextResponse> {
       telegramActiveBatchResult = await sendActiveSignalsToTelegram({
         signals: ingestResult.activatedSignals,
         tradingDate: todayISO,
-        slotLabel: windowInfo.label,
+        slotLabel,
       }).catch((error) => ({ ok: false, error: String(error) }));
     }
 
@@ -1031,6 +1336,24 @@ async function handleSignalScan5m(): Promise<NextResponse> {
         updated: ingestResult.updated,
         notified: ingestResult.notified.length,
         reconciledWebOnly: 0,
+        radarScan: {
+          requestedMode: scanMode,
+          bridgeMode: scanResult.scan_mode ?? scanMode,
+          universeSize: scanResult.universe_size ?? null,
+          watchlistSize: scanResult.watchlist_size ?? null,
+          estimatedQuotaCost:
+            typeof scanResult.estimated_quota_cost === "number" && Number.isFinite(scanResult.estimated_quota_cost)
+              ? scanResult.estimated_quota_cost
+              : scanResult.universe_size ?? 0,
+        },
+        radarQuota: {
+          ...radarQuota,
+          budget: RADAR_SCAN_BUDGET.monthlyQuota,
+          estimatedCost:
+            typeof scanResult.estimated_quota_cost === "number" && Number.isFinite(scanResult.estimated_quota_cost)
+              ? scanResult.estimated_quota_cost
+              : scanResult.universe_size ?? 0,
+        },
         scanArtifact: ingestResult.artifact,
         telegramSignalBatchResult,
         telegramActiveBatchResult,
@@ -1050,6 +1373,8 @@ async function handleSignalScan5m(): Promise<NextResponse> {
       created: ingestResult.created,
       updated: ingestResult.updated,
       notified: ingestResult.notified.length,
+      scanMode,
+      universeSize: scanResult.universe_size ?? null,
       reconciledWebOnly: 0,
       totalSignaledToday,
     });

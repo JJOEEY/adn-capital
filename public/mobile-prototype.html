@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ADN Mobile Prototype</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #101216;
+        --panel: rgba(255, 255, 255, 0.055);
+        --line: rgba(255, 255, 255, 0.12);
+        --text: #f3efe7;
+        --muted: #9d9a90;
+        --soft: #b8c7b5;
+        --gold: #e6c875;
+        --green: #55d68b;
+        --red: #e36a5c;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: Manrope, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at 10% 0%, rgba(184, 199, 181, 0.14), transparent 32%),
+          radial-gradient(circle at 90% 8%, rgba(230, 200, 117, 0.1), transparent 30%),
+          linear-gradient(180deg, #15171d 0%, #101216 52%, #0b0d10 100%);
+      }
+
+      button { font: inherit; }
+
+      .page {
+        width: min(1200px, calc(100vw - 32px));
+        min-height: 100vh;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 410px minmax(0, 0.8fr);
+        gap: 32px;
+        align-items: center;
+        padding: 36px 0;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        border-radius: 999px;
+        padding: 9px 12px;
+        color: var(--soft);
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 28px 0 16px;
+        max-width: 540px;
+        font-size: clamp(42px, 6vw, 72px);
+        line-height: 0.96;
+        letter-spacing: -0.045em;
+      }
+
+      .lead {
+        max-width: 540px;
+        color: #b9b2a8;
+        font-size: 16px;
+        line-height: 1.75;
+      }
+
+      .selector {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 28px;
+      }
+
+      .selector button {
+        min-height: 92px;
+        cursor: pointer;
+        text-align: left;
+        color: var(--text);
+        border: 1px solid var(--line);
+        background: var(--panel);
+        border-radius: 22px;
+        padding: 16px;
+        transition: 0.2s ease;
+      }
+
+      .selector button.active {
+        border-color: rgba(184, 199, 181, 0.48);
+        background: rgba(184, 199, 181, 0.13);
+      }
+
+      .selector strong { display: block; font-size: 14px; }
+      .selector span { display: block; margin-top: 7px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+
+      .phone {
+        width: 410px;
+        padding: 12px;
+        border-radius: 44px;
+        background: #050608;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        box-shadow: 0 42px 120px -48px rgba(0, 0, 0, 1);
+      }
+
+      .screen {
+        position: relative;
+        height: 800px;
+        overflow: hidden;
+        border-radius: 34px;
+        background: #111318;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .status {
+        height: 58px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 22px;
+        background: rgba(17, 19, 24, 0.82);
+        backdrop-filter: blur(18px);
+      }
+
+      .island {
+        position: absolute;
+        left: 50%;
+        top: 12px;
+        width: 94px;
+        height: 24px;
+        transform: translateX(-50%);
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.72);
+      }
+
+      .content {
+        height: calc(100% - 58px);
+        overflow-y: auto;
+        padding: 22px 20px 110px;
+      }
+
+      .content h2 {
+        margin: 8px 0 2px;
+        font-size: 32px;
+        line-height: 1;
+        letter-spacing: -0.04em;
+      }
+
+      .content .sub { color: #b9b2a8; font-size: 14px; }
+
+      .card {
+        border: 1px solid var(--line);
+        background: var(--panel);
+        border-radius: 24px;
+        padding: 16px;
+        margin-top: 14px;
+      }
+
+      .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+
+      .metric small {
+        display: block;
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      .metric b { display: block; margin-top: 10px; font-size: 25px; }
+      .metric em { display: block; margin-top: 3px; font-style: normal; color: var(--green); font-size: 12px; font-weight: 800; }
+
+      .chart {
+        height: 132px;
+        display: flex;
+        gap: 6px;
+        align-items: end;
+        padding-top: 12px;
+      }
+      .bar {
+        flex: 1;
+        min-width: 0;
+        border-radius: 5px 5px 2px 2px;
+        background: var(--soft);
+        opacity: 0.9;
+      }
+      .bar.red { background: var(--red); }
+
+      .radar-row {
+        display: grid;
+        grid-template-columns: 56px 1fr auto;
+        gap: 12px;
+        align-items: center;
+        margin-top: 12px;
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        padding: 14px;
+        background: rgba(255, 255, 255, 0.04);
+      }
+      .ticker { font-size: 22px; font-weight: 950; }
+      .tag {
+        display: inline-flex;
+        border-radius: 999px;
+        padding: 4px 8px;
+        background: rgba(184, 199, 181, 0.12);
+        color: var(--soft);
+        font-size: 11px;
+        font-weight: 800;
+      }
+
+      .chat {
+        display: flex;
+        margin-top: 12px;
+      }
+      .chat.user { justify-content: flex-end; }
+      .bubble {
+        max-width: 84%;
+        border-radius: 22px;
+        padding: 12px 14px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        color: var(--text);
+        font-size: 14px;
+        line-height: 1.55;
+      }
+      .user .bubble {
+        background: var(--soft);
+        color: #101216;
+        border-color: transparent;
+      }
+
+      .bottom {
+        position: absolute;
+        left: 16px;
+        right: 16px;
+        bottom: 16px;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 4px;
+        padding: 8px;
+        border: 1px solid var(--line);
+        background: rgba(23, 25, 31, 0.92);
+        backdrop-filter: blur(20px);
+        border-radius: 28px;
+      }
+      .bottom button {
+        min-height: 46px;
+        cursor: pointer;
+        border: 0;
+        border-radius: 18px;
+        background: transparent;
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 900;
+      }
+      .bottom button.active {
+        background: var(--soft);
+        color: #101216;
+      }
+
+      .note-panel {
+        border: 1px solid var(--line);
+        background: var(--panel);
+        border-radius: 28px;
+        padding: 22px;
+      }
+      .note-panel h3 { margin: 0; font-size: 24px; }
+      .note-panel p { color: #b9b2a8; line-height: 1.7; }
+
+      .hidden { display: none; }
+
+      @media (max-width: 980px) {
+        .page { grid-template-columns: 1fr; justify-items: center; }
+        .intro, .note-panel { width: min(410px, 100%); }
+      }
+      @media (max-width: 460px) {
+        .page { width: 100%; padding: 0; }
+        .intro, .note-panel { display: none; }
+        .phone { width: 100%; min-height: 100vh; border-radius: 0; padding: 0; }
+        .screen { height: 100vh; border-radius: 0; border: 0; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <section class="intro">
+        <div class="eyebrow">Mobile prototype</div>
+        <h1>ADN Capital mobile app</h1>
+        <p class="lead">Bản prototype để duyệt trải nghiệm mobile trước khi rebuild thật. Bản này không nối dữ liệu thật và không ảnh hưởng hệ thống đang chạy.</p>
+        <div class="selector" id="selector"></div>
+      </section>
+
+      <section class="phone">
+        <div class="screen">
+          <div class="status">
+            <strong>09:41</strong>
+            <div class="island"></div>
+            <span>ADN</span>
+          </div>
+          <div class="content" id="content"></div>
+          <nav class="bottom" id="bottom"></nav>
+        </div>
+      </section>
+
+      <aside class="note-panel">
+        <h3 id="noteTitle">Bắt đầu</h3>
+        <p id="noteText">Luồng mở app, định vị nhanh giá trị hệ sinh thái ADN.</p>
+        <p><b>Scope:</b> chỉ là prototype UI, chưa deploy, chưa nối backend.</p>
+      </aside>
+    </main>
+
+    <script>
+      const screens = {
+        onboarding: { label: "Bắt đầu", short: "Start", note: "Luồng mở app, định vị nhanh giá trị hệ sinh thái ADN." },
+        pulse: { label: "ADN Pulse", short: "Pulse", note: "Tổng quan thị trường, ADNCore, bản tin sáng và EOD." },
+        radar: { label: "ADN Radar", short: "Radar", note: "Tín hiệu, entry, mục tiêu, cắt lỗ và lý do ngắn." },
+        stock: { label: "ADN Stock", short: "Stock", note: "Chart cổ phiếu, tổng quan nhanh và nhận định AIDEN." },
+        aiden: { label: "ADN AIDEN", short: "AIDEN", note: "Trợ lý hỏi đáp đầu tư theo phong cách chat tự nhiên." },
+      };
+      let active = "onboarding";
+
+      const selector = document.getElementById("selector");
+      const bottom = document.getElementById("bottom");
+      const content = document.getElementById("content");
+      const noteTitle = document.getElementById("noteTitle");
+      const noteText = document.getElementById("noteText");
+
+      function setActive(key) {
+        active = key;
+        render();
+      }
+
+      function renderSelectors() {
+        selector.innerHTML = Object.entries(screens).map(([key, item]) => `
+          <button class="${active === key ? "active" : ""}" onclick="setActive('${key}')">
+            <strong>${item.label}</strong>
+            <span>${item.note}</span>
+          </button>
+        `).join("");
+
+        bottom.innerHTML = Object.entries(screens).filter(([key]) => key !== "onboarding").map(([key, item]) => `
+          <button class="${active === key ? "active" : ""}" onclick="setActive('${key}')">${item.short}</button>
+        `).join("");
+      }
+
+      function render() {
+        renderSelectors();
+        noteTitle.textContent = screens[active].label;
+        noteText.textContent = screens[active].note;
+        content.innerHTML = views[active]();
+      }
+
+      const views = {
+        onboarding: () => `
+          <div class="card" style="padding: 22px;">
+            <div class="tag">ADN Capital</div>
+            <h2 style="margin-top: 42px;">Một app cho toàn bộ hành trình đầu tư</h2>
+            <p class="sub" style="line-height: 1.7;">Từ tổng quan thị trường, tín hiệu, cổ phiếu đến trợ lý AIDEN trong một trải nghiệm mobile gọn hơn.</p>
+          </div>
+          <div class="grid2">
+            ${["Pulse", "Radar", "Stock", "AIDEN"].map(x => `<div class="card metric"><small>${x}</small><b style="font-size:18px;">Sẵn sàng</b><em>Prototype</em></div>`).join("")}
+          </div>
+          <button onclick="setActive('pulse')" style="width:100%; margin-top: 18px; border:0; border-radius:18px; padding:16px; background:var(--soft); color:#101216; font-weight:900;">Xem prototype</button>
+        `,
+        pulse: () => `
+          <p class="sub">ADN Capital</p><h2>ADN Pulse</h2><p class="sub">Tổng quan thị trường</p>
+          <div class="grid2">
+            <div class="card metric"><small>VN-INDEX</small><b>1,874.8</b><em>+1.12%</em></div>
+            <div class="card metric"><small>ADNCore</small><b>8/14</b><em style="color:var(--gold);">Thăm dò</em></div>
+          </div>
+          <div class="card"><b>VN-INDEX · 30 phiên</b><div class="chart">${bars()}</div></div>
+          <div class="card"><span class="tag">Nhận định AIDEN</span><p>Thị trường hồi phục, ưu tiên nhóm có dòng tiền thật và nền giá tích lũy rõ.</p></div>
+          <div class="grid3"><div class="card metric"><small>Tăng</small><b>213</b></div><div class="card metric"><small>Giảm</small><b>97</b></div><div class="card metric"><small>Đứng</small><b>57</b></div></div>
+        `,
+        radar: () => `
+          <p class="sub">ADN Capital</p><h2>ADN Radar</h2><p class="sub">Bản đồ tín hiệu</p>
+          <div class="card metric"><small>Tín hiệu mới</small><b>12 mã</b><em>Đã lọc rủi ro</em></div>
+          ${["FPT|Xu hướng|75.5|82.0|72.0|88","SSI|Dòng tiền|28.5|31.2|27.1|84","GVR|Tích lũy|32.8|36.0|30.8|81"].map(row => {
+            const [ticker, type, entry, target, stop, score] = row.split("|");
+            return `<div class="radar-row"><div class="ticker">${ticker}</div><div><span class="tag">${type}</span><p class="sub">Entry ${entry} · Mục tiêu ${target} · Cắt lỗ ${stop}</p></div><b style="color:var(--gold);">${score}</b></div>`;
+          }).join("")}
+        `,
+        stock: () => `
+          <p class="sub">ADN Capital</p><h2>ADN Stock</h2><p class="sub">Chart và nhận định</p>
+          <div class="card"><b>FPT · Biểu đồ cổ phiếu</b><div class="chart">${candles()}</div></div>
+          <div class="grid2"><div class="card metric"><small>Giá mục tiêu</small><b>82.0</b></div><div class="card metric"><small>Cắt lỗ</small><b>72.0</b></div></div>
+          <div class="card"><span class="tag">AIDEN nhận định</span><p>FPT giữ nền tích lũy tốt, giá còn trên MA20. Chỉ tăng tỷ trọng khi thanh khoản xác nhận.</p></div>
+        `,
+        aiden: () => `
+          <p class="sub">ADN Capital</p><h2>ADN AIDEN</h2><p class="sub">Trợ lý đầu tư</p>
+          <div class="chat"><div class="bubble">Anh/chị muốn tìm cổ phiếu theo dòng tiền, định giá hay tín hiệu kỹ thuật?</div></div>
+          <div class="chat user"><div class="bubble">Top mã đáng chú ý hôm nay</div></div>
+          <div class="chat"><div class="bubble">Ưu tiên nhóm có RS cao, thanh khoản cải thiện và chưa tăng nóng. Có thể xem nhanh FPT, SSI, GVR.</div></div>
+          <div class="card"><span class="tag">Gợi ý nhanh</span><p>Nhận xét thị trường · So sánh FPT SSI · Lọc dòng tiền mạnh</p></div>
+        `,
+      };
+
+      function bars() {
+        return [28,34,30,42,48,40,56,61,52,70,82,66,88,74,94,85,102,96].map((h, i) => `<div class="bar ${i % 5 === 0 ? "red" : ""}" style="height:${h}px"></div>`).join("");
+      }
+      function candles() {
+        return [52,68,48,86,72,92,61,104,82,70,89,112,94,116,84,105,98,118].map((h, i) => `<div class="bar ${i % 4 === 0 ? "red" : ""}" style="height:${h}px"></div>`).join("");
+      }
+      render();
+    </script>
+  </body>
+</html>

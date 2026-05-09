@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getArticleFallbackImage } from "@/lib/articles/image-fallback";
-import { normalizeArticleTags } from "@/lib/articles/server";
+import { normalizeArticleTags, repairMojibakeText } from "@/lib/articles/server";
 
 export const dynamic = "force-dynamic";
 
@@ -42,19 +42,12 @@ export async function GET(_request: Request, { params }: RouteParams) {
       : [];
 
     const articleTags = safeParseTags(article.tags);
+    const normalizedArticle = normalizeArticleForResponse(article, articleTags);
     return NextResponse.json({
-      article: {
-        ...article,
-        tags: articleTags,
-        imageUrl: article.imageUrl || getArticleFallbackImage({ ...article, tags: articleTags }),
-      },
+      article: normalizedArticle,
       related: related.map((a) => {
         const tags = safeParseTags(a.tags);
-        return {
-          ...a,
-          tags,
-          imageUrl: a.imageUrl || getArticleFallbackImage({ ...a, tags }),
-        };
+        return normalizeArticleForResponse(a, tags);
       }),
     });
   } catch (error) {
@@ -69,4 +62,30 @@ function safeParseTags(value: string): string[] {
   } catch {
     return normalizeArticleTags(value);
   }
+}
+
+function normalizeArticleForResponse<
+  T extends {
+    title: string;
+    content?: string;
+    excerpt: string | null;
+    aiSummary: string | null;
+    sentiment: string | null;
+    imageUrl: string | null;
+  },
+>(article: T, tags: string[]) {
+  const normalized = {
+    ...article,
+    title: repairMojibakeText(article.title),
+    content: typeof article.content === "string" ? repairMojibakeText(article.content) : article.content,
+    excerpt: article.excerpt ? repairMojibakeText(article.excerpt) : article.excerpt,
+    aiSummary: article.aiSummary ? repairMojibakeText(article.aiSummary) : article.aiSummary,
+    sentiment: article.sentiment ? repairMojibakeText(article.sentiment) : article.sentiment,
+    tags,
+  };
+
+  return {
+    ...normalized,
+    imageUrl: article.imageUrl || getArticleFallbackImage(normalized),
+  };
 }

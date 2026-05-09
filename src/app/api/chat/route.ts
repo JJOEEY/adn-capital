@@ -23,6 +23,7 @@ import { getPythonBridgeUrl } from "@/lib/runtime-config";
 import { loadReportedSignalSummary } from "@/lib/signals/report-history";
 import { formatReportedSignalSummary } from "@/lib/signals/reporting";
 import { runAidenDatahubChat } from "@/lib/aiden/datahub-chat";
+import { sanitizeCustomerVisibleAiText } from "@/lib/ai-output-sanitizer";
 
 const FIINQUANT_BRIDGE = getPythonBridgeUrl();
 const CHAT_BRIDGE_AI_TIMEOUT_MS = 5_500;
@@ -1329,19 +1330,20 @@ export async function POST(req: NextRequest) {
       surface,
       context: { userId: aidenUserId, userRole: aidenDbUser?.role ?? null, systemRole: aidenDbUser?.systemRole ?? null },
     });
+    const aidenMessage = sanitizeCustomerVisibleAiText(aiden.message);
     const aidenUsageAfter = await consumeChatQuota(aidenQuota);
     if (aidenUserId) {
       await prisma.$transaction([
         prisma.chat.create({ data: chatData(aidenUserId, message, "user", surface) }),
-        prisma.chat.create({ data: chatData(aidenUserId, aiden.message, "assistant", surface) }),
+        prisma.chat.create({ data: chatData(aidenUserId, aidenMessage, "assistant", surface) }),
       ]);
     }
 
     return NextResponse.json({
       id: generateId(),
       role: "assistant",
-      message: aiden.message,
-      content: aiden.message,
+      message: aidenMessage,
+      content: aidenMessage,
       ticker: aiden.ticker,
       tickers: aiden.tickers,
       recommendation: aiden.recommendation,

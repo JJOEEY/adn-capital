@@ -48,7 +48,7 @@ const serviceItems: { href: string; label: string; icon: typeof BarChart2; badge
   { href: "/dashboard/dnse-trading", label: PRODUCT_NAMES.brokerConnect, icon: Wallet, badge: null, desc: "Đặt lệnh qua tài khoản DNSE đã liên kết" },
   { href: "/art", label: PRODUCT_NAMES.art, icon: Activity, badge: "MỚI", desc: "Action - Risk - Trend" },
   { href: "/formula-test", label: "Test công thức", icon: FlaskConical, badge: "MỚI", desc: "Kiểm tra công thức nội bộ", adminOnly: true },
-  { href: "/margin", label: "Ký quỹ - Mua nhanh", icon: Banknote, badge: null, desc: "Dịch vụ hỗ trợ giao dịch" },
+  { href: "/margin", label: "Giải pháp Margin", icon: Banknote, badge: null, desc: "Dịch vụ hỗ trợ giao dịch" },
 ];
 
 function getBadgeStyle(badge: string | null): React.CSSProperties {

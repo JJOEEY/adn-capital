@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { sendTelegramOnce, telegramHash } from "@/lib/telegram/dispatch";
-import type { SignalScanArtifactItem } from "./ingest";
+import type { SignalScanArtifactItem } from "./scan-artifact";
 
 const SIGNAL_TYPE_LABELS: Record<string, string> = {
   SIEU_CO_PHIEU: "Siêu cổ phiếu",
@@ -32,6 +32,39 @@ function formatPercent(value: number | null | undefined) {
 function formatSignalType(type: string) {
   const normalized = type.toUpperCase().trim();
   return SIGNAL_TYPE_LABELS[normalized] ?? normalized;
+}
+
+function signalIcon(type: string) {
+  const normalized = type.toUpperCase().trim();
+  if (normalized === "SIEU_CO_PHIEU") return "💎";
+  if (normalized === "TRUNG_HAN") return "⭐";
+  if (normalized === "DAU_CO") return "🚀";
+  if (normalized === "TAM_NGAM") return "🔥";
+  return "🚀";
+}
+
+function formatCompactRow(index: number, ticker: string, price: number | null | undefined, type: string) {
+  const no = `${index})`.padStart(3, "0");
+  const code = ticker.toUpperCase().trim().padEnd(4, " ");
+  const entry = formatPrice(price).padStart(8, " ");
+  return `${no} ${code} ${entry} ${signalIcon(type)}`;
+}
+
+function formatHoldingRow(index: number, signal: ActiveSignalRow) {
+  const no = `${index})`.padStart(3, "0");
+  const code = signal.ticker.toUpperCase().trim().padEnd(4, " ");
+  const entry = formatPrice(signal.entryPrice).padStart(8, " ");
+  const current = formatPrice(signal.currentPrice).padStart(8, " ");
+  const nav = formatPercent(signal.navAllocation).padStart(8, " ");
+  return `${no} ${code} ${entry} ${current} ${nav}`;
+}
+
+function chunkSignals<T>(items: T[], size: number) {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
 }
 
 function getSignalTelegramTarget() {
@@ -100,12 +133,15 @@ function formatSignalBatchText(params: {
     "",
   ];
 
+  let index = 1;
   for (const [type, rows] of groups.entries()) {
     lines.push(`⚡ ${formatSignalType(type)} (${rows.length})`);
+    lines.push("```");
     for (const signal of rows) {
-      const reason = signal.reason ? ` - ${signal.reason}` : "";
-      lines.push(`• ${signal.ticker} - ${formatPrice(signal.entryPrice)}${reason}`);
+      lines.push(formatCompactRow(index, signal.ticker, signal.entryPrice, type));
+      index += 1;
     }
+    lines.push("```");
     lines.push("");
   }
 
@@ -125,14 +161,11 @@ function formatActiveSignalsText(params: {
     "",
   ];
 
-  for (const signal of params.signals) {
-    const reason = signal.reason ? ` - ${signal.reason}` : "";
-    lines.push(
-      `• ${signal.ticker} (${formatSignalType(signal.signalType)}) - Entry ${formatPrice(
-        signal.entryPrice,
-      )}${reason}`,
-    );
-  }
+  lines.push("```");
+  params.signals.forEach((signal, index) => {
+    lines.push(formatCompactRow(index + 1, signal.ticker, signal.entryPrice, signal.signalType));
+  });
+  lines.push("```");
 
   lines.push("");
   lines.push("— ADN Capital Scanner 🤖");
@@ -146,18 +179,22 @@ function formatActiveHoldingsText(params: {
   const lines = [
     `📌 CỔ PHIẾU ĐANG NẮM GIỮ - ${params.tradingDate}`,
     "",
-    "Danh sách lấy từ tín hiệu đang ACTIVE/HOLD:",
+    `📊 Tổng số mã: ${params.signals.length}`,
+    "",
   ];
 
-  for (const signal of params.signals) {
-    lines.push(
-      `• ${signal.ticker}: Entry ${formatPrice(signal.entryPrice)} | Hiện tại ${formatPrice(
-        signal.currentPrice,
-      )} | Tỷ trọng NAV ${formatPercent(signal.navAllocation)}`,
-    );
-  }
+  const chunks = chunkSignals(params.signals, 15);
+  chunks.forEach((chunk, chunkIndex) => {
+    lines.push(chunkIndex === 0 ? `⭐ ${chunk.length} mã mới nhất:` : `📎 ${chunk.length} mã tiếp theo:`);
+    lines.push("```text");
+    lines.push("STT MA      ENTRY HIEN TAI      NAV");
+    chunk.forEach((signal, index) => {
+      lines.push(formatHoldingRow(chunkIndex * 15 + index + 1, signal));
+    });
+    lines.push("```");
+    lines.push("");
+  });
 
-  lines.push("");
   lines.push("— ADN Capital Scanner 🤖");
   return lines.join("\n").trim();
 }
@@ -186,6 +223,7 @@ export async function sendClaimedSignalsToTelegram(params: {
     chatId,
     tradingDate: params.tradingDate,
     slot: params.slotLabel,
+    parseMode: "Markdown",
   });
 }
 
@@ -211,6 +249,7 @@ export async function sendActiveSignalsToTelegram(params: {
     chatId,
     tradingDate: params.tradingDate,
     slot: params.slotLabel,
+    parseMode: "Markdown",
   });
 }
 
@@ -246,7 +285,7 @@ export async function sendActiveHoldingsToTelegram(params: {
     navAllocation: row.navAllocation,
   }));
   const digest = telegramHash(activeIdentity(signals)).slice(0, 16);
-  const eventKey = `active-holdings-19h:${params.tradingDate}:${digest}`;
+  const eventKey = `active-holdings-19h:v2:${params.tradingDate}:${digest}`;
   const text = formatActiveHoldingsText({ signals, tradingDate: params.tradingDate });
 
   return sendTelegramOnce({
@@ -257,5 +296,6 @@ export async function sendActiveHoldingsToTelegram(params: {
     chatId,
     tradingDate: params.tradingDate,
     slot: params.slotLabel ?? "19:00",
+    parseMode: "Markdown",
   });
 }

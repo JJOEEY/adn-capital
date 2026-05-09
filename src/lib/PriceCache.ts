@@ -33,13 +33,13 @@ export interface ExitScanItem {
 // ═══════════════════════════════════════════════════════════════════
 
 // Price cache: TTL 15s — VNStock Silver cho phép refresh nhanh hơn
-const priceCache = new NodeCache({ stdTTL: 15, checkperiod: 10 });
+const priceCache = new NodeCache({ stdTTL: 15, checkperiod: 0 });
 
 // Exit-scan cache: TTL 300s — heavy computation, chỉ cần 1 lần/5 phút
-const exitScanCache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
+const exitScanCache = new NodeCache({ stdTTL: 300, checkperiod: 0 });
 
 // Seasonality cache: TTL 86400s (24h) — dữ liệu ít thay đổi
-const seasonalityCache = new NodeCache({ stdTTL: 86400, checkperiod: 3600 });
+const seasonalityCache = new NodeCache({ stdTTL: 86400, checkperiod: 0 });
 
 const PRICE_BATCH_KEY = "__all_prices__";
 const EXIT_SCAN_BATCH_KEY = "__exit_scan_batch__";

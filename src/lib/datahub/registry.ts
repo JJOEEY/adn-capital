@@ -8,7 +8,8 @@ import { resolveMarketTicker } from "@/lib/ticker-resolver";
 import { listDnseOrderHistory } from "@/lib/brokers/dnse/order-history";
 import { decryptDnseToken } from "@/lib/brokers/dnse/crypto";
 import { getDnseTradingClient } from "@/lib/providers/dnse/trading-client";
-import type { SignalScanArtifact } from "@/lib/signals/ingest";
+import type { SignalScanArtifact } from "@/lib/signals/scan-artifact";
+import { RADAR_SCAN_BUDGET, SIGNAL_SCAN_SLOTS } from "@/lib/signals/radar-scan-config";
 import { loadReportedSignalSummary } from "@/lib/signals/report-history";
 import { normalizeSignalPrice } from "@/lib/signals/price-units";
 import {
@@ -20,6 +21,7 @@ import {
   marketPriceScaleFromPayload,
   normalizeHistoricalPricePayload,
 } from "@/lib/market-price-normalization";
+import { buildStockPriceSnapshot, type StockPriceSnapshot } from "@/lib/market-price-snapshot";
 import { resolveTopicFamily, resolveTopicStaleWindowMs } from "./policy";
 import { TopicContext, TopicDefinition } from "./types";
 
@@ -57,6 +59,27 @@ async function loadCompositeLive() {
   const res = await mod.GET(new NextRequest("http://localhost/api/market-overview"));
   if (!res.ok) throw new Error(`market-overview HTTP ${res.status}`);
   return res.json();
+}
+
+async function loadRadarWatchlistActive() {
+  return {
+    kind: "radar_watchlist_active",
+    version: "v1",
+    policy: "hot_plus_wide_confirm",
+    slots: SIGNAL_SCAN_SLOTS,
+    budget: RADAR_SCAN_BUDGET,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+async function loadRadarPrefilterLatest() {
+  const latestScan = await loadLatestSignalScanArtifact();
+  return {
+    kind: "radar_prefilter_latest",
+    version: "v1",
+    latestScan,
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 async function loadIndexValuation(ticker: string) {
@@ -202,9 +225,11 @@ async function loadSignalMapLatest() {
   return res.json();
 }
 
-async function loadRsRatingList() {
+async function loadRsRatingList(force = false) {
   const mod = await import("@/app/api/rs-rating/route");
-  const res = await mod.GET(new NextRequest("http://localhost/api/rs-rating"));
+  const url = new URL("http://localhost/api/rs-rating");
+  if (force) url.searchParams.set("force", "1");
+  const res = await mod.GET(new NextRequest(url.toString()));
   if (!res.ok) throw new Error(`rs-rating HTTP ${res.status}`);
   return res.json();
 }
@@ -546,8 +571,16 @@ async function loadHistoricalTicker(ticker: string) {
 }
 
 async function loadVNIndexChart30d() {
-  const payload = await loadBridgeHistoricalTicker("VNINDEX", "1d", 75, 5_000);
-  const data = getMarketPayloadRows(payload)
+  const [payload, snapshot, marketOverview] = await Promise.all([
+    loadBridgeHistoricalTicker("VNINDEX", "1d", 75, 4_000).catch(() => null),
+    getMarketSnapshot().catch(() => null),
+    loadMarketOverview().catch(() => null),
+  ]);
+  const fallbackRows = Array.isArray((marketOverview as { chartData?: unknown } | null)?.chartData)
+    ? ((marketOverview as { chartData: unknown[] }).chartData as JsonRecord[])
+    : [];
+  const sourceRows = payload && hasCandleRows(payload) ? getMarketPayloadRows(payload) : fallbackRows;
+  const data = sourceRows
     .map((row) => {
       const close = readPositiveNumber(row.close ?? row.c ?? row.price);
       const rawDate = String(row.date ?? row.timestamp ?? row.time ?? "").trim();
@@ -557,15 +590,43 @@ async function loadVNIndexChart30d() {
     .filter((row): row is { date: string; close: number } => Boolean(row))
     .slice(-30);
 
-  if (data.length === 0) {
+  const withLivePoint = mergeLiveVNIndexChartPoint(data, snapshot);
+
+  if (withLivePoint.length === 0) {
     throw new Error("VNINDEX chart 30d unavailable");
   }
 
   return {
-    data,
-    count: data.length,
+    data: withLivePoint,
+    count: withLivePoint.length,
     updatedAt: new Date().toISOString(),
+    liveUpdatedAt: snapshot?.timestamp ?? null,
   };
+}
+
+function normalizeChartDateKey(value: string) {
+  const raw = value.split("T")[0].split(" ")[0].trim();
+  const ddmmyyyy = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (ddmmyyyy) return `${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}`;
+  return raw;
+}
+
+function mergeLiveVNIndexChartPoint(
+  data: Array<{ date: string; close: number }>,
+  snapshot: Awaited<ReturnType<typeof getMarketSnapshot>> | null,
+) {
+  const liveIndex = snapshot?.indices?.find((item) => item.ticker === "VNINDEX");
+  const liveClose = readPositiveNumber(liveIndex?.value);
+  const liveDate = snapshot?.requestDateVN;
+  if (liveClose == null || !liveDate) return data;
+
+  const last = data[data.length - 1];
+  const lastDate = last ? normalizeChartDateKey(last.date) : null;
+  if (lastDate === liveDate) {
+    return [...data.slice(0, -1), { ...last, close: liveClose }];
+  }
+
+  return [...data.slice(-29), { date: liveDate, close: liveClose }];
 }
 
 function hasCandleRows(payload: unknown) {
@@ -581,6 +642,21 @@ async function loadRealtimeTicker(ticker: string, timeframe: string) {
   if (hasCandleRows(historicalIntraday)) return historicalIntraday;
 
   return normalizedRealtime;
+}
+
+async function loadPriceSnapshotForTicker(ticker: string) {
+  const [historical, realtime, ta] = await Promise.all([
+    loadHistoricalTicker(ticker).catch(() => null),
+    loadRealtimeTicker(ticker, "5m").catch(() => null),
+    fetchTAData(ticker).catch(() => null),
+  ]);
+
+  return buildStockPriceSnapshot({
+    ticker,
+    historical,
+    realtime,
+    ta,
+  });
 }
 
 function scalePriceField(value: number | null | undefined, scale: number) {
@@ -651,6 +727,25 @@ function normalizeTAWithHistorical(
           lower: scalePriceField(ta.bollinger.lower, scale) ?? ta.bollinger.lower,
         }
       : ta.bollinger,
+  };
+}
+
+function applyPriceSnapshotToTA(ta: TAData | null, snapshot: StockPriceSnapshot): TAData | null {
+  if (!ta) return ta;
+  const currentPrice = snapshot.price ?? ta.currentPrice;
+  const refPrice = snapshot.previousClose ?? ta.refPrice;
+  const change = currentPrice != null && refPrice != null ? currentPrice - refPrice : ta.change;
+  const changePct = currentPrice != null && refPrice != null && refPrice > 0
+    ? Number(((change / refPrice) * 100).toFixed(2))
+    : ta.changePct;
+
+  return {
+    ...ta,
+    currentPrice,
+    refPrice,
+    prevClose: snapshot.previousClose ?? ta.prevClose,
+    change,
+    changePct,
   };
 }
 
@@ -906,8 +1001,14 @@ async function loadResearchWorkbench(topicKey: string) {
       return null;
     }),
   ]);
-  const recentClose = latestClosePriceFromPayload(historical);
-  const ta = normalizeTAWithHistorical(taRaw, historical, recentClose);
+  const priceSnapshot = buildStockPriceSnapshot({
+    ticker: normalizedTicker,
+    historical,
+    realtime: investor,
+    ta: taRaw,
+  });
+  const recentClose = priceSnapshot.price ?? latestClosePriceFromPayload(historical);
+  const ta = applyPriceSnapshotToTA(normalizeTAWithHistorical(taRaw, historical, recentClose), priceSnapshot);
   const fa = hydrateFAFromRecentAnalysis(normalizedTicker, faRaw, aiCaches, ta);
 
   return {
@@ -921,6 +1022,7 @@ async function loadResearchWorkbench(topicKey: string) {
     },
     adnCore: marketSnapshot.marketOverview,
     art,
+    priceSnapshot,
     ta,
     fa,
     seasonality,
@@ -1754,9 +1856,9 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
   },
   {
     id: "vn:index:chart:30d",
-    ttlMs: 300_000,
-    minIntervalMs: 60_000,
-    source: "fiinquant",
+    ttlMs: 60_000,
+    minIntervalMs: 15_000,
+    source: "datahub:index-history+snapshot",
     version: "v1",
     tags: ["dashboard", "market", "chart", "historical"],
     match: (topicKey) => (topicKey === "vn:index:chart:30d" ? { ok: true } : { ok: false }),
@@ -1786,9 +1888,9 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
   },
   {
     id: "news:morning:latest",
-    ttlMs: 24 * 60 * 60 * 1000,
+    ttlMs: 300_000,
     minIntervalMs: 60_000,
-    staleWhileRevalidateMs: 24 * 60 * 60 * 1000,
+    staleWhileRevalidateMs: 300_000,
     source: "db:market-report",
     version: "v1",
     tags: ["brief", "morning-brief", "public"],
@@ -1797,9 +1899,9 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
   },
   {
     id: "brief:morning:latest",
-    ttlMs: 24 * 60 * 60 * 1000,
+    ttlMs: 300_000,
     minIntervalMs: 60_000,
-    staleWhileRevalidateMs: 24 * 60 * 60 * 1000,
+    staleWhileRevalidateMs: 300_000,
     source: "db:market-report",
     version: "v1",
     tags: ["brief", "morning-brief", "public"],
@@ -1821,9 +1923,9 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
   },
   {
     id: "news:eod:latest",
-    ttlMs: 24 * 60 * 60 * 1000,
+    ttlMs: 300_000,
     minIntervalMs: 60_000,
-    staleWhileRevalidateMs: 24 * 60 * 60 * 1000,
+    staleWhileRevalidateMs: 300_000,
     source: "db:market-report",
     version: "v1",
     tags: ["brief", "eod-brief", "public"],
@@ -1855,9 +1957,9 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
   },
   {
     id: "brief:eod:latest",
-    ttlMs: 24 * 60 * 60 * 1000,
+    ttlMs: 300_000,
     minIntervalMs: 60_000,
-    staleWhileRevalidateMs: 24 * 60 * 60 * 1000,
+    staleWhileRevalidateMs: 300_000,
     source: "db:market-report",
     version: "v1",
     tags: ["brief", "eod-brief", "public"],
@@ -1886,6 +1988,26 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     tags: ["signal", "public"],
     match: (topicKey) => (topicKey === "signal:market:radar" ? { ok: true } : { ok: false }),
     resolve: async () => loadSignalList("RADAR"),
+  },
+  {
+    id: "radar:watchlist:active",
+    ttlMs: 60_000,
+    minIntervalMs: 10_000,
+    source: "config:radar",
+    version: "v1",
+    tags: ["signal", "signal-scan", "radar", "internal"],
+    match: (topicKey) => (topicKey === "radar:watchlist:active" ? { ok: true } : { ok: false }),
+    resolve: async () => loadRadarWatchlistActive(),
+  },
+  {
+    id: "radar:prefilter:latest",
+    ttlMs: 60_000,
+    minIntervalMs: 10_000,
+    source: "db:cron-log",
+    version: "v1",
+    tags: ["signal", "signal-scan", "radar", "internal"],
+    match: (topicKey) => (topicKey === "radar:prefilter:latest" ? { ok: true } : { ok: false }),
+    resolve: async () => loadRadarPrefilterLatest(),
   },
   {
     id: "signal:market:active",
@@ -2151,6 +2273,23 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     resolve: async () => loadRecentResearchTickers(),
   },
   {
+    id: "vn:price-snapshot:{ticker}",
+    ttlMs: 60_000,
+    minIntervalMs: 10_000,
+    staleWhileRevalidateMs: 120_000,
+    source: "aggregator:price-snapshot",
+    version: "v1",
+    tags: ["research", "price", "snapshot", "market"],
+    match: (topicKey) => {
+      const match = topicKey.match(/^vn:price-snapshot:([A-Z0-9._-]{1,12})$/);
+      return match ? { ok: true, params: { ticker: match[1] } } : { ok: false };
+    },
+    resolve: async (_, __, params) => {
+      const resolved = await assertValidTicker(params.ticker);
+      return loadPriceSnapshotForTicker(resolved.ticker);
+    },
+  },
+  {
     id: "vn:ta:{ticker}",
     ttlMs: 120_000,
     minIntervalMs: 15_000,
@@ -2163,12 +2302,19 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     },
     resolve: async (_, __, params) => {
       const resolved = await assertValidTicker(params.ticker);
-      const [ta, historical] = await Promise.all([
+      const [ta, historical, realtime] = await Promise.all([
         fetchTAData(resolved.ticker),
         loadHistoricalTicker(resolved.ticker).catch(() => null),
+        loadRealtimeTicker(resolved.ticker, "5m").catch(() => null),
       ]);
-      const recentClose = latestClosePriceFromPayload(historical);
-      return normalizeTAWithHistorical(ta, historical, recentClose);
+      const priceSnapshot = buildStockPriceSnapshot({
+        ticker: resolved.ticker,
+        historical,
+        realtime,
+        ta,
+      });
+      const recentClose = priceSnapshot.price ?? latestClosePriceFromPayload(historical);
+      return applyPriceSnapshotToTA(normalizeTAWithHistorical(ta, historical, recentClose), priceSnapshot);
     },
   },
   {
@@ -2663,7 +2809,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
       ["research:rs-rating:list", "market:rs:latest", "scan:rs-rating:list"].includes(topicKey)
         ? { ok: true }
         : { ok: false },
-    resolve: async () => loadRsRatingList(),
+    resolve: async (_, context) => loadRsRatingList(context.force === true),
   },
 ];
 

@@ -1,11 +1,19 @@
 import { GoogleGenAI, ThinkingLevel } from "@google/genai";
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 
 const apiKey = process.env.GEMINI_API_KEY;
-if (!apiKey) {
-  console.warn("[Gemini] GEMINI_API_KEY is missing");
-}
+let genAI: GoogleGenAI | null = null;
 
-const genAI = new GoogleGenAI({ apiKey: apiKey ?? "" });
+function getGenAIClient(): GoogleGenAI {
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY is missing");
+  }
+  if (!genAI) {
+    genAI = new GoogleGenAI({ apiKey });
+  }
+  return genAI;
+}
 
 const FLASH_PRIMARY = "gemini-3-flash-preview";
 const FLASH_FALLBACK = "gemini-2.5-flash";
@@ -13,7 +21,14 @@ const FLASH_FALLBACK = "gemini-2.5-flash";
 const PRO_PRIMARY = "gemini-3-pro-preview";
 const PRO_FALLBACK = "gemini-2.5-pro";
 
-export const MODEL_FLASH = FLASH_PRIMARY;
+const DEFAULT_ROUTER_MODEL = "openai/gpt-4o-mini";
+const DEFAULT_NINEROUTER_BASE_URL = "http://127.0.0.1:20128/v1";
+const DEFAULT_NINEROUTER_MODEL = "ADN-COMBO";
+const DEFAULT_NINEROUTER_AIDEN_MODEL = "AIDENfast";
+const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+const ROUTER_TIMEOUT_MS = Number(process.env.AI_ROUTER_TIMEOUT_MS ?? 45000);
+
+export const MODEL_FLASH = process.env.AIDEN_MODEL_LABEL ?? "aiden-router-flash";
 
 export const INTENT = {
   PTKT: "PTKT",
@@ -34,6 +49,130 @@ const MODEL_CHAIN: Record<Intent, [string, string]> = {
   GENERAL: [FLASH_PRIMARY, FLASH_FALLBACK],
   COMPARE: [PRO_PRIMARY, PRO_FALLBACK],
 };
+
+type RouterProvider = {
+  name: "OpenRouter" | "9Router";
+  apiKey?: string;
+  baseUrl: string;
+  model: string;
+  extraHeaders?: Record<string, string>;
+};
+
+let localNineRouterKeyCache: string | null | undefined;
+
+function normalizeBaseUrl(baseUrl: string): string {
+  const normalized = baseUrl.replace(/\/+$/, "");
+  if (normalized.endsWith("/v1") || normalized.endsWith("/api/v1")) {
+    return normalized;
+  }
+  return `${normalized}/v1`;
+}
+
+function readLocalNineRouterApiKey(): string | undefined {
+  if (process.env.NINEROUTER_AUTO_LOCAL_KEY === "0" || process.platform !== "win32") {
+    return undefined;
+  }
+  if (localNineRouterKeyCache !== undefined) {
+    return localNineRouterKeyCache || undefined;
+  }
+
+  const appData = process.env.APPDATA;
+  if (!appData) {
+    localNineRouterKeyCache = null;
+    return undefined;
+  }
+
+  const dbPath = path.join(appData, "9router", "db.json");
+  if (!existsSync(dbPath)) {
+    localNineRouterKeyCache = null;
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(readFileSync(dbPath, "utf8")) as {
+      apiKeys?: Array<{ key?: unknown }>;
+    };
+    const key = parsed.apiKeys?.find((item) => typeof item.key === "string")?.key;
+    localNineRouterKeyCache = typeof key === "string" && key.trim() ? key : null;
+    return localNineRouterKeyCache || undefined;
+  } catch {
+    localNineRouterKeyCache = null;
+    return undefined;
+  }
+}
+
+function resolveNineRouterApiKey(): string | undefined {
+  return (
+    process.env.NINEROUTER_API_KEY ??
+    process.env.ROUTER9_API_KEY ??
+    process.env.NINE_ROUTER_API_KEY ??
+    readLocalNineRouterApiKey()
+  );
+}
+
+function getRouterModel(intent: Intent, providerPrefix: "OPENROUTER" | "NINEROUTER"): string {
+  const isReasoningHeavy = intent === INTENT.PTCB || intent === INTENT.COMPARE;
+  const proModel =
+    providerPrefix === "OPENROUTER"
+      ? process.env.OPENROUTER_PRO_MODEL
+      : process.env.NINEROUTER_PRO_MODEL ?? process.env.ROUTER9_PRO_MODEL;
+  const defaultModel =
+    providerPrefix === "OPENROUTER"
+      ? process.env.OPENROUTER_MODEL
+      : process.env.NINEROUTER_MODEL ?? process.env.ROUTER9_MODEL ?? process.env.NINE_ROUTER_MODEL;
+
+  const fallbackModel = providerPrefix === "OPENROUTER" ? DEFAULT_ROUTER_MODEL : DEFAULT_NINEROUTER_MODEL;
+  return (isReasoningHeavy ? proModel : defaultModel) ?? defaultModel ?? fallbackModel;
+}
+
+function getAidenRouterModel(): string {
+  return (
+    process.env.NINEROUTER_AIDEN_MODEL ??
+    process.env.ROUTER9_AIDEN_MODEL ??
+    process.env.NINE_ROUTER_AIDEN_MODEL ??
+    process.env.AIDEN_ROUTER_MODEL ??
+    DEFAULT_NINEROUTER_AIDEN_MODEL
+  );
+}
+
+type RouterProviderOptions = {
+  nineRouterModelOverride?: string;
+};
+
+function buildRouterProviders(intent: Intent, options: RouterProviderOptions = {}): RouterProvider[] {
+  const providers: RouterProvider[] = [];
+
+  const router9Key = resolveNineRouterApiKey();
+  const router9BaseUrl =
+    process.env.NINEROUTER_BASE_URL ??
+    process.env.ROUTER9_BASE_URL ??
+    process.env.NINE_ROUTER_BASE_URL ??
+    DEFAULT_NINEROUTER_BASE_URL;
+  if (router9BaseUrl) {
+    providers.push({
+      name: "9Router",
+      apiKey: router9Key,
+      baseUrl: normalizeBaseUrl(router9BaseUrl),
+      model: options.nineRouterModelOverride ?? getRouterModel(intent, "NINEROUTER"),
+    });
+  }
+
+  const openRouterKey = process.env.OPENROUTER_API_KEY;
+  if (openRouterKey) {
+    providers.push({
+      name: "OpenRouter",
+      apiKey: openRouterKey,
+      baseUrl: normalizeBaseUrl(OPENROUTER_BASE_URL),
+      model: getRouterModel(intent, "OPENROUTER"),
+      extraHeaders: {
+        "HTTP-Referer": process.env.OPENROUTER_SITE_URL ?? "https://adncapital.com.vn",
+        "X-Title": process.env.OPENROUTER_APP_NAME ?? "ADN Capital",
+      },
+    });
+  }
+
+  return providers;
+}
 
 const INTENT_USE_SEARCH: Record<Intent, boolean> = {
   PTKT: false,
@@ -146,6 +285,40 @@ function shouldRepairOutput(text: string): boolean {
   return cleaned.length >= 80 && !hasVietnameseDiacritics(text);
 }
 
+function withCustomerOutputRules(systemInstruction: string): string {
+  return `${systemInstruction}
+
+CRITICAL CUSTOMER OUTPUT RULES:
+- Never reveal chain-of-thought, thinking, hidden reasoning, planning notes, or analysis scratchpad.
+- Never output <think>, <thinking>, "Reasoning:", "Analysis:", or similar internal notes.
+- Final answer must be Vietnamese unless the user explicitly asks for another language.
+- Keep reasoning internal and return only the customer-facing final answer.`;
+}
+
+function sanitizeModelOutput(text: string): string {
+  let output = text
+    .replace(/<think\b[^>]*>[\s\S]*?<\/think>/gi, "")
+    .replace(/<thinking\b[^>]*>[\s\S]*?<\/thinking>/gi, "")
+    .replace(/```(?:thinking|reasoning|analysis)[\s\S]*?```/gi, "")
+    .replace(
+      /^\s*(?:analysis|reasoning|thoughts?|chain of thought)\s*:\s*[\s\S]*?(?=\n\s*(?:#{1,3}\s*)?(?:\*\*)?(?:Phân|Định|Chiến|Kịch|Cảnh|Kết|AIDEN|VN-|[A-Z]{2,5}\b))/i,
+      "",
+    );
+
+  const lines = output.split(/\r?\n/);
+  while (
+    lines.length > 0 &&
+    /^\s*(?:we need|we should|i need|i should|let's|the user|user asks|need to answer|analysis:|reasoning:|thought:)/i.test(
+      lines[0],
+    )
+  ) {
+    lines.shift();
+  }
+
+  output = lines.join("\n");
+  return output.replace(/\n{3,}/g, "\n\n").trim();
+}
+
 function isRetryableError(err: unknown): boolean {
   const msg = String(err).toLowerCase();
   return (
@@ -162,6 +335,123 @@ function isRetryableError(err: unknown): boolean {
   );
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function safeJsonParse(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function providerErrorMessage(payload: unknown, fallbackText: string): string {
+  const root = asRecord(payload);
+  const error = asRecord(root?.error);
+  const message = error?.message ?? root?.message;
+  if (typeof message === "string" && message.trim()) {
+    return message.slice(0, 220);
+  }
+  return fallbackText.slice(0, 220);
+}
+
+function readAssistantContent(payload: unknown): string {
+  const root = asRecord(payload);
+  const choices = root?.choices;
+  if (!Array.isArray(choices) || choices.length === 0) return "";
+  const first = asRecord(choices[0]);
+  const message = asRecord(first?.message);
+  const content = message?.content;
+
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => {
+        const record = asRecord(part);
+        return typeof record?.text === "string" ? record.text : "";
+      })
+      .join("")
+      .trim();
+  }
+
+  return "";
+}
+
+async function callOpenAICompatibleProvider(
+  provider: RouterProvider,
+  prompt: string,
+  systemInstruction: string,
+): Promise<string> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), ROUTER_TIMEOUT_MS);
+  const endpoint = `${normalizeBaseUrl(provider.baseUrl)}/chat/completions`;
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        ...(provider.apiKey ? { Authorization: `Bearer ${provider.apiKey}` } : {}),
+        ...(provider.extraHeaders ?? {}),
+      },
+      body: JSON.stringify({
+        model: provider.model,
+        stream: false,
+        temperature: 0.2,
+        max_tokens: 1800,
+        messages: [
+          { role: "system", content: withCustomerOutputRules(systemInstruction) },
+          { role: "user", content: prompt },
+        ],
+      }),
+    });
+
+    const text = await response.text();
+    const payload = safeJsonParse(text);
+    if (!response.ok) {
+      throw new Error(`${response.status} ${providerErrorMessage(payload, text)}`);
+    }
+
+    const output = sanitizeModelOutput(readAssistantContent(payload));
+    if (!output.trim()) {
+      throw new Error("empty assistant response");
+    }
+
+    return output;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function executeRouterChain(
+  prompt: string,
+  intent: Intent,
+  systemInstruction: string,
+  options?: RouterProviderOptions,
+): Promise<string | null> {
+  const providers = buildRouterProviders(intent, options);
+  if (providers.length === 0) return null;
+
+  for (const provider of providers) {
+    try {
+      const output = await callOpenAICompatibleProvider(provider, prompt, systemInstruction);
+      console.log(`[AI Router] provider=${provider.name} model=${provider.model}`);
+      return output;
+    } catch (err) {
+      console.warn(
+        `[AI Router] provider failed. provider=${provider.name} model=${provider.model} err=${String(err).slice(0, 180)}`,
+      );
+    }
+  }
+
+  return null;
+}
+
 export async function executeAIRequest(
   prompt: string,
   intent: Intent = INTENT.GENERAL,
@@ -170,15 +460,18 @@ export async function executeAIRequest(
   const [primary, fallback] = MODEL_CHAIN[intent];
   const useSearch = INTENT_USE_SEARCH[intent];
   const sysInstr = systemInstruction ?? SYSTEM_INSTRUCTIONS[intent];
+  const routedOutput = await executeRouterChain(prompt, intent, sysInstr);
+  if (routedOutput) return sanitizeModelOutput(routedOutput);
+
   const modelsToTry: string[] = [primary, fallback];
   let lastErr: unknown;
 
   for (const model of modelsToTry) {
     try {
-      const cfg: Record<string, unknown> = { systemInstruction: sysInstr };
+      const cfg: Record<string, unknown> = { systemInstruction: withCustomerOutputRules(sysInstr) };
       if (useSearch) cfg.tools = [{ googleSearch: {} }];
 
-      const response = await genAI.models.generateContent({
+      const response = await getGenAIClient().models.generateContent({
         model,
         contents: prompt,
         config: cfg,
@@ -192,18 +485,18 @@ export async function executeAIRequest(
         console.log(`[Gemini] intent=${intent} model=${model}`);
       }
 
-      const output = response.text ?? "";
+      const output = sanitizeModelOutput(response.text ?? "");
       if (!shouldRepairOutput(output)) {
         return output;
       }
 
       try {
-        const repair = await genAI.models.generateContent({
+        const repair = await getGenAIClient().models.generateContent({
           model,
           contents: `Viết lại nguyên văn nội dung sau sang tiếng Việt có dấu, giữ nguyên ý, không đổi dữ kiện:\n${output}`,
-          config: { systemInstruction: sysInstr },
+          config: { systemInstruction: withCustomerOutputRules(sysInstr) },
         });
-        return repair.text?.trim() ? repair.text : output;
+        return repair.text?.trim() ? sanitizeModelOutput(repair.text) : output;
       } catch {
         return output;
       }
@@ -228,15 +521,30 @@ export async function executeFlashOnlyAIRequest(
   systemInstruction?: string,
 ): Promise<string> {
   const sysInstr = systemInstruction ?? SYSTEM_INSTRUCTIONS.GENERAL;
-  const response = await genAI.models.generateContent({
-    model: MODEL_FLASH,
-    contents: prompt,
-    config: {
-      systemInstruction: sysInstr,
-      thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
-    },
+  const routedOutput = await executeRouterChain(prompt, INTENT.GENERAL, sysInstr, {
+    nineRouterModelOverride: getAidenRouterModel(),
   });
-  return response.text ?? "";
+  if (routedOutput) return sanitizeModelOutput(routedOutput);
+
+  let lastErr: unknown;
+  for (const model of [FLASH_PRIMARY, FLASH_FALLBACK]) {
+    try {
+      const response = await getGenAIClient().models.generateContent({
+        model,
+        contents: prompt,
+        config: {
+          systemInstruction: withCustomerOutputRules(sysInstr),
+          thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
+        },
+      });
+      return sanitizeModelOutput(response.text ?? "");
+    } catch (err) {
+      lastErr = err;
+      console.warn(`[Gemini] flash fallback failed. model=${model} err=${String(err).slice(0, 160)}`);
+    }
+  }
+
+  throw lastErr;
 }
 
 export function getGeminiModel(_modelName?: string) {

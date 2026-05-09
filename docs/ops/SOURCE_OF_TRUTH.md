@@ -67,7 +67,13 @@ SCANNER_WEBHOOK_INGEST_ENABLED=false
 - `market_stats_type2` (10:00, 11:30, 14:00, 14:45)
 - `morning_brief` (08:00)
 - `close_brief_15h` (15:00)
+- `adn_rank_15h` (15:00 T2-T6, refresh gia va RS cho ADN Rank)
 - `eod_full_19h` (19:00)
+
+ADN Radar scan contract:
+- Universe chính là `RADAR_WATCHLIST_500`; hot scan dùng `RADAR_HOT_WATCHLIST`.
+- Không quét sâu toàn bộ thị trường hoặc 1.700 mã theo chu kỳ 5 phút.
+- Web cron chọn `hot`/`wide` theo slot và quota guard; bridge chỉ trả raw scan payload.
 
 Telegram publish contract:
 - All customer/admin Telegram messages must go through web, never directly from `fiinquant`.
@@ -79,6 +85,7 @@ Legacy aliases (supported for compatibility only):
 - `signal_scan_5m` -> `signal_scan_type1`
 - `market_stats` / `intraday` -> `market_stats_type2`
 - `prop_trading` -> `eod_full_19h`
+- `adn_rank` / `rs_rating_15h` / `rs_rating` -> `adn_rank_15h`
 
 ## 4) Deploy Baseline
 Safe deploy default:

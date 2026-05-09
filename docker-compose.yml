@@ -50,7 +50,7 @@ services:
     environment:
       - NODE_ENV=production
       - HOSTNAME=0.0.0.0
-      - PYTHON_BRIDGE_URL=http://fiinquant:8000
+      - PYTHON_BRIDGE_URL=${PYTHON_BRIDGE_URL:-http://fiinquant:8000}
       - SCANNER_WEBHOOK_INGEST_ENABLED=false
       - GUIDE_UPLOAD_DIR=/app/storage/guides
       - DATABASE_URL=postgresql://${POSTGRES_USER:-adnuser}:${POSTGRES_PASSWORD}@pgbouncer:5432/${POSTGRES_DB:-adncapital}?schema=public&pgbouncer=true
@@ -75,6 +75,8 @@ services:
       dockerfile: Dockerfile.python
     container_name: adn-fiinquant
     restart: unless-stopped
+    mem_limit: ${FIINQUANT_MEM_LIMIT:-1800m}
+    memswap_limit: ${FIINQUANT_MEMSWAP_LIMIT:-2200m}
     env_file: .env
     environment:
       - WEBHOOK_URL=http://web:3000/api/webhooks/signals

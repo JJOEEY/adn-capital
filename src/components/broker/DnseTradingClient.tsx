@@ -364,7 +364,11 @@ function normalizeDnseReasonVi(reason: string | null | undefined) {
 
 function isDnseLiveSource(source: string | null | undefined) {
   if (!source) return false;
-  return /dnse_api|dnse_openapi|dnse_user_session/i.test(source);
+  return /dnse_api|dnse_openapi|dnse_user_session|broker-sync/i.test(source);
+}
+
+function liveDnseTopic<T extends { source?: string }>(topic: T | null | undefined): T | null {
+  return isDnseLiveSource(topic?.source) ? topic ?? null : null;
 }
 
 function toDirectAccountsTopic(
@@ -709,22 +713,22 @@ export function DnseTradingClient() {
     : (directDnse.accounts ?? accountsTopic);
   const effectiveBalanceTopic = strictLinkedMode
     ? (directDnse.balance ??
-      (isDnseLiveSource(balanceTopic?.source) ? balanceTopic : null))
+      liveDnseTopic(balanceTopic))
     : (directDnse.resolved.balance
       ? directDnse.balance
       : (directDnse.balance ?? balanceTopic));
   const effectiveHoldingsTopic = strictLinkedMode
-    ? directDnse.holdings
+    ? (directDnse.holdings ?? liveDnseTopic(holdingsTopic) ?? liveDnseTopic(positionsTopic))
     : (directDnse.resolved.holdings
       ? directDnse.holdings
       : (directDnse.holdings ?? holdingsTopic ?? positionsTopic));
   const effectiveOrdersTopic = strictLinkedMode
-    ? directDnse.orders
+    ? (directDnse.orders ?? liveDnseTopic(ordersTopic))
     : (directDnse.resolved.orders
       ? directDnse.orders
       : (directDnse.orders ?? ordersTopic));
   const effectiveLoanPackagesTopic = strictLinkedMode
-    ? directDnse.loanPackages
+    ? (directDnse.loanPackages ?? liveDnseTopic(loanPackagesTopic))
     : (directDnse.resolved.loanPackages
       ? directDnse.loanPackages
       : (directDnse.loanPackages ?? loanPackagesTopic));

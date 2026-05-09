@@ -122,6 +122,7 @@ function MorningBriefEmptyState() {
 
 export function MorningNews() {
   const morningTopic = useTopic<MorningData>("brief:morning:latest", {
+    refreshInterval: 300_000,
     timeoutMs: 8_000,
     revalidateOnFocus: false,
     dedupingInterval: 60_000,

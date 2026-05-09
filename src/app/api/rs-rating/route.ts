@@ -100,11 +100,18 @@ function readRequestDate(request?: NextRequest | Request) {
   return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
 }
 
+function readForceRefresh(request?: NextRequest | Request) {
+  if (!request?.url) return false;
+  const url = new URL(request.url);
+  return url.searchParams.get("force") === "1";
+}
+
 async function handleGet(request?: NextRequest | Request) {
   const requestedDate = readRequestDate(request);
+  const forceRefresh = readForceRefresh(request);
   const cacheKey = requestedDate ? `date:${requestedDate}` : "latest";
   const cached = cache.get(cacheKey);
-  if (cached && Date.now() - cached.ts < CACHE_TTL) {
+  if (!forceRefresh && cached && Date.now() - cached.ts < CACHE_TTL) {
     return NextResponse.json(cached.data);
   }
 

@@ -87,7 +87,7 @@ type AutoConfigState = {
 };
 
 const ORDER_TYPES: OrderType[] = ["LO", "MTL", "ATO", "ATC"];
-const LOT_SIZE = 100;
+const QUANTITY_STEP = 1;
 const CASH_PACKAGE: LoanPackageOption = {
   loanPackageId: "CASH",
   loanPackageName: "Giao dịch tiền mặt",
@@ -117,9 +117,9 @@ function normalizeOrderPrice(value: string) {
   return Math.round(parsed < 1000 ? parsed * 1000 : parsed);
 }
 
-function floorToLot(value: number) {
+function floorToQuantity(value: number) {
   if (!Number.isFinite(value) || value <= 0) return 0;
-  return Math.floor(value / LOT_SIZE) * LOT_SIZE;
+  return Math.floor(value / QUANTITY_STEP) * QUANTITY_STEP;
 }
 
 function parseQuantityInput(value: string) {
@@ -153,12 +153,44 @@ function sourceLabel(source?: string | null) {
   return "ADN Link";
 }
 
+function resultReasonText(result: DnseExecutionResult | null) {
+  return [...(result?.errors ?? []), ...(result?.warnings ?? [])].join(" ").toLowerCase();
+}
+
 function friendlyResult(result: DnseExecutionResult | null) {
   if (!result) return null;
   if (result.status === "accepted") return "Lệnh đã được gửi thành công.";
-  if (result.status === "approval_required") return "Lệnh đang bị chặn vì chưa đủ điều kiện phê duyệt.";
-  if (result.status === "blocked_not_enabled") return "Lệnh chưa được gửi vì chế độ an toàn đang bật.";
-  if (result.status === "rejected") return "Lệnh bị từ chối. Vui lòng kiểm tra lại điều kiện giao dịch.";
+  const reason = resultReasonText(result);
+  if (reason.includes("trading_authorization") || reason.includes("trading token") || reason.includes("otp")) {
+    return "Cần xác thực quyền giao dịch DNSE trước khi gửi lệnh. Vui lòng bấm Gửi mã xác thực, nhập mã rồi thử lại.";
+  }
+  if (reason.includes("execution_kill_switch")) {
+    return "Hệ thống đang tạm dừng gửi lệnh thật theo cấu hình vận hành.";
+  }
+  if (reason.includes("pilot_allowlist")) {
+    return "Tài khoản này chưa được mở quyền gửi lệnh thật.";
+  }
+  if (reason.includes("compliance_approval")) {
+    return "Luồng gửi lệnh thật chưa được mở phê duyệt vận hành.";
+  }
+  if (reason.includes("outside_market_session")) {
+    return "Hiện ngoài phiên giao dịch. Vui lòng gửi lệnh trong giờ giao dịch.";
+  }
+  if (reason.includes("account_binding")) {
+    return "Tài khoản đặt lệnh không khớp với tài khoản DNSE đã liên kết.";
+  }
+  if (reason.includes("max_notional")) {
+    return "Giá trị lệnh vượt giới hạn giao dịch đang áp dụng.";
+  }
+  if (reason.includes("duplicate") || reason.includes("replay")) {
+    return "Lệnh tương tự vừa được thao tác. Vui lòng chờ một chút rồi thử lại.";
+  }
+  if (reason.includes("insufficient_buying_power")) {
+    return "Không đủ sức mua để gửi lệnh này.";
+  }
+  if (result.status === "approval_required") return "Cần hoàn tất xác thực quyền giao dịch DNSE trước khi gửi lệnh thật.";
+  if (result.status === "blocked_not_enabled") return "Chưa thể gửi lệnh thật. Vui lòng kiểm tra lại tài khoản liên kết và điều kiện giao dịch.";
+  if (result.status === "rejected") return "DNSE từ chối lệnh. Vui lòng kiểm tra lại sức mua, giá, khối lượng hoặc quyền giao dịch.";
   return "Chưa thể gửi lệnh ở thời điểm hiện tại.";
 }
 
@@ -575,10 +607,10 @@ export function DirectOrderPanel({
   const displayTotalAsset = sizing?.totalAsset ?? initialTotalAsset ?? null;
   const displayBuyingPower = sizing?.buyingPower ?? initialBuyingPower ?? null;
   const fallbackBuyMax = orderPrice && displayBuyingPower != null
-    ? floorToLot(Math.floor(displayBuyingPower / orderPrice))
+    ? floorToQuantity(Math.floor(displayBuyingPower / orderPrice))
     : 0;
   const fallbackRecommendedQuantity = orderPrice && displayTotalAsset
-    ? floorToLot(Math.min(fallbackBuyMax, Math.floor((displayTotalAsset * (navPct ?? 5)) / 100 / orderPrice)))
+    ? floorToQuantity(Math.min(fallbackBuyMax, Math.floor((displayTotalAsset * (navPct ?? 5)) / 100 / orderPrice)))
     : 0;
   const displayBuyMaxQuantity = sizing?.buyMaxQuantity && sizing.buyMaxQuantity > 0
     ? sizing.buyMaxQuantity
@@ -674,14 +706,13 @@ export function DirectOrderPanel({
   };
 
   const changeQuantity = (delta: number) => {
-    setQuantityValue(floorToLot(quantity + delta));
+    setQuantityValue(floorToQuantity(quantity + delta));
   };
 
   const validateBeforeCheck = (checkSide = side) => {
     if (!canTrade) return "Bạn cần liên kết và đăng nhập lại tài khoản DNSE trước khi đặt lệnh.";
     if (!ticker.trim()) return "Vui lòng chọn mã cổ phiếu.";
     if (!quantity || quantity <= 0) return "Vui lòng nhập khối lượng hợp lệ.";
-    if (quantity % LOT_SIZE !== 0) return "Khối lượng đặt phải là bội số 100.";
     if (orderType === "LO" && !orderPrice) return "Lệnh LO cần có giá đặt.";
     const maxQuantity = checkSide === "BUY" ? displayBuyMaxQuantity : displaySellMaxQuantity;
     if (maxQuantity > 0 && quantity > maxQuantity) {
@@ -727,7 +758,7 @@ export function DirectOrderPanel({
       if (!res.ok || !data.ticket) throw new Error(data.error ?? "Không kiểm tra được lệnh.");
       setPreview(data.ticket.preview ?? null);
       setPreviewOnly(Boolean(data.previewOnly));
-      setMessage(data.previewOnly ? "Lệnh đã được kiểm tra. Chế độ an toàn đang bật nên lệnh thật chưa được gửi." : "Lệnh đã được kiểm tra. Vui lòng xác nhận nếu thông tin đúng.");
+      setMessage(data.previewOnly ? "Lệnh đã được kiểm tra, nhưng hệ thống chưa mở gửi lệnh thật cho phiên này." : "Lệnh đã được kiểm tra. Vui lòng xác nhận nếu thông tin đúng.");
     } catch (err) {
       if (nextSide !== oldSide) setSide(oldSide);
       setError(friendlyDnseError(err, "Không kiểm tra được lệnh."));
@@ -742,7 +773,7 @@ export function DirectOrderPanel({
       return;
     }
     if (previewOnly) {
-      setMessage("Lệnh đã được kiểm tra. Chế độ an toàn đang bật nên lệnh thật chưa được gửi.");
+      setMessage("Lệnh đã được kiểm tra, nhưng hệ thống chưa mở gửi lệnh thật cho phiên này.");
       return;
     }
     setSending(true);
@@ -785,7 +816,7 @@ export function DirectOrderPanel({
               Bảng đặt lệnh
             </h3>
             <p className="mt-1 text-xs" style={{ color: "var(--text-secondary)" }}>
-              Tự điền từ {sourceLabel(source)} theo tài khoản liên kết và giới hạn an toàn.
+              Tự điền từ {sourceLabel(source)} theo tài khoản liên kết và điều kiện giao dịch.
             </p>
           </div>
           <button
@@ -929,7 +960,7 @@ export function DirectOrderPanel({
                 value={quantityInput}
                 inputMode="numeric"
                 pattern="[0-9]*"
-                placeholder="Nhập khối lượng, ví dụ 5000"
+                placeholder="Nhập khối lượng, ví dụ 55 hoặc 5000"
                 onChange={(event) => {
                   const raw = event.target.value.replace(/[^\d]/g, "");
                   setQuantityTouched(true);
@@ -940,15 +971,15 @@ export function DirectOrderPanel({
                 }}
                 onBlur={() => {
                   if (!quantity) return;
-                  const rounded = floorToLot(quantity);
+                  const rounded = floorToQuantity(quantity);
                   setQuantity(rounded);
                   setQuantityInput(rounded > 0 ? String(rounded) : "");
                 }}
                 className="min-w-0 flex-1 rounded-l-xl bg-transparent px-3 py-2 text-lg font-black outline-none"
                 style={{ color: "var(--text-primary)" }}
               />
-              <button type="button" onClick={() => changeQuantity(-LOT_SIZE)} className="border-l px-3 font-black" style={{ borderColor: "var(--border)", color: "var(--danger)" }}>−</button>
-              <button type="button" onClick={() => changeQuantity(LOT_SIZE)} className="border-l px-3 font-black" style={{ borderColor: "var(--border)", color: "#16a34a" }}>+</button>
+              <button type="button" onClick={() => changeQuantity(-QUANTITY_STEP)} className="border-l px-3 font-black" style={{ borderColor: "var(--border)", color: "var(--danger)" }}>−</button>
+              <button type="button" onClick={() => changeQuantity(QUANTITY_STEP)} className="border-l px-3 font-black" style={{ borderColor: "var(--border)", color: "#16a34a" }}>+</button>
             </div>
           </label>
         </div>
@@ -966,7 +997,7 @@ export function DirectOrderPanel({
         </div>
 
         <div className="mt-2 flex flex-wrap gap-2">
-          {[1000, 5000, 10000, 50000, 100000].map((value) => (
+          {[1, 10, 50, 100, 1000, 5000, 10000, 50000, 100000].map((value) => (
             <button
               key={value}
               type="button"
@@ -1070,7 +1101,7 @@ export function DirectOrderPanel({
         {result?.warnings?.length ? (
           <div className="mt-3 flex items-start gap-2 rounded-xl border px-3 py-2 text-xs" style={{ borderColor: "rgba(245,158,11,0.25)", background: "rgba(245,158,11,0.10)", color: "#92400e" }}>
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            <span>Hệ thống đang giữ chế độ an toàn hoặc cần thêm điều kiện trước khi gửi lệnh thật.</span>
+            <span>{friendlyResult(result) ?? "Cần hoàn tất thêm điều kiện giao dịch trước khi gửi lệnh thật."}</span>
           </div>
         ) : null}
       </section>

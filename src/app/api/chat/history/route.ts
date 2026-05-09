@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentDbUser } from "@/lib/current-user";
+import { sanitizeCustomerVisibleAiText } from "@/lib/ai-output-sanitizer";
 
 export const dynamic = "force-dynamic";
 
@@ -111,7 +112,13 @@ export async function GET(request: NextRequest) {
       })
       .slice(-limit);
 
-    return NextResponse.json({ messages });
+    const sanitizedMessages = messages.map((message) =>
+      message.role === "assistant"
+        ? { ...message, text: sanitizeCustomerVisibleAiText(message.text) }
+        : message,
+    );
+
+    return NextResponse.json({ messages: sanitizedMessages });
   } catch (error) {
     console.error("[/api/chat/history] Error:", error);
     return NextResponse.json({ error: "Không thể tải lịch sử chat" }, { status: 500 });
@@ -132,12 +139,14 @@ export async function POST(request: NextRequest) {
     }
 
     const normalizedRole = body.role === "user" ? "user" : "assistant";
+    const persistedMessage =
+      normalizedRole === "assistant" ? sanitizeCustomerVisibleAiText(message) : message;
     const surface = normalizeSurface(body.surface ?? null) ?? "aiden";
     await prisma.chat.create({
       data: {
         userId: dbUser.id,
         role: normalizedRole,
-        message: message.slice(0, 12000),
+        message: persistedMessage.slice(0, 12000),
         surface,
       },
     });

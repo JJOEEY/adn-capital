@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { ArticleDetailClient } from "@/components/news/ArticleDetailClient";
 import { getArticleFallbackImage } from "@/lib/articles/image-fallback";
-import { normalizeArticleTags, stripHtmlToText } from "@/lib/articles/server";
+import { normalizeArticleTags, repairMojibakeText, stripHtmlToText } from "@/lib/articles/server";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -32,26 +32,29 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   const tags = safeParseTags(article.tags);
-  const imageUrl = article.imageUrl || getArticleFallbackImage({ ...article, tags });
-  const description = article.excerpt || article.aiSummary || stripHtmlToText(article.content).slice(0, 160);
+  const title = repairMojibakeText(article.title);
+  const excerpt = article.excerpt ? repairMojibakeText(article.excerpt) : null;
+  const aiSummary = article.aiSummary ? repairMojibakeText(article.aiSummary) : null;
+  const imageUrl = article.imageUrl || getArticleFallbackImage({ ...article, title, excerpt, aiSummary, tags });
+  const description = excerpt || aiSummary || stripHtmlToText(repairMojibakeText(article.content)).slice(0, 160);
 
   return {
-    title: `${article.title} | ADN Capital`,
+    title: `${title} | ADN Capital`,
     description,
     keywords: tags,
     alternates: {
       canonical: `/tin-tuc/${article.slug}`,
     },
     openGraph: {
-      title: article.title,
+      title,
       description,
       type: "article",
       publishedTime: article.publishedAt?.toISOString(),
-      images: [{ url: imageUrl, alt: article.title }],
+      images: [{ url: imageUrl, alt: title }],
     },
     twitter: {
       card: "summary_large_image",
-      title: article.title,
+      title,
       description,
       images: [imageUrl],
     },

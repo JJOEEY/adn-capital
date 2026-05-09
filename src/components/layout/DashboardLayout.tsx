@@ -49,7 +49,7 @@ const navItems: NavItem[] = [
       { href: "/aiden", label: PRODUCT_NAMES.advisory, icon: MessageSquare, badge: "HOT" },
       { href: "/dashboard/signal-map", label: PRODUCT_NAMES.brokerWorkflow, icon: Zap },
       { href: "/art", label: PRODUCT_NAMES.art, icon: Activity, badge: "MỚI" },
-      { href: "/margin", label: "Ký quỹ - Mua nhanh", icon: Banknote },
+      { href: "/margin", label: "Giải pháp Margin", icon: Banknote },
     ],
   },
   { href: "/journal", label: "Nhật ký", icon: BookOpen },

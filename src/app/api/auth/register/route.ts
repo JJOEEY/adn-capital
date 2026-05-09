@@ -7,6 +7,7 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { grantPremiumTrialForUser } from "@/lib/premium-trial";
 
 export async function POST(req: Request) {
   try {
@@ -42,13 +43,18 @@ export async function POST(req: Request) {
     // ── Hash mật khẩu + tạo user ─────────────────────────────────────
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    const user = await prisma.user.create({
-      data: {
-        email,
-        password: hashedPassword,
-        name,
-        role: "FREE",
-      },
+    const user = await prisma.$transaction(async (tx) => {
+      const createdUser = await tx.user.create({
+        data: {
+          email,
+          password: hashedPassword,
+          name,
+          role: "FREE",
+        },
+      });
+
+      await grantPremiumTrialForUser(tx, createdUser);
+      return createdUser;
     });
 
     return NextResponse.json({

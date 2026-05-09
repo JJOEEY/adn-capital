@@ -96,10 +96,10 @@ export function selectFreshSignalCandidates<T extends SignalCandidateLike>(
   reportedRows: ReportedSignalLike[],
   sentDate: string,
 ): T[] {
-  const reportedKeys = new Set(
+  const reportedTickers = new Set(
     reportedRows
       .filter((row) => row.sentDate === sentDate)
-      .map((row) => toSignalIdentityKey(row.ticker, row.signalType)),
+      .map((row) => normalizeTicker(row.ticker)),
   );
   const seen = new Set<string>();
   const fresh: T[] = [];
@@ -109,10 +109,9 @@ export function selectFreshSignalCandidates<T extends SignalCandidateLike>(
     const type = normalizeSignalType(candidate.type);
     if (!ticker || !type) continue;
 
-    const key = toSignalIdentityKey(ticker, type);
-    if (reportedKeys.has(key) || seen.has(key)) continue;
+    if (reportedTickers.has(ticker) || seen.has(ticker)) continue;
 
-    seen.add(key);
+    seen.add(ticker);
     fresh.push({ ...candidate, ticker, type });
   }
 

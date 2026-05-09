@@ -87,7 +87,7 @@ const menuSections: MenuSection[] = [
       { href: "https://t.me/+fryvX_B-6Y9kODg1", label: "Group Telegram", icon: Send, external: true },
       { href: "/backtest", label: PRODUCT_NAMES.backtest, icon: FlaskConical },
       { href: "/hdsd", label: "Hướng dẫn sử dụng", icon: BookOpen },
-      { href: "/margin", label: "Ký quỹ · Mua nhanh", icon: Banknote, badge: "HOT" },
+      { href: "/margin", label: "Giải pháp Margin", icon: Banknote, badge: "HOT" },
     ],
   },
   {

@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import useSWR from "swr";
 import {
   Crown,
   FileText,
@@ -20,6 +19,7 @@ import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 import { useTopic } from "@/hooks/useTopic";
 import { calculateRPI, getLatestRPI, type OHLCVData } from "@/lib/rpi/calculator";
 import { getArticleFallbackImage } from "@/lib/articles/image-fallback";
+import { NEWS_PRIMARY_CATEGORIES, sortNewsCategories } from "@/lib/articles/category-priority";
 
 interface Article {
   id: string;
@@ -65,12 +65,6 @@ const sentimentOptions: Array<{ key: SentimentKey; label: string }> = [
   { key: "neutral", label: "Trung tính" },
   { key: "negative", label: "Tiêu cực" },
 ];
-
-const swrFetcher = (url: string) =>
-  fetch(url, { signal: AbortSignal.timeout(30_000) }).then((response) => {
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return response.json();
-  });
 
 function stripVietnamese(value: string) {
   return value
@@ -775,11 +769,12 @@ export default function TinTucPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const { data: overview } = useSWR<MarketOverview>("/api/market-overview", swrFetcher, {
-    keepPreviousData: true,
+  const overviewTopic = useTopic<MarketOverview>("vn:index:composite:live", {
+    refreshInterval: 300_000,
     revalidateOnFocus: false,
     dedupingInterval: 60_000,
   });
+  const overview = overviewTopic.data;
 
   useEffect(() => {
     let cancelled = false;
@@ -839,6 +834,20 @@ export default function TinTucPage() {
     return counts;
   }, [articles]);
 
+  const orderedCategories = useMemo(() => sortNewsCategories(categories), [categories]);
+  const primaryCategorySlugs = useMemo<Set<string>>(
+    () => new Set(NEWS_PRIMARY_CATEGORIES.map((category) => category.slug)),
+    [],
+  );
+  const primaryCategories = useMemo(
+    () => orderedCategories.filter((category) => primaryCategorySlugs.has(category.slug)),
+    [orderedCategories, primaryCategorySlugs],
+  );
+  const secondaryCategories = useMemo(
+    () => orderedCategories.filter((category) => !primaryCategorySlugs.has(category.slug)),
+    [orderedCategories, primaryCategorySlugs],
+  );
+
   const filtered = useMemo(() => {
     return articles.filter((article) => {
       const matchesCategory = activeCategory === "tat-ca" || article.category?.slug === activeCategory;
@@ -887,16 +896,21 @@ export default function TinTucPage() {
           <main className="min-w-0 space-y-6">
             <GlassPanel className="p-4">
               <div className="flex flex-col gap-4">
-                <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                  <TabButton active={activeCategory === "tat-ca"} onClick={() => setActiveCategory("tat-ca")}>
-                    Tất cả
-                  </TabButton>
-                  {categories.map((category) => (
-                    <TabButton key={category.id} active={activeCategory === category.slug} onClick={() => setActiveCategory(category.slug)}>
-                      {category.name}
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                    {primaryCategories.map((category) => (
+                      <TabButton key={category.id} active={activeCategory === category.slug} onClick={() => setActiveCategory(category.slug)}>
+                        {category.name}
+                      </TabButton>
+                    ))}
+                    <TabButton active={activeCategory === "tat-ca"} onClick={() => setActiveCategory("tat-ca")}>
+                      Tất cả
                     </TabButton>
-                  ))}
-                </div>
+                    {secondaryCategories.map((category) => (
+                      <TabButton key={category.id} active={activeCategory === category.slug} onClick={() => setActiveCategory(category.slug)}>
+                        {category.name}
+                      </TabButton>
+                    ))}
+                  </div>
 
                 <div className="flex flex-wrap items-center gap-2">
                   {sentimentOptions.map((option) => (
@@ -960,7 +974,7 @@ export default function TinTucPage() {
                 </div>
 
                 <TopicPanel
-                  categories={categories}
+                  categories={orderedCategories}
                   categoryCounts={categoryCounts}
                   topTags={topTags}
                   activeCategory={activeCategory}

@@ -11,8 +11,14 @@ const files = [
   "src/app/stock/[ticker]/page.tsx",
   "src/app/products/page.tsx",
   "src/app/products/[slug]/page.tsx",
+  "src/app/tin-tuc/page.tsx",
+  "src/app/tin-tuc/[slug]/page.tsx",
+  "src/app/api/articles/route.ts",
+  "src/app/api/articles/by-slug/[slug]/route.ts",
+  "src/app/api/internal/openclaw/articles/route.ts",
   "src/components/layout/Header.tsx",
   "src/components/layout/AppHeader.tsx",
+  "src/components/news/ArticleDetailClient.tsx",
   "src/components/pwa/BottomTabBar.tsx",
   "src/components/chat/InvestmentChat.tsx",
   "src/components/chat/StockChart.tsx",
@@ -22,6 +28,8 @@ const files = [
   "src/components/adnexus/PublicSiteHeader.tsx",
   "src/lib/brand/nexsuite.ts",
   "src/lib/brand/productNames.ts",
+  "src/lib/articles/image-fallback.ts",
+  "src/lib/articles/server.ts",
 ];
 
 const suspiciousFragments = [
