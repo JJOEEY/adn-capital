@@ -93,6 +93,7 @@ interface AlternativeSnapshot {
 }
 
 const PROVIDER_PRIORITY: ProviderId[] = ["dnse", "fiin", "vnstock", "vnd", "tcbs"];
+const INDEX_PROVIDER_PRIORITY: ProviderId[] = ["fiin", "dnse", "vnstock", "vnd", "tcbs"];
 
 type MarketSnapshotCacheEntry = {
   requestDateVN: string;
@@ -106,6 +107,10 @@ let marketSnapshotInFlight: Promise<MarketSnapshot> | null = null;
 
 function getProviderOrder(): ProviderId[] {
   return PROVIDER_PRIORITY;
+}
+
+function getIndexProviderOrder(): ProviderId[] {
+  return INDEX_PROVIDER_PRIORITY;
 }
 
 function pickRoundRobinValue(
@@ -1486,6 +1491,7 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
     }
 
     const providerOrder = getProviderOrder();
+    const indexProviderOrder = getIndexProviderOrder();
 
     const dchartIndexMap = new Map<string, IndexData>();
     if (vnindex) dchartIndexMap.set("VNINDEX", vnindex);
@@ -1528,7 +1534,7 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
     const indexSourceSet = new Set<ProviderId>();
 
     for (const symbol of requiredIndexSymbols) {
-      const pickedProvider = pickIndexProvider(providerOrder, {
+      const pickedProvider = pickIndexProvider(indexProviderOrder, {
         dnse: dnseIndexMap.get(symbol) ?? null,
         fiin: fiinIndexMap.get(symbol) ?? null,
         vnstock: vnstockIndexMap.get(symbol) ?? null,

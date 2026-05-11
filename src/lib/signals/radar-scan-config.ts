@@ -1,3 +1,5 @@
+export { SIGNAL_SCAN_SLOTS, SIGNAL_SCAN_SLOT_SET } from "./scan-slots";
+
 export type RadarScanMode = "hot" | "wide";
 
 export const RADAR_SCAN_BUDGET = {

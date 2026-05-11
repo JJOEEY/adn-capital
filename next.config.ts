@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  outputFileTracingRoot: process.cwd(),
   // npm run build runs tsc first; this skips Next's duplicate type worker,
   // which can hang after webpack finishes on this project.
   typescript: {
