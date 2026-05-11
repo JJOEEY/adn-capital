@@ -50,6 +50,9 @@ ${CRON_CLOSE_15H_SCHEDULE:-0 15 * * *} ${CURL_CMD} "${APP_URL}/api/cron?type=${C
 # Type 3 - Full EOD 19:00 VN
 ${CRON_EOD_19H_SCHEDULE:-0 19 * * *} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_EOD_19H:-eod_full_19h}" >> ${LOG_DIR}/eod_full_19h.log 2>&1
 
+# ADN ART - daily refresh 19:05 VN, Mon-Fri
+${CRON_ART_1905_SCHEDULE:-5 19 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_ART_1905:-art_daily_1905}" >> ${LOG_DIR}/art_daily_1905.log 2>&1
+
 # News crawler (07:00-22:30 VN, every 30 minutes)
 ${CRON_NEWS_CRAWLER_SCHEDULE:-*/30 7-22 * * *} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_NEWS_CRAWLER:-news_crawler}" >> ${LOG_DIR}/news_crawler.log 2>&1
 
@@ -64,5 +67,5 @@ EOF
 crontab "${CRON_FILE}"
 
 echo "[setup-cron] Installed crontab from ${CRON_FILE}"
-echo "[setup-cron] Canonical cron types: signal_scan_type1, market_stats_type2, morning_brief, close_brief_15h, eod_full_19h, news_crawler"
+echo "[setup-cron] Canonical cron types: signal_scan_type1, market_stats_type2, morning_brief, close_brief_15h, eod_full_19h, news_crawler, art_daily_1905"
 echo "[setup-cron] Verify with: crontab -l"

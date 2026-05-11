@@ -4,6 +4,7 @@ node_modules
 app_data
 coverage
 *.log
+*.tgz
 *.tsbuildinfo
 .env.local
 .env.development.local
@@ -12,3 +13,9 @@ coverage
 .env.vps
 deploy/*.secret
 vps-credentials.json
+.claude
+.codex-switch-backup-*
+.codex-untracked-backup
+.tmp-*
+android
+video

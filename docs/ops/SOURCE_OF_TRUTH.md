@@ -68,6 +68,7 @@ SCANNER_WEBHOOK_INGEST_ENABLED=false
 - `morning_brief` (08:00)
 - `close_brief_15h` (15:00)
 - `eod_full_19h` (19:00)
+- `art_daily_1905` (19:05 T2-T6, refresh ADN ART tu VN30 1D)
 
 ADN Radar scan contract:
 - Universe chính là `RADAR_WATCHLIST_500`; hot scan dùng `RADAR_HOT_WATCHLIST`.
@@ -84,6 +85,7 @@ Legacy aliases (supported for compatibility only):
 - `signal_scan_5m` -> `signal_scan_type1`
 - `market_stats` / `intraday` -> `market_stats_type2`
 - `prop_trading` -> `eod_full_19h`
+- `art_daily` / `adn_art_1905` / `art_1905` -> `art_daily_1905`
 
 ## 4) Deploy Baseline
 Safe deploy default:

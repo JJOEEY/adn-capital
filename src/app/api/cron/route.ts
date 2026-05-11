@@ -35,13 +35,15 @@ import {
 import { fetchEodNews, type FiinEodNews } from "@/lib/fiinquantClient";
 import { fetchAllCafefNews, buildCafefContext } from "@/lib/cafefScraper";
 import { getVnNow } from "@/lib/time";
-import { invalidateTopics } from "@/lib/datahub/core";
+import { getTopicEnvelope, invalidateTopics } from "@/lib/datahub/core";
+import { getMarketPayloadRows, readMarketNumber } from "@/lib/market-price-normalization";
 import { normalizeCronType, LEGACY_CRON_ALIASES } from "@/lib/cron-contracts";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
 import { emitWorkflowTrigger } from "@/lib/workflows";
 import { emitObservabilityEvent } from "@/lib/observability";
 import { ingestSignalScanBatch } from "@/lib/signals/ingest";
 import { chooseRadarScanMode, RADAR_SCAN_BUDGET, SIGNAL_SCAN_SLOT_SET } from "@/lib/signals/radar-scan-config";
+import { calculateRPI, getLatestRPI, type OHLCVData } from "@/lib/rpi/calculator";
 import {
   sendActiveHoldingsToTelegram,
   sendActiveSignalsToTelegram,
@@ -54,6 +56,8 @@ export const dynamic = "force-dynamic";
 const PYTHON_BRIDGE = getPythonBridgeUrl();
 const MARKET_OVERVIEW_CACHE_FILE = path.join(process.cwd(), "market_cache.json");
 const EOD_FULL_MINUTE_VN = 19 * 60;
+const ART_DAILY_REFRESH_MINUTE_VN = 19 * 60 + 5;
+const ART_DAILY_TOPIC_KEY = "vn:historical:VN30:1d";
 
 interface RadarQuotaEstimate {
   monthlyUsed: number;
@@ -207,6 +211,132 @@ async function handleNewsCrawler(): Promise<NextResponse> {
     const duration = Date.now() - startTime;
     await logCron("news_crawler", "error", String(error), duration);
     return NextResponse.json({ error: "Lỗi cập nhật tin tức" }, { status: 500 });
+  }
+}
+
+function readArtDate(row: Record<string, unknown>) {
+  const value = row.date ?? row.tradingDate ?? row.time ?? row.timestamp;
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (typeof value === "number") return new Date(value).toISOString().slice(0, 10);
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    if (/^\d{10}$/.test(trimmed)) return new Date(Number(trimmed) * 1000).toISOString().slice(0, 10);
+    if (/^\d{13}$/.test(trimmed)) return new Date(Number(trimmed)).toISOString().slice(0, 10);
+    return trimmed.slice(0, 10);
+  }
+  return null;
+}
+
+function toArtOhlcvRows(value: unknown): OHLCVData[] {
+  return getMarketPayloadRows(value)
+    .map((row) => {
+      const date = readArtDate(row);
+      const open = readMarketNumber(row.open ?? row.o);
+      const high = readMarketNumber(row.high ?? row.h);
+      const low = readMarketNumber(row.low ?? row.l);
+      const close = readMarketNumber(row.close ?? row.c ?? row.price);
+      const volume = readMarketNumber(row.volume ?? row.v ?? row.matchVolume) ?? 0;
+
+      if (!date || open == null || high == null || low == null || close == null) return null;
+      if ([open, high, low, close].some((item) => !Number.isFinite(item) || item <= 0)) return null;
+
+      return { date, open, high, low, close, volume };
+    })
+    .filter((row): row is OHLCVData => row != null)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+async function handleArtDaily1905(forceRun = false): Promise<NextResponse> {
+  const startTime = Date.now();
+  const vnNow = getVnNow();
+  const day = vnNow.day();
+  const minuteOfDay = vnNow.hour() * 60 + vnNow.minute();
+
+  if (!forceRun && (day === 0 || day === 6)) {
+    const duration = Date.now() - startTime;
+    await logCron("art_daily_1905", "skipped", "ADN ART refresh skipped on weekend", duration, {
+      weekday: day,
+    });
+    return NextResponse.json({
+      type: "art_daily_1905",
+      skipped: true,
+      reason: "weekend",
+    });
+  }
+
+  if (!forceRun && minuteOfDay < ART_DAILY_REFRESH_MINUTE_VN) {
+    const duration = Date.now() - startTime;
+    await logCron("art_daily_1905", "skipped", "ADN ART refresh skipped before 19:05 VN", duration, {
+      nextSlot: "19:05",
+    });
+    return NextResponse.json({
+      type: "art_daily_1905",
+      skipped: true,
+      reason: "before_scheduled_slot",
+      nextSlot: "19:05",
+    });
+  }
+
+  try {
+    const invalidated = invalidateTopics({ topics: [ART_DAILY_TOPIC_KEY] });
+    const envelope = await getTopicEnvelope(ART_DAILY_TOPIC_KEY, { force: true, systemRole: "cron" });
+    const rows = toArtOhlcvRows(envelope.value);
+    const history = calculateRPI(rows);
+    const latest = getLatestRPI(history);
+    const duration = Date.now() - startTime;
+
+    if (envelope.freshness === "error" || !latest) {
+      await logCron("art_daily_1905", "error", "ADN ART refresh returned no valid rows", duration, {
+        freshness: envelope.freshness,
+        error: envelope.error,
+        rows: rows.length,
+        invalidated,
+      });
+      return NextResponse.json(
+        {
+          type: "art_daily_1905",
+          published: false,
+          reason: "empty_or_error",
+          freshness: envelope.freshness,
+          error: envelope.error,
+        },
+        { status: 502 },
+      );
+    }
+
+    await logCron("art_daily_1905", "success", `ADN ART refreshed ${latest.date}`, duration, {
+      topic: ART_DAILY_TOPIC_KEY,
+      topicUpdatedAt: envelope.updatedAt,
+      freshness: envelope.freshness,
+      latest,
+      rows: rows.length,
+      historyPoints: history.filter((row) => row.rpi !== null).length,
+      invalidated,
+    });
+
+    return NextResponse.json({
+      type: "art_daily_1905",
+      published: true,
+      topic: ART_DAILY_TOPIC_KEY,
+      topicUpdatedAt: envelope.updatedAt,
+      freshness: envelope.freshness,
+      latest,
+      rows: rows.length,
+      historyPoints: history.filter((row) => row.rpi !== null).length,
+      invalidated,
+    });
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    await logCron("art_daily_1905", "error", String(error), duration);
+    return NextResponse.json(
+      {
+        type: "art_daily_1905",
+        published: false,
+        error: "Khong cap nhat duoc ADN ART",
+      },
+      { status: 500 },
+    );
   }
 }
 
@@ -454,6 +584,7 @@ export async function GET(req: NextRequest) {
           "market_stats_type2",
           "signal_scan_type1",
           "news_crawler",
+          "art_daily_1905",
         ],
         legacyAliases: LEGACY_CRON_ALIASES,
       },
@@ -489,6 +620,9 @@ export async function GET(req: NextRequest) {
     if (type === "news_crawler") {
       return runCronHandlerWithWorkflowHook(type, () => handleNewsCrawler(), "cron-dispatch:sync");
     }
+    if (type === "art_daily_1905") {
+      return runCronHandlerWithWorkflowHook(type, () => handleArtDaily1905(forceRun), "cron-dispatch:sync");
+    }
     return runCronHandlerWithWorkflowHook(type, () => handleSignalScan5m(), "cron-dispatch:sync");
   }
 
@@ -515,6 +649,8 @@ export async function GET(req: NextRequest) {
         await runCronHandlerWithWorkflowHook(type, () => handleIntraday(forceRun), "cron-dispatch:async");
       } else if (type === "news_crawler") {
         await runCronHandlerWithWorkflowHook(type, () => handleNewsCrawler(), "cron-dispatch:async");
+      } else if (type === "art_daily_1905") {
+        await runCronHandlerWithWorkflowHook(type, () => handleArtDaily1905(forceRun), "cron-dispatch:async");
       } else {
         await runCronHandlerWithWorkflowHook(type, () => handleSignalScan5m(), "cron-dispatch:async");
       }

@@ -1,8 +1,23 @@
 import type { NextConfig } from "next";
 
+const projectRoot = process.cwd();
+const localOnlyTraceExcludes = [
+  "**/.claude/**",
+  "**/.codex-*/**",
+  "**/.tmp-*/**",
+  "**/android/**",
+  "**/video/**",
+  "**/*.tgz",
+  "**/*.log",
+];
+
 const nextConfig: NextConfig = {
   output: "standalone",
-  outputFileTracingRoot: process.cwd(),
+  outputFileTracingRoot: projectRoot,
+  outputFileTracingExcludes: {
+    "next-server": localOnlyTraceExcludes,
+    "**/*": localOnlyTraceExcludes,
+  },
   // npm run build runs tsc first; this skips Next's duplicate type worker,
   // which can hang after webpack finishes on this project.
   typescript: {

@@ -58,6 +58,7 @@ Canonical names:
 - `morning_brief` (`08:00`)
 - `close_brief_15h` (`15:00`)
 - `eod_full_19h` (`19:00`)
+- `art_daily_1905` (`19:05`, T2-T6)
 
 Legacy aliases are compatibility-only and not source-of-truth.
 
