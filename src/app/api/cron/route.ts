@@ -40,8 +40,8 @@ import { normalizeCronType, LEGACY_CRON_ALIASES } from "@/lib/cron-contracts";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
 import { emitWorkflowTrigger } from "@/lib/workflows";
 import { emitObservabilityEvent } from "@/lib/observability";
-import { SIGNAL_SCAN_SLOT_SET, ingestSignalScanBatch } from "@/lib/signals/ingest";
-import { chooseRadarScanMode, RADAR_SCAN_BUDGET } from "@/lib/signals/radar-scan-config";
+import { ingestSignalScanBatch } from "@/lib/signals/ingest";
+import { chooseRadarScanMode, RADAR_SCAN_BUDGET, SIGNAL_SCAN_SLOT_SET } from "@/lib/signals/radar-scan-config";
 import {
   sendActiveHoldingsToTelegram,
   sendActiveSignalsToTelegram,

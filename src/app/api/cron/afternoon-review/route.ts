@@ -52,6 +52,17 @@ function hasRequiredCloseData(snapshot: MarketSnapshot): boolean {
   );
 }
 
+function hasCanonicalIndexData(snapshot: MarketSnapshot): boolean {
+  const required = new Set(["VNINDEX", "VN30", "HNXINDEX", "UPCOMINDEX"]);
+  const indexMap = new Map(snapshot.indices.map((item) => [item.ticker.toUpperCase(), item]));
+  if (snapshot.source.indices !== "fiin") return false;
+  for (const ticker of required) {
+    const index = indexMap.get(ticker);
+    if (!index || !Number.isFinite(index.value) || !Number.isFinite(index.changePct)) return false;
+  }
+  return true;
+}
+
 function formatTy(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return "chưa cập nhật";
   return `${Math.abs(value).toLocaleString("vi-VN", { maximumFractionDigits: 0 })} tỷ`;
@@ -178,6 +189,31 @@ export async function GET(req: NextRequest) {
     }
 
     const snapshot = await getMarketSnapshot();
+
+    if (!hasCanonicalIndexData(snapshot)) {
+      const duration = Date.now() - startTime;
+      await logCron(
+        "close_brief_15h",
+        "skipped",
+        "Close Brief skipped because index data is not from canonical fiin snapshot",
+        duration,
+        {
+          indexSource: snapshot.source.indices,
+          indices: snapshot.indices.map((item) => ({
+            ticker: item.ticker,
+            value: item.value,
+            changePct: item.changePct,
+          })),
+          providerDiagnostics: snapshot.providerDiagnostics,
+        },
+      );
+      return NextResponse.json({
+        type: "close_brief_15h",
+        published: false,
+        reason: "non_canonical_index_source",
+        indexSource: snapshot.source.indices,
+      });
+    }
 
     if (!hasRequiredCloseData(snapshot) && req.nextUrl.searchParams.get("blockOnMissing") === "1") {
       const duration = Date.now() - startTime;
