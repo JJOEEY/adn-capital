@@ -272,12 +272,14 @@ const sendTelegramAction: ActionHandler = async (action, context) => {
     process.env.TELEGRAM_SUPPORT_BOT_TOKEN ??
     process.env.ADN_SUPPORT_TELEGRAM_BOT_TOKEN ??
     process.env.TELEGRAM_SIGNAL_BOT_TOKEN ??
+    process.env.TELEGRAM_BOT_TOKEN ??
     ""
   ).trim();
   const chatId = (
     process.env.TELEGRAM_SUPPORT_CHAT_ID ??
     process.env.ADN_SUPPORT_TELEGRAM_CHAT_ID ??
     process.env.TELEGRAM_SIGNAL_CHAT_ID ??
+    process.env.TELEGRAM_CHAT_ID ??
     ""
   ).trim();
 

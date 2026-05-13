@@ -45,7 +45,6 @@ import { ingestSignalScanBatch } from "@/lib/signals/ingest";
 import { chooseRadarScanMode, RADAR_SCAN_BUDGET, SIGNAL_SCAN_SLOT_SET } from "@/lib/signals/radar-scan-config";
 import { calculateRPI, getLatestRPI, type OHLCVData } from "@/lib/rpi/calculator";
 import {
-  sendActiveHoldingsToTelegram,
   sendActiveSignalsToTelegram,
   sendClaimedSignalsToTelegram,
 } from "@/lib/signals/telegram-notify";
@@ -1068,10 +1067,6 @@ async function handlePropTrading(
         dateLabel: today,
       },
     });
-    const telegramActiveHoldingsResult = await sendActiveHoldingsToTelegram({
-      tradingDate: dateISO,
-      slotLabel: "19:00",
-    }).catch((error) => ({ ok: false, error: String(error) }));
 
     const duration = Date.now() - startTime;
     await logCron("eod_full_19h", "success", `EOD full 19h, ${duration}ms`, duration, {
@@ -1079,7 +1074,6 @@ async function handlePropTrading(
       providerDiagnostics: snapshot.providerDiagnostics,
       requestDateVN: snapshot.requestDateVN,
       fallbackUsed: snapshot.providerDiagnostics.length > 0,
-      telegramActiveHoldingsResult,
     });
     return NextResponse.json({ type: "eod_full_19h", timestamp: new Date().toISOString(), report: safeReport });
   } catch (error) {

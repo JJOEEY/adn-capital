@@ -40,6 +40,7 @@ function getSignalTelegramTarget() {
     process.env.ADN_SUPPORT_TELEGRAM_BOT_TOKEN ??
     process.env.TELEGRAM_SUPPORT_BOT_TOKEN ??
     process.env.ADN_SUPPORT_BOT_TOKEN ??
+    process.env.TELEGRAM_BOT_TOKEN ??
     ""
   ).trim();
   const chatId = (
@@ -47,6 +48,7 @@ function getSignalTelegramTarget() {
     process.env.ADN_SUPPORT_TELEGRAM_CHAT_ID ??
     process.env.TELEGRAM_SUPPORT_CHAT_ID ??
     process.env.ADN_SUPPORT_CHAT_ID ??
+    process.env.TELEGRAM_CHAT_ID ??
     ""
   ).trim();
   return { token, chatId };
