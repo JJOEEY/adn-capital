@@ -34,7 +34,7 @@ import {
 } from "@/lib/marketDataFetcher";
 import { fetchEodNews, type FiinEodNews } from "@/lib/fiinquantClient";
 import { fetchAllCafefNews, buildCafefContext } from "@/lib/cafefScraper";
-import { getVnNow } from "@/lib/time";
+import { getVnDateLabel, getVnNow } from "@/lib/time";
 import { getTopicEnvelope, invalidateTopics } from "@/lib/datahub/core";
 import { getMarketPayloadRows, readMarketNumber } from "@/lib/market-price-normalization";
 import { normalizeCronType, LEGACY_CRON_ALIASES } from "@/lib/cron-contracts";
@@ -572,6 +572,10 @@ export async function GET(req: NextRequest) {
   const type = normalizeCronType(requestedType);
   const sync = req.nextUrl.searchParams.get("sync") === "1";
   const forceRun = req.nextUrl.searchParams.get("force") === "1";
+  const backfillDateISO = forceRun ? normalizeBackfillDateParam(req.nextUrl.searchParams.get("date")) : null;
+  if (forceRun && req.nextUrl.searchParams.get("date") && !backfillDateISO) {
+    return NextResponse.json({ error: "Invalid date. Use YYYY-MM-DD." }, { status: 400 });
+  }
 
   if (!type) {
     return NextResponse.json(
@@ -612,7 +616,7 @@ export async function GET(req: NextRequest) {
       return runCronHandlerWithWorkflowHook(type, () => handleCloseBrief15(forceRun), "cron-dispatch:sync");
     }
     if (type === "eod_full_19h") {
-      return runCronHandlerWithWorkflowHook(type, () => handlePropTrading(forceRun), "cron-dispatch:sync");
+      return runCronHandlerWithWorkflowHook(type, () => handlePropTrading(forceRun, backfillDateISO), "cron-dispatch:sync");
     }
     if (type === "market_stats_type2") {
       return runCronHandlerWithWorkflowHook(type, () => handleIntraday(forceRun), "cron-dispatch:sync");
@@ -644,7 +648,7 @@ export async function GET(req: NextRequest) {
       } else if (type === "close_brief_15h") {
         await runCronHandlerWithWorkflowHook(type, () => handleCloseBrief15(forceRun), "cron-dispatch:async");
       } else if (type === "eod_full_19h") {
-        await runCronHandlerWithWorkflowHook(type, () => handlePropTrading(forceRun), "cron-dispatch:async");
+        await runCronHandlerWithWorkflowHook(type, () => handlePropTrading(forceRun, backfillDateISO), "cron-dispatch:async");
       } else if (type === "market_stats_type2") {
         await runCronHandlerWithWorkflowHook(type, () => handleIntraday(forceRun), "cron-dispatch:async");
       } else if (type === "news_crawler") {
@@ -868,10 +872,23 @@ function normalizeEodDetailDate(
   };
 }
 
-async function handlePropTrading(forceRun = false): Promise<NextResponse> {
+function normalizeBackfillDateParam(value: string | null): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return null;
+  return trimmed;
+}
+
+async function handlePropTrading(
+  forceRun = false,
+  backfillDateISO: string | null = null,
+  notify = true,
+): Promise<NextResponse> {
   const startTime = Date.now();
-  const today = getVNDateString();
-  const dateISO = getVNDateISO();
+  const dateISO = forceRun && backfillDateISO ? backfillDateISO : getVNDateISO();
+  const today = forceRun && backfillDateISO
+    ? getVnDateLabel(`${backfillDateISO}T00:00:00+07:00`)
+    : getVNDateString();
 
   try {
     if (!forceRun && getVnMinuteOfDay() < EOD_FULL_MINUTE_VN) {
