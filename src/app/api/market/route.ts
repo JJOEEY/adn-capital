@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import { getMarketSnapshot } from "@/lib/marketDataFetcher";
-import { getPythonBridgeUrl } from "@/lib/runtime-config";
 
 export const revalidate = 0;
-const FIINQUANT_BRIDGE = getPythonBridgeUrl();
 
 // In-memory cache 5 phút → tránh gọi VNDirect liên tục
 let cachedMarket: { data: any; timestamp: number } | null = null;
@@ -75,6 +73,22 @@ async function fetchChartData(ticker: string): Promise<Array<{ date: string; clo
   }
 }
 
+type PublicIndexData = { value: number; change: number; changePercent: number; volume: number };
+
+function findSnapshotIndex(
+  snapshot: Awaited<ReturnType<typeof getMarketSnapshot>> | null,
+  tickers: string[],
+): PublicIndexData | null {
+  const item = snapshot?.indices.find((index) => tickers.includes(index.ticker));
+  if (!item) return null;
+  return {
+    value: item.value,
+    change: item.change,
+    changePercent: item.changePct,
+    volume: item.volume,
+  };
+}
+
 async function getMarketStatus() {
   const hour = new Date().getHours();
   const isAfter3pm = hour >= 15;
@@ -89,9 +103,9 @@ async function getMarketStatus() {
     getMarketSnapshot().catch(() => null),
   ]);
 
-  const vnindex = vnidxData ?? { value: 1287.45, change: 12.3, changePercent: 0.96, volume: 0 };
-  const hnx = hnxData ?? { value: 236.82, change: 1.8, changePercent: 0.77, volume: 0 };
-  const vn30 = vn30Data ?? { value: 1350.20, change: 8.5, changePercent: 0.63, volume: 0 };
+  const vnindex = findSnapshotIndex(snapshot, ["VNINDEX"]) ?? vnidxData ?? { value: 1287.45, change: 12.3, changePercent: 0.96, volume: 0 };
+  const hnx = findSnapshotIndex(snapshot, ["HNXINDEX", "HNX"]) ?? hnxData ?? { value: 236.82, change: 1.8, changePercent: 0.77, volume: 0 };
+  const vn30 = findSnapshotIndex(snapshot, ["VN30"]) ?? vn30Data ?? { value: 1350.20, change: 8.5, changePercent: 0.63, volume: 0 };
 
   // Chấm điểm thị trường
   const indicators = {
@@ -216,31 +230,32 @@ export async function GET() {
 
     const marketData = await getMarketStatus();
 
-    // Lấy dữ liệu THỰC từ Python backend cho AI summary (tầm nhìn 30 phiên)
+    // Reuse snapshot data here; dashboard has a separate fast topic for live overview.
     let aiSummary = "";
-    let liveOverview = marketData.adnCore ?? null;
-    try {
-      const overviewRes = await fetch(`${FIINQUANT_BRIDGE}/api/v1/market-overview`, {
-        signal: AbortSignal.timeout(8000),
-      });
-      if (overviewRes.ok) {
-        const ov = await overviewRes.json();
-        liveOverview = ov;
+    const liveOverview = marketData.adnCore ?? null;
+    if (liveOverview) {
         const realLiquidity =
           marketData.snapshotLiquidity && marketData.snapshotLiquidity > 0
             ? `${Math.round(marketData.snapshotLiquidity).toLocaleString("vi-VN")} tỷ`
-            : ov.liquidity
-            ? `${Math.round(ov.liquidity).toLocaleString("vi-VN")} tỷ`
+            : typeof liveOverview.liquidity === "number" && liveOverview.liquidity > 0
+            ? `${Math.round(liveOverview.liquidity).toLocaleString("vi-VN")} tỷ`
             : marketData.totalVolume;
-        const realPrice = ov.price ? ov.price.toFixed(2).replace(".", ",") : marketData.vnindex.value.toFixed(2).replace(".", ",");
-        const realScore = ov.score ?? 0;
-        const realLevel = ov.level ?? 1;
-        const realAction = ov.action_message ?? "";
+        const realPrice =
+          typeof liveOverview.price === "number"
+            ? liveOverview.price.toFixed(2).replace(".", ",")
+            : marketData.vnindex.value.toFixed(2).replace(".", ",");
+        const realScore = liveOverview.score ?? 0;
+        const realLevel = liveOverview.level ?? 1;
+        const realAction = liveOverview.action_message ?? "";
         const pct = marketData.vnindex.changePercent;
+        const overviewExtra = liveOverview as typeof liveOverview & {
+          monthly_summary?: string;
+          weekly_summary?: string;
+        };
 
         // Multi-timeframe (W/M) summaries từ backend
-        const monthlySummary = ov.monthly_summary ?? ov.technical_highlights?.monthly ?? "";
-        const weeklySummary = ov.weekly_summary ?? ov.technical_highlights?.weekly ?? "";
+        const monthlySummary = overviewExtra.monthly_summary ?? liveOverview.technical_highlights?.monthly ?? "";
+        const weeklySummary = overviewExtra.weekly_summary ?? liveOverview.technical_highlights?.weekly ?? "";
 
         // Build nhận định Đa khung thời gian
         const parts: string[] = [];
@@ -259,9 +274,6 @@ export async function GET() {
         parts.push(realAction);
 
         aiSummary = parts.filter(Boolean).join(" ");
-      }
-    } catch {
-      // Fallback: template-based nếu Python backend không khả dụng
     }
 
     if (!aiSummary) {

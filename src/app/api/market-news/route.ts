@@ -1247,15 +1247,21 @@ function reportDateFromCreatedAt(createdAt: Date): string {
   }).format(createdAt);
 }
 
-function getReportDateKey(report: ReportRow): string {
+function getReportEmbeddedDateKey(report: ReportRow): string | null {
   const raw = parseJsonMaybe(report.rawData);
-  const snapshot = getSnapshot(raw);
-  const dateFromSnapshot = typeof snapshot.requestDateVN === "string" ? snapshot.requestDateVN : null;
-  if (dateFromSnapshot && /^\d{4}-\d{2}-\d{2}$/.test(dateFromSnapshot)) return dateFromSnapshot;
   const eodDetail = raw ? pickRecord(raw, ["eodDetail", "eod_detail", "eod", "brief", "payload"]) : null;
   const dateFromEodDetail = toDateKey(eodDetail?.date);
   if (dateFromEodDetail) return dateFromEodDetail;
-  return reportDateFromCreatedAt(report.createdAt);
+  const snapshot = getSnapshot(raw);
+  const dateFromSnapshot = typeof snapshot.requestDateVN === "string" ? snapshot.requestDateVN : null;
+  if (dateFromSnapshot && /^\d{4}-\d{2}-\d{2}$/.test(dateFromSnapshot)) return dateFromSnapshot;
+  return null;
+}
+
+function getReportDateKey(report: ReportRow): string {
+  const createdDateKey = reportDateFromCreatedAt(report.createdAt);
+  const embeddedDateKey = getReportEmbeddedDateKey(report);
+  return embeddedDateKey === createdDateKey ? embeddedDateKey : createdDateKey;
 }
 
 function isWeekdayDateKey(dateKey: string): boolean {
@@ -1379,7 +1385,6 @@ function toMorningPayload(report: { createdAt: Date; content: string; rawData: s
 function toEodPayload(report: { createdAt: Date; content: string; rawData: string | null }): EodPayload {
   const normalizedContent = repairMojibake(report.content);
   const raw = parseJsonMaybe(report.rawData);
-  const snapshot = getSnapshot(raw);
   const reportDateKey = getReportDateKey(report);
   const rawEodDetail = raw ? pickRecord(raw, ["eodDetail", "eod_detail", "eod", "brief", "payload"]) : null;
   const eodDetailDateKey = toDateKey(rawEodDetail?.date);
@@ -1391,6 +1396,7 @@ function toEodPayload(report: { createdAt: Date; content: string; rawData: strin
       return bridgePayload;
     }
   }
+  const snapshot = getSnapshot(raw);
   const indices = extractIndices(snapshot, normalizedContent);
   const vnindex = indices.find((item) => item.name === "VN-INDEX");
 
@@ -2082,7 +2088,7 @@ export async function GET(request: NextRequest) {
       (a, b) => morningPayloadScore(b) - morningPayloadScore(a),
     );
     let selected =
-      [...sameDatePayloads].sort((a, b) => morningPayloadScore(b) - morningPayloadScore(a))[0] ??
+      sameDatePayloads[0] ??
       orderedPayloads[0];
     selected = backfillMorningPayload(selected, orderedPayloads);
     let bridgeMorningPayload: MorningPayload | null = null;
