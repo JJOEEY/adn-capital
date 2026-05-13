@@ -43,47 +43,16 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function splitTextBlocks(text: string) {
-  const blocks: string[] = [];
-  for (const paragraph of text.split(/\n{2,}/)) {
-    const trimmed = paragraph.trim();
-    if (!trimmed) continue;
-    if (trimmed.length <= 260) {
-      blocks.push(trimmed);
-      continue;
-    }
-
-    const lines = trimmed.split(/\n/).filter(Boolean);
-    if (lines.length > 1) {
-      blocks.push(...lines);
-      continue;
-    }
-
-    const sentences = trimmed.match(/[^.!?。！？]+[.!?。！？]?\s*/g) ?? [trimmed];
-    let current = "";
-    for (const sentence of sentences) {
-      if ((current + sentence).length > 260 && current.trim()) {
-        blocks.push(current.trim());
-        current = sentence;
-      } else {
-        current += sentence;
-      }
-    }
-    if (current.trim()) blocks.push(current.trim());
-  }
-  return blocks;
-}
-
-async function writeTextBlocks(
+async function writeTypewriterText(
   controller: ReadableStreamDefaultController<Uint8Array>,
   text: string,
   signal: AbortSignal,
 ) {
-  const blocks = splitTextBlocks(text);
-  for (const [index, block] of blocks.entries()) {
+  const chars = Array.from(text);
+  for (let index = 0; index < chars.length; index += 2) {
     if (signal.aborted) return;
-    write(controller, "delta", { text: index === 0 ? block : `\n\n${block}` });
-    await sleep(55);
+    write(controller, "delta", { text: chars.slice(index, index + 2).join("") });
+    await sleep(8);
   }
 }
 
@@ -156,22 +125,29 @@ export async function POST(request: NextRequest) {
         writeMeta(controller, turn);
 
         let rawAnswer = "";
+        let finalMessage = "";
         if (turn.staticMessage) {
           rawAnswer = turn.staticMessage;
-          await writeTextBlocks(controller, rawAnswer, request.signal);
+          finalMessage = sanitizeCustomerVisibleAiText(finalizeAidenPreparedAnswer(rawAnswer, turn));
+          await writeTypewriterText(controller, finalMessage, request.signal);
         } else if (turn.prompt) {
+          let typewriterQueue = Promise.resolve();
           rawAnswer = await streamFlashOnlyAIRequest(
             turn.prompt,
             turn.systemInstruction,
-            (text) => write(controller, "delta", { text }),
+            (text) => {
+              typewriterQueue = typewriterQueue.then(() => writeTypewriterText(controller, text, request.signal));
+            },
             { signal: request.signal },
           );
+          await typewriterQueue;
+          finalMessage = sanitizeCustomerVisibleAiText(finalizeAidenPreparedAnswer(rawAnswer, turn));
         } else {
           rawAnswer = turn.fallbackMessage;
-          await writeTextBlocks(controller, rawAnswer, request.signal);
+          finalMessage = sanitizeCustomerVisibleAiText(finalizeAidenPreparedAnswer(rawAnswer, turn));
+          await writeTypewriterText(controller, finalMessage, request.signal);
         }
 
-        const finalMessage = sanitizeCustomerVisibleAiText(finalizeAidenPreparedAnswer(rawAnswer, turn));
         const usageAfter = await consumeChatQuota(quota);
         if (userId) {
           await prisma.$transaction([

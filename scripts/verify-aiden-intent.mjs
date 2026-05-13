@@ -27,6 +27,7 @@ await transpileModule("src/lib/aiden/intent.ts", "intent.mjs", [
 ]);
 
 const { classifyAidenIntent } = await import(pathToFileURL(path.join(tmpDir, "intent.mjs")).href);
+const datahubChatSource = await readFile(path.join(repoRoot, "src/lib/aiden/datahub-chat.ts"), "utf8");
 
 const cases = [
   ["b\u1ea1n l\u00e0m \u0111c g\u00ec", "smalltalk", []],
@@ -49,6 +50,15 @@ try {
     assert.equal(result.intent, expectedIntent, `${input}: intent`);
     assert.deepEqual(result.candidates, expectedCandidates, `${input}: candidates`);
   }
+  for (const heading of [
+    "**Giá và cấu trúc**",
+    "**Vùng giá cần theo dõi**",
+    "**Định giá và chất lượng doanh nghiệp**",
+    "**Hành động phù hợp**",
+  ]) {
+    assert.ok(datahubChatSource.includes(heading), `missing AIDEN heading: ${heading}`);
+  }
+  assert.ok(!datahubChatSource.includes("**1. Giá và cấu trúc kỹ thuật**"), "AIDEN static heading must not be numbered");
   console.log(`AIDEN intent cases passed: ${cases.length}`);
 } finally {
   await rm(tmpDir, { recursive: true, force: true });

@@ -64,7 +64,17 @@ function AssistantMessage({ message }: { message: ChatMessage }) {
           }`}
         >
           {message.text ? (
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                p: ({ children }) => <p className="mb-3 last:mb-0">{children}</p>,
+                ul: ({ children }) => <ul className="mb-4 list-disc space-y-1 pl-5 last:mb-0">{children}</ul>,
+                li: ({ children }) => <li className="pl-1">{children}</li>,
+                strong: ({ children }) => <strong className="font-semibold text-[var(--text-primary)]">{children}</strong>,
+              }}
+            >
+              {message.text}
+            </ReactMarkdown>
           ) : (
             <div className="flex gap-1.5 py-1">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--text-muted)]" />

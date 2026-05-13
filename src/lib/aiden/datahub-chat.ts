@@ -597,7 +597,9 @@ OUTPUT_CONTRACT:
 - Trả lời như một trợ lý đầu tư dạng ChatGPT/Gemini: hiểu câu hỏi tự nhiên, trả lời trực tiếp, không bắt khách nhập lệnh từng dòng.
 - Không ép mọi câu trả lời vào 7 heading của ADN Stock. Chỉ dùng cấu trúc dài khi khách hỏi phân tích chi tiết một mã cụ thể.
 - Nếu khách hỏi "hôm nay mua mã gì", "top mã đáng chú ý", "lọc cổ phiếu", ưu tiên 3-5 mã có bối cảnh tốt nhất trong INTERNAL_CONTEXT, nêu điều kiện theo dõi và rủi ro. Không bịa mã ngoài ngữ cảnh.
-- Nếu khách hỏi một hoặc nhiều mã cụ thể, trả lời gọn theo các ý: nhận định nhanh, điểm đáng chú ý, rủi ro, hành động phù hợp. Dùng số liệu thực tế trong INTERNAL_CONTEXT khi có.
+- Nếu khách hỏi một hoặc nhiều mã cụ thể, bắt buộc trình bày theo đúng 4 heading Markdown, không đánh số: **Giá và cấu trúc**, **Vùng giá cần theo dõi**, **Định giá và chất lượng doanh nghiệp**, **Hành động phù hợp**.
+- Mỗi heading phải đứng riêng một dòng, sau heading là các bullet Markdown dạng "- ..."; không viết heading chung dòng với đoạn văn hoặc bullet.
+- Dùng số liệu thực tế trong INTERNAL_CONTEXT khi có; không viết thành một đoạn văn dài.
 - Nếu khách cần biểu đồ chi tiết, gợi ý mở ADN Stock để xem chart, vùng giá và AIDEN nhận định theo mã đó.
 - Không bao giờ nhắc DataHub, FiinQuant, bridge, provider, API, cache, backend hoặc tên nguồn nội bộ trong câu trả lời khách hàng.
 - Không được nói thiếu dữ liệu FA, chưa có dữ liệu FA, chưa đủ dữ liệu hoặc công bố nguồn lấy dữ liệu. Nếu thiếu một phần số liệu, trả lời thận trọng theo dữ kiện đang có.
@@ -761,12 +763,12 @@ function buildAidenTickerBriefMessage(context: unknown) {
 
   const trendView = buildTickerTrendView(price, ma20, ma50, ma200);
   const actionView = buildTickerActionView({ price, ma20, support, resistance, target, stoploss });
+  const coreArtLine = buildCoreArtLine([context]);
+  const valuationPeriod = reportDate ? `theo kỳ báo cáo ${reportDate}` : "theo kỳ báo cáo gần nhất";
 
   return [
-    `**Tổng hợp nhanh ${ticker}**`,
-    "",
-    "**1. Giá và cấu trúc kỹ thuật**",
-    `- Giá hiện tại: ${price != null ? formatPrice(price) : "-"}${changePct != null ? ` (${formatPct(changePct)}%)` : ""}.`,
+    "**Giá và cấu trúc**",
+    `- **${ticker}**: giá hiện tại ${price != null ? formatPrice(price) : "-"}${changePct != null ? ` (${formatPct(changePct)}%)` : ""}.`,
     maFacts.length > 0 ? `- Đường trung bình: ${maFacts.join(" · ")}.` : null,
     momentumFacts.length > 0 ? `- Động lượng: ${momentumFacts.join(" · ")}.` : null,
     latestVolume != null || volumeMa20 != null
@@ -774,22 +776,23 @@ function buildAidenTickerBriefMessage(context: unknown) {
       : null,
     `- Nhận định: ${trendView}`,
     "",
-    "**2. Vùng giá cần theo dõi**",
+    "**Vùng giá cần theo dõi**",
     support != null ? `- Hỗ trợ: ${formatPrice(support)}.` : null,
     resistance != null ? `- Kháng cự: ${formatPrice(resistance)}.` : null,
     target != null || stoploss != null
       ? `- Vùng tham chiếu hành động: ${target != null ? `mục tiêu ${formatPrice(target)}` : "mục tiêu theo kháng cự gần nhất"}; ${stoploss != null ? `cắt lỗ ${formatPrice(stoploss)}` : "cắt lỗ theo hỗ trợ gần nhất"}.`
       : null,
     "",
-    "**3. Định giá và chất lượng doanh nghiệp**",
+    "**Định giá và chất lượng doanh nghiệp**",
     valuationFacts.length > 0
-      ? `- Chỉ số định giá${reportDate ? ` theo kỳ báo cáo ${reportDate}` : " theo kỳ báo cáo gần nhất"}: ${valuationFacts.join(" · ")}.`
+      ? `- **Chỉ số định giá:** ${valuationFacts.join(" · ")} (${valuationPeriod}).`
       : "- Theo kỳ báo cáo gần nhất, cần đánh giá thận trọng theo chất lượng lợi nhuận, vùng giá hiện tại và rủi ro thị trường.",
+    coreArtLine ? `- ${coreArtLine.replace(/\*\*/g, "")}` : null,
     pe != null && pb != null
       ? "- Mức định giá cần được đối chiếu với tốc độ tăng trưởng lợi nhuận và vị thế ngành; không nên chỉ nhìn riêng P/E hoặc P/B để quyết định mua."
       : null,
     "",
-    "**4. Hành động phù hợp**",
+    "**Hành động phù hợp**",
     actionView,
   ].filter((line): line is string => Boolean(line)).join("\n");
 }
@@ -991,7 +994,7 @@ function ensureDisclaimer(answer: string) {
 
 function ensureValuationLine(answer: string, contexts: unknown[]) {
   const valuationLine = buildValuationLine(contexts);
-  if (/Chỉ số định giá:\s*.*(?:P\/E|P\/B|EPS|ROE|ROA)/i.test(answer)) return answer;
+  if (/Chỉ số định giá:\**\s*.*(?:P\/E|P\/B|EPS|ROE|ROA)/i.test(answer)) return answer;
 
   const headingPattern = /(\*\*(?:Định giá|Phân tích Cơ bản|Định giá\/PTCB|Phân tích cơ bản)[^\n]*\*\*\s*\n?)/i;
   if (headingPattern.test(answer)) {
