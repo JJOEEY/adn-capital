@@ -1860,7 +1860,7 @@ function hasCompleteScheduledEodPayload(payload: EodPayload): boolean {
 }
 
 function hasArchivedScheduledEodPayload(payload: EodPayload): boolean {
-  return hasCompleteScheduledEodPayload(payload);
+  return hasCompleteScheduledEodPayload(payload) || hasDisplayableEodPayload(payload);
 }
 
 type ScheduledEodCandidate = {
@@ -2180,7 +2180,7 @@ export async function GET(request: NextRequest) {
   if (isInvalidEodOutlook(selected.outlook)) {
     selected.outlook = buildDeterministicEodOutlook(selected);
   }
-  if (!hasArchivedScheduledEodPayload(selected)) {
+  if (!hasDisplayableEodPayload(selected)) {
     return NextResponse.json({ error: "EOD Brief chưa đủ dữ liệu hợp lệ để publish." }, { status: 503 });
   }
   return NextResponse.json(selected);
