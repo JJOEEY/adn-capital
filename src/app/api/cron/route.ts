@@ -1026,7 +1026,7 @@ async function handlePropTrading(
     const eodDetailForReport = normalizedEodDetail;
     const safeReport = buildFull19PublicReport(today, snapshot, eodDetailForReport);
 
-    await saveMarketReport(
+    const savedReport = await saveMarketReport(
       "eod_full_19h",
       `Bản tin tổng hợp 19:00 ${today}`,
       safeReport,
@@ -1050,6 +1050,12 @@ async function handlePropTrading(
         publishBlockers: snapshot.publishBlockers,
       }
     );
+    if (forceRun && backfillDateISO && savedReport?.id) {
+      await prisma.marketReport.update({
+        where: { id: savedReport.id },
+        data: { createdAt: new Date(`${backfillDateISO}T12:00:30.000Z`) },
+      });
+    }
     await pushNotification("eod_full_19h", `🌙 Bản tin tổng hợp 19:00 ${today}`, safeReport);
     invalidateTopics({ tags: ["news", "brief", "market", "dashboard"] });
     await emitWorkflowTrigger({
