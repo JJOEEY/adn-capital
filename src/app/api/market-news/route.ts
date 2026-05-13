@@ -280,8 +280,12 @@ function toDateKey(value: unknown): string | null {
   const trimmed = value.trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
   const viMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (!viMatch) return null;
-  const [, day, month, year] = viMatch;
+  const longViMatch = normalizeForCheck(trimmed).match(
+    /(?:^|,\s*)(\d{1,2})\s+thang\s+(\d{1,2})(?:\s+nam|,)?\s+(\d{4})$/,
+  );
+  const match = viMatch ?? longViMatch;
+  if (!match) return null;
+  const [, day, month, year] = match;
   return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
 }
 
