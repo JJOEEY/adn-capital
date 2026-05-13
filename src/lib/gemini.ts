@@ -239,6 +239,32 @@ export async function executeFlashOnlyAIRequest(
   return response.text ?? "";
 }
 
+export async function streamFlashOnlyAIRequest(
+  prompt: string,
+  systemInstruction: string | undefined,
+  onDelta: (text: string) => void,
+  options: { signal?: AbortSignal } = {},
+): Promise<string> {
+  const sysInstr = systemInstruction ?? SYSTEM_INSTRUCTIONS.GENERAL;
+  const response = await genAI.models.generateContentStream({
+    model: MODEL_FLASH,
+    contents: prompt,
+    config: {
+      systemInstruction: sysInstr,
+      thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
+    },
+  });
+  let output = "";
+  for await (const chunk of response) {
+    if (options.signal?.aborted) throw new Error("stream aborted");
+    const text = chunk.text ?? "";
+    if (!text) continue;
+    output += text;
+    onDelta(text);
+  }
+  return output;
+}
+
 export function getGeminiModel(_modelName?: string) {
   return {
     generateContent: async (prompt: string) => {
