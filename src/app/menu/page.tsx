@@ -8,6 +8,7 @@ import {
   Bell,
   BookOpen,
   Bot,
+  ChevronDown,
   ChevronRight,
   Crown,
   FlaskConical,
@@ -18,6 +19,7 @@ import {
   Shield,
   Sun,
   User,
+  HelpCircle,
   type LucideIcon,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -74,6 +76,14 @@ const preferenceLabels: Array<{ key: PreferenceKey; label: string; description: 
   },
 ];
 
+const supportLinks = [
+  { label: "Group Zalo", href: "https://zalo.me/g/penyeg076" },
+  { label: "Group Telegram", href: "https://t.me/+8_Dq4X4Y7SI2ZWVl" },
+  { label: "Fanpage", href: "https://www.facebook.com/adninvestment" },
+  { label: "Zalo/Mess: 0962 977 179", href: "tel:0962977179" },
+  { label: "Group Facebook", href: "https://www.facebook.com/groups/859376078997090" },
+];
+
 export default function MenuPage() {
   const { data: session } = useSession();
   const { theme, toggleTheme } = useTheme();
@@ -81,6 +91,7 @@ export default function MenuPage() {
   const [avatarError, setAvatarError] = useState(false);
   const [preferences, setPreferences] = useState<Record<PreferenceKey, boolean>>(DEFAULT_PREFERENCES);
   const [savingKey, setSavingKey] = useState<PreferenceKey | null>(null);
+  const [supportOpen, setSupportOpen] = useState(false);
 
   const userName = dbUser?.name || session?.user?.name || "User";
   const userImage = dbUser?.image || session?.user?.image || null;
@@ -328,6 +339,36 @@ export default function MenuPage() {
             })}
           </div>
         ))}
+
+        <div className="overflow-hidden rounded-2xl border bg-[var(--surface)]" style={{ borderColor: "var(--border)" }}>
+          <button
+            type="button"
+            onClick={() => setSupportOpen((value) => !value)}
+            className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors"
+          >
+            <HelpCircle className="h-5 w-5 shrink-0" style={{ color: "var(--text-secondary)" }} />
+            <span className="flex-1 text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+              Hỗ trợ
+            </span>
+            <ChevronDown className={`h-4 w-4 transition ${supportOpen ? "rotate-180" : ""}`} style={{ color: "var(--text-muted)" }} />
+          </button>
+          {supportOpen && (
+            <div className="border-t px-3 py-2" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+              {supportLinks.map((item) => (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  target={item.href.startsWith("http") ? "_blank" : undefined}
+                  rel={item.href.startsWith("http") ? "noreferrer" : undefined}
+                  className="block rounded-xl px-3 py-2 text-sm font-semibold"
+                  style={{ color: "var(--text-secondary)" }}
+                >
+                  {item.label}
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
 
         {isAuthenticated && (
           <button

@@ -449,6 +449,69 @@ export default function DashboardPage() {
       {/* ═══ TICKER TAPE ═══ */}
       {loading || !data ? <TickerTapeSkeleton /> : <TickerTape items={tickerItems} />}
 
+      <div className="px-4 pb-2 lg:hidden">
+        <section className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                ADN Pulse
+              </p>
+              <h1 className="mt-1 text-xl font-black" style={{ color: "var(--text-primary)" }}>
+                Chiến lược hôm nay
+              </h1>
+            </div>
+            <span
+              className="rounded-full border px-2.5 py-1 text-[11px] font-black"
+              style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--primary)" }}
+            >
+              {data?.date ?? "Live"}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+              <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>ADNCore</p>
+              <p className="mt-1 text-2xl font-black" style={{ color: "var(--text-primary)" }}>
+                {effectiveOverview?.score ?? "--"}<span className="text-xs" style={{ color: "var(--text-muted)" }}>/{effectiveOverview?.max_score ?? 14}</span>
+              </p>
+              <p className="mt-1 line-clamp-1 text-xs" style={{ color: "var(--text-secondary)" }}>
+                {effectiveOverview?.status_badge ? cleanStatusBadge(effectiveOverview.status_badge) : "Đang đọc thị trường"}
+              </p>
+            </div>
+            <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+              <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>ADN ART</p>
+              <p className="mt-1 text-2xl font-black" style={{ color: "var(--text-primary)" }}>
+                {effectiveOverview?.level ? `L${effectiveOverview.level}` : "--"}
+              </p>
+              <p className="mt-1 line-clamp-1 text-xs" style={{ color: "var(--text-secondary)" }}>
+                {effectiveOverview?.action_message ?? "Ưu tiên quản trị rủi ro"}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-3 rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+            <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+              AIDEN
+            </p>
+            <p className="mt-1 line-clamp-3 text-sm leading-relaxed" style={{ color: "var(--text-primary)" }}>
+              {data?.aiSummary || "AIDEN đang tổng hợp bối cảnh thị trường, ưu tiên giữ tỷ trọng an toàn."}
+            </p>
+          </div>
+
+          <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs font-bold">
+            <Link className="rounded-xl border px-2 py-2" href="/notifications?tab=updates" style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}>
+              Morning
+            </Link>
+            <Link className="rounded-xl border px-2 py-2" href="/notifications?tab=updates" style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}>
+              EOD
+            </Link>
+            <Link className="rounded-xl border px-2 py-2" href="/dashboard/signal-map" style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}>
+              Radar {Array.isArray(activeSignalsTopic.data) ? activeSignalsTopic.data.length : 0}
+            </Link>
+          </div>
+        </section>
+      </div>
+
       <div className="w-full min-w-0 overflow-x-hidden space-y-4 px-3 md:px-5 xl:px-6">
         {/* Header */}
         <div className="flex items-center justify-between">

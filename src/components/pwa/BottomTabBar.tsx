@@ -3,16 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
-import { Activity, Bot, BookOpenText, Home, Menu, Newspaper } from "lucide-react";
-import { PRODUCT_NAMES } from "@/lib/brand/productNames";
+import { Bot, Crosshair, Eye, Home, PieChart } from "lucide-react";
 
 const tabs = [
-  { href: "/dashboard", label: "Trang ch\u1ee7", icon: Home },
-  { href: "/tin-tuc", label: "Tin T\u1ee9c", icon: Newspaper },
-  { href: "/dashboard/signal-map", label: PRODUCT_NAMES.brokerWorkflow, icon: Bot },
-  { href: "/art", label: PRODUCT_NAMES.art, icon: Activity },
-  { href: "/journal", label: "Nh\u1eadt k\u00fd", icon: BookOpenText },
-  { href: "/menu", label: "Menu", icon: Menu },
+  { href: "/dashboard", label: "Pulse", icon: Home },
+  { href: "/dashboard/signal-map", label: "Radar", icon: Crosshair },
+  { href: "/aiden", label: "AIDEN", icon: Bot },
+  { href: "/watchlist", label: "Watch", icon: Eye },
+  { href: "/portfolio", label: "Portfolio", icon: PieChart },
 ];
 
 export function BottomTabBar() {
@@ -39,7 +37,7 @@ export function BottomTabBar() {
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
       }}
     >
-      <div className="mx-auto grid h-16 max-w-xl grid-cols-6 items-center px-1">
+      <div className="mx-auto grid h-16 max-w-xl grid-cols-5 items-center px-1">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const active = isActive(tab.href);

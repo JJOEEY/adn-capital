@@ -30,6 +30,7 @@ import {
   Wallet,
   Zap,
 } from "lucide-react";
+import { MobileTopBar } from "@/components/pwa/MobileTopBar";
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 import { BRAND, PRODUCT_NAMES } from "@/lib/brand/productNames";
@@ -379,8 +380,10 @@ export function Header() {
         <SidebarContent />
       </aside>
 
+      <MobileTopBar />
+
       <header
-        className="fixed top-0 left-0 right-0 z-50 lg:hidden"
+        className="hidden"
         style={{
           background: "var(--glass-surface-strong)",
           borderBottom: "1px solid var(--border)",

@@ -85,6 +85,7 @@ model User {
   chats          Chat[]
   paymentOrders  PaymentOrder[]
   tradingJournal TradingJournal[]
+  watchlistItems UserWatchlistItem[]
   pushSubscriptions PushSubscription[]
   notifications  Notification[]
   notificationPreferences NotificationPreference[]
@@ -112,6 +113,23 @@ model NotificationPreference {
 
   @@unique([userId, key])
   @@index([key, enabled])
+}
+
+model UserWatchlistItem {
+  id             String   @id @default(cuid())
+  userId         String
+  ticker         String
+  source         String?  // radar | manual | aiden
+  sourceSignalId String?
+  note           String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, ticker])
+  @@index([userId, updatedAt])
+  @@index([ticker])
 }
 
 model DnseConnection {

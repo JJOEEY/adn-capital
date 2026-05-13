@@ -384,7 +384,7 @@ async function loadPortfolioHoldingForUser(userId: string, ticker: string) {
 }
 
 async function loadWatchlistForUser(userId: string) {
-  const [portfolio, radar, chats] = await Promise.all([
+  const [portfolio, radar, chats, savedItems] = await Promise.all([
     loadPortfolioSignalsForUser(userId),
     loadSignalList("RADAR"),
     prisma.chat.findMany({
@@ -393,9 +393,15 @@ async function loadWatchlistForUser(userId: string) {
       take: 50,
       select: { message: true },
     }),
+    prisma.userWatchlistItem.findMany({
+      where: { userId },
+      orderBy: { updatedAt: "desc" },
+      select: { ticker: true },
+    }),
   ]);
 
   const tickers = new Set<string>();
+  for (const row of savedItems) tickers.add(row.ticker);
   for (const row of portfolio.positions) tickers.add(row.ticker);
   for (const row of radar) tickers.add(row.ticker);
   for (const row of chats) {

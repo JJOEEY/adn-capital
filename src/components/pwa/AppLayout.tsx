@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { BottomTabBar } from "@/components/pwa/BottomTabBar";
 import { SplashScreen } from "@/components/pwa/SplashScreen";
-import { useSwipeNavigation } from "@/hooks/useSwipeNavigation";
 
 /**
  * AppLayout — PWA app layout wrapper.
@@ -15,7 +14,6 @@ import { useSwipeNavigation } from "@/hooks/useSwipeNavigation";
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [isStandalone, setIsStandalone] = useState(false);
   const [showSplash, setShowSplash] = useState(false);
-  const swipeHandlers = useSwipeNavigation();
 
   useEffect(() => {
     // Detect PWA standalone mode
@@ -37,7 +35,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       {showSplash && <SplashScreen />}
 
       <div
-        {...swipeHandlers}
         className="min-h-screen pb-20"
         style={{
           background: "var(--page-background)",

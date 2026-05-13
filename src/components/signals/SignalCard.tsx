@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Zap, Clock, Target, TrendingUp, Bot, BarChart3 } from "lucide-react";
+import { BookmarkPlus, Clock, Target, TrendingUp, Bot, BarChart3, Zap } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 import type { Signal } from "@/types";
 
@@ -12,6 +12,8 @@ interface SignalCardProps {
   index: number;
   buyHref?: string;
   showBuyAction?: boolean;
+  onWatchlist?: (signal: Signal) => void;
+  watchlistLoading?: boolean;
 }
 
 /* Design token colours per spec */
@@ -26,7 +28,13 @@ const TIER_CONFIG: Record<TierType, {
   TAM_NGAM: { icon: "🎯", label: "TẦM NGẮM",  navBarColor: "#7D8471" },
 };
 
-export function SignalCard({ signal, buyHref, showBuyAction = false }: SignalCardProps) {
+export function SignalCard({
+  signal,
+  buyHref,
+  showBuyAction = false,
+  onWatchlist,
+  watchlistLoading = false,
+}: SignalCardProps) {
   const tier = (signal.tier ?? "NGAN_HAN") as TierType;
   const cfg = TIER_CONFIG[tier] ?? TIER_CONFIG.NGAN_HAN;
 
@@ -369,9 +377,35 @@ export function SignalCard({ signal, buyHref, showBuyAction = false }: SignalCar
         </div>
       )}
 
-      {showBuyAction && buyHref ? (
+      <div className="mx-3 mb-3 grid grid-cols-2 gap-2">
+        <Link href={`/stock/${signal.ticker}`}>
+          <button
+            type="button"
+            className="w-full rounded-xl border px-3 py-2 text-xs font-black transition-all hover:opacity-90"
+            style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-primary)" }}
+          >
+            Xem kế hoạch
+          </button>
+        </Link>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onWatchlist?.(signal);
+          }}
+          disabled={!onWatchlist || watchlistLoading}
+          className="flex w-full items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-black transition-all hover:opacity-90 disabled:opacity-50"
+          style={{ background: "var(--primary)", color: "var(--on-primary)" }}
+        >
+          <BookmarkPlus className="h-3.5 w-3.5" />
+          Theo dõi
+        </button>
+      </div>
+
+      {false && showBuyAction && buyHref ? (
         <div className="mx-3 mb-3">
-          <Link href={buyHref}>
+          <Link href={buyHref ?? "#"}>
             <button
               className="w-full rounded-xl px-3 py-2 text-xs font-black transition-all hover:opacity-90"
               style={{ background: "var(--primary)", color: "var(--on-primary)" }}

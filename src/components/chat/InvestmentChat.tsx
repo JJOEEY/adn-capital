@@ -592,8 +592,8 @@ export function InvestmentChat({
             }}
             disabled={isLoading || disableInput}
             placeholder={forceDirectChat ? "Hỏi AIDEN về thị trường hoặc cổ phiếu..." : "Nhập mã CP (HPG) hoặc câu hỏi tự do..."}
-            className="h-11 flex-1 rounded-full border px-4 text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:opacity-50"
-            style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
+            className="h-11 flex-1 rounded-full border px-4 text-[16px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:opacity-50"
+            style={{ borderColor: "var(--border)", background: "var(--surface-2)", fontSize: "16px" }}
           />
           <button
             onClick={handleSubmit}

@@ -77,6 +77,7 @@ export function SignalMapClient({
   const [tierFilter, setTierFilter] = useState<TierFilter>("all");
   const [isScanning, setIsScanning] = useState(false);
   const [isTradingSession, setIsTradingSession] = useState(false);
+  const [watchlistTicker, setWatchlistTicker] = useState<string | null>(null);
 
   useEffect(() => {
     const updateTradingSession = () => setIsTradingSession(isWithinVnTradingSession());
@@ -181,6 +182,25 @@ export function SignalMapClient({
     } finally {
       await signalMapTopic.refresh(true);
       setIsScanning(false);
+    }
+  }
+
+  async function handleWatchlist(signal: Signal) {
+    setWatchlistTicker(signal.ticker);
+    try {
+      const res = await fetch("/api/watchlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticker: signal.ticker, source: "radar", sourceSignalId: signal.id }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        throw new Error(payload?.error || "Không thêm được Watchlist");
+      }
+    } catch (error) {
+      console.error("[SignalMap] Watchlist add failed:", error);
+    } finally {
+      setWatchlistTicker(null);
     }
   }
 
@@ -392,29 +412,13 @@ export function SignalMapClient({
       ) : filtered.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {filtered.map((signal, index) => (
-            (() => {
-              const query = new URLSearchParams({
-                ticker: signal.ticker,
-                side: "BUY",
-                source: "radar",
-                signalId: signal.id,
-              });
-              if (signal.navAllocation != null && Number.isFinite(signal.navAllocation)) {
-                query.set("navPct", String(signal.navAllocation));
-              }
-              if (signal.entryPrice != null && Number.isFinite(signal.entryPrice)) {
-                query.set("entry", String(signal.entryPrice));
-              }
-              return (
             <SignalCard
               key={signal.id}
               signal={signal}
               index={index}
-              showBuyAction={showExecutionActions && tab === "RADAR"}
-              buyHref={`/dashboard/dnse-trading?${query.toString()}`}
+              onWatchlist={handleWatchlist}
+              watchlistLoading={watchlistTicker === signal.ticker}
             />
-              );
-            })()
           ))}
         </div>
       ) : (

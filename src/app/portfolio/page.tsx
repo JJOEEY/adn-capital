@@ -96,6 +96,19 @@ export default function PortfolioPage() {
             >
               <div className="mb-2 flex items-center gap-2" style={{ color: "var(--warning, #f59e0b)" }}>
                 <AlertTriangle className="h-4 w-4" />
+                <span className="font-semibold">Danh mục đang hiển thị theo vị thế ADN đang theo dõi.</span>
+              </div>
+              <p>Không đặt lệnh thật trong phiên bản mobile này. Nếu chưa có vị thế, hệ thống sẽ hiển thị trạng thái trống.</p>
+            </div>
+          ) : null}
+
+          {false && !isConnected ? (
+            <div
+              className="rounded-2xl border p-4 text-sm"
+              style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--text-secondary)" }}
+            >
+              <div className="mb-2 flex items-center gap-2" style={{ color: "var(--warning, #f59e0b)" }}>
+                <AlertTriangle className="h-4 w-4" />
                 <span className="font-semibold">Chưa kết nối DNSE hoặc chưa có dữ liệu danh mục trực tiếp.</span>
               </div>
               <p>Hệ thống đang hiển thị danh mục theo tín hiệu ACTIVE hiện tại để theo dõi nhanh.</p>

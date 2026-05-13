@@ -8,7 +8,6 @@ import { useSidebarStore } from "@/store/sidebarStore";
 import { BottomTabBar } from "@/components/pwa/BottomTabBar";
 import { SplashScreen } from "@/components/pwa/SplashScreen";
 import { AppUpdateNotice } from "@/components/pwa/AppUpdateNotice";
-import { useSwipeNavigation } from "@/hooks/useSwipeNavigation";
 import { isStandaloneAppRuntime } from "@/lib/mobileRuntime";
 
 interface MainLayoutProps {
@@ -18,7 +17,7 @@ interface MainLayoutProps {
 
 export function MainLayout({ children, disableSwipe = false }: MainLayoutProps) {
   const { collapsed } = useSidebarStore();
-  const swipeHandlers = useSwipeNavigation();
+  void disableSwipe;
 
   const [isMobile, setIsMobile] = useState(false);
   const [showSplash, setShowSplash] = useState(false);
@@ -36,9 +35,6 @@ export function MainLayout({ children, disableSwipe = false }: MainLayoutProps) 
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  // Only attach swipe handlers on mobile when not disabled (e.g. chatbot input)
-  const touchProps = isMobile && !disableSwipe ? swipeHandlers : {};
-
   return (
     <div className="min-h-screen flex" style={{ background: "var(--page-background)" }}>
       {showSplash && <SplashScreen />}
@@ -50,7 +46,6 @@ export function MainLayout({ children, disableSwipe = false }: MainLayoutProps) 
       {isMobile && <BottomTabBar />}
 
       <div
-        {...touchProps}
         className={`flex-1 min-w-0 flex flex-col min-h-screen transition-all duration-300 ${
           isMobile
             ? "pb-28"
