@@ -766,7 +766,7 @@ function buildAidenTickerBriefMessage(context: unknown) {
   const coreArtLine = buildCoreArtLine([context]);
   const valuationPeriod = reportDate ? `theo kỳ báo cáo ${reportDate}` : "theo kỳ báo cáo gần nhất";
 
-  return [
+  const priceStructureSection = [
     "**Giá và cấu trúc**",
     `- **${ticker}**: giá hiện tại ${price != null ? formatPrice(price) : "-"}${changePct != null ? ` (${formatPct(changePct)}%)` : ""}.`,
     maFacts.length > 0 ? `- Đường trung bình: ${maFacts.join(" · ")}.` : null,
@@ -775,14 +775,18 @@ function buildAidenTickerBriefMessage(context: unknown) {
       ? `- Thanh khoản: phiên gần nhất ${latestVolume != null ? formatPrice(latestVolume) : "-"}; trung bình 20 phiên ${volumeMa20 != null ? formatPrice(volumeMa20) : "-"}.`
       : null,
     `- Nhận định: ${trendView}`,
-    "",
+  ].filter((line): line is string => Boolean(line)).join("\n");
+
+  const priceZoneSection = [
     "**Vùng giá cần theo dõi**",
     support != null ? `- Hỗ trợ: ${formatPrice(support)}.` : null,
     resistance != null ? `- Kháng cự: ${formatPrice(resistance)}.` : null,
     target != null || stoploss != null
       ? `- Vùng tham chiếu hành động: ${target != null ? `mục tiêu ${formatPrice(target)}` : "mục tiêu theo kháng cự gần nhất"}; ${stoploss != null ? `cắt lỗ ${formatPrice(stoploss)}` : "cắt lỗ theo hỗ trợ gần nhất"}.`
       : null,
-    "",
+  ].filter((line): line is string => Boolean(line)).join("\n");
+
+  const valuationSection = [
     "**Định giá và chất lượng doanh nghiệp**",
     valuationFacts.length > 0
       ? `- **Chỉ số định giá:** ${valuationFacts.join(" · ")} (${valuationPeriod}).`
@@ -791,10 +795,13 @@ function buildAidenTickerBriefMessage(context: unknown) {
     pe != null && pb != null
       ? "- Mức định giá cần được đối chiếu với tốc độ tăng trưởng lợi nhuận và vị thế ngành; không nên chỉ nhìn riêng P/E hoặc P/B để quyết định mua."
       : null,
-    "",
-    "**Hành động phù hợp**",
-    actionView,
   ].filter((line): line is string => Boolean(line)).join("\n");
+
+  const actionSection = ["**Hành động phù hợp**", actionView]
+    .filter((line): line is string => Boolean(line))
+    .join("\n");
+
+  return [priceStructureSection, priceZoneSection, valuationSection, actionSection].join("\n\n");
 }
 
 function buildAidenConversationFallbackMessage(message: string, marketContext: unknown, tickerContexts: unknown[]) {
