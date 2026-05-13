@@ -1275,6 +1275,28 @@ function isWeekdayDateKey(dateKey: string): boolean {
   return day >= 1 && day <= 5;
 }
 
+function shiftDateKey(dateKey: string, days: number): string {
+  const d = new Date(`${dateKey}T00:00:00+07:00`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return reportDateFromCreatedAt(d);
+}
+
+function previousWeekdayDateKey(dateKey: string): string {
+  let cursor = shiftDateKey(dateKey, -1);
+  while (!isWeekdayDateKey(cursor)) {
+    cursor = shiftDateKey(cursor, -1);
+  }
+  return cursor;
+}
+
+function latestExpectedEodDateKey(now: Date): string {
+  const todayKey = reportDateFromCreatedAt(now);
+  if (isWeekdayDateKey(todayKey) && getVnMinuteOfDay(now) >= 19 * 60) {
+    return todayKey;
+  }
+  return previousWeekdayDateKey(todayKey);
+}
+
 function pickPreferredReportDateKey(reports: ReportRow[]): string | null {
   return reports[0] ? getReportDateKey(reports[0]) : null;
 }
@@ -1875,6 +1897,8 @@ function isScheduledEodCandidateAllowed(candidate: ScheduledEodCandidate, now: D
   if (type !== "eod_full_19h" && type !== "close_brief_15h") return false;
 
   const todayKey = reportDateFromCreatedAt(now);
+  const expectedDateKey = latestExpectedEodDateKey(now);
+  if (candidate.dateKey !== expectedDateKey) return false;
   if (candidate.dateKey !== todayKey) {
     return hasArchivedScheduledEodPayload(candidate.payload);
   }
