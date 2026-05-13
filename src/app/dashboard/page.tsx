@@ -710,12 +710,24 @@ const GaugeCard = memo(function GaugeCard({
         border: "1px solid var(--border)",
       }}
     >
-      <p
-        className="text-[12px] font-bold uppercase tracking-wider mb-2 self-start"
-        style={{ color: "var(--text-muted)" }}
-      >
-        ADNCore - Chấm điểm thị trường
-      </p>
+      <div className="w-full flex items-start justify-between gap-3 mb-2">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[12px] font-bold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
+            ADNCORE
+          </span>
+          <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+            Chấm điểm sức mạnh thị trường
+          </span>
+        </div>
+        {overview && (
+          <span
+            className="text-[11px] font-bold px-2 py-0.5 rounded-full border uppercase"
+            style={{ color, backgroundColor: `${color}15`, borderColor: `${color}40` }}
+          >
+            {label}
+          </span>
+        )}
+      </div>
 
       {overview ? (
         <>
@@ -726,12 +738,6 @@ const GaugeCard = memo(function GaugeCard({
                 {score}
               </span>
               <span className="text-[11px] font-bold" style={{ color: "var(--text-muted)" }}>/ {maxScore}</span>
-            </div>
-            <div
-              className="px-3 py-1 rounded-full text-[12px] font-bold uppercase tracking-wider"
-              style={{ color, backgroundColor: `${color}15`, border: `1px solid ${color}40` }}
-            >
-              {label}
             </div>
           </div>
         </>
