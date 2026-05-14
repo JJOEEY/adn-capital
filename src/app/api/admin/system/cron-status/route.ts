@@ -58,6 +58,16 @@ const CRON_JOB_POLICIES: Record<CanonicalCronType, CronJobPolicy> = {
     staleGraceMinutes: 90,
     tradingWindowOnly: false,
   },
+  pulse_smartflow_precompute: {
+    slotsMinutes: [15 * 60 + 10, 19 * 60 + 10],
+    staleGraceMinutes: 90,
+    tradingWindowOnly: false,
+  },
+  art_daily_1905: {
+    slotsMinutes: [19 * 60 + 5],
+    staleGraceMinutes: 120,
+    tradingWindowOnly: false,
+  },
 };
 
 function toMinuteLabel(totalMinutes: number) {

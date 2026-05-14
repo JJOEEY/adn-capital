@@ -43,6 +43,8 @@ type PersistedSignalScanArtifact = SignalScanArtifact & {
   persistedAt: Date;
 };
 
+const PRECOMPUTED_TOPIC_MAX_AGE_MS = 4 * 24 * 60 * 60 * 1000;
+
 function safeParseJson(value: string | null) {
   if (!value) return null;
   try {
@@ -244,6 +246,49 @@ async function loadRsRatingList(force = false) {
   const res = await mod.GET(new NextRequest(url.toString()));
   if (!res.ok) throw new Error(`rs-rating HTTP ${res.status}`);
   return res.json();
+}
+
+type PrecomputedTopicArtifact = {
+  artifactType: "datahub_topic";
+  topic: string;
+  value: unknown;
+  computedAt: string;
+};
+
+function extractPrecomputedTopicValue(
+  row: { resultData: string | null; createdAt: Date },
+  topic: string,
+  maxAgeMs = PRECOMPUTED_TOPIC_MAX_AGE_MS,
+) {
+  const ageMs = Date.now() - row.createdAt.getTime();
+  if (!Number.isFinite(ageMs) || ageMs > maxAgeMs) return null;
+  const parsed = safeParseJson(row.resultData);
+  if (!parsed || typeof parsed !== "object") return null;
+  const record = parsed as Partial<PrecomputedTopicArtifact>;
+  if (record.artifactType !== "datahub_topic" || record.topic !== topic) return null;
+  return record.value ?? null;
+}
+
+async function loadLatestPrecomputedTopicValue(cronName: string, topic: string) {
+  const rows = await prisma.cronLog.findMany({
+    where: { cronName, status: "success" },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+    select: { resultData: true, createdAt: true },
+  });
+  for (const row of rows) {
+    const value = extractPrecomputedTopicValue(row, topic);
+    if (value != null) return value;
+  }
+  return null;
+}
+
+async function loadRsRatingTopic(force = false) {
+  if (!force) {
+    const cached = await loadLatestPrecomputedTopicValue("adn_rank_15h", "research:rs-rating:list");
+    if (cached) return cached;
+  }
+  return loadRsRatingList(force);
 }
 
 function tickerFromTopic(topicKey: string, prefix: string): string {
@@ -2300,6 +2345,13 @@ async function loadPulseSmartflow() {
   };
 }
 
+async function loadPulseSmartflowTopic(force = false) {
+  if (force) return loadPulseSmartflow();
+  const cached = await loadLatestPrecomputedTopicValue("pulse_smartflow_precompute", "pulse:smartflow");
+  if (cached) return cached;
+  throw new Error("pulse_smartflow_precomputed_unavailable");
+}
+
 const TOPIC_DEFINITIONS: TopicDefinition[] = [
   {
     id: "vn:index:overview",
@@ -2392,7 +2444,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     version: "v1",
     tags: ["dashboard", "pulse", "smartflow", "market"],
     match: (topicKey) => (topicKey === "pulse:smartflow" ? { ok: true } : { ok: false }),
-    resolve: async () => loadPulseSmartflow(),
+    resolve: async (_, context) => loadPulseSmartflowTopic(context.force === true),
   },
   {
     id: "news:morning:latest",
@@ -3319,7 +3371,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
       ["research:rs-rating:list", "market:rs:latest", "scan:rs-rating:list"].includes(topicKey)
         ? { ok: true }
         : { ok: false },
-    resolve: async (_, context) => loadRsRatingList(context.force === true),
+    resolve: async (_, context) => loadRsRatingTopic(context.force === true),
   },
 ];
 

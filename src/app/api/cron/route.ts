@@ -34,16 +34,18 @@ import {
 } from "@/lib/marketDataFetcher";
 import { fetchEodNews, type FiinEodNews } from "@/lib/fiinquantClient";
 import { fetchAllCafefNews, buildCafefContext } from "@/lib/cafefScraper";
-import { getVnNow } from "@/lib/time";
+import { getVnDateLabel, getVnNow } from "@/lib/time";
 import { getTopicEnvelope, invalidateTopics } from "@/lib/datahub/core";
+import { getMarketPayloadRows, readMarketNumber } from "@/lib/market-price-normalization";
 import { normalizeCronType, LEGACY_CRON_ALIASES } from "@/lib/cron-contracts";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
 import { emitWorkflowTrigger } from "@/lib/workflows";
 import { emitObservabilityEvent } from "@/lib/observability";
 import { ingestSignalScanBatch } from "@/lib/signals/ingest";
 import { chooseRadarScanMode, RADAR_SCAN_BUDGET, SIGNAL_SCAN_SLOT_SET } from "@/lib/signals/radar-scan-config";
+import { calculateRPI, getLatestRPI, type OHLCVData } from "@/lib/rpi/calculator";
+import { runDnseMarketDataCoverageCheck } from "@/lib/providers/dnse/market-data";
 import {
-  sendActiveHoldingsToTelegram,
   sendActiveSignalsToTelegram,
   sendClaimedSignalsToTelegram,
 } from "@/lib/signals/telegram-notify";
@@ -56,7 +58,10 @@ const SIGNAL_SCAN_TIMEOUT_MS = 600_000;
 const MARKET_OVERVIEW_CACHE_FILE = path.join(process.cwd(), "market_cache.json");
 const EOD_FULL_MINUTE_VN = 19 * 60;
 const ADN_RANK_REFRESH_MINUTE_VN = 15 * 60;
+const ART_DAILY_REFRESH_MINUTE_VN = 19 * 60 + 5;
 const ADN_RANK_TOPIC_KEYS = ["research:rs-rating:list", "market:rs:latest", "scan:rs-rating:list"] as const;
+const SMARTFLOW_TOPIC_KEY = "pulse:smartflow";
+const ART_DAILY_TOPIC_KEY = "vn:historical:VN30:1d";
 
 interface RadarQuotaEstimate {
   monthlyUsed: number;
@@ -213,6 +218,132 @@ async function handleNewsCrawler(): Promise<NextResponse> {
   }
 }
 
+function readArtDate(row: Record<string, unknown>) {
+  const value = row.date ?? row.tradingDate ?? row.time ?? row.timestamp;
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (typeof value === "number") return new Date(value).toISOString().slice(0, 10);
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    if (/^\d{10}$/.test(trimmed)) return new Date(Number(trimmed) * 1000).toISOString().slice(0, 10);
+    if (/^\d{13}$/.test(trimmed)) return new Date(Number(trimmed)).toISOString().slice(0, 10);
+    return trimmed.slice(0, 10);
+  }
+  return null;
+}
+
+function toArtOhlcvRows(value: unknown): OHLCVData[] {
+  return getMarketPayloadRows(value)
+    .map((row) => {
+      const date = readArtDate(row);
+      const open = readMarketNumber(row.open ?? row.o);
+      const high = readMarketNumber(row.high ?? row.h);
+      const low = readMarketNumber(row.low ?? row.l);
+      const close = readMarketNumber(row.close ?? row.c ?? row.price);
+      const volume = readMarketNumber(row.volume ?? row.v ?? row.matchVolume) ?? 0;
+
+      if (!date || open == null || high == null || low == null || close == null) return null;
+      if ([open, high, low, close].some((item) => !Number.isFinite(item) || item <= 0)) return null;
+
+      return { date, open, high, low, close, volume };
+    })
+    .filter((row): row is OHLCVData => row != null)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+async function handleArtDaily1905(forceRun = false): Promise<NextResponse> {
+  const startTime = Date.now();
+  const vnNow = getVnNow();
+  const day = vnNow.day();
+  const minuteOfDay = vnNow.hour() * 60 + vnNow.minute();
+
+  if (!forceRun && (day === 0 || day === 6)) {
+    const duration = Date.now() - startTime;
+    await logCron("art_daily_1905", "skipped", "ADN ART refresh skipped on weekend", duration, {
+      weekday: day,
+    });
+    return NextResponse.json({
+      type: "art_daily_1905",
+      skipped: true,
+      reason: "weekend",
+    });
+  }
+
+  if (!forceRun && minuteOfDay < ART_DAILY_REFRESH_MINUTE_VN) {
+    const duration = Date.now() - startTime;
+    await logCron("art_daily_1905", "skipped", "ADN ART refresh skipped before 19:05 VN", duration, {
+      nextSlot: "19:05",
+    });
+    return NextResponse.json({
+      type: "art_daily_1905",
+      skipped: true,
+      reason: "before_scheduled_slot",
+      nextSlot: "19:05",
+    });
+  }
+
+  try {
+    const invalidated = invalidateTopics({ topics: [ART_DAILY_TOPIC_KEY] });
+    const envelope = await getTopicEnvelope(ART_DAILY_TOPIC_KEY, { force: true, systemRole: "cron" });
+    const rows = toArtOhlcvRows(envelope.value);
+    const history = calculateRPI(rows);
+    const latest = getLatestRPI(history);
+    const duration = Date.now() - startTime;
+
+    if (envelope.freshness === "error" || !latest) {
+      await logCron("art_daily_1905", "error", "ADN ART refresh returned no valid rows", duration, {
+        freshness: envelope.freshness,
+        error: envelope.error,
+        rows: rows.length,
+        invalidated,
+      });
+      return NextResponse.json(
+        {
+          type: "art_daily_1905",
+          published: false,
+          reason: "empty_or_error",
+          freshness: envelope.freshness,
+          error: envelope.error,
+        },
+        { status: 502 },
+      );
+    }
+
+    await logCron("art_daily_1905", "success", `ADN ART refreshed ${latest.date}`, duration, {
+      topic: ART_DAILY_TOPIC_KEY,
+      topicUpdatedAt: envelope.updatedAt,
+      freshness: envelope.freshness,
+      latest,
+      rows: rows.length,
+      historyPoints: history.filter((row) => row.rpi !== null).length,
+      invalidated,
+    });
+
+    return NextResponse.json({
+      type: "art_daily_1905",
+      published: true,
+      topic: ART_DAILY_TOPIC_KEY,
+      topicUpdatedAt: envelope.updatedAt,
+      freshness: envelope.freshness,
+      latest,
+      rows: rows.length,
+      historyPoints: history.filter((row) => row.rpi !== null).length,
+      invalidated,
+    });
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    await logCron("art_daily_1905", "error", String(error), duration);
+    return NextResponse.json(
+      {
+        type: "art_daily_1905",
+        published: false,
+        error: "Khong cap nhat duoc ADN ART",
+      },
+      { status: 500 },
+    );
+  }
+}
+
 async function handleAdnRank15h(forceRun = false): Promise<NextResponse> {
   const startTime = Date.now();
   const vnNow = getVnNow();
@@ -270,6 +401,10 @@ async function handleAdnRank15h(forceRun = false): Promise<NextResponse> {
     }
 
     await logCron("adn_rank_15h", "success", `ADN Rank refreshed ${count} rows`, duration, {
+      artifactType: "datahub_topic",
+      topic: "research:rs-rating:list",
+      value: payload,
+      computedAt: new Date().toISOString(),
       topicUpdatedAt: envelope.updatedAt,
       payloadUpdatedAt: payload?.updatedAt ?? null,
       asOfDate: payload?.asOfDate ?? null,
@@ -293,6 +428,86 @@ async function handleAdnRank15h(forceRun = false): Promise<NextResponse> {
         type: "adn_rank_15h",
         published: false,
         error: "Khong cap nhat duoc ADN Rank",
+      },
+      { status: 500 },
+    );
+  }
+}
+
+async function handlePulseSmartflowPrecompute(forceRun = false): Promise<NextResponse> {
+  const startTime = Date.now();
+  const vnNow = getVnNow();
+  const day = vnNow.day();
+
+  if (!forceRun && (day === 0 || day === 6)) {
+    const duration = Date.now() - startTime;
+    await logCron("pulse_smartflow_precompute", "skipped", "ADN Smartflow skipped on weekend", duration, {
+      weekday: day,
+    });
+    return NextResponse.json({ type: "pulse_smartflow_precompute", skipped: true, reason: "weekend" });
+  }
+
+  try {
+    const invalidated = invalidateTopics({ topics: [SMARTFLOW_TOPIC_KEY], tags: ["smartflow", "dashboard", "market"] });
+    const envelope = await getTopicEnvelope(SMARTFLOW_TOPIC_KEY, { force: true });
+    const payload = envelope.value as {
+      ma200Leaders?: unknown[];
+      institutionalFlowSpikes?: unknown[];
+      institutionalAccumulation3M?: unknown[];
+      sourceStatus?: { publish?: boolean };
+      updatedAt?: string | null;
+    } | null;
+    const count =
+      (Array.isArray(payload?.ma200Leaders) ? payload.ma200Leaders.length : 0) +
+      (Array.isArray(payload?.institutionalFlowSpikes) ? payload.institutionalFlowSpikes.length : 0) +
+      (Array.isArray(payload?.institutionalAccumulation3M) ? payload.institutionalAccumulation3M.length : 0);
+    const duration = Date.now() - startTime;
+
+    if (envelope.freshness === "error" || !payload || payload.sourceStatus?.publish === false || count === 0) {
+      await logCron("pulse_smartflow_precompute", "error", "ADN Smartflow precompute returned no valid payload", duration, {
+        freshness: envelope.freshness,
+        error: envelope.error,
+        invalidated,
+        count,
+      });
+      return NextResponse.json(
+        {
+          type: "pulse_smartflow_precompute",
+          published: false,
+          reason: "empty_or_error",
+          freshness: envelope.freshness,
+          error: envelope.error,
+        },
+        { status: 502 },
+      );
+    }
+
+    await logCron("pulse_smartflow_precompute", "success", `ADN Smartflow precomputed ${count} rows`, duration, {
+      artifactType: "datahub_topic",
+      topic: SMARTFLOW_TOPIC_KEY,
+      value: payload,
+      computedAt: new Date().toISOString(),
+      topicUpdatedAt: envelope.updatedAt,
+      payloadUpdatedAt: payload.updatedAt ?? null,
+      count,
+      invalidated,
+    });
+    return NextResponse.json({
+      type: "pulse_smartflow_precompute",
+      published: true,
+      count,
+      topicUpdatedAt: envelope.updatedAt,
+      payloadUpdatedAt: payload.updatedAt ?? null,
+      invalidated,
+    });
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    await logCron("pulse_smartflow_precompute", "error", String(error), duration);
+    return NextResponse.json(
+      {
+        type: "pulse_smartflow_precompute",
+        published: false,
+        error: "Khong cap nhat duoc ADN Smartflow",
       },
       { status: 500 },
     );
@@ -531,6 +746,10 @@ export async function GET(req: NextRequest) {
   const type = normalizeCronType(requestedType);
   const sync = req.nextUrl.searchParams.get("sync") === "1";
   const forceRun = req.nextUrl.searchParams.get("force") === "1";
+  const backfillDateISO = forceRun ? normalizeBackfillDateParam(req.nextUrl.searchParams.get("date")) : null;
+  if (forceRun && req.nextUrl.searchParams.get("date") && !backfillDateISO) {
+    return NextResponse.json({ error: "Invalid date. Use YYYY-MM-DD." }, { status: 400 });
+  }
 
   if (!type) {
     return NextResponse.json(
@@ -544,6 +763,8 @@ export async function GET(req: NextRequest) {
           "signal_scan_type1",
           "news_crawler",
           "adn_rank_15h",
+          "pulse_smartflow_precompute",
+          "art_daily_1905",
         ],
         legacyAliases: LEGACY_CRON_ALIASES,
       },
@@ -571,7 +792,7 @@ export async function GET(req: NextRequest) {
       return runCronHandlerWithWorkflowHook(type, () => handleCloseBrief15(forceRun), "cron-dispatch:sync");
     }
     if (type === "eod_full_19h") {
-      return runCronHandlerWithWorkflowHook(type, () => handlePropTrading(forceRun), "cron-dispatch:sync");
+      return runCronHandlerWithWorkflowHook(type, () => handlePropTrading(forceRun, backfillDateISO), "cron-dispatch:sync");
     }
     if (type === "market_stats_type2") {
       return runCronHandlerWithWorkflowHook(type, () => handleIntraday(forceRun), "cron-dispatch:sync");
@@ -581,6 +802,12 @@ export async function GET(req: NextRequest) {
     }
     if (type === "adn_rank_15h") {
       return runCronHandlerWithWorkflowHook(type, () => handleAdnRank15h(forceRun), "cron-dispatch:sync");
+    }
+    if (type === "pulse_smartflow_precompute") {
+      return runCronHandlerWithWorkflowHook(type, () => handlePulseSmartflowPrecompute(forceRun), "cron-dispatch:sync");
+    }
+    if (type === "art_daily_1905") {
+      return runCronHandlerWithWorkflowHook(type, () => handleArtDaily1905(forceRun), "cron-dispatch:sync");
     }
     return runCronHandlerWithWorkflowHook(type, () => handleSignalScan5m(forceRun), "cron-dispatch:sync");
   }
@@ -603,13 +830,17 @@ export async function GET(req: NextRequest) {
       } else if (type === "close_brief_15h") {
         await runCronHandlerWithWorkflowHook(type, () => handleCloseBrief15(forceRun), "cron-dispatch:async");
       } else if (type === "eod_full_19h") {
-        await runCronHandlerWithWorkflowHook(type, () => handlePropTrading(forceRun), "cron-dispatch:async");
+        await runCronHandlerWithWorkflowHook(type, () => handlePropTrading(forceRun, backfillDateISO), "cron-dispatch:async");
       } else if (type === "market_stats_type2") {
         await runCronHandlerWithWorkflowHook(type, () => handleIntraday(forceRun), "cron-dispatch:async");
       } else if (type === "news_crawler") {
         await runCronHandlerWithWorkflowHook(type, () => handleNewsCrawler(), "cron-dispatch:async");
       } else if (type === "adn_rank_15h") {
         await runCronHandlerWithWorkflowHook(type, () => handleAdnRank15h(forceRun), "cron-dispatch:async");
+      } else if (type === "pulse_smartflow_precompute") {
+        await runCronHandlerWithWorkflowHook(type, () => handlePulseSmartflowPrecompute(forceRun), "cron-dispatch:async");
+      } else if (type === "art_daily_1905") {
+        await runCronHandlerWithWorkflowHook(type, () => handleArtDaily1905(forceRun), "cron-dispatch:async");
       } else {
         await runCronHandlerWithWorkflowHook(type, () => handleSignalScan5m(forceRun), "cron-dispatch:async");
       }
@@ -928,10 +1159,23 @@ function hasCompleteEodDetail(eodDetail: FiinEodNews | null | undefined): boolea
   return Number.isFinite(liquidity) && liquidity > 0 && hasOutlook && countEodDetailBuckets(eodDetail) >= 3;
 }
 
-async function handlePropTrading(forceRun = false): Promise<NextResponse> {
+function normalizeBackfillDateParam(value: string | null): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return null;
+  return trimmed;
+}
+
+async function handlePropTrading(
+  forceRun = false,
+  backfillDateISO: string | null = null,
+  notify = true,
+): Promise<NextResponse> {
   const startTime = Date.now();
-  const today = getVNDateString();
-  const dateISO = getVNDateISO();
+  const dateISO = forceRun && backfillDateISO ? backfillDateISO : getVNDateISO();
+  const today = forceRun && backfillDateISO
+    ? getVnDateLabel(`${backfillDateISO}T00:00:00+07:00`)
+    : getVNDateString();
 
   try {
     if (!forceRun && getVnMinuteOfDay() < EOD_FULL_MINUTE_VN) {
@@ -1053,7 +1297,7 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
 
     const safeReport = buildFull19PublicReport(today, snapshot, eodDetail);
 
-    await saveMarketReport(
+    const savedReport = await saveMarketReport(
       "eod_full_19h",
       `Bản tin tổng hợp 19:00 ${today}`,
       safeReport,
@@ -1082,10 +1326,6 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
         dateLabel: today,
       },
     });
-    const telegramActiveHoldingsResult = await sendActiveHoldingsToTelegram({
-      tradingDate: dateISO,
-      slotLabel: "19:00",
-    }).catch((error) => ({ ok: false, error: String(error) }));
 
     const duration = Date.now() - startTime;
     await logCron("eod_full_19h", "success", `EOD full 19h, ${duration}ms`, duration, {
@@ -1093,7 +1333,6 @@ async function handlePropTrading(forceRun = false): Promise<NextResponse> {
       providerDiagnostics: snapshot.providerDiagnostics,
       requestDateVN: snapshot.requestDateVN,
       fallbackUsed: snapshot.providerDiagnostics.length > 0,
-      telegramActiveHoldingsResult,
     });
     return NextResponse.json({ type: "eod_full_19h", timestamp: new Date().toISOString(), report: safeReport });
   } catch (error) {
@@ -1218,6 +1457,35 @@ interface PythonScanSignal {
   reason?: string;
 }
 
+async function runSignalScanDnseShadow(signals: PythonScanSignal[]) {
+  if (process.env.DNSE_SHADOW_VALIDATE_ON_SCAN !== "true") return null;
+  const tickers = Array.from(
+    new Set(
+      signals
+        .map((signal) => signal.ticker?.toUpperCase().trim())
+        .filter((ticker): ticker is string => Boolean(ticker)),
+    ),
+  );
+  if (tickers.length === 0) return null;
+  return runDnseMarketDataCoverageCheck({
+    tickers,
+    thresholdPct: 95,
+    concurrency: 6,
+    limit: 80,
+  }).catch((error) => ({
+    provider: "dnse" as const,
+    checkedAt: new Date().toISOString(),
+    requested: tickers.length,
+    covered: 0,
+    coveragePct: 0,
+    thresholdPct: 95,
+    passed: false,
+    missing: tickers.slice(0, 80),
+    durationMs: 0,
+    error: error instanceof Error ? error.message : String(error),
+  }));
+}
+
 async function handleSignalScan5m(forceRun = false): Promise<NextResponse> {
   const startTime = Date.now();
   if (!isTradingDay()) {
@@ -1273,6 +1541,7 @@ async function handleSignalScan5m(forceRun = false): Promise<NextResponse> {
       watchlist_size?: number;
     } = await res.json();
     const signals = Array.isArray(scanResult.signals) ? scanResult.signals : [];
+    const dnseShadow = await runSignalScanDnseShadow(signals);
     const ingestResult = await ingestSignalScanBatch({
       signals,
       detected: Number.isFinite(scanResult.detected) ? Number(scanResult.detected) : signals.length,
@@ -1341,6 +1610,7 @@ async function handleSignalScan5m(forceRun = false): Promise<NextResponse> {
           bridgeMode: scanResult.scan_mode ?? scanMode,
           universeSize: scanResult.universe_size ?? null,
           watchlistSize: scanResult.watchlist_size ?? null,
+          marketDataShadow: dnseShadow,
           estimatedQuotaCost:
             typeof scanResult.estimated_quota_cost === "number" && Number.isFinite(scanResult.estimated_quota_cost)
               ? scanResult.estimated_quota_cost
@@ -1359,7 +1629,6 @@ async function handleSignalScan5m(forceRun = false): Promise<NextResponse> {
         telegramActiveBatchResult,
       },
     );
-
     const totalSignaledToday = await prisma.signalHistory.count({ where: { sentDate: todayISO } });
 
     return NextResponse.json({
@@ -1375,6 +1644,7 @@ async function handleSignalScan5m(forceRun = false): Promise<NextResponse> {
       notified: ingestResult.notified.length,
       scanMode,
       universeSize: scanResult.universe_size ?? null,
+      dnseShadowPassed: dnseShadow?.passed ?? null,
       reconciledWebOnly: 0,
       totalSignaledToday,
     });

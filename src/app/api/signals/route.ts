@@ -5,6 +5,7 @@ import { fetchTAData } from "@/lib/stockData";
 import { loadReportedSignalSummary } from "@/lib/signals/report-history";
 import { buildSignalMapPayload } from "@/lib/signals/signal-map";
 import { normalizeSignalPrice } from "@/lib/signals/price-units";
+import { getRadarPaperAccountPayload } from "@/lib/radar-paper-account";
 
 export const dynamic = "force-dynamic";
 
@@ -85,24 +86,6 @@ async function persistLivePrices(
       }
 
       const currentPnl = +(((normalizedCurrentPrice - normalizedEntryPrice) / normalizedEntryPrice) * 100).toFixed(2);
-      const stoploss = normalizeSignalPrice(signal.stoploss);
-      if (isValidPrice(stoploss) && normalizedCurrentPrice <= stoploss) {
-        updatedCount++;
-        closedCount++;
-        return prisma.signal.update({
-          where: { id: signal.id },
-          data: {
-            status: "CLOSED",
-            closePrice: normalizedCurrentPrice,
-            currentPrice: normalizedCurrentPrice,
-            currentPnl,
-            pnl: currentPnl,
-            closedReason: `Cắt lỗ tự động: giá ${normalizedCurrentPrice.toLocaleString("vi-VN")} <= stoploss ${stoploss.toLocaleString("vi-VN")} (${currentPnl}%)`,
-            closedAt: new Date(),
-          },
-        });
-      }
-
       const existingPrice = normalizeSignalPrice(signal.currentPrice ?? 0);
       if (Math.abs(existingPrice - normalizedCurrentPrice) < 0.0001) {
         return null;
@@ -173,6 +156,7 @@ export async function GET(request: NextRequest) {
     if (statusFilter && ["RADAR", "ACTIVE", "HOLD_TO_DIE", "CLOSED"].includes(statusFilter)) {
       where.status = statusFilter;
     }
+    const refreshLive = request.nextUrl.searchParams.get("refresh") === "1";
 
     let signals = await prisma.signal.findMany({
       where,
@@ -188,7 +172,7 @@ export async function GET(request: NextRequest) {
     )];
 
     let livePriceMap: Record<string, { close: number }> = {};
-    if (liveTickers.length > 0) {
+    if (refreshLive && liveTickers.length > 0) {
       try {
         livePriceMap = await getBatchPrices(liveTickers);
         livePriceMap = await hydrateLivePrices(liveTickers, livePriceMap, true);
@@ -205,6 +189,7 @@ export async function GET(request: NextRequest) {
     }
 
     const now = Date.now();
+    const paperAccount = await getRadarPaperAccountPayload();
     const signalRows = signals.map((s) => {
       const live = liveStatuses.has(s.status) ? livePriceMap[s.ticker] : undefined;
       const liveCurrentPrice =
@@ -252,7 +237,7 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    return NextResponse.json(buildSignalMapPayload(signalRows, reportedToday));
+    return NextResponse.json(buildSignalMapPayload(signalRows, reportedToday, paperAccount));
   } catch (error) {
     console.error("[/api/signals] Lỗi:", error);
     return NextResponse.json(

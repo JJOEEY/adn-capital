@@ -213,7 +213,7 @@ Entry: ${params.entryPrice.toLocaleString()} | Alert: ${params.target.toLocaleSt
 Lý do: ${params.triggerSignal}
 Chu kỳ tháng: ${params.seasonalityLabel} (Win-Rate ${params.winRate}%, Sharpe ${params.sharpeRatio})
 NAV: ${params.navAllocation}%
-Nhắc nhở: Cơ chế gồng lãi — chỉ chốt khi TEI >= 4.8 (thị trường hưng phấn cực độ).`;
+Nhắc nhở: Cơ chế gồng lãi — chỉ chốt khi ART >= 4.8 (thị trường hưng phấn cực độ).`;
 
   try {
     const aiText = await executeAIRequest(prompt, INTENT.GENERAL);
@@ -280,7 +280,7 @@ function buildFinalCard(params: {
     `📅 **Seasonality:** ${params.seasonalityLabel} (WR: ${params.winRate}%, Sharpe: ${params.sharpeRatio})`,
     ``,
     ...(params.aiText ? [`🤖 **AI nhận định:**\n${params.aiText}`, ``] : []),
-    `🔥 **Gồng lãi:** Chốt khi TEI ≥ 4.8 (hưng phấn cực độ) hoặc vi phạm SL.`,
+    `🔥 **Gồng lãi:** Chốt khi ART ≥ 4.8 (hưng phấn cực độ) hoặc vi phạm SL.`,
     `⚠️ Tuân thủ stoploss — Không bình quân giá xuống.`,
   ].join("\n");
 }

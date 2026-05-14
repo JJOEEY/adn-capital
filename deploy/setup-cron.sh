@@ -50,14 +50,23 @@ ${CRON_CLOSE_15H_SCHEDULE:-0 15 * * *} ${CURL_CMD} "${APP_URL}/api/cron?type=${C
 # ADN Rank - price/RS refresh 15:00 VN, Mon-Fri
 ${CRON_ADN_RANK_15H_SCHEDULE:-0 15 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_ADN_RANK_15H:-adn_rank_15h}" >> ${LOG_DIR}/adn_rank_15h.log 2>&1
 
+# ADN Smartflow - precompute heavy Pulse data, Mon-Fri
+${CRON_SMARTFLOW_1510_SCHEDULE:-10 15 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_SMARTFLOW_PRECOMPUTE:-pulse_smartflow_precompute}" >> ${LOG_DIR}/pulse_smartflow_precompute.log 2>&1
+${CRON_SMARTFLOW_1910_SCHEDULE:-10 19 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_SMARTFLOW_PRECOMPUTE:-pulse_smartflow_precompute}" >> ${LOG_DIR}/pulse_smartflow_precompute.log 2>&1
+
 # Type 3 - Full EOD 19:00 VN
 ${CRON_EOD_19H_SCHEDULE:-0 19 * * *} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_EOD_19H:-eod_full_19h}" >> ${LOG_DIR}/eod_full_19h.log 2>&1
+
+# ADN ART - daily refresh 19:05 VN, Mon-Fri
+${CRON_ART_1905_SCHEDULE:-5 19 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_ART_1905:-art_daily_1905}" >> ${LOG_DIR}/art_daily_1905.log 2>&1
 
 # News crawler (07:00-22:30 VN, every 30 minutes)
 ${CRON_NEWS_CRAWLER_SCHEDULE:-*/30 7-22 * * *} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_NEWS_CRAWLER:-news_crawler}" >> ${LOG_DIR}/news_crawler.log 2>&1
 
 # Additional workers (non-canonical event jobs)
 */5 9-15 * * 1-5 ${CURL_CMD} "${APP_URL}/api/cron/signal-lifecycle" >> ${LOG_DIR}/signal_lifecycle.log 2>&1
+30 11 * * 1-5 ${CURL_CMD} "${APP_URL}/api/cron/radar-paper?slot=11:30" >> ${LOG_DIR}/radar_paper.log 2>&1
+0 15 * * 1-5 ${CURL_CMD} "${APP_URL}/api/cron/radar-paper?slot=15:00" >> ${LOG_DIR}/radar_paper.log 2>&1
 0 17 * * 5 ${CURL_CMD} "${APP_URL}/api/cron/ai-weekly-review" >> ${LOG_DIR}/weekly_review.log 2>&1
 
 # Log cleanup
@@ -67,5 +76,5 @@ EOF
 crontab "${CRON_FILE}"
 
 echo "[setup-cron] Installed crontab from ${CRON_FILE}"
-echo "[setup-cron] Canonical cron types: signal_scan_type1, market_stats_type2, morning_brief, close_brief_15h, eod_full_19h, news_crawler, adn_rank_15h"
+echo "[setup-cron] Canonical cron types: signal_scan_type1, market_stats_type2, morning_brief, close_brief_15h, eod_full_19h, news_crawler, adn_rank_15h, pulse_smartflow_precompute, art_daily_1905"
 echo "[setup-cron] Verify with: crontab -l"
