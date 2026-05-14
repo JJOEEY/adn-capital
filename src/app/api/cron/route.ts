@@ -1178,6 +1178,28 @@ function buildEodDetailFromInvestorSnapshot(
         return `${ticker} (${Math.abs(net).toLocaleString("vi-VN", { maximumFractionDigits: 1 })} tỷ)`;
       })
       .filter(Boolean);
+  const rows = Array.isArray(investorRaw?.data) ? (investorRaw.data as Array<Record<string, unknown>>) : [];
+  const pickNumber = (row: Record<string, unknown>, keys: string[]) => {
+    for (const key of keys) {
+      const value = toNumber(row[key]);
+      if (value != null) return value;
+    }
+    return null;
+  };
+  const toBn = (value: number) => (Math.abs(value) > 1_000_000 ? value / 1_000_000_000 : value);
+  const topFromRows = (buyKeys: string[], sellKeys: string[], side: "buy" | "sell") =>
+    rows
+      .map((row) => {
+        const ticker = String(row.ticker ?? row.symbol ?? "").toUpperCase().trim();
+        const buy = pickNumber(row, buyKeys);
+        const sell = pickNumber(row, sellKeys);
+        if (!ticker || buy == null || sell == null) return null;
+        return { ticker, net: toBn(buy - sell) };
+      })
+      .filter((row): row is { ticker: string; net: number } => row != null && (side === "buy" ? row.net > 0 : row.net < 0))
+      .sort((a, b) => (side === "buy" ? b.net - a.net : a.net - b.net))
+      .slice(0, 5)
+      .map((row) => `${row.ticker} (${Math.abs(row.net).toLocaleString("vi-VN", { maximumFractionDigits: 1 })} tỷ)`);
 
   const foreign = (summary.foreign ?? {}) as Record<string, unknown>;
   const proprietary = (summary.proprietary ?? {}) as Record<string, unknown>;
@@ -1209,8 +1231,14 @@ function buildEodDetailFromInvestorSnapshot(
     foreign_top_sell: formatTop(foreign.top_sell ?? foreign.topSell),
     prop_trading_top_buy: formatTop(proprietary.top_buy ?? proprietary.topBuy),
     prop_trading_top_sell: formatTop(proprietary.top_sell ?? proprietary.topSell),
-    individual_top_buy: formatTop(retail.top_buy ?? retail.topBuy),
-    individual_top_sell: formatTop(retail.top_sell ?? retail.topSell),
+    individual_top_buy:
+      formatTop(retail.top_buy ?? retail.topBuy).length > 0
+        ? formatTop(retail.top_buy ?? retail.topBuy)
+        : topFromRows(["localIndividualBuyValue", "localIndividualBuyMatchValue"], ["localIndividualSellValue", "localIndividualSellMatchValue"], "buy"),
+    individual_top_sell:
+      formatTop(retail.top_sell ?? retail.topSell).length > 0
+        ? formatTop(retail.top_sell ?? retail.topSell)
+        : topFromRows(["localIndividualBuyValue", "localIndividualBuyMatchValue"], ["localIndividualSellValue", "localIndividualSellMatchValue"], "sell"),
     sector_gainers: snapshot.topGainers.slice(0, 8).map((item) => `${item.ticker} (+${item.changePct.toFixed(2)}%)`),
     sector_losers: snapshot.topLosers.slice(0, 8).map((item) => `${item.ticker} (${item.changePct.toFixed(2)}%)`),
     buy_signals: snapshot.topGainers.slice(0, 8).map((item) => item.ticker),
