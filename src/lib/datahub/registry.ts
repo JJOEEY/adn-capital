@@ -281,16 +281,30 @@ async function loadMarketBoardForTickers(rawTickers: string) {
     }),
   );
   const tickers = Array.from(new Set(resolved.filter((ticker): ticker is string => Boolean(ticker))));
-  const bridgeBoard = await fetchMarketBoard(tickers).catch(() => null);
-  const dnseBoard = bridgeBoard ? null : await fetchDnseMarketBoard(tickers).catch(() => null);
-  const board = bridgeBoard ?? dnseBoard;
-  const prices = Object.fromEntries(
-    Object.entries(board?.prices ?? {}).map(([ticker, row]) => [ticker, normalizeMarketBoardRow(row as JsonRecord)]),
-  );
+  const [dnseBoard, bridgeBoard] = await Promise.all([
+    fetchDnseMarketBoard(tickers).catch(() => null),
+    fetchMarketBoard(tickers).catch(() => null),
+  ]);
+  const priceEntries: Array<[string, JsonRecord]> = [];
+  for (const ticker of tickers) {
+    const dnseRow = dnseBoard?.prices?.[ticker] as JsonRecord | undefined;
+    const bridgeRow = bridgeBoard?.prices?.[ticker] as JsonRecord | undefined;
+    if (!dnseRow && !bridgeRow) continue;
+    const merged = {
+      ...(bridgeRow ?? {}),
+      ...(dnseRow ?? {}),
+      reference: dnseRow?.reference ?? dnseRow?.refPrice ?? bridgeRow?.reference ?? bridgeRow?.refPrice,
+      ceiling: dnseRow?.ceiling ?? bridgeRow?.ceiling,
+      floor: dnseRow?.floor ?? bridgeRow?.floor,
+      source: dnseRow ? "DNSE realtime" : bridgeRow?.source,
+    };
+    priceEntries.push([ticker, normalizeMarketBoardRow(merged)]);
+  }
+  const prices = Object.fromEntries(priceEntries);
   return {
     tickers,
     prices,
-    source: bridgeBoard ? "VNStock price_board via FiinQuant Bridge" : "DNSE market data",
+    source: dnseBoard ? "DNSE realtime + FiinQuant fallback" : "FiinQuant fallback",
     updatedAt: new Date().toISOString(),
   };
 }
@@ -2165,11 +2179,15 @@ async function loadMa200Breadth(tickers: string[]) {
 async function loadSmartflowPriceMap(tickers: string[]) {
   const normalized = Array.from(new Set(tickers.map((ticker) => ticker.toUpperCase()).filter(Boolean))).slice(0, 50);
   if (normalized.length === 0) return new Map<string, number>();
-  const board = await fetchDnseMarketBoard(normalized)
-    .catch(() => null) ?? await fetchMarketBoard(normalized).catch(() => null);
+  const [dnseBoard, bridgeBoard] = await Promise.all([
+    fetchDnseMarketBoard(normalized).catch(() => null),
+    fetchMarketBoard(normalized).catch(() => null),
+  ]);
   const prices = new Map<string, number>();
   for (const ticker of normalized) {
-    const row = (board?.prices as JsonRecord | undefined)?.[ticker] as JsonRecord | undefined;
+    const row =
+      ((dnseBoard?.prices as JsonRecord | undefined)?.[ticker] as JsonRecord | undefined) ??
+      ((bridgeBoard?.prices as JsonRecord | undefined)?.[ticker] as JsonRecord | undefined);
     const price = readPositiveNumber(row?.close ?? row?.price ?? row?.currentPrice ?? row?.matchPrice ?? row?.lastPrice);
     if (price != null && Number.isFinite(price) && price > 0) {
       prices.set(ticker, Number(price.toFixed(2)));

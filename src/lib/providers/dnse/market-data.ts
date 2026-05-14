@@ -47,8 +47,11 @@ const DEFAULT_BASE_URLS = [
   "https://api.dnse.com.vn/openapi",
   "https://api.dnse.com.vn",
 ];
+const DEFAULT_WS_BASE_URL = "wss://ws-openapi.dnse.com.vn";
 const CACHE_TTL_MS = 45_000;
+const REALTIME_OHLC_TTL_MS = 20_000;
 const cache = new Map<string, { expiresAt: number; value: unknown }>();
+const realtimeOhlcCache = new Map<string, { expiresAt: number; value: DnseOhlcPayload }>();
 let authBlockedUntilMs = 0;
 
 function toRecord(value: unknown): JsonRecord | null {
@@ -246,6 +249,14 @@ function timeframeToResolution(timeframe: string) {
   return normalized.toUpperCase();
 }
 
+function resolutionToTimeframe(resolution: string) {
+  const normalized = resolution.trim().toUpperCase();
+  if (normalized === "1D") return "1d";
+  if (normalized === "1W") return "1w";
+  if (/^\d+$/.test(normalized)) return `${normalized}m`;
+  return normalized.toLowerCase();
+}
+
 function readArray(root: JsonRecord, keys: string[]) {
   for (const key of keys) {
     const value = root[key];
@@ -259,7 +270,19 @@ function tsToDate(timestamp: number) {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
-function normalizeOhlc(symbol: string, timeframe: string, payload: unknown): DnseOhlcPayload | null {
+function tsToIso(timestamp: number) {
+  const ms = timestamp > 10_000_000_000 ? timestamp : timestamp * 1000;
+  return new Date(ms).toISOString();
+}
+
+function normalizeDnsePrice(value: unknown, marketType: string) {
+  const numberValue = readNumber(value);
+  if (numberValue == null || numberValue <= 0 || !Number.isFinite(numberValue)) return null;
+  if (marketType === "STOCK" && numberValue < 1000) return Math.round((numberValue * 1000) / 10) * 10;
+  return Math.round(numberValue * 100) / 100;
+}
+
+function normalizeOhlc(symbol: string, timeframe: string, payload: unknown, marketType = "STOCK"): DnseOhlcPayload | null {
   const root = toRecord(payload);
   if (!root) return null;
   const dataRoot = toRecord(root.data) ?? root;
@@ -273,10 +296,10 @@ function normalizeOhlc(symbol: string, timeframe: string, payload: unknown): Dns
   const rows = times
     .map((rawTime, index) => {
       const timestamp = readNumber(rawTime);
-      const open = readNumber(opens[index]);
-      const high = readNumber(highs[index]);
-      const low = readNumber(lows[index]);
-      const close = readNumber(closes[index]);
+      const open = normalizeDnsePrice(opens[index], marketType);
+      const high = normalizeDnsePrice(highs[index], marketType);
+      const low = normalizeDnsePrice(lows[index], marketType);
+      const close = normalizeDnsePrice(closes[index], marketType);
       const volume = readNumber(volumes[index]) ?? 0;
       if (timestamp == null || open == null || high == null || low == null || close == null) return null;
       if ([open, high, low, close].some((value) => value <= 0 || !Number.isFinite(value))) return null;
@@ -302,19 +325,233 @@ function normalizeOhlc(symbol: string, timeframe: string, payload: unknown): Dns
   };
 }
 
+function getWsBaseUrl() {
+  return (process.env.DNSE_MARKET_WS_BASE_URL?.trim() || DEFAULT_WS_BASE_URL).replace(/\/+$/, "");
+}
+
+function isVnTradingWindow() {
+  if (process.env.DNSE_MARKET_WS_ALWAYS_TRY === "true") return true;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date());
+  const weekday = parts.find((part) => part.type === "weekday")?.value ?? "";
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? "0");
+  const minute = Number(parts.find((part) => part.type === "minute")?.value ?? "0");
+  if (["Sat", "Sun"].includes(weekday)) return false;
+  const minutes = hour * 60 + minute;
+  return minutes >= 8 * 60 + 45 && minutes <= 15 * 60 + 5;
+}
+
+function createWsAuthMessage() {
+  const apiKey = process.env.DNSE_API_KEY?.trim() ?? "";
+  const apiSecret = process.env.DNSE_API_SECRET?.trim() ?? "";
+  if (!apiKey || !apiSecret) return null;
+  const timestamp = Math.floor(Date.now() / 1000);
+  const nonce = String(Date.now() * 1000);
+  const message = `${apiKey}:${timestamp}:${nonce}`;
+  const signature = crypto.createHmac("sha256", apiSecret).update(message, "utf8").digest("hex");
+  return { action: "auth", api_key: apiKey, signature, timestamp, nonce };
+}
+
+async function decodeWsData(data: unknown): Promise<JsonRecord | null> {
+  try {
+    if (typeof data === "string") return toRecord(JSON.parse(data));
+    if (data instanceof ArrayBuffer) return toRecord(JSON.parse(Buffer.from(data).toString("utf8")));
+    if (ArrayBuffer.isView(data)) return toRecord(JSON.parse(Buffer.from(data.buffer).toString("utf8")));
+    if (typeof Blob !== "undefined" && data instanceof Blob) return toRecord(JSON.parse(await data.text()));
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function waitForOpen(ws: WebSocket, timeoutMs: number) {
+  return new Promise<boolean>((resolve) => {
+    const timer = setTimeout(() => resolve(false), timeoutMs);
+    ws.addEventListener("open", () => {
+      clearTimeout(timer);
+      resolve(true);
+    }, { once: true });
+    ws.addEventListener("error", () => {
+      clearTimeout(timer);
+      resolve(false);
+    }, { once: true });
+  });
+}
+
+function cacheRealtimeOhlc(payload: DnseOhlcPayload) {
+  realtimeOhlcCache.set(`${payload.ticker}:${payload.timeframe}`, {
+    expiresAt: Date.now() + REALTIME_OHLC_TTL_MS,
+    value: payload,
+  });
+}
+
+function getCachedRealtimeOhlc(symbol: string, timeframe: string) {
+  const cached = realtimeOhlcCache.get(`${normalizeSymbol(symbol)}:${timeframe}`);
+  if (!cached || cached.expiresAt <= Date.now()) return null;
+  return cached.value;
+}
+
+function normalizeWsOhlcMessage(row: JsonRecord, fallbackResolution: string): DnseOhlcPayload | null {
+  const symbol = readString(row, ["symbol", "Symbol", "s"]);
+  if (!symbol) return null;
+  const normalized = normalizeSymbol(symbol);
+  const marketType = (readString(row, ["type", "Type"]) ?? (INDEX_SYMBOLS.has(normalized) ? "INDEX" : "STOCK")).toUpperCase();
+  const timestamp = readBestNumber(row, ["time", "timestamp", "t"]);
+  const open = normalizeDnsePrice(row.open ?? row.o, marketType);
+  const high = normalizeDnsePrice(row.high ?? row.h, marketType);
+  const low = normalizeDnsePrice(row.low ?? row.l, marketType);
+  const close = normalizeDnsePrice(row.close ?? row.c, marketType);
+  if (timestamp == null || open == null || high == null || low == null || close == null) return null;
+  const volume = readBestNumber(row, ["volume", "v"]) ?? 0;
+  const resolution = readString(row, ["resolution", "Resolution"]) ?? fallbackResolution;
+  const timeframe = resolutionToTimeframe(resolution);
+  return {
+    ticker: normalized,
+    timeframe,
+    source: "dnse",
+    count: 1,
+    data: [{
+      date: tsToIso(timestamp),
+      timestamp,
+      open,
+      high,
+      low,
+      close,
+      volume,
+    }],
+  };
+}
+
+export async function fetchDnseRealtimeOhlc(
+  symbols: string[],
+  options?: { timeframe?: string; timeoutMs?: number },
+): Promise<Record<string, DnseOhlcPayload>> {
+  const normalized = Array.from(new Set(symbols.map(normalizeSymbol).filter(Boolean))).slice(0, 50);
+  const timeframe = options?.timeframe ?? "5m";
+  const resolution = timeframeToResolution(timeframe);
+  const result: Record<string, DnseOhlcPayload> = {};
+  const missing = normalized.filter((symbol) => {
+    const cached = getCachedRealtimeOhlc(symbol, resolutionToTimeframe(resolution));
+    if (cached) result[symbol] = cached;
+    return !cached;
+  });
+  if (missing.length === 0) return result;
+  if (!isVnTradingWindow()) return result;
+  const auth = createWsAuthMessage();
+  if (!auth) return result;
+
+  const timeoutMs = Math.max(800, Math.min(options?.timeoutMs ?? 2_500, 6_000));
+  const ws = new WebSocket(`${getWsBaseUrl()}/v1/stream?encoding=json`);
+  const queue: JsonRecord[] = [];
+  let waiter: ((value: JsonRecord | null) => void) | null = null;
+
+  const pushMessage = (message: JsonRecord | null) => {
+    if (!message) return;
+    const action = readString(message, ["action", "a"]);
+    if (action === "ping") {
+      try {
+        ws.send(JSON.stringify({ action: "pong" }));
+      } catch {
+        // The one-shot connection may already be closing.
+      }
+    }
+    if (waiter) {
+      const resolve = waiter;
+      waiter = null;
+      resolve(message);
+      return;
+    }
+    queue.push(message);
+  };
+
+  ws.addEventListener("message", (event) => {
+    void decodeWsData(event.data).then(pushMessage);
+  });
+
+  const nextMessage = (deadline: number) =>
+    new Promise<JsonRecord | null>((resolve) => {
+      const queued = queue.shift();
+      if (queued) {
+        resolve(queued);
+        return;
+      }
+      const timer = setTimeout(() => {
+        waiter = null;
+        resolve(null);
+      }, Math.max(1, deadline - Date.now()));
+      waiter = (message) => {
+        clearTimeout(timer);
+        resolve(message);
+      };
+    });
+
+  const deadline = Date.now() + timeoutMs;
+  try {
+    if (!(await waitForOpen(ws, Math.min(timeoutMs, 2_000)))) return result;
+    await nextMessage(deadline);
+    ws.send(JSON.stringify(auth));
+    let authenticated = false;
+    while (Date.now() < deadline && !authenticated) {
+      const message = await nextMessage(deadline);
+      const action = readString(message ?? {}, ["action", "a"]);
+      if (action === "auth_success") authenticated = true;
+      if (action === "auth_error" || action === "error") return result;
+    }
+    if (!authenticated) return result;
+
+    ws.send(JSON.stringify({
+      action: "subscribe",
+      channels: [{ name: `ohlc.${resolution}.json`, symbols: missing }],
+    }));
+
+    const wanted = new Set(missing);
+    while (Date.now() < deadline && wanted.size > 0) {
+      const message = await nextMessage(deadline);
+      if (!message || readString(message, ["T"]) !== "b") continue;
+      const payload = normalizeWsOhlcMessage(message, resolution);
+      if (!payload || !wanted.has(payload.ticker)) continue;
+      cacheRealtimeOhlc(payload);
+      result[payload.ticker] = payload;
+      wanted.delete(payload.ticker);
+    }
+  } finally {
+    try {
+      ws.close();
+    } catch {
+      // Ignore close errors for one-shot market snapshots.
+    }
+  }
+  return result;
+}
+
 export async function fetchDnseOhlc(
   symbol: string,
-  options?: { timeframe?: string; days?: number; timeoutMs?: number },
+  options?: { timeframe?: string; days?: number; timeoutMs?: number; preferRealtime?: boolean },
 ): Promise<DnseOhlcPayload | null> {
   const normalized = normalizeSymbol(symbol);
   if (!normalized) return null;
   const timeframe = options?.timeframe ?? "1d";
+  const shouldUseRealtime = options?.preferRealtime !== false && (options?.days ?? 5) <= 5;
+  if (shouldUseRealtime) {
+    const realtime = await fetchDnseRealtimeOhlc([normalized], {
+      timeframe,
+      timeoutMs: Math.min(options?.timeoutMs ?? 2_500, 2_500),
+    }).catch((): Record<string, DnseOhlcPayload> => ({}));
+    if (realtime[normalized]?.data.length) return realtime[normalized];
+  }
+
   const to = Math.floor(Date.now() / 1000);
   const from = to - (options?.days ?? (timeframe === "1d" ? 260 : 5)) * 86400;
+  const marketType = INDEX_SYMBOLS.has(normalized) ? "INDEX" : "STOCK";
   const payload = await dnseGet<unknown>(
     "/price/ohlc",
     {
-      type: INDEX_SYMBOLS.has(normalized) ? "INDEX" : "STOCK",
+      type: marketType,
       symbol: normalized,
       resolution: timeframeToResolution(timeframe),
       from,
@@ -322,7 +559,7 @@ export async function fetchDnseOhlc(
     },
     { timeoutMs: options?.timeoutMs ?? 12_000, cacheKey: `ohlc:${normalized}:${timeframe}:${options?.days ?? ""}` },
   );
-  return normalizeOhlc(normalized, timeframe, payload);
+  return normalizeOhlc(normalized, timeframe, payload, marketType);
 }
 
 function latestRow(rows: unknown[]): JsonRecord | null {
@@ -389,34 +626,43 @@ async function mapLimit<T, R>(items: T[], limit: number, task: (item: T) => Prom
 export async function fetchDnseMarketBoard(tickers: string[]): Promise<MarketBoardResponse | null> {
   const symbols = Array.from(new Set(tickers.map(normalizeSymbol).filter(Boolean))).slice(0, 50);
   if (symbols.length === 0) return { prices: {} };
+  const realtime = await fetchDnseRealtimeOhlc(symbols, { timeframe: "5m", timeoutMs: 2_000 })
+    .catch((): Record<string, DnseOhlcPayload> => ({}));
   const instruments = await fetchDnseInstruments({ symbols, limit: symbols.length });
   const instrumentMap = new Map(instruments.map((item) => [item.symbol, item]));
 
   const rows = await mapLimit(symbols, 8, async (ticker) => {
+    const realtimeRow = realtime[ticker]?.data?.[0];
     const [latest, close] = await Promise.all([
       fetchDnseLatestTrade(ticker).catch(() => null),
       fetchDnseClosePrice(ticker).catch(() => null),
     ]);
     const latestRow = latest ?? {};
     const closeRow = close ?? {};
+    const marketType = INDEX_SYMBOLS.has(ticker) ? "INDEX" : "STOCK";
     const price =
-      readBestNumber(latestRow, ["price", "matchPrice", "lastPrice", "close"]) ??
-      readBestNumber(closeRow, ["price", "close", "closePrice"]) ??
+      realtimeRow?.close ??
+      normalizeDnsePrice(readBestNumber(latestRow, ["price", "matchPrice", "lastPrice", "close"]), marketType) ??
+      normalizeDnsePrice(readBestNumber(closeRow, ["price", "close", "closePrice"]), marketType) ??
       null;
     if (price == null || price <= 0) return null;
-    const reference = readBestNumber(closeRow, ["reference", "refPrice", "basicPrice", "previousClose"]);
-    const volume = readBestNumber(latestRow, ["volume", "matchVolume", "totalVolume"]) ?? 0;
+    const reference = normalizeDnsePrice(readBestNumber(closeRow, ["reference", "refPrice", "basicPrice", "previousClose"]), marketType);
+    const volume = realtimeRow?.volume ?? readBestNumber(latestRow, ["volume", "matchVolume", "totalVolume"]) ?? 0;
     const change = reference != null && reference > 0 ? price - reference : readBestNumber(latestRow, ["change"]);
     const changePct = reference != null && reference > 0 ? (Number(change ?? 0) / reference) * 100 : readBestNumber(latestRow, ["changePct", "percentChange"]);
     return {
       ticker,
       exchange: instrumentMap.get(ticker)?.marketId ?? undefined,
       close: price,
+      open: realtimeRow?.open,
+      high: realtimeRow?.high,
+      low: realtimeRow?.low,
       reference: reference ?? undefined,
       change: change ?? undefined,
       changePct: changePct ?? undefined,
       volume,
-      source: "dnse",
+      source: realtimeRow ? "dnse-ws" : "dnse",
+      updatedAt: realtimeRow?.date,
     };
   });
 

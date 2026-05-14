@@ -103,13 +103,21 @@ function chunk<T>(items: T[], size: number) {
 async function loadRankCloseMap(symbols: string[]) {
   const prices = new Map<string, Record<string, unknown>>();
   for (const group of chunk(Array.from(new Set(symbols)).filter(Boolean), 50)) {
-    const bridgeBoard = await fetchMarketBoard(group).catch(() => null);
-    const missing = group.filter((ticker) => !bridgeBoard?.prices?.[ticker]);
-    const fallbackBoard = missing.length > 0 ? await fetchDnseMarketBoard(missing).catch(() => null) : null;
+    const [dnseBoard, bridgeBoard] = await Promise.all([
+      fetchDnseMarketBoard(group).catch(() => null),
+      fetchMarketBoard(group).catch(() => null),
+    ]);
     for (const ticker of group) {
-      const row = bridgeBoard?.prices?.[ticker] ?? fallbackBoard?.prices?.[ticker];
-      if (!row) continue;
-      prices.set(ticker, normalizeMarketBoardRow(row as Record<string, unknown>));
+      const dnseRow = dnseBoard?.prices?.[ticker] as Record<string, unknown> | undefined;
+      const bridgeRow = bridgeBoard?.prices?.[ticker] as Record<string, unknown> | undefined;
+      if (!dnseRow && !bridgeRow) continue;
+      prices.set(ticker, normalizeMarketBoardRow({
+        ...(bridgeRow ?? {}),
+        ...(dnseRow ?? {}),
+        reference: dnseRow?.reference ?? dnseRow?.refPrice ?? bridgeRow?.reference ?? bridgeRow?.refPrice,
+        ceiling: dnseRow?.ceiling ?? bridgeRow?.ceiling,
+        floor: dnseRow?.floor ?? bridgeRow?.floor,
+      }));
     }
   }
   return prices;
