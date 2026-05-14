@@ -1893,15 +1893,7 @@ function hasCompleteScheduledEodPayload(payload: EodPayload): boolean {
 function hasArchivedScheduledEodPayload(payload: EodPayload): boolean {
   if (!hasValidEodPayload(payload)) return false;
   if (isInvalidEodOutlook(payload.outlook)) return false;
-  const flowBuckets = countMeaningfulLists([
-    [...payload.foreign_top_buy, ...payload.foreign_top_sell],
-    [...payload.prop_trading_top_buy, ...payload.prop_trading_top_sell],
-    [...payload.individual_top_buy, ...payload.individual_top_sell],
-    [...payload.sector_gainers, ...payload.sector_losers],
-    [...payload.buy_signals, ...payload.sell_signals],
-    [...payload.top_breakout, ...payload.top_new_high],
-  ]);
-  return flowBuckets >= 3 && eodPayloadScore(payload) >= 80;
+  return true;
 }
 
 type ScheduledEodCandidate = {
