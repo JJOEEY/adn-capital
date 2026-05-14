@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback, memo, Suspense, Component, type ReactNode } from "react";
 import Link from "next/link";
-import { RefreshCw, Bot, Zap, ShieldAlert, Flame, TrendingUp, TrendingDown } from "lucide-react";
+import { RefreshCw, Zap, ShieldAlert, Flame, TrendingUp, TrendingDown, Activity, BarChart3 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/Button";
 import { TickerTape, TickerTapeSkeleton } from "@/components/dashboard/TickerTape";
@@ -15,7 +15,7 @@ import { MorningNewsSkeleton, EveningNewsSkeleton } from "@/components/dashboard
 import { LockOverlay } from "@/components/ui/LockOverlay";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useTopic } from "@/hooks/useTopic";
-import { BRAND, PRODUCT_NAMES } from "@/lib/brand/productNames";
+import { PRODUCT_NAMES } from "@/lib/brand/productNames";
 import { classifyTickerSector } from "@/lib/market/sector-classification";
 import { formatPercent, formatPrice, getRsBgStyle, getRsColor, getRsLabel } from "@/lib/utils";
 
@@ -97,6 +97,24 @@ type PulseRankRow = {
   changePercent: number;
   rs: number;
   volume: number;
+};
+
+type SmartflowTickerRow = {
+  ticker: string;
+  net: number;
+};
+
+type SmartflowPayload = {
+  title?: string;
+  subtitle?: string;
+  ma200BreadthPercent?: number | null;
+  ma200BreadthCount?: number | null;
+  ma200BreadthTotal?: number | null;
+  activeBuySellTrend1M?: string | null;
+  activeBuySellTrendNet?: number | null;
+  institutionalFlowSpikes?: SmartflowTickerRow[];
+  institutionalAccumulation3M?: SmartflowTickerRow[];
+  updatedAt?: string | null;
 };
 
 /** Dữ liệu "Đánh giá Đáy Thị Trường" từ Python API */
@@ -347,6 +365,12 @@ export default function DashboardPage() {
     dedupingInterval: 300_000,
     timeoutMs: 5_000,
   });
+  const smartflowTopic = useTopic<SmartflowPayload>("pulse:smartflow", {
+    refreshInterval: 300_000,
+    revalidateOnFocus: false,
+    dedupingInterval: 120_000,
+    timeoutMs: 12_000,
+  });
 
   const data = marketOverviewTopic.data;
   const marketStatus = marketCompositeCacheTopic.data;
@@ -368,7 +392,8 @@ export default function DashboardPage() {
     void eodTopic.refresh(true);
     void vnIndexHistoryTopic.refresh(true);
     void rsRatingTopic.refresh(true);
-  }, [marketOverviewTopic, marketCompositeCacheTopic, marketCompositeLiveTopic, eodTopic, vnIndexHistoryTopic, rsRatingTopic]);
+    void smartflowTopic.refresh(true);
+  }, [marketOverviewTopic, marketCompositeCacheTopic, marketCompositeLiveTopic, eodTopic, vnIndexHistoryTopic, rsRatingTopic, smartflowTopic]);
 
   const tickerItems = useMemo(() => {
     if (!data) return [];
@@ -489,13 +514,8 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="mt-3 rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
-            <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-              AIDEN
-            </p>
-            <p className="mt-1 line-clamp-3 text-sm leading-relaxed" style={{ color: "var(--text-primary)" }}>
-              {data?.aiSummary || "AIDEN đang tổng hợp bối cảnh thị trường, ưu tiên giữ tỷ trọng an toàn."}
-            </p>
+          <div className="mt-3">
+            <ADNSmartflowCard data={smartflowTopic.data ?? null} compact />
           </div>
 
           <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs font-bold">
@@ -602,13 +622,9 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* ═══ AIDEN: Compact full-width decision under market breadth ═══ */}
-        <LockOverlay isLocked={isDashboardLocked} message={`Nâng cấp VIP để mở nhận định ${BRAND.persona}`}>
-          <AIBrokerDecisionCard
-            summary={data?.aiSummary ?? null}
-            signalLabel={effectiveOverview?.action_message ?? null}
-            compact
-          />
+        {/* ═══ ADN Smartflow: opportunity flow under market breadth ═══ */}
+        <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem ADN Smartflow">
+          <ADNSmartflowCard data={smartflowTopic.data ?? null} />
         </LockOverlay>
 
         {/* ═══ BOTTOM: Morning + EOD + ART/Rank ═══ */}
@@ -772,12 +788,24 @@ const GaugeCard = memo(function GaugeCard({
         border: "1px solid var(--border)",
       }}
     >
-      <p
-        className="text-[12px] font-bold uppercase tracking-wider mb-2 self-start"
-        style={{ color: "var(--text-muted)" }}
-      >
-        ADNCore - Chấm điểm thị trường
-      </p>
+      <div className="w-full flex items-start justify-between gap-3 mb-2">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[12px] font-bold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
+            ADNCORE
+          </span>
+          <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+            Chấm điểm sức mạnh thị trường
+          </span>
+        </div>
+        {overview && (
+          <span
+            className="text-[11px] font-bold px-2 py-0.5 rounded-full border uppercase"
+            style={{ color, backgroundColor: `${color}15`, borderColor: `${color}40` }}
+          >
+            {label}
+          </span>
+        )}
+      </div>
 
       {overview ? (
         <>
@@ -788,12 +816,6 @@ const GaugeCard = memo(function GaugeCard({
                 {score}
               </span>
               <span className="text-[11px] font-bold" style={{ color: "var(--text-muted)" }}>/ {maxScore}</span>
-            </div>
-            <div
-              className="px-3 py-1 rounded-full text-[12px] font-bold uppercase tracking-wider"
-              style={{ color, backgroundColor: `${color}15`, border: `1px solid ${color}40` }}
-            >
-              {label}
             </div>
           </div>
         </>
@@ -827,42 +849,127 @@ function GaugeCardSkeleton() {
 }
 
 
-const AIBrokerDecisionCard = memo(function AIBrokerDecisionCard({
-  summary,
-  signalLabel,
+function formatSmartflowValue(value: number | null | undefined) {
+  if (value == null || !Number.isFinite(value)) return "-";
+  return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(Math.abs(value));
+}
+
+const ADNSmartflowCard = memo(function ADNSmartflowCard({
+  data,
   compact = false,
 }: {
-  summary: string | null;
-  signalLabel: string | null;
+  data: SmartflowPayload | null;
   compact?: boolean;
 }) {
-  const decision = (signalLabel || summary || "GIU").toUpperCase();
-  const isBuy = decision.includes("MUA");
-  const isSell = decision.includes("BAN") || decision.includes("BÁN");
-
-  const badgeColor = isBuy ? "#16a34a" : isSell ? "#ef4444" : "#f59e0b";
-  const badgeLabel = isBuy
-    ? `${PRODUCT_NAMES.brokerWorkflow}: MUA`
-    : isSell
-      ? `${PRODUCT_NAMES.brokerWorkflow}: BÁN`
-      : `${PRODUCT_NAMES.brokerWorkflow}: GIỮ`;
+  const breadth = readFiniteNumber(data?.ma200BreadthPercent);
+  const isUptrend = breadth != null && breadth >= 50;
+  const progressColor = breadth == null ? "#14b8a6" : isUptrend ? "#16a34a" : "#ef4444";
+  const trendLabel = breadth == null ? "Đang cập nhật" : isUptrend ? "Uptrend" : "Downtrend";
+  const progressWidth = breadth == null ? 0 : Math.max(0, Math.min(100, breadth));
+  const spikes = Array.isArray(data?.institutionalFlowSpikes) ? data.institutionalFlowSpikes.slice(0, compact ? 4 : 8) : [];
+  const accumulation = Array.isArray(data?.institutionalAccumulation3M) ? data.institutionalAccumulation3M.slice(0, compact ? 4 : 6) : [];
+  const maxAccumulation = Math.max(...accumulation.map((row) => Math.abs(row.net)), 1);
 
   return (
-    <div className={`rounded-2xl border ${compact ? "p-4" : "p-4 sm:p-5"}`} style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-      <div className="flex items-center justify-between gap-3 mb-3">
-        <div className="flex items-center gap-2">
-          <Bot className="w-4 h-4" style={{ color: "#16a34a" }} />
-          <span className="text-[12px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-            Nhận định {BRAND.persona}
-          </span>
+    <div className={`rounded-2xl border ${compact ? "p-3" : "p-4 sm:p-5"}`} style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <Activity className="h-4 w-4" style={{ color: "#14b8a6" }} />
+            <span className="text-[12px] font-bold uppercase tracking-wider" style={{ color: "var(--text-primary)" }}>
+              ADN Smartflow
+            </span>
+          </div>
+          <p className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
+            Smart Money · Accumulation · Market Breadth
+          </p>
         </div>
-        <span className="text-[11px] font-black px-2 py-1 rounded-full border" style={{ color: badgeColor, borderColor: `${badgeColor}55`, background: `${badgeColor}1A` }}>
-          {badgeLabel}
+        <span
+          className="rounded-full border px-2 py-0.5 text-[10px] font-black uppercase"
+          style={{ color: progressColor, borderColor: `${progressColor}45`, background: `${progressColor}14` }}
+        >
+          {trendLabel}
         </span>
       </div>
-      <p className={`text-sm leading-relaxed ${compact ? "line-clamp-2 sm:line-clamp-3" : ""}`} style={{ color: "var(--text-primary)" }}>
-        {summary || "AIDEN đang đọc dữ liệu thị trường, ưu tiên giữ tỷ trọng an toàn."}
-      </p>
+
+      <div className={`grid gap-3 ${compact ? "grid-cols-1" : "lg:grid-cols-3"}`}>
+        <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+              Nhiệt kế MA200
+            </span>
+            <span className="font-mono text-sm font-black" style={{ color: progressColor }}>
+              {breadth == null ? "--" : `${breadth.toFixed(1)}%`}
+            </span>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full" style={{ background: "var(--bg-hover)" }}>
+            <div className="h-full rounded-full transition-all" style={{ width: `${progressWidth}%`, background: progressColor }} />
+          </div>
+          <div className="mt-2 flex items-center justify-between gap-2 text-[11px]">
+            <span style={{ color: "var(--text-secondary)" }}>{data?.activeBuySellTrend1M ?? "Đang đọc dòng tiền"}</span>
+            <span className="font-mono" style={{ color: "var(--text-muted)" }}>
+              {data?.ma200BreadthCount ?? 0}/{data?.ma200BreadthTotal ?? 0}
+            </span>
+          </div>
+        </div>
+
+        <div className="rounded-xl border p-3" style={{ borderColor: "rgba(20,184,166,0.28)", background: "rgba(20,184,166,0.06)" }}>
+          <div className="mb-2 flex items-center gap-2">
+            <Zap className="h-3.5 w-3.5" style={{ color: "#f59e0b" }} />
+            <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+              Đột biến dòng tiền
+            </span>
+          </div>
+          {spikes.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {spikes.map((row, index) => (
+                <span
+                  key={`${row.ticker}-${index}`}
+                  className="rounded-lg border px-2.5 py-1 font-mono text-xs font-black animate-pulse"
+                  style={{
+                    color: index % 2 === 0 ? "#f59e0b" : "#14b8a6",
+                    borderColor: index % 2 === 0 ? "rgba(245,158,11,0.35)" : "rgba(20,184,166,0.35)",
+                    background: index % 2 === 0 ? "rgba(245,158,11,0.10)" : "rgba(20,184,166,0.10)",
+                  }}
+                >
+                  {row.ticker}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Chưa có mã đột biến đủ điều kiện.</p>
+          )}
+        </div>
+
+        <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+          <div className="mb-2 flex items-center gap-2">
+            <BarChart3 className="h-3.5 w-3.5" style={{ color: "#16a34a" }} />
+            <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+              Tích lũy 3 tháng
+            </span>
+          </div>
+          {accumulation.length > 0 ? (
+            <div className="space-y-2">
+              {accumulation.map((row) => (
+                <div key={row.ticker} className="grid grid-cols-[42px_1fr_52px] items-center gap-2">
+                  <span className="font-mono text-xs font-black" style={{ color: "var(--text-primary)" }}>{row.ticker}</span>
+                  <span className="h-2 overflow-hidden rounded-full" style={{ background: "var(--bg-hover)" }}>
+                    <span
+                      className="block h-full rounded-full"
+                      style={{ width: `${Math.max(8, Math.min(100, (Math.abs(row.net) / maxAccumulation) * 100))}%`, background: "#16a34a" }}
+                    />
+                  </span>
+                  <span className="text-right font-mono text-[11px]" style={{ color: "var(--text-muted)" }}>
+                    {formatSmartflowValue(row.net)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Chưa có dữ liệu gom ròng 3 tháng.</p>
+          )}
+        </div>
+      </div>
     </div>
   );
 });

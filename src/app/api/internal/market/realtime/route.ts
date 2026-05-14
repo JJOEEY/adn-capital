@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTopicEnvelope } from "@/lib/datahub/core";
-import { fetchMarketBoard, fetchMarketDepth, fetchRealtimeTradingData } from "@/lib/fiinquantClient";
 import { isN8nAuthorized, unauthorizedResponse } from "@/lib/n8n/internal";
 import { fetchFAData, fetchTAData } from "@/lib/stockData";
 
@@ -113,20 +112,19 @@ export async function GET(req: NextRequest) {
 
   const [envelopes, board, realtime, ta, fa, depth] = await Promise.all([
     Promise.all(topics.map((topic) => getTopicEnvelope(topic, { force }))),
-    directEnvelope(`vnstock:board:${tickers.join(",")}`, "vnstock:price-board", () => fetchMarketBoard(tickers)),
+    getTopicEnvelope(`vn:board:${tickers.join(",")}`, { force }).then(compactEnvelope),
     symbol
-      ? directEnvelope(`vnstock:realtime:${symbol}:${timeframe}`, "vnstock:realtime", () =>
-          fetchRealtimeTradingData(symbol, timeframe, 15_000))
+      ? getTopicEnvelope(`vn:realtime:${symbol}:${timeframe}`, { force }).then(compactEnvelope)
       : Promise.resolve(null),
     symbol ? directEnvelope(`vnstock:ta:${symbol}`, "vnstock:ta", () => fetchTAData(symbol)) : Promise.resolve(null),
     symbol ? directEnvelope(`vnstock:fa:${symbol}`, "vnstock:fa", () => fetchFAData(symbol)) : Promise.resolve(null),
-    symbol ? directEnvelope(`vnstock:depth:${symbol}`, "vnstock:depth", () => fetchMarketDepth(symbol)) : Promise.resolve(null),
+    symbol ? getTopicEnvelope(`vn:depth:${symbol}`, { force }).then(compactEnvelope) : Promise.resolve(null),
   ]);
   const byTopic = Object.fromEntries(envelopes.map((envelope) => [envelope.topic, compactEnvelope(envelope)]));
 
   return NextResponse.json({
     ok: true,
-    provider: "vnstock-via-adn-datahub",
+    provider: "dnse-primary-via-adn-datahub",
     generatedAt: new Date().toISOString(),
     force,
     symbol,

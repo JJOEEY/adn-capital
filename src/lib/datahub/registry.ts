@@ -1,11 +1,18 @@
 import { NextRequest } from "next/server";
-import { fetchIndexValuation, fetchMarketBoard, fetchMarketDepth, fetchRealtimeTradingData } from "@/lib/fiinquantClient";
+import {
+  fetchIndexValuation,
+  fetchInvestorTrading,
+  fetchMarketBoard,
+  fetchMarketDepth,
+  fetchRealtimeTradingData,
+} from "@/lib/fiinquantClient";
 import { getMarketSnapshot } from "@/lib/marketDataFetcher";
 import { prisma } from "@/lib/prisma";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
 import { fetchFAData, fetchTAData, type FAData, type TAData } from "@/lib/stockData";
 import { resolveMarketTicker } from "@/lib/ticker-resolver";
 import {
+  fetchDnseInstruments,
   fetchDnseMarketBoard,
   fetchDnseOhlc,
 } from "@/lib/providers/dnse/market-data";
@@ -1820,6 +1827,228 @@ async function loadSignalScanArtifactByDateSlot(dateKey: string, slotRaw: string
   return null;
 }
 
+type SmartflowRow = {
+  ticker: string;
+  net: number;
+};
+
+function smartflowNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value !== "string") return null;
+  const normalized = value.replace(/[^\d,.-]/g, "").replace(/\./g, "").replace(",", ".").trim();
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function smartflowToArray(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  if (!value || typeof value !== "object") return [];
+  const record = value as JsonRecord;
+  if (Array.isArray(record.data)) return record.data;
+  if (Array.isArray(record.items)) return record.items;
+  if (Array.isArray(record.rows)) return record.rows;
+  const nested = record.data && typeof record.data === "object" ? (record.data as JsonRecord) : null;
+  if (Array.isArray(nested?.data)) return nested.data;
+  if (Array.isArray(nested?.items)) return nested.items;
+  if (Array.isArray(nested?.rows)) return nested.rows;
+  return [];
+}
+
+function normalizeMoneyToBillion(value: number | null) {
+  if (value == null || !Number.isFinite(value)) return null;
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000_000) return value / 1_000_000_000;
+  if (abs >= 1_000_000) return value / 1_000;
+  return value;
+}
+
+function getSmartflowDate(daysAgo: number) {
+  const date = new Date();
+  date.setDate(date.getDate() - daysAgo);
+  return date.toISOString().slice(0, 10);
+}
+
+function readSmartflowTicker(row: JsonRecord) {
+  return String(row.ticker ?? row.symbol ?? row.code ?? row.stockCode ?? row.stock_code ?? "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+}
+
+function readSmartflowInstitutionalNet(row: JsonRecord) {
+  const direct =
+    smartflowNumber(row.institutionalNet) ??
+    smartflowNumber(row.institutional_net) ??
+    smartflowNumber(row.organizationNet) ??
+    smartflowNumber(row.organization_net);
+  if (direct != null) return normalizeMoneyToBillion(direct);
+
+  const foreignNet =
+    smartflowNumber(row.foreignNet) ??
+    smartflowNumber(row.foreign_net) ??
+    smartflowNumber(row.foreignTotalNetValue) ??
+    smartflowNumber(row.foreignNetValue) ??
+    smartflowNumber(row.netForeignValue);
+  const proprietaryNet =
+    smartflowNumber(row.proprietaryNet) ??
+    smartflowNumber(row.proprietary_net) ??
+    smartflowNumber(row.selfTradingNet) ??
+    smartflowNumber(row.self_trading_net) ??
+    smartflowNumber(row.proprietaryTotalNetValue);
+
+  const buy =
+    smartflowNumber(row.foreignBuyValueMatched) ??
+    smartflowNumber(row.foreignBuyValueTotal) ??
+    smartflowNumber(row.proprietaryTotalMatchBuyTradeValue) ??
+    null;
+  const sell =
+    smartflowNumber(row.foreignSellValueMatched) ??
+    smartflowNumber(row.foreignSellValueTotal) ??
+    smartflowNumber(row.proprietaryTotalMatchSellTradeValue) ??
+    null;
+
+  if (foreignNet != null || proprietaryNet != null) {
+    return normalizeMoneyToBillion((foreignNet ?? 0) + (proprietaryNet ?? 0));
+  }
+  if (buy != null || sell != null) {
+    return normalizeMoneyToBillion((buy ?? 0) - (sell ?? 0));
+  }
+  return null;
+}
+
+function aggregateSmartflowRows(payload: unknown): SmartflowRow[] {
+  const rows = new Map<string, number>();
+  for (const item of smartflowToArray(payload)) {
+    const row = item && typeof item === "object" ? (item as JsonRecord) : null;
+    if (!row) continue;
+    const ticker = readSmartflowTicker(row);
+    if (!ticker) continue;
+    const net = readSmartflowInstitutionalNet(row);
+    if (net == null || !Number.isFinite(net)) continue;
+    rows.set(ticker, (rows.get(ticker) ?? 0) + net);
+  }
+  return Array.from(rows.entries())
+    .map(([ticker, net]) => ({ ticker, net: Number(net.toFixed(2)) }))
+    .filter((row) => row.net !== 0);
+}
+
+async function smartflowMapLimit<T, R>(items: T[], limit: number, task: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = [];
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      results[index] = await task(items[index]);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+async function loadSmartflowUniverse(limit: number) {
+  const instruments = await fetchDnseInstruments({ limit }).catch(() => []);
+  const dnseSymbols = instruments
+    .map((item) => item.symbol)
+    .filter((ticker) => /^[A-Z]{3,5}$/.test(ticker))
+    .slice(0, limit);
+  if (dnseSymbols.length > 0) return Array.from(new Set(dnseSymbols));
+
+  const rsPayload = await loadRsRatingList(false).catch(() => null);
+  const rows = Array.isArray((rsPayload as JsonRecord | null)?.stocks)
+    ? ((rsPayload as JsonRecord).stocks as unknown[])
+    : smartflowToArray(rsPayload);
+  return Array.from(
+    new Set(
+      rows
+        .map((row) => (row && typeof row === "object" ? readSmartflowTicker(row as JsonRecord) : ""))
+        .filter(Boolean),
+    ),
+  ).slice(0, limit);
+}
+
+async function loadMa200Breadth(tickers: string[]) {
+  const checked = await smartflowMapLimit(tickers, 8, async (ticker) => {
+    const ohlc = await fetchDnseOhlc(ticker, { timeframe: "1d", days: 260, timeoutMs: 8_000 }).catch(() => null);
+    const rows = getMarketPayloadRows(ohlc);
+    const closes = rows
+      .map((row) => readPositiveNumber(row.close ?? row.c))
+      .filter((value): value is number => value != null && Number.isFinite(value) && value > 0);
+    if (closes.length < 200) return null;
+    const last = closes[closes.length - 1];
+    const ma200 = closes.slice(-200).reduce((sum, value) => sum + value, 0) / 200;
+    return { ticker, above: last >= ma200 };
+  });
+  const valid = checked.filter((item): item is { ticker: string; above: boolean } => Boolean(item));
+  const above = valid.filter((item) => item.above).length;
+  return {
+    percent: valid.length > 0 ? Number(((above / valid.length) * 100).toFixed(1)) : null,
+    above,
+    total: valid.length,
+  };
+}
+
+async function loadPulseSmartflow() {
+  const universeLimit = Math.max(30, Math.min(500, Number(process.env.SMARTFLOW_UNIVERSE_LIMIT ?? 120)));
+  const [snapshot, universe] = await Promise.all([
+    getMarketSnapshot().catch(() => null),
+    loadSmartflowUniverse(universeLimit),
+  ]);
+  const [ma200Breadth, oneMonthFlow, threeMonthFlow] = await Promise.all([
+    loadMa200Breadth(universe),
+    fetchInvestorTrading({ fromDate: getSmartflowDate(31), toDate: getSmartflowDate(0) }).catch(() => null),
+    fetchInvestorTrading({ fromDate: getSmartflowDate(92), toDate: getSmartflowDate(0) }).catch(() => null),
+  ]);
+
+  const oneMonthRows = aggregateSmartflowRows(oneMonthFlow);
+  const threeMonthRows = aggregateSmartflowRows(threeMonthFlow);
+  const oneMonthNet = oneMonthRows.reduce((sum, row) => sum + row.net, 0);
+  const realtimeNet =
+    snapshot?.supplyDemand.netVolume ??
+    snapshot?.investorTrading.foreign.net ??
+    null;
+  const activeTrendNet = oneMonthRows.length > 0 ? oneMonthNet : realtimeNet;
+  const activeBuySellTrend1M =
+    activeTrendNet == null ? "Trung tính" : activeTrendNet >= 0 ? "Mua chủ động" : "Bán chủ động";
+
+  const absoluteNets = oneMonthRows.map((row) => Math.abs(row.net)).sort((a, b) => a - b);
+  const median = absoluteNets.length > 0 ? absoluteNets[Math.floor(absoluteNets.length / 2)] : 0;
+  const spikeThreshold = Math.max(median * 2.5, 20);
+  const institutionalFlowSpikes = oneMonthRows
+    .filter((row) => row.net > 0 && Math.abs(row.net) >= spikeThreshold)
+    .sort((a, b) => b.net - a.net)
+    .slice(0, 8);
+  const institutionalAccumulation3M = threeMonthRows
+    .filter((row) => row.net > 0)
+    .sort((a, b) => b.net - a.net)
+    .slice(0, 6);
+
+  const missingFields = [
+    ma200Breadth.percent == null ? "ma200BreadthPercent" : null,
+    oneMonthRows.length === 0 ? "activeBuySellTrend1M" : null,
+    institutionalFlowSpikes.length === 0 ? "institutionalFlowSpikes" : null,
+    institutionalAccumulation3M.length === 0 ? "institutionalAccumulation3M" : null,
+  ].filter((item): item is string => Boolean(item));
+
+  return {
+    title: "ADN Smartflow",
+    subtitle: "Smart Money · Accumulation · Market Breadth",
+    ma200BreadthPercent: ma200Breadth.percent,
+    ma200BreadthCount: ma200Breadth.above,
+    ma200BreadthTotal: ma200Breadth.total,
+    activeBuySellTrend1M,
+    activeBuySellTrendNet: activeTrendNet,
+    institutionalFlowSpikes,
+    institutionalAccumulation3M,
+    sourceStatus: {
+      primary: "dnse",
+      fallback: "fiinquant",
+      missingFields,
+      publish: missingFields.length < 4,
+    },
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 const TOPIC_DEFINITIONS: TopicDefinition[] = [
   {
     id: "vn:index:overview",
@@ -1902,6 +2131,17 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
         publishBlockers: snapshot.publishBlockers,
       };
     },
+  },
+  {
+    id: "pulse:smartflow",
+    ttlMs: 300_000,
+    minIntervalMs: 60_000,
+    staleWhileRevalidateMs: 300_000,
+    source: "datahub:dnse-primary-fiinquant-fallback",
+    version: "v1",
+    tags: ["dashboard", "pulse", "smartflow", "market"],
+    match: (topicKey) => (topicKey === "pulse:smartflow" ? { ok: true } : { ok: false }),
+    resolve: async () => loadPulseSmartflow(),
   },
   {
     id: "news:morning:latest",
@@ -2310,7 +2550,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     id: "vn:ta:{ticker}",
     ttlMs: 120_000,
     minIntervalMs: 15_000,
-    source: "fiinquant",
+    source: "datahub:dnse-primary-fiinquant-fallback",
     version: "v1",
     tags: ["research", "ta"],
     match: (topicKey) => {
@@ -2370,7 +2610,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     id: "vn:realtime:{ticker}:{timeframe}",
     ttlMs: 60_000,
     minIntervalMs: 5_000,
-    source: "fiinquant",
+    source: "datahub:dnse-primary-fiinquant-fallback",
     version: "v1",
     tags: ["research", "realtime", "market"],
     match: (topicKey) => {
@@ -2388,7 +2628,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     ttlMs: 15_000,
     minIntervalMs: 10_000,
     staleWhileRevalidateMs: 60_000,
-    source: "fiinquant:vnstock-price-board",
+    source: "datahub:dnse-primary-fiinquant-fallback",
     version: "v1",
     tags: ["research", "depth", "orderbook", "market"],
     match: (topicKey) => {
@@ -2405,7 +2645,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     ttlMs: 30_000,
     minIntervalMs: 15_000,
     staleWhileRevalidateMs: 90_000,
-    source: "fiinquant:vnstock-price-board",
+    source: "datahub:dnse-primary-fiinquant-fallback",
     version: "v1",
     tags: ["watchlist", "board", "market"],
     match: (topicKey) => {
@@ -2420,7 +2660,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     id: "vn:investor:{ticker}",
     ttlMs: 60_000,
     minIntervalMs: 15_000,
-    source: "fiinquant",
+    source: "datahub:dnse-primary-fiinquant-fallback",
     version: "v1",
     tags: ["research", "investor-flow"],
     match: (topicKey) => {
@@ -2436,7 +2676,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     id: "news:ticker:{ticker}",
     ttlMs: 300_000,
     minIntervalMs: 30_000,
-    source: "fiinquant",
+    source: "datahub:dnse-primary-fiinquant-fallback",
     version: "v1",
     tags: ["news", "research", "workbench"],
     match: (topicKey) => {
@@ -2462,7 +2702,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     id: "vn:historical:{ticker}:1d",
     ttlMs: 300_000,
     minIntervalMs: 60_000,
-    source: "fiinquant",
+    source: "datahub:dnse-primary-fiinquant-fallback",
     version: "v1",
     tags: ["research", "historical", "market"],
     match: (topicKey) => {

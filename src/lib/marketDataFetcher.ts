@@ -93,7 +93,7 @@ interface AlternativeSnapshot {
 }
 
 const PROVIDER_PRIORITY: ProviderId[] = ["dnse", "fiin", "vnstock", "vnd", "tcbs"];
-const INDEX_PROVIDER_PRIORITY: ProviderId[] = ["fiin", "dnse", "vnstock", "vnd", "tcbs"];
+const INDEX_PROVIDER_PRIORITY: ProviderId[] = ["dnse", "fiin", "vnstock", "vnd", "tcbs"];
 
 type MarketSnapshotCacheEntry = {
   requestDateVN: string;
