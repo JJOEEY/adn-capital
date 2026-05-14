@@ -99,9 +99,27 @@ type PulseRankRow = {
   volume: number;
 };
 
-type SmartflowTickerRow = {
+type SmartflowMa200Leader = {
   ticker: string;
-  net: number;
+  currentPrice: number;
+  ma200: number;
+  distanceToMa200Pct: number;
+};
+
+type SmartflowSpikeRow = {
+  ticker: string;
+  currentPrice: number;
+  netBuyValue: number;
+  spikeRatio: number;
+  reason?: string | null;
+};
+
+type SmartflowAccumulationRow = {
+  ticker: string;
+  currentPrice: number;
+  netBuyValue3M: number;
+  netBuyVolume3M?: number | null;
+  accumulationRank?: number | null;
 };
 
 type SmartflowPayload = {
@@ -110,10 +128,11 @@ type SmartflowPayload = {
   ma200BreadthPercent?: number | null;
   ma200BreadthCount?: number | null;
   ma200BreadthTotal?: number | null;
+  ma200Leaders?: SmartflowMa200Leader[];
   activeBuySellTrend1M?: string | null;
   activeBuySellTrendNet?: number | null;
-  institutionalFlowSpikes?: SmartflowTickerRow[];
-  institutionalAccumulation3M?: SmartflowTickerRow[];
+  institutionalFlowSpikes?: SmartflowSpikeRow[];
+  institutionalAccumulation3M?: SmartflowAccumulationRow[];
   updatedAt?: string | null;
 };
 
@@ -854,6 +873,14 @@ function formatSmartflowValue(value: number | null | undefined) {
   return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(Math.abs(value));
 }
 
+function formatSmartflowVolume(value: number | null | undefined) {
+  if (value == null || !Number.isFinite(value)) return "-";
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000) return `${new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 1 }).format(abs / 1_000_000)}tr`;
+  if (abs >= 1_000) return `${new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(abs / 1_000)}k`;
+  return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(abs);
+}
+
 const ADNSmartflowCard = memo(function ADNSmartflowCard({
   data,
   compact = false,
@@ -866,9 +893,17 @@ const ADNSmartflowCard = memo(function ADNSmartflowCard({
   const progressColor = breadth == null ? "#14b8a6" : isUptrend ? "#16a34a" : "#ef4444";
   const trendLabel = breadth == null ? "Đang cập nhật" : isUptrend ? "Uptrend" : "Downtrend";
   const progressWidth = breadth == null ? 0 : Math.max(0, Math.min(100, breadth));
-  const spikes = Array.isArray(data?.institutionalFlowSpikes) ? data.institutionalFlowSpikes.slice(0, compact ? 4 : 8) : [];
-  const accumulation = Array.isArray(data?.institutionalAccumulation3M) ? data.institutionalAccumulation3M.slice(0, compact ? 4 : 6) : [];
-  const maxAccumulation = Math.max(...accumulation.map((row) => Math.abs(row.net)), 1);
+  const leaderLimit = compact ? 3 : 5;
+  const ma200Leaders = Array.isArray(data?.ma200Leaders) ? data.ma200Leaders.slice(0, leaderLimit) : [];
+  const spikes = Array.isArray(data?.institutionalFlowSpikes) ? data.institutionalFlowSpikes.slice(0, compact ? 3 : 5) : [];
+  const accumulation = Array.isArray(data?.institutionalAccumulation3M) ? data.institutionalAccumulation3M.slice(0, compact ? 3 : 5) : [];
+  const maxAccumulation = Math.max(...accumulation.map((row) => Math.abs(row.netBuyValue3M)), 1);
+
+  const emptyText = (
+    <p className="rounded-lg border px-3 py-2 text-xs" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
+      Chưa có mã đủ điều kiện dữ liệu.
+    </p>
+  );
 
   return (
     <div className={`rounded-2xl border ${compact ? "p-3" : "p-4 sm:p-5"}`} style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
@@ -896,7 +931,7 @@ const ADNSmartflowCard = memo(function ADNSmartflowCard({
         <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
           <div className="mb-2 flex items-center justify-between gap-2">
             <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-              Nhiệt kế MA200
+              MA200 Breadth
             </span>
             <span className="font-mono text-sm font-black" style={{ color: progressColor }}>
               {breadth == null ? "--" : `${breadth.toFixed(1)}%`}
@@ -911,6 +946,28 @@ const ADNSmartflowCard = memo(function ADNSmartflowCard({
               {data?.ma200BreadthCount ?? 0}/{data?.ma200BreadthTotal ?? 0}
             </span>
           </div>
+          <div className="mt-3 overflow-hidden rounded-lg border" style={{ borderColor: "var(--border)" }}>
+            <div className="grid grid-cols-[0.8fr_1fr_1fr_1fr] border-b px-2 py-1.5 text-[10px] font-bold uppercase tracking-wide" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
+              <span>Mã</span>
+              <span className="text-right">Giá</span>
+              <span className="text-right">MA200</span>
+              <span className="text-right">+/-</span>
+            </div>
+            {ma200Leaders.length > 0 ? (
+              <div className="divide-y" style={{ borderColor: "var(--border)" }}>
+                {ma200Leaders.map((row) => (
+                  <div key={row.ticker} className="grid grid-cols-[0.8fr_1fr_1fr_1fr] px-2 py-1.5 text-[11px]" style={{ borderColor: "var(--border)" }}>
+                    <span className="font-mono font-black" style={{ color: "var(--text-primary)" }}>{row.ticker}</span>
+                    <span className="text-right font-mono" style={{ color: "var(--text-secondary)" }}>{formatPrice(row.currentPrice)}</span>
+                    <span className="text-right font-mono" style={{ color: "var(--text-secondary)" }}>{formatPrice(row.ma200)}</span>
+                    <span className="text-right font-mono font-bold" style={{ color: "#16a34a" }}>{formatPercent(row.distanceToMa200Pct)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-2">{emptyText}</div>
+            )}
+          </div>
         </div>
 
         <div className="rounded-xl border p-3" style={{ borderColor: "rgba(20,184,166,0.28)", background: "rgba(20,184,166,0.06)" }}>
@@ -921,23 +978,24 @@ const ADNSmartflowCard = memo(function ADNSmartflowCard({
             </span>
           </div>
           {spikes.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {spikes.map((row, index) => (
-                <span
-                  key={`${row.ticker}-${index}`}
-                  className="rounded-lg border px-2.5 py-1 font-mono text-xs font-black animate-pulse"
-                  style={{
-                    color: index % 2 === 0 ? "#f59e0b" : "#14b8a6",
-                    borderColor: index % 2 === 0 ? "rgba(245,158,11,0.35)" : "rgba(20,184,166,0.35)",
-                    background: index % 2 === 0 ? "rgba(245,158,11,0.10)" : "rgba(20,184,166,0.10)",
-                  }}
-                >
-                  {row.ticker}
-                </span>
+            <div className="overflow-hidden rounded-lg border" style={{ borderColor: "rgba(20,184,166,0.24)" }}>
+              <div className="grid grid-cols-[0.8fr_1fr_1.15fr_0.9fr] border-b px-2 py-1.5 text-[10px] font-bold uppercase tracking-wide" style={{ borderColor: "rgba(20,184,166,0.24)", color: "var(--text-muted)" }}>
+                <span>Mã</span>
+                <span className="text-right">Giá</span>
+                <span className="text-right">Mua ròng</span>
+                <span className="text-right">Đột biến</span>
+              </div>
+              {spikes.map((row) => (
+                <div key={row.ticker} className="grid grid-cols-[0.8fr_1fr_1.15fr_0.9fr] border-b px-2 py-1.5 text-[11px] last:border-b-0" style={{ borderColor: "rgba(20,184,166,0.18)" }}>
+                  <span className="font-mono font-black" style={{ color: "#f59e0b" }}>{row.ticker}</span>
+                  <span className="text-right font-mono" style={{ color: "var(--text-secondary)" }}>{formatPrice(row.currentPrice)}</span>
+                  <span className="text-right font-mono font-bold" style={{ color: "#14b8a6" }}>{formatSmartflowValue(row.netBuyValue)} tỷ</span>
+                  <span className="text-right font-mono font-bold" style={{ color: "#f59e0b" }}>{row.spikeRatio.toFixed(1)}x</span>
+                </div>
               ))}
             </div>
           ) : (
-            <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Chưa có mã đột biến đủ điều kiện.</p>
+            emptyText
           )}
         </div>
 
@@ -949,24 +1007,32 @@ const ADNSmartflowCard = memo(function ADNSmartflowCard({
             </span>
           </div>
           {accumulation.length > 0 ? (
-            <div className="space-y-2">
+            <div className="overflow-hidden rounded-lg border" style={{ borderColor: "var(--border)" }}>
+              <div className="grid grid-cols-[0.7fr_0.9fr_1.2fr_1fr] border-b px-2 py-1.5 text-[10px] font-bold uppercase tracking-wide" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
+                <span>Mã</span>
+                <span className="text-right">Giá</span>
+                <span className="text-right">Gom ròng 3T</span>
+                <span className="text-right">KL gom</span>
+              </div>
               {accumulation.map((row) => (
-                <div key={row.ticker} className="grid grid-cols-[42px_1fr_52px] items-center gap-2">
-                  <span className="font-mono text-xs font-black" style={{ color: "var(--text-primary)" }}>{row.ticker}</span>
-                  <span className="h-2 overflow-hidden rounded-full" style={{ background: "var(--bg-hover)" }}>
+                <div key={row.ticker} className="border-b px-2 py-1.5 last:border-b-0" style={{ borderColor: "var(--border)" }}>
+                  <div className="grid grid-cols-[0.7fr_0.9fr_1.2fr_1fr] items-center text-[11px]">
+                    <span className="font-mono font-black" style={{ color: "var(--text-primary)" }}>{row.ticker}</span>
+                    <span className="text-right font-mono" style={{ color: "var(--text-secondary)" }}>{formatPrice(row.currentPrice)}</span>
+                    <span className="text-right font-mono font-bold" style={{ color: "#16a34a" }}>{formatSmartflowValue(row.netBuyValue3M)} tỷ</span>
+                    <span className="text-right font-mono" style={{ color: "var(--text-secondary)" }}>{formatSmartflowVolume(row.netBuyVolume3M)}</span>
+                  </div>
+                  <div className="mt-1 h-1.5 overflow-hidden rounded-full" style={{ background: "var(--bg-hover)" }}>
                     <span
                       className="block h-full rounded-full"
-                      style={{ width: `${Math.max(8, Math.min(100, (Math.abs(row.net) / maxAccumulation) * 100))}%`, background: "#16a34a" }}
+                      style={{ width: `${Math.max(8, Math.min(100, (Math.abs(row.netBuyValue3M) / maxAccumulation) * 100))}%`, background: "#16a34a" }}
                     />
-                  </span>
-                  <span className="text-right font-mono text-[11px]" style={{ color: "var(--text-muted)" }}>
-                    {formatSmartflowValue(row.net)}
-                  </span>
+                  </div>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Chưa có dữ liệu gom ròng 3 tháng.</p>
+            emptyText
           )}
         </div>
       </div>

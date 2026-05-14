@@ -1827,9 +1827,17 @@ async function loadSignalScanArtifactByDateSlot(dateKey: string, slotRaw: string
   return null;
 }
 
-type SmartflowRow = {
+type SmartflowFlowRow = {
   ticker: string;
-  net: number;
+  netBuyValue: number;
+  netBuyVolume: number | null;
+};
+
+type SmartflowMa200Leader = {
+  ticker: string;
+  currentPrice: number;
+  ma200: number;
+  distanceToMa200Pct: number;
 };
 
 const DEFAULT_SMARTFLOW_UNIVERSE = [
@@ -1922,8 +1930,52 @@ function readSmartflowInstitutionalNet(row: JsonRecord) {
   return null;
 }
 
-function aggregateSmartflowRows(payload: unknown): SmartflowRow[] {
-  const rows = new Map<string, number>();
+function readSmartflowInstitutionalVolume(row: JsonRecord) {
+  const direct =
+    smartflowNumber(row.institutionalNetVolume) ??
+    smartflowNumber(row.institutional_net_volume) ??
+    smartflowNumber(row.organizationNetVolume) ??
+    smartflowNumber(row.organization_net_volume);
+  if (direct != null) return direct;
+
+  const foreignNet =
+    smartflowNumber(row.foreignNetVolume) ??
+    smartflowNumber(row.foreign_net_volume) ??
+    smartflowNumber(row.foreignTotalNetVolume) ??
+    smartflowNumber(row.netForeignVolume);
+  const proprietaryNet =
+    smartflowNumber(row.proprietaryNetVolume) ??
+    smartflowNumber(row.proprietary_net_volume) ??
+    smartflowNumber(row.selfTradingNetVolume) ??
+    smartflowNumber(row.self_trading_net_volume) ??
+    smartflowNumber(row.proprietaryTotalNetVolume);
+
+  const foreignBuy =
+    smartflowNumber(row.foreignBuyVolumeMatched) ??
+    smartflowNumber(row.foreignBuyVolumeTotal) ??
+    smartflowNumber(row.foreignBuyVolume);
+  const foreignSell =
+    smartflowNumber(row.foreignSellVolumeMatched) ??
+    smartflowNumber(row.foreignSellVolumeTotal) ??
+    smartflowNumber(row.foreignSellVolume);
+  const proprietaryBuy =
+    smartflowNumber(row.proprietaryTotalMatchBuyTradeVolume) ??
+    smartflowNumber(row.proprietaryTotalBuyTradeVolume) ??
+    smartflowNumber(row.selfTradingBuyVolume);
+  const proprietarySell =
+    smartflowNumber(row.proprietaryTotalMatchSellTradeVolume) ??
+    smartflowNumber(row.proprietaryTotalSellTradeVolume) ??
+    smartflowNumber(row.selfTradingSellVolume);
+
+  if (foreignNet != null || proprietaryNet != null) return (foreignNet ?? 0) + (proprietaryNet ?? 0);
+  if (foreignBuy != null || foreignSell != null || proprietaryBuy != null || proprietarySell != null) {
+    return (foreignBuy ?? 0) - (foreignSell ?? 0) + (proprietaryBuy ?? 0) - (proprietarySell ?? 0);
+  }
+  return null;
+}
+
+function aggregateSmartflowRows(payload: unknown): SmartflowFlowRow[] {
+  const rows = new Map<string, { netBuyValue: number; netBuyVolume: number | null }>();
   for (const item of smartflowToArray(payload)) {
     const row = item && typeof item === "object" ? (item as JsonRecord) : null;
     if (!row) continue;
@@ -1931,11 +1983,23 @@ function aggregateSmartflowRows(payload: unknown): SmartflowRow[] {
     if (!ticker) continue;
     const net = readSmartflowInstitutionalNet(row);
     if (net == null || !Number.isFinite(net)) continue;
-    rows.set(ticker, (rows.get(ticker) ?? 0) + net);
+    const volume = readSmartflowInstitutionalVolume(row);
+    const current = rows.get(ticker) ?? { netBuyValue: 0, netBuyVolume: null };
+    rows.set(ticker, {
+      netBuyValue: current.netBuyValue + net,
+      netBuyVolume:
+        volume != null && Number.isFinite(volume)
+          ? (current.netBuyVolume ?? 0) + volume
+          : current.netBuyVolume,
+    });
   }
   return Array.from(rows.entries())
-    .map(([ticker, net]) => ({ ticker, net: Number(net.toFixed(2)) }))
-    .filter((row) => row.net !== 0);
+    .map(([ticker, value]) => ({
+      ticker,
+      netBuyValue: Number(value.netBuyValue.toFixed(2)),
+      netBuyVolume: value.netBuyVolume == null ? null : Math.round(value.netBuyVolume),
+    }))
+    .filter((row) => row.netBuyValue !== 0);
 }
 
 async function smartflowMapLimit<T, R>(items: T[], limit: number, task: (item: T) => Promise<R>): Promise<R[]> {
@@ -1989,15 +2053,47 @@ async function loadMa200Breadth(tickers: string[]) {
     if (closes.length < 200) return null;
     const last = closes[closes.length - 1];
     const ma200 = closes.slice(-200).reduce((sum, value) => sum + value, 0) / 200;
-    return { ticker, above: last >= ma200 };
+    return {
+      ticker,
+      currentPrice: Number(last.toFixed(2)),
+      ma200: Number(ma200.toFixed(2)),
+      distanceToMa200Pct: Number((((last - ma200) / ma200) * 100).toFixed(2)),
+      above: last > ma200,
+    };
   });
-  const valid = checked.filter((item): item is { ticker: string; above: boolean } => Boolean(item));
+  const valid = checked.filter((item): item is SmartflowMa200Leader & { above: boolean } => Boolean(item));
   const above = valid.filter((item) => item.above).length;
   return {
     percent: valid.length > 0 ? Number(((above / valid.length) * 100).toFixed(1)) : null,
     above,
     total: valid.length,
+    leaders: valid
+      .filter((item) => item.above)
+      .sort((a, b) => b.distanceToMa200Pct - a.distanceToMa200Pct)
+      .slice(0, 5)
+      .map(({ ticker, currentPrice, ma200, distanceToMa200Pct }) => ({
+        ticker,
+        currentPrice,
+        ma200,
+        distanceToMa200Pct,
+      })),
   };
+}
+
+async function loadSmartflowPriceMap(tickers: string[]) {
+  const normalized = Array.from(new Set(tickers.map((ticker) => ticker.toUpperCase()).filter(Boolean))).slice(0, 50);
+  if (normalized.length === 0) return new Map<string, number>();
+  const board = await fetchDnseMarketBoard(normalized)
+    .catch(() => null) ?? await fetchMarketBoard(normalized).catch(() => null);
+  const prices = new Map<string, number>();
+  for (const ticker of normalized) {
+    const row = (board?.prices as JsonRecord | undefined)?.[ticker] as JsonRecord | undefined;
+    const price = readPositiveNumber(row?.close ?? row?.price ?? row?.currentPrice ?? row?.matchPrice ?? row?.lastPrice);
+    if (price != null && Number.isFinite(price) && price > 0) {
+      prices.set(ticker, Number(price.toFixed(2)));
+    }
+  }
+  return prices;
 }
 
 async function loadPulseSmartflow() {
@@ -2015,7 +2111,7 @@ async function loadPulseSmartflow() {
 
   const oneMonthRows = aggregateSmartflowRows(oneMonthFlow);
   const threeMonthRows = aggregateSmartflowRows(threeMonthFlow);
-  const oneMonthNet = oneMonthRows.reduce((sum, row) => sum + row.net, 0);
+  const oneMonthNet = oneMonthRows.reduce((sum, row) => sum + row.netBuyValue, 0);
   const realtimeNet =
     snapshot?.supplyDemand.netVolume ??
     snapshot?.investorTrading.foreign.net ??
@@ -2024,20 +2120,57 @@ async function loadPulseSmartflow() {
   const activeBuySellTrend1M =
     activeTrendNet == null ? "Trung tính" : activeTrendNet >= 0 ? "Mua chủ động" : "Bán chủ động";
 
-  const absoluteNets = oneMonthRows.map((row) => Math.abs(row.net)).sort((a, b) => a - b);
+  const absoluteNets = oneMonthRows.map((row) => Math.abs(row.netBuyValue)).sort((a, b) => a - b);
   const median = absoluteNets.length > 0 ? absoluteNets[Math.floor(absoluteNets.length / 2)] : 0;
   const spikeThreshold = Math.max(median * 2.5, 20);
-  const institutionalFlowSpikes = oneMonthRows
-    .filter((row) => row.net > 0 && Math.abs(row.net) >= spikeThreshold)
-    .sort((a, b) => b.net - a.net)
+  const spikeCandidates = oneMonthRows
+    .map((row) => ({
+      ...row,
+      spikeRatio: median > 0 ? row.netBuyValue / median : row.netBuyValue >= spikeThreshold ? 2.5 : 0,
+    }))
+    .filter((row) => row.netBuyValue > 0 && row.netBuyValue >= spikeThreshold && row.spikeRatio >= 2.5)
+    .sort((a, b) => b.netBuyValue - a.netBuyValue)
     .slice(0, 8);
-  const institutionalAccumulation3M = threeMonthRows
-    .filter((row) => row.net > 0)
-    .sort((a, b) => b.net - a.net)
-    .slice(0, 6);
+  const accumulationCandidates = threeMonthRows
+    .filter((row) => row.netBuyValue > 0)
+    .sort((a, b) => b.netBuyValue - a.netBuyValue)
+    .slice(0, 8);
+  const smartflowPrices = await loadSmartflowPriceMap([
+    ...spikeCandidates.map((row) => row.ticker),
+    ...accumulationCandidates.map((row) => row.ticker),
+  ]);
+  const institutionalFlowSpikes = spikeCandidates
+    .map((row) => {
+      const currentPrice = smartflowPrices.get(row.ticker);
+      if (currentPrice == null) return null;
+      return {
+        ticker: row.ticker,
+        currentPrice,
+        netBuyValue: row.netBuyValue,
+        spikeRatio: Number(row.spikeRatio.toFixed(1)),
+        reason: `Mua ròng ${Math.round(row.netBuyValue)} tỷ, cao hơn nền 1 tháng ${row.spikeRatio.toFixed(1)} lần`,
+      };
+    })
+    .filter((row): row is NonNullable<typeof row> => Boolean(row))
+    .slice(0, 5);
+  const institutionalAccumulation3M = accumulationCandidates
+    .map((row, index) => {
+      const currentPrice = smartflowPrices.get(row.ticker);
+      if (currentPrice == null) return null;
+      return {
+        ticker: row.ticker,
+        currentPrice,
+        netBuyValue3M: row.netBuyValue,
+        netBuyVolume3M: row.netBuyVolume,
+        accumulationRank: index + 1,
+      };
+    })
+    .filter((row): row is NonNullable<typeof row> => Boolean(row))
+    .slice(0, 5);
 
   const missingFields = [
     ma200Breadth.percent == null ? "ma200BreadthPercent" : null,
+    ma200Breadth.leaders.length === 0 ? "ma200Leaders" : null,
     oneMonthRows.length === 0 ? "activeBuySellTrend1M" : null,
     institutionalFlowSpikes.length === 0 ? "institutionalFlowSpikes" : null,
     institutionalAccumulation3M.length === 0 ? "institutionalAccumulation3M" : null,
@@ -2049,6 +2182,7 @@ async function loadPulseSmartflow() {
     ma200BreadthPercent: ma200Breadth.percent,
     ma200BreadthCount: ma200Breadth.above,
     ma200BreadthTotal: ma200Breadth.total,
+    ma200Leaders: ma200Breadth.leaders,
     activeBuySellTrend1M,
     activeBuySellTrendNet: activeTrendNet,
     institutionalFlowSpikes,
