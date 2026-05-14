@@ -49,6 +49,7 @@ const DEFAULT_BASE_URLS = [
 ];
 const CACHE_TTL_MS = 45_000;
 const cache = new Map<string, { expiresAt: number; value: unknown }>();
+let authBlockedUntilMs = 0;
 
 function toRecord(value: unknown): JsonRecord | null {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value) ? (value as JsonRecord) : null;
@@ -121,6 +122,7 @@ function sign(method: string, path: string, dateHeaderName: string, dateValue: s
   const apiKey = process.env.DNSE_API_KEY?.trim() ?? "";
   const apiSecret = process.env.DNSE_API_SECRET?.trim() ?? "";
   if (!apiKey || !apiSecret) return null;
+  if (authBlockedUntilMs > Date.now()) return null;
 
   const headerKey = dateHeaderName.toLowerCase();
   const signatureString = `(request-target): ${method.toLowerCase()} ${path}\n${headerKey}: ${dateValue}\nnonce: ${nonce}`;
@@ -181,8 +183,14 @@ async function dnseGet<T>(
           signal: AbortSignal.timeout(options?.timeoutMs ?? 12_000),
           headers,
         });
-        if (!res.ok) continue;
         const text = await res.text();
+        if (!res.ok) {
+          if (res.status === 401 || res.status === 403 || /OA-401|API key not found/i.test(text)) {
+            authBlockedUntilMs = Date.now() + 5 * 60_000;
+            return null;
+          }
+          continue;
+        }
         if (!text.trim()) return {} as T;
         const parsed = JSON.parse(text) as T;
         if (cacheKey) cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, value: parsed });
