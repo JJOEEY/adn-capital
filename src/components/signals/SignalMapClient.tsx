@@ -10,6 +10,7 @@ import Link from "next/link";
 import { isWithinVnTradingSession } from "@/lib/time";
 import { useTopic } from "@/hooks/useTopic";
 import { PRODUCT_DESCRIPTIONS, PRODUCT_NAMES } from "@/lib/brand/productNames";
+import { formatPrice } from "@/lib/utils";
 
 type Tab = "RADAR" | "ACTIVE" | "CLOSED";
 type TierFilter = "all" | "LEADER" | "TRUNG_HAN" | "NGAN_HAN" | "TAM_NGAM";
@@ -32,6 +33,46 @@ type ReportedSignalSummary = {
 type SignalMapTopicValue = {
   signals: Signal[];
   reportedToday?: ReportedSignalSummary;
+  paperAccount?: PaperAccount;
+};
+
+type PaperPosition = {
+  id: string;
+  signalId?: string | null;
+  ticker: string;
+  exchange: string;
+  signalType: string;
+  tier: "LEADER" | "TRUNG_HAN" | "NGAN_HAN" | "TAM_NGAM";
+  status: "ACTIVE" | "HOLD_TO_DIE" | "PENDING_EXIT" | string;
+  entryPrice: number;
+  currentPrice?: number | null;
+  quantity: number;
+  costBasis: number;
+  marketValue: number;
+  navPct: number;
+  currentPnl?: number | null;
+  currentPnlValue?: number | null;
+  target?: number | null;
+  stoploss?: number | null;
+  openedAt: string;
+  sellableAt: string;
+  pendingExitReason?: string | null;
+  pendingExitTriggeredAt?: string | null;
+  pendingExitPrice?: number | null;
+};
+
+type PaperAccount = {
+  initialNav: number;
+  cash: number;
+  invested: number;
+  totalNav: number;
+  realizedPnl: number;
+  unrealizedPnl: number;
+  totalPnl: number;
+  totalPnlPct: number;
+  positions: PaperPosition[];
+  latestSnapshot?: { snapshotDate: string; slot: string; createdAt: string } | null;
+  pendingExits: Array<{ ticker: string; reason: string | null; price: number | null; sellableAt: string }>;
 };
 
 const TABS: { value: Tab; label: string; icon: typeof Crosshair }[] = [
@@ -63,6 +104,83 @@ function FreshnessBadge({ freshness }: { freshness: string | null }) {
     <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider" style={style}>
       {label}
     </span>
+  );
+}
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "2-digit" });
+}
+
+function PaperSummary({ account }: { account: PaperAccount }) {
+  const pnlColor = account.totalPnlPct >= 0 ? "#16a34a" : "var(--danger)";
+  return (
+    <section className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+      {[
+        { label: "NAV", value: formatPrice(account.totalNav), color: "var(--text-primary)" },
+        { label: "Tiền mặt", value: formatPrice(account.cash), color: "var(--text-primary)" },
+        { label: "Đang đầu tư", value: formatPrice(account.invested), color: "var(--text-primary)" },
+        { label: "PnL", value: `${account.totalPnlPct >= 0 ? "+" : ""}${account.totalPnlPct.toFixed(2)}%`, color: pnlColor },
+      ].map((item) => (
+        <div
+          key={item.label}
+          className="rounded-[14px] border p-3"
+          style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+        >
+          <p className="text-[12px]" style={{ color: "var(--text-secondary)" }}>{item.label}</p>
+          <p className="text-lg font-semibold" style={{ color: item.color }}>{item.value}</p>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function formatTierLabel(tier: PaperPosition["tier"]) {
+  if (tier === "TRUNG_HAN") return "TRUNG HẠN";
+  if (tier === "NGAN_HAN") return "NGẮN HẠN";
+  if (tier === "TAM_NGAM") return "TẦM NGẮM";
+  return tier;
+}
+
+function PaperPositionCard({ position }: { position: PaperPosition }) {
+  const pnl = position.currentPnl ?? 0;
+  const pnlColor = pnl >= 0 ? "#16a34a" : "var(--danger)";
+  const statusLabel = position.status === "HOLD_TO_DIE" ? "GỒNG LÃI" : position.status === "PENDING_EXIT" ? "CHỜ BÁN" : "ĐANG GIỮ";
+  return (
+    <div className="rounded-[14px] border p-4 space-y-3" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-xl font-semibold" style={{ color: "var(--text-primary)" }}>{position.ticker}</span>
+            <span className="rounded-full border px-2 py-0.5 text-[11px] font-bold" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>{position.exchange}</span>
+          </div>
+          <p className="text-[12px] mt-1" style={{ color: "var(--text-secondary)" }}>{formatTierLabel(position.tier)} · {statusLabel}</p>
+        </div>
+        <span className="text-sm font-semibold" style={{ color: pnlColor }}>{pnl >= 0 ? "+" : ""}{pnl.toFixed(2)}%</span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 text-[12px]">
+        {[
+          ["Giá vốn", formatPrice(position.entryPrice)],
+          ["Giá hiện tại", position.currentPrice ? formatPrice(position.currentPrice) : "-"],
+          ["Số lượng", position.quantity.toLocaleString("vi-VN")],
+          ["Giá trị", formatPrice(position.marketValue)],
+          ["NAV", `${position.navPct.toFixed(2)}%`],
+          ["Ngày mua", formatDate(position.openedAt)],
+        ].map(([label, value]) => (
+          <div key={label} className="rounded-lg border p-2" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+            <p style={{ color: "var(--text-secondary)" }}>{label}</p>
+            <p className="font-semibold" style={{ color: "var(--text-primary)" }}>{value}</p>
+          </div>
+        ))}
+      </div>
+
+      {position.pendingExitReason && (
+        <div className="rounded-lg border p-2 text-[12px]" style={{ borderColor: "rgba(245,158,11,0.35)", background: "rgba(245,158,11,0.08)", color: "#f59e0b" }}>
+          Pending exit: {position.pendingExitReason}
+          {position.pendingExitPrice ? ` · Giá kích hoạt ${formatPrice(position.pendingExitPrice)}` : ""}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -108,6 +226,8 @@ export function SignalMapClient({
   });
 
   const allSignals = signalMapTopic.data?.signals ?? [];
+  const paperAccount = signalMapTopic.data?.paperAccount ?? null;
+  const paperPositions = paperAccount?.positions ?? [];
   const reportedSummary = signalMapTopic.data?.reportedToday ?? reportedTopic.data;
   const reportedRows = reportedSummary?.groups.flatMap((group) => group.rows) ?? [];
   const reportedPreview = reportedRows.slice(0, 24);
@@ -124,6 +244,9 @@ export function SignalMapClient({
   const filtered = tierFilter === "all"
     ? tabSignals
     : tabSignals.filter((s) => (s.tier ?? "NGAN_HAN") === tierFilter);
+  const filteredPaperPositions = tierFilter === "all"
+    ? paperPositions
+    : paperPositions.filter((position) => (position.tier ?? "NGAN_HAN") === tierFilter);
 
   const activePnlSignals = allSignals.filter(
     (s) =>
@@ -144,22 +267,26 @@ export function SignalMapClient({
       : activePnlSignals.reduce((sum, s) => sum + (s.currentPnl ?? 0), 0) / activePnlSignals.length
     : 0;
   const closedTotalPnl = closedPnlSignals.reduce((sum, s) => sum + (s.pnl ?? 0), 0);
-  const displayedPnlSignals = activePnlSignals.length > 0 ? activePnlSignals : closedPnlSignals;
+  const displayedPnlSignals = paperPositions.length > 0 ? [] : activePnlSignals.length > 0 ? activePnlSignals : closedPnlSignals;
 
   const stats = {
     radar:  allSignals.filter(isRadarVisible).length,
-    active: allSignals.filter((s) => s.status === "ACTIVE" || s.status === "HOLD_TO_DIE").length,
+    active: paperPositions.length,
     closed: allSignals.filter((s) => s.status === "CLOSED").length,
-    totalPnl: activePnlSignals.length > 0 ? activeWeightedPnl : closedTotalPnl,
-    winCount: displayedPnlSignals.filter((s) => ((s.status === "CLOSED" ? s.pnl : s.currentPnl) ?? 0) > 0).length,
-    loseCount: displayedPnlSignals.filter((s) => ((s.status === "CLOSED" ? s.pnl : s.currentPnl) ?? 0) <= 0).length,
+    totalPnl: paperAccount ? paperAccount.totalPnlPct : activePnlSignals.length > 0 ? activeWeightedPnl : closedTotalPnl,
+    winCount: paperPositions.length > 0
+      ? paperPositions.filter((position) => (position.currentPnl ?? 0) > 0).length
+      : displayedPnlSignals.filter((s) => ((s.status === "CLOSED" ? s.pnl : s.currentPnl) ?? 0) > 0).length,
+    loseCount: paperPositions.length > 0
+      ? paperPositions.filter((position) => (position.currentPnl ?? 0) <= 0).length
+      : displayedPnlSignals.filter((s) => ((s.status === "CLOSED" ? s.pnl : s.currentPnl) ?? 0) <= 0).length,
   };
 
   const tierCounts = {
-    LEADER:   tabSignals.filter((s) => (s.tier ?? "NGAN_HAN") === "LEADER").length,
-    TRUNG_HAN:tabSignals.filter((s) => (s.tier ?? "NGAN_HAN") === "TRUNG_HAN").length,
-    NGAN_HAN: tabSignals.filter((s) => (s.tier ?? "NGAN_HAN") === "NGAN_HAN").length,
-    TAM_NGAM: tabSignals.filter((s) => s.tier === "TAM_NGAM").length,
+    LEADER:   (tab === "ACTIVE" ? paperPositions : tabSignals).filter((s) => (s.tier ?? "NGAN_HAN") === "LEADER").length,
+    TRUNG_HAN:(tab === "ACTIVE" ? paperPositions : tabSignals).filter((s) => (s.tier ?? "NGAN_HAN") === "TRUNG_HAN").length,
+    NGAN_HAN: (tab === "ACTIVE" ? paperPositions : tabSignals).filter((s) => (s.tier ?? "NGAN_HAN") === "NGAN_HAN").length,
+    TAM_NGAM: (tab === "ACTIVE" ? paperPositions : tabSignals).filter((s) => s.tier === "TAM_NGAM").length,
   };
 
   const tabCount = (t: Tab) => t === "RADAR" ? stats.radar : t === "ACTIVE" ? stats.active : stats.closed;
@@ -385,6 +512,29 @@ export function SignalMapClient({
             <div key={i} className="h-52 rounded-2xl animate-pulse" style={{ background: "var(--surface)" }} />
           ))}
         </div>
+      ) : tab === "ACTIVE" ? (
+        paperAccount && filteredPaperPositions.length > 0 ? (
+          <div className="space-y-3">
+            <PaperSummary account={paperAccount} />
+            {paperAccount.latestSnapshot && (
+              <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                Snapshot gần nhất: {paperAccount.latestSnapshot.snapshotDate} {paperAccount.latestSnapshot.slot}
+              </p>
+            )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {filteredPaperPositions.map((position) => (
+                <PaperPositionCard key={position.id} position={position} />
+              ))}
+            </div>
+          </div>
+        ) : (
+          <Card className="p-12 text-center">
+            <Briefcase className="w-10 h-10 mx-auto mb-3 opacity-30" style={{ color: "var(--text-muted)" }} />
+            <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+              Chưa có vị thế hợp lệ trong tài khoản mẫu
+            </p>
+          </Card>
+        )
       ) : tab === "CLOSED" && !isPremium ? (
         <Card className="p-12 text-center">
           <div
@@ -426,7 +576,6 @@ export function SignalMapClient({
           <Crosshair className="w-10 h-10 mx-auto mb-3 opacity-30" style={{ color: "var(--text-muted)" }} />
           <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
             {tab === "RADAR"  && "Chưa có tín hiệu nào trong tầm ngắm"}
-            {tab === "ACTIVE" && "Chưa có vị thế đang nắm giữ"}
             {tab === "CLOSED" && "Chưa có vị thế nào đã đóng"}
           </p>
         </Card>

@@ -344,6 +344,105 @@ model Signal {
   @@index([status, createdAt])
 }
 
+model RadarPaperAccount {
+  id          String   @id @default(cuid())
+  slug        String   @unique @default("adn-radar")
+  initialNav  Float    @default(1000000000)
+  cash        Float    @default(1000000000)
+  realizedPnl Float    @default(0)
+  status      String   @default("ACTIVE")
+  seededAt    DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  positions RadarPaperPosition[]
+  trades    RadarPaperTrade[]
+  snapshots RadarPaperSnapshot[]
+}
+
+model RadarPaperPosition {
+  id              String   @id @default(cuid())
+  accountId       String
+  signalId        String?
+  ticker          String
+  exchange        String   @default("HOSE")
+  signalType      String
+  tier            String
+  status          String   @default("ACTIVE")
+  entryPrice      Float
+  quantity        Int
+  costBasis       Float
+  navAllocation   Float
+  target          Float?
+  stoploss        Float?
+  currentPrice    Float?
+  marketValue     Float?
+  currentPnl      Float?
+  currentPnlValue Float?
+  maxPnl          Float    @default(0)
+  openedAt        DateTime @default(now())
+  sellableAt      DateTime
+  pendingExitReason      String?
+  pendingExitTriggeredAt DateTime?
+  pendingExitPrice       Float?
+  closePrice      Float?
+  closeValue      Float?
+  realizedPnl     Float?
+  realizedPnlPct  Float?
+  closedAt        DateTime?
+  holdingAction   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  account RadarPaperAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, status])
+  @@index([ticker, status])
+  @@index([signalId])
+}
+
+model RadarPaperTrade {
+  id         String   @id @default(cuid())
+  accountId  String
+  positionId String?
+  signalId   String?
+  ticker     String
+  exchange   String
+  side       String
+  price      Float
+  quantity   Int
+  grossValue Float
+  reason     String
+  tradedAt   DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  account RadarPaperAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, tradedAt])
+  @@index([ticker, tradedAt])
+}
+
+model RadarPaperSnapshot {
+  id             String   @id @default(cuid())
+  accountId      String
+  snapshotDate   String
+  slot           String
+  cash           Float
+  investedValue  Float
+  totalNav       Float
+  unrealizedPnl  Float
+  realizedPnl    Float
+  totalPnl       Float
+  totalPnlPct    Float
+  positionsJson  String?
+  createdAt      DateTime @default(now())
+
+  account RadarPaperAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, snapshotDate, slot])
+  @@index([snapshotDate, slot])
+}
+
 model TradingJournal {
   id             String      @id @default(cuid())
   userId         String

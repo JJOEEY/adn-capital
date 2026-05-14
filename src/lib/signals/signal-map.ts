@@ -17,6 +17,7 @@ export type SignalMapPayload<T extends SignalMapSignal = SignalMapSignal> = {
   }>;
   reportedToday: ReportedSignalSummary;
   reportedSignalKeys: string[];
+  paperAccount?: unknown;
 };
 
 function normalizeTicker(ticker: string): string {
@@ -40,6 +41,7 @@ function reportedAtMs(row: ReportedSignalItem | undefined): number {
 export function buildSignalMapPayload<T extends SignalMapSignal>(
   signals: T[],
   reportedToday: ReportedSignalSummary,
+  paperAccount?: unknown,
 ): SignalMapPayload<T> {
   const reportByIdentity = new Map(
     reportedToday.rows.map((row) => [
@@ -82,5 +84,6 @@ export function buildSignalMapPayload<T extends SignalMapSignal>(
     reportedSignalKeys: reportedToday.rows.map((row) =>
       toSignalIdentityKey(row.ticker, row.signalType),
     ),
+    paperAccount,
   };
 }
