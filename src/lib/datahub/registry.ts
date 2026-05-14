@@ -5,6 +5,10 @@ import { prisma } from "@/lib/prisma";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
 import { fetchFAData, fetchTAData, type FAData, type TAData } from "@/lib/stockData";
 import { resolveMarketTicker } from "@/lib/ticker-resolver";
+import {
+  fetchDnseMarketBoard,
+  fetchDnseOhlc,
+} from "@/lib/providers/dnse/market-data";
 import { listDnseOrderHistory } from "@/lib/brokers/dnse/order-history";
 import { decryptDnseToken } from "@/lib/brokers/dnse/crypto";
 import { getDnseTradingClient } from "@/lib/providers/dnse/trading-client";
@@ -269,11 +273,12 @@ async function loadMarketBoardForTickers(rawTickers: string) {
     }),
   );
   const tickers = Array.from(new Set(resolved.filter((ticker): ticker is string => Boolean(ticker))));
-  const board = await fetchMarketBoard(tickers);
+  const dnseBoard = await fetchDnseMarketBoard(tickers).catch(() => null);
+  const board = dnseBoard ?? await fetchMarketBoard(tickers);
   return {
     tickers,
     prices: board?.prices ?? {},
-    source: "VNStock price_board via FiinQuant Bridge",
+    source: dnseBoard ? "DNSE market data" : "VNStock price_board via FiinQuant Bridge",
     updatedAt: new Date().toISOString(),
   };
 }
@@ -556,6 +561,9 @@ async function loadBridgeHistoricalTicker(
 }
 
 async function loadHistoricalTicker(ticker: string) {
+  const dnsePayload = await fetchDnseOhlc(ticker, { timeframe: "1d", days: 260, timeoutMs: 12_000 }).catch(() => null);
+  if (hasCandleRows(dnsePayload)) return dnsePayload;
+
   const attempts = [
     { days: 260, timeout: 45_000 },
     { days: 180, timeout: 35_000 },
@@ -578,7 +586,7 @@ async function loadHistoricalTicker(ticker: string) {
 
 async function loadVNIndexChart30d() {
   const [payload, snapshot, marketOverview] = await Promise.all([
-    loadBridgeHistoricalTicker("VNINDEX", "1d", 75, 4_000).catch(() => null),
+    loadHistoricalTicker("VNINDEX").catch(() => null),
     getMarketSnapshot().catch(() => null),
     loadMarketOverview().catch(() => null),
   ]);
@@ -640,6 +648,9 @@ function hasCandleRows(payload: unknown) {
 }
 
 async function loadRealtimeTicker(ticker: string, timeframe: string) {
+  const dnseRealtime = await fetchDnseOhlc(ticker, { timeframe, days: 5, timeoutMs: 8_000 }).catch(() => null);
+  if (hasCandleRows(dnseRealtime)) return dnseRealtime;
+
   const realtime = await fetchRealtimeTradingData(ticker, timeframe, 5_000);
   const normalizedRealtime = normalizeHistoricalPricePayload(realtime);
   if (hasCandleRows(normalizedRealtime)) return normalizedRealtime;

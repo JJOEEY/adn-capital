@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { getVNDateISO, logCron } from "@/lib/cronHelpers";
 import { invalidateTopics } from "@/lib/datahub/core";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
+import { runDnseMarketDataCoverageCheck } from "@/lib/providers/dnse/market-data";
 import { ingestSignalScanBatch } from "@/lib/signals/ingest";
 import { sendClaimedSignalsToTelegram } from "@/lib/signals/telegram-notify";
 
@@ -48,6 +49,32 @@ export async function POST() {
 
     const data = (await res.json()) as { detected?: number; signals?: ScannerSignal[] };
     const signals = Array.isArray(data.signals) ? data.signals : [];
+    const dnseShadow =
+      process.env.DNSE_SHADOW_VALIDATE_ON_SCAN === "true"
+        ? await runDnseMarketDataCoverageCheck({
+            tickers: Array.from(
+              new Set(
+                signals
+                  .map((signal) => signal.ticker.toUpperCase().trim())
+                  .filter((ticker): ticker is string => Boolean(ticker)),
+              ),
+            ),
+            thresholdPct: 95,
+            concurrency: 6,
+            limit: 80,
+          }).catch((error) => ({
+            provider: "dnse" as const,
+            checkedAt: new Date().toISOString(),
+            requested: signals.length,
+            covered: 0,
+            coveragePct: 0,
+            thresholdPct: 95,
+            passed: false,
+            missing: signals.map((signal) => signal.ticker).slice(0, 80),
+            durationMs: 0,
+            error: error instanceof Error ? error.message : String(error),
+          }))
+        : null;
     const tradingDate = getVNDateISO();
     const ingest = await ingestSignalScanBatch({
       signals,
@@ -81,6 +108,7 @@ export async function POST() {
         updated: ingest.updated,
         notified: ingest.notified.length,
         batchId: ingest.artifact.batchId,
+        dnseShadow,
         scanArtifact: ingest.artifact,
       },
     );
@@ -93,6 +121,7 @@ export async function POST() {
       updated: ingest.updated,
       notified: ingest.notified.length,
       batchId: ingest.artifact.batchId,
+      dnseShadowPassed: dnseShadow?.passed ?? null,
       signals: ingest.artifact.signals,
       notifiedSignals: ingest.artifact.notifiedSignals,
       message: `${ingest.created} mới, ${ingest.updated} cập nhật`,

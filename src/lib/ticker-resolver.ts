@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
+import { fetchDnseInstruments } from "@/lib/providers/dnse/market-data";
 
 const DCHART_BASE = "https://dchart-api.vndirect.com.vn/dchart/history";
 const VALID_TTL_MS = 6 * 60 * 60 * 1000;
@@ -15,7 +16,7 @@ const INDEX_TICKERS = new Set([
   "UPINDEX",
 ]);
 
-type ResolutionSource = "index" | "cache" | "database" | "vndirect" | "fiinquant" | "invalid";
+type ResolutionSource = "index" | "cache" | "database" | "dnse" | "vndirect" | "fiinquant" | "invalid";
 
 type CacheEntry = {
   result: TickerResolution;
@@ -88,6 +89,11 @@ async function existsInVndirectDchart(ticker: string): Promise<boolean> {
   return payload.s === "ok" && Array.isArray(payload.c) && payload.c.length > 0;
 }
 
+async function existsInDnseInstruments(ticker: string): Promise<boolean> {
+  const rows = await fetchDnseInstruments({ symbols: [ticker], limit: 5 });
+  return rows.some((row) => row.symbol === ticker);
+}
+
 async function existsInBridgeRealtime(ticker: string): Promise<boolean> {
   const bridge = getPythonBridgeUrl();
   const res = await fetch(`${bridge}/api/v1/realtime/${encodeURIComponent(ticker)}?timeframe=5m`, {
@@ -143,6 +149,22 @@ export async function resolveMarketTicker(input: string): Promise<TickerResoluti
     }
   } catch (error) {
     console.warn("[ticker-resolver] DB check failed:", error);
+  }
+
+  try {
+    if (await existsInDnseInstruments(normalized)) {
+      const result: TickerResolution = {
+        input,
+        ticker: normalized,
+        valid: true,
+        source: "dnse",
+        checkedAt,
+      };
+      writeCache(result);
+      return result;
+    }
+  } catch (error) {
+    console.warn("[ticker-resolver] DNSE instruments check failed:", error);
   }
 
   try {
