@@ -280,8 +280,12 @@ function toDateKey(value: unknown): string | null {
   const trimmed = value.trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
   const viMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (!viMatch) return null;
-  const [, day, month, year] = viMatch;
+  const longViMatch = normalizeForCheck(trimmed).match(
+    /(?:^|,\s*)(\d{1,2})\s+thang\s+(\d{1,2})(?:\s+nam|,)?\s+(\d{4})$/,
+  );
+  const match = viMatch ?? longViMatch;
+  if (!match) return null;
+  const [, day, month, year] = match;
   return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
 }
 
@@ -1247,7 +1251,36 @@ function reportDateFromCreatedAt(createdAt: Date): string {
   }).format(createdAt);
 }
 
-function getReportDateKey(report: ReportRow): string {
+function toDateKeyFromParts(day: number, month: number, year: number): string | null {
+  if (
+    !Number.isInteger(day) ||
+    !Number.isInteger(month) ||
+    !Number.isInteger(year) ||
+    year < 2000 ||
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31
+  ) {
+    return null;
+  }
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function getReportTitleDateKey(report: Pick<ReportRow, "title" | "content">): string | null {
+  const source = `${report.title ?? ""}\n${report.content ?? ""}`;
+  const viMatch = source.match(/(\d{1,2})\s*th[aá]ng\s*(\d{1,2})\s*,?\s*(\d{4})/i);
+  if (viMatch) {
+    return toDateKeyFromParts(Number(viMatch[1]), Number(viMatch[2]), Number(viMatch[3]));
+  }
+  const slashMatch = source.match(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/);
+  if (slashMatch) {
+    return toDateKeyFromParts(Number(slashMatch[1]), Number(slashMatch[2]), Number(slashMatch[3]));
+  }
+  return null;
+}
+
+function getReportEmbeddedDateKey(report: ReportRow): string | null {
   const raw = parseJsonMaybe(report.rawData);
   const eodDetail = raw ? pickRecord(raw, ["eodDetail", "eod_detail", "eod", "brief", "payload"]) : null;
   const dateFromEodDetail = toDateKey(eodDetail?.date);
@@ -1255,7 +1288,15 @@ function getReportDateKey(report: ReportRow): string {
   const snapshot = getSnapshot(raw);
   const dateFromSnapshot = typeof snapshot.requestDateVN === "string" ? snapshot.requestDateVN : null;
   if (dateFromSnapshot && /^\d{4}-\d{2}-\d{2}$/.test(dateFromSnapshot)) return dateFromSnapshot;
-  return reportDateFromCreatedAt(report.createdAt);
+  return null;
+}
+
+function getReportDateKey(report: ReportRow): string {
+  const createdDateKey = reportDateFromCreatedAt(report.createdAt);
+  const titleDateKey = getReportTitleDateKey(report);
+  if (titleDateKey) return titleDateKey;
+  const embeddedDateKey = getReportEmbeddedDateKey(report);
+  return embeddedDateKey === createdDateKey ? embeddedDateKey : createdDateKey;
 }
 
 function isWeekdayDateKey(dateKey: string): boolean {
@@ -1379,7 +1420,11 @@ function toMorningPayload(report: { createdAt: Date; content: string; rawData: s
 function toEodPayload(report: { createdAt: Date; content: string; rawData: string | null }): EodPayload {
   const normalizedContent = repairMojibake(report.content);
   const raw = parseJsonMaybe(report.rawData);
-  const eodDetailFromRaw = raw ? pickRecord(raw, ["eodDetail", "eod_detail", "eod", "brief", "payload"]) : null;
+  const reportDateKey = getReportDateKey(report);
+  const rawEodDetail = raw ? pickRecord(raw, ["eodDetail", "eod_detail", "eod", "brief", "payload"]) : null;
+  const eodDetailDateKey = toDateKey(rawEodDetail?.date);
+  const eodDetailFromRaw =
+    rawEodDetail && (!eodDetailDateKey || eodDetailDateKey === reportDateKey) ? rawEodDetail : null;
   if (eodDetailFromRaw) {
     const bridgePayload = fromBridgeEodPayload(eodDetailFromRaw as unknown as FiinEodNews);
     if (hasDetailedFlowLists(bridgePayload) && Number.isFinite(bridgePayload.liquidity) && bridgePayload.liquidity > 0) {
@@ -1388,7 +1433,6 @@ function toEodPayload(report: { createdAt: Date; content: string; rawData: strin
   }
   const snapshot = getSnapshot(raw);
   const indices = extractIndices(snapshot, normalizedContent);
-  const reportDateKey = getReportDateKey(report);
   const vnindex = indices.find((item) => item.name === "VN-INDEX");
 
   const breadth = parseBreadth(snapshot.breadth ?? snapshot.market_breadth, normalizedContent);
@@ -1464,7 +1508,7 @@ function toEodPayload(report: { createdAt: Date; content: string; rawData: strin
     normalizedContent,
     "Bản tin kết phiên đã được tạo. Hệ thống đang đồng bộ thêm dữ liệu hiển thị.",
   );
-  const eodDetail = raw ? pickRecord(raw, ["eodDetail", "eod_detail", "eod", "brief", "payload"]) : null;
+  const eodDetail = eodDetailFromRaw;
   const propDataRecord = raw ? pickRecord(raw, ["propData", "prop_data", "proprietaryTrading"]) : null;
   const arrayRecords = [raw, eodDetail, snapshot, propDataRecord];
 
@@ -1847,7 +1891,7 @@ function hasCompleteScheduledEodPayload(payload: EodPayload): boolean {
 }
 
 function hasArchivedScheduledEodPayload(payload: EodPayload): boolean {
-  return hasCompleteScheduledEodPayload(payload);
+  return hasCompleteScheduledEodPayload(payload) || hasDisplayableEodPayload(payload);
 }
 
 type ScheduledEodCandidate = {
@@ -1862,6 +1906,7 @@ function isScheduledEodCandidateAllowed(candidate: ScheduledEodCandidate, now: D
   if (type !== "eod_full_19h" && type !== "close_brief_15h") return false;
 
   const todayKey = reportDateFromCreatedAt(now);
+  // Latest must show the nearest valid archived brief when today's EOD job is skipped.
   if (candidate.dateKey !== todayKey) {
     return hasArchivedScheduledEodPayload(candidate.payload);
   }
@@ -2079,7 +2124,7 @@ export async function GET(request: NextRequest) {
       (a, b) => morningPayloadScore(b) - morningPayloadScore(a),
     );
     let selected =
-      [...sameDatePayloads].sort((a, b) => morningPayloadScore(b) - morningPayloadScore(a))[0] ??
+      sameDatePayloads[0] ??
       orderedPayloads[0];
     selected = backfillMorningPayload(selected, orderedPayloads);
     let bridgeMorningPayload: MorningPayload | null = null;
@@ -2166,7 +2211,7 @@ export async function GET(request: NextRequest) {
   if (isInvalidEodOutlook(selected.outlook)) {
     selected.outlook = buildDeterministicEodOutlook(selected);
   }
-  if (!hasArchivedScheduledEodPayload(selected)) {
+  if (!hasDisplayableEodPayload(selected)) {
     return NextResponse.json({ error: "EOD Brief chưa đủ dữ liệu hợp lệ để publish." }, { status: 503 });
   }
   return NextResponse.json(selected);
