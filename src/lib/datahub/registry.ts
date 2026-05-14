@@ -1872,8 +1872,7 @@ function smartflowToArray(value: unknown): unknown[] {
 function normalizeMoneyToBillion(value: number | null) {
   if (value == null || !Number.isFinite(value)) return null;
   const abs = Math.abs(value);
-  if (abs >= 1_000_000_000) return value / 1_000_000_000;
-  if (abs >= 1_000_000) return value / 1_000;
+  if (abs >= 1_000_000) return value / 1_000_000_000;
   return value;
 }
 
@@ -1924,8 +1923,35 @@ function readSmartflowInstitutionalNet(row: JsonRecord) {
   if (foreignNet != null || proprietaryNet != null) {
     return normalizeMoneyToBillion((foreignNet ?? 0) + (proprietaryNet ?? 0));
   }
-  if (buy != null || sell != null) {
-    return normalizeMoneyToBillion((buy ?? 0) - (sell ?? 0));
+  const foreignBuy =
+    smartflowNumber(row.foreignBuyValueMatched) ??
+    smartflowNumber(row.foreignBuyValueTotal) ??
+    smartflowNumber(row.foreignBuyValue) ??
+    0;
+  const foreignSell =
+    smartflowNumber(row.foreignSellValueMatched) ??
+    smartflowNumber(row.foreignSellValueTotal) ??
+    smartflowNumber(row.foreignSellValue) ??
+    0;
+  const proprietaryBuy =
+    smartflowNumber(row.proprietaryTotalBuyTradeValue) ??
+    smartflowNumber(row.proprietaryTotalMatchBuyTradeValue) ??
+    smartflowNumber(row.selfTradingBuyValue) ??
+    0;
+  const proprietarySell =
+    smartflowNumber(row.proprietaryTotalSellTradeValue) ??
+    smartflowNumber(row.proprietaryTotalMatchSellTradeValue) ??
+    smartflowNumber(row.selfTradingSellValue) ??
+    0;
+  if (
+    foreignBuy !== 0 ||
+    foreignSell !== 0 ||
+    proprietaryBuy !== 0 ||
+    proprietarySell !== 0 ||
+    buy != null ||
+    sell != null
+  ) {
+    return normalizeMoneyToBillion(foreignBuy - foreignSell + proprietaryBuy - proprietarySell);
   }
   return null;
 }
@@ -2161,7 +2187,10 @@ async function loadPulseSmartflow() {
         ticker: row.ticker,
         currentPrice,
         netBuyValue3M: row.netBuyValue,
-        netBuyVolume3M: row.netBuyVolume,
+        netBuyVolume3M:
+          row.netBuyVolume != null && row.netBuyVolume > 0
+            ? row.netBuyVolume
+            : Math.round((row.netBuyValue * 1_000_000_000) / currentPrice),
         accumulationRank: index + 1,
       };
     })
