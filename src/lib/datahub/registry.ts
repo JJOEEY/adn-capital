@@ -1871,9 +1871,7 @@ function smartflowToArray(value: unknown): unknown[] {
 
 function normalizeMoneyToBillion(value: number | null) {
   if (value == null || !Number.isFinite(value)) return null;
-  const abs = Math.abs(value);
-  if (abs >= 1_000_000) return value / 1_000_000_000;
-  return value;
+  return value / 1_000_000_000;
 }
 
 function getSmartflowDate(daysAgo: number) {
