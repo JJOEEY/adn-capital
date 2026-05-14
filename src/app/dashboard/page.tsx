@@ -369,7 +369,7 @@ export default function DashboardPage() {
     refreshInterval: 300_000,
     revalidateOnFocus: false,
     dedupingInterval: 120_000,
-    timeoutMs: 12_000,
+    timeoutMs: 45_000,
   });
 
   const data = marketOverviewTopic.data;

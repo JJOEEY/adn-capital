@@ -1832,6 +1832,13 @@ type SmartflowRow = {
   net: number;
 };
 
+const DEFAULT_SMARTFLOW_UNIVERSE = [
+  "VCB", "BID", "CTG", "TCB", "MBB", "VPB", "ACB", "STB", "HDB", "VIB",
+  "FPT", "MWG", "VNM", "MSN", "HPG", "HSG", "SSI", "VND", "VCI", "HCM",
+  "VIC", "VHM", "VRE", "GAS", "BSR", "PVD", "PVS", "PLX", "GMD", "DGC",
+  "KBC", "BCM", "REE", "FRT", "DGW", "PNJ", "SAB", "VJC", "HVN", "LPB",
+];
+
 function smartflowNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value !== "string") return null;
@@ -1968,8 +1975,9 @@ async function loadSmartflowUniverse(limit: number) {
 
 async function loadMa200Breadth(tickers: string[]) {
   const checked = await smartflowMapLimit(tickers, 8, async (ticker) => {
-    const ohlc = await fetchDnseOhlc(ticker, { timeframe: "1d", days: 260, timeoutMs: 8_000 }).catch(() => null);
-    const rows = getMarketPayloadRows(ohlc);
+    const dnseOhlc = await fetchDnseOhlc(ticker, { timeframe: "1d", days: 260, timeoutMs: 8_000 }).catch(() => null);
+    const historical = hasCandleRows(dnseOhlc) ? dnseOhlc : await loadHistoricalTicker(ticker).catch(() => null);
+    const rows = getMarketPayloadRows(historical);
     const closes = rows
       .map((row) => readPositiveNumber(row.close ?? row.c))
       .filter((value): value is number => value != null && Number.isFinite(value) && value > 0);
@@ -1988,13 +1996,14 @@ async function loadMa200Breadth(tickers: string[]) {
 }
 
 async function loadPulseSmartflow() {
-  const universeLimit = Math.max(30, Math.min(500, Number(process.env.SMARTFLOW_UNIVERSE_LIMIT ?? 120)));
+  const universeLimit = Math.max(30, Math.min(500, Number(process.env.SMARTFLOW_UNIVERSE_LIMIT ?? 80)));
   const [snapshot, universe] = await Promise.all([
     getMarketSnapshot().catch(() => null),
     loadSmartflowUniverse(universeLimit),
   ]);
+  const smartflowUniverse = universe.length > 0 ? universe : DEFAULT_SMARTFLOW_UNIVERSE.slice(0, universeLimit);
   const [ma200Breadth, oneMonthFlow, threeMonthFlow] = await Promise.all([
-    loadMa200Breadth(universe),
+    loadMa200Breadth(smartflowUniverse),
     fetchInvestorTrading({ fromDate: getSmartflowDate(31), toDate: getSmartflowDate(0) }).catch(() => null),
     fetchInvestorTrading({ fromDate: getSmartflowDate(92), toDate: getSmartflowDate(0) }).catch(() => null),
   ]);
