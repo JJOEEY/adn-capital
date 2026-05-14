@@ -1891,7 +1891,7 @@ function hasCompleteScheduledEodPayload(payload: EodPayload): boolean {
 }
 
 function hasArchivedScheduledEodPayload(payload: EodPayload): boolean {
-  return hasCompleteScheduledEodPayload(payload) || hasDisplayableEodPayload(payload);
+  return hasCompleteScheduledEodPayload(payload);
 }
 
 type ScheduledEodCandidate = {
@@ -1951,6 +1951,24 @@ function pickScheduledEodCandidate(reports: ReportRow[], now = new Date()): Sche
     });
 
   return allowed[0] ?? null;
+}
+
+async function loadCompleteBridgeEodPayload(): Promise<{ dateKey: string; payload: EodPayload } | null> {
+  const bridgeEod = await fetchEodNews().catch(() => null);
+  if (!bridgeEod) return null;
+  const payload = fromBridgeEodPayload(bridgeEod);
+  const dateKey = toDateKey(bridgeEod.date) ?? toDateKey(payload.date);
+  if (!dateKey || !hasCompleteScheduledEodPayload(payload)) return null;
+  return { dateKey, payload };
+}
+
+function shouldPreferBridgeEod(
+  bridge: { dateKey: string; payload: EodPayload },
+  selectedCandidate: ScheduledEodCandidate | null,
+): boolean {
+  if (!selectedCandidate) return true;
+  if (bridge.dateKey < selectedCandidate.dateKey) return false;
+  return bridge.dateKey > selectedCandidate.dateKey || !hasCompleteScheduledEodPayload(selectedCandidate.payload);
 }
 
 function hasDisplayableMorningPayload(payload: MorningPayload): boolean {
@@ -2158,13 +2176,17 @@ export async function GET(request: NextRequest) {
   }
 
   const selectedCandidate = pickScheduledEodCandidate(reports);
-  if (!selectedCandidate) {
+  const bridgeCandidate = await loadCompleteBridgeEodPayload();
+  if (!selectedCandidate && !bridgeCandidate) {
     return NextResponse.json(
       { error: "ChÆ°a cÃ³ EOD Brief Ä‘Ãºng lá»‹ch 15h/19h vÃ  Ä‘á»§ dá»¯ liá»‡u Ä‘á»ƒ hiá»ƒn thá»‹." },
       { status: 404 },
     );
   }
-  let selected = selectedCandidate.payload;
+  let selected =
+    bridgeCandidate && shouldPreferBridgeEod(bridgeCandidate, selectedCandidate)
+      ? bridgeCandidate.payload
+      : selectedCandidate!.payload;
 
   if (selected.liquidity_by_exchange) {
     selected.liquidity_by_exchange = normalizeExchangeLiquidity(selected.liquidity_by_exchange);
@@ -2211,7 +2233,7 @@ export async function GET(request: NextRequest) {
   if (isInvalidEodOutlook(selected.outlook)) {
     selected.outlook = buildDeterministicEodOutlook(selected);
   }
-  if (!hasDisplayableEodPayload(selected)) {
+  if (!hasCompleteScheduledEodPayload(selected)) {
     return NextResponse.json({ error: "EOD Brief chưa đủ dữ liệu hợp lệ để publish." }, { status: 503 });
   }
   return NextResponse.json(selected);
