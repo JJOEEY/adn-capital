@@ -9,6 +9,7 @@
  */
 
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
+import { normalizeSignalPriceFields } from "@/lib/signals/price-units";
 
 const BACKEND = () => getPythonBridgeUrl();
 const TIMEOUT = 30_000;
@@ -243,6 +244,18 @@ export interface FiinRealtimeResponse {
   };
   data?: FiinRealtimePoint[];
   [key: string]: unknown;
+}
+
+const REALTIME_PRICE_FIELDS = ["open", "high", "low", "close", "price", "lastPrice", "matchPrice", "o", "h", "l", "c"] as const;
+
+function normalizeRealtimePricePayload(payload: FiinRealtimeResponse | null): FiinRealtimeResponse | null {
+  if (!payload) return payload;
+  return {
+    ...payload,
+    data: Array.isArray(payload.data)
+      ? payload.data.map((row) => normalizeSignalPriceFields(row, REALTIME_PRICE_FIELDS))
+      : payload.data,
+  };
 }
 
 export interface MarketBoardLevel {
@@ -489,10 +502,11 @@ export async function fetchRealtimeTradingData(
 ): Promise<FiinRealtimeResponse | null> {
   const normalized = ticker.trim().toUpperCase();
   if (!normalized) return null;
-  return fiinFetch<FiinRealtimeResponse>(
+  const payload = await fiinFetch<FiinRealtimeResponse>(
     `/api/v1/realtime/${encodeURIComponent(normalized)}?timeframe=${encodeURIComponent(timeframe)}`,
     { timeout },
   );
+  return normalizeRealtimePricePayload(payload);
 }
 
 export async function fetchMarketBoard(tickers: string[]): Promise<MarketBoardResponse | null> {
