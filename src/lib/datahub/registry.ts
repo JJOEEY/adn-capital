@@ -30,6 +30,7 @@ import {
   latestClosePriceFromPayload,
   latestTurnoverPriceFromPayload,
   marketPriceScaleFromPayload,
+  normalizeMarketBoardRow,
   normalizeHistoricalPricePayload,
 } from "@/lib/market-price-normalization";
 import { buildStockPriceSnapshot, type StockPriceSnapshot } from "@/lib/market-price-snapshot";
@@ -282,9 +283,12 @@ async function loadMarketBoardForTickers(rawTickers: string) {
   const tickers = Array.from(new Set(resolved.filter((ticker): ticker is string => Boolean(ticker))));
   const dnseBoard = await fetchDnseMarketBoard(tickers).catch(() => null);
   const board = dnseBoard ?? await fetchMarketBoard(tickers);
+  const prices = Object.fromEntries(
+    Object.entries(board?.prices ?? {}).map(([ticker, row]) => [ticker, normalizeMarketBoardRow(row as JsonRecord)]),
+  );
   return {
     tickers,
-    prices: board?.prices ?? {},
+    prices,
     source: dnseBoard ? "DNSE market data" : "VNStock price_board via FiinQuant Bridge",
     updatedAt: new Date().toISOString(),
   };
@@ -591,6 +595,55 @@ async function loadHistoricalTicker(ticker: string) {
   throw lastError instanceof Error ? lastError : new Error(`historical ${ticker} unavailable`);
 }
 
+function currentVnDateKey() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+function mergeMarketBoardCloseIntoHistorical(payload: unknown, boardRow: unknown) {
+  const row = boardRow && typeof boardRow === "object" ? normalizeMarketBoardRow(boardRow as JsonRecord) : null;
+  const close = readPositiveNumber(row?.close);
+  if (close == null || !hasCandleRows(payload)) return payload;
+
+  const rows = getMarketPayloadRows(payload);
+  const last = rows[rows.length - 1] ?? {};
+  const date = currentVnDateKey();
+  const liveRow = {
+    ...last,
+    date,
+    timestamp: Math.floor(Date.parse(`${date}T07:00:00.000Z`) / 1000),
+    open: readPositiveNumber(row?.open) ?? readPositiveNumber(last.open ?? last.o) ?? close,
+    high: Math.max(readPositiveNumber(row?.high) ?? close, close),
+    low: Math.min(readPositiveNumber(row?.low) ?? close, close),
+    close,
+    volume: readPositiveNumber(row?.volume) ?? readPositiveNumber(last.volume ?? last.v) ?? 0,
+  };
+  const lastDate = normalizeChartDateKey(String(last.date ?? last.timestamp ?? last.time ?? ""));
+  const nextRows = lastDate === date ? [...rows.slice(0, -1), liveRow] : [...rows, liveRow].slice(-260);
+
+  if (payload && typeof payload === "object") {
+    const record = payload as JsonRecord;
+    if (Array.isArray(record.data)) return { ...record, data: nextRows };
+    if (Array.isArray(record.candles)) return { ...record, candles: nextRows };
+    if (Array.isArray(record.items)) return { ...record, items: nextRows };
+  }
+  return nextRows;
+}
+
+async function loadHistoricalTickerWithMarketClose(ticker: string) {
+  const [historical, board] = await Promise.all([
+    loadHistoricalTicker(ticker),
+    loadMarketBoardForTickers(ticker).catch(() => null),
+  ]);
+  return mergeMarketBoardCloseIntoHistorical(historical, board?.prices?.[ticker.toUpperCase()]);
+}
+
 async function loadVNIndexChart30d() {
   const [payload, snapshot, marketOverview] = await Promise.all([
     loadHistoricalTicker("VNINDEX").catch(() => null),
@@ -669,10 +722,11 @@ async function loadRealtimeTicker(ticker: string, timeframe: string) {
 }
 
 async function loadPriceSnapshotForTicker(ticker: string) {
-  const [historical, realtime, ta] = await Promise.all([
+  const [historical, realtime, ta, board] = await Promise.all([
     loadHistoricalTicker(ticker).catch(() => null),
     loadRealtimeTicker(ticker, "5m").catch(() => null),
     fetchTAData(ticker).catch(() => null),
+    loadMarketBoardForTickers(ticker).catch(() => null),
   ]);
 
   return buildStockPriceSnapshot({
@@ -680,6 +734,7 @@ async function loadPriceSnapshotForTicker(ticker: string) {
     historical,
     realtime,
     ta,
+    marketBoard: board?.prices?.[ticker.toUpperCase()],
   });
 }
 
@@ -1010,7 +1065,7 @@ async function loadResearchWorkbench(topicKey: string) {
   const resolved = await assertValidTicker(ticker);
   const normalizedTicker = resolved.ticker;
 
-  const [taRaw, faRaw, seasonality, investor, marketSnapshot, activeSignal, news, aiCaches, art, historical] = await Promise.all([
+  const [taRaw, faRaw, seasonality, investor, marketSnapshot, activeSignal, news, aiCaches, art, historical, board] = await Promise.all([
     fetchTAData(normalizedTicker),
     fetchFAData(normalizedTicker),
     loadSeasonalityForTicker(normalizedTicker),
@@ -1024,12 +1079,14 @@ async function loadResearchWorkbench(topicKey: string) {
       console.warn("[DataHub research] optional historical normalization unavailable:", error);
       return null;
     }),
+    loadMarketBoardForTickers(normalizedTicker).catch(() => null),
   ]);
   const priceSnapshot = buildStockPriceSnapshot({
     ticker: normalizedTicker,
     historical,
     realtime: investor,
     ta: taRaw,
+    marketBoard: board?.prices?.[normalizedTicker],
   });
   const recentClose = priceSnapshot.price ?? latestClosePriceFromPayload(historical);
   const ta = applyPriceSnapshotToTA(normalizeTAWithHistorical(taRaw, historical, recentClose), priceSnapshot);
@@ -2734,16 +2791,18 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     },
     resolve: async (_, __, params) => {
       const resolved = await assertValidTicker(params.ticker);
-      const [ta, historical, realtime] = await Promise.all([
+      const [ta, historical, realtime, board] = await Promise.all([
         fetchTAData(resolved.ticker),
         loadHistoricalTicker(resolved.ticker).catch(() => null),
         loadRealtimeTicker(resolved.ticker, "5m").catch(() => null),
+        loadMarketBoardForTickers(resolved.ticker).catch(() => null),
       ]);
       const priceSnapshot = buildStockPriceSnapshot({
         ticker: resolved.ticker,
         historical,
         realtime,
         ta,
+        marketBoard: board?.prices?.[resolved.ticker],
       });
       const recentClose = priceSnapshot.price ?? latestClosePriceFromPayload(historical);
       return applyPriceSnapshotToTA(normalizeTAWithHistorical(ta, historical, recentClose), priceSnapshot);
@@ -2886,7 +2945,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     },
     resolve: async (_, __, params) => {
       const resolved = await assertValidTicker(params.ticker);
-      return loadHistoricalTicker(resolved.ticker);
+      return loadHistoricalTickerWithMarketClose(resolved.ticker);
     },
   },
   {

@@ -93,6 +93,46 @@ export function chooseMarketDisplayPrice(
   return Math.abs(turnover - base) / Math.max(1, base) >= 0.08 ? turnover : base;
 }
 
+export function alignMarketPriceToAnchor(
+  value: number | null | undefined,
+  anchor?: number | null,
+): number | null {
+  if (value == null || !Number.isFinite(value) || value <= 0) return null;
+  const cleanAnchor = anchor != null && Number.isFinite(anchor) && anchor > 0 ? anchor : null;
+  const candidates = [value, value * 10, value * 100, value * 1000, value / 10, value / 100, value / 1000]
+    .filter((item) => Number.isFinite(item) && item > 0);
+
+  const selected = cleanAnchor == null
+    ? value < 1000 ? value * 1000 : value
+    : candidates.reduce((best, item) => {
+        const bestGap = Math.abs(best - cleanAnchor) / Math.max(1, cleanAnchor);
+        const itemGap = Math.abs(item - cleanAnchor) / Math.max(1, cleanAnchor);
+        return itemGap < bestGap ? item : best;
+      }, candidates[0]);
+
+  return Math.round(selected / 10) * 10;
+}
+
+export function normalizeMarketBoardRow<T extends JsonRecord>(row: T): T {
+  const close = alignMarketPriceToAnchor(readMarketNumber(row.close ?? row.price ?? row.currentPrice ?? row.lastPrice));
+  const reference = alignMarketPriceToAnchor(
+    readMarketNumber(row.reference ?? row.refPrice ?? row.basicPrice ?? row.previousClose),
+    close,
+  );
+  const change = close != null && reference != null ? close - reference : readMarketNumber(row.change);
+  const changePct = close != null && reference != null && reference > 0
+    ? Number((((close - reference) / reference) * 100).toFixed(2))
+    : readMarketNumber(row.changePct ?? row.percentChange);
+
+  return {
+    ...row,
+    ...(close != null ? { close } : {}),
+    ...(reference != null ? { reference } : {}),
+    ...(change != null ? { change } : {}),
+    ...(changePct != null ? { changePct } : {}),
+  };
+}
+
 export function normalizeHistoricalPricePayload<T>(payload: T): T {
   const rows = getMarketPayloadRows(payload);
   const scale = estimatePriceScaleFromRows(rows);

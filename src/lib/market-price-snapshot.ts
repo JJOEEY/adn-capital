@@ -1,4 +1,5 @@
 import {
+  alignMarketPriceToAnchor,
   applyMarketPriceScale,
   chooseMarketDisplayPrice,
   getMarketPayloadRows,
@@ -29,6 +30,7 @@ interface BuildStockPriceSnapshotInput {
   historical?: unknown;
   realtime?: unknown;
   ta?: unknown;
+  marketBoard?: unknown;
 }
 
 function lastRow(payload: unknown): JsonRecord | null {
@@ -89,17 +91,39 @@ export function normalizeHistoricalPriceWithSnapshot(
 
 export function buildStockPriceSnapshot(input: BuildStockPriceSnapshotInput): StockPriceSnapshot {
   const ta = asRecord(input.ta);
+  const marketBoard = asRecord(input.marketBoard);
   const historicalScale = marketPriceScaleFromPayload(input.historical);
   const historicalClose = latestClosePriceFromPayload(input.historical);
   const turnoverPrice = latestTurnoverPriceFromPayload(input.historical);
+  const anchorPrice = chooseMarketDisplayPrice(historicalClose, turnoverPrice);
+  const boardClose = alignMarketPriceToAnchor(readPrice(marketBoard), anchorPrice);
+  const boardReference = alignMarketPriceToAnchor(
+    readMarketNumber(marketBoard.reference ?? marketBoard.refPrice ?? marketBoard.basicPrice ?? marketBoard.previousClose),
+    boardClose ?? anchorPrice,
+  );
   const realtimeRow = lastRow(input.realtime);
   const realtimePriceRaw = readPrice(realtimeRow);
-  const realtimePrice = applyMarketPriceScale(realtimePriceRaw, historicalScale);
-  const taCurrent = applyMarketPriceScale(readMarketNumber(ta.currentPrice), historicalScale);
-  const close = chooseMarketDisplayPrice(realtimePrice ?? historicalClose ?? taCurrent, turnoverPrice);
+  const realtimePrice = alignMarketPriceToAnchor(
+    applyMarketPriceScale(realtimePriceRaw, historicalScale),
+    boardClose ?? anchorPrice,
+  );
+  const taCurrent = alignMarketPriceToAnchor(
+    applyMarketPriceScale(readMarketNumber(ta.currentPrice), historicalScale),
+    boardClose ?? anchorPrice,
+  );
+  const close = boardClose ?? chooseMarketDisplayPrice(realtimePrice ?? historicalClose ?? taCurrent, turnoverPrice);
+  const taPreviousClose = alignMarketPriceToAnchor(
+    applyMarketPriceScale(readMarketNumber(ta.prevClose ?? ta.refPrice), historicalScale),
+    close ?? anchorPrice,
+  );
+  const historicalPreviousClose = alignMarketPriceToAnchor(
+    previousCloseFromHistorical(input.historical, historicalScale),
+    close ?? anchorPrice,
+  );
   const previousClose =
-    applyMarketPriceScale(readMarketNumber(ta.prevClose ?? ta.refPrice), historicalScale)
-    ?? previousCloseFromHistorical(input.historical, historicalScale);
+    boardReference ??
+    taPreviousClose ??
+    historicalPreviousClose;
 
   return {
     ticker: input.ticker.toUpperCase(),
@@ -108,7 +132,7 @@ export function buildStockPriceSnapshot(input: BuildStockPriceSnapshotInput): St
     previousClose,
     change: close != null && previousClose != null ? close - previousClose : null,
     changePct: pctDiff(close, previousClose) ?? readMarketNumber(ta.changePct),
-    latestVolume: readVolume(realtimeRow) ?? readMarketNumber(ta.latestVolume),
+    latestVolume: readVolume(marketBoard) ?? readVolume(realtimeRow) ?? readMarketNumber(ta.latestVolume),
     volumeMa20: readMarketNumber(ta.avgVolume20) ?? averageVolume20(input.historical),
     historicalScale,
     priceDate: readDate(realtimeRow) ?? readDate(lastRow(input.historical)),

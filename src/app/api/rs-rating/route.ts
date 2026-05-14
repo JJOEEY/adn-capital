@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { classifyTickerSector } from "@/lib/market/sector-classification";
+import { normalizeMarketBoardRow } from "@/lib/market-price-normalization";
+import { fetchMarketBoard } from "@/lib/fiinquantClient";
+import { fetchDnseMarketBoard } from "@/lib/providers/dnse/market-data";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
 
 type BridgeRsItem = Record<string, unknown>;
@@ -89,6 +92,51 @@ function getRawItems(payload: Record<string, unknown>) {
   return [];
 }
 
+function chunk<T>(items: T[], size: number) {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+}
+
+async function loadRankCloseMap(symbols: string[]) {
+  const prices = new Map<string, Record<string, unknown>>();
+  for (const group of chunk(Array.from(new Set(symbols)).filter(Boolean), 50)) {
+    const dnseBoard = await fetchDnseMarketBoard(group).catch(() => null);
+    const missing = group.filter((ticker) => !dnseBoard?.prices?.[ticker]);
+    const fallbackBoard = missing.length > 0 ? await fetchMarketBoard(missing).catch(() => null) : null;
+    for (const ticker of group) {
+      const row = dnseBoard?.prices?.[ticker] ?? fallbackBoard?.prices?.[ticker];
+      if (!row) continue;
+      prices.set(ticker, normalizeMarketBoardRow(row as Record<string, unknown>));
+    }
+  }
+  return prices;
+}
+
+function hydrateRankPrices(stocks: NormalizedRsStock[], closeMap: Map<string, Record<string, unknown>>) {
+  return stocks.map((stock) => {
+    const row = closeMap.get(stock.symbol);
+    const price = readNullableNumber(row ?? {}, ["close", "price", "currentPrice", "lastPrice"]);
+    if (price == null || price <= 0) return stock;
+
+    const reference = readNullableNumber(row ?? {}, ["reference", "refPrice", "previousClose"]);
+    const change = reference != null ? Math.round((price - reference) * 100) / 100 : stock.change;
+    const changePercent = reference != null && reference > 0
+      ? Math.round(((change / reference) * 100) * 100) / 100
+      : stock.changePercent;
+
+    return {
+      ...stock,
+      price,
+      change,
+      changePercent,
+      volume: readNumber(row ?? {}, ["volume", "matchVolume", "totalVolume"], stock.volume),
+    };
+  });
+}
+
 export async function GET(request: NextRequest) {
   return handleGet(request);
 }
@@ -149,9 +197,11 @@ async function handleGet(request?: NextRequest | Request) {
           : {};
     const benchmark = readString(json, ["benchmark", "base"], "VNINDEX");
     const asOfDate = readString(json, ["asOfDate", "tradingDate", "date"], requestedDate ?? "");
-    const stocks = getRawItems(json)
+    const rawStocks = getRawItems(json)
       .map((item) => normalizeRsStock(item, benchmark))
       .filter((item): item is NormalizedRsStock => Boolean(item));
+    const closeMap = await loadRankCloseMap(rawStocks.map((stock) => stock.symbol));
+    const stocks = hydrateRankPrices(rawStocks, closeMap);
 
     if (stocks.length === 0) {
       return NextResponse.json(
