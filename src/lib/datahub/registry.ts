@@ -281,15 +281,16 @@ async function loadMarketBoardForTickers(rawTickers: string) {
     }),
   );
   const tickers = Array.from(new Set(resolved.filter((ticker): ticker is string => Boolean(ticker))));
-  const dnseBoard = await fetchDnseMarketBoard(tickers).catch(() => null);
-  const board = dnseBoard ?? await fetchMarketBoard(tickers);
+  const bridgeBoard = await fetchMarketBoard(tickers).catch(() => null);
+  const dnseBoard = bridgeBoard ? null : await fetchDnseMarketBoard(tickers).catch(() => null);
+  const board = bridgeBoard ?? dnseBoard;
   const prices = Object.fromEntries(
     Object.entries(board?.prices ?? {}).map(([ticker, row]) => [ticker, normalizeMarketBoardRow(row as JsonRecord)]),
   );
   return {
     tickers,
     prices,
-    source: dnseBoard ? "DNSE market data" : "VNStock price_board via FiinQuant Bridge",
+    source: bridgeBoard ? "VNStock price_board via FiinQuant Bridge" : "DNSE market data",
     updatedAt: new Date().toISOString(),
   };
 }

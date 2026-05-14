@@ -103,11 +103,11 @@ function chunk<T>(items: T[], size: number) {
 async function loadRankCloseMap(symbols: string[]) {
   const prices = new Map<string, Record<string, unknown>>();
   for (const group of chunk(Array.from(new Set(symbols)).filter(Boolean), 50)) {
-    const dnseBoard = await fetchDnseMarketBoard(group).catch(() => null);
-    const missing = group.filter((ticker) => !dnseBoard?.prices?.[ticker]);
-    const fallbackBoard = missing.length > 0 ? await fetchMarketBoard(missing).catch(() => null) : null;
+    const bridgeBoard = await fetchMarketBoard(group).catch(() => null);
+    const missing = group.filter((ticker) => !bridgeBoard?.prices?.[ticker]);
+    const fallbackBoard = missing.length > 0 ? await fetchDnseMarketBoard(missing).catch(() => null) : null;
     for (const ticker of group) {
-      const row = dnseBoard?.prices?.[ticker] ?? fallbackBoard?.prices?.[ticker];
+      const row = bridgeBoard?.prices?.[ticker] ?? fallbackBoard?.prices?.[ticker];
       if (!row) continue;
       prices.set(ticker, normalizeMarketBoardRow(row as Record<string, unknown>));
     }
