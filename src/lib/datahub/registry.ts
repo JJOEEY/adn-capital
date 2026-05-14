@@ -1975,8 +1975,13 @@ async function loadSmartflowUniverse(limit: number) {
 
 async function loadMa200Breadth(tickers: string[]) {
   const checked = await smartflowMapLimit(tickers, 8, async (ticker) => {
-    const dnseOhlc = await fetchDnseOhlc(ticker, { timeframe: "1d", days: 260, timeoutMs: 8_000 }).catch(() => null);
-    const historical = hasCandleRows(dnseOhlc) ? dnseOhlc : await loadHistoricalTicker(ticker).catch(() => null);
+    const dnseOhlc = await fetchDnseOhlc(ticker, { timeframe: "1d", days: 380, timeoutMs: 8_000 }).catch(() => null);
+    const initialHistorical = hasCandleRows(dnseOhlc) ? dnseOhlc : await loadHistoricalTicker(ticker).catch(() => null);
+    const initialRows = getMarketPayloadRows(initialHistorical);
+    const historical =
+      initialRows.length >= 200
+        ? initialHistorical
+        : await loadBridgeHistoricalTicker(ticker, "1d", 420, 30_000).catch(() => initialHistorical);
     const rows = getMarketPayloadRows(historical);
     const closes = rows
       .map((row) => readPositiveNumber(row.close ?? row.c))
