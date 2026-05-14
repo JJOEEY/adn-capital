@@ -62,8 +62,11 @@ function toArray(value: unknown): unknown[] {
   if (Array.isArray(root.items)) return root.items;
   if (Array.isArray(root.rows)) return root.rows;
   const nested = toRecord(root.data);
+  if (Array.isArray(nested?.data)) return nested.data;
   if (Array.isArray(nested?.items)) return nested.items;
   if (Array.isArray(nested?.rows)) return nested.rows;
+  if (Array.isArray(nested?.result)) return nested.result;
+  if (Array.isArray(root.result)) return root.result;
   return [];
 }
 
