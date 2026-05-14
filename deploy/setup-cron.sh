@@ -65,8 +65,8 @@ ${CRON_NEWS_CRAWLER_SCHEDULE:-*/30 7-22 * * *} ${CURL_CMD} "${APP_URL}/api/cron?
 
 # Additional workers (non-canonical event jobs)
 */5 9-15 * * 1-5 ${CURL_CMD} "${APP_URL}/api/cron/signal-lifecycle" >> ${LOG_DIR}/signal_lifecycle.log 2>&1
-30 11 * * 1-5 ${CURL_CMD} "${APP_URL}/api/cron/radar-paper?slot=11:30" >> ${LOG_DIR}/radar_paper.log 2>&1
-0 15 * * 1-5 ${CURL_CMD} "${APP_URL}/api/cron/radar-paper?slot=15:00" >> ${LOG_DIR}/radar_paper.log 2>&1
+30 11 * * 1-5 ${CURL_CMD} "${APP_URL}/api/cron/radar-paper?slot=1130" >> ${LOG_DIR}/radar_paper.log 2>&1
+0 15 * * 1-5 ${CURL_CMD} "${APP_URL}/api/cron/radar-paper?slot=1500" >> ${LOG_DIR}/radar_paper.log 2>&1
 0 17 * * 5 ${CURL_CMD} "${APP_URL}/api/cron/ai-weekly-review" >> ${LOG_DIR}/weekly_review.log 2>&1
 
 # Log cleanup
