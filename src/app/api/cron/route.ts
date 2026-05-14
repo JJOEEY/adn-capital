@@ -30,6 +30,7 @@ import {
   getMarketSnapshot,
   formatSnapshotForAI,
   getInvestorTradingText,
+  getInvestorTradingData,
   getPropTradingData,
 } from "@/lib/marketDataFetcher";
 import { fetchEodNews, type FiinEodNews } from "@/lib/fiinquantClient";
@@ -1152,6 +1153,73 @@ function countEodDetailBuckets(eodDetail: FiinEodNews | null | undefined): numbe
   return buckets.filter((items) => items.some((item) => String(item ?? "").trim().length > 0)).length;
 }
 
+function buildEodDetailFromInvestorSnapshot(
+  dateISO: string,
+  snapshot: Awaited<ReturnType<typeof getMarketSnapshot>>,
+  investorRaw: Awaited<ReturnType<typeof getInvestorTradingData>> | null,
+): FiinEodNews | null {
+  const summary = (investorRaw?.summary ?? {}) as Record<string, any>;
+  const toNumber = (value: unknown) => {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  };
+  const formatNet = (value: unknown) => {
+    const n = toNumber(value);
+    if (n == null) return "chưa cập nhật";
+    return `${n >= 0 ? "mua ròng" : "bán ròng"} ${Math.abs(n).toLocaleString("vi-VN", { maximumFractionDigits: 1 })} tỷ`;
+  };
+  const formatTop = (items: unknown) =>
+    (Array.isArray(items) ? items : [])
+      .map((item) => {
+        const row = item as Record<string, unknown>;
+        const ticker = String(row.ticker ?? row.symbol ?? "").toUpperCase().trim();
+        const net = toNumber(row.net_bn ?? row.netBn ?? row.net);
+        if (!ticker || net == null) return "";
+        return `${ticker} (${Math.abs(net).toLocaleString("vi-VN", { maximumFractionDigits: 1 })} tỷ)`;
+      })
+      .filter(Boolean);
+
+  const foreign = (summary.foreign ?? {}) as Record<string, unknown>;
+  const proprietary = (summary.proprietary ?? {}) as Record<string, unknown>;
+  const retail = (summary.retail ?? summary.individual ?? {}) as Record<string, unknown>;
+  const vnindex = snapshot.indices.find((item) => item.ticker === "VNINDEX");
+  const breadth = snapshot.breadth;
+  if (!vnindex || !breadth || !snapshot.liquidity) return null;
+
+  return {
+    date: dateISO,
+    vnindex: vnindex.value,
+    change_pct: vnindex.changePct,
+    liquidity: snapshot.liquidity,
+    total_liquidity: snapshot.liquidityByExchange.total ?? snapshot.liquidity,
+    matched_liquidity: snapshot.liquidity,
+    negotiated_liquidity: 0,
+    breadth: { ...breadth, total: breadth.up + breadth.down + breadth.unchanged },
+    session_summary: `VN-Index đóng cửa tại ${vnindex.value.toLocaleString("vi-VN")} điểm (${vnindex.changePct >= 0 ? "+" : ""}${vnindex.changePct.toFixed(2)}%). Thanh khoản toàn thị trường đạt ${snapshot.liquidity.toLocaleString("vi-VN", { maximumFractionDigits: 0 })} tỷ đồng.`,
+    liquidity_detail: `HoSE ${snapshot.liquidityByExchange.HOSE?.toLocaleString("vi-VN", { maximumFractionDigits: 0 }) ?? "-"} tỷ | HNX ${snapshot.liquidityByExchange.HNX?.toLocaleString("vi-VN", { maximumFractionDigits: 0 }) ?? "-"} tỷ | UPCoM ${snapshot.liquidityByExchange.UPCOM?.toLocaleString("vi-VN", { maximumFractionDigits: 0 }) ?? "-"} tỷ.`,
+    foreign_flow: `Khối ngoại ${formatNet(foreign.total_net_bn ?? foreign.totalNetBn ?? snapshot.investorTrading.foreign.net)}.`,
+    notable_trades: "",
+    outlook: "Phiên tới ưu tiên kiểm soát tỷ trọng, theo dõi phản ứng của dòng tiền tại nhóm cổ phiếu dẫn dắt và tuân thủ điểm dừng lỗ.",
+    sub_indices: snapshot.indices.map((item) => ({
+      name: item.ticker,
+      change_pts: item.change,
+      change_pct: item.changePct,
+    })),
+    foreign_top_buy: formatTop(foreign.top_buy ?? foreign.topBuy),
+    foreign_top_sell: formatTop(foreign.top_sell ?? foreign.topSell),
+    prop_trading_top_buy: formatTop(proprietary.top_buy ?? proprietary.topBuy),
+    prop_trading_top_sell: formatTop(proprietary.top_sell ?? proprietary.topSell),
+    individual_top_buy: formatTop(retail.top_buy ?? retail.topBuy),
+    individual_top_sell: formatTop(retail.top_sell ?? retail.topSell),
+    sector_gainers: snapshot.topGainers.slice(0, 8).map((item) => `${item.ticker} (+${item.changePct.toFixed(2)}%)`),
+    sector_losers: snapshot.topLosers.slice(0, 8).map((item) => `${item.ticker} (${item.changePct.toFixed(2)}%)`),
+    buy_signals: snapshot.topGainers.slice(0, 8).map((item) => item.ticker),
+    sell_signals: snapshot.topLosers.slice(0, 8).map((item) => item.ticker),
+    top_breakout: snapshot.topGainers.slice(0, 8).map((item) => item.ticker),
+    top_new_high: [],
+  };
+}
+
 function hasCompleteEodDetail(eodDetail: FiinEodNews | null | undefined): boolean {
   if (!eodDetail) return false;
   const liquidity = Number(eodDetail.total_liquidity ?? eodDetail.liquidity ?? 0);
@@ -1208,23 +1276,33 @@ async function handlePropTrading(
       });
     }
 
-    const [propData, snapshot, eodDetail] = await Promise.all([
+    const [propData, snapshot, bridgeEodDetail, investorRaw] = await Promise.all([
       getPropTradingData(),
       getMarketSnapshot(),
       fetchEodNews().catch(() => null),
+      getInvestorTradingData({ fromDate: dateISO, toDate: dateISO }).catch(() => null),
     ]);
     saveMarketOverviewCache(snapshot.marketOverview);
+    const bridgeEodDetailDateKey = toDateKey(bridgeEodDetail?.date);
+    const eodDetail =
+      bridgeEodDetailDateKey === dateISO
+        ? bridgeEodDetail
+        : buildEodDetailFromInvestorSnapshot(dateISO, snapshot, investorRaw);
 
     if (!hasCompleteEodDetail(eodDetail)) {
       const duration = Date.now() - startTime;
       await logCron("eod_full_19h", "skipped", "EOD detail incomplete, keep previous complete report", duration, {
         detailBuckets: countEodDetailBuckets(eodDetail),
         eodDetailAvailable: Boolean(eodDetail),
+        bridgeEodDetailDateKey,
+        expectedDateKey: dateISO,
       });
       return NextResponse.json({
         type: "eod_full_19h",
         published: false,
         reason: "eod_detail_incomplete",
+        bridgeEodDetailDateKey,
+        expectedDateKey: dateISO,
       });
     }
 
