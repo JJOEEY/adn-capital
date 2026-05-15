@@ -123,7 +123,7 @@ function fromBridgeEodPayload(raw: FiinEodNews): EodPayload {
       negotiated: liquidityBreakdown.negotiated,
     }) || raw.liquidity_detail || "",
     foreign_flow: raw.foreign_flow ?? "",
-    notable_trades: raw.notable_trades ?? buildNotableTradesFromFlowLists({
+    notable_trades: raw.notable_trades?.trim() || buildNotableTradesFromFlowLists({
       propTradingTopBuy,
       propTradingTopSell,
       individualTopBuy,
