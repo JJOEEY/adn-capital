@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { RefreshCw, Crosshair, Briefcase, CheckCircle, Crown, Lock, Bot, History } from "lucide-react";
+import { RefreshCw, Crosshair, Briefcase, CheckCircle, Crown, Lock, Bot, History, Clock, Target, TrendingUp, Zap } from "lucide-react";
 import { SignalCard } from "@/components/signals/SignalCard";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -141,7 +141,7 @@ function formatTierLabel(tier: PaperPosition["tier"]) {
   return tier;
 }
 
-function PaperPositionCard({ position }: { position: PaperPosition }) {
+function LegacyPaperPositionCard({ position }: { position: PaperPosition }) {
   const pnl = position.currentPnl ?? 0;
   const pnlColor = pnl >= 0 ? "#16a34a" : "var(--danger)";
   const statusLabel = position.status === "HOLD_TO_DIE" ? "GỒNG LÃI" : position.status === "PENDING_EXIT" ? "CHỜ BÁN" : "ĐANG GIỮ";
@@ -180,6 +180,175 @@ function PaperPositionCard({ position }: { position: PaperPosition }) {
           {position.pendingExitPrice ? ` · Giá kích hoạt ${formatPrice(position.pendingExitPrice)}` : ""}
         </div>
       )}
+    </div>
+  );
+}
+
+const PAPER_TIER_CONFIG: Record<string, { icon: string; label: string; navBarColor: string }> = {
+  LEADER: { icon: "👑", label: "LEADER", navBarColor: "#2E4D3D" },
+  TRUNG_HAN: { icon: "🛡️", label: "TRUNG HẠN", navBarColor: "#f59e0b" },
+  NGAN_HAN: { icon: "⚡", label: "NGẮN HẠN", navBarColor: "#16a34a" },
+  DAU_CO: { icon: "⚡", label: "LƯỚT SÓNG", navBarColor: "#16a34a" },
+  TAM_NGAM: { icon: "🎯", label: "TẦM NGẮM", navBarColor: "#7D8471" },
+};
+
+function daysSince(value: string) {
+  const started = new Date(value).getTime();
+  if (!Number.isFinite(started)) return 0;
+  return Math.max(0, Math.floor((Date.now() - started) / 86_400_000));
+}
+
+function targetBoxForPosition(position: PaperPosition) {
+  if (position.pendingExitPrice) {
+    return {
+      label: "GIÁ KÍCH HOẠT",
+      value: formatPrice(position.pendingExitPrice),
+      color: "#f59e0b",
+      background: "rgba(245,158,11,0.05)",
+      border: "rgba(245,158,11,0.20)",
+    };
+  }
+  if (position.tier === "NGAN_HAN" && position.target != null) {
+    return {
+      label: "TARGET",
+      value: formatPrice(position.target),
+      color: "#16a34a",
+      background: "rgba(22,163,74,0.05)",
+      border: "rgba(22,163,74,0.20)",
+    };
+  }
+  return {
+    label: "STOPLOSS",
+    value: position.stoploss != null ? formatPrice(position.stoploss) : "—",
+    color: "var(--danger)",
+    background: "rgba(192,57,43,0.05)",
+    border: "rgba(192,57,43,0.20)",
+  };
+}
+
+function PaperPositionCard({ position }: { position: PaperPosition }) {
+  const cfg = PAPER_TIER_CONFIG[position.tier] ?? PAPER_TIER_CONFIG.NGAN_HAN;
+  const pnl = position.currentPnl ?? 0;
+  const pnlColor = pnl >= 0 ? "#16a34a" : "var(--danger)";
+  const pnlBg = pnl >= 0 ? "rgba(22,163,74,0.08)" : "rgba(192,57,43,0.08)";
+  const pnlBorder = pnl >= 0 ? "rgba(22,163,74,0.20)" : "rgba(192,57,43,0.20)";
+  const statusLabel = position.status === "HOLD_TO_DIE" ? "GỒNG LÃI" : position.status === "PENDING_EXIT" ? "CHỜ BÁN" : "ĐANG GIỮ";
+  const thirdBox = targetBoxForPosition(position);
+  const dateStr = formatDate(position.openedAt);
+  const holdingDays = daysSince(position.openedAt);
+  const currentPrice = position.currentPrice ?? position.entryPrice;
+
+  return (
+    <div
+      className="glow-card rounded-[14px] border transition-all duration-300 p-0 overflow-hidden"
+      style={{ border: "1px solid var(--border)", background: "var(--surface)" }}
+    >
+      <div className="p-4 pb-0">
+        <div className="flex items-center justify-between mb-1.5">
+          <div className="flex items-center gap-2">
+            <span className="text-lg leading-none">{cfg.icon}</span>
+            <span className="text-xl font-black font-mono tracking-wide" style={{ color: "var(--text-primary)" }}>
+              {position.ticker}
+            </span>
+          </div>
+          <div className="flex items-center gap-1" style={{ color: "var(--text-muted)" }}>
+            <Clock className="w-3 h-3" />
+            <span className="text-[12px]">Ngày {dateStr} — {holdingDays} ngày</span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          <span
+            className="text-[11px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full"
+            style={{ background: `${cfg.navBarColor}18`, color: cfg.navBarColor, border: `1px solid ${cfg.navBarColor}40` }}
+          >
+            {cfg.label}
+          </span>
+          <span
+            className="text-[12px] font-bold px-1.5 py-0.5 rounded"
+            style={{
+              background: position.status === "HOLD_TO_DIE" ? "rgba(245,158,11,0.10)" : "rgba(22,163,74,0.10)",
+              color: position.status === "HOLD_TO_DIE" ? "#f59e0b" : "#16a34a",
+              border: position.status === "HOLD_TO_DIE" ? "1px solid rgba(245,158,11,0.25)" : "1px solid rgba(22,163,74,0.25)",
+            }}
+          >
+            {statusLabel}
+          </span>
+          <span className="text-[12px] font-bold px-1.5 py-0.5 rounded" style={{ background: pnlBg, color: pnlColor, border: `1px solid ${pnlBorder}` }}>
+            {pnl >= 0 ? "+" : ""}{pnl.toFixed(1)}%
+          </span>
+          <span className="rounded-md border px-1.5 py-0.5 text-[11px] font-bold" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
+            {position.exchange}
+          </span>
+        </div>
+
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[12px] uppercase tracking-wider font-medium" style={{ color: "var(--text-secondary)" }}>
+              Tỷ trọng đang nắm giữ
+            </span>
+            <span className="text-xs font-bold" style={{ color: "var(--text-primary)" }}>
+              {position.navPct.toFixed(1)}% NAV
+            </span>
+          </div>
+          <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: "var(--bg-hover)" }}>
+            <div className="h-full rounded-full transition-all duration-700 ease-out" style={{ width: `${Math.min(position.navPct, 100)}%`, background: cfg.navBarColor }} />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-1.5 mb-3">
+          <div className="rounded-lg p-2 text-center" style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}>
+            <p className="text-[11px] uppercase mb-0.5 font-medium" style={{ color: "var(--text-secondary)" }}>Giá vốn</p>
+            <p className="text-sm font-bold font-mono" style={{ color: "var(--text-primary)" }}>{formatPrice(position.entryPrice)}</p>
+          </div>
+          <div className="rounded-lg p-2 text-center" style={{ background: pnlBg, border: `1px solid ${pnlBorder}` }}>
+            <p className="text-[11px] uppercase mb-0.5 font-medium" style={{ color: pnlColor }}>Hiện tại</p>
+            <p className="text-sm font-bold font-mono" style={{ color: pnlColor }}>{formatPrice(currentPrice)}</p>
+          </div>
+          <div className="rounded-lg p-2 text-center" style={{ background: thirdBox.background, border: `1px solid ${thirdBox.border}` }}>
+            <p className="text-[11px] uppercase mb-0.5 font-medium" style={{ color: thirdBox.color }}>{thirdBox.label}</p>
+            <p className="text-sm font-bold font-mono" style={{ color: thirdBox.color }}>{thirdBox.value}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-[12px] mb-3" style={{ color: "var(--text-secondary)" }}>
+          <span className="flex items-center gap-1">
+            <Target className="w-3 h-3" style={{ color: "var(--primary)" }} />
+            <span className="font-bold" style={{ color: "var(--primary)" }}>{position.quantity.toLocaleString("vi-VN")} CP</span>
+          </span>
+          <span className="flex items-center gap-1">
+            <TrendingUp className="w-3 h-3" style={{ color: pnlColor }} />
+            <span className="font-medium" style={{ color: pnlColor }}>{pnl >= 0 ? "+" : ""}{pnl.toFixed(2)}%</span>
+          </span>
+          <span className="font-medium">Giá trị {formatPrice(position.marketValue)}</span>
+        </div>
+
+        {position.pendingExitReason && (
+          <div className="flex items-start gap-1.5 mb-3">
+            <Zap className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" style={{ color: "#f59e0b" }} />
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "rgba(245,158,11,0.70)" }}>
+                Chờ bán
+              </span>
+              <p className="text-xs leading-snug line-clamp-2" style={{ color: "var(--text-secondary)" }}>
+                {position.pendingExitReason}
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="mx-3 mb-3">
+        <Link href={`/stock/${position.ticker}`}>
+          <button
+            type="button"
+            className="w-full rounded-xl border px-3 py-2 text-xs font-black transition-all hover:opacity-90"
+            style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-primary)" }}
+          >
+            Xem kế hoạch
+          </button>
+        </Link>
+      </div>
     </div>
   );
 }

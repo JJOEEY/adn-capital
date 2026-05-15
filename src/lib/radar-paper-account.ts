@@ -9,7 +9,8 @@ import { invalidateTopics } from "@/lib/datahub/core";
 export const RADAR_PAPER_INITIAL_NAV = 1_000_000_000;
 const ACCOUNT_SLUG = "adn-radar";
 const MAX_UNIQUE_POSITIONS = 10;
-const MIN_ORDER_NAV_PCT = 10;
+const MID_TERM_MIN_NAV_PCT = 20;
+const SWING_MIN_NAV_PCT = 9;
 const MID_TERM_MAX_PCT = 60;
 const SWING_MAX_PCT = 30;
 const MIN_CASH_NAV_PCT = 10;
@@ -37,6 +38,7 @@ type OpenPosition = {
   ticker: string;
   tier: string;
   status: string;
+  quantity: number;
   costBasis: number;
   marketValue: number | null;
 };
@@ -57,15 +59,19 @@ function isSwingTier(tier: string | null | undefined) {
   return tier === "NGAN_HAN" || tier === "DAU_CO";
 }
 
-function baseNavForTier(tier: string | null | undefined) {
-  if (tier === "LEADER") return 30;
-  if (tier === "TRUNG_HAN") return 20;
-  if (tier === "NGAN_HAN") return 10;
-  return 0;
+function recommendedNavPct(signal: Pick<SignalLike, "navAllocation">) {
+  const nav = Number(signal.navAllocation ?? 0);
+  return Number.isFinite(nav) ? nav : 0;
 }
 
-function recommendedNavPct(signal: Pick<SignalLike, "tier" | "navAllocation">) {
-  return Math.max(Number(signal.navAllocation ?? 0), baseNavForTier(signal.tier));
+function minimumNavPctForTier(tier: string | null | undefined) {
+  if (isMidTermTier(tier)) return MID_TERM_MIN_NAV_PCT;
+  if (isSwingTier(tier)) return SWING_MIN_NAV_PCT;
+  return Number.POSITIVE_INFINITY;
+}
+
+function isEligibleNavForTier(signal: Pick<SignalLike, "tier" | "navAllocation">) {
+  return recommendedNavPct(signal) >= minimumNavPctForTier(signal.tier);
 }
 
 function inferExchangeForTicker(ticker: string) {
@@ -133,6 +139,30 @@ function passesAllocationCapsAfterBuy(positions: OpenPosition[], nextTier: strin
   );
 }
 
+function isPortfolioWithinCaps(positions: OpenPosition[], cash: number, totalNav: number) {
+  if (totalNav <= 0) return false;
+  const values = portfolioValues(positions);
+  return (
+    positions.length <= MAX_UNIQUE_POSITIONS &&
+    new Set(positions.map((position) => position.ticker.toUpperCase())).size === positions.length &&
+    positions.every((position) => position.tier !== "TAM_NGAM") &&
+    (values.mid / totalNav) * 100 <= MID_TERM_MAX_PCT &&
+    (values.swing / totalNav) * 100 <= SWING_MAX_PCT &&
+    (values.total / totalNav) * 100 <= 100 - MIN_CASH_NAV_PCT &&
+    (cash / totalNav) * 100 >= MIN_CASH_NAV_PCT
+  );
+}
+
+function needsPaperAccountReseed(positions: OpenPosition[], cash: number) {
+  if (positions.length === 0) return false;
+  const invested = positions.reduce((sum, position) => sum + (position.marketValue ?? position.costBasis), 0);
+  const totalNav = cash + invested;
+  return (
+    positions.some((position) => !Number.isInteger(position.quantity) || position.quantity <= 0 || position.quantity % 100 !== 0) ||
+    !isPortfolioWithinCaps(positions, cash, totalNav)
+  );
+}
+
 async function getOrCreateAccount() {
   const existing = await prisma.radarPaperAccount.findUnique({ where: { slug: ACCOUNT_SLUG } });
   if (existing) return existing;
@@ -175,7 +205,8 @@ async function buyPaperPosition(params: {
   const orderValue = totalNav * (params.navPct / 100);
   const quantity = Math.floor(orderValue / params.price / 100) * 100;
   const grossValue = round2(quantity * params.price);
-  if (quantity <= 0 || grossValue < totalNav * (MIN_ORDER_NAV_PCT / 100) || grossValue > account.cash) {
+  const minOrderValue = totalNav * (minimumNavPctForTier(params.signal.tier) / 100);
+  if (quantity <= 0 || grossValue < minOrderValue || grossValue > account.cash) {
     return null;
   }
   const exchange = inferExchangeForTicker(params.signal.ticker);
@@ -235,9 +266,18 @@ async function buyPaperPosition(params: {
 export async function ensureRadarPaperAccountSeeded() {
   const account = await getOrCreateAccount();
   const existingPositions = await activePositions(account.id);
-  if (account.seededAt && existingPositions.length > 0) return account;
+  if (account.seededAt && !needsPaperAccountReseed(existingPositions, account.cash)) return account;
   if (existingPositions.length > 0) {
-    return prisma.radarPaperAccount.update({ where: { id: account.id }, data: { seededAt: new Date() } });
+    await prisma.$transaction([
+      prisma.radarPaperPosition.updateMany({
+        where: { accountId: account.id, status: { in: ["ACTIVE", "HOLD_TO_DIE", "PENDING_EXIT"] } },
+        data: { status: "RESEEDED", holdingAction: "RESEEDED_BY_POLICY" },
+      }),
+      prisma.radarPaperAccount.update({
+        where: { id: account.id },
+        data: { cash: RADAR_PAPER_INITIAL_NAV, realizedPnl: 0, seededAt: null },
+      }),
+    ]);
   }
 
   const candidates = await prisma.signal.findMany({
@@ -249,19 +289,21 @@ export async function ensureRadarPaperAccountSeeded() {
     take: 120,
   });
   const seen = new Set<string>();
-  const sorted = candidates
+  const uniqueCandidates = candidates
     .filter((row) => {
       const ticker = row.ticker.toUpperCase().trim();
       if (seen.has(ticker)) return false;
       seen.add(ticker);
-      return recommendedNavPct(row) >= MIN_ORDER_NAV_PCT;
-    })
-    .sort((a, b) => {
-      const tierRank = (tier: string) => (tier === "LEADER" ? 0 : tier === "TRUNG_HAN" ? 1 : 2);
-      return tierRank(a.tier) - tierRank(b.tier) || recommendedNavPct(b) - recommendedNavPct(a);
+      return isEligibleNavForTier(row);
     });
+  const sortByNav = (a: Pick<SignalLike, "navAllocation">, b: Pick<SignalLike, "navAllocation">) =>
+    recommendedNavPct(b) - recommendedNavPct(a);
+  const sorted = [
+    ...uniqueCandidates.filter((row) => isMidTermTier(row.tier)).sort(sortByNav),
+    ...uniqueCandidates.filter((row) => isSwingTier(row.tier)).sort(sortByNav),
+  ];
 
-  let cash = account.cash;
+  let cash = existingPositions.length > 0 ? RADAR_PAPER_INITIAL_NAV : account.cash;
   const seeded: OpenPosition[] = [];
   for (const signal of sorted) {
     if (seeded.length >= MAX_UNIQUE_POSITIONS) break;
@@ -284,6 +326,7 @@ export async function ensureRadarPaperAccountSeeded() {
       ticker: created.ticker,
       tier: created.tier,
       status: created.status,
+      quantity: created.quantity,
       costBasis: created.costBasis,
       marketValue: created.marketValue,
     });
@@ -303,15 +346,15 @@ export async function tryActivateRadarSignal(signal: SignalLike, currentPrice?: 
   if (openTickers.size >= MAX_UNIQUE_POSITIONS) return { activated: false, reason: "max_10_unique_tickers" };
 
   const navPct = Number(signal.navAllocation ?? 0);
-  if (!Number.isFinite(navPct) || navPct < MIN_ORDER_NAV_PCT) {
-    return { activated: false, reason: "nav_under_10pct" };
+  if (!Number.isFinite(navPct) || navPct < minimumNavPctForTier(signal.tier)) {
+    return { activated: false, reason: isMidTermTier(signal.tier) ? "nav_under_20pct" : "nav_under_9pct" };
   }
   const price = normalizeSignalPrice(currentPrice) ?? normalizeSignalPrice(signal.currentPrice) ?? normalizeSignalPrice(signal.entryPrice);
   if (!isValidPrice(price)) return { activated: false, reason: "missing_market_price" };
 
   const totalNav = await accountTotalNav(account.id, account.cash);
   const orderValue = totalNav * (navPct / 100);
-  if (orderValue < totalNav * (MIN_ORDER_NAV_PCT / 100) || orderValue > account.cash) {
+  if (orderValue < totalNav * (minimumNavPctForTier(signal.tier) / 100) || orderValue > account.cash) {
     return { activated: false, reason: "order_value_blocked" };
   }
   if (!passesAllocationCapsAfterBuy(openRows, signal.tier, orderValue, totalNav)) {
