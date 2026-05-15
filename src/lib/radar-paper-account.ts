@@ -31,6 +31,8 @@ type SignalLike = {
   navAllocation: number;
   winRate: number | null;
   rrRatio: string | null;
+  restoredOpenedAt?: Date;
+  restoredCurrentPrice?: number | null;
 };
 
 type OpenPosition = {
@@ -172,7 +174,16 @@ async function restorableReseededMidTermSignals(accountId: string, existingTicke
       signalId: { not: null },
     },
     orderBy: [{ openedAt: "asc" }, { updatedAt: "asc" }],
-    select: { signalId: true, ticker: true },
+    select: {
+      signalId: true,
+      ticker: true,
+      navAllocation: true,
+      entryPrice: true,
+      currentPrice: true,
+      target: true,
+      stoploss: true,
+      openedAt: true,
+    },
   });
   const signalIds = [...new Set(oldPositions.map((row) => row.signalId).filter((id): id is string => Boolean(id)))];
   if (signalIds.length === 0) return [];
@@ -186,17 +197,27 @@ async function restorableReseededMidTermSignals(accountId: string, existingTicke
   });
   const signalById = new Map(signals.map((row) => [row.id, row]));
   const seen = new Set([...existingTickers].map((ticker) => ticker.toUpperCase()));
-  const result = [];
+  const result: SignalLike[] = [];
   for (const oldPosition of oldPositions) {
     if (!oldPosition.signalId) continue;
     const signal = signalById.get(oldPosition.signalId);
-    if (!signal || !isEligibleNavForTier(signal)) continue;
+    const restoreNavPct = Number(oldPosition.navAllocation ?? 0);
+    if (!signal || restoreNavPct < MID_TERM_MIN_NAV_PCT) continue;
     const ticker = signal.ticker.toUpperCase().trim();
     if (seen.has(ticker)) continue;
-    const price = normalizeSignalPrice(signal.currentPrice) ?? normalizeSignalPrice(signal.entryPrice);
+    const price = normalizeSignalPrice(oldPosition.entryPrice) ?? normalizeSignalPrice(signal.entryPrice);
     if (!isValidPrice(price)) continue;
     seen.add(ticker);
-    result.push(signal);
+    result.push({
+      ...signal,
+      entryPrice: price,
+      target: normalizeSignalPrice(signal.target) ?? normalizeSignalPrice(oldPosition.target),
+      stoploss: normalizeSignalPrice(signal.stoploss) ?? normalizeSignalPrice(oldPosition.stoploss),
+      currentPrice: normalizeSignalPrice(signal.currentPrice) ?? normalizeSignalPrice(oldPosition.currentPrice) ?? price,
+      navAllocation: restoreNavPct,
+      restoredOpenedAt: oldPosition.openedAt,
+      restoredCurrentPrice: normalizeSignalPrice(signal.currentPrice) ?? normalizeSignalPrice(oldPosition.currentPrice) ?? price,
+    });
   }
   return result;
 }
@@ -208,13 +229,12 @@ async function hasRestorableReseededMidTerm(accountId: string, positions: OpenPo
   const candidates = await restorableReseededMidTermSignals(accountId, existingTickers);
   return candidates.some((signal) => {
     const navPct = recommendedNavPct(signal);
-    const price = normalizeSignalPrice(signal.currentPrice) ?? normalizeSignalPrice(signal.entryPrice);
+    const price = normalizeSignalPrice(signal.entryPrice);
     if (!isValidPrice(price)) return false;
     const orderValue = totalNav * (navPct / 100);
     const quantity = Math.floor(orderValue / price / 100) * 100;
     const grossValue = round2(quantity * price);
-    const minOrderValue = totalNav * (minimumNavPctForTier(signal.tier) / 100);
-    if (quantity <= 0 || grossValue < minOrderValue) return false;
+    if (quantity <= 0) return false;
     return grossValue <= cash && passesAllocationCapsAfterBuy(positions, signal.tier, grossValue, totalNav);
   });
 }
@@ -253,6 +273,7 @@ async function buyPaperPosition(params: {
   navPct: number;
   reason: string;
   now?: Date;
+  currentPrice?: number | null;
 }) {
   const now = params.now ?? new Date();
   const account = await prisma.radarPaperAccount.findUnique({ where: { id: params.accountId } });
@@ -261,10 +282,13 @@ async function buyPaperPosition(params: {
   const orderValue = totalNav * (params.navPct / 100);
   const quantity = Math.floor(orderValue / params.price / 100) * 100;
   const grossValue = round2(quantity * params.price);
-  const minOrderValue = totalNav * (minimumNavPctForTier(params.signal.tier) / 100);
-  if (quantity <= 0 || grossValue < minOrderValue || grossValue > account.cash) {
+  if (quantity <= 0 || grossValue > account.cash) {
     return null;
   }
+  const currentPrice = normalizeSignalPrice(params.currentPrice) ?? params.price;
+  const marketValue = round2(quantity * currentPrice);
+  const currentPnlValue = round2(marketValue - grossValue);
+  const currentPnl = grossValue > 0 ? round2((currentPnlValue / grossValue) * 100) : 0;
   const exchange = inferExchangeForTicker(params.signal.ticker);
   const sellableAt = addTradingDays(now, 2);
   const created = await prisma.radarPaperPosition.create({
@@ -282,11 +306,11 @@ async function buyPaperPosition(params: {
       navAllocation: round2((grossValue / totalNav) * 100),
       target: normalizeSignalPrice(params.signal.target),
       stoploss: normalizeSignalPrice(params.signal.stoploss),
-      currentPrice: params.price,
-      marketValue: grossValue,
-      currentPnl: 0,
-      currentPnlValue: 0,
-      maxPnl: 0,
+      currentPrice,
+      marketValue,
+      currentPnl,
+      currentPnlValue,
+      maxPnl: Math.max(0, currentPnl),
       openedAt: now,
       sellableAt,
     },
@@ -313,7 +337,7 @@ async function buyPaperPosition(params: {
     }),
     prisma.signal.update({
       where: { id: params.signal.id },
-      data: { status: "ACTIVE", entryPrice: params.price, currentPrice: params.price, currentPnl: 0 },
+      data: { status: "ACTIVE", entryPrice: params.price, currentPrice, currentPnl },
     }),
   ]);
   return created;
@@ -370,19 +394,24 @@ export async function ensureRadarPaperAccountSeeded() {
 
   let cash = existingPositions.length > 0 ? RADAR_PAPER_INITIAL_NAV : account.cash;
   const seeded: OpenPosition[] = [];
-  for (const signal of sorted) {
+  for (const row of sorted) {
+    const signal = row as SignalLike;
     if (seeded.length >= MAX_UNIQUE_POSITIONS) break;
     const navPct = recommendedNavPct(signal);
-    const price = normalizeSignalPrice(signal.currentPrice) ?? normalizeSignalPrice(signal.entryPrice);
+    const price = signal.restoredOpenedAt
+      ? normalizeSignalPrice(signal.entryPrice)
+      : normalizeSignalPrice(signal.currentPrice) ?? normalizeSignalPrice(signal.entryPrice);
     if (!isValidPrice(price)) continue;
     const grossValue = RADAR_PAPER_INITIAL_NAV * (navPct / 100);
     if (grossValue > cash || !passesAllocationCapsAfterBuy(seeded, signal.tier, grossValue, RADAR_PAPER_INITIAL_NAV)) continue;
     const created = await buyPaperPosition({
       accountId: account.id,
-      signal: signal as SignalLike,
+      signal,
       price,
       navPct,
-      reason: "seed_from_current_active",
+      reason: signal.restoredOpenedAt ? "restore_from_reseeded_mid_term" : "seed_from_current_active",
+      now: signal.restoredOpenedAt,
+      currentPrice: signal.restoredCurrentPrice,
     });
     if (!created) continue;
     cash -= created.costBasis;
