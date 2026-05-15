@@ -6,6 +6,7 @@ import Image from "next/image";
 import { FileText, Loader2 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { getArticleFallbackImage } from "@/lib/articles/image-fallback";
+import { ArticleAnalyticsTracker } from "@/components/news/ArticleAnalyticsTracker";
 
 // ── Types from API ──
 interface Article {
@@ -217,6 +218,7 @@ export function ArticleDetailClient({ slug }: { slug: string }) {
 
   return (
     <MainLayout>
+    <ArticleAnalyticsTracker articleId={article.id} slug={article.slug} />
     <script
       type="application/ld+json"
       dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}

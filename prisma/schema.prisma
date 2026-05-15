@@ -768,11 +768,34 @@ model Article {
 
   author   User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
   category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  analyticsEvents ArticleAnalyticsEvent[]
 
   @@index([status, publishedAt])
   @@index([categoryId, publishedAt])
   @@index([authorId, createdAt])
   @@index([slug])
+}
+
+model ArticleAnalyticsEvent {
+  id            String   @id @default(cuid())
+  articleId     String
+  sessionIdHash String
+  eventType     String
+  readDepth     Int      @default(0)
+  readTimeSec   Int?
+  source        String?
+  referrerHost  String?
+  deviceType    String?
+  path          String?
+  occurredAt    DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([articleId, occurredAt])
+  @@index([eventType, occurredAt])
+  @@index([source, occurredAt])
+  @@index([sessionIdHash, articleId, eventType])
 }
 model AiInsightCache {
   id        String   @id @default(cuid())

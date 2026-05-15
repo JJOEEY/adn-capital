@@ -3,9 +3,11 @@
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
+import Link from "next/link";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 import {
+  BarChart3,
   Trash2,
   CheckCircle2,
   Edit3,
@@ -230,6 +232,14 @@ function AdminPageInner() {
             <Workflow className="w-3.5 h-3.5" />
             Landing Process
           </button>
+          <Link
+            href="/admin/cms-insights"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer"
+            style={{ color: "var(--text-muted)" }}
+          >
+            <BarChart3 className="w-3.5 h-3.5" />
+            CMS Insights
+          </Link>
         </div>
 
         {tab === "users" && <UsersTab />}
