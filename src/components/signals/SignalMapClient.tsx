@@ -42,7 +42,7 @@ type PaperPosition = {
   ticker: string;
   exchange: string;
   signalType: string;
-  tier: "LEADER" | "TRUNG_HAN" | "NGAN_HAN" | "TAM_NGAM";
+  tier: "LEADER" | "TRUNG_HAN" | "NGAN_HAN" | "DAU_CO" | "TAM_NGAM";
   status: "ACTIVE" | "HOLD_TO_DIE" | "PENDING_EXIT" | string;
   entryPrice: number;
   currentPrice?: number | null;
@@ -59,6 +59,12 @@ type PaperPosition = {
   pendingExitReason?: string | null;
   pendingExitTriggeredAt?: string | null;
   pendingExitPrice?: number | null;
+  triggerSignal?: string | null;
+  aiReasoning?: string | null;
+  reason?: string | null;
+  rrRatio?: string | null;
+  winRate?: number | null;
+  sharpeRatio?: number | null;
 };
 
 type PaperAccount = {
@@ -208,7 +214,7 @@ function targetBoxForPosition(position: PaperPosition) {
       border: "rgba(245,158,11,0.20)",
     };
   }
-  if (position.tier === "NGAN_HAN" && position.target != null) {
+  if ((position.tier === "NGAN_HAN" || position.tier === "DAU_CO") && position.target != null) {
     return {
       label: "TARGET",
       value: formatPrice(position.target),
@@ -224,6 +230,74 @@ function targetBoxForPosition(position: PaperPosition) {
     background: "rgba(192,57,43,0.05)",
     border: "rgba(192,57,43,0.20)",
   };
+}
+
+function cleanInsightText(value?: string | null) {
+  if (!value) return null;
+  const cleaned = value
+    .replace(/\*\*/g, "")
+    .replace(/📊|🎯|📐|💡|📅|⚠️|🤖|🔥/g, "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 4)
+    .join("\n");
+  return cleaned || null;
+}
+
+function strategyLabelForTier(tier: PaperPosition["tier"]) {
+  if (tier === "LEADER") return "Siêu cổ phiếu";
+  if (tier === "TRUNG_HAN") return "Tăng trưởng";
+  if (tier === "DAU_CO") return "Lướt sóng";
+  return "Ngắn hạn";
+}
+
+function PaperPositionInsight({ position }: { position: PaperPosition }) {
+  const cfg = PAPER_TIER_CONFIG[position.tier] ?? PAPER_TIER_CONFIG.NGAN_HAN;
+  const aiNote = cleanInsightText(position.aiReasoning);
+  const trigger = cleanInsightText(position.triggerSignal ?? position.reason);
+  if (!aiNote && !trigger) return null;
+
+  const rr = position.rrRatio ?? null;
+  const nav = `${position.navPct.toFixed(1)}%`;
+
+  return (
+    <div
+      className="rounded-xl mx-3 mb-3 p-3"
+      style={{
+        background: "var(--bg-hover)",
+        borderLeft: "2px solid var(--primary)",
+        border: "1px solid var(--border)",
+      }}
+    >
+      <div className="flex items-start gap-2">
+        <Bot className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: "var(--primary)" }} />
+        <div className="min-w-0 space-y-2">
+          <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--primary)" }}>
+            ADN Radar Insight
+          </span>
+          <div className="text-[12px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+            <p className="font-semibold" style={{ color: "var(--text-primary)" }}>
+              {position.ticker} - {cfg.label} - {strategyLabelForTier(position.tier)}
+            </p>
+            <p>
+              Entry: {formatPrice(position.entryPrice)} | Target: {position.target != null ? formatPrice(position.target) : "-"} | SL: {position.stoploss != null ? formatPrice(position.stoploss) : "-"}{rr ? ` | R/R ${rr}` : ""} | NAV: {nav}
+            </p>
+            {trigger && (
+              <p className="whitespace-pre-line">
+                <span className="font-semibold" style={{ color: "#f59e0b" }}>Trigger:</span> {trigger}
+              </p>
+            )}
+            {aiNote && (
+              <p className="whitespace-pre-line">
+                <span className="font-semibold" style={{ color: "var(--primary)" }}>AI nhận định:</span> {aiNote}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function PaperPositionCard({ position }: { position: PaperPosition }) {
@@ -274,8 +348,8 @@ function PaperPositionCard({ position }: { position: PaperPosition }) {
           >
             {statusLabel}
           </span>
-          <span className="text-[12px] font-bold px-1.5 py-0.5 rounded" style={{ background: pnlBg, color: pnlColor, border: `1px solid ${pnlBorder}` }}>
-            {pnl >= 0 ? "+" : ""}{pnl.toFixed(1)}%
+          <span className="text-[13px] font-black px-2 py-0.5 rounded" style={{ background: pnlBg, color: pnlColor, border: `1px solid ${pnlBorder}` }}>
+            PnL {pnl >= 0 ? "+" : ""}{pnl.toFixed(1)}%
           </span>
           <span className="rounded-md border px-1.5 py-0.5 text-[11px] font-bold" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
             {position.exchange}
@@ -318,7 +392,7 @@ function PaperPositionCard({ position }: { position: PaperPosition }) {
           </span>
           <span className="flex items-center gap-1">
             <TrendingUp className="w-3 h-3" style={{ color: pnlColor }} />
-            <span className="font-medium" style={{ color: pnlColor }}>{pnl >= 0 ? "+" : ""}{pnl.toFixed(2)}%</span>
+            <span className="font-bold" style={{ color: pnlColor }}>Tăng trưởng {pnl >= 0 ? "+" : ""}{pnl.toFixed(2)}%</span>
           </span>
           <span className="font-medium">Giá trị {formatPrice(position.marketValue)}</span>
         </div>
@@ -337,6 +411,8 @@ function PaperPositionCard({ position }: { position: PaperPosition }) {
           </div>
         )}
       </div>
+
+      <PaperPositionInsight position={position} />
 
       <div className="mx-3 mb-3">
         <Link href={`/stock/${position.ticker}`}>

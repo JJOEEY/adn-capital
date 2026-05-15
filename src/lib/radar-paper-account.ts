@@ -163,6 +163,62 @@ function needsPaperAccountReseed(positions: OpenPosition[], cash: number) {
   );
 }
 
+async function restorableReseededMidTermSignals(accountId: string, existingTickers = new Set<string>()) {
+  const oldPositions = await prisma.radarPaperPosition.findMany({
+    where: {
+      accountId,
+      status: "RESEEDED",
+      tier: { in: ["LEADER", "TRUNG_HAN"] },
+      signalId: { not: null },
+    },
+    orderBy: [{ openedAt: "asc" }, { updatedAt: "asc" }],
+    select: { signalId: true, ticker: true },
+  });
+  const signalIds = [...new Set(oldPositions.map((row) => row.signalId).filter((id): id is string => Boolean(id)))];
+  if (signalIds.length === 0) return [];
+
+  const signals = await prisma.signal.findMany({
+    where: {
+      id: { in: signalIds },
+      status: { in: ["ACTIVE", "HOLD_TO_DIE"] },
+      tier: { in: ["LEADER", "TRUNG_HAN"] },
+    },
+  });
+  const signalById = new Map(signals.map((row) => [row.id, row]));
+  const seen = new Set([...existingTickers].map((ticker) => ticker.toUpperCase()));
+  const result = [];
+  for (const oldPosition of oldPositions) {
+    if (!oldPosition.signalId) continue;
+    const signal = signalById.get(oldPosition.signalId);
+    if (!signal || !isEligibleNavForTier(signal)) continue;
+    const ticker = signal.ticker.toUpperCase().trim();
+    if (seen.has(ticker)) continue;
+    const price = normalizeSignalPrice(signal.currentPrice) ?? normalizeSignalPrice(signal.entryPrice);
+    if (!isValidPrice(price)) continue;
+    seen.add(ticker);
+    result.push(signal);
+  }
+  return result;
+}
+
+async function hasRestorableReseededMidTerm(accountId: string, positions: OpenPosition[], cash: number) {
+  const invested = positions.reduce((sum, position) => sum + (position.marketValue ?? position.costBasis), 0);
+  const totalNav = cash + invested;
+  const existingTickers = new Set(positions.map((position) => position.ticker.toUpperCase()));
+  const candidates = await restorableReseededMidTermSignals(accountId, existingTickers);
+  return candidates.some((signal) => {
+    const navPct = recommendedNavPct(signal);
+    const price = normalizeSignalPrice(signal.currentPrice) ?? normalizeSignalPrice(signal.entryPrice);
+    if (!isValidPrice(price)) return false;
+    const orderValue = totalNav * (navPct / 100);
+    const quantity = Math.floor(orderValue / price / 100) * 100;
+    const grossValue = round2(quantity * price);
+    const minOrderValue = totalNav * (minimumNavPctForTier(signal.tier) / 100);
+    if (quantity <= 0 || grossValue < minOrderValue) return false;
+    return grossValue <= cash && passesAllocationCapsAfterBuy(positions, signal.tier, grossValue, totalNav);
+  });
+}
+
 async function getOrCreateAccount() {
   const existing = await prisma.radarPaperAccount.findUnique({ where: { slug: ACCOUNT_SLUG } });
   if (existing) return existing;
@@ -266,7 +322,13 @@ async function buyPaperPosition(params: {
 export async function ensureRadarPaperAccountSeeded() {
   const account = await getOrCreateAccount();
   const existingPositions = await activePositions(account.id);
-  if (account.seededAt && !needsPaperAccountReseed(existingPositions, account.cash)) return account;
+  if (
+    account.seededAt &&
+    !needsPaperAccountReseed(existingPositions, account.cash) &&
+    !(await hasRestorableReseededMidTerm(account.id, existingPositions, account.cash))
+  ) {
+    return account;
+  }
   if (existingPositions.length > 0) {
     await prisma.$transaction([
       prisma.radarPaperPosition.updateMany({
@@ -280,6 +342,8 @@ export async function ensureRadarPaperAccountSeeded() {
     ]);
   }
 
+  const reseededMidTermCandidates = await restorableReseededMidTermSignals(account.id);
+  const restoredSignalIds = new Set(reseededMidTermCandidates.map((row) => row.id));
   const candidates = await prisma.signal.findMany({
     where: {
       status: { in: ["ACTIVE", "HOLD_TO_DIE"] },
@@ -299,7 +363,8 @@ export async function ensureRadarPaperAccountSeeded() {
   const sortByNav = (a: Pick<SignalLike, "navAllocation">, b: Pick<SignalLike, "navAllocation">) =>
     recommendedNavPct(b) - recommendedNavPct(a);
   const sorted = [
-    ...uniqueCandidates.filter((row) => isMidTermTier(row.tier)).sort(sortByNav),
+    ...reseededMidTermCandidates,
+    ...uniqueCandidates.filter((row) => isMidTermTier(row.tier) && !restoredSignalIds.has(row.id)).sort(sortByNav),
     ...uniqueCandidates.filter((row) => isSwingTier(row.tier)).sort(sortByNav),
   ];
 
@@ -624,6 +689,23 @@ export async function getRadarPaperAccountPayload() {
     prisma.radarPaperTrade.findMany({ where: { accountId: account.id }, orderBy: { tradedAt: "desc" }, take: 40 }),
     prisma.radarPaperSnapshot.findFirst({ where: { accountId: account.id }, orderBy: { createdAt: "desc" } }),
   ]);
+  const signalIds = [...new Set(positions.map((row) => row.signalId).filter((id): id is string => Boolean(id)))];
+  const signalById = new Map(
+    signalIds.length > 0
+      ? (await prisma.signal.findMany({
+          where: { id: { in: signalIds } },
+          select: {
+            id: true,
+            triggerSignal: true,
+            aiReasoning: true,
+            reason: true,
+            rrRatio: true,
+            winRate: true,
+            sharpeRatio: true,
+          },
+        })).map((row) => [row.id, row])
+      : [],
+  );
   const invested = round2(positions.reduce((sum, row) => sum + (row.marketValue ?? row.costBasis), 0));
   const costBasis = positions.reduce((sum, row) => sum + row.costBasis, 0);
   const totalNav = round2(account.cash + invested);
@@ -639,31 +721,40 @@ export async function getRadarPaperAccountPayload() {
     unrealizedPnl,
     totalPnl,
     totalPnlPct,
-    positions: positions.map((row) => ({
-      id: row.id,
-      signalId: row.signalId,
-      ticker: row.ticker,
-      exchange: row.exchange,
-      signalType: row.signalType,
-      tier: row.tier,
-      status: row.status,
-      entryPrice: row.entryPrice,
-      currentPrice: row.currentPrice,
-      quantity: row.quantity,
-      costBasis: row.costBasis,
-      marketValue: row.marketValue ?? row.costBasis,
-      navPct: totalNav > 0 ? round2(((row.marketValue ?? row.costBasis) / totalNav) * 100) : 0,
-      currentPnl: row.currentPnl,
-      currentPnlValue: row.currentPnlValue,
-      target: row.target,
-      stoploss: row.stoploss,
-      openedAt: row.openedAt.toISOString(),
-      sellableAt: row.sellableAt.toISOString(),
-      pendingExitReason: row.pendingExitReason,
-      pendingExitTriggeredAt: row.pendingExitTriggeredAt?.toISOString() ?? null,
-      pendingExitPrice: row.pendingExitPrice,
-      holdingAction: row.holdingAction,
-    })),
+    positions: positions.map((row) => {
+      const signal = row.signalId ? signalById.get(row.signalId) : null;
+      return {
+        id: row.id,
+        signalId: row.signalId,
+        ticker: row.ticker,
+        exchange: row.exchange,
+        signalType: row.signalType,
+        tier: row.tier,
+        status: row.status,
+        entryPrice: row.entryPrice,
+        currentPrice: row.currentPrice,
+        quantity: row.quantity,
+        costBasis: row.costBasis,
+        marketValue: row.marketValue ?? row.costBasis,
+        navPct: totalNav > 0 ? round2(((row.marketValue ?? row.costBasis) / totalNav) * 100) : 0,
+        currentPnl: row.currentPnl,
+        currentPnlValue: row.currentPnlValue,
+        target: row.target,
+        stoploss: row.stoploss,
+        openedAt: row.openedAt.toISOString(),
+        sellableAt: row.sellableAt.toISOString(),
+        pendingExitReason: row.pendingExitReason,
+        pendingExitTriggeredAt: row.pendingExitTriggeredAt?.toISOString() ?? null,
+        pendingExitPrice: row.pendingExitPrice,
+        holdingAction: row.holdingAction,
+        triggerSignal: signal?.triggerSignal ?? null,
+        aiReasoning: signal?.aiReasoning ?? null,
+        reason: signal?.reason ?? null,
+        rrRatio: signal?.rrRatio ?? null,
+        winRate: signal?.winRate ?? null,
+        sharpeRatio: signal?.sharpeRatio ?? null,
+      };
+    }),
     trades: trades.map((row) => ({
       id: row.id,
       ticker: row.ticker,
