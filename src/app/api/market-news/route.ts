@@ -1891,7 +1891,16 @@ function hasCompleteScheduledEodPayload(payload: EodPayload): boolean {
 }
 
 function hasArchivedScheduledEodPayload(payload: EodPayload): boolean {
-  if (!hasValidEodPayload(payload)) return false;
+  const hasVni = Number.isFinite(payload.vnindex) && payload.vnindex > 0;
+  const hasBreadth = payload.breadth.total > 0;
+  const hasLiquidity = Number.isFinite(payload.liquidity) && payload.liquidity > 0;
+  const hasSummary = payload.session_summary.length > 0 && !isUnavailableText(payload.session_summary);
+  const hasFlows =
+    hasDetailedFlowLists(payload) ||
+    (payload.foreign_flow.length > 0 && !isUnavailableText(payload.foreign_flow)) ||
+    (payload.notable_trades.length > 0 && !isUnavailableText(payload.notable_trades));
+
+  if (!hasVni || !hasLiquidity || !hasBreadth || !hasSummary || !hasFlows) return false;
   if (isInvalidEodOutlook(payload.outlook)) return false;
   return true;
 }
@@ -1971,6 +1980,17 @@ function shouldPreferBridgeEod(
   if (!selectedCandidate) return true;
   if (bridge.dateKey < selectedCandidate.dateKey) return false;
   return bridge.dateKey > selectedCandidate.dateKey || !hasCompleteScheduledEodPayload(selectedCandidate.payload);
+}
+
+function hasPublishableSelectedEodPayload(
+  payload: EodPayload,
+  selectedCandidate: ScheduledEodCandidate | null,
+  now = new Date(),
+): boolean {
+  if (selectedCandidate?.dateKey && selectedCandidate.dateKey !== reportDateFromCreatedAt(now)) {
+    return hasArchivedScheduledEodPayload(payload);
+  }
+  return hasCompleteScheduledEodPayload(payload);
 }
 
 function hasDisplayableMorningPayload(payload: MorningPayload): boolean {
@@ -2235,7 +2255,7 @@ export async function GET(request: NextRequest) {
   if (isInvalidEodOutlook(selected.outlook)) {
     selected.outlook = buildDeterministicEodOutlook(selected);
   }
-  if (!hasCompleteScheduledEodPayload(selected)) {
+  if (!hasPublishableSelectedEodPayload(selected, selectedCandidate)) {
     return NextResponse.json({ error: "EOD Brief chưa đủ dữ liệu hợp lệ để publish." }, { status: 503 });
   }
   return NextResponse.json(selected);
