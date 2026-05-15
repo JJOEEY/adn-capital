@@ -54,6 +54,7 @@ function ToolbarButton({
       aria-label={label}
       title={label}
       disabled={disabled}
+      onMouseDown={(event) => event.preventDefault()}
       onClick={onClick}
       className={`rounded-lg border px-2.5 py-2 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
         active
@@ -423,7 +424,7 @@ export default function RichTextEditor({
           }}
         />
       </div>
-      <EditorContent editor={editor} />
+      <EditorContent editor={editor} className="rich-text-editor" />
       <div className="border-t border-white/10 px-3 py-2 text-xs text-slate-400">
         Có thể dán ảnh trực tiếp, kéo thả ảnh hoặc bấm nút thêm ảnh. Ảnh sẽ được tải lên máy chủ trước khi chèn vào bài.
       </div>

@@ -195,6 +195,68 @@ input::placeholder, textarea::placeholder {
 .dark .tiptap strong { color: var(--text-primary); }
 .dark .tiptap p.is-editor-empty:first-child::before { color: var(--text-muted); }
 
+.dark .rich-text-editor .ProseMirror,
+.light .rich-text-editor .ProseMirror {
+  min-height: 420px;
+  padding: 16px;
+  outline: none;
+  color: var(--text-primary);
+}
+
+.rich-text-editor .ProseMirror h1 {
+  margin: 1.2em 0 0.55em;
+  font-size: 2rem;
+  line-height: 1.18;
+  font-weight: 900;
+}
+
+.rich-text-editor .ProseMirror h2 {
+  margin: 1em 0 0.5em;
+  font-size: 1.5rem;
+  line-height: 1.25;
+  font-weight: 900;
+}
+
+.rich-text-editor .ProseMirror h3 {
+  margin: 0.9em 0 0.45em;
+  font-size: 1.2rem;
+  line-height: 1.3;
+  font-weight: 850;
+}
+
+.rich-text-editor .ProseMirror p {
+  margin: 0.85em 0;
+}
+
+.rich-text-editor .ProseMirror ul,
+.rich-text-editor .ProseMirror ol {
+  margin: 0.85em 0;
+  padding-left: 1.65rem;
+}
+
+.rich-text-editor .ProseMirror ul {
+  list-style: disc;
+}
+
+.rich-text-editor .ProseMirror ol {
+  list-style: decimal;
+}
+
+.rich-text-editor .ProseMirror li {
+  margin: 0.35em 0;
+  padding-left: 0.15rem;
+}
+
+.rich-text-editor .ProseMirror li p {
+  margin: 0.2em 0;
+}
+
+.rich-text-editor .ProseMirror blockquote {
+  margin: 1em 0;
+  padding-left: 1rem;
+  border-left: 3px solid rgba(184,199,181,0.38);
+}
+
 
 /* ══════════════════════════════════════════
    LIGHT THEME
