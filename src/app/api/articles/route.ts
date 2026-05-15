@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import {
   buildExcerptFromHtml,
   createArticleSlug,
+  ensureReadableArticleHtml,
   getArticleEditorUser,
   hasBrokenArticleEncoding,
   normalizeArticleTags,
@@ -119,7 +120,7 @@ export async function POST(request: NextRequest) {
         title: articleTitle,
         originalTitle: articleOriginalTitle || null,
         slug: createArticleSlug(articleTitle),
-        content: safeContent,
+        content: ensureReadableArticleHtml(safeContent),
         excerpt: articleExcerpt || buildExcerptFromHtml(safeContent),
         aiSummary: articleSummary || null,
         sourceUrl: sourceUrl || null,
@@ -164,7 +165,7 @@ function normalizeArticleForResponse<
   const normalized = {
     ...article,
     title: repairMojibakeText(article.title),
-    content: typeof article.content === "string" ? repairMojibakeText(article.content) : article.content,
+    content: typeof article.content === "string" ? ensureReadableArticleHtml(repairMojibakeText(article.content)) : article.content,
     excerpt: article.excerpt ? repairMojibakeText(article.excerpt) : article.excerpt,
     aiSummary: article.aiSummary ? repairMojibakeText(article.aiSummary) : article.aiSummary,
     sentiment: article.sentiment ? repairMojibakeText(article.sentiment) : article.sentiment,

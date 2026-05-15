@@ -283,7 +283,7 @@ export function ArticleDetailClient({ slug }: { slug: string }) {
               AI Tóm tắt
             </span>
           </div>
-          <p className="text-sm text-slate-300 leading-relaxed">
+          <p className="whitespace-pre-line text-sm text-slate-300 leading-relaxed">
             {article.aiSummary}
           </p>
         </div>
@@ -313,12 +313,7 @@ export function ArticleDetailClient({ slug }: { slug: string }) {
 
       {/* ── Article Body ── */}
       <article
-        className="prose prose-invert prose-lg max-w-none
-          prose-headings:text-white prose-headings:font-bold
-          prose-p:text-slate-300 prose-p:leading-relaxed
-          prose-strong:text-white
-          prose-a:text-blue-400 prose-a:no-underline hover:prose-a:underline
-          mb-12"
+        className="article-content mb-12 max-w-none"
         dangerouslySetInnerHTML={{ __html: article.content }}
       />
 

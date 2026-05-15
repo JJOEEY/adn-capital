@@ -262,6 +262,86 @@ input::placeholder, textarea::placeholder {
    LIGHT THEME
 ══════════════════════════════════════════ */
 
+.article-content {
+  color: var(--text-secondary);
+  font-size: 1.0625rem;
+  line-height: 1.82;
+}
+
+.article-content h2,
+.article-content h3 {
+  margin: 2rem 0 0.85rem;
+  color: var(--text-primary);
+  font-weight: 850;
+  line-height: 1.32;
+}
+
+.article-content h2 {
+  font-size: clamp(1.45rem, 2.4vw, 1.85rem);
+}
+
+.article-content h3 {
+  font-size: clamp(1.2rem, 2vw, 1.42rem);
+}
+
+.article-content p {
+  margin: 1.05rem 0;
+  color: var(--text-secondary);
+}
+
+.article-content strong,
+.article-content b {
+  color: var(--text-primary);
+  font-weight: 800;
+}
+
+.article-content ul,
+.article-content ol {
+  margin: 1rem 0;
+  padding-left: 1.5rem;
+}
+
+.article-content ul {
+  list-style: disc;
+}
+
+.article-content ol {
+  list-style: decimal;
+}
+
+.article-content li {
+  margin: 0.45rem 0;
+  padding-left: 0.15rem;
+}
+
+.article-content blockquote {
+  margin: 1.35rem 0;
+  padding-left: 1rem;
+  border-left: 3px solid rgba(184,199,181,0.38);
+  color: var(--text-secondary);
+}
+
+.article-content a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.article-content a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+  .article-content {
+    font-size: 1rem;
+    line-height: 1.75;
+  }
+
+  .article-content h2,
+  .article-content h3 {
+    margin-top: 1.6rem;
+  }
+}
+
 .light body {
   background: var(--page-background);
   color: var(--text-primary);

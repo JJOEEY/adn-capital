@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getArticleFallbackImage } from "@/lib/articles/image-fallback";
-import { normalizeArticleTags, repairMojibakeText } from "@/lib/articles/server";
+import { ensureReadableArticleHtml, normalizeArticleTags, repairMojibakeText } from "@/lib/articles/server";
 
 export const dynamic = "force-dynamic";
 
@@ -77,7 +77,7 @@ function normalizeArticleForResponse<
   const normalized = {
     ...article,
     title: repairMojibakeText(article.title),
-    content: typeof article.content === "string" ? repairMojibakeText(article.content) : article.content,
+    content: typeof article.content === "string" ? ensureReadableArticleHtml(repairMojibakeText(article.content)) : article.content,
     excerpt: article.excerpt ? repairMojibakeText(article.excerpt) : article.excerpt,
     aiSummary: article.aiSummary ? repairMojibakeText(article.aiSummary) : article.aiSummary,
     sentiment: article.sentiment ? repairMojibakeText(article.sentiment) : article.sentiment,

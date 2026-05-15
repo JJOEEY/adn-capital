@@ -4,10 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { GoogleGenAI } from "@google/genai";
 import {
   countArticleWords,
+  ensureReadableArticleHtml,
   ensureSeoTags,
   hasArticleImage,
   isFinanceArticle,
-  sanitizeArticleHtml,
 } from "@/lib/articles/server";
 import { getArticleFallbackImage } from "@/lib/articles/image-fallback";
 import { emitObservabilityEvent } from "@/lib/observability";
@@ -385,7 +385,7 @@ async function saveArticle(
     select: { id: true },
   });
 
-  const sanitizedContent = sanitizeArticleHtml(aiResult.content || item.content);
+  const sanitizedContent = ensureReadableArticleHtml(aiResult.content || item.content);
   const seoTags = ensureSeoTags(aiResult.tags, item.sourceName);
   if (!hasArticleImage(item.imageUrl)) {
     item.imageUrl = getArticleFallbackImage({

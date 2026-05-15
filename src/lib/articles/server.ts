@@ -133,6 +133,51 @@ export function sanitizeArticleHtml(html: string): string {
     .replace(/\ssrc\s*=\s*("|')\s*data:[\s\S]*?\1/gi, "");
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function splitReadableParagraphs(text: string): string[] {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (!normalized) return [];
+
+  const sentences = normalized.match(/[^.!?。！？]+[.!?。！？]+(?:["')\]]+)?|[^.!?。！？]+$/g) ?? [normalized];
+  const paragraphs: string[] = [];
+  let buffer: string[] = [];
+
+  for (const sentence of sentences.map((item) => item.trim()).filter(Boolean)) {
+    buffer.push(sentence);
+    const currentLength = buffer.join(" ").length;
+    if (buffer.length >= 3 || currentLength >= 360) {
+      paragraphs.push(buffer.join(" "));
+      buffer = [];
+    }
+  }
+
+  if (buffer.length > 0) paragraphs.push(buffer.join(" "));
+  return paragraphs;
+}
+
+export function ensureReadableArticleHtml(html: string): string {
+  const sanitized = sanitizeArticleHtml(html);
+  const blockCount = (sanitized.match(/<(p|h2|h3|ul|ol|blockquote)\b/gi) ?? []).length;
+  const hasHeading = /<h[23]\b/i.test(sanitized);
+
+  if (blockCount >= 3 && hasHeading) return sanitized;
+  if (blockCount >= 4 && sanitized.length < 3500) return sanitized;
+
+  const text = stripHtmlToText(sanitized);
+  const paragraphs = splitReadableParagraphs(text);
+  if (paragraphs.length <= 1) return sanitized;
+
+  return paragraphs.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join("");
+}
+
 export function stripHtmlToText(html: string): string {
   return String(html || "")
     .replace(/<[^>]+>/g, " ")
