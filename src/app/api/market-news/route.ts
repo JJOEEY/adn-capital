@@ -86,6 +86,12 @@ function fromBridgeMorningPayload(raw: FiinMorningNews): MorningPayload {
 
 function fromBridgeEodPayload(raw: FiinEodNews): EodPayload {
   const rawRecord = raw as unknown as JsonRecord;
+  const foreignTopBuy = parseStringArray(raw.foreign_top_buy);
+  const foreignTopSell = parseStringArray(raw.foreign_top_sell);
+  const propTradingTopBuy = parseStringArray(raw.prop_trading_top_buy);
+  const propTradingTopSell = parseStringArray(raw.prop_trading_top_sell);
+  const individualTopBuy = parseStringArray(rawRecord.individual_top_buy);
+  const individualTopSell = parseStringArray(rawRecord.individual_top_sell);
   const liquidityByExchange = normalizeExchangeLiquidity({
     HOSE: toNumberOrNull(rawRecord.hose_val),
     HNX: toNumberOrNull(rawRecord.hnx_val),
@@ -117,15 +123,20 @@ function fromBridgeEodPayload(raw: FiinEodNews): EodPayload {
       negotiated: liquidityBreakdown.negotiated,
     }) || raw.liquidity_detail || "",
     foreign_flow: raw.foreign_flow ?? "",
-    notable_trades: raw.notable_trades ?? "",
+    notable_trades: raw.notable_trades ?? buildNotableTradesFromFlowLists({
+      propTradingTopBuy,
+      propTradingTopSell,
+      individualTopBuy,
+      individualTopSell,
+    }),
     outlook: raw.outlook ?? "",
     sub_indices: Array.isArray(raw.sub_indices) ? raw.sub_indices : [],
-    foreign_top_buy: parseStringArray(raw.foreign_top_buy),
-    foreign_top_sell: parseStringArray(raw.foreign_top_sell),
-    prop_trading_top_buy: parseStringArray(raw.prop_trading_top_buy),
-    prop_trading_top_sell: parseStringArray(raw.prop_trading_top_sell),
-    individual_top_buy: parseStringArray(rawRecord.individual_top_buy),
-    individual_top_sell: parseStringArray(rawRecord.individual_top_sell),
+    foreign_top_buy: foreignTopBuy,
+    foreign_top_sell: foreignTopSell,
+    prop_trading_top_buy: propTradingTopBuy,
+    prop_trading_top_sell: propTradingTopSell,
+    individual_top_buy: individualTopBuy,
+    individual_top_sell: individualTopSell,
     sector_gainers: parseStringArray(raw.sector_gainers),
     sector_losers: parseStringArray(raw.sector_losers),
     buy_signals: parseStringArray(raw.buy_signals),
@@ -1116,6 +1127,26 @@ function parseStringArray(raw: unknown): string[] {
       return value != null && value > 0 ? `${ticker} (${formatTy(value)} tỷ)` : ticker;
     })
     .filter((x): x is string => typeof x === "string" && x.trim().length > 0);
+}
+
+function summarizeFlowBucket(label: string, buy: string[], sell: string[]): string {
+  const parts = [
+    buy.length > 0 ? `Mua ròng: ${buy.slice(0, 5).join(", ")}` : "",
+    sell.length > 0 ? `Bán ròng: ${sell.slice(0, 5).join(", ")}` : "",
+  ].filter(Boolean);
+  return parts.length > 0 ? `${label} ${parts.join(". ")}` : "";
+}
+
+function buildNotableTradesFromFlowLists(input: {
+  propTradingTopBuy: string[];
+  propTradingTopSell: string[];
+  individualTopBuy: string[];
+  individualTopSell: string[];
+}): string {
+  return [
+    summarizeFlowBucket("Tự doanh", input.propTradingTopBuy, input.propTradingTopSell),
+    summarizeFlowBucket("Cá nhân", input.individualTopBuy, input.individualTopSell),
+  ].filter(Boolean).join(" | ");
 }
 
 function pickStringArray(records: Array<JsonRecord | null | undefined>, keys: string[]): string[] {
@@ -2198,7 +2229,7 @@ export async function GET(request: NextRequest) {
   }
 
   const selectedCandidate = pickScheduledEodCandidate(reports);
-  const bridgeCandidate = await loadCompleteBridgeEodPayload();
+  const bridgeCandidate = storedOnly ? null : await loadCompleteBridgeEodPayload();
   if (!selectedCandidate && !bridgeCandidate) {
     return NextResponse.json(
       { error: "ChÆ°a cÃ³ EOD Brief Ä‘Ãºng lá»‹ch 15h/19h vÃ  Ä‘á»§ dá»¯ liá»‡u Ä‘á»ƒ hiá»ƒn thá»‹." },
