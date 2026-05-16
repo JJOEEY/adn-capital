@@ -7,7 +7,7 @@ import { PricingClient } from "./PricingClient";
 
 export const metadata = {
   title: `Bảng giá - ${BRAND.name}`,
-  description: "Chọn gói ADN Capital, gửi mã khách hàng để admin duyệt ưu đãi và thanh toán qua PayOS.",
+  description: "Chọn gói ADN Capital, gửi promo code để duyệt ưu đãi và thanh toán qua PayOS.",
 };
 
 export default function PricingPage() {
@@ -27,7 +27,7 @@ export default function PricingPage() {
               Chọn gói ADN Capital theo chu kỳ đầu tư của bạn
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-7" style={{ color: "var(--text-secondary)" }}>
-              Mở tài khoản để được trải nghiệm VIP 1 tuần. Nếu có mã khách hàng, hệ thống sẽ gửi yêu cầu admin duyệt trước khi áp dụng ưu đãi vào PayOS.
+              Mở tài khoản để được trải nghiệm VIP 1 tuần. Nếu có promo code, hệ thống sẽ gửi yêu cầu duyệt trước khi áp dụng ưu đãi vào PayOS.
             </p>
           </div>
 
@@ -40,9 +40,9 @@ export default function PricingPage() {
                 <ShieldCheck className="h-5 w-5" />
               </span>
               <div>
-                <h2 className="font-bold">Nguyên tắc thanh toán an toàn</h2>
+                <h2 className="font-bold">Điều kiện ưu đãi</h2>
                 <p className="mt-2 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
-                  Giá giảm chỉ được tính ở máy chủ khi mã khách hàng đã được admin duyệt. Client không tự quyết định mức giảm.
+                  Giá ưu đãi chỉ áp dụng dành cho khách hàng đã mở thành công tài khoản tại DNSE. Sau khi mở tài khoản và được duyệt, ưu đãi sẽ áp dụng cho từng gói riêng biệt. Promo code là số lưu ký của khách hàng, ví dụ: <span className="font-mono font-bold" style={{ color: "var(--text-primary)" }}>064COZ8EU7</span>.
                 </p>
               </div>
             </div>
@@ -67,7 +67,7 @@ export default function PricingPage() {
               <div>
                 <h2 className="font-black">Mở tài khoản DNSE bắt đầu giao dịch để nhận Promo lên tới 40%</h2>
                 <p className="mt-2 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
-                  Promo cần có mã khách hàng được admin duyệt: 20% cho 3 tháng, 30% cho 6 tháng, 40% cho 12 tháng.
+                  Promo code là số lưu ký của khách hàng sau khi mở thành công tài khoản DNSE và được duyệt.
                 </p>
               </div>
             </div>

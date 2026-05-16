@@ -1,10 +1,23 @@
 import type { NextConfig } from "next";
 
 const projectRoot = process.cwd();
+const localOnlyTraceExcludes = [
+  "**/.claude/**",
+  "**/.codex-*/**",
+  "**/.tmp-*/**",
+  "**/android/**",
+  "**/video/**",
+  "**/*.tgz",
+  "**/*.log",
+];
 
 const nextConfig: NextConfig = {
-  output: "standalone",
+  output: process.env.ADN_STANDALONE_BUILD === "1" ? "standalone" : undefined,
   outputFileTracingRoot: projectRoot,
+  outputFileTracingExcludes: {
+    "next-server": localOnlyTraceExcludes,
+    "**/*": localOnlyTraceExcludes,
+  },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "lh3.googleusercontent.com" },

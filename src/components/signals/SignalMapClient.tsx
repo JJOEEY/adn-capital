@@ -9,6 +9,7 @@ import type { Signal } from "@/types";
 import Link from "next/link";
 import { isWithinVnTradingSession } from "@/lib/time";
 import { useTopic } from "@/hooks/useTopic";
+import { customerLabel } from "@/lib/customer-labels";
 import { PRODUCT_DESCRIPTIONS, PRODUCT_NAMES } from "@/lib/brand/productNames";
 import { formatPrice } from "@/lib/utils";
 
@@ -89,7 +90,7 @@ const TABS: { value: Tab; label: string; icon: typeof Crosshair }[] = [
 
 const TIER_FILTERS: { value: TierFilter; label: string }[] = [
   { value: "all",      label: "Tất cả"     },
-  { value: "LEADER",   label: "👑 Leader"  },
+  { value: "LEADER",   label: "👑 Siêu cổ phiếu"  },
   { value: "TRUNG_HAN",label: "🛡️ Trung hạn"},
   { value: "NGAN_HAN", label: "⚡ Ngắn hạn" },
   { value: "TAM_NGAM", label: "🎯 Tiếp cận" },
@@ -141,16 +142,13 @@ function PaperSummary({ account }: { account: PaperAccount }) {
 }
 
 function formatTierLabel(tier: PaperPosition["tier"]) {
-  if (tier === "TRUNG_HAN") return "TRUNG HẠN";
-  if (tier === "NGAN_HAN") return "NGẮN HẠN";
-  if (tier === "TAM_NGAM") return "TẦM NGẮM";
-  return tier;
+  return customerLabel(tier).toLocaleUpperCase("vi-VN");
 }
 
 function LegacyPaperPositionCard({ position }: { position: PaperPosition }) {
   const pnl = position.currentPnl ?? 0;
   const pnlColor = pnl >= 0 ? "#16a34a" : "var(--danger)";
-  const statusLabel = position.status === "HOLD_TO_DIE" ? "GỒNG LÃI" : position.status === "PENDING_EXIT" ? "CHỜ BÁN" : "ĐANG GIỮ";
+  const statusLabel = customerLabel(position.status).toLocaleUpperCase("vi-VN");
   return (
     <div className="rounded-[14px] border p-4 space-y-3" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
       <div className="flex items-start justify-between gap-3">
@@ -191,7 +189,7 @@ function LegacyPaperPositionCard({ position }: { position: PaperPosition }) {
 }
 
 const PAPER_TIER_CONFIG: Record<string, { icon: string; label: string; navBarColor: string }> = {
-  LEADER: { icon: "👑", label: "LEADER", navBarColor: "#2E4D3D" },
+  LEADER: { icon: "👑", label: "SIÊU CỔ PHIẾU", navBarColor: "#2E4D3D" },
   TRUNG_HAN: { icon: "🛡️", label: "TRUNG HẠN", navBarColor: "#f59e0b" },
   NGAN_HAN: { icon: "⚡", label: "NGẮN HẠN", navBarColor: "#16a34a" },
   DAU_CO: { icon: "⚡", label: "LƯỚT SÓNG", navBarColor: "#16a34a" },
@@ -306,7 +304,7 @@ function PaperPositionCard({ position }: { position: PaperPosition }) {
   const pnlColor = pnl >= 0 ? "#16a34a" : "var(--danger)";
   const pnlBg = pnl >= 0 ? "rgba(22,163,74,0.08)" : "rgba(192,57,43,0.08)";
   const pnlBorder = pnl >= 0 ? "rgba(22,163,74,0.20)" : "rgba(192,57,43,0.20)";
-  const statusLabel = position.status === "HOLD_TO_DIE" ? "GỒNG LÃI" : position.status === "PENDING_EXIT" ? "CHỜ BÁN" : "ĐANG GIỮ";
+  const statusLabel = customerLabel(position.status).toLocaleUpperCase("vi-VN");
   const thirdBox = targetBoxForPosition(position);
   const dateStr = formatDate(position.openedAt);
   const holdingDays = daysSince(position.openedAt);

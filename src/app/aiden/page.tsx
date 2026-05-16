@@ -1,9 +1,9 @@
-import TerminalPage from "../terminal/page";
+import { AidenWebChat } from "@/components/aiden/AidenWebChat";
 
 export const metadata = {
   title: "AIDEN - ADN Capital",
 };
 
 export default function AidenPage() {
-  return <TerminalPage />;
+  return <AidenWebChat />;
 }

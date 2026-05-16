@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import { Plus, RefreshCw, Trash2, TrendingDown, TrendingUp } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { customerLabel } from "@/lib/customer-labels";
 import { formatPrice } from "@/lib/utils";
 
 type WatchlistItem = {
@@ -168,7 +169,7 @@ function WatchlistContent() {
             </div>
             <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
               <p className="text-2xl font-black" style={{ color: "var(--text-primary)" }}>{activeCount}</p>
-              <p className="text-xs" style={{ color: "var(--text-muted)" }}>Đang ACTIVE</p>
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>Đang theo dõi</p>
             </div>
           </div>
         </section>
@@ -209,7 +210,7 @@ function WatchlistContent() {
                             className="rounded-full border px-2 py-0.5 text-[11px] font-black"
                             style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
                           >
-                            {item.signal.status}
+                            {customerLabel(item.signal.status)}
                           </span>
                         )}
                       </div>

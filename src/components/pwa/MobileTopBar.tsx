@@ -9,14 +9,13 @@ import {
   Bell,
   BookOpenText,
   ChevronDown,
+  Crown,
   HelpCircle,
   LogIn,
   LogOut,
   Menu,
   Moon,
-  Newspaper,
   Settings,
-  Shield,
   Sun,
   X,
   type LucideIcon,
@@ -189,6 +188,15 @@ export function MobileTopBar() {
           <div className="flex items-center gap-2">
             <button
               type="button"
+              onClick={toggleTheme}
+              className="flex h-10 w-10 items-center justify-center rounded-full border"
+              style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--text-primary)" }}
+              aria-label={isDark ? "Giao diện sáng" : "Giao diện tối"}
+            >
+              {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
+            <button
+              type="button"
               onClick={() => setSheet("notifications")}
               className="flex h-10 w-10 items-center justify-center rounded-full border"
               style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--text-primary)" }}
@@ -285,10 +293,8 @@ export function MobileTopBar() {
 
           <div className="overflow-hidden rounded-xl border" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
             <MenuRow href="/journal" icon={BookOpenText} label="ADN Diary" onClick={closeSheet} />
-            <MenuRow href="/dashboard" icon={Shield} label="ADNCore" onClick={closeSheet} />
             <MenuRow href="/art" icon={Activity} label="ADN ART" onClick={closeSheet} />
-            <MenuRow href="/notifications?tab=updates" icon={Newspaper} label="Kho bản tin" onClick={closeSheet} />
-            <MenuRow href="/menu" icon={Settings} label="Cài đặt cảnh báo" onClick={closeSheet} />
+            <MenuRow href="/pricing" icon={Crown} label="Pricing" onClick={closeSheet} />
             <button
               type="button"
               onClick={() => setSupportOpen((value) => !value)}
@@ -320,6 +326,7 @@ export function MobileTopBar() {
                 ))}
               </div>
             )}
+            <MenuRow href="/menu" icon={Settings} label="Cài đặt cảnh báo" onClick={closeSheet} />
           </div>
 
           <div className="mt-3">

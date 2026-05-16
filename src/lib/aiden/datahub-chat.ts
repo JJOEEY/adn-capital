@@ -11,6 +11,7 @@ import {
   marketPriceScaleFromPayload,
 } from "@/lib/market-price-normalization";
 import { normalizeHistoricalPriceWithSnapshot, type StockPriceSnapshot } from "@/lib/market-price-snapshot";
+import { classifyAidenIntent, type AidenIntent } from "@/lib/aiden/intent";
 import { extractTickerCandidates as extractTickerCandidatesFromText } from "@/lib/ticker-text";
 import { resolveMarketTicker } from "@/lib/ticker-resolver";
 
@@ -35,6 +36,23 @@ export type AidenDatahubChatResult = {
   usedTopics: string[];
   model: string;
   dataFreshness: Record<string, TopicEnvelope["freshness"]>;
+  intent: AidenIntent;
+};
+
+export type AidenDatahubPreparedTurn = {
+  message: string;
+  intent: AidenIntent;
+  ticker?: string;
+  tickers: string[];
+  recommendation?: AidenRecommendation | null;
+  usedTopics: string[];
+  model: string;
+  dataFreshness: Record<string, TopicEnvelope["freshness"]>;
+  prompt?: string;
+  staticMessage?: string;
+  fallbackMessage: string;
+  systemInstruction: string;
+  tickerContexts: unknown[];
 };
 
 export type AidenRecommendation = {
@@ -328,6 +346,10 @@ function extractTickerCandidates(message: string, currentTicker?: string | null)
 
 async function resolveTickers(message: string, currentTicker?: string | null) {
   const candidates = extractTickerCandidates(message, currentTicker);
+  return resolveTickerCandidates(candidates);
+}
+
+async function resolveTickerCandidates(candidates: string[]) {
   const resolved = await Promise.all(
     candidates.map(async (candidate) => {
       const result = await resolveMarketTicker(candidate);
@@ -586,6 +608,32 @@ OUTPUT_CONTRACT:
 
 Người dùng hỏi:
 ${message}`;
+}
+
+function buildAidenSmalltalkPrompt(message: string) {
+  return `Người dùng đang hỏi AIDEN trong cửa sổ webchat:
+${message}
+
+Yêu cầu:
+- Trả lời như chatbot tự nhiên kiểu ChatGPT/Gemini, không phân tích cổ phiếu nếu người dùng chưa nêu rõ mã hoặc ý định đầu tư.
+- Nếu người dùng hỏi AIDEN làm được gì, giới thiệu ngắn các năng lực: nhận định thị trường, phân tích mã khi nhập rõ ticker, so sánh mã, giải thích tín hiệu ADN và gợi ý cách đặt câu hỏi.
+- Không tự suy ra ticker từ các từ tiếng Việt như "bạn", "làm", "có", "mã", "mua gì".
+- Không nhắc DataHub, API, backend, provider hoặc chi tiết nội bộ.
+- Trả lời bằng tiếng Việt, thân thiện, ngắn gọn.`;
+}
+
+function buildAidenHelpMessage() {
+  return [
+    "AIDEN là trợ lý chat của ADN Capital. Bạn có thể hỏi tự nhiên, không cần gõ lệnh.",
+    "",
+    "AIDEN có thể giúp:",
+    "- Nhận định nhanh thị trường và bối cảnh dòng tiền.",
+    "- Phân tích cổ phiếu khi bạn nêu rõ mã, ví dụ: `phân tích FPT` hoặc `mã HPG thế nào`.",
+    "- So sánh nhiều mã, ví dụ: `so sánh HPG HSG`.",
+    "- Giải thích tín hiệu ADN theo hướng dễ hiểu hơn.",
+    "",
+    "Nếu cần chart và vùng giá chi tiết, AIDEN sẽ gợi ý mở ADN Stock để xem sâu hơn.",
+  ].join("\n");
 }
 
 function buildTickerFallbackLine(context: unknown) {
@@ -994,124 +1042,171 @@ function emitAidenFallback(event: string, error: unknown, meta: ObservabilityMet
   });
 }
 
-export async function runAidenDatahubChat(input: {
+function isInvestmentIntent(intent: AidenIntent) {
+  return intent !== "smalltalk";
+}
+
+export function finalizeAidenPreparedAnswer(answer: string, turn: AidenDatahubPreparedTurn) {
+  let finalAnswer = answer.trim();
+  if (!isInvestmentIntent(turn.intent)) {
+    return finalAnswer;
+  }
+
+  if (turn.tickerContexts.length > 0) {
+    finalAnswer = ensureCoreArtLine(ensureValuationLine(finalAnswer, turn.tickerContexts), turn.tickerContexts);
+  }
+
+  const sanitized = sanitizeCustomerAnswer(finalAnswer);
+  return ensureDisclaimer(sanitized);
+}
+
+export async function prepareAidenDatahubTurn(input: {
   message: string;
   currentTicker?: string | null;
   context?: TopicContext;
   surface?: AidenSurface | string | null;
-}): Promise<AidenDatahubChatResult> {
+}): Promise<AidenDatahubPreparedTurn> {
   const message = input.message.trim();
   const context = input.context ?? {};
   const surface: AidenSurface = input.surface === "stock" ? "stock" : "aiden";
-  const tickers = await resolveTickers(message, surface === "stock" ? input.currentTicker : null);
+  const systemInstruction = buildSystemInstruction();
 
   if (surface === "aiden") {
+    const intentResult = classifyAidenIntent(message);
+    let intent = intentResult.intent;
+    let tickers =
+      intent === "ticker_analysis" || intent === "compare"
+        ? await resolveTickerCandidates(intentResult.candidates)
+        : [];
+    if ((intent === "ticker_analysis" || intent === "compare") && tickers.length === 0) {
+      intent = "smalltalk";
+      tickers = [];
+    }
+
+    if (intent === "smalltalk") {
+      return {
+        message,
+        intent,
+        tickers: [],
+        recommendation: null,
+        usedTopics: [],
+        model: MODEL_FLASH,
+        dataFreshness: {},
+        prompt: buildAidenSmalltalkPrompt(message),
+        staticMessage: buildAidenHelpMessage(),
+        fallbackMessage: buildAidenHelpMessage(),
+        systemInstruction,
+        tickerContexts: [],
+      };
+    }
+
     const general = await buildGeneralMarketContext(context);
     const perTicker = tickers.length > 0 ? await loadTickerContexts(tickers, context) : [];
     const tickerContexts = perTicker.map((item) => item.context);
-    let answer: string;
     const deterministicTickerBrief =
-      tickerContexts.length === 1 ? buildAidenTickerBriefMessage(tickerContexts[0]) : null;
-    if (deterministicTickerBrief) {
-      answer = deterministicTickerBrief;
-    } else {
-      try {
-        answer = await withTimeout(
-          executeFlashOnlyAIRequest(
-            buildAidenConversationPrompt(message, general.context, tickerContexts),
-            buildSystemInstruction(),
-          ),
-          GENERAL_CHAT_TIMEOUT_MS,
-          "aiden-conversation",
-        );
-      } catch (error) {
-        console.warn("[AIDEN] Conversation Flash-only generation failed:", error);
-        emitAidenFallback("conversation_fallback", error, {
-          surface,
-          tickerCount: tickerContexts.length,
-          timeoutMs: GENERAL_CHAT_TIMEOUT_MS,
-        });
-        answer = buildAidenConversationFallbackMessage(message, general.context, tickerContexts);
-      }
-    }
-    if (tickerContexts.length > 0) {
-      answer = ensureCoreArtLine(ensureValuationLine(answer, tickerContexts), tickerContexts);
-    }
+      intent === "ticker_analysis" && tickerContexts.length === 1
+        ? buildAidenTickerBriefMessage(tickerContexts[0])
+        : null;
 
     return {
-      message: ensureDisclaimer(sanitizeCustomerAnswer(answer.trim())),
+      message,
+      intent,
       ticker: tickers[0],
       tickers,
       recommendation: tickerContexts.length === 1 ? buildRecommendation(tickerContexts[0]) : null,
       usedTopics: [...general.topics, ...perTicker.flatMap((item) => item.topics)],
       model: MODEL_FLASH,
       dataFreshness: collectFreshness(perTicker, general.envelopes),
+      prompt: deterministicTickerBrief ? undefined : buildAidenConversationPrompt(message, general.context, tickerContexts),
+      staticMessage: deterministicTickerBrief ?? undefined,
+      fallbackMessage: buildAidenConversationFallbackMessage(message, general.context, tickerContexts),
+      systemInstruction,
+      tickerContexts,
     };
   }
 
+  const tickers = await resolveTickers(message, input.currentTicker);
   if (tickers.length === 0) {
     const general = await buildGeneralMarketContext(context);
     const dataFreshness = Object.fromEntries(
       general.envelopes.map(({ topic, envelope }) => [topic, envelope.freshness]),
     );
-    let answer: string;
-    try {
-      answer = await withTimeout(
-        executeFlashOnlyAIRequest(
-          buildGeneralPrompt(message, general.context),
-          buildSystemInstruction(),
-        ),
-        GENERAL_CHAT_TIMEOUT_MS,
-        "general-aiden",
-      );
-    } catch (error) {
-      console.warn("[AIDEN] General Flash-only generation failed:", error);
-      emitAidenFallback("general_fallback", error, {
-        surface,
-        timeoutMs: GENERAL_CHAT_TIMEOUT_MS,
-      });
-      answer = buildGeneralFallbackMessage(message, general.context);
-    }
-
     return {
-      message: ensureDisclaimer(sanitizeCustomerAnswer(answer.trim())),
+      message,
+      intent: "general_market",
       tickers: [],
       recommendation: null,
       usedTopics: general.topics,
       model: MODEL_FLASH,
       dataFreshness,
+      prompt: buildGeneralPrompt(message, general.context),
+      fallbackMessage: buildGeneralFallbackMessage(message, general.context),
+      systemInstruction,
+      tickerContexts: [],
     };
   }
 
   const perTicker = await loadTickerContexts(tickers, context);
   const contexts = perTicker.map((item) => item.context);
-  let answer: string;
-  try {
-    answer = await withTimeout(
-      executeFlashOnlyAIRequest(
-        buildPrompt(message, contexts),
-        buildSystemInstruction(),
-      ),
-      GENERAL_CHAT_TIMEOUT_MS,
-      "stock-aiden",
-    );
-  } catch (error) {
-    console.warn("[AIDEN] Flash-only generation failed:", error);
-    emitAidenFallback("stock_fallback", error, {
-      surface,
-      tickerCount: contexts.length,
-      timeoutMs: GENERAL_CHAT_TIMEOUT_MS,
-    });
-    answer = buildFlashUnavailableMessage(contexts);
-  }
-
   return {
-    message: ensureDisclaimer(sanitizeCustomerAnswer(ensureCoreArtLine(ensureValuationLine(answer.trim(), contexts), contexts))),
+    message,
+    intent: contexts.length >= 2 ? "compare" : "ticker_analysis",
     ticker: tickers[0],
     tickers,
     recommendation: buildRecommendation(contexts[0]),
     usedTopics: perTicker.flatMap((item) => item.topics),
     model: MODEL_FLASH,
     dataFreshness: collectFreshness(perTicker),
+    prompt: buildPrompt(message, contexts),
+    fallbackMessage: buildFlashUnavailableMessage(contexts),
+    systemInstruction,
+    tickerContexts: contexts,
   };
+}
+
+async function completeAidenPreparedTurn(turn: AidenDatahubPreparedTurn, surface: AidenSurface): Promise<AidenDatahubChatResult> {
+  let answer: string;
+  if (turn.staticMessage) {
+    answer = turn.staticMessage;
+  } else if (turn.prompt) {
+    try {
+      answer = await withTimeout(
+        executeFlashOnlyAIRequest(turn.prompt, turn.systemInstruction),
+        GENERAL_CHAT_TIMEOUT_MS,
+        `${surface}-aiden`,
+      );
+    } catch (error) {
+      console.warn("[AIDEN] Flash-only generation failed:", error);
+      emitAidenFallback(`${surface}_fallback`, error, {
+        surface,
+        tickerCount: turn.tickerContexts.length,
+        timeoutMs: GENERAL_CHAT_TIMEOUT_MS,
+      });
+      answer = turn.fallbackMessage;
+    }
+  } else {
+    answer = turn.fallbackMessage;
+  }
+
+  return {
+    message: finalizeAidenPreparedAnswer(answer, turn),
+    ticker: turn.ticker,
+    tickers: turn.tickers,
+    recommendation: turn.recommendation,
+    usedTopics: turn.usedTopics,
+    model: turn.model,
+    dataFreshness: turn.dataFreshness,
+    intent: turn.intent,
+  };
+}
+
+export async function runAidenDatahubChat(input: {
+  message: string;
+  currentTicker?: string | null;
+  context?: TopicContext;
+  surface?: AidenSurface | string | null;
+}): Promise<AidenDatahubChatResult> {
+  const surface: AidenSurface = input.surface === "stock" ? "stock" : "aiden";
+  const turn = await prepareAidenDatahubTurn(input);
+  return completeAidenPreparedTurn(turn, surface);
 }

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { BookmarkPlus, Clock, Target, TrendingUp, Bot, BarChart3, Zap } from "lucide-react";
+import { customerLabel } from "@/lib/customer-labels";
 import { formatPrice } from "@/lib/utils";
 import type { Signal } from "@/types";
 
@@ -22,7 +23,7 @@ const TIER_CONFIG: Record<TierType, {
   label: string;
   navBarColor: string;   /* hex / CSS colour for the NAV progress bar fill */
 }> = {
-  LEADER:   { icon: "👑", label: "LEADER",    navBarColor: "#2E4D3D" },
+  LEADER:   { icon: "👑", label: "SIÊU CỔ PHIẾU", navBarColor: "#2E4D3D" },
   TRUNG_HAN:{ icon: "🛡️", label: "TRUNG HẠN", navBarColor: "#f59e0b" },
   NGAN_HAN: { icon: "⚡", label: "NGẮN HẠN",  navBarColor: "#16a34a" },
   TAM_NGAM: { icon: "🎯", label: "TẦM NGẮM",  navBarColor: "#7D8471" },
@@ -128,7 +129,7 @@ export function SignalCard({
                   border: signal.status === "HOLD_TO_DIE" ? "1px solid rgba(245,158,11,0.25)" : "1px solid rgba(22,163,74,0.25)",
                 }}
               >
-                {signal.status === "HOLD_TO_DIE" ? "HOLD TO DIE" : "ĐANG GIỮ"}
+                {customerLabel(signal.status)}
               </span>
               {signal.currentPnl != null && (
                 <span

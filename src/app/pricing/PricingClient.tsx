@@ -51,7 +51,7 @@ const plans: Plan[] = [
       `${PRODUCT_NAMES.dashboard} cho thị trường và bản tin hằng ngày`,
       `${PRODUCT_NAMES.brokerWorkflow} ở mức theo dõi cơ hội`,
       `${PRODUCT_NAMES.art} cho thị trường và nhóm mã phổ biến`,
-      "Mã khách hàng được duyệt giảm 20%",
+      "Promo code được duyệt giảm 20%",
     ],
   },
   {
@@ -72,7 +72,7 @@ const plans: Plan[] = [
       "Toàn bộ quyền của gói 3 tháng",
       "Theo dõi cơ hội, trạng thái và cảnh báo rủi ro",
       `${PRODUCT_NAMES.art} cho mã riêng lẻ và lịch sử theo dõi`,
-      "Mã khách hàng được duyệt giảm 30%",
+      "Promo code được duyệt giảm 30%",
     ],
   },
   {
@@ -92,7 +92,7 @@ const plans: Plan[] = [
       "Toàn bộ quyền của gói 6 tháng",
       "Ưu tiên hỗ trợ khi sản phẩm có cập nhật",
       "Onboarding quy trình sử dụng và review định kỳ",
-      "Mã khách hàng được duyệt giảm 40%",
+      "Promo code được duyệt giảm 40%",
     ],
   },
 ];
@@ -106,7 +106,7 @@ const valueAxes = [
   {
     icon: TicketPercent,
     title: "Promo DNSE tới 40%",
-    body: "Mở tài khoản DNSE và bắt đầu giao dịch để được xét mã khách hàng giảm giá.",
+    body: "Promo code là số lưu ký sau khi khách hàng mở thành công tài khoản DNSE.",
   },
   {
     icon: Bot,
@@ -115,8 +115,8 @@ const valueAxes = [
   },
   {
     icon: ShieldCheck,
-    title: "Giảm giá cần admin duyệt",
-    body: "Mã khách hàng chỉ áp dụng khi được xác nhận server-side, không tin dữ liệu từ trình duyệt.",
+    title: "Ưu đãi theo từng gói",
+    body: "Sau khi tài khoản DNSE được duyệt, ưu đãi sẽ áp dụng riêng cho từng gói.",
   },
 ];
 
@@ -183,7 +183,7 @@ function PlanCard({
           </span>
         </div>
         <p className="text-sm font-bold" style={{ color: "var(--primary)" }}>
-          Có mã được duyệt: {formatVnd(discountedPrice)} (-{plan.discountPercent}%)
+          Có promo code được duyệt: {formatVnd(discountedPrice)} (-{plan.discountPercent}%)
         </p>
       </div>
 
@@ -212,7 +212,7 @@ function PlanCard({
         {isLoading
           ? "Đang xử lý..."
           : customerCode.trim()
-            ? `Gửi duyệt mã và chọn ${plan.name}`
+            ? `Gửi duyệt promo code và chọn ${plan.name}`
             : `Chọn gói ${plan.name}`}
         <ArrowRight className="h-4 w-4" />
       </button>
@@ -252,11 +252,11 @@ export function PricingClient() {
     const data = await response.json().catch(() => ({}));
 
     if (response.status === 401) {
-      throw new Error("Cần đăng nhập trước khi gửi mã khách hàng.");
+      throw new Error("Cần đăng nhập trước khi gửi promo code.");
     }
 
     if (!response.ok) {
-      throw new Error(data?.error || "Không thể kiểm tra mã khách hàng.");
+      throw new Error(data?.error || "Không thể kiểm tra promo code.");
     }
 
     return data as { status: "PENDING" | "APPROVED"; discountPercent?: number; message?: string };
@@ -312,7 +312,7 @@ export function PricingClient() {
         const approval = await requestCustomerCodeApproval(plan);
 
         if (approval.status !== "APPROVED") {
-          setCustomerCodeMessage(approval.message || "Mã đang chờ admin duyệt.");
+          setCustomerCodeMessage(approval.message || "Promo code đang chờ duyệt.");
           return;
         }
       }
@@ -349,7 +349,7 @@ export function PricingClient() {
           </p>
           <h2 className="mt-2 text-2xl font-black">Mở tài khoản DNSE bắt đầu giao dịch để nhận Promo lên tới 40%</h2>
           <p className="mt-2 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
-            Nhập mã khách hàng bên dưới. Giá ưu đãi chỉ được áp dụng sau khi admin duyệt.
+            Giá ưu đãi chỉ áp dụng dành cho khách hàng đã mở thành công tài khoản tại DNSE. Promo code là số lưu ký của khách hàng, ví dụ: <span className="font-mono font-bold" style={{ color: "var(--text-primary)" }}>064COZ8EU7</span>.
           </p>
         </div>
       </section>
@@ -361,10 +361,10 @@ export function PricingClient() {
         <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
           <div>
             <label htmlFor="customerCode" className="text-sm font-black">
-              Mã khách hàng
+              Promo code
             </label>
             <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
-              Mã cần được admin duyệt trước khi PayOS tạo giá giảm 20% / 30% / 40%.
+              Sau khi tài khoản DNSE được duyệt, ưu đãi sẽ áp dụng cho từng gói riêng biệt.
             </p>
             <input
               id="customerCode"
@@ -374,7 +374,7 @@ export function PricingClient() {
                 setCustomerCodeMessage(null);
                 setPaymentError(null);
               }}
-              placeholder="Nhập mã khách hàng"
+              placeholder="Ví dụ: 064COZ8EU7"
               className="mt-3 w-full rounded-2xl border px-4 py-3 text-sm font-bold outline-none"
               style={{
                 background: "var(--surface-2)",
@@ -508,7 +508,7 @@ export function PricingClient() {
           <Headphones className="mb-4 h-6 w-6" style={{ color: "var(--primary)" }} />
           <h2 className="font-black">Cần duyệt trước khi giảm giá</h2>
           <p className="mt-2 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
-            Nếu mã chưa được duyệt, hệ thống chỉ ghi nhận yêu cầu và không tạo giá giảm giả.
+            Nếu promo code chưa được duyệt, hệ thống chỉ ghi nhận yêu cầu và không tự tạo giá giảm.
           </p>
         </div>
       </section>

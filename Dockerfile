@@ -17,6 +17,7 @@ RUN npx prisma generate
 # Inject build-time public env vars (NEXT_PUBLIC_* phải có lúc build)
 ARG NEXT_PUBLIC_BRIDGE_URL
 ENV NEXT_PUBLIC_BRIDGE_URL=$NEXT_PUBLIC_BRIDGE_URL
+ENV ADN_STANDALONE_BUILD=1
 
 # Build Next.js
 RUN npm run build

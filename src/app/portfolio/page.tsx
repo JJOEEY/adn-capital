@@ -4,6 +4,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { LockOverlay } from "@/components/ui/LockOverlay";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useTopic } from "@/hooks/useTopic";
+import { customerLabel } from "@/lib/customer-labels";
 import { PieChart, TrendingUp, TrendingDown, AlertTriangle } from "lucide-react";
 
 type PortfolioPosition = {
@@ -111,7 +112,7 @@ export default function PortfolioPage() {
                 <AlertTriangle className="h-4 w-4" />
                 <span className="font-semibold">Chưa kết nối DNSE hoặc chưa có dữ liệu danh mục trực tiếp.</span>
               </div>
-              <p>Hệ thống đang hiển thị danh mục theo tín hiệu ACTIVE hiện tại để theo dõi nhanh.</p>
+              <p>Hệ thống đang hiển thị danh mục theo các tín hiệu đang theo dõi.</p>
             </div>
           ) : null}
 
@@ -162,7 +163,7 @@ export default function PortfolioPage() {
                             className="rounded-full border px-2 py-0.5"
                             style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
                           >
-                            {item.tier}
+                            {customerLabel(item.tier)}
                           </span>
                         ) : null}
                         {item.type ? (
@@ -170,7 +171,7 @@ export default function PortfolioPage() {
                             className="rounded-full border px-2 py-0.5"
                             style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
                           >
-                            {item.type}
+                            {customerLabel(item.type)}
                           </span>
                         ) : null}
                         <span

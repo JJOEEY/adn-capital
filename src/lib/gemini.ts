@@ -381,6 +381,27 @@ function readAssistantContent(payload: unknown): string {
   return "";
 }
 
+function readAssistantDelta(payload: unknown): string {
+  const root = asRecord(payload);
+  const choices = root?.choices;
+  if (!Array.isArray(choices) || choices.length === 0) return "";
+  const first = asRecord(choices[0]);
+  const delta = asRecord(first?.delta);
+  const content = delta?.content;
+
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => {
+        const record = asRecord(part);
+        return typeof record?.text === "string" ? record.text : "";
+      })
+      .join("");
+  }
+
+  return "";
+}
+
 async function callOpenAICompatibleProvider(
   provider: RouterProvider,
   prompt: string,
@@ -445,6 +466,112 @@ async function executeRouterChain(
     } catch (err) {
       console.warn(
         `[AI Router] provider failed. provider=${provider.name} model=${provider.model} err=${String(err).slice(0, 180)}`,
+      );
+    }
+  }
+
+  return null;
+}
+
+async function callOpenAICompatibleProviderStream(
+  provider: RouterProvider,
+  prompt: string,
+  systemInstruction: string,
+  onDelta: (text: string) => void,
+  signal?: AbortSignal,
+): Promise<string> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), ROUTER_TIMEOUT_MS);
+  const endpoint = `${normalizeBaseUrl(provider.baseUrl)}/chat/completions`;
+  const abort = () => controller.abort(signal?.reason);
+  signal?.addEventListener("abort", abort, { once: true });
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        ...(provider.apiKey ? { Authorization: `Bearer ${provider.apiKey}` } : {}),
+        ...(provider.extraHeaders ?? {}),
+      },
+      body: JSON.stringify({
+        model: provider.model,
+        stream: true,
+        temperature: 0.2,
+        max_tokens: 1800,
+        messages: [
+          { role: "system", content: withCustomerOutputRules(systemInstruction) },
+          { role: "user", content: prompt },
+        ],
+      }),
+    });
+
+    if (!response.ok || !response.body) {
+      const text = await response.text().catch(() => "");
+      const payload = safeJsonParse(text);
+      throw new Error(`${response.status} ${providerErrorMessage(payload, text)}`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let output = "";
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop() ?? "";
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith("data:")) continue;
+        const data = trimmed.slice(5).trim();
+        if (!data || data === "[DONE]") continue;
+        const payload = safeJsonParse(data);
+        const delta = readAssistantDelta(payload);
+        if (!delta) continue;
+        output += delta;
+        onDelta(delta);
+      }
+    }
+
+    const sanitized = sanitizeModelOutput(output);
+    if (!sanitized.trim()) throw new Error("empty assistant stream");
+    return sanitized;
+  } finally {
+    clearTimeout(timeout);
+    signal?.removeEventListener("abort", abort);
+  }
+}
+
+async function executeRouterChainStream(
+  prompt: string,
+  intent: Intent,
+  systemInstruction: string,
+  onDelta: (text: string) => void,
+  options?: RouterProviderOptions & { signal?: AbortSignal },
+): Promise<string | null> {
+  const providers = buildRouterProviders(intent, options);
+  if (providers.length === 0) return null;
+
+  for (const provider of providers) {
+    try {
+      const output = await callOpenAICompatibleProviderStream(
+        provider,
+        prompt,
+        systemInstruction,
+        onDelta,
+        options?.signal,
+      );
+      console.log(`[AI Router stream] provider=${provider.name} model=${provider.model}`);
+      return output;
+    } catch (err) {
+      if (options?.signal?.aborted) throw err;
+      console.warn(
+        `[AI Router stream] provider failed. provider=${provider.name} model=${provider.model} err=${String(err).slice(0, 180)}`,
       );
     }
   }
@@ -541,6 +668,51 @@ export async function executeFlashOnlyAIRequest(
     } catch (err) {
       lastErr = err;
       console.warn(`[Gemini] flash fallback failed. model=${model} err=${String(err).slice(0, 160)}`);
+    }
+  }
+
+  throw lastErr;
+}
+
+export async function streamFlashOnlyAIRequest(
+  prompt: string,
+  systemInstruction: string | undefined,
+  onDelta: (text: string) => void,
+  options: { signal?: AbortSignal } = {},
+): Promise<string> {
+  const sysInstr = systemInstruction ?? SYSTEM_INSTRUCTIONS.GENERAL;
+  const routedOutput = await executeRouterChainStream(prompt, INTENT.GENERAL, sysInstr, onDelta, {
+    nineRouterModelOverride: getAidenRouterModel(),
+    signal: options.signal,
+  });
+  if (routedOutput) return sanitizeModelOutput(routedOutput);
+
+  let lastErr: unknown;
+  for (const model of [FLASH_PRIMARY, FLASH_FALLBACK]) {
+    try {
+      const response = await getGenAIClient().models.generateContentStream({
+        model,
+        contents: prompt,
+        config: {
+          systemInstruction: withCustomerOutputRules(sysInstr),
+          thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
+        },
+      });
+      let output = "";
+      for await (const chunk of response) {
+        if (options.signal?.aborted) throw new Error("stream aborted");
+        const text = chunk.text ?? "";
+        if (!text) continue;
+        output += text;
+        onDelta(text);
+      }
+      const sanitized = sanitizeModelOutput(output);
+      if (!sanitized.trim()) throw new Error("empty assistant stream");
+      return sanitized;
+    } catch (err) {
+      lastErr = err;
+      if (options.signal?.aborted) throw err;
+      console.warn(`[Gemini] flash stream failed. model=${model} err=${String(err).slice(0, 160)}`);
     }
   }
 
