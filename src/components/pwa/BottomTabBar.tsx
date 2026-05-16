@@ -3,14 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
-import { Bot, Crosshair, Eye, Home, PieChart } from "lucide-react";
+import { Bot, ChartCandlestick, Crosshair, Eye, Home } from "lucide-react";
 
 const tabs = [
   { href: "/dashboard", label: "Pulse", icon: Home },
   { href: "/dashboard/signal-map", label: "Radar", icon: Crosshair },
   { href: "/aiden", label: "AIDEN", icon: Bot },
   { href: "/watchlist", label: "Watchlist", icon: Eye },
-  { href: "/portfolio", label: "Portfolio", icon: PieChart },
+  { href: "/stock", label: "ADN Stock", icon: ChartCandlestick },
 ];
 
 export function BottomTabBar() {

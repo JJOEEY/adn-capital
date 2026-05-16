@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { useTheme } from "@/components/providers/ThemeProvider";
 
-export type ChartTimeframe = "1m" | "5m" | "15m" | "30m" | "1D";
+export type ChartTimeframe = "1m" | "5m" | "15m" | "30m" | "1D" | "1W" | "1M";
 
 interface StockChartProps {
   symbol: string;
@@ -48,14 +48,19 @@ type Drawing = {
   text?: string;
 };
 
-const CHART_HEIGHT_MOBILE = 360;
+const CHART_HEIGHT_MOBILE = 330;
 const CHART_HEIGHT_DESKTOP = 560;
-const TIMEFRAMES: ChartTimeframe[] = ["1m", "5m", "15m", "30m", "1D"];
+const TIMEFRAMES: ChartTimeframe[] = ["1m", "5m", "15m", "30m", "1D", "1W", "1M"];
 
-function getChartHeight() {
-  return typeof window !== "undefined" && window.innerWidth >= 768
-    ? CHART_HEIGHT_DESKTOP
-    : CHART_HEIGHT_MOBILE;
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function getChartHeight(width?: number) {
+  const viewportWidth = width ?? (typeof window !== "undefined" ? window.innerWidth : 390);
+  if (viewportWidth >= 1024) return CHART_HEIGHT_DESKTOP;
+  if (viewportWidth >= 768) return 500;
+  return clamp(Math.round(viewportWidth * 0.92), 300, 360);
 }
 
 function calcEMA(data: Array<{ time: number; close: number }>, period: number) {
@@ -106,11 +111,13 @@ function ToolButton({
   active,
   label,
   onClick,
+  className = "",
   children,
 }: {
   active?: boolean;
   label: string;
   onClick: () => void;
+  className?: string;
   children: ReactNode;
 }) {
   return (
@@ -119,7 +126,7 @@ function ToolButton({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border transition-colors"
+      className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-colors ${className}`}
       style={{
         borderColor: active ? "var(--primary)" : "var(--border)",
         background: active ? "var(--primary-light)" : "var(--surface)",
@@ -190,8 +197,8 @@ export function StockChart({
         setError(null);
 
         let nextCandles = chartCandles;
-        if (!nextCandles.length && allowFallbackFetch && timeframe === "1D") {
-          const res = await fetch(`/api/chart?symbol=${symbol}`);
+        if (!nextCandles.length && allowFallbackFetch && ["1D", "1W", "1M"].includes(timeframe)) {
+          const res = await fetch(`/api/chart?symbol=${symbol}&timeframe=${timeframe}`);
           if (!res.ok) throw new Error("Không tải được dữ liệu chart");
           const payload = (await res.json()) as { candles: Candle[] };
           nextCandles = sanitizeCandles(payload.candles);
@@ -214,7 +221,7 @@ export function StockChart({
 
         const chart = createChart(container, {
           width: container.clientWidth,
-          height: getChartHeight(),
+          height: getChartHeight(container.clientWidth),
           layout: {
             background: { type: ColorType.Solid, color: isDark ? "#16181d" : "#ffffff" },
             textColor: isDark ? "#b9b2a8" : "#6b7280",
@@ -231,7 +238,7 @@ export function StockChart({
           },
           timeScale: {
             borderColor: isDark ? "#30333b" : "#d6cdbb",
-            timeVisible: timeframe !== "1D",
+            timeVisible: !["1D", "1W", "1M"].includes(timeframe),
             secondsVisible: timeframe === "1m",
           },
         });
@@ -272,7 +279,12 @@ export function StockChart({
 
         chart.timeScale().fitContent();
         const observer = new ResizeObserver(() => {
-          if (container.clientWidth > 0) chart.applyOptions({ width: container.clientWidth });
+          if (container.clientWidth > 0) {
+            chart.applyOptions({
+              width: container.clientWidth,
+              height: getChartHeight(container.clientWidth),
+            });
+          }
         });
         observer.observe(container);
         setLoading(false);
@@ -324,20 +336,23 @@ export function StockChart({
 
   return (
     <div className="overflow-hidden rounded-xl border" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2" style={{ borderColor: "var(--border)" }}>
+      <div className="border-b px-3 py-2" style={{ borderColor: "var(--border)" }}>
         <div className="flex min-w-0 items-center gap-2">
           <div className="h-2 w-2 rounded-full bg-emerald-400" />
           <span className="truncate text-[11px] font-bold" style={{ color: "var(--primary)" }}>
             {symbol} - Biểu đồ giao dịch
           </span>
+          <span className="ml-auto hidden shrink-0 text-[11px] sm:inline" style={{ color: "var(--text-muted)" }}>
+            {exchange}:{symbol}{sourceLabel ? ` - ${sourceLabel}` : ""}
+          </span>
         </div>
-        <div className="flex flex-wrap items-center gap-1">
+        <div className="mt-2 grid grid-cols-7 gap-1">
           {TIMEFRAMES.map((item) => (
             <button
               key={item}
               type="button"
               onClick={() => onTimeframeChange?.(item)}
-              className="rounded-md border px-2 py-1 text-[11px] font-bold"
+              className="min-h-8 rounded-md border px-1.5 py-1 text-[11px] font-bold"
               style={{
                 borderColor: item === timeframe ? "var(--primary)" : "var(--border)",
                 background: item === timeframe ? "var(--primary-light)" : "var(--surface)",
@@ -347,35 +362,32 @@ export function StockChart({
               {item}
             </button>
           ))}
-          <span className="ml-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
-            {exchange}:{symbol} {sourceLabel ? `· ${sourceLabel}` : ""}
-          </span>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-1 border-b px-3 py-2" style={{ borderColor: "var(--border)" }}>
+      <div className="flex items-center gap-1 overflow-hidden border-b px-3 py-2" style={{ borderColor: "var(--border)" }}>
         <ToolButton label="Con trỏ" active={activeTool === "cursor"} onClick={() => setActiveTool("cursor")}><MousePointer2 className="h-4 w-4" /></ToolButton>
         <ToolButton label="Trendline" active={activeTool === "trend"} onClick={() => setActiveTool("trend")}><Slash className="h-4 w-4" /></ToolButton>
         <ToolButton label="Đường ngang" active={activeTool === "hline"} onClick={() => setActiveTool("hline")}><Minus className="h-4 w-4" /></ToolButton>
-        <ToolButton label="Đường dọc" active={activeTool === "vline"} onClick={() => setActiveTool("vline")}><Rows3 className="h-4 w-4 rotate-90" /></ToolButton>
-        <ToolButton label="Vùng giá" active={activeTool === "zone"} onClick={() => setActiveTool("zone")}><RectangleHorizontal className="h-4 w-4" /></ToolButton>
-        <ToolButton label="Fibonacci" active={activeTool === "fib"} onClick={() => setActiveTool("fib")}><GitGraph className="h-4 w-4" /></ToolButton>
-        <ToolButton label="Ghi chú" active={activeTool === "text"} onClick={() => setActiveTool("text")}><Type className="h-4 w-4" /></ToolButton>
+        <ToolButton className="hidden sm:inline-flex" label="Đường dọc" active={activeTool === "vline"} onClick={() => setActiveTool("vline")}><Rows3 className="h-4 w-4 rotate-90" /></ToolButton>
+        <ToolButton className="hidden sm:inline-flex" label="Vùng giá" active={activeTool === "zone"} onClick={() => setActiveTool("zone")}><RectangleHorizontal className="h-4 w-4" /></ToolButton>
+        <ToolButton className="hidden sm:inline-flex" label="Fibonacci" active={activeTool === "fib"} onClick={() => setActiveTool("fib")}><GitGraph className="h-4 w-4" /></ToolButton>
+        <ToolButton className="hidden sm:inline-flex" label="Ghi chú" active={activeTool === "text"} onClick={() => setActiveTool("text")}><Type className="h-4 w-4" /></ToolButton>
         <div className="mx-1 h-6 w-px bg-[var(--border)]" />
         <ToolButton label="Hoàn tác drawing" onClick={() => setDrawings((prev) => prev.slice(0, -1))}><Undo2 className="h-4 w-4" /></ToolButton>
         <ToolButton label={drawingsLocked ? "Mở khóa drawing" : "Khóa drawing"} active={drawingsLocked} onClick={() => setDrawingsLocked((value) => !value)}>
           {drawingsLocked ? <Lock className="h-4 w-4" /> : <LockOpen className="h-4 w-4" />}
         </ToolButton>
-        <ToolButton label={drawingsHidden ? "Hiện drawing" : "Ẩn drawing"} active={drawingsHidden} onClick={() => setDrawingsHidden((value) => !value)}>
+        <ToolButton className="hidden sm:inline-flex" label={drawingsHidden ? "Hiện drawing" : "Ẩn drawing"} active={drawingsHidden} onClick={() => setDrawingsHidden((value) => !value)}>
           {drawingsHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
         </ToolButton>
-        <ToolButton label="Xóa tất cả drawing" onClick={() => setDrawings([])}><Trash2 className="h-4 w-4" /></ToolButton>
+        <ToolButton className="hidden sm:inline-flex" label="Xóa tất cả drawing" onClick={() => setDrawings([])}><Trash2 className="h-4 w-4" /></ToolButton>
       </div>
 
       <div className="relative">
-        <div ref={chartContainerRef} className="w-full" style={{ minHeight: CHART_HEIGHT_MOBILE }}>
+        <div ref={chartContainerRef} className="h-[330px] w-full md:h-[500px] xl:h-[560px]">
           {loading && !error && (
-            <div className="flex h-[360px] items-center justify-center md:h-[560px]">
+            <div className="flex h-full items-center justify-center">
               <div className="flex flex-col items-center gap-3">
                 <div className="h-6 w-6 animate-spin rounded-full border-2 border-emerald-500/40 border-t-emerald-400" />
                 <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
@@ -385,7 +397,7 @@ export function StockChart({
             </div>
           )}
           {error && (
-            <div className="flex h-[360px] items-center justify-center px-6 text-center md:h-[560px]">
+            <div className="flex h-full items-center justify-center px-6 text-center">
               <span className="text-sm text-yellow-600">{error}</span>
             </div>
           )}
