@@ -335,8 +335,8 @@ export function StockChart({
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
-      <div className="border-b px-3 py-2" style={{ borderColor: "var(--border)" }}>
+    <div className="w-full max-w-full min-w-0 overflow-hidden rounded-xl border" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+      <div className="min-w-0 border-b px-3 py-2" style={{ borderColor: "var(--border)" }}>
         <div className="flex min-w-0 items-center gap-2">
           <div className="h-2 w-2 rounded-full bg-emerald-400" />
           <span className="truncate text-[11px] font-bold" style={{ color: "var(--primary)" }}>
@@ -346,13 +346,13 @@ export function StockChart({
             {exchange}:{symbol}{sourceLabel ? ` - ${sourceLabel}` : ""}
           </span>
         </div>
-        <div className="mt-2 grid grid-cols-7 gap-1">
+        <div className="mt-2 grid w-full min-w-0 grid-cols-[repeat(7,minmax(0,1fr))] gap-1">
           {TIMEFRAMES.map((item) => (
             <button
               key={item}
               type="button"
               onClick={() => onTimeframeChange?.(item)}
-              className="min-h-8 rounded-md border px-1.5 py-1 text-[11px] font-bold"
+              className="min-h-8 min-w-0 rounded-md border px-1 py-1 text-[10px] font-bold sm:text-[11px]"
               style={{
                 borderColor: item === timeframe ? "var(--primary)" : "var(--border)",
                 background: item === timeframe ? "var(--primary-light)" : "var(--surface)",
@@ -365,7 +365,7 @@ export function StockChart({
         </div>
       </div>
 
-      <div className="flex items-center gap-1 overflow-hidden border-b px-3 py-2" style={{ borderColor: "var(--border)" }}>
+      <div className="flex min-w-0 items-center gap-1 overflow-hidden border-b px-3 py-2" style={{ borderColor: "var(--border)" }}>
         <ToolButton label="Con trỏ" active={activeTool === "cursor"} onClick={() => setActiveTool("cursor")}><MousePointer2 className="h-4 w-4" /></ToolButton>
         <ToolButton label="Trendline" active={activeTool === "trend"} onClick={() => setActiveTool("trend")}><Slash className="h-4 w-4" /></ToolButton>
         <ToolButton label="Đường ngang" active={activeTool === "hline"} onClick={() => setActiveTool("hline")}><Minus className="h-4 w-4" /></ToolButton>
@@ -384,8 +384,8 @@ export function StockChart({
         <ToolButton className="hidden sm:inline-flex" label="Xóa tất cả drawing" onClick={() => setDrawings([])}><Trash2 className="h-4 w-4" /></ToolButton>
       </div>
 
-      <div className="relative">
-        <div ref={chartContainerRef} className="h-[330px] w-full md:h-[500px] xl:h-[560px]">
+      <div className="relative w-full max-w-full min-w-0 overflow-hidden">
+        <div ref={chartContainerRef} className="h-[330px] w-full max-w-full min-w-0 md:h-[500px] xl:h-[560px]">
           {loading && !error && (
             <div className="flex h-full items-center justify-center">
               <div className="flex flex-col items-center gap-3">

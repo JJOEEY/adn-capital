@@ -258,6 +258,36 @@ function normalizeCandles(payload: unknown): Candle[] {
     .filter((item, index, all) => index === 0 || item.time !== all[index - 1].time);
 }
 
+function getIsoWeek(date: Date) {
+  const target = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const day = target.getUTCDay() || 7;
+  target.setUTCDate(target.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(target.getUTCFullYear(), 0, 1));
+  return Math.ceil((((target.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+}
+
+function aggregateChartCandles(candles: Candle[], timeframe: ChartTimeframe) {
+  if (timeframe !== "1W" && timeframe !== "1M") return candles;
+  const buckets = new Map<string, Candle>();
+  for (const candle of candles) {
+    const date = new Date(candle.time * 1000);
+    const key = timeframe === "1M"
+      ? `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`
+      : `${date.getUTCFullYear()}-${String(getIsoWeek(date)).padStart(2, "0")}`;
+    const existing = buckets.get(key);
+    if (!existing) {
+      buckets.set(key, { ...candle });
+      continue;
+    }
+    existing.high = Math.max(existing.high, candle.high);
+    existing.low = Math.min(existing.low, candle.low);
+    existing.close = candle.close;
+    existing.volume += candle.volume;
+    existing.time = candle.time;
+  }
+  return Array.from(buckets.values()).sort((a, b) => a.time - b.time);
+}
+
 function readRealtimePrice(payload: unknown) {
   const direct = readNumber(payload, ["currentPrice", "current", "price", "close"]);
   if (direct != null) return direct;
@@ -681,6 +711,7 @@ export default function StockDetailPage() {
   });
   const resolvedTicker = tickerResolutionTopic.data?.valid ? tickerResolutionTopic.data.ticker : ticker;
   const isTickerValid = tickerResolutionTopic.data?.valid === true;
+  const isLongTimeframe = timeframe === "1D" || timeframe === "1W" || timeframe === "1M";
 
   const workbenchTopic = useTopic<WorkbenchPayload>(`research:workbench:${resolvedTicker}`, {
     enabled: isTickerValid,
@@ -693,9 +724,9 @@ export default function StockDetailPage() {
     revalidateOnFocus: false,
     dedupingInterval: 10_000,
   });
-  const realtimeTopic = useTopic<unknown>(`vn:realtime:${resolvedTicker}:${timeframe === "1D" ? "5m" : timeframe}`, {
+  const realtimeTopic = useTopic<unknown>(`vn:realtime:${resolvedTicker}:${isLongTimeframe ? "5m" : timeframe}`, {
     enabled: isTickerValid,
-    refreshInterval: timeframe === "1D" ? 0 : 5_000,
+    refreshInterval: isLongTimeframe ? 0 : 5_000,
     revalidateOnFocus: false,
     dedupingInterval: 5_000,
   });
@@ -807,7 +838,7 @@ export default function StockDetailPage() {
     () => hasUsableIntradayCandles(realtimeCandles, historicalCandles),
     [historicalCandles, realtimeCandles],
   );
-  const chartCandles = timeframe === "1D" || !intradayUsable ? historicalCandles : realtimeCandles;
+  const chartCandles = isLongTimeframe || !intradayUsable ? aggregateChartCandles(historicalCandles, timeframe) : realtimeCandles;
   const workbench = workbenchTopic.data;
   const priceSnapshot = priceSnapshotTopic.data ?? workbench?.priceSnapshot ?? null;
   const historicalMarketPrice = useMemo(() => readHistoricalMarketPrice(historicalTopic.data), [historicalTopic.data]);
@@ -819,10 +850,10 @@ export default function StockDetailPage() {
   const activeAidenRecommendation = aidenRecommendations[resolvedTicker] ?? null;
 
   useEffect(() => {
-    if (timeframe !== "1D" && !realtimeTopic.isLoading && !realtimeTopic.isValidating && !intradayUsable && historicalCandles.length > 0) {
+    if (!isLongTimeframe && !realtimeTopic.isLoading && !realtimeTopic.isValidating && !intradayUsable && historicalCandles.length > 0) {
       setTimeframe("1D");
     }
-  }, [timeframe, realtimeTopic.isLoading, realtimeTopic.isValidating, intradayUsable, historicalCandles.length]);
+  }, [isLongTimeframe, realtimeTopic.isLoading, realtimeTopic.isValidating, intradayUsable, historicalCandles.length]);
 
   const refreshAll = () => {
     void tickerResolutionTopic.refresh(true);
@@ -1023,7 +1054,7 @@ export default function StockDetailPage() {
 
   return (
     <MainLayout>
-      <div className="mx-auto max-w-[1800px] space-y-4 p-4 md:p-6">
+      <div className="mx-auto w-full max-w-[1800px] min-w-0 overflow-x-hidden px-3 py-4 md:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
@@ -1076,8 +1107,8 @@ export default function StockDetailPage() {
           </div>
         ) : null}
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <section className="space-y-4">
+        <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <section className="min-w-0 space-y-4 overflow-hidden">
             {isTickerValid ? (
               <>
                 <StockChart
@@ -1095,7 +1126,7 @@ export default function StockDetailPage() {
                   realtimeChangePct={realtimeChangePct}
                   aidenRecommendation={activeAidenRecommendation}
                 />
-                <div className="grid gap-4 2xl:grid-cols-[420px_minmax(0,1fr)]">
+                <div className="grid min-w-0 gap-4 2xl:grid-cols-[420px_minmax(0,1fr)]">
                   <OrderBookPanel depth={depthTopic.data} loading={depthTopic.isLoading} />
                   <WatchlistBoard
                     items={watchlist}
