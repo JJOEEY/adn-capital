@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { PointerEvent, ReactNode } from "react";
+import type { FormEvent, PointerEvent, ReactNode } from "react";
 import {
   Activity,
   BarChart3,
@@ -19,6 +19,7 @@ import {
   RectangleHorizontal,
   Rows3,
   Ruler,
+  Search,
   Settings,
   Slash,
   Trash2,
@@ -36,6 +37,7 @@ interface StockChartProps {
   sourceLabel?: string;
   timeframe?: ChartTimeframe;
   onTimeframeChange?: (timeframe: ChartTimeframe) => void;
+  onSymbolSubmit?: (symbol: string) => void;
   allowFallbackFetch?: boolean;
   isLive?: boolean;
 }
@@ -75,7 +77,7 @@ type IndicatorId =
 type IndicatorMeta = {
   id: IndicatorId;
   label: string;
-  group: "Tren gia" | "Panel duoi";
+  group: "Trên giá" | "Panel dưới";
 };
 
 type LinePoint = { time: number; value: number };
@@ -95,19 +97,19 @@ const TIMEFRAMES: ChartTimeframe[] = ["1m", "5m", "15m", "30m", "1h", "4h", "1D"
 const INTRADAY_TIMEFRAMES = new Set<ChartTimeframe>(["1m", "5m", "15m", "30m", "1h", "4h"]);
 const DEFAULT_INDICATORS: IndicatorId[] = ["ema10", "ema30", "volume", "macd", "rsi", "stoch"];
 const INDICATORS: IndicatorMeta[] = [
-  { id: "ema10", label: "EMA10", group: "Tren gia" },
-  { id: "ema20", label: "EMA20", group: "Tren gia" },
-  { id: "ema30", label: "EMA30", group: "Tren gia" },
-  { id: "ema50", label: "EMA50", group: "Tren gia" },
-  { id: "ema200", label: "EMA200", group: "Tren gia" },
-  { id: "sma20", label: "SMA20", group: "Tren gia" },
-  { id: "sma50", label: "SMA50", group: "Tren gia" },
-  { id: "sma200", label: "SMA200", group: "Tren gia" },
-  { id: "bb", label: "Bollinger Bands", group: "Tren gia" },
-  { id: "volume", label: "Volume", group: "Panel duoi" },
-  { id: "macd", label: "MACD", group: "Panel duoi" },
-  { id: "rsi", label: "RSI(14)", group: "Panel duoi" },
-  { id: "stoch", label: "Stoch", group: "Panel duoi" },
+  { id: "ema10", label: "EMA10", group: "Trên giá" },
+  { id: "ema20", label: "EMA20", group: "Trên giá" },
+  { id: "ema30", label: "EMA30", group: "Trên giá" },
+  { id: "ema50", label: "EMA50", group: "Trên giá" },
+  { id: "ema200", label: "EMA200", group: "Trên giá" },
+  { id: "sma20", label: "SMA20", group: "Trên giá" },
+  { id: "sma50", label: "SMA50", group: "Trên giá" },
+  { id: "sma200", label: "SMA200", group: "Trên giá" },
+  { id: "bb", label: "Bollinger Bands", group: "Trên giá" },
+  { id: "volume", label: "Khối lượng", group: "Panel dưới" },
+  { id: "macd", label: "MACD", group: "Panel dưới" },
+  { id: "rsi", label: "RSI(14)", group: "Panel dưới" },
+  { id: "stoch", label: "Stoch", group: "Panel dưới" },
 ];
 
 const INDICATOR_COLORS: Record<string, string> = {
@@ -162,6 +164,10 @@ function sanitizeCandles(candles?: Candle[]) {
     )
     .sort((a, b) => a.time - b.time)
     .filter((c, index, all) => index === 0 || c.time !== all[index - 1].time);
+}
+
+function normalizeSymbolInput(value: string) {
+  return value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10);
 }
 
 function calcSMA(data: Array<{ time: number; close: number }>, period: number): LinePoint[] {
@@ -358,6 +364,7 @@ export function StockChart({
   sourceLabel,
   timeframe = "1D",
   onTimeframeChange,
+  onSymbolSubmit,
   allowFallbackFetch = true,
   isLive = false,
 }: StockChartProps) {
@@ -376,6 +383,7 @@ export function StockChart({
   const [indicatorPanelOpen, setIndicatorPanelOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [enabledIndicators, setEnabledIndicators] = useState<IndicatorId[]>(DEFAULT_INDICATORS);
+  const [symbolSearch, setSymbolSearch] = useState(symbol);
   const { theme } = useTheme();
   const isDark = theme === "dark";
   const chartCandles = useMemo(() => sanitizeCandles(candles), [candles]);
@@ -387,6 +395,18 @@ export function StockChart({
   const drawingStorageKey = `adn-chart-drawings:${symbol}:${timeframe}`;
   const indicatorStorageKey = `adn-chart-indicators:${symbol}:${timeframe}`;
   const enabledKey = enabledIndicators.join(",");
+
+  useEffect(() => {
+    setSymbolSearch(symbol);
+  }, [symbol]);
+
+  const handleSymbolSearch = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const next = normalizeSymbolInput(symbolSearch);
+    if (!next) return;
+    setSymbolSearch(next);
+    onSymbolSubmit?.(next);
+  };
 
   useEffect(() => {
     try {
@@ -603,7 +623,7 @@ export function StockChart({
       } catch (err) {
         if (!disposed) {
           if (chartContainerRef.current) chartContainerRef.current.innerHTML = "";
-          setError(err instanceof Error ? err.message : "Loi tai chart");
+          setError(err instanceof Error ? err.message : "Lỗi tải biểu đồ");
           setLoading(false);
         }
       }
@@ -628,11 +648,11 @@ export function StockChart({
       try {
         if (!nextCandles.length && allowFallbackFetch && ["1D", "1W", "1M", "1h", "4h"].includes(timeframe)) {
           const res = await fetch(`/api/chart?symbol=${symbol}&timeframe=${timeframe}`);
-          if (!res.ok) throw new Error("Khong tai duoc du lieu chart");
+          if (!res.ok) throw new Error("Không tải được dữ liệu biểu đồ");
           const payload = await res.json() as { candles?: Candle[] };
           nextCandles = sanitizeCandles(payload.candles);
         }
-        if (!nextCandles.length) throw new Error("Bieu do dang cap nhat du lieu cho khung nay");
+        if (!nextCandles.length) throw new Error("Biểu đồ đang cập nhật dữ liệu cho khung này");
         if (disposed || !chartRef.current || !seriesRef.current.candle) return;
 
         const chartData = nextCandles.map((c) => ({
@@ -705,7 +725,7 @@ export function StockChart({
         setLoading(false);
       } catch (err) {
         if (!disposed) {
-          setError(err instanceof Error ? err.message : "Loi tai chart");
+          setError(err instanceof Error ? err.message : "Lỗi tải biểu đồ");
           setLoading(false);
         }
       }
@@ -721,7 +741,7 @@ export function StockChart({
     if (activeTool === "cursor" || drawingsLocked) return;
     const oneClick = activeTool === "hline" || activeTool === "vline" || activeTool === "text";
     if (oneClick) {
-      const text = activeTool === "text" ? window.prompt("Noi dung ghi chu", "Ghi chu")?.trim() : undefined;
+      const text = activeTool === "text" ? window.prompt("Nội dung ghi chú", "Ghi chú")?.trim() : undefined;
       if (activeTool === "text" && !text) return;
       setDrawings((prev) => [...prev, { id: crypto.randomUUID(), tool: activeTool, points: [point], text } as Drawing]);
       return;
@@ -740,23 +760,23 @@ export function StockChart({
 
   const drawingToolbar = (vertical = false) => (
     <ToolbarGroup vertical={vertical}>
-      <ToolButton label="Con tro" active={activeTool === "cursor"} onClick={() => setActiveTool("cursor")}><MousePointer2 className="h-4 w-4" /></ToolButton>
+      <ToolButton label="Con trỏ" active={activeTool === "cursor"} onClick={() => setActiveTool("cursor")}><MousePointer2 className="h-4 w-4" /></ToolButton>
       <ToolButton label="Crosshair" active={activeTool === "measure"} onClick={() => setActiveTool("measure")}><Crosshair className="h-4 w-4" /></ToolButton>
       <ToolButton label="Trendline" active={activeTool === "trend"} onClick={() => setActiveTool("trend")}><Slash className="h-4 w-4" /></ToolButton>
-      <ToolButton label="Duong ngang" active={activeTool === "hline"} onClick={() => setActiveTool("hline")}><Minus className="h-4 w-4" /></ToolButton>
-      <ToolButton label="Duong doc" active={activeTool === "vline"} onClick={() => setActiveTool("vline")}><Rows3 className="h-4 w-4 rotate-90" /></ToolButton>
-      <ToolButton label="Vung gia" active={activeTool === "zone"} onClick={() => setActiveTool("zone")}><RectangleHorizontal className="h-4 w-4" /></ToolButton>
+      <ToolButton label="Đường ngang" active={activeTool === "hline"} onClick={() => setActiveTool("hline")}><Minus className="h-4 w-4" /></ToolButton>
+      <ToolButton label="Đường dọc" active={activeTool === "vline"} onClick={() => setActiveTool("vline")}><Rows3 className="h-4 w-4 rotate-90" /></ToolButton>
+      <ToolButton label="Vùng giá" active={activeTool === "zone"} onClick={() => setActiveTool("zone")}><RectangleHorizontal className="h-4 w-4" /></ToolButton>
       <ToolButton label="Fibonacci" active={activeTool === "fib"} onClick={() => setActiveTool("fib")}><GitGraph className="h-4 w-4" /></ToolButton>
-      <ToolButton label="Ghi chu" active={activeTool === "text"} onClick={() => setActiveTool("text")}><Type className="h-4 w-4" /></ToolButton>
+      <ToolButton label="Ghi chú" active={activeTool === "text"} onClick={() => setActiveTool("text")}><Type className="h-4 w-4" /></ToolButton>
       {vertical ? <div className="my-1 h-px w-8 bg-[var(--border)]" /> : <div className="mx-1 h-6 w-px bg-[var(--border)]" />}
-      <ToolButton label="Hoan tac drawing" onClick={() => setDrawings((prev) => prev.slice(0, -1))}><Undo2 className="h-4 w-4" /></ToolButton>
-      <ToolButton label={drawingsLocked ? "Mo khoa drawing" : "Khoa drawing"} active={drawingsLocked} onClick={() => setDrawingsLocked((value) => !value)}>
+      <ToolButton label="Hoàn tác nét vẽ" onClick={() => setDrawings((prev) => prev.slice(0, -1))}><Undo2 className="h-4 w-4" /></ToolButton>
+      <ToolButton label={drawingsLocked ? "Mở khóa nét vẽ" : "Khóa nét vẽ"} active={drawingsLocked} onClick={() => setDrawingsLocked((value) => !value)}>
         {drawingsLocked ? <Lock className="h-4 w-4" /> : <LockOpen className="h-4 w-4" />}
       </ToolButton>
-      <ToolButton label={drawingsHidden ? "Hien drawing" : "An drawing"} active={drawingsHidden} onClick={() => setDrawingsHidden((value) => !value)}>
+      <ToolButton label={drawingsHidden ? "Hiện nét vẽ" : "Ẩn nét vẽ"} active={drawingsHidden} onClick={() => setDrawingsHidden((value) => !value)}>
         {drawingsHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
       </ToolButton>
-      <ToolButton label="Xoa tat ca drawing" onClick={() => setDrawings([])}><Trash2 className="h-4 w-4" /></ToolButton>
+      <ToolButton label="Xóa tất cả nét vẽ" onClick={() => setDrawings([])}><Trash2 className="h-4 w-4" /></ToolButton>
     </ToolbarGroup>
   );
 
@@ -768,7 +788,18 @@ export function StockChart({
     <div className={wrapperClass} style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
       <div className="flex min-w-0 flex-wrap items-center gap-2 border-b px-2 py-1.5" style={{ borderColor: "var(--border)", background: isDark ? "#11141b" : "var(--surface)" }}>
         <div className="flex min-w-0 items-center gap-2 pr-2">
-          <span className="rounded-md border px-2 py-1 text-sm font-black" style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}>{symbol}</span>
+          <form onSubmit={handleSymbolSearch} className="flex h-9 items-center rounded-md border" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+            <input
+              value={symbolSearch}
+              onChange={(event) => setSymbolSearch(normalizeSymbolInput(event.target.value))}
+              aria-label="Tìm mã cổ phiếu trên biểu đồ"
+              className="h-full w-[72px] bg-transparent px-2 text-sm font-black uppercase outline-none"
+              style={{ color: "var(--text-primary)" }}
+            />
+            <button type="submit" aria-label="Mở mã cổ phiếu" className="flex h-full w-8 items-center justify-center" style={{ color: "var(--text-secondary)" }}>
+              <Search className="h-3.5 w-3.5" />
+            </button>
+          </form>
           <span className="hidden text-xs sm:inline" style={{ color: "var(--text-secondary)" }}>
             {sourceLabel ? `${sourceLabel} · ` : ""}{exchange}
           </span>
@@ -780,7 +811,7 @@ export function StockChart({
               color: isLive ? "#10b981" : "var(--text-muted)",
             }}
           >
-            {isLive ? "LIVE" : isIntraday ? "GAN NHAT" : "EOD"}
+            {isLive ? "LIVE" : isIntraday ? "GẦN NHẤT" : "EOD"}
           </span>
         </div>
 
@@ -809,22 +840,22 @@ export function StockChart({
             style={{ borderColor: "var(--border)", color: "var(--text-primary)", background: indicatorPanelOpen ? "var(--surface-2)" : "transparent" }}
           >
             <Activity className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Cac chi bao</span>
+            <span className="hidden sm:inline">Các chỉ báo</span>
             <ChevronDown className="h-3.5 w-3.5" />
           </button>
           <button type="button" className="hidden h-8 items-center gap-1 rounded-md px-2 text-xs font-bold md:inline-flex" style={{ color: "var(--text-secondary)" }}>
-            <BarChart3 className="h-3.5 w-3.5" /> Bieu do
+            <BarChart3 className="h-3.5 w-3.5" /> Biểu đồ
           </button>
           <button type="button" className="hidden h-8 rounded-md px-2 text-xs font-bold md:inline-flex" style={{ color: "var(--primary)", background: "var(--primary-light)" }}>
-            Ky thuat
+            Kỹ thuật
           </button>
           <button type="button" className="hidden h-8 rounded-md px-2 text-xs font-bold md:inline-flex" style={{ color: "var(--text-secondary)" }}>
-            Co ban
+            Cơ bản
           </button>
-          <button type="button" aria-label="Chup anh chart" onClick={handleSnapshot} className="hidden h-8 w-8 items-center justify-center rounded-md border md:inline-flex" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
+          <button type="button" aria-label="Chụp ảnh biểu đồ" onClick={handleSnapshot} className="hidden h-8 w-8 items-center justify-center rounded-md border md:inline-flex" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
             <Camera className="h-4 w-4" />
           </button>
-          <button type="button" aria-label="Phong to chart" onClick={() => setFullscreen((value) => !value)} className="h-8 w-8 rounded-md border" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
+          <button type="button" aria-label="Phóng to biểu đồ" onClick={() => setFullscreen((value) => !value)} className="h-8 w-8 rounded-md border" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
             <Expand className="mx-auto h-4 w-4" />
           </button>
           <Settings className="hidden h-4 w-4 md:block" style={{ color: "var(--text-muted)" }} />
@@ -839,7 +870,7 @@ export function StockChart({
         <span>H {formatPrice(latestCandle?.high)}</span>
         <span>L {formatPrice(latestCandle?.low)}</span>
         <span>C {formatPrice(latestCandle?.close)}</span>
-        <span>Vol {formatVolume(latestCandle?.volume)}</span>
+        <span>KL {formatVolume(latestCandle?.volume)}</span>
         {change != null && changePct != null ? (
           <span className="font-bold" style={{ color: change >= 0 ? "#00c087" : "#ff4d5a" }}>
             {change >= 0 ? "+" : ""}{formatPrice(change)} ({changePct >= 0 ? "+" : ""}{changePct.toFixed(2)}%)
@@ -849,7 +880,7 @@ export function StockChart({
 
       {indicatorPanelOpen ? (
         <div className="grid gap-3 border-b px-3 py-3 sm:grid-cols-2" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
-          {(["Tren gia", "Panel duoi"] as const).map((group) => (
+          {(["Trên giá", "Panel dưới"] as const).map((group) => (
             <div key={group}>
               <div className="mb-2 text-[11px] font-black uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>{group}</div>
               <div className="flex flex-wrap gap-2">
@@ -873,7 +904,7 @@ export function StockChart({
           ))}
           <div className="sm:col-span-2">
             <button type="button" onClick={resetPreset} className="inline-flex items-center gap-2 rounded-md border px-2 py-1 text-xs font-bold" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
-              <Ruler className="h-3.5 w-3.5" /> HGL-EMA mac dinh
+              <Ruler className="h-3.5 w-3.5" /> HGL-EMA mặc định
             </button>
           </div>
         </div>
@@ -890,7 +921,7 @@ export function StockChart({
                 <div className="flex flex-col items-center gap-3">
                   <div className="h-6 w-6 animate-spin rounded-full border-2 border-emerald-500/40 border-t-emerald-400" />
                   <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                    Dang tai chart {symbol}...
+                    Đang tải biểu đồ {symbol}...
                   </span>
                 </div>
               </div>

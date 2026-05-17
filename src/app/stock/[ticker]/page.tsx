@@ -176,6 +176,7 @@ type PendingAidenQuery = {
 };
 
 const DEFAULT_WATCHLIST = ["SSI", "HPG", "FPT", "GVR", "MBB", "VND", "VCB", "VHM"];
+const LAST_STOCK_TICKER_STORAGE_KEY = "adn-stock-last-ticker-v1";
 const AIDEN_CHAT_STORAGE_KEY = "adn-stock-aiden-chat-v1";
 const AIDEN_RECOMMENDATION_STORAGE_KEY = "adn-stock-aiden-recommendations-v1";
 const AIDEN_PENDING_QUERY_STORAGE_KEY = "adn-stock-aiden-pending-query-v1";
@@ -804,6 +805,15 @@ export default function StockDetailPage() {
   }, [resolvedTicker]);
 
   useEffect(() => {
+    if (!isTickerValid) return;
+    try {
+      window.localStorage.setItem(LAST_STOCK_TICKER_STORAGE_KEY, resolvedTicker);
+    } catch {
+      // Local persistence is best-effort only.
+    }
+  }, [isTickerValid, resolvedTicker]);
+
+  useEffect(() => {
     if (chatHydrated) return;
     try {
       const raw = window.sessionStorage.getItem(AIDEN_CHAT_STORAGE_KEY);
@@ -1176,6 +1186,7 @@ export default function StockDetailPage() {
                   sourceLabel="ADN Stock"
                   timeframe={timeframe}
                   onTimeframeChange={setTimeframe}
+                  onSymbolSubmit={(next) => selectTicker(next)}
                   allowFallbackFetch={true}
                   isLive={!isLongTimeframe && isMarketLive && intradayUsable}
                 />
