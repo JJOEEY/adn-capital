@@ -3,8 +3,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import {
   ArrowDown,
   ArrowUp,
@@ -18,6 +16,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { AidenMessageRenderer } from "@/components/chat/AidenMessageRenderer";
 import { StockChart, type Candle, type ChartTimeframe } from "@/components/chat/StockChart";
 import { useTopic } from "@/hooks/useTopic";
 import {
@@ -266,7 +265,32 @@ function getIsoWeek(date: Date) {
   return Math.ceil((((target.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
 }
 
+function aggregateIntradayCandles(candles: Candle[], minutes: number) {
+  const buckets = new Map<string, Candle>();
+  const offsetSeconds = 7 * 60 * 60;
+  for (const candle of candles) {
+    const local = new Date((candle.time + offsetSeconds) * 1000);
+    const dateKey = `${local.getUTCFullYear()}-${String(local.getUTCMonth() + 1).padStart(2, "0")}-${String(local.getUTCDate()).padStart(2, "0")}`;
+    const minuteOfDay = local.getUTCHours() * 60 + local.getUTCMinutes();
+    const bucketMinute = Math.floor(minuteOfDay / minutes) * minutes;
+    const key = `${dateKey}-${bucketMinute}`;
+    const existing = buckets.get(key);
+    if (!existing) {
+      buckets.set(key, { ...candle });
+      continue;
+    }
+    existing.high = Math.max(existing.high, candle.high);
+    existing.low = Math.min(existing.low, candle.low);
+    existing.close = candle.close;
+    existing.volume += candle.volume;
+    existing.time = candle.time;
+  }
+  return Array.from(buckets.values()).sort((a, b) => a.time - b.time);
+}
+
 function aggregateChartCandles(candles: Candle[], timeframe: ChartTimeframe) {
+  if (timeframe === "1h") return aggregateIntradayCandles(candles, 60);
+  if (timeframe === "4h") return aggregateIntradayCandles(candles, 240);
   if (timeframe !== "1W" && timeframe !== "1M") return candles;
   const buckets = new Map<string, Candle>();
   for (const candle of candles) {
@@ -307,6 +331,31 @@ function readRealtimeChangePct(payload: unknown) {
 
 function marketDefaultTimeframe(): ChartTimeframe {
   return "1D";
+}
+
+function isHistoricalTimeframe(timeframe: ChartTimeframe) {
+  return timeframe === "1D" || timeframe === "1W" || timeframe === "1M";
+}
+
+function datahubRealtimeTimeframe(timeframe: ChartTimeframe) {
+  return timeframe === "1h" || timeframe === "4h" ? "30m" : timeframe;
+}
+
+function isVietnamTradingSession(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+  const weekday = parts.find((part) => part.type === "weekday")?.value ?? "";
+  const hour = Number(parts.find((part) => part.type === "hour")?.value);
+  const minute = Number(parts.find((part) => part.type === "minute")?.value);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return false;
+  if (weekday === "Sat" || weekday === "Sun") return false;
+  const minutes = hour * 60 + minute;
+  return minutes >= 9 * 60 && minutes <= 15 * 60;
 }
 
 const MIN_USABLE_INTRADAY_CANDLES = 20;
@@ -609,7 +658,7 @@ function AidenPanel({
             >
               {message.role === "bot" ? (
                 <>
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown>
+                  <AidenMessageRenderer text={message.text} streaming={message.streaming} />
                   {message.streaming ? <span className="ml-0.5 inline-block h-4 w-1 animate-pulse rounded-sm bg-current align-text-bottom" /> : null}
                 </>
               ) : message.text}
@@ -703,6 +752,7 @@ export default function StockDetailPage() {
   const [chatHydrated, setChatHydrated] = useState(false);
   const [recommendationsHydrated, setRecommendationsHydrated] = useState(false);
   const [aidenRecommendations, setAidenRecommendations] = useState<Record<string, AidenRecommendation>>({});
+  const [sessionClock, setSessionClock] = useState(() => Date.now());
   const typingTimerRef = useRef<number | null>(null);
 
   const tickerResolutionTopic = useTopic<TickerResolution>(`ticker:resolve:${ticker}`, {
@@ -711,7 +761,14 @@ export default function StockDetailPage() {
   });
   const resolvedTicker = tickerResolutionTopic.data?.valid ? tickerResolutionTopic.data.ticker : ticker;
   const isTickerValid = tickerResolutionTopic.data?.valid === true;
-  const isLongTimeframe = timeframe === "1D" || timeframe === "1W" || timeframe === "1M";
+  const isLongTimeframe = isHistoricalTimeframe(timeframe);
+  const isMarketLive = useMemo(() => isVietnamTradingSession(new Date(sessionClock)), [sessionClock]);
+  const realtimeTimeframe = datahubRealtimeTimeframe(timeframe);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setSessionClock(Date.now()), 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   const workbenchTopic = useTopic<WorkbenchPayload>(`research:workbench:${resolvedTicker}`, {
     enabled: isTickerValid,
@@ -720,13 +777,13 @@ export default function StockDetailPage() {
   });
   const priceSnapshotTopic = useTopic<PriceSnapshotPayload>(`vn:price-snapshot:${resolvedTicker}`, {
     enabled: isTickerValid,
-    refreshInterval: 15_000,
+    refreshInterval: isMarketLive ? 15_000 : 0,
     revalidateOnFocus: false,
     dedupingInterval: 10_000,
   });
-  const realtimeTopic = useTopic<unknown>(`vn:realtime:${resolvedTicker}:${isLongTimeframe ? "5m" : timeframe}`, {
+  const realtimeTopic = useTopic<unknown>(`vn:realtime:${resolvedTicker}:${isLongTimeframe ? "5m" : realtimeTimeframe}`, {
     enabled: isTickerValid,
-    refreshInterval: isLongTimeframe ? 0 : 5_000,
+    refreshInterval: isLongTimeframe || !isMarketLive ? 0 : 5_000,
     revalidateOnFocus: false,
     dedupingInterval: 5_000,
   });
@@ -838,7 +895,9 @@ export default function StockDetailPage() {
     () => hasUsableIntradayCandles(realtimeCandles, historicalCandles),
     [historicalCandles, realtimeCandles],
   );
-  const chartCandles = isLongTimeframe || !intradayUsable ? aggregateChartCandles(historicalCandles, timeframe) : realtimeCandles;
+  const historicalChartCandles = isLongTimeframe ? aggregateChartCandles(historicalCandles, timeframe) : historicalCandles;
+  const realtimeChartCandles = isLongTimeframe ? [] : aggregateChartCandles(realtimeCandles, timeframe);
+  const chartCandles = isLongTimeframe || !intradayUsable ? historicalChartCandles : realtimeChartCandles;
   const workbench = workbenchTopic.data;
   const priceSnapshot = priceSnapshotTopic.data ?? workbench?.priceSnapshot ?? null;
   const historicalMarketPrice = useMemo(() => readHistoricalMarketPrice(historicalTopic.data), [historicalTopic.data]);
@@ -1118,6 +1177,7 @@ export default function StockDetailPage() {
                   timeframe={timeframe}
                   onTimeframeChange={setTimeframe}
                   allowFallbackFetch={true}
+                  isLive={!isLongTimeframe && isMarketLive && intradayUsable}
                 />
                 <StockOverviewPanel
                   workbench={workbench ?? null}
