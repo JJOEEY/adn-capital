@@ -24,7 +24,6 @@ import { RADAR_SCAN_BUDGET, SIGNAL_SCAN_SLOTS } from "@/lib/signals/radar-scan-c
 import { loadReportedSignalSummary } from "@/lib/signals/report-history";
 import { normalizeSignalPrice } from "@/lib/signals/price-units";
 import {
-  getDatabaseMorningBrief,
   getDatabaseRadarRealtime,
   getDatabaseToolLatest,
   isDatabaseV2RadarRealtimeEnabled,
@@ -448,8 +447,7 @@ async function loadDatabaseV2MorningBriefTopic() {
   if (!isDatabaseV2ReplaceV1Enabled()) return loadNews("morning");
   const cached = await loadDatabaseV2ToolPayload("brief", "brief.morning", 24 * 60 * 60_000);
   if (cached) return cached;
-  const brief = await getDatabaseMorningBrief().catch(() => null);
-  return brief?.data ?? loadNews("morning");
+  return loadNews("morning");
 }
 
 async function loadDatabaseV2EodBriefTopic() {

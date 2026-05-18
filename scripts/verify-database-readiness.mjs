@@ -35,10 +35,11 @@ const checks = [
     name: "readiness_checks_core_datasets",
     ok:
       readiness.includes("getDatabaseNewsHealth") &&
-      readiness.includes("getDatabaseMorningReadiness") &&
+      readiness.includes("getDatabaseToolLatest") &&
       readiness.includes("getDatabaseEodMarketDataset") &&
       readiness.includes("getDatabaseRealtimeHealth") &&
-      readiness.includes("getDatabaseAidenHealth"),
+      readiness.includes("brief.morning") &&
+      readiness.includes("aiden.context"),
   },
   {
     name: "feature_flags_exist",
