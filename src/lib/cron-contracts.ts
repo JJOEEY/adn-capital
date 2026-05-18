@@ -7,7 +7,23 @@ export type CanonicalCronType =
   | "news_crawler"
   | "adn_rank_15h"
   | "pulse_smartflow_precompute"
-  | "art_daily_1905";
+  | "art_daily_1905"
+  | "database_news_collect"
+  | "database_dnse_market_collect"
+  | "database_morning_readiness"
+  | "database_morning_brief"
+  | "database_eod_collect"
+  | "database_eod_readiness"
+  | "database_radar_realtime_collect"
+  | "database_realtime_health"
+  | "database_adn_radar_collect"
+  | "database_adn_radar_readiness"
+  | "database_adn_art_collect"
+  | "database_adn_art_readiness"
+  | "database_adncore_collect"
+  | "database_adncore_readiness"
+  | "database_adn_rank_collect"
+  | "database_adn_rank_readiness";
 
 export const CANONICAL_CRON_TYPES: readonly CanonicalCronType[] = [
   "morning_brief",
@@ -19,6 +35,22 @@ export const CANONICAL_CRON_TYPES: readonly CanonicalCronType[] = [
   "adn_rank_15h",
   "pulse_smartflow_precompute",
   "art_daily_1905",
+  "database_news_collect",
+  "database_dnse_market_collect",
+  "database_morning_readiness",
+  "database_morning_brief",
+  "database_eod_collect",
+  "database_eod_readiness",
+  "database_radar_realtime_collect",
+  "database_realtime_health",
+  "database_adn_radar_collect",
+  "database_adn_radar_readiness",
+  "database_adn_art_collect",
+  "database_adn_art_readiness",
+  "database_adncore_collect",
+  "database_adncore_readiness",
+  "database_adn_rank_collect",
+  "database_adn_rank_readiness",
 ] as const;
 
 export const CRON_TYPE_ALIASES: Record<string, CanonicalCronType> = {
@@ -31,6 +63,22 @@ export const CRON_TYPE_ALIASES: Record<string, CanonicalCronType> = {
   adn_rank_15h: "adn_rank_15h",
   pulse_smartflow_precompute: "pulse_smartflow_precompute",
   art_daily_1905: "art_daily_1905",
+  database_news_collect: "database_news_collect",
+  database_dnse_market_collect: "database_dnse_market_collect",
+  database_morning_readiness: "database_morning_readiness",
+  database_morning_brief: "database_morning_brief",
+  database_eod_collect: "database_eod_collect",
+  database_eod_readiness: "database_eod_readiness",
+  database_radar_realtime_collect: "database_radar_realtime_collect",
+  database_realtime_health: "database_realtime_health",
+  database_adn_radar_collect: "database_adn_radar_collect",
+  database_adn_radar_readiness: "database_adn_radar_readiness",
+  database_adn_art_collect: "database_adn_art_collect",
+  database_adn_art_readiness: "database_adn_art_readiness",
+  database_adncore_collect: "database_adncore_collect",
+  database_adncore_readiness: "database_adncore_readiness",
+  database_adn_rank_collect: "database_adn_rank_collect",
+  database_adn_rank_readiness: "database_adn_rank_readiness",
 
   // legacy aliases
   prop_trading: "eod_full_19h",
@@ -51,6 +99,22 @@ export const CRON_TYPE_ALIASES: Record<string, CanonicalCronType> = {
   art_daily: "art_daily_1905",
   adn_art_1905: "art_daily_1905",
   art_1905: "art_daily_1905",
+  database_v2_news_collect: "database_news_collect",
+  database_v2_dnse_market_collect: "database_dnse_market_collect",
+  database_v2_morning_readiness: "database_morning_readiness",
+  database_v2_morning_brief: "database_morning_brief",
+  database_v2_eod_collect: "database_eod_collect",
+  database_v2_eod_readiness: "database_eod_readiness",
+  database_v2_radar_realtime_collect: "database_radar_realtime_collect",
+  database_v2_realtime_health: "database_realtime_health",
+  database_v2_adn_radar_collect: "database_adn_radar_collect",
+  database_v2_adn_radar_readiness: "database_adn_radar_readiness",
+  database_v2_adn_art_collect: "database_adn_art_collect",
+  database_v2_adn_art_readiness: "database_adn_art_readiness",
+  database_v2_adncore_collect: "database_adncore_collect",
+  database_v2_adncore_readiness: "database_adncore_readiness",
+  database_v2_adn_rank_collect: "database_adn_rank_collect",
+  database_v2_adn_rank_readiness: "database_adn_rank_readiness",
 };
 
 export const LEGACY_CRON_ALIASES = [
@@ -72,6 +136,22 @@ export const LEGACY_CRON_ALIASES = [
   "art_daily",
   "adn_art_1905",
   "art_1905",
+  "database_v2_news_collect",
+  "database_v2_dnse_market_collect",
+  "database_v2_morning_readiness",
+  "database_v2_morning_brief",
+  "database_v2_eod_collect",
+  "database_v2_eod_readiness",
+  "database_v2_radar_realtime_collect",
+  "database_v2_realtime_health",
+  "database_v2_adn_radar_collect",
+  "database_v2_adn_radar_readiness",
+  "database_v2_adn_art_collect",
+  "database_v2_adn_art_readiness",
+  "database_v2_adncore_collect",
+  "database_v2_adncore_readiness",
+  "database_v2_adn_rank_collect",
+  "database_v2_adn_rank_readiness",
 ] as const;
 
 export const SIGNAL_SCANNER_CANONICAL_NAME: CanonicalCronType = "signal_scan_type1";

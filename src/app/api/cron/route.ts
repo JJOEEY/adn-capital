@@ -33,12 +33,26 @@ import {
   getInvestorTradingData,
   getPropTradingData,
 } from "@/lib/marketDataFetcher";
-import { fetchEodNews, type FiinEodNews } from "@/lib/fiinquantClient";
+import { fetchEodMarketData, type FiinEodNews } from "@/lib/fiinquantClient";
 import { fetchAllCafefNews, buildCafefContext } from "@/lib/cafefScraper";
 import { getVnDateLabel, getVnNow } from "@/lib/time";
 import { getTopicEnvelope, invalidateTopics } from "@/lib/datahub/core";
+import {
+  collectDatabaseRadarRealtime,
+  collectDatabaseNews,
+  collectDnseEodMarketToDatabase,
+  getDatabaseRealtimeHealth,
+  getDatabaseV2Readiness,
+  getDatabaseEodMarketDataset,
+  getDatabaseMorningBrief,
+  isDatabaseV2RadarRealtimeEnabled,
+  upsertDatabaseToolLatest,
+} from "@/lib/database";
+import { formatDatabaseMorningBriefText } from "@/lib/database/morning-brief";
+import { getDatabaseMorningReadiness } from "@/lib/database/morning-readiness";
+import { formatDatabaseEodPublicBriefText } from "@/lib/database/telegram-eod";
 import { getMarketPayloadRows, readMarketNumber } from "@/lib/market-price-normalization";
-import { normalizeCronType, LEGACY_CRON_ALIASES } from "@/lib/cron-contracts";
+import { CANONICAL_CRON_TYPES, normalizeCronType, LEGACY_CRON_ALIASES, type CanonicalCronType } from "@/lib/cron-contracts";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
 import { emitWorkflowTrigger } from "@/lib/workflows";
 import { emitObservabilityEvent } from "@/lib/observability";
@@ -63,6 +77,9 @@ const ART_DAILY_REFRESH_MINUTE_VN = 19 * 60 + 5;
 const ADN_RANK_TOPIC_KEYS = ["research:rs-rating:list", "market:rs:latest", "scan:rs-rating:list"] as const;
 const SMARTFLOW_TOPIC_KEY = "pulse:smartflow";
 const ART_DAILY_TOPIC_KEY = "vn:historical:VN30:1d";
+const DATABASE_RADAR_TOPIC_KEYS = ["signal:market:radar", "radar:watchlist:active", "radar:prefilter:latest"] as const;
+const DATABASE_ADNCORE_TOPIC_KEYS = ["market:canonical:latest", "vn:index:overview", "vn:index:snapshot", SMARTFLOW_TOPIC_KEY] as const;
+const DATABASE_V2_REPLACES_V1 = process.env.DATABASE_V2_REPLACE_V1 !== "false";
 
 interface RadarQuotaEstimate {
   monthlyUsed: number;
@@ -174,6 +191,9 @@ async function runCronHandlerWithWorkflowHook(
 }
 
 async function handleMorningBrief(forceRun = false): Promise<NextResponse> {
+  if (DATABASE_V2_REPLACES_V1) {
+    return handleDatabaseMorningPublish(forceRun);
+  }
   const mod = await import("@/app/api/cron/morning-report/route");
   const url = new URL("http://localhost/api/cron/morning-report");
   if (forceRun) url.searchParams.set("force", "1");
@@ -216,6 +236,611 @@ async function handleNewsCrawler(): Promise<NextResponse> {
     const duration = Date.now() - startTime;
     await logCron("news_crawler", "error", String(error), duration);
     return NextResponse.json({ error: "Lỗi cập nhật tin tức" }, { status: 500 });
+  }
+}
+
+async function handleDatabaseMorningPublish(forceRun = false): Promise<NextResponse> {
+  const startTime = Date.now();
+  const today = getVNDateString();
+  try {
+    const existingReport = forceRun
+      ? null
+      : await findMarketReportForVNDate("morning_brief", undefined, { notBeforeMinuteVN: 8 * 60 });
+    if (existingReport) {
+      const duration = Date.now() - startTime;
+      await logCron("morning_brief", "skipped", "Database v2 morning already generated for today", duration, {
+        existingReportId: existingReport.id,
+        source: "database_v2",
+      });
+      return NextResponse.json({
+        type: "morning_brief",
+        source: "database_v2",
+        skipped: true,
+        reason: "already_generated_today",
+        reportId: existingReport.id,
+        report: existingReport.content,
+      });
+    }
+
+    const collect = await collectDatabaseNews();
+    const brief = await getDatabaseMorningBrief();
+    if (!brief.data || !brief.ok) {
+      const duration = Date.now() - startTime;
+      await logCron("morning_brief", "skipped", "Database v2 morning missing required fields", duration, {
+        source: "database_v2",
+        newsCollect: summarizeDatabasePayload(collect),
+        missingFields: brief.missingFields,
+        providerStatus: brief.providerStatus,
+      });
+      return NextResponse.json({
+        type: "morning_brief",
+        source: "database_v2",
+        published: false,
+        reason: "database_v2_missing_required_fields",
+        missingFields: brief.missingFields,
+      }, { status: 207 });
+    }
+
+    const safeReport = formatDatabaseMorningBriefText(brief.data);
+    const title = `Bản tin sáng ${today}`;
+    const savedReport = await saveMarketReport(
+      "morning_brief",
+      title,
+      safeReport,
+      { source: "database_v2", brief, newsCollect: collect },
+      { source: "database_v2", missingFields: brief.missingFields, metadata: brief.data.metadata },
+    );
+    await pushNotification("morning_brief", `☀️ ${title}`, safeReport);
+    invalidateTopics({ tags: ["news", "brief", "dashboard", "market"] });
+    await emitWorkflowTrigger({
+      type: "brief_ready",
+      source: "cron:morning_brief:database_v2",
+      payload: {
+        reportType: "morning_brief",
+        title,
+        content: safeReport,
+        dateLabel: today,
+        source: "database_v2",
+      },
+    });
+
+    const duration = Date.now() - startTime;
+    await logCron("morning_brief", "success", `Database v2 morning published in ${duration}ms`, duration, {
+      source: "database_v2",
+      reportId: savedReport?.id ?? null,
+      newsCollect: summarizeDatabasePayload(collect),
+      missingFields: brief.missingFields,
+      metadata: brief.data.metadata,
+    });
+    return NextResponse.json({
+      type: "morning_brief",
+      source: "database_v2",
+      published: true,
+      reportId: savedReport?.id ?? null,
+      report: safeReport,
+    });
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    await logCron("morning_brief", "error", error instanceof Error ? error.message : String(error), duration, {
+      source: "database_v2",
+    });
+    return NextResponse.json({ error: "Database v2 morning publish failed" }, { status: 500 });
+  }
+}
+
+function hasDatabaseEodRequiredFields(result: Awaited<ReturnType<typeof getDatabaseEodMarketDataset>>) {
+  const data = result.data;
+  const hasVnindex = Boolean(data?.indices?.some((item) => item.ticker === "VNINDEX" && item.value != null));
+  const hasLiquidity = data?.liquidity?.matchedValue != null;
+  const hasBreadth = data?.breadth?.up != null && data?.breadth?.down != null;
+  const hasForeign = data?.foreignFlow?.netValue != null;
+  const fallback = data?.fallback?.fiinquant;
+  const hasInvestorFallback = Boolean(
+    fallback &&
+      (
+        fallback.propTradingTopBuy.length ||
+        fallback.propTradingTopSell.length ||
+        fallback.individualTopBuy.length ||
+        fallback.individualTopSell.length
+      ),
+  );
+  return hasVnindex && hasLiquidity && hasBreadth && hasForeign && hasInvestorFallback;
+}
+
+async function handleDatabaseEodPublish(forceRun: boolean, dateISO: string, today: string): Promise<NextResponse> {
+  const startTime = Date.now();
+  try {
+    if (!forceRun && getVnMinuteOfDay() < EOD_FULL_MINUTE_VN) {
+      const duration = Date.now() - startTime;
+      await logCron("eod_full_19h", "skipped", "Database v2 EOD skipped before 19:00 VN", duration, {
+        source: "database_v2",
+        nextSlot: "19:00",
+      });
+      return NextResponse.json({
+        type: "eod_full_19h",
+        source: "database_v2",
+        skipped: true,
+        reason: "before_scheduled_slot",
+        nextSlot: "19:00",
+      });
+    }
+
+    const existingReport = forceRun
+      ? null
+      : await findMarketReportForVNDate("eod_full_19h", dateISO, { notBeforeMinuteVN: 19 * 60 });
+    if (existingReport) {
+      const duration = Date.now() - startTime;
+      await logCron("eod_full_19h", "skipped", "Database v2 EOD already generated for today", duration, {
+        source: "database_v2",
+        existingReportId: existingReport.id,
+      });
+      return NextResponse.json({
+        type: "eod_full_19h",
+        source: "database_v2",
+        skipped: true,
+        reason: "already_generated_today",
+        reportId: existingReport.id,
+        report: existingReport.content,
+      });
+    }
+
+    const eod = await getDatabaseEodMarketDataset({ tradingDate: dateISO, useFiinquantFallback: true });
+    if (!eod.data || !hasDatabaseEodRequiredFields(eod)) {
+      const duration = Date.now() - startTime;
+      const retryWindow = !forceRun && getVnMinuteOfDay() <= 20 * 60;
+      await logCron("eod_full_19h", "skipped", retryWindow ? "Database v2 EOD waiting for complete data" : "Database v2 EOD missing required fields", duration, {
+        source: "database_v2",
+        missingFields: eod.missingFields,
+        providerStatus: eod.providerStatus,
+      });
+      return NextResponse.json({
+        type: "eod_full_19h",
+        source: "database_v2",
+        published: false,
+        reason: retryWindow ? "skipped_waiting_data" : "database_v2_missing_required_fields",
+        missingFields: eod.missingFields,
+        providerStatus: eod.providerStatus,
+      }, { status: 207 });
+    }
+
+    const safeReport = formatDatabaseEodPublicBriefText(eod, today);
+    const title = `Bản tin tổng hợp 19:00 ${today}`;
+    const savedReport = await saveMarketReport(
+      "eod_full_19h",
+      title,
+      safeReport,
+      { source: "database_v2", eod },
+      { source: "database_v2", missingFields: eod.missingFields, providerStatus: eod.providerStatus },
+    );
+    await pushNotification("eod_full_19h", `🌙 ${title}`, safeReport);
+    invalidateTopics({ tags: ["news", "brief", "market", "dashboard"] });
+    await emitWorkflowTrigger({
+      type: "brief_ready",
+      source: "cron:eod_full_19h:database_v2",
+      payload: {
+        reportType: "eod_full_19h",
+        title,
+        content: safeReport,
+        dateLabel: today,
+        source: "database_v2",
+      },
+    });
+
+    const duration = Date.now() - startTime;
+    await logCron("eod_full_19h", "success", `Database v2 EOD published in ${duration}ms`, duration, {
+      source: "database_v2",
+      reportId: savedReport?.id ?? null,
+      providerStatus: eod.providerStatus,
+      missingFields: eod.missingFields,
+    });
+    return NextResponse.json({
+      type: "eod_full_19h",
+      source: "database_v2",
+      published: true,
+      reportId: savedReport?.id ?? null,
+      report: safeReport,
+    });
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    await logCron("eod_full_19h", "error", error instanceof Error ? error.message : String(error), duration, {
+      source: "database_v2",
+    });
+    return NextResponse.json({ error: "Database v2 EOD publish failed" }, { status: 500 });
+  }
+}
+
+const DATABASE_V2_CRON_TYPES = new Set<CanonicalCronType>([
+  "database_news_collect",
+  "database_dnse_market_collect",
+  "database_morning_readiness",
+  "database_morning_brief",
+  "database_eod_collect",
+  "database_eod_readiness",
+  "database_radar_realtime_collect",
+  "database_realtime_health",
+  "database_adn_radar_collect",
+  "database_adn_radar_readiness",
+  "database_adn_art_collect",
+  "database_adn_art_readiness",
+  "database_adncore_collect",
+  "database_adncore_readiness",
+  "database_adn_rank_collect",
+  "database_adn_rank_readiness",
+]);
+
+function isDatabaseV2CronType(type: CanonicalCronType) {
+  return DATABASE_V2_CRON_TYPES.has(type);
+}
+
+async function persistDatabaseToolCronPayload(params: {
+  tool: string;
+  dataset: string;
+  payload: unknown;
+  missingFields?: string[];
+  providerStatus?: unknown;
+  ttlMs?: number;
+}) {
+  return upsertDatabaseToolLatest({
+    tool: params.tool,
+    dataset: params.dataset,
+    key: "latest",
+    payload: params.payload,
+    missingFields: params.missingFields ?? [],
+    providerStatus: params.providerStatus,
+    ttlMs: params.ttlMs,
+  }).catch((error) => {
+    console.warn("[database-v2] failed to persist tool latest:", error);
+    return null;
+  });
+}
+
+function summarizeDatabasePayload(value: unknown) {
+  if (!value || typeof value !== "object") return value;
+  const record = value as Record<string, unknown>;
+  return {
+    ok: record.ok,
+    status: record.status,
+    dataset: record.dataset,
+    source: record.source,
+    missingFields: Array.isArray(record.missingFields) ? record.missingFields.slice(0, 20) : record.missingFields,
+    providerStatus: record.providerStatus,
+    checkedAt: record.checkedAt,
+    topics: record.topics,
+    rows: record.rows,
+    historyPoints: record.historyPoints,
+    latest: record.latest,
+    coverage: record.coverage,
+    cache: record.cache,
+    radar: record.radar,
+    retrievedAt: record.retrievedAt,
+    collectedAt: record.collectedAt,
+    fetched: record.fetched,
+    stored: record.stored,
+    bySource: record.bySource,
+    byCategory: record.byCategory,
+    tradingDate: record.tradingDate,
+    previousTradingDate: record.previousTradingDate,
+    publishAllowed: record.publishAllowed,
+    checks: record.checks,
+    metadata: (record.data as { metadata?: unknown } | undefined)?.metadata,
+  };
+}
+
+function countPayloadItems(value: unknown): number {
+  if (Array.isArray(value)) return value.length;
+  if (!value || typeof value !== "object") return value ? 1 : 0;
+  const record = value as Record<string, unknown>;
+  return Object.values(record).reduce<number>((total, item) => {
+    if (Array.isArray(item)) return total + item.length;
+    if (item && typeof item === "object") return total + countPayloadItems(item);
+    return total;
+  }, 0);
+}
+
+async function collectDatahubTopicsForDatabaseV2(topicKeys: readonly string[], options?: { force?: boolean }) {
+  const topics = await Promise.all(
+    topicKeys.map(async (topic) => {
+      const envelope = await getTopicEnvelope(topic, {
+        force: options?.force === true,
+        systemRole: "cron",
+      });
+      return {
+        topic,
+        freshness: envelope.freshness,
+        updatedAt: envelope.updatedAt,
+        error: envelope.error ? { code: envelope.error.code, message: envelope.error.message } : null,
+        count: countPayloadItems(envelope.value),
+      };
+    }),
+  );
+  const missingFields = topics
+    .filter((item) => item.freshness === "error" || item.count === 0)
+    .map((item) => item.topic);
+  return {
+    ok: missingFields.length === 0,
+    topics,
+    missingFields,
+    checkedAt: new Date().toISOString(),
+  };
+}
+
+async function collectDatabaseArtPayload(force: boolean) {
+  const envelope = await getTopicEnvelope(ART_DAILY_TOPIC_KEY, {
+    force,
+    systemRole: "cron",
+  });
+  const rows = toArtOhlcvRows(envelope.value);
+  const history = calculateRPI(rows);
+  const latest = getLatestRPI(history);
+  const missingFields = [
+    envelope.freshness === "error" ? ART_DAILY_TOPIC_KEY : null,
+    rows.length === 0 ? "adn_art.ohlcv" : null,
+    !latest ? "adn_art.rpi" : null,
+  ].filter((item): item is string => Boolean(item));
+
+  return {
+    ok: missingFields.length === 0,
+    topic: ART_DAILY_TOPIC_KEY,
+    freshness: envelope.freshness,
+    updatedAt: envelope.updatedAt,
+    rows: rows.length,
+    historyPoints: history.filter((row) => row.rpi !== null).length,
+    latest,
+    missingFields,
+    checkedAt: new Date().toISOString(),
+  };
+}
+
+async function handleDatabaseV2Cron(type: CanonicalCronType, forceRun = false): Promise<NextResponse> {
+  const startTime = Date.now();
+  try {
+    if (type === "database_news_collect") {
+      const result = await collectDatabaseNews();
+      const duration = Date.now() - startTime;
+      await logCron(
+        type,
+        result.ok ? "success" : "error",
+        result.ok ? `Database v2 news collected ${result.stored} rows` : "Database v2 news collect failed",
+        duration,
+        summarizeDatabasePayload(result),
+      );
+      return NextResponse.json({ type, ...result }, { status: result.ok ? 200 : 502 });
+    }
+
+    if (type === "database_dnse_market_collect") {
+      if (!forceRun && !isTradingDay()) {
+        const duration = Date.now() - startTime;
+        await logCron(type, "skipped", "Database v2 DNSE market collect skipped on non-trading day", duration);
+        return NextResponse.json({ type, skipped: true, reason: "non_trading_day" });
+      }
+      const result = await collectDnseEodMarketToDatabase({
+        timeoutMs: forceRun ? 30_000 : 15_000,
+        maxMessages: forceRun ? 160 : 96,
+      });
+      const duration = Date.now() - startTime;
+      await logCron(
+        type,
+        result.ok ? "success" : "error",
+        result.ok ? `Database v2 DNSE market stored ${result.updatedLatest} latest rows` : "Database v2 DNSE market collect failed",
+        duration,
+        summarizeDatabasePayload(result),
+      );
+      return NextResponse.json({ type, ...result }, { status: result.ok ? 200 : 502 });
+    }
+
+    if (type === "database_morning_readiness") {
+      const result = await getDatabaseMorningReadiness();
+      const duration = Date.now() - startTime;
+      await logCron(
+        type,
+        result.ok ? "success" : "skipped",
+        result.ok ? "Database v2 morning readiness passed" : "Database v2 morning readiness is partial",
+        duration,
+        summarizeDatabasePayload(result),
+      );
+      return NextResponse.json({ type, ...result }, { status: result.ok ? 200 : 207 });
+    }
+
+    if (type === "database_morning_brief") {
+      const result = await getDatabaseMorningBrief();
+      await persistDatabaseToolCronPayload({
+        tool: "brief",
+        dataset: "brief.morning",
+        payload: result.data,
+        missingFields: result.missingFields,
+        providerStatus: result.providerStatus,
+        ttlMs: 10 * 60_000,
+      });
+      const duration = Date.now() - startTime;
+      await logCron(
+        type,
+        result.ok ? "success" : "skipped",
+        result.ok ? "Database v2 morning brief built" : "Database v2 morning brief built with missing fields",
+        duration,
+        summarizeDatabasePayload(result),
+      );
+      return NextResponse.json({ type, ...result }, { status: result.ok ? 200 : 207 });
+    }
+
+    if (type === "database_radar_realtime_collect") {
+      if (!isDatabaseV2RadarRealtimeEnabled()) {
+        const duration = Date.now() - startTime;
+        await logCron(type, "skipped", "Database v2 Radar realtime disabled by feature flag", duration);
+        return NextResponse.json({ type, skipped: true, reason: "disabled" });
+      }
+      if (!forceRun && !isTradingDay()) {
+        const duration = Date.now() - startTime;
+        await logCron(type, "skipped", "Database v2 Radar realtime skipped on non-trading day", duration);
+        return NextResponse.json({ type, skipped: true, reason: "non_trading_day" });
+      }
+      const result = await collectDatabaseRadarRealtime({
+        timeoutMs: forceRun ? 50_000 : 45_000,
+        maxMessages: forceRun ? 2_500 : 1_800,
+      });
+      const duration = Date.now() - startTime;
+      await logCron(
+        type,
+        result.ok ? "success" : "skipped",
+        result.ok
+          ? `Database v2 Radar realtime covered ${result.data?.coverage.covered ?? 0}/${result.data?.coverage.requested ?? 0}`
+          : "Database v2 Radar realtime is partial",
+        duration,
+        summarizeDatabasePayload(result),
+      );
+      invalidateTopics({ tags: ["signal", "radar"] });
+      return NextResponse.json({ type, ...result }, { status: result.ok ? 200 : 207 });
+    }
+
+    if (type === "database_realtime_health") {
+      const result = await getDatabaseRealtimeHealth();
+      const readiness = await getDatabaseV2Readiness().catch(() => null);
+      const duration = Date.now() - startTime;
+      await logCron(
+        type,
+        result.ok ? "success" : "skipped",
+        result.ok ? "Database v2 realtime health passed" : "Database v2 realtime health is partial",
+        duration,
+        summarizeDatabasePayload({ ...result, readinessMissingFields: readiness?.missingFields }),
+      );
+      return NextResponse.json({ type, ...result, readiness }, { status: result.ok ? 200 : 207 });
+    }
+
+    if (type === "database_adn_radar_collect" || type === "database_adn_radar_readiness") {
+      const result = await collectDatahubTopicsForDatabaseV2(DATABASE_RADAR_TOPIC_KEYS, {
+        force: type === "database_adn_radar_collect",
+      });
+      await persistDatabaseToolCronPayload({
+        tool: "radar",
+        dataset: "radar.shadow",
+        payload: result,
+        missingFields: result.missingFields,
+        ttlMs: 5 * 60_000,
+      });
+      const duration = Date.now() - startTime;
+      await logCron(
+        type,
+        result.ok ? "success" : "skipped",
+        result.ok ? "Database v2 ADN Radar shadow data ready" : "Database v2 ADN Radar shadow data is partial",
+        duration,
+        summarizeDatabasePayload(result),
+      );
+      return NextResponse.json({ type, ...result }, { status: result.ok ? 200 : 207 });
+    }
+
+    if (type === "database_adn_art_collect" || type === "database_adn_art_readiness") {
+      if (!forceRun && !isTradingDay()) {
+        const duration = Date.now() - startTime;
+        await logCron(type, "skipped", "Database v2 ADN ART skipped on non-trading day", duration);
+        return NextResponse.json({ type, skipped: true, reason: "non_trading_day" });
+      }
+      const result = await collectDatabaseArtPayload(type === "database_adn_art_collect");
+      await persistDatabaseToolCronPayload({
+        tool: "art",
+        dataset: "art.rpi",
+        payload: result,
+        missingFields: result.missingFields,
+        ttlMs: 10 * 60_000,
+      });
+      const duration = Date.now() - startTime;
+      await logCron(
+        type,
+        result.ok ? "success" : "skipped",
+        result.ok ? "Database v2 ADN ART RPI computed" : "Database v2 ADN ART RPI is partial",
+        duration,
+        summarizeDatabasePayload(result),
+      );
+      return NextResponse.json({ type, ...result }, { status: result.ok ? 200 : 207 });
+    }
+
+    if (type === "database_adncore_collect" || type === "database_adncore_readiness") {
+      const result = await collectDatahubTopicsForDatabaseV2(DATABASE_ADNCORE_TOPIC_KEYS, {
+        force: type === "database_adncore_collect",
+      });
+      const pulse = await getTopicEnvelope(SMARTFLOW_TOPIC_KEY, {
+        force: type === "database_adncore_collect",
+        systemRole: "cron",
+      }).catch(() => null);
+      await Promise.all([
+        persistDatabaseToolCronPayload({
+          tool: "adncore",
+          dataset: "adncore.context",
+          payload: result,
+          missingFields: result.missingFields,
+          ttlMs: 30 * 60_000,
+        }),
+        pulse?.value
+          ? persistDatabaseToolCronPayload({
+              tool: "pulse",
+              dataset: "pulse.smartflow",
+              payload: pulse.value,
+              missingFields: pulse.freshness === "error" ? [SMARTFLOW_TOPIC_KEY] : [],
+              ttlMs: 30 * 60_000,
+            })
+          : Promise.resolve(null),
+      ]);
+      const duration = Date.now() - startTime;
+      await logCron(
+        type,
+        result.ok ? "success" : "skipped",
+        result.ok ? "Database v2 ADNCore shadow data ready" : "Database v2 ADNCore shadow data is partial",
+        duration,
+        summarizeDatabasePayload(result),
+      );
+      return NextResponse.json({ type, ...result }, { status: result.ok ? 200 : 207 });
+    }
+
+    if (type === "database_adn_rank_collect" || type === "database_adn_rank_readiness") {
+      const result = await collectDatahubTopicsForDatabaseV2(ADN_RANK_TOPIC_KEYS, {
+        force: type === "database_adn_rank_collect",
+      });
+      const rank = await getTopicEnvelope("research:rs-rating:list", {
+        force: type === "database_adn_rank_collect",
+        systemRole: "cron",
+      }).catch(() => null);
+      await persistDatabaseToolCronPayload({
+        tool: "rank",
+        dataset: "rank.rs",
+        payload: rank?.value ?? result,
+        missingFields: result.missingFields,
+        ttlMs: 24 * 60 * 60_000,
+      });
+      const duration = Date.now() - startTime;
+      await logCron(
+        type,
+        result.ok ? "success" : "skipped",
+        result.ok ? "Database v2 ADN Rank shadow data ready" : "Database v2 ADN Rank shadow data is partial",
+        duration,
+        summarizeDatabasePayload(result),
+      );
+      return NextResponse.json({ type, ...result }, { status: result.ok ? 200 : 207 });
+    }
+
+    if (type === "database_eod_collect" || type === "database_eod_readiness") {
+      const result = await getDatabaseEodMarketDataset({ useFiinquantFallback: true });
+      await persistDatabaseToolCronPayload({
+        tool: "eod",
+        dataset: "market.eod",
+        payload: result.data,
+        missingFields: result.missingFields,
+        providerStatus: result.providerStatus,
+        ttlMs: 24 * 60 * 60_000,
+      });
+      const duration = Date.now() - startTime;
+      await logCron(
+        type,
+        result.ok ? "success" : "skipped",
+        result.ok ? "Database v2 EOD dataset ready" : "Database v2 EOD dataset is partial",
+        duration,
+        summarizeDatabasePayload(result),
+      );
+      return NextResponse.json({ type, ...result }, { status: result.ok ? 200 : 207 });
+    }
+
+    return NextResponse.json({ type, error: "Unsupported Database v2 cron" }, { status: 400 });
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    await logCron(type, "error", error instanceof Error ? error.message : String(error), duration);
+    return NextResponse.json({ type, error: "Database v2 cron failed" }, { status: 500 });
   }
 }
 
@@ -452,15 +1077,24 @@ async function handlePulseSmartflowPrecompute(forceRun = false): Promise<NextRes
     const invalidated = invalidateTopics({ topics: [SMARTFLOW_TOPIC_KEY], tags: ["smartflow", "dashboard", "market"] });
     const envelope = await getTopicEnvelope(SMARTFLOW_TOPIC_KEY, { force: true });
     const payload = envelope.value as {
-      ma200Leaders?: unknown[];
-      institutionalFlowSpikes?: unknown[];
+      indexImpact?: { positive?: unknown[]; negative?: unknown[] };
+      investorFlow?: {
+        foreign?: Record<string, { topBuy?: unknown[]; topSell?: unknown[] }>;
+        proprietary?: Record<string, { topBuy?: unknown[]; topSell?: unknown[] }>;
+      };
       institutionalAccumulation3M?: unknown[];
       sourceStatus?: { publish?: boolean };
       updatedAt?: string | null;
     } | null;
+    const oneDayForeign = payload?.investorFlow?.foreign?.["1D"];
+    const oneDayProp = payload?.investorFlow?.proprietary?.["1D"];
     const count =
-      (Array.isArray(payload?.ma200Leaders) ? payload.ma200Leaders.length : 0) +
-      (Array.isArray(payload?.institutionalFlowSpikes) ? payload.institutionalFlowSpikes.length : 0) +
+      (Array.isArray(payload?.indexImpact?.positive) ? payload.indexImpact.positive.length : 0) +
+      (Array.isArray(payload?.indexImpact?.negative) ? payload.indexImpact.negative.length : 0) +
+      (Array.isArray(oneDayForeign?.topBuy) ? oneDayForeign.topBuy.length : 0) +
+      (Array.isArray(oneDayForeign?.topSell) ? oneDayForeign.topSell.length : 0) +
+      (Array.isArray(oneDayProp?.topBuy) ? oneDayProp.topBuy.length : 0) +
+      (Array.isArray(oneDayProp?.topSell) ? oneDayProp.topSell.length : 0) +
       (Array.isArray(payload?.institutionalAccumulation3M) ? payload.institutionalAccumulation3M.length : 0);
     const duration = Date.now() - startTime;
 
@@ -756,17 +1390,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       {
         error: "Thiếu hoặc sai tham số 'type'",
-        availableTypes: [
-          "morning_brief",
-          "close_brief_15h",
-          "eod_full_19h",
-          "market_stats_type2",
-          "signal_scan_type1",
-          "news_crawler",
-          "adn_rank_15h",
-          "pulse_smartflow_precompute",
-          "art_daily_1905",
-        ],
+        availableTypes: CANONICAL_CRON_TYPES,
         legacyAliases: LEGACY_CRON_ALIASES,
       },
       { status: 400 }
@@ -786,6 +1410,9 @@ export async function GET(req: NextRequest) {
   });
 
   if (sync) {
+    if (isDatabaseV2CronType(type)) {
+      return runCronHandlerWithWorkflowHook(type, () => handleDatabaseV2Cron(type, forceRun), "cron-dispatch:sync");
+    }
     if (type === "morning_brief") {
       return runCronHandlerWithWorkflowHook(type, () => handleMorningBrief(forceRun), "cron-dispatch:sync");
     }
@@ -826,7 +1453,9 @@ export async function GET(req: NextRequest) {
 
   const run = async () => {
     try {
-      if (type === "morning_brief") {
+      if (isDatabaseV2CronType(type)) {
+        await runCronHandlerWithWorkflowHook(type, () => handleDatabaseV2Cron(type, forceRun), "cron-dispatch:async");
+      } else if (type === "morning_brief") {
         await runCronHandlerWithWorkflowHook(type, () => handleMorningBrief(forceRun), "cron-dispatch:async");
       } else if (type === "close_brief_15h") {
         await runCronHandlerWithWorkflowHook(type, () => handleCloseBrief15(forceRun), "cron-dispatch:async");
@@ -1274,6 +1903,10 @@ async function handlePropTrading(
     : getVNDateString();
 
   try {
+    if (DATABASE_V2_REPLACES_V1) {
+      return handleDatabaseEodPublish(forceRun, dateISO, today);
+    }
+
     if (!forceRun && getVnMinuteOfDay() < EOD_FULL_MINUTE_VN) {
       const duration = Date.now() - startTime;
       await logCron("eod_full_19h", "skipped", "EOD Full skipped before 19:00 VN", duration, {
@@ -1304,37 +1937,42 @@ async function handlePropTrading(
       });
     }
 
-    const [propData, snapshot, bridgeEodDetail, investorRaw] = await Promise.all([
+    const [propData, snapshot, canonicalEodDetail, investorRaw] = await Promise.all([
       getPropTradingData(),
       getMarketSnapshot(),
-      fetchEodNews().catch(() => null),
+      fetchEodMarketData(dateISO).catch(() => null),
       getInvestorTradingData({ fromDate: dateISO, toDate: dateISO }).catch(() => null),
     ]);
     saveMarketOverviewCache(snapshot.marketOverview);
-    const bridgeEodDetailDateKey = toDateKey(bridgeEodDetail?.date);
+    const bridgeEodDetailDateKey = String(canonicalEodDetail?.date_key || "").slice(0, 10);
     const eodDetail =
-      bridgeEodDetailDateKey === dateISO
-        ? bridgeEodDetail
+      String(canonicalEodDetail?.date_key || "").slice(0, 10) === dateISO
+        ? canonicalEodDetail
         : buildEodDetailFromInvestorSnapshot(dateISO, snapshot, investorRaw);
 
     if (!hasCompleteEodDetail(eodDetail)) {
       const duration = Date.now() - startTime;
-      await logCron("eod_full_19h", "skipped", "EOD detail incomplete, keep previous complete report", duration, {
+      const retryWindow = !forceRun && getVnMinuteOfDay() <= 20 * 60;
+      await logCron("eod_full_19h", "skipped", retryWindow ? "EOD waiting for complete data" : "EOD detail incomplete, keep previous complete report", duration, {
         detailBuckets: countEodDetailBuckets(eodDetail),
         eodDetailAvailable: Boolean(eodDetail),
         bridgeEodDetailDateKey,
         expectedDateKey: dateISO,
+        canonicalMissingFields: canonicalEodDetail?.missingFields,
+        canonicalSourceStatus: canonicalEodDetail?.sourceStatus,
       });
       return NextResponse.json({
         type: "eod_full_19h",
         published: false,
-        reason: "eod_detail_incomplete",
+        reason: retryWindow ? "skipped_waiting_data" : "eod_detail_incomplete",
         bridgeEodDetailDateKey,
         expectedDateKey: dateISO,
+        retryWindow,
+        missingFields: canonicalEodDetail?.missingFields ?? [],
       });
     }
 
-    const eodDetailDateKey = toDateKey(eodDetail?.date);
+    const eodDetailDateKey = String(eodDetail?.date_key || "").slice(0, 10) || toDateKey(eodDetail?.date);
     if (eodDetailDateKey !== dateISO) {
       const duration = Date.now() - startTime;
       await logCron("eod_full_19h", "skipped", "EOD detail date mismatch, keep previous complete report", duration, {

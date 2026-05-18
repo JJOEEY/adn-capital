@@ -67,9 +67,104 @@
       "comment": "09:00-15:59 VN - lifecycle worker"
     },
     {
+      "path": "/api/cron/radar-paper?slot=11:30",
+      "schedule": "30 4 * * 1-5",
+      "comment": "11:30 VN (04:30 UTC) - ADN Radar paper snapshot"
+    },
+    {
+      "path": "/api/cron/radar-paper?slot=15:00",
+      "schedule": "0 8 * * 1-5",
+      "comment": "15:00 VN (08:00 UTC) - ADN Radar paper snapshot"
+    },
+    {
       "path": "/api/cron?type=news_crawler",
       "schedule": "*/30 0-15 * * *",
       "comment": "07:00-22:30 VN - continuous news crawler"
+    },
+    {
+      "path": "/api/cron?type=database_news_collect&sync=1",
+      "schedule": "*/30 0-15 * * *",
+      "comment": "07:00-22:30 VN - Database v2 news shadow collect"
+    },
+    {
+      "path": "/api/cron?type=database_dnse_market_collect&sync=1",
+      "schedule": "*/5 2-8 * * 1-5",
+      "comment": "09:00-15:59 VN - Database v2 DNSE websocket shadow collect"
+    },
+    {
+      "path": "/api/cron?type=database_morning_readiness&sync=1",
+      "schedule": "55 0 * * 1-5",
+      "comment": "07:55 VN - Database v2 morning readiness"
+    },
+    {
+      "path": "/api/cron?type=database_morning_brief&sync=1",
+      "schedule": "0 1 * * 1-5",
+      "comment": "08:00 VN - Database v2 morning brief shadow build"
+    },
+    {
+      "path": "/api/cron?type=database_eod_collect&sync=1",
+      "schedule": "10 8,12 * * 1-5",
+      "comment": "15:10 and 19:10 VN - Database v2 EOD shadow collect"
+    },
+    {
+      "path": "/api/cron?type=database_eod_readiness&sync=1",
+      "schedule": "0 13 * * 1-5",
+      "comment": "20:00 VN - Database v2 EOD readiness"
+    },
+    {
+      "path": "/api/cron?type=database_radar_realtime_collect&sync=1",
+      "schedule": "* 2-7 * * 1-5",
+      "comment": "09:00-14:59 VN - Database v2 Radar realtime cache collect"
+    },
+    {
+      "path": "/api/cron?type=database_realtime_health&sync=1",
+      "schedule": "*/5 2-7 * * 1-5",
+      "comment": "09:00-14:59 VN - Database v2 realtime health"
+    },
+    {
+      "path": "/api/cron?type=database_adn_radar_collect&sync=1",
+      "schedule": "5,35 3 * * 1-5",
+      "comment": "10:05/10:35 VN - Database v2 ADN Radar shadow collect"
+    },
+    {
+      "path": "/api/cron?type=database_adn_radar_collect&sync=1",
+      "schedule": "5,30 7 * * 1-5",
+      "comment": "14:05/14:30 VN - Database v2 ADN Radar shadow collect"
+    },
+    {
+      "path": "/api/cron?type=database_adn_radar_readiness&sync=1",
+      "schedule": "40 3,7 * * 1-5",
+      "comment": "10:40/14:40 VN - Database v2 ADN Radar readiness"
+    },
+    {
+      "path": "/api/cron?type=database_adn_art_collect&sync=1",
+      "schedule": "*/5 2-7 * * 1-5",
+      "comment": "09:00-14:59 VN - Database v2 ADN ART realtime shadow collect"
+    },
+    {
+      "path": "/api/cron?type=database_adn_art_readiness&sync=1",
+      "schedule": "0 3,7 * * 1-5",
+      "comment": "10:00/14:00 VN - Database v2 ADN ART readiness"
+    },
+    {
+      "path": "/api/cron?type=database_adncore_collect&sync=1",
+      "schedule": "5,20 8 * * 1-5",
+      "comment": "15:05/15:20 VN - Database v2 ADNCore recalculation"
+    },
+    {
+      "path": "/api/cron?type=database_adncore_readiness&sync=1",
+      "schedule": "30 8 * * 1-5",
+      "comment": "15:30 VN - Database v2 ADNCore readiness"
+    },
+    {
+      "path": "/api/cron?type=database_adn_rank_collect&sync=1",
+      "schedule": "0 8 * * 1-5",
+      "comment": "15:00 VN - Database v2 ADN Rank shadow collect"
+    },
+    {
+      "path": "/api/cron?type=database_adn_rank_readiness&sync=1",
+      "schedule": "10 8 * * 1-5",
+      "comment": "15:10 VN - Database v2 ADN Rank readiness"
     },
     {
       "path": "/api/cron/ai-weekly-review",

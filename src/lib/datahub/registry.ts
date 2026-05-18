@@ -24,6 +24,13 @@ import { RADAR_SCAN_BUDGET, SIGNAL_SCAN_SLOTS } from "@/lib/signals/radar-scan-c
 import { loadReportedSignalSummary } from "@/lib/signals/report-history";
 import { normalizeSignalPrice } from "@/lib/signals/price-units";
 import {
+  getDatabaseMorningBrief,
+  getDatabaseRadarRealtime,
+  getDatabaseToolLatest,
+  isDatabaseV2RadarRealtimeEnabled,
+  isDatabaseV2ReplaceV1Enabled,
+} from "@/lib/database";
+import {
   applyMarketPriceScale,
   chooseMarketDisplayPrice,
   getMarketPayloadRows,
@@ -399,13 +406,64 @@ async function loadSignalList(status: "RADAR" | "ACTIVE") {
     },
   });
 
-  return rows.map((row) => ({
+  const normalizedRows = rows.map((row) => ({
     ...row,
     entryPrice: normalizeSignalPrice(row.entryPrice),
     currentPrice: normalizeSignalPrice(row.currentPrice),
     target: normalizeSignalPrice(row.target),
     stoploss: normalizeSignalPrice(row.stoploss),
   }));
+  if (status !== "RADAR" || !isDatabaseV2ReplaceV1Enabled() || !isDatabaseV2RadarRealtimeEnabled()) {
+    return normalizedRows;
+  }
+  const realtime = await getDatabaseRadarRealtime().catch(() => null);
+  const ticks = new Map((realtime?.data?.latest ?? []).map((tick) => [tick.ticker, tick]));
+  return normalizedRows.map((row) => {
+    const tick = ticks.get(row.ticker);
+    if (!tick) return row;
+    return {
+      ...row,
+      currentPrice: tick.price ?? row.currentPrice,
+      currentPnl:
+        tick.price != null && row.entryPrice
+          ? Number((((tick.price - row.entryPrice) / row.entryPrice) * 100).toFixed(2))
+          : row.currentPnl,
+      realtime: {
+        price: tick.price,
+        changePct: tick.changePct,
+        volume: tick.volume,
+        updatedAt: tick.updatedAt,
+      },
+    };
+  });
+}
+
+async function loadDatabaseV2ToolPayload<T>(tool: string, dataset: string, maxAgeMs?: number): Promise<T | null> {
+  if (!isDatabaseV2ReplaceV1Enabled()) return null;
+  const row = await getDatabaseToolLatest<T>({ tool, dataset, key: "latest", maxAgeMs }).catch(() => null);
+  return row?.payload ?? null;
+}
+
+async function loadDatabaseV2MorningBriefTopic() {
+  if (!isDatabaseV2ReplaceV1Enabled()) return loadNews("morning");
+  const cached = await loadDatabaseV2ToolPayload("brief", "brief.morning", 24 * 60 * 60_000);
+  if (cached) return cached;
+  const brief = await getDatabaseMorningBrief().catch(() => null);
+  return brief?.data ?? loadNews("morning");
+}
+
+async function loadDatabaseV2EodBriefTopic() {
+  return loadNews("eod");
+}
+
+async function loadDatabaseV2PulseTopic(force = false) {
+  const cached = !force ? await loadDatabaseV2ToolPayload("pulse", "pulse.smartflow", 30 * 60_000) : null;
+  return cached ?? loadPulseSmartflowTopic(force);
+}
+
+async function loadDatabaseV2RankTopic(force = false) {
+  const cached = !force ? await loadDatabaseV2ToolPayload("rank", "rank.rs", 24 * 60 * 60_000) : null;
+  return cached ?? loadRsRatingTopic(force);
 }
 
 async function loadPortfolioSignalsForUser(userId: string) {
@@ -632,11 +690,14 @@ async function loadBridgeHistoricalTicker(
 }
 
 async function loadHistoricalTicker(ticker: string) {
-  const dnsePayload = await fetchDnseOhlc(ticker, { timeframe: "1d", days: 260, timeoutMs: 12_000 }).catch(() => null);
-  if (hasCandleRows(dnsePayload)) return dnsePayload;
+  const historyDays = Number(process.env.ADN_STOCK_DAILY_HISTORY_DAYS ?? 1825);
+  const dnsePayload = await fetchDnseOhlc(ticker, { timeframe: "1d", days: historyDays, timeoutMs: 12_000 }).catch(() => null);
+  if (hasCandleRows(dnsePayload)) return dropPremarketCurrentDailyRow(dnsePayload);
 
   const attempts = [
-    { days: 260, timeout: 45_000 },
+    { days: historyDays, timeout: 45_000 },
+    { days: 780, timeout: 45_000 },
+    { days: 520, timeout: 45_000 },
     { days: 180, timeout: 35_000 },
     { days: 90, timeout: 25_000 },
   ];
@@ -645,7 +706,7 @@ async function loadHistoricalTicker(ticker: string) {
   for (const attempt of attempts) {
     try {
       const payload = await loadBridgeHistoricalTicker(ticker, "1d", attempt.days, attempt.timeout);
-      if (hasCandleRows(payload)) return payload;
+      if (hasCandleRows(payload)) return dropPremarketCurrentDailyRow(payload);
     } catch (error) {
       lastError = error;
       console.warn(`[DataHub market] historical ${ticker} ${attempt.days}d unavailable:`, error);
@@ -666,6 +727,46 @@ function currentVnDateKey() {
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
 
+function isCurrentVnTradingWeekday() {
+  const weekday = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    weekday: "short",
+  }).format(new Date());
+  return !["Sat", "Sun"].includes(weekday);
+}
+
+function currentVnMarketBoardDateKey() {
+  if (!isCurrentVnTradingWeekday()) return null;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date());
+  const rawHour = Number(parts.find((part) => part.type === "hour")?.value ?? 0);
+  const hour = rawHour === 24 ? 0 : rawHour;
+  const minute = Number(parts.find((part) => part.type === "minute")?.value ?? 0);
+  return hour * 60 + minute >= 9 * 60 + 15 ? currentVnDateKey() : null;
+}
+
+function dropPremarketCurrentDailyRow<T>(payload: T): T {
+  if (currentVnMarketBoardDateKey() != null) return payload;
+  const rows = getMarketPayloadRows(payload);
+  if (rows.length === 0) return payload;
+  const last = rows[rows.length - 1] ?? {};
+  const lastDate = normalizeChartDateKey(String(last.date ?? last.timestamp ?? last.time ?? ""));
+  if (lastDate !== currentVnDateKey()) return payload;
+  const nextRows = rows.slice(0, -1);
+
+  if (payload && typeof payload === "object") {
+    const record = payload as JsonRecord;
+    if (Array.isArray(record.data)) return { ...record, data: nextRows } as T;
+    if (Array.isArray(record.candles)) return { ...record, candles: nextRows } as T;
+    if (Array.isArray(record.items)) return { ...record, items: nextRows } as T;
+  }
+  return nextRows as T;
+}
+
 function mergeMarketBoardCloseIntoHistorical(payload: unknown, boardRow: unknown) {
   const row = boardRow && typeof boardRow === "object" ? normalizeMarketBoardRow(boardRow as JsonRecord) : null;
   const close = readPositiveNumber(row?.close);
@@ -673,7 +774,9 @@ function mergeMarketBoardCloseIntoHistorical(payload: unknown, boardRow: unknown
 
   const rows = getMarketPayloadRows(payload);
   const last = rows[rows.length - 1] ?? {};
-  const date = currentVnDateKey();
+  const lastDate = normalizeChartDateKey(String(last.date ?? last.timestamp ?? last.time ?? ""));
+  const date = currentVnMarketBoardDateKey() ?? lastDate;
+  if (!date) return payload;
   const liveRow = {
     ...last,
     date,
@@ -684,8 +787,7 @@ function mergeMarketBoardCloseIntoHistorical(payload: unknown, boardRow: unknown
     close,
     volume: readPositiveNumber(row?.volume) ?? readPositiveNumber(last.volume ?? last.v) ?? 0,
   };
-  const lastDate = normalizeChartDateKey(String(last.date ?? last.timestamp ?? last.time ?? ""));
-  const nextRows = lastDate === date ? [...rows.slice(0, -1), liveRow] : [...rows, liveRow].slice(-260);
+  const nextRows = lastDate === date ? [...rows.slice(0, -1), liveRow] : [...rows, liveRow];
 
   if (payload && typeof payload === "object") {
     const record = payload as JsonRecord;
@@ -694,6 +796,13 @@ function mergeMarketBoardCloseIntoHistorical(payload: unknown, boardRow: unknown
     if (Array.isArray(record.items)) return { ...record, items: nextRows };
   }
   return nextRows;
+}
+
+function intradayHistoryDays(timeframe: string) {
+  if (timeframe === "1m") return 5;
+  if (timeframe === "5m") return 30;
+  if (timeframe === "15m" || timeframe === "30m") return 90;
+  return 5;
 }
 
 async function loadHistoricalTickerWithMarketClose(ticker: string) {
@@ -768,15 +877,16 @@ function hasCandleRows(payload: unknown) {
 }
 
 async function loadRealtimeTicker(ticker: string, timeframe: string) {
-  const dnseRealtime = await fetchDnseOhlc(ticker, { timeframe, days: 5, timeoutMs: 8_000 }).catch(() => null);
+  const days = intradayHistoryDays(timeframe);
+  const dnseRealtime = await fetchDnseOhlc(ticker, { timeframe, days, timeoutMs: 8_000 }).catch(() => null);
   if (hasCandleRows(dnseRealtime)) return dnseRealtime;
 
-  const realtime = await fetchRealtimeTradingData(ticker, timeframe, 5_000);
+  const historicalIntraday = await loadBridgeHistoricalTicker(ticker, timeframe, days, 8_000).catch(() => null);
+  if (hasCandleRows(historicalIntraday)) return historicalIntraday;
+
+  const realtime = await fetchRealtimeTradingData(ticker, timeframe, 1_500).catch(() => null);
   const normalizedRealtime = normalizeHistoricalPricePayload(realtime);
   if (hasCandleRows(normalizedRealtime)) return normalizedRealtime;
-
-  const historicalIntraday = await loadBridgeHistoricalTicker(ticker, timeframe, 30, 30_000).catch(() => null);
-  if (hasCandleRows(historicalIntraday)) return historicalIntraday;
 
   return normalizedRealtime;
 }
@@ -1957,6 +2067,18 @@ type SmartflowMa200Leader = {
   distanceToMa200Pct: number;
 };
 
+type SmartflowIndexImpactRow = {
+  ticker: string;
+  impact: number;
+  changePct: number;
+};
+
+type SmartflowInvestorFlowPoint = {
+  date: string;
+  netValue: number;
+  netVolume: number | null;
+};
+
 const DEFAULT_SMARTFLOW_UNIVERSE = [
   "VCB", "BID", "CTG", "TCB", "MBB", "VPB", "ACB", "STB", "HDB", "VIB",
   "FPT", "MWG", "VNM", "MSN", "HPG", "HSG", "SSI", "VND", "VCI", "HCM",
@@ -2071,6 +2193,45 @@ function readSmartflowInstitutionalNet(row: JsonRecord) {
   return null;
 }
 
+function readSmartflowForeignNet(row: JsonRecord) {
+  const direct =
+    smartflowNumber(row.foreignNet) ??
+    smartflowNumber(row.foreign_net) ??
+    smartflowNumber(row.foreignTotalNetValue) ??
+    smartflowNumber(row.foreignNetValue) ??
+    smartflowNumber(row.netForeignValue);
+  if (direct != null) return normalizeMoneyToBillion(direct);
+  const buy =
+    smartflowNumber(row.foreignBuyValueMatched) ??
+    smartflowNumber(row.foreignBuyValueTotal) ??
+    smartflowNumber(row.foreignBuyValue);
+  const sell =
+    smartflowNumber(row.foreignSellValueMatched) ??
+    smartflowNumber(row.foreignSellValueTotal) ??
+    smartflowNumber(row.foreignSellValue);
+  return buy != null || sell != null ? normalizeMoneyToBillion((buy ?? 0) - (sell ?? 0)) : null;
+}
+
+function readSmartflowProprietaryNet(row: JsonRecord) {
+  const direct =
+    smartflowNumber(row.proprietaryNet) ??
+    smartflowNumber(row.proprietary_net) ??
+    smartflowNumber(row.selfTradingNet) ??
+    smartflowNumber(row.self_trading_net) ??
+    smartflowNumber(row.proprietaryTotalNetValue) ??
+    smartflowNumber(row.netProprietaryMatchValue);
+  if (direct != null) return normalizeMoneyToBillion(direct);
+  const buy =
+    smartflowNumber(row.proprietaryTotalBuyTradeValue) ??
+    smartflowNumber(row.proprietaryTotalMatchBuyTradeValue) ??
+    smartflowNumber(row.selfTradingBuyValue);
+  const sell =
+    smartflowNumber(row.proprietaryTotalSellTradeValue) ??
+    smartflowNumber(row.proprietaryTotalMatchSellTradeValue) ??
+    smartflowNumber(row.selfTradingSellValue);
+  return buy != null || sell != null ? normalizeMoneyToBillion((buy ?? 0) - (sell ?? 0)) : null;
+}
+
 function readSmartflowInstitutionalVolume(row: JsonRecord) {
   const direct =
     smartflowNumber(row.institutionalNetVolume) ??
@@ -2113,6 +2274,20 @@ function readSmartflowInstitutionalVolume(row: JsonRecord) {
     return (foreignBuy ?? 0) - (foreignSell ?? 0) + (proprietaryBuy ?? 0) - (proprietarySell ?? 0);
   }
   return null;
+}
+
+function readSmartflowDateKey(row: JsonRecord) {
+  const raw = String(row.date ?? row.tradingDate ?? row.timestamp ?? row.time ?? "").trim();
+  if (!raw) return currentVnDateKey();
+  return raw.slice(0, 10);
+}
+
+function readSmartflowExchange(row: JsonRecord) {
+  const raw = String(row.exchange ?? row.floor ?? row.market ?? row.board ?? "").toUpperCase();
+  if (raw.includes("HOSE") || raw.includes("HSX")) return "HSX";
+  if (raw.includes("HNX")) return "HNX";
+  if (raw.includes("UPCOM")) return "UPCOM";
+  return "ALL";
 }
 
 function aggregateSmartflowRows(payload: unknown): SmartflowFlowRow[] {
@@ -2221,6 +2396,106 @@ async function loadMa200Breadth(tickers: string[]) {
   };
 }
 
+function buildIndexImpact(snapshot: Awaited<ReturnType<typeof getMarketSnapshot>> | null) {
+  const gainers = (snapshot?.topGainers ?? [])
+    .map((row) => ({
+      ticker: row.ticker,
+      impact: Number(Math.abs(row.changePct).toFixed(2)),
+      changePct: Number(row.changePct.toFixed(2)),
+    }))
+    .filter((row) => row.ticker && Number.isFinite(row.changePct))
+    .slice(0, 10);
+  const losers = (snapshot?.topLosers ?? [])
+    .map((row) => ({
+      ticker: row.ticker,
+      impact: -Number(Math.abs(row.changePct).toFixed(2)),
+      changePct: Number(row.changePct.toFixed(2)),
+    }))
+    .filter((row) => row.ticker && Number.isFinite(row.changePct))
+    .slice(0, 10);
+
+  return {
+    index: "VNINDEX",
+    updatedAt: snapshot?.timestamp ?? new Date().toISOString(),
+    positive: gainers,
+    negative: losers,
+  };
+}
+
+function buildSmartflowInvestorRows(payload: unknown, kind: "foreign" | "proprietary") {
+  const rows = new Map<string, {
+    ticker: string;
+    exchange: string;
+    netBuyValue: number;
+    netBuyVolume: number | null;
+  }>();
+  const series = new Map<string, { netValue: number; netVolume: number | null }>();
+
+  for (const item of smartflowToArray(payload)) {
+    const row = item && typeof item === "object" ? (item as JsonRecord) : null;
+    if (!row) continue;
+    const ticker = readSmartflowTicker(row);
+    if (!ticker) continue;
+    const net = kind === "foreign" ? readSmartflowForeignNet(row) : readSmartflowProprietaryNet(row);
+    if (net == null || !Number.isFinite(net)) continue;
+
+    const volume = readSmartflowInstitutionalVolume(row);
+    const current = rows.get(ticker) ?? {
+      ticker,
+      exchange: readSmartflowExchange(row),
+      netBuyValue: 0,
+      netBuyVolume: null,
+    };
+    rows.set(ticker, {
+      ...current,
+      netBuyValue: current.netBuyValue + net,
+      netBuyVolume: volume != null && Number.isFinite(volume) ? (current.netBuyVolume ?? 0) + volume : current.netBuyVolume,
+    });
+
+    const date = readSmartflowDateKey(row);
+    const point = series.get(date) ?? { netValue: 0, netVolume: null };
+    series.set(date, {
+      netValue: point.netValue + net,
+      netVolume: volume != null && Number.isFinite(volume) ? (point.netVolume ?? 0) + volume : point.netVolume,
+    });
+  }
+
+  const normalizedRows = Array.from(rows.values())
+    .map((row) => ({
+      ...row,
+      netBuyValue: Number(row.netBuyValue.toFixed(2)),
+      netBuyVolume: row.netBuyVolume == null ? null : Math.round(row.netBuyVolume),
+    }))
+    .filter((row) => row.netBuyValue !== 0);
+  const normalizedSeries: SmartflowInvestorFlowPoint[] = Array.from(series.entries())
+    .map(([date, value]) => ({
+      date,
+      netValue: Number(value.netValue.toFixed(2)),
+      netVolume: value.netVolume == null ? null : Math.round(value.netVolume),
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  return {
+    netValue: Number(normalizedRows.reduce((sum, row) => sum + row.netBuyValue, 0).toFixed(2)),
+    netVolume: normalizedRows.reduce((sum, row) => sum + (row.netBuyVolume ?? 0), 0) || null,
+    series: normalizedSeries,
+    topBuy: normalizedRows.filter((row) => row.netBuyValue > 0).sort((a, b) => b.netBuyValue - a.netBuyValue).slice(0, 10),
+    topSell: normalizedRows.filter((row) => row.netBuyValue < 0).sort((a, b) => a.netBuyValue - b.netBuyValue).slice(0, 10),
+  };
+}
+
+function buildSmartflowInvestorFlow(payloadByTimeframe: Record<string, unknown>) {
+  const timeframes = ["1D", "1W", "1M", "3M", "6M", "1Y"] as const;
+  return {
+    foreign: Object.fromEntries(
+      timeframes.map((timeframe) => [timeframe, buildSmartflowInvestorRows(payloadByTimeframe[timeframe], "foreign")]),
+    ),
+    proprietary: Object.fromEntries(
+      timeframes.map((timeframe) => [timeframe, buildSmartflowInvestorRows(payloadByTimeframe[timeframe], "proprietary")]),
+    ),
+  };
+}
+
 async function loadSmartflowPriceMap(tickers: string[]) {
   const normalized = Array.from(new Set(tickers.map((ticker) => ticker.toUpperCase()).filter(Boolean))).slice(0, 50);
   if (normalized.length === 0) return new Map<string, number>();
@@ -2242,21 +2517,27 @@ async function loadSmartflowPriceMap(tickers: string[]) {
 }
 
 async function loadPulseSmartflow() {
-  const universeLimit = Math.max(30, Math.min(500, Number(process.env.SMARTFLOW_UNIVERSE_LIMIT ?? 80)));
-  const [snapshot, universe] = await Promise.all([
+  const [snapshot, oneDayFlow, oneWeekFlow, oneMonthFlow, threeMonthFlow, sixMonthFlow, oneYearFlow] = await Promise.all([
     getMarketSnapshot().catch(() => null),
-    loadSmartflowUniverse(universeLimit),
-  ]);
-  const smartflowUniverse = universe.length > 0 ? universe : DEFAULT_SMARTFLOW_UNIVERSE.slice(0, universeLimit);
-  const [ma200Breadth, oneMonthFlow, threeMonthFlow] = await Promise.all([
-    loadMa200Breadth(smartflowUniverse),
+    fetchInvestorTrading({ fromDate: getSmartflowDate(0), toDate: getSmartflowDate(0) }).catch(() => null),
+    fetchInvestorTrading({ fromDate: getSmartflowDate(7), toDate: getSmartflowDate(0) }).catch(() => null),
     fetchInvestorTrading({ fromDate: getSmartflowDate(31), toDate: getSmartflowDate(0) }).catch(() => null),
     fetchInvestorTrading({ fromDate: getSmartflowDate(92), toDate: getSmartflowDate(0) }).catch(() => null),
+    fetchInvestorTrading({ fromDate: getSmartflowDate(183), toDate: getSmartflowDate(0) }).catch(() => null),
+    fetchInvestorTrading({ fromDate: getSmartflowDate(365), toDate: getSmartflowDate(0) }).catch(() => null),
   ]);
 
   const oneMonthRows = aggregateSmartflowRows(oneMonthFlow);
   const threeMonthRows = aggregateSmartflowRows(threeMonthFlow);
   const oneMonthNet = oneMonthRows.reduce((sum, row) => sum + row.netBuyValue, 0);
+  const investorFlow = buildSmartflowInvestorFlow({
+    "1D": oneDayFlow,
+    "1W": oneWeekFlow,
+    "1M": oneMonthFlow,
+    "3M": threeMonthFlow,
+    "6M": sixMonthFlow,
+    "1Y": oneYearFlow,
+  });
   const realtimeNet =
     snapshot?.supplyDemand.netVolume ??
     snapshot?.investorTrading.foreign.net ??
@@ -2316,23 +2597,21 @@ async function loadPulseSmartflow() {
     .filter((row): row is NonNullable<typeof row> => Boolean(row))
     .slice(0, 5);
 
+  const indexImpact = buildIndexImpact(snapshot);
   const missingFields = [
-    ma200Breadth.percent == null ? "ma200BreadthPercent" : null,
-    ma200Breadth.leaders.length === 0 ? "ma200Leaders" : null,
+    indexImpact.positive.length === 0 && indexImpact.negative.length === 0 ? "indexImpact" : null,
     oneMonthRows.length === 0 ? "activeBuySellTrend1M" : null,
-    institutionalFlowSpikes.length === 0 ? "institutionalFlowSpikes" : null,
+    investorFlow.foreign["1D"].topBuy.length === 0 && investorFlow.proprietary["1D"].topBuy.length === 0 ? "investorFlow" : null,
     institutionalAccumulation3M.length === 0 ? "institutionalAccumulation3M" : null,
   ].filter((item): item is string => Boolean(item));
 
   return {
     title: "ADN Smartflow",
     subtitle: "Smart Money · Accumulation · Market Breadth",
-    ma200BreadthPercent: ma200Breadth.percent,
-    ma200BreadthCount: ma200Breadth.above,
-    ma200BreadthTotal: ma200Breadth.total,
-    ma200Leaders: ma200Breadth.leaders,
+    indexImpact,
     activeBuySellTrend1M,
     activeBuySellTrendNet: activeTrendNet,
+    investorFlow,
     institutionalFlowSpikes,
     institutionalAccumulation3M,
     sourceStatus: {
@@ -2352,7 +2631,80 @@ async function loadPulseSmartflowTopic(force = false) {
   throw new Error("pulse_smartflow_precomputed_unavailable");
 }
 
+async function loadCanonicalMarketTopic(topicKey: string) {
+  const snapshot = await getMarketSnapshot();
+  const canonical = {
+    date: snapshot.requestDateVN,
+    updatedAt: snapshot.timestamp,
+    sourceStatus: snapshot.source,
+    indices: snapshot.indices,
+    liquidityByExchange: snapshot.liquidityByExchange,
+    totalMatchedLiquidity: snapshot.liquidity,
+    totalDealLiquidity: null,
+    breadth: snapshot.breadth,
+    breadthByExchange: snapshot.breadthByExchange,
+    investorFlow: {
+      foreign: snapshot.investorTrading.foreign,
+      proprietary: snapshot.investorTrading.proprietary,
+      individual: snapshot.investorTrading.retail,
+      availability: snapshot.investorTrading.availability,
+    },
+    publishReady: snapshot.publish,
+    missingFields: snapshot.publishBlockers,
+    freshness: snapshot.freshness,
+    providerDiagnostics: snapshot.providerDiagnostics,
+  };
+
+  if (topicKey === "market:liquidity:latest") {
+    return {
+      date: canonical.date,
+      updatedAt: canonical.updatedAt,
+      liquidityByExchange: canonical.liquidityByExchange,
+      totalMatchedLiquidity: canonical.totalMatchedLiquidity,
+      totalDealLiquidity: canonical.totalDealLiquidity,
+      publishReady: canonical.publishReady,
+      missingFields: canonical.missingFields,
+      sourceStatus: canonical.sourceStatus,
+    };
+  }
+  if (topicKey === "market:breadth:latest") {
+    return {
+      date: canonical.date,
+      updatedAt: canonical.updatedAt,
+      breadth: canonical.breadth,
+      breadthByExchange: canonical.breadthByExchange,
+      publishReady: canonical.publishReady,
+      missingFields: canonical.missingFields,
+      sourceStatus: canonical.sourceStatus,
+    };
+  }
+  if (topicKey === "market:investor-flow:latest") {
+    return {
+      date: canonical.date,
+      updatedAt: canonical.updatedAt,
+      investorFlow: canonical.investorFlow,
+      publishReady: canonical.publishReady,
+      missingFields: canonical.missingFields,
+      sourceStatus: canonical.sourceStatus,
+    };
+  }
+  return canonical;
+}
+
 const TOPIC_DEFINITIONS: TopicDefinition[] = [
+  {
+    id: "market:canonical:latest",
+    ttlMs: 60_000,
+    minIntervalMs: 10_000,
+    source: "datahub:canonical-market",
+    version: "v1",
+    tags: ["dashboard", "market", "canonical"],
+    match: (topicKey) =>
+      ["market:canonical:latest", "market:liquidity:latest", "market:breadth:latest", "market:investor-flow:latest"].includes(topicKey)
+        ? { ok: true }
+        : { ok: false },
+    resolve: async (topicKey) => loadCanonicalMarketTopic(topicKey),
+  },
   {
     id: "vn:index:overview",
     ttlMs: 60_000,
@@ -2367,7 +2719,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     id: "vn:index:snapshot",
     ttlMs: 60_000,
     minIntervalMs: 10_000,
-    source: "aggregator:marketDataFetcher",
+    source: "datahub:canonical-market",
     version: "v1",
     tags: ["dashboard", "market"],
     match: (topicKey) => (topicKey === "vn:index:snapshot" ? { ok: true } : { ok: false }),
@@ -2444,7 +2796,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     version: "v1",
     tags: ["dashboard", "pulse", "smartflow", "market"],
     match: (topicKey) => (topicKey === "pulse:smartflow" ? { ok: true } : { ok: false }),
-    resolve: async (_, context) => loadPulseSmartflowTopic(context.force === true),
+    resolve: async (_, context) => loadDatabaseV2PulseTopic(context.force === true),
   },
   {
     id: "news:morning:latest",
@@ -2455,7 +2807,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     version: "v1",
     tags: ["brief", "morning-brief", "public"],
     match: (topicKey) => (topicKey === "news:morning:latest" ? { ok: true } : { ok: false }),
-    resolve: async () => loadNews("morning"),
+    resolve: async () => loadDatabaseV2MorningBriefTopic(),
   },
   {
     id: "brief:morning:latest",
@@ -2466,7 +2818,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     version: "v1",
     tags: ["brief", "morning-brief", "public"],
     match: (topicKey) => (topicKey === "brief:morning:latest" ? { ok: true } : { ok: false }),
-    resolve: async () => loadNews("morning"),
+    resolve: async () => loadDatabaseV2MorningBriefTopic(),
   },
   {
     id: "brief:morning:{date}",
@@ -2490,7 +2842,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     version: "v1",
     tags: ["brief", "eod-brief", "public"],
     match: (topicKey) => (topicKey === "news:eod:latest" ? { ok: true } : { ok: false }),
-    resolve: async () => loadNews("eod"),
+    resolve: async () => loadDatabaseV2EodBriefTopic(),
   },
   {
     id: "brief:close:latest",
@@ -2524,7 +2876,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     version: "v1",
     tags: ["brief", "eod-brief", "public"],
     match: (topicKey) => (topicKey === "brief:eod:latest" ? { ok: true } : { ok: false }),
-    resolve: async () => loadNews("eod"),
+    resolve: async () => loadDatabaseV2EodBriefTopic(),
   },
   {
     id: "brief:eod:{date}:19h",
@@ -3371,7 +3723,7 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
       ["research:rs-rating:list", "market:rs:latest", "scan:rs-rating:list"].includes(topicKey)
         ? { ok: true }
         : { ok: false },
-    resolve: async (_, context) => loadRsRatingTopic(context.force === true),
+    resolve: async (_, context) => loadDatabaseV2RankTopic(context.force === true),
   },
 ];
 

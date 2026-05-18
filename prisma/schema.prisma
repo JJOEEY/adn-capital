@@ -517,6 +517,82 @@ model MarketReport {
   @@index([type, createdAt])
 }
 
+model DatabaseMarketEvent {
+  id           String   @id @default(cuid())
+  source       String   @default("dnse")
+  dataset      String
+  channel      String
+  symbol       String?
+  messageType  String?
+  tradingDate  String
+  providerTime DateTime?
+  payload      Json
+  receivedAt   DateTime @default(now())
+
+  @@index([source, dataset, tradingDate])
+  @@index([channel, symbol, receivedAt])
+  @@index([tradingDate, receivedAt])
+}
+
+model DatabaseMarketLatest {
+  id           String   @id @default(cuid())
+  source       String   @default("dnse")
+  dataset      String
+  channel      String
+  symbol       String
+  tradingDate  String
+  providerTime DateTime?
+  payload      Json
+  receivedAt   DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([source, channel, symbol, tradingDate])
+  @@index([dataset, tradingDate])
+  @@index([symbol, updatedAt])
+}
+
+model DatabaseNewsItem {
+  id          String   @id @default(cuid())
+  source      String
+  category    String
+  title       String
+  url         String
+  summary     String?
+  publishedAt DateTime?
+  fetchedAt   DateTime @default(now())
+  hash        String
+  rawPayload  Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([source, url])
+  @@unique([source, hash])
+  @@index([source, category, publishedAt])
+  @@index([category, fetchedAt])
+  @@index([fetchedAt])
+}
+
+model DatabaseToolLatest {
+  id             String   @id @default(cuid())
+  tool           String
+  dataset        String
+  key            String
+  tradingDate    String
+  source         String   @default("database_v2")
+  payload        Json
+  missingFields  String[] @default([])
+  providerStatus Json?
+  computedAt     DateTime @default(now())
+  expiresAt      DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([tool, dataset, key, tradingDate])
+  @@index([tool, dataset, tradingDate])
+  @@index([dataset, updatedAt])
+  @@index([key, updatedAt])
+}
+
 model CronLog {
   id         String   @id @default(cuid())
   cronName   String   // morning_brief | eod_brief | prop_trading | intraday | signal_scan

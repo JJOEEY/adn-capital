@@ -21,11 +21,13 @@ type CronJobPolicy = {
 };
 
 const NEWS_CRAWLER_SLOTS = Array.from({ length: 32 }, (_, index) => 7 * 60 + index * 30);
+const SIGNAL_SCAN_INTRADAY_SLOTS = Array.from({ length: 70 }, (_, index) => 9 * 60 + index * 5)
+  .filter((minute) => minute <= 14 * 60 + 45);
 
 const CRON_JOB_POLICIES: Record<CanonicalCronType, CronJobPolicy> = {
   signal_scan_type1: {
-    slotsMinutes: [10 * 60, 10 * 60 + 30, 14 * 60, 14 * 60 + 25],
-    staleGraceMinutes: 45,
+    slotsMinutes: SIGNAL_SCAN_INTRADAY_SLOTS,
+    staleGraceMinutes: 12,
     tradingWindowOnly: true,
   },
   market_stats_type2: {
@@ -66,6 +68,86 @@ const CRON_JOB_POLICIES: Record<CanonicalCronType, CronJobPolicy> = {
   art_daily_1905: {
     slotsMinutes: [19 * 60 + 5],
     staleGraceMinutes: 120,
+    tradingWindowOnly: false,
+  },
+  database_news_collect: {
+    slotsMinutes: NEWS_CRAWLER_SLOTS,
+    staleGraceMinutes: 90,
+    tradingWindowOnly: false,
+  },
+  database_dnse_market_collect: {
+    slotsMinutes: SIGNAL_SCAN_INTRADAY_SLOTS,
+    staleGraceMinutes: 15,
+    tradingWindowOnly: true,
+  },
+  database_morning_readiness: {
+    slotsMinutes: [7 * 60 + 55],
+    staleGraceMinutes: 60,
+    tradingWindowOnly: false,
+  },
+  database_morning_brief: {
+    slotsMinutes: [8 * 60],
+    staleGraceMinutes: 90,
+    tradingWindowOnly: false,
+  },
+  database_eod_collect: {
+    slotsMinutes: [15 * 60 + 10, 19 * 60, 19 * 60 + 5, 19 * 60 + 10, 19 * 60 + 20, 19 * 60 + 30, 19 * 60 + 45],
+    staleGraceMinutes: 120,
+    tradingWindowOnly: false,
+  },
+  database_eod_readiness: {
+    slotsMinutes: [20 * 60],
+    staleGraceMinutes: 120,
+    tradingWindowOnly: false,
+  },
+  database_radar_realtime_collect: {
+    slotsMinutes: SIGNAL_SCAN_INTRADAY_SLOTS,
+    staleGraceMinutes: 3,
+    tradingWindowOnly: true,
+  },
+  database_realtime_health: {
+    slotsMinutes: SIGNAL_SCAN_INTRADAY_SLOTS.filter((minute) => minute % 5 === 0),
+    staleGraceMinutes: 10,
+    tradingWindowOnly: true,
+  },
+  database_adn_radar_collect: {
+    slotsMinutes: [10 * 60 + 5, 10 * 60 + 35, 14 * 60 + 5, 14 * 60 + 30],
+    staleGraceMinutes: 45,
+    tradingWindowOnly: true,
+  },
+  database_adn_radar_readiness: {
+    slotsMinutes: [10 * 60 + 40, 14 * 60 + 35],
+    staleGraceMinutes: 60,
+    tradingWindowOnly: true,
+  },
+  database_adn_art_collect: {
+    slotsMinutes: SIGNAL_SCAN_INTRADAY_SLOTS,
+    staleGraceMinutes: 15,
+    tradingWindowOnly: true,
+  },
+  database_adn_art_readiness: {
+    slotsMinutes: [10 * 60, 11 * 60 + 30, 14 * 60, 14 * 60 + 45],
+    staleGraceMinutes: 45,
+    tradingWindowOnly: true,
+  },
+  database_adncore_collect: {
+    slotsMinutes: [15 * 60 + 5, 15 * 60 + 20],
+    staleGraceMinutes: 90,
+    tradingWindowOnly: false,
+  },
+  database_adncore_readiness: {
+    slotsMinutes: [15 * 60 + 30],
+    staleGraceMinutes: 120,
+    tradingWindowOnly: false,
+  },
+  database_adn_rank_collect: {
+    slotsMinutes: [15 * 60],
+    staleGraceMinutes: 90,
+    tradingWindowOnly: false,
+  },
+  database_adn_rank_readiness: {
+    slotsMinutes: [15 * 60 + 10],
+    staleGraceMinutes: 90,
     tradingWindowOnly: false,
   },
 };

@@ -177,6 +177,7 @@ export interface FiinMorningNews {
 
 export interface FiinEodNews {
   date: string;
+  date_key?: string;
   vnindex: number;
   change_pct: number;
   liquidity: number;
@@ -202,6 +203,9 @@ export interface FiinEodNews {
   sell_signals: string[];
   top_breakout: string[];
   top_new_high?: string[];
+  sourceStatus?: Record<string, unknown>;
+  missingFields?: string[];
+  publishReady?: boolean;
 }
 
 export interface FiinIntradaySnapshot {
@@ -420,8 +424,8 @@ function repairMojibakeDeep<T>(value: T): T {
 // ═══════════════════════════════════════════════
 
 /** Market Overview (VNINDEX health score) */
-export async function fetchMarketOverview(): Promise<FiinMarketOverview | null> {
-  return fiinFetch<FiinMarketOverview>("/api/v1/market-overview");
+export async function fetchMarketOverview(options?: { timeout?: number }): Promise<FiinMarketOverview | null> {
+  return fiinFetch<FiinMarketOverview>("/api/v1/market-overview", options);
 }
 
 /** P/E, P/B chuẩn cho chỉ số thị trường */
@@ -489,9 +493,16 @@ export async function fetchEodNews(): Promise<FiinEodNews | null> {
   return eod ? repairMojibakeDeep(eod) : null;
 }
 
+/** Canonical FiinQuantX EOD market data */
+export async function fetchEodMarketData(dateISO?: string): Promise<FiinEodNews | null> {
+  const query = dateISO ? `?date=${encodeURIComponent(dateISO)}` : "";
+  const eod = await fiinFetch<FiinEodNews>(`/api/v1/eod-market-data${query}`, { timeout: 300_000 });
+  return eod ? repairMojibakeDeep(eod) : null;
+}
+
 /** Intraday Market Snapshot (realtime) */
-export async function fetchIntradaySnapshot(): Promise<FiinIntradaySnapshot | null> {
-  return fiinFetch<FiinIntradaySnapshot>("/api/v1/market-snapshot");
+export async function fetchIntradaySnapshot(options?: { timeout?: number }): Promise<FiinIntradaySnapshot | null> {
+  return fiinFetch<FiinIntradaySnapshot>("/api/v1/market-snapshot", options);
 }
 
 /** Dữ liệu realtime theo mã (nền tảng Trading_Data_Stream/Fetch_Trading_Data từ bridge) */
@@ -575,10 +586,12 @@ export async function fetchScanNow(): Promise<unknown> {
 
 /** Độ rộng thị trường (MarketBreadth) — số mã tăng/giảm/trần/sàn */
 export async function fetchMarketBreadth(
-  tickers = "VNINDEX,VN30,HNXINDEX,UPCOMINDEX"
+  tickers = "VNINDEX,VN30,HNXINDEX,UPCOMINDEX",
+  options?: { timeout?: number },
 ): Promise<FiinMarketBreadthResponse | null> {
   return fiinFetch<FiinMarketBreadthResponse>(
-    `/api/v1/market-breadth?tickers=${encodeURIComponent(tickers)}`
+    `/api/v1/market-breadth?tickers=${encodeURIComponent(tickers)}`,
+    options,
   );
 }
 
@@ -587,6 +600,7 @@ export async function fetchInvestorTrading(options?: {
   tickers?: string;
   fromDate?: string;
   toDate?: string;
+  timeout?: number;
 }): Promise<FiinInvestorTradingResponse | null> {
   const params = new URLSearchParams();
   if (options?.tickers) params.set("tickers", options.tickers);
@@ -595,6 +609,6 @@ export async function fetchInvestorTrading(options?: {
   const qs = params.toString();
   return fiinFetch<FiinInvestorTradingResponse>(
     `/api/v1/investor-trading${qs ? `?${qs}` : ""}`,
-    { timeout: 60_000 }
+    { timeout: options?.timeout ?? 60_000 },
   );
 }

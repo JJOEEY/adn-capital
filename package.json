@@ -19,7 +19,16 @@
     "verify:phase6:staging": "node scripts/phase6-staging-runtime-verify.mjs",
     "verify:phase7:observability": "node scripts/phase7-observability-verify.mjs",
     "verify:signal-reporting": "node scripts/verify-signal-reporting.mjs",
-    "verify:dnse-market": "node scripts/verify-dnse-market-provider.mjs"
+    "verify:dnse-market": "node scripts/verify-dnse-market-provider.mjs",
+    "verify:database:dnse-market": "node scripts/verify-database-dnse-market.mjs",
+    "verify:database:dnse-websocket": "node scripts/verify-database-dnse-websocket.mjs",
+    "verify:database:news": "node scripts/verify-database-news.mjs",
+    "verify:database:aiden": "node scripts/verify-database-aiden.mjs",
+    "verify:database:morning-readiness": "node scripts/verify-database-morning-readiness.mjs",
+    "verify:database:morning-brief": "node scripts/verify-database-morning-brief.mjs",
+    "verify:database:v2-cron-setup": "node scripts/verify-database-v2-cron-setup.mjs",
+    "verify:database:readiness": "node scripts/verify-database-readiness.mjs",
+    "verify:database:radar-realtime": "node scripts/verify-database-radar-realtime.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",
