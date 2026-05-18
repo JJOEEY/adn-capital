@@ -28,12 +28,16 @@ function hasIndex(data: Awaited<ReturnType<typeof getDatabaseEodMarketDataset>>[
 export async function getDatabaseMorningReadiness(options?: {
   tradingDate?: string;
   previousTradingDate?: string;
+  useFiinquantFallback?: boolean;
 }): Promise<DatabaseMorningReadiness> {
   const tradingDate = options?.tradingDate ?? dateKeyInVietnam();
   const previousTradingDate = options?.previousTradingDate ?? previousTradingDateKey();
   const [news, eod] = await Promise.all([
     getDatabaseNewsHealth({ windowHours: 36 }),
-    getDatabaseEodMarketDataset({ tradingDate: previousTradingDate, useFiinquantFallback: true }),
+    getDatabaseEodMarketDataset({
+      tradingDate: previousTradingDate,
+      useFiinquantFallback: options?.useFiinquantFallback ?? true,
+    }),
   ]);
 
   const requiredIndices = ["VNINDEX", "VN30"];

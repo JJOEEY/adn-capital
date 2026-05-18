@@ -7,8 +7,8 @@ import { getDatabaseRealtimeHealth } from "@/lib/database/radar-realtime";
 export async function getDatabaseV2Readiness() {
   const [news, morning, eod, realtime, aiden] = await Promise.all([
     getDatabaseNewsHealth(),
-    getDatabaseMorningReadiness(),
-    getDatabaseEodMarketDataset({ useFiinquantFallback: true }),
+    getDatabaseMorningReadiness({ useFiinquantFallback: false }),
+    getDatabaseEodMarketDataset({ useFiinquantFallback: false }),
     getDatabaseRealtimeHealth(),
     getDatabaseAidenHealth(),
   ]);
