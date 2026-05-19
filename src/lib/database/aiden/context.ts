@@ -77,7 +77,8 @@ function buildTickerMarket(
 ) {
   const latest = rowPayload(latestRow);
   const ohlcv = rowPayload(ohlcvRow);
-  const payload = Object.keys(latest).length ? latest : ohlcv;
+  const latestPrice = firstNumber(latest, ["price", "matchPrice", "lastPrice", "close", "c"]);
+  const payload = latestPrice != null ? latest : ohlcv;
   const price = firstNumber(payload, ["price", "matchPrice", "lastPrice", "close", "c"]);
   const reference = firstNumber(payload, ["reference", "refPrice", "basicPrice", "priorClosePrice", "previousClose"]);
   const change = firstNumber(payload, ["changedValue", "change", "priceChange"]);
