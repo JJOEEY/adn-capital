@@ -36,7 +36,7 @@ export type {
   DatabaseAidenMarketContext,
   DatabaseAidenTickerContext,
 } from "./aiden";
-export { getDatabaseEodMarketDataset } from "./eod";
+export { getCachedDatabaseEodMarketDataset, getDatabaseEodMarketDataset } from "./eod";
 export { getDatabaseMorningBrief } from "./morning-brief";
 export {
   collectDnseEodMarketToDatabase,

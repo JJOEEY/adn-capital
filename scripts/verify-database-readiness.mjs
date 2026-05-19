@@ -36,7 +36,7 @@ const checks = [
     ok:
       readiness.includes("getDatabaseNewsHealth") &&
       readiness.includes("getDatabaseToolLatest") &&
-      readiness.includes("getDatabaseEodMarketDataset") &&
+      readiness.includes("market.eod") &&
       readiness.includes("getDatabaseRealtimeHealth") &&
       readiness.includes("brief.morning") &&
       readiness.includes("aiden.context"),

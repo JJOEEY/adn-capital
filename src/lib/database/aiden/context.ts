@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import type { DatabaseProviderStatus, DatabaseResult } from "@/lib/database/contracts";
 import { databaseError, databaseOk } from "@/lib/database/contracts";
-import { getDatabaseEodMarketDataset } from "@/lib/database/eod";
+import { getCachedDatabaseEodMarketDataset, getDatabaseEodMarketDataset } from "@/lib/database/eod";
 import { getDatabaseNewsDataset } from "@/lib/database/providers/news";
 import type { DatabaseNewsItem } from "@/lib/database/providers/news";
 import { prisma } from "@/lib/prisma";
@@ -264,11 +264,13 @@ export async function getDatabaseAidenContext(options?: {
   const previousTradingDate = options?.previousTradingDate ?? previousTradingDateKey();
   try {
     const tickers = Array.from(new Set((options?.tickers ?? []).map(normalizeTicker).filter(Boolean))).slice(0, 4);
-    const [eod, latestNews, marketNews, macroNews, globalNews, tickerResults] = await Promise.all([
-      getDatabaseEodMarketDataset({
+    const eodPromise = getCachedDatabaseEodMarketDataset({ tradingDate: previousTradingDate })
+      .then((cached) => cached ?? getDatabaseEodMarketDataset({
         tradingDate: previousTradingDate,
         useFiinquantFallback: options?.useFiinquantFallback ?? true,
-      }),
+      }));
+    const [eod, latestNews, marketNews, macroNews, globalNews, tickerResults] = await Promise.all([
+      eodPromise,
       getDatabaseNewsDataset({ category: "latest", limit: 12, windowHours: options?.windowHours ?? 36 }),
       getDatabaseNewsDataset({ category: "market", limit: 12, windowHours: options?.windowHours ?? 36 }),
       getDatabaseNewsDataset({ category: "macro", limit: 8, windowHours: options?.windowHours ?? 36 }),

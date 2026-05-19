@@ -399,7 +399,11 @@ async function handleDatabaseEodPublish(forceRun: boolean, dateISO: string, toda
       });
     }
 
-    const eod = await getDatabaseEodMarketDataset({ tradingDate: dateISO, useFiinquantFallback: true });
+    const eod = await getDatabaseEodMarketDataset({
+      tradingDate: dateISO,
+      useFiinquantFallback: true,
+      fiinquantTimeoutMs: 180_000,
+    });
     if (!eod.data || !hasDatabaseEodRequiredFields(eod)) {
       const duration = Date.now() - startTime;
       const retryWindow = !forceRun && getVnMinuteOfDay() <= 20 * 60;
@@ -860,7 +864,11 @@ async function handleDatabaseV2Cron(type: CanonicalCronType, forceRun = false): 
 
     if (type === "database_eod_collect" || type === "database_eod_readiness") {
       const tradingDate = databaseEodReadDateKey();
-      const result = await getDatabaseEodMarketDataset({ tradingDate, useFiinquantFallback: true });
+      const result = await getDatabaseEodMarketDataset({
+        tradingDate,
+        useFiinquantFallback: true,
+        fiinquantTimeoutMs: type === "database_eod_collect" ? 240_000 : 60_000,
+      });
       await persistDatabaseToolCronPayload({
         tool: "eod",
         dataset: "market.eod",

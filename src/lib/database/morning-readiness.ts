@@ -1,4 +1,4 @@
-import { getDatabaseEodMarketDataset } from "@/lib/database/eod";
+import { getCachedDatabaseEodMarketDataset, getDatabaseEodMarketDataset } from "@/lib/database/eod";
 import { getDatabaseNewsHealth } from "@/lib/database/providers/news";
 import type { DatabaseMorningReadiness } from "@/lib/database/providers/news";
 
@@ -32,12 +32,14 @@ export async function getDatabaseMorningReadiness(options?: {
 }): Promise<DatabaseMorningReadiness> {
   const tradingDate = options?.tradingDate ?? dateKeyInVietnam();
   const previousTradingDate = options?.previousTradingDate ?? previousTradingDateKey();
-  const [news, eod] = await Promise.all([
-    getDatabaseNewsHealth({ windowHours: 36 }),
-    getDatabaseEodMarketDataset({
+  const eodPromise = getCachedDatabaseEodMarketDataset({ tradingDate: previousTradingDate })
+    .then((cached) => cached ?? getDatabaseEodMarketDataset({
       tradingDate: previousTradingDate,
       useFiinquantFallback: options?.useFiinquantFallback ?? true,
-    }),
+    }));
+  const [news, eod] = await Promise.all([
+    getDatabaseNewsHealth({ windowHours: 36 }),
+    eodPromise,
   ]);
 
   const requiredIndices = ["VNINDEX", "VN30"];

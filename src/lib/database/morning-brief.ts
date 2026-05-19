@@ -1,6 +1,6 @@
 import type { DatabaseResult } from "@/lib/database/contracts";
 import { databaseOk } from "@/lib/database/contracts";
-import { getDatabaseEodMarketDataset } from "@/lib/database/eod";
+import { getCachedDatabaseEodMarketDataset, getDatabaseEodMarketDataset } from "@/lib/database/eod";
 import { getDatabaseNewsDataset } from "@/lib/database/providers/news";
 import type { DatabaseMorningBriefPayload, DatabaseNewsItem } from "@/lib/database/providers/news";
 
@@ -199,14 +199,16 @@ export async function getDatabaseMorningBrief(options?: {
   const startedAt = Date.now();
   const tradingDate = options?.tradingDate ?? dateKeyInVietnam();
   const previousTradingDate = options?.previousTradingDate ?? previousTradingDateKey();
+  const eodPromise = getCachedDatabaseEodMarketDataset({ tradingDate: previousTradingDate })
+    .then((cached) => cached ?? getDatabaseEodMarketDataset({
+      tradingDate: previousTradingDate,
+      useFiinquantFallback: options?.useFiinquantFallback ?? false,
+    }));
   const [marketNews, macroNews, globalNews, eod] = await Promise.all([
     getDatabaseNewsDataset({ category: "market", limit: 24, windowHours: options?.windowHours ?? 36 }),
     getDatabaseNewsDataset({ category: "macro", limit: 12, windowHours: options?.windowHours ?? 36 }),
     getDatabaseNewsDataset({ category: "global", limit: 12, windowHours: options?.windowHours ?? 36 }),
-    getDatabaseEodMarketDataset({
-      tradingDate: previousTradingDate,
-      useFiinquantFallback: options?.useFiinquantFallback ?? false,
-    }),
+    eodPromise,
   ]);
 
   const vnNews = marketNews.data ?? [];

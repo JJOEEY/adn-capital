@@ -1,7 +1,16 @@
-import { getDatabaseEodMarketDataset } from "@/lib/database/eod";
 import { getDatabaseNewsHealth } from "@/lib/database/providers/news";
 import { getDatabaseRealtimeHealth } from "@/lib/database/radar-realtime";
 import { getDatabaseToolLatest } from "@/lib/database/tool-latest";
+
+function isFiinquantInvestorFlowField(field: string) {
+  return field.includes("requires-fiinquant-fallback") || field.toLowerCase().includes("fiinquant");
+}
+
+function splitEodMissingFields(fields: string[]) {
+  const fiinquantInvestorFlow = fields.filter(isFiinquantInvestorFlowField);
+  const dnseMarket = fields.filter((field) => !isFiinquantInvestorFlowField(field));
+  return { dnseMarket, fiinquantInvestorFlow };
+}
 
 export async function getDatabaseV2Readiness() {
   const [news, morning, eod, realtime, aiden] = await Promise.all([
@@ -18,6 +27,7 @@ export async function getDatabaseV2Readiness() {
     ...realtime.missingFields.map((field) => `realtime:${field}`),
     ...(!aiden ? ["aiden:context.latest"] : aiden.missingFields.map((field) => `aiden:${field}`)),
   ];
+  const eodMissing = splitEodMissingFields(eod?.missingFields ?? []);
   return {
     ok: missingFields.length === 0,
     status: missingFields.length === 0 ? "ok" : "degraded",
@@ -37,10 +47,14 @@ export async function getDatabaseV2Readiness() {
       eod: eod
         ? {
             ok: eod.missingFields.length === 0,
+            dnseMarketOk: eodMissing.dnseMarket.length === 0,
+            fiinquantInvestorFlowOk: eodMissing.fiinquantInvestorFlow.length === 0,
             dataset: eod.dataset,
             source: eod.source,
             updatedAt: eod.updatedAt,
             missingFields: eod.missingFields,
+            dnseMarketMissingFields: eodMissing.dnseMarket,
+            fiinquantInvestorFlowMissingFields: eodMissing.fiinquantInvestorFlow,
           }
         : { ok: false, missingFields: ["market.eod:latest"] },
       realtime,

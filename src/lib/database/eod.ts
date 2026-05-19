@@ -1,6 +1,7 @@
 import type { DatabaseProviderStatus, DatabaseResult } from "@/lib/database/contracts";
 import { databaseError, databaseOk } from "@/lib/database/contracts";
 import { fetchEodMarketData } from "@/lib/fiinquantClient";
+import { getDatabaseToolLatest } from "./tool-latest";
 import { getStoredDnseEodMarketDataset } from "./providers/dnse";
 import type { DnseEodMarketData } from "./providers/dnse";
 
@@ -15,6 +16,10 @@ function dateKeyInVietnam(date = new Date()) {
 
 function needsFiinquantFallback(missingFields: string[]) {
   return missingFields.some((field) => field.includes("requires-fiinquant-fallback"));
+}
+
+function isFiinquantFallbackField(field: string) {
+  return field.includes("requires-fiinquant-fallback") || field.toLowerCase().includes("fiinquant");
 }
 
 function hasFallbackData(data: NonNullable<DnseEodMarketData["fallback"]>["fiinquant"]) {
@@ -79,6 +84,41 @@ function applyDerivedEodFields(data: DnseEodMarketData, missingFields: string[])
   return { data: nextData, missingFields: nextMissing };
 }
 
+export async function getCachedDatabaseEodMarketDataset(options?: {
+  tradingDate?: string;
+  maxAgeMs?: number;
+}): Promise<DatabaseResult<DnseEodMarketData> | null> {
+  const startedAt = Date.now();
+  const record = await getDatabaseToolLatest<DnseEodMarketData>({
+    tool: "eod",
+    dataset: "market.eod",
+    key: "latest",
+    tradingDate: options?.tradingDate,
+    maxAgeMs: options?.maxAgeMs ?? 48 * 60 * 60_000,
+    ignoreExpires: true,
+  });
+  if (!record?.payload) return null;
+
+  const missingFields = record.missingFields ?? [];
+  return databaseOk(
+    "market.eod",
+    "database",
+    record.payload,
+    {
+      provider: "database",
+      ok: missingFields.length === 0,
+      endpoint: "postgres:DatabaseToolLatest",
+      latencyMs: Date.now() - startedAt,
+      code: missingFields.length ? "database_v2_eod_cached_partial" : undefined,
+      message: missingFields.length
+        ? "Database v2 EOD cached dataset is partial."
+        : undefined,
+      retryable: missingFields.length > 0,
+    },
+    missingFields,
+  );
+}
+
 export async function getDatabaseEodMarketDataset(options?: {
   symbols?: string[];
   tradingDate?: string;
@@ -131,14 +171,16 @@ export async function getDatabaseEodMarketDataset(options?: {
   const providerStatus: DatabaseProviderStatus = {
     provider: "database",
     ok: Boolean(data) && missingFields.length === 0,
-    endpoint: "postgres:DatabaseMarketLatest+fiinquant:eod",
+    endpoint: "postgres:DatabaseMarketLatest+DatabaseMarketEvent+fiinquant:eod",
     httpStatus: null,
     latencyMs: Date.now() - startedAt,
     code: missingFields.length ? "database_v2_eod_partial" : undefined,
     message: fallbackError
       ? `FiinQuant fallback failed: ${fallbackError}`
       : missingFields.length
-        ? "Database v2 EOD is still partial after controlled fallback."
+        ? missingFields.every(isFiinquantFallbackField)
+          ? "DNSE market data is ready; FiinQuant investor-flow fallback is pending."
+          : "Database v2 EOD is still partial after controlled fallback."
         : undefined,
     retryable: missingFields.length > 0,
   };
