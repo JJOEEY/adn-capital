@@ -158,7 +158,7 @@ function buildEodDataFromMessages(params: {
   latestRows: Array<{ channel: string; symbol: string; payload: Prisma.JsonValue; receivedAt: Date }>;
   eventRows: number;
 }): DnseEodMarketData {
-  const rows = params.latestRows.map((row) => {
+  const rowCandidates = params.latestRows.map((row) => {
     const payload = toRecord(row.payload);
     const channel = payload ? channelFromMessage(payload) : normalizeChannelName(row.channel);
     const symbol = payload && (!row.symbol || row.symbol === "MARKET")
@@ -166,6 +166,13 @@ function buildEodDataFromMessages(params: {
       : normalizeDnseSymbol(row.symbol);
     return { ...row, channel, symbol, payload };
   });
+  const rowsByKey = new Map<string, (typeof rowCandidates)[number]>();
+  for (const row of rowCandidates) {
+    if (!row.payload || !hasDataPayload(row.payload)) continue;
+    const key = `${row.channel}:${row.symbol}`;
+    if (!rowsByKey.has(key)) rowsByKey.set(key, row);
+  }
+  const rows = Array.from(rowsByKey.values());
   const messages = rows.map((row) => row.payload).filter((item): item is JsonRecord => Boolean(item));
   const activeChannels = Array.from(new Set(rows.map((row) => row.channel))).filter(Boolean);
   const presentFields = messageKeys(messages);
@@ -369,39 +376,52 @@ export async function getStoredDnseEodMarketDataset(options?: {
   const symbols = Array.from(new Set((options?.symbols?.length ? options.symbols : [...DNSE_DEFAULT_EOD_SYMBOLS]).map(normalizeDnseSymbol).filter(Boolean)));
   const channels = dnseEodChannels(symbols);
   try {
-    const latestRows = await prisma.databaseMarketLatest.findMany({
-      where: {
-        source: "dnse",
-        dataset: "market.eod",
-        tradingDate,
-      },
-      orderBy: { updatedAt: "desc" },
-    });
-    const eventRows = await prisma.databaseMarketEvent.count({
-      where: {
-        source: "dnse",
-        dataset: "market.eod",
-        tradingDate,
-      },
-    });
+    const where = {
+      source: "dnse",
+      dataset: "market.eod",
+      tradingDate,
+    };
+    const [latestRows, eventRows, eventSamples] = await Promise.all([
+      prisma.databaseMarketLatest.findMany({
+        where,
+        orderBy: { updatedAt: "desc" },
+      }),
+      prisma.databaseMarketEvent.count({ where }),
+      prisma.databaseMarketEvent.findMany({
+        where,
+        orderBy: { receivedAt: "desc" },
+        take: 600,
+        select: {
+          channel: true,
+          symbol: true,
+          payload: true,
+          receivedAt: true,
+        },
+      }),
+    ]);
 
-    const data = buildEodDataFromMessages({ tradingDate, channels, latestRows, eventRows });
-    const missingFields = latestRows.length
+    const eventRowsForBuild = eventSamples.map((row) => ({
+      ...row,
+      symbol: row.symbol ?? "MARKET",
+    }));
+    const data = buildEodDataFromMessages({ tradingDate, channels, latestRows: [...latestRows, ...eventRowsForBuild], eventRows });
+    const storedRows = data.runtimeCoverage.latestRows ?? 0;
+    const missingFields = storedRows
       ? data.runtimeCoverage.missingFields
       : ["database.market.latest:empty", ...data.runtimeCoverage.missingFields];
     const providerStatus: DatabaseProviderStatus = {
       provider: "dnse",
-      ok: latestRows.length > 0 && missingFields.length === 0,
-      endpoint: "postgres:DatabaseMarketLatest",
+      ok: storedRows > 0 && missingFields.length === 0,
+      endpoint: "postgres:DatabaseMarketLatest+DatabaseMarketEvent",
       httpStatus: null,
       latencyMs: Date.now() - startedAt,
-      code: latestRows.length ? (missingFields.length ? "database_v2_eod_partial" : undefined) : "database_v2_eod_empty",
-      message: latestRows.length
+      code: storedRows ? (missingFields.length ? "database_v2_eod_partial" : undefined) : "database_v2_eod_empty",
+      message: storedRows
         ? missingFields.length
           ? "Database v2 has DNSE market rows, but EOD coverage is still partial."
           : undefined
         : "Database v2 has no DNSE EOD rows for this trading date. Run the DNSE collector during market hours.",
-      retryable: latestRows.length === 0,
+      retryable: storedRows === 0,
     };
     return databaseOk("market.eod", "dnse", data, providerStatus, missingFields);
   } catch (error) {
