@@ -15,6 +15,7 @@ const GROUPS: Array<{ label: string; keywords: string[] }> = [
 
 const POSITIVE_WORDS = ["tang", "mua rong", "ho tro", "huong loi", "ky luc", "dot pha", "loi nhuan", "co tuc", "mo rong", "hop tac"];
 const NEGATIVE_WORDS = ["giam", "ban rong", "ap luc", "rui ro", "khoi to", "thua lo", "suy giam", "no xau", "pha san", "dieu tra"];
+const REQUIRED_REFERENCE_INDICES = new Set(["VN-INDEX", "VN30"]);
 
 function dateKeyInVietnam(date = new Date()) {
   return new Intl.DateTimeFormat("en-CA", {
@@ -238,7 +239,7 @@ export async function getDatabaseMorningBrief(options?: {
     ...(!payload.macro.length ? ["morning.macro"] : []),
     ...(!payload.risk_opportunity.length ? ["morning.risk_opportunity"] : []),
     ...payload.reference_indices
-      .filter((item) => item.value == null)
+      .filter((item) => REQUIRED_REFERENCE_INDICES.has(item.name) && item.value == null)
       .map((item) => `morning.reference_index:${item.name}`),
     ...marketNews.missingFields.map((field) => `news:${field}`),
     ...macroOrGlobalMissing.map((field) => `news:${field}`),

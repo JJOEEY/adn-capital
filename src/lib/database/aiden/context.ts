@@ -74,13 +74,16 @@ function rowUpdatedAt(row: { receivedAt?: Date; updatedAt?: Date; providerTime?:
 function buildTickerMarket(
   latestRow: { payload: Prisma.JsonValue; tradingDate: string; providerTime: Date | null; updatedAt: Date; receivedAt: Date } | null,
   ohlcvRow: { payload: Prisma.JsonValue; tradingDate?: string; providerTime: Date | null; updatedAt?: Date; receivedAt: Date } | null,
+  previousOhlcvRow?: { payload: Prisma.JsonValue } | null,
 ) {
   const latest = rowPayload(latestRow);
   const ohlcv = rowPayload(ohlcvRow);
+  const previousOhlcv = rowPayload(previousOhlcvRow ?? null);
   const latestPrice = firstNumber(latest, ["price", "matchPrice", "lastPrice", "close", "c"]);
   const payload = latestPrice != null ? latest : ohlcv;
   const price = firstNumber(payload, ["price", "matchPrice", "lastPrice", "close", "c"]);
-  const reference = firstNumber(payload, ["reference", "refPrice", "basicPrice", "priorClosePrice", "previousClose"]);
+  const reference = firstNumber(payload, ["reference", "refPrice", "basicPrice", "priorClosePrice", "previousClose"]) ??
+    firstNumber(previousOhlcv, ["close", "matchPrice", "c"]);
   const change = firstNumber(payload, ["changedValue", "change", "priceChange"]);
   const changePct = firstNumber(payload, ["changedRatio", "changePct", "percentChange"]);
 
@@ -179,7 +182,7 @@ export async function getDatabaseAidenTickerContext(options: {
   }
 
   const since = new Date(Date.now() - windowHours * 60 * 60 * 1000);
-  const [latestRow, ohlcvRow, eventRows, newsRows] = await Promise.all([
+  const [latestRow, ohlcvRow, eventRows, previousEventRows, newsRows] = await Promise.all([
     prisma.databaseMarketLatest.findFirst({
       where: {
         source: "dnse",
@@ -205,8 +208,20 @@ export async function getDatabaseAidenTickerContext(options: {
         ...(options.tradingDate ? { tradingDate: options.tradingDate } : {}),
       },
       orderBy: { receivedAt: "desc" },
-      take: 30,
+      take: 200,
     }),
+    options.tradingDate
+      ? prisma.databaseMarketEvent.findMany({
+          where: {
+            source: "dnse",
+            dataset: "market.eod",
+            symbol: ticker,
+            tradingDate: { lt: options.tradingDate },
+          },
+          orderBy: { receivedAt: "desc" },
+          take: 200,
+        })
+      : Promise.resolve([]),
     prisma.databaseNewsItem.findMany({
       where: {
         fetchedAt: { gte: since },
@@ -224,8 +239,12 @@ export async function getDatabaseAidenTickerContext(options: {
     const payload = rowPayload(row);
     return payload.T === "te" || payload.matchPrice != null || payload.openPrice != null;
   }) ?? null;
+  const previousOhlcvEventRow = previousEventRows.find((row) => {
+    const payload = rowPayload(row);
+    return payload.T === "te" || payload.matchPrice != null || payload.openPrice != null;
+  }) ?? null;
   const effectiveOhlcvRow = ohlcvRow ?? ohlcvEventRow;
-  const market = buildTickerMarket(latestRow, effectiveOhlcvRow);
+  const market = buildTickerMarket(latestRow, effectiveOhlcvRow, previousOhlcvEventRow);
   const dailyOhlcv = buildDailyOhlcv(effectiveOhlcvRow);
   const missingFields = [
     market.price == null ? "aiden.stock.price" : null,
@@ -277,7 +296,7 @@ export async function getDatabaseAidenContext(options?: {
       getDatabaseNewsDataset({ category: "global", limit: 8, windowHours: options?.windowHours ?? 36 }),
       Promise.all(tickers.map((ticker) => getDatabaseAidenTickerContext({
         ticker,
-        tradingDate: options?.tradingDate,
+        tradingDate: previousTradingDate,
         windowHours: options?.windowHours,
       }))),
     ]);
@@ -293,8 +312,9 @@ export async function getDatabaseAidenContext(options?: {
       ...eod.missingFields.map((field) => `aiden.eod:${field}`),
       ...latestNews.missingFields.map((field) => `aiden.news:${field}`),
       ...marketNews.missingFields.map((field) => `aiden.news:${field}`),
-      ...macroNews.missingFields.map((field) => `aiden.news:${field}`),
-      ...globalNews.missingFields.map((field) => `aiden.news:${field}`),
+      ...(!(macroNews.data?.length || globalNews.data?.length)
+        ? [...macroNews.missingFields, ...globalNews.missingFields].map((field) => `aiden.news:${field}`)
+        : []),
       ...tickerResults.flatMap((item) => item.missingFields.map((field) => `${item.data?.ticker ?? "ticker"}:${field}`)),
     ];
 
