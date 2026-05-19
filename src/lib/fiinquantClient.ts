@@ -494,9 +494,9 @@ export async function fetchEodNews(): Promise<FiinEodNews | null> {
 }
 
 /** Canonical FiinQuantX EOD market data */
-export async function fetchEodMarketData(dateISO?: string): Promise<FiinEodNews | null> {
+export async function fetchEodMarketData(dateISO?: string, options?: { timeout?: number }): Promise<FiinEodNews | null> {
   const query = dateISO ? `?date=${encodeURIComponent(dateISO)}` : "";
-  const eod = await fiinFetch<FiinEodNews>(`/api/v1/eod-market-data${query}`, { timeout: 300_000 });
+  const eod = await fiinFetch<FiinEodNews>(`/api/v1/eod-market-data${query}`, { timeout: options?.timeout ?? 300_000 });
   return eod ? repairMojibakeDeep(eod) : null;
 }
 

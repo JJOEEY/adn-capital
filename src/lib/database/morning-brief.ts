@@ -194,6 +194,7 @@ export async function getDatabaseMorningBrief(options?: {
   tradingDate?: string;
   previousTradingDate?: string;
   windowHours?: number;
+  useFiinquantFallback?: boolean;
 }): Promise<DatabaseResult<DatabaseMorningBriefPayload>> {
   const startedAt = Date.now();
   const tradingDate = options?.tradingDate ?? dateKeyInVietnam();
@@ -202,7 +203,10 @@ export async function getDatabaseMorningBrief(options?: {
     getDatabaseNewsDataset({ category: "market", limit: 24, windowHours: options?.windowHours ?? 36 }),
     getDatabaseNewsDataset({ category: "macro", limit: 12, windowHours: options?.windowHours ?? 36 }),
     getDatabaseNewsDataset({ category: "global", limit: 12, windowHours: options?.windowHours ?? 36 }),
-    getDatabaseEodMarketDataset({ tradingDate: previousTradingDate, useFiinquantFallback: true }),
+    getDatabaseEodMarketDataset({
+      tradingDate: previousTradingDate,
+      useFiinquantFallback: options?.useFiinquantFallback ?? false,
+    }),
   ]);
 
   const vnNews = marketNews.data ?? [];

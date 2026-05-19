@@ -83,6 +83,7 @@ export async function getDatabaseEodMarketDataset(options?: {
   symbols?: string[];
   tradingDate?: string;
   useFiinquantFallback?: boolean;
+  fiinquantTimeoutMs?: number;
 }): Promise<DatabaseResult<DnseEodMarketData>> {
   const startedAt = Date.now();
   const tradingDate = options?.tradingDate ?? dateKeyInVietnam();
@@ -97,7 +98,7 @@ export async function getDatabaseEodMarketDataset(options?: {
 
   if (data && options?.useFiinquantFallback !== false && needsFiinquantFallback(missingFields)) {
     try {
-      const fiin = await fetchEodMarketData(tradingDate);
+      const fiin = await fetchEodMarketData(tradingDate, { timeout: options?.fiinquantTimeoutMs ?? 45_000 });
       const fiinFallback: NonNullable<DnseEodMarketData["fallback"]>["fiinquant"] = {
         propTradingTopBuy: fiin?.prop_trading_top_buy ?? [],
         propTradingTopSell: fiin?.prop_trading_top_sell ?? [],
