@@ -62,8 +62,8 @@ export const DNSE_EOD_FIELD_MAP: DnseEodFieldMapItem[] = [
   {
     field: "ohlcv_1d",
     source: "dnse_ws",
-    dnseChannels: ["ohlc_closed.1D.json"],
-    dnseFields: ["open", "high", "low", "close", "volume", "value"],
+    dnseChannels: ["ohlc_closed.1D.json", "tick_extra.G1.json"],
+    dnseFields: ["open", "openPrice", "high", "highestPrice", "low", "lowestPrice", "close", "matchPrice", "volume", "totalVolumeTraded", "value", "grossTradeAmount"],
     fallbackSource: null,
     note: "Daily OHLCV captured by the live collector.",
   },

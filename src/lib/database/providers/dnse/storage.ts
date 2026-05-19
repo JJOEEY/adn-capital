@@ -78,8 +78,25 @@ function readDate(record: JsonRecord | null): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function indexSymbolFromMessage(message: JsonRecord) {
+  const raw = readString(message, ["symbol", "indexName", "marketId", "marketIndexClass"]);
+  const compact = (raw ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!compact) return null;
+  if (compact.includes("VN30")) return "VN30";
+  if (compact.includes("UPCOM") || compact === "UPX") return "UPCOMINDEX";
+  if (compact.includes("HNX")) return "HNXINDEX";
+  if (compact.includes("VNINDEX") || compact === "VNI" || compact === "STX") return "VNINDEX";
+  return normalizeDnseSymbol(compact);
+}
+
 function channelFromMessage(message: JsonRecord) {
-  return readString(message, ["channel", "ch", "topic", "stream"]) ?? "unknown";
+  const explicit = readString(message, ["channel", "ch", "topic", "stream"]);
+  if (explicit) return explicit;
+  const type = messageTypeFromMessage(message);
+  if (type === "mi") return `market_index.${indexSymbolFromMessage(message) ?? "VNINDEX"}.json`;
+  if (type === "f") return "foreign.G1.json";
+  if (type === "te") return "ohlc_closed.1D.json";
+  return "unknown";
 }
 
 function messageTypeFromMessage(message: JsonRecord) {
@@ -95,6 +112,7 @@ function symbolFromChannel(channel: string) {
 function symbolFromMessage(message: JsonRecord, channel: string) {
   return (
     normalizeDnseSymbol(readString(message, ["symbol", "Symbol", "s", "ticker", "code"])) ||
+    (channel.startsWith("market_index.") ? indexSymbolFromMessage(message) : null) ||
     symbolFromChannel(channel) ||
     "MARKET"
   );
@@ -170,10 +188,10 @@ function buildEodDataFromMessages(params: {
       const payload = toRecord(row.payload);
       return {
         ticker: row.symbol,
-        open: readNumber(payload, ["open", "o"]),
-        high: readNumber(payload, ["high", "h"]),
-        low: readNumber(payload, ["low", "l"]),
-        close: readNumber(payload, ["close", "c"]),
+        open: readNumber(payload, ["open", "openPrice", "o"]),
+        high: readNumber(payload, ["high", "highestPrice", "h"]),
+        low: readNumber(payload, ["low", "lowestPrice", "l"]),
+        close: readNumber(payload, ["close", "matchPrice", "c"]),
         volume: readNumber(payload, ["volume", "v", "totalVolumeTraded"]),
         value: readNumber(payload, ["value", "tradingValue", "grossTradeAmount"]),
         updatedAt: row.receivedAt.toISOString(),
