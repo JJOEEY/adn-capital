@@ -83,7 +83,8 @@ function buildTickerMarket(
   const payload = latestPrice != null ? latest : ohlcv;
   const price = firstNumber(payload, ["price", "matchPrice", "lastPrice", "close", "c"]);
   const reference = firstNumber(payload, ["reference", "refPrice", "basicPrice", "priorClosePrice", "previousClose"]) ??
-    firstNumber(previousOhlcv, ["close", "matchPrice", "c"]);
+    firstNumber(previousOhlcv, ["close", "matchPrice", "c"]) ??
+    firstNumber(payload, ["open", "openPrice", "o"]);
   const change = firstNumber(payload, ["changedValue", "change", "priceChange"]);
   const changePct = firstNumber(payload, ["changedRatio", "changePct", "percentChange"]);
 
