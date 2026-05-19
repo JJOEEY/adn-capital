@@ -78,6 +78,10 @@ function readDate(record: JsonRecord | null): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function normalizeChannelName(channel: string) {
+  return channel.trim().replace(/\.msgpack$/i, ".json");
+}
+
 function indexSymbolFromMessage(message: JsonRecord) {
   const raw = readString(message, ["symbol", "indexName", "marketId", "marketIndexClass"]);
   const compact = (raw ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -91,7 +95,7 @@ function indexSymbolFromMessage(message: JsonRecord) {
 
 function channelFromMessage(message: JsonRecord) {
   const explicit = readString(message, ["channel", "ch", "topic", "stream"]);
-  if (explicit) return explicit;
+  if (explicit) return normalizeChannelName(explicit);
   const type = messageTypeFromMessage(message);
   if (type === "mi") return `market_index.${indexSymbolFromMessage(message) ?? "VNINDEX"}.json`;
   if (type === "f") return "foreign.G1.json";
@@ -154,8 +158,16 @@ function buildEodDataFromMessages(params: {
   latestRows: Array<{ channel: string; symbol: string; payload: Prisma.JsonValue; receivedAt: Date }>;
   eventRows: number;
 }): DnseEodMarketData {
-  const messages = params.latestRows.map((row) => toRecord(row.payload)).filter((item): item is JsonRecord => Boolean(item));
-  const activeChannels = Array.from(new Set(params.latestRows.map((row) => row.channel))).filter(Boolean);
+  const rows = params.latestRows.map((row) => {
+    const payload = toRecord(row.payload);
+    const channel = payload ? channelFromMessage(payload) : normalizeChannelName(row.channel);
+    const symbol = payload && (!row.symbol || row.symbol === "MARKET")
+      ? symbolFromMessage(payload, channel)
+      : normalizeDnseSymbol(row.symbol);
+    return { ...row, channel, symbol, payload };
+  });
+  const messages = rows.map((row) => row.payload).filter((item): item is JsonRecord => Boolean(item));
+  const activeChannels = Array.from(new Set(rows.map((row) => row.channel))).filter(Boolean);
   const presentFields = messageKeys(messages);
   const unsupported = DNSE_EOD_FIELD_MAP.filter((item) => item.source === "fiinquant_fallback").map((item) => item.field);
   const unavailable = DNSE_EOD_FIELD_MAP
@@ -167,7 +179,7 @@ function buildEodDataFromMessages(params: {
     )
     .map((item) => item.field);
 
-  const indexRows = params.latestRows.filter((row) => row.channel.startsWith("market_index."));
+  const indexRows = rows.filter((row) => row.channel.startsWith("market_index."));
   const indices = indexRows.map((row) => {
     const payload = toRecord(row.payload);
     return {
@@ -181,11 +193,11 @@ function buildEodDataFromMessages(params: {
   });
 
   const indexPayloads = indexRows.map((row) => toRecord(row.payload));
-  const foreignPayloads = params.latestRows.filter((row) => row.channel === "foreign.G1.json").map((row) => toRecord(row.payload));
-  const ohlcv = params.latestRows
+  const foreignPayloads = rows.filter((row) => row.channel === "foreign.G1.json").map((row) => row.payload);
+  const ohlcv = rows
     .filter((row) => row.channel === "ohlc_closed.1D.json")
     .map((row) => {
-      const payload = toRecord(row.payload);
+      const payload = row.payload;
       return {
         ticker: row.symbol,
         open: readNumber(payload, ["open", "openPrice", "o"]),
