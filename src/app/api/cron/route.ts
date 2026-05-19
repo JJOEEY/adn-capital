@@ -278,7 +278,7 @@ async function handleDatabaseMorningPublish(forceRun = false): Promise<NextRespo
     }
 
     const collect = await collectDatabaseNews();
-    const brief = await getDatabaseMorningBrief();
+    const brief = await getDatabaseMorningBrief({ previousTradingDate: databaseEodReadDateKey() });
     if (!brief.data || !brief.ok) {
       const duration = Date.now() - startTime;
       await logCron("morning_brief", "skipped", "Database v2 morning missing required fields", duration, {
@@ -660,7 +660,7 @@ async function handleDatabaseV2Cron(type: CanonicalCronType, forceRun = false): 
     }
 
     if (type === "database_morning_brief") {
-      const result = await getDatabaseMorningBrief();
+      const result = await getDatabaseMorningBrief({ previousTradingDate: databaseEodReadDateKey() });
       await persistDatabaseToolCronPayload({
         tool: "brief",
         dataset: "brief.morning",

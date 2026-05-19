@@ -73,7 +73,7 @@ function rowUpdatedAt(row: { receivedAt?: Date; updatedAt?: Date; providerTime?:
 
 function buildTickerMarket(
   latestRow: { payload: Prisma.JsonValue; tradingDate: string; providerTime: Date | null; updatedAt: Date; receivedAt: Date } | null,
-  ohlcvRow: { payload: Prisma.JsonValue; tradingDate: string; providerTime: Date | null; updatedAt: Date; receivedAt: Date } | null,
+  ohlcvRow: { payload: Prisma.JsonValue; tradingDate?: string; providerTime: Date | null; updatedAt?: Date; receivedAt: Date } | null,
 ) {
   const latest = rowPayload(latestRow);
   const ohlcv = rowPayload(ohlcvRow);
@@ -95,14 +95,14 @@ function buildTickerMarket(
   };
 }
 
-function buildDailyOhlcv(row: { payload: Prisma.JsonValue; providerTime: Date | null; updatedAt: Date; receivedAt: Date } | null) {
+function buildDailyOhlcv(row: { payload: Prisma.JsonValue; providerTime: Date | null; updatedAt?: Date; receivedAt: Date } | null) {
   if (!row) return null;
   const payload = rowPayload(row);
   return {
-    open: firstNumber(payload, ["open", "o"]),
-    high: firstNumber(payload, ["high", "h"]),
-    low: firstNumber(payload, ["low", "l"]),
-    close: firstNumber(payload, ["close", "c"]),
+    open: firstNumber(payload, ["open", "openPrice", "o"]),
+    high: firstNumber(payload, ["high", "highestPrice", "h"]),
+    low: firstNumber(payload, ["low", "lowestPrice", "l"]),
+    close: firstNumber(payload, ["close", "matchPrice", "c"]),
     volume: firstNumber(payload, ["volume", "v", "totalVolumeTraded"]),
     value: firstNumber(payload, ["value", "tradingValue", "grossTradeAmount"]),
     updatedAt: rowUpdatedAt(row),
@@ -178,7 +178,7 @@ export async function getDatabaseAidenTickerContext(options: {
   }
 
   const since = new Date(Date.now() - windowHours * 60 * 60 * 1000);
-  const [latestRow, ohlcvRow, newsRows] = await Promise.all([
+  const [latestRow, ohlcvRow, eventRows, newsRows] = await Promise.all([
     prisma.databaseMarketLatest.findFirst({
       where: {
         source: "dnse",
@@ -196,6 +196,16 @@ export async function getDatabaseAidenTickerContext(options: {
       },
       orderBy: { updatedAt: "desc" },
     }),
+    prisma.databaseMarketEvent.findMany({
+      where: {
+        source: "dnse",
+        dataset: "market.eod",
+        symbol: ticker,
+        ...(options.tradingDate ? { tradingDate: options.tradingDate } : {}),
+      },
+      orderBy: { receivedAt: "desc" },
+      take: 30,
+    }),
     prisma.databaseNewsItem.findMany({
       where: {
         fetchedAt: { gte: since },
@@ -209,8 +219,13 @@ export async function getDatabaseAidenTickerContext(options: {
     }),
   ]);
 
-  const market = buildTickerMarket(latestRow, ohlcvRow);
-  const dailyOhlcv = buildDailyOhlcv(ohlcvRow);
+  const ohlcvEventRow = eventRows.find((row) => {
+    const payload = rowPayload(row);
+    return payload.T === "te" || payload.matchPrice != null || payload.openPrice != null;
+  }) ?? null;
+  const effectiveOhlcvRow = ohlcvRow ?? ohlcvEventRow;
+  const market = buildTickerMarket(latestRow, effectiveOhlcvRow);
+  const dailyOhlcv = buildDailyOhlcv(effectiveOhlcvRow);
   const missingFields = [
     market.price == null ? "aiden.stock.price" : null,
     market.changePct == null ? "aiden.stock.changePct" : null,
