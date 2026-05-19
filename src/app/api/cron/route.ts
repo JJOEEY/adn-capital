@@ -45,6 +45,7 @@ import {
   getDatabaseV2Readiness,
   getDatabaseEodMarketDataset,
   getDatabaseMorningBrief,
+  getDatabaseAidenContext,
   isDatabaseV2RadarRealtimeEnabled,
   upsertDatabaseToolLatest,
 } from "@/lib/database";
@@ -80,6 +81,20 @@ const ART_DAILY_TOPIC_KEY = "vn:historical:VN30:1d";
 const DATABASE_RADAR_TOPIC_KEYS = ["signal:market:radar", "radar:watchlist:active", "radar:prefilter:latest"] as const;
 const DATABASE_ADNCORE_TOPIC_KEYS = ["market:canonical:latest", "vn:index:overview", "vn:index:snapshot", SMARTFLOW_TOPIC_KEY] as const;
 const DATABASE_V2_REPLACES_V1 = process.env.DATABASE_V2_REPLACE_V1 !== "false";
+
+function previousVnTradingDateKey() {
+  let value = getVnNow().subtract(1, "day");
+  while (value.day() === 0 || value.day() === 6) {
+    value = value.subtract(1, "day");
+  }
+  return value.format("YYYY-MM-DD");
+}
+
+function databaseEodReadDateKey() {
+  const now = getVnNow();
+  const minute = now.hour() * 60 + now.minute();
+  return minute >= EOD_FULL_MINUTE_VN ? now.format("YYYY-MM-DD") : previousVnTradingDateKey();
+}
 
 interface RadarQuotaEstimate {
   monthlyUsed: number;
@@ -466,6 +481,7 @@ const DATABASE_V2_CRON_TYPES = new Set<CanonicalCronType>([
   "database_adncore_readiness",
   "database_adn_rank_collect",
   "database_adn_rank_readiness",
+  "database_aiden_context_collect",
 ]);
 
 function isDatabaseV2CronType(type: CanonicalCronType) {
@@ -479,12 +495,14 @@ async function persistDatabaseToolCronPayload(params: {
   missingFields?: string[];
   providerStatus?: unknown;
   ttlMs?: number;
+  tradingDate?: string;
 }) {
   return upsertDatabaseToolLatest({
     tool: params.tool,
     dataset: params.dataset,
     key: "latest",
     payload: params.payload,
+    tradingDate: params.tradingDate,
     missingFields: params.missingFields ?? [],
     providerStatus: params.providerStatus,
     ttlMs: params.ttlMs,
@@ -649,7 +667,7 @@ async function handleDatabaseV2Cron(type: CanonicalCronType, forceRun = false): 
         payload: result.data,
         missingFields: result.missingFields,
         providerStatus: result.providerStatus,
-        ttlMs: 10 * 60_000,
+        ttlMs: 24 * 60 * 60_000,
       });
       const duration = Date.now() - startTime;
       await logCron(
@@ -703,6 +721,31 @@ async function handleDatabaseV2Cron(type: CanonicalCronType, forceRun = false): 
         summarizeDatabasePayload({ ...result, readinessMissingFields: readiness?.missingFields }),
       );
       return NextResponse.json({ type, ...result, readiness }, { status: result.ok ? 200 : 207 });
+    }
+
+    if (type === "database_aiden_context_collect") {
+      const result = await getDatabaseAidenContext({
+        tickers: ["HPG", "FPT", "DGC"],
+        previousTradingDate: databaseEodReadDateKey(),
+        useFiinquantFallback: false,
+      });
+      await persistDatabaseToolCronPayload({
+        tool: "aiden",
+        dataset: "aiden.context",
+        payload: result.data,
+        missingFields: result.missingFields,
+        providerStatus: result.providerStatus,
+        ttlMs: 24 * 60 * 60_000,
+      });
+      const duration = Date.now() - startTime;
+      await logCron(
+        type,
+        result.ok ? "success" : "skipped",
+        result.ok ? "Database v2 AIDEN context ready" : "Database v2 AIDEN context is partial",
+        duration,
+        summarizeDatabasePayload(result),
+      );
+      return NextResponse.json({ type, ...result }, { status: result.ok ? 200 : 207 });
     }
 
     if (type === "database_adn_radar_collect" || type === "database_adn_radar_readiness") {
@@ -816,7 +859,8 @@ async function handleDatabaseV2Cron(type: CanonicalCronType, forceRun = false): 
     }
 
     if (type === "database_eod_collect" || type === "database_eod_readiness") {
-      const result = await getDatabaseEodMarketDataset({ useFiinquantFallback: true });
+      const tradingDate = databaseEodReadDateKey();
+      const result = await getDatabaseEodMarketDataset({ tradingDate, useFiinquantFallback: true });
       await persistDatabaseToolCronPayload({
         tool: "eod",
         dataset: "market.eod",
@@ -824,6 +868,7 @@ async function handleDatabaseV2Cron(type: CanonicalCronType, forceRun = false): 
         missingFields: result.missingFields,
         providerStatus: result.providerStatus,
         ttlMs: 24 * 60 * 60_000,
+        tradingDate,
       });
       const duration = Date.now() - startTime;
       await logCron(

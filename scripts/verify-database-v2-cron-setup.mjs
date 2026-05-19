@@ -19,6 +19,7 @@ const CRONS = [
   "database_adncore_readiness",
   "database_adn_rank_collect",
   "database_adn_rank_readiness",
+  "database_aiden_context_collect",
 ];
 
 function read(file) {
@@ -48,7 +49,8 @@ const checks = [
       cronRoute.includes("DATABASE_RADAR_TOPIC_KEYS") &&
       cronRoute.includes("collectDatabaseArtPayload") &&
       cronRoute.includes("DATABASE_ADNCORE_TOPIC_KEYS") &&
-      cronRoute.includes("ADN_RANK_TOPIC_KEYS"),
+      cronRoute.includes("ADN_RANK_TOPIC_KEYS") &&
+      cronRoute.includes("getDatabaseAidenContext"),
   },
   {
     name: "admin_status_has_database_v2_policies",

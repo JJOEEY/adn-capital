@@ -241,6 +241,7 @@ export async function getDatabaseAidenContext(options?: {
   tradingDate?: string;
   previousTradingDate?: string;
   windowHours?: number;
+  useFiinquantFallback?: boolean;
 }): Promise<DatabaseResult<DatabaseAidenContext>> {
   const startedAt = Date.now();
   const tradingDate = options?.tradingDate ?? dateKeyInVietnam();
@@ -248,7 +249,10 @@ export async function getDatabaseAidenContext(options?: {
   try {
     const tickers = Array.from(new Set((options?.tickers ?? []).map(normalizeTicker).filter(Boolean))).slice(0, 4);
     const [eod, latestNews, marketNews, macroNews, globalNews, tickerResults] = await Promise.all([
-      getDatabaseEodMarketDataset({ tradingDate: previousTradingDate, useFiinquantFallback: true }),
+      getDatabaseEodMarketDataset({
+        tradingDate: previousTradingDate,
+        useFiinquantFallback: options?.useFiinquantFallback ?? true,
+      }),
       getDatabaseNewsDataset({ category: "latest", limit: 12, windowHours: options?.windowHours ?? 36 }),
       getDatabaseNewsDataset({ category: "market", limit: 12, windowHours: options?.windowHours ?? 36 }),
       getDatabaseNewsDataset({ category: "macro", limit: 8, windowHours: options?.windowHours ?? 36 }),
@@ -314,12 +318,16 @@ export async function getDatabaseAidenContext(options?: {
 
 export async function getDatabaseAidenHealth(options?: {
   sampleTickers?: string[];
+  useFiinquantFallback?: boolean;
 }): Promise<DatabaseAidenHealth> {
   const sampleTickers = (options?.sampleTickers?.length ? options.sampleTickers : DEFAULT_SAMPLE_TICKERS)
     .map(normalizeTicker)
     .filter(Boolean)
     .slice(0, 6);
-  const context = await getDatabaseAidenContext({ tickers: sampleTickers });
+  const context = await getDatabaseAidenContext({
+    tickers: sampleTickers,
+    useFiinquantFallback: options?.useFiinquantFallback,
+  });
   const data = context.data;
   const availableIndices = (data?.market?.indices ?? [])
     .filter((item) => item.value != null)

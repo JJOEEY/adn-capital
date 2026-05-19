@@ -224,6 +224,9 @@ export async function getDatabaseMorningBrief(options?: {
     },
   };
 
+  const macroOrGlobalMissing = !macroNews.data?.length && !globalNews.data?.length
+    ? [...macroNews.missingFields, ...globalNews.missingFields]
+    : [];
   const missingFields = [
     ...(!payload.vn_market.length ? ["morning.vn_market"] : []),
     ...(!payload.macro.length ? ["morning.macro"] : []),
@@ -232,8 +235,7 @@ export async function getDatabaseMorningBrief(options?: {
       .filter((item) => item.value == null)
       .map((item) => `morning.reference_index:${item.name}`),
     ...marketNews.missingFields.map((field) => `news:${field}`),
-    ...macroNews.missingFields.map((field) => `news:${field}`),
-    ...globalNews.missingFields.map((field) => `news:${field}`),
+    ...macroOrGlobalMissing.map((field) => `news:${field}`),
     ...eod.missingFields.map((field) => `eod:${field}`),
   ];
 

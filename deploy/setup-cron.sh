@@ -81,6 +81,7 @@ ${CRON_DATABASE_ADNCORE_COLLECT_SCHEDULE:-5,20 15 * * 1-5} ${CURL_CMD} "${APP_UR
 ${CRON_DATABASE_ADNCORE_READINESS_SCHEDULE:-30 15 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_DATABASE_ADNCORE_READINESS:-database_adncore_readiness}&sync=1" >> ${LOG_DIR}/database_v2_adncore_readiness.log 2>&1
 ${CRON_DATABASE_ADN_RANK_COLLECT_SCHEDULE:-0 15 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_DATABASE_ADN_RANK_COLLECT:-database_adn_rank_collect}&sync=1" >> ${LOG_DIR}/database_v2_adn_rank_collect.log 2>&1
 ${CRON_DATABASE_ADN_RANK_READINESS_SCHEDULE:-10 15 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_DATABASE_ADN_RANK_READINESS:-database_adn_rank_readiness}&sync=1" >> ${LOG_DIR}/database_v2_adn_rank_readiness.log 2>&1
+${CRON_DATABASE_AIDEN_CONTEXT_COLLECT_SCHEDULE:-*/15 8-15 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_DATABASE_AIDEN_CONTEXT_COLLECT:-database_aiden_context_collect}&sync=1" >> ${LOG_DIR}/database_v2_aiden_context_collect.log 2>&1
 
 # Additional workers (non-canonical event jobs)
 */5 9-15 * * 1-5 ${CURL_CMD} "${APP_URL}/api/cron/signal-lifecycle" >> ${LOG_DIR}/signal_lifecycle.log 2>&1
@@ -95,5 +96,5 @@ EOF
 crontab "${CRON_FILE}"
 
 echo "[setup-cron] Installed crontab from ${CRON_FILE}"
-echo "[setup-cron] Canonical cron types: signal_scan_type1, market_stats_type2, morning_brief, close_brief_15h, eod_full_19h, news_crawler, adn_rank_15h, pulse_smartflow_precompute, art_daily_1905, database_news_collect, database_dnse_market_collect, database_morning_readiness, database_morning_brief, database_eod_collect, database_eod_readiness, database_radar_realtime_collect, database_realtime_health, database_adn_radar_collect, database_adn_radar_readiness, database_adn_art_collect, database_adn_art_readiness, database_adncore_collect, database_adncore_readiness, database_adn_rank_collect, database_adn_rank_readiness"
+echo "[setup-cron] Canonical cron types: signal_scan_type1, market_stats_type2, morning_brief, close_brief_15h, eod_full_19h, news_crawler, adn_rank_15h, pulse_smartflow_precompute, art_daily_1905, database_news_collect, database_dnse_market_collect, database_morning_readiness, database_morning_brief, database_eod_collect, database_eod_readiness, database_radar_realtime_collect, database_realtime_health, database_adn_radar_collect, database_adn_radar_readiness, database_adn_art_collect, database_adn_art_readiness, database_adncore_collect, database_adncore_readiness, database_adn_rank_collect, database_adn_rank_readiness, database_aiden_context_collect"
 echo "[setup-cron] Verify with: crontab -l"

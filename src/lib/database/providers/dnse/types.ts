@@ -118,6 +118,13 @@ export type DnseEodMarketData = {
     sellValue: number | null;
     netValue: number | null;
   };
+  brief?: {
+    sessionSummary: string | null;
+    liquidityDetail: string | null;
+    foreignFlow: string | null;
+    notableTrades: string | null;
+    outlook: string | null;
+  };
   fallback?: {
     fiinquant?: {
       propTradingTopBuy: string[];

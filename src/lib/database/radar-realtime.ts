@@ -160,7 +160,6 @@ async function persistRadarState(state: DatabaseRadarRealtimeState) {
     payload: state,
     missingFields: state.coverage.covered ? [] : ["radar.realtime.ticks"],
     providerStatus: state.websocket,
-    ttlMs: 90_000,
   });
   await Promise.all(
     state.latest.map((tick) =>
@@ -172,7 +171,6 @@ async function persistRadarState(state: DatabaseRadarRealtimeState) {
         payload: tick,
         missingFields: tick.price == null ? ["tick.price"] : [],
         providerStatus: { provider: "dnse", ok: tick.price != null, endpoint: "wss:lightspeed" },
-        ttlMs: 90_000,
       }),
     ),
   );
@@ -259,7 +257,8 @@ export async function getDatabaseRadarRealtime(): Promise<DatabaseResult<Databas
         tool: "radar",
         dataset: "radar.realtime",
         key: "latest",
-        maxAgeMs: 120_000,
+        maxAgeMs: 24 * 60 * 60_000,
+        ignoreExpires: true,
       }).then((row) => row ? { payload: row.payload, updatedAt: row.updatedAt, source: "postgres" } : null);
   const data = record?.payload ?? null;
   const missingFields = data?.latest.length ? [] : ["radar.realtime.latest"];
@@ -279,13 +278,15 @@ export async function getDatabaseRealtimeHealth() {
     tool: "radar",
     dataset: "radar.realtime",
     key: "latest",
-    maxAgeMs: 120_000,
+    maxAgeMs: 24 * 60 * 60_000,
+    ignoreExpires: true,
   });
   const ticks = await listDatabaseToolLatest<DatabaseRadarTick>({
     tool: "radar",
     dataset: "radar.realtime.tick",
     limit: 500,
-    maxAgeMs: 120_000,
+    maxAgeMs: 24 * 60 * 60_000,
+    ignoreExpires: true,
   });
   const missingFields = [
     !latest ? "radar.realtime.latest" : null,

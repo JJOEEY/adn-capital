@@ -110,6 +110,7 @@ export async function getDatabaseToolLatest<T = unknown>(params: {
   key?: string;
   tradingDate?: string;
   maxAgeMs?: number;
+  ignoreExpires?: boolean;
 }): Promise<DatabaseToolLatestRecord<T> | null> {
   const row = await prisma.databaseToolLatest.findFirst({
     where: {
@@ -122,7 +123,7 @@ export async function getDatabaseToolLatest<T = unknown>(params: {
   });
   if (!row) return null;
   if (params.maxAgeMs != null && Date.now() - row.updatedAt.getTime() > params.maxAgeMs) return null;
-  if (row.expiresAt && row.expiresAt.getTime() < Date.now()) return null;
+  if (!params.ignoreExpires && row.expiresAt && row.expiresAt.getTime() < Date.now()) return null;
   return rowToRecord<T>(row);
 }
 
@@ -132,6 +133,7 @@ export async function listDatabaseToolLatest<T = unknown>(params: {
   tradingDate?: string;
   limit?: number;
   maxAgeMs?: number;
+  ignoreExpires?: boolean;
 }): Promise<Array<DatabaseToolLatestRecord<T>>> {
   const rows = await prisma.databaseToolLatest.findMany({
     where: {
@@ -143,5 +145,7 @@ export async function listDatabaseToolLatest<T = unknown>(params: {
     orderBy: { updatedAt: "desc" },
     take: params.limit ?? 500,
   });
-  return rows.map((row) => rowToRecord<T>(row));
+  return rows
+    .filter((row) => params.ignoreExpires || !row.expiresAt || row.expiresAt.getTime() >= Date.now())
+    .map((row) => rowToRecord<T>(row));
 }

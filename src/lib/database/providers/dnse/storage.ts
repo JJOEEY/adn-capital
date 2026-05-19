@@ -141,7 +141,12 @@ function buildEodDataFromMessages(params: {
   const presentFields = messageKeys(messages);
   const unsupported = DNSE_EOD_FIELD_MAP.filter((item) => item.source === "fiinquant_fallback").map((item) => item.field);
   const unavailable = DNSE_EOD_FIELD_MAP
-    .filter((item) => item.source !== "fiinquant_fallback" && item.dnseFields.length > 0 && !hasAnyField(messages, item.dnseFields))
+    .filter((item) =>
+      item.source !== "fiinquant_fallback" &&
+      item.dnseFields.length > 0 &&
+      !item.dnseFields.includes("fieldMap-derived") &&
+      !hasAnyField(messages, item.dnseFields),
+    )
     .map((item) => item.field);
 
   const indexRows = params.latestRows.filter((row) => row.channel.startsWith("market_index."));

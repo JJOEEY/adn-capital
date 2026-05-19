@@ -167,6 +167,11 @@
       "comment": "15:10 VN - Database v2 ADN Rank readiness"
     },
     {
+      "path": "/api/cron?type=database_aiden_context_collect&sync=1",
+      "schedule": "*/15 1-8 * * 1-5",
+      "comment": "08:00-15:45 VN - Database v2 AIDEN context collect"
+    },
+    {
       "path": "/api/cron/ai-weekly-review",
       "schedule": "0 10 * * 5",
       "comment": "17:00 VN Friday - weekly AI review"

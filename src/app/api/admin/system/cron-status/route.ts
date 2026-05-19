@@ -150,6 +150,11 @@ const CRON_JOB_POLICIES: Record<CanonicalCronType, CronJobPolicy> = {
     staleGraceMinutes: 90,
     tradingWindowOnly: false,
   },
+  database_aiden_context_collect: {
+    slotsMinutes: Array.from({ length: 32 }, (_, index) => 8 * 60 + index * 15).filter((minute) => minute <= 15 * 60 + 45),
+    staleGraceMinutes: 45,
+    tradingWindowOnly: false,
+  },
 };
 
 function toMinuteLabel(totalMinutes: number) {

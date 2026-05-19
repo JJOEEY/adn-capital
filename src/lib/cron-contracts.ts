@@ -23,7 +23,8 @@ export type CanonicalCronType =
   | "database_adncore_collect"
   | "database_adncore_readiness"
   | "database_adn_rank_collect"
-  | "database_adn_rank_readiness";
+  | "database_adn_rank_readiness"
+  | "database_aiden_context_collect";
 
 export const CANONICAL_CRON_TYPES: readonly CanonicalCronType[] = [
   "morning_brief",
@@ -51,6 +52,7 @@ export const CANONICAL_CRON_TYPES: readonly CanonicalCronType[] = [
   "database_adncore_readiness",
   "database_adn_rank_collect",
   "database_adn_rank_readiness",
+  "database_aiden_context_collect",
 ] as const;
 
 export const CRON_TYPE_ALIASES: Record<string, CanonicalCronType> = {
@@ -79,6 +81,7 @@ export const CRON_TYPE_ALIASES: Record<string, CanonicalCronType> = {
   database_adncore_readiness: "database_adncore_readiness",
   database_adn_rank_collect: "database_adn_rank_collect",
   database_adn_rank_readiness: "database_adn_rank_readiness",
+  database_aiden_context_collect: "database_aiden_context_collect",
 
   // legacy aliases
   prop_trading: "eod_full_19h",
@@ -115,6 +118,7 @@ export const CRON_TYPE_ALIASES: Record<string, CanonicalCronType> = {
   database_v2_adncore_readiness: "database_adncore_readiness",
   database_v2_adn_rank_collect: "database_adn_rank_collect",
   database_v2_adn_rank_readiness: "database_adn_rank_readiness",
+  database_v2_aiden_context_collect: "database_aiden_context_collect",
 };
 
 export const LEGACY_CRON_ALIASES = [
@@ -152,6 +156,7 @@ export const LEGACY_CRON_ALIASES = [
   "database_v2_adncore_readiness",
   "database_v2_adn_rank_collect",
   "database_v2_adn_rank_readiness",
+  "database_v2_aiden_context_collect",
 ] as const;
 
 export const SIGNAL_SCANNER_CANONICAL_NAME: CanonicalCronType = "signal_scan_type1";
