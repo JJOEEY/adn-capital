@@ -62,7 +62,7 @@ ${CRON_ART_1905_SCHEDULE:-5 19 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${
 # News crawler (07:00-22:30 VN, every 30 minutes)
 ${CRON_NEWS_CRAWLER_SCHEDULE:-*/30 7-22 * * *} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_NEWS_CRAWLER:-news_crawler}" >> ${LOG_DIR}/news_crawler.log 2>&1
 
-# Database v2 shadow jobs - do not publish over v1
+# Database v2 operational jobs - feed canonical DataHub topics through /api/cron
 ${CRON_DATABASE_NEWS_COLLECT_SCHEDULE:-*/30 7-22 * * *} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_DATABASE_NEWS_COLLECT:-database_news_collect}&sync=1" >> ${LOG_DIR}/database_v2_news_collect.log 2>&1
 ${CRON_DATABASE_DNSE_MARKET_COLLECT_SCHEDULE:-*/5 9-15 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_DATABASE_DNSE_MARKET_COLLECT:-database_dnse_market_collect}&sync=1" >> ${LOG_DIR}/database_v2_dnse_market_collect.log 2>&1
 ${CRON_DATABASE_MORNING_READINESS_SCHEDULE:-55 7 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_DATABASE_MORNING_READINESS:-database_morning_readiness}&sync=1" >> ${LOG_DIR}/database_v2_morning_readiness.log 2>&1
