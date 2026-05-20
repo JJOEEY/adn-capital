@@ -124,6 +124,12 @@ function formatNetFlow(value: number): string {
   return `${value >= 0 ? "Mua ròng" : "Bán ròng"} ${abs} tỷ`;
 }
 
+function formatIndexNumber(value: number, digits = 2): string {
+  return Number.isFinite(value)
+    ? value.toLocaleString("vi-VN", { minimumFractionDigits: 0, maximumFractionDigits: digits })
+    : "-";
+}
+
 function parseForeignNetFlow(text: string | undefined): string[] {
   if (!text) return [];
   const cleaned = text.replace(/\s+/g, " ").trim();
@@ -148,6 +154,15 @@ function parseNamedNetFlow(text: string | undefined, label: string): string[] {
   if (!match) return [];
   const value = parseNumber(match[1]);
   return value == null ? [] : [formatNetFlow(value)];
+}
+
+function buildFlowFlashnote(base: string | undefined, buyItems: string[], sellItems: string[]): string {
+  const parts = [
+    String(base ?? "").replace(/\s+/g, " ").trim().replace(/[.。]+$/, ""),
+    buyItems.length > 0 ? `Mua ròng: ${buyItems.slice(0, 5).join(", ")}` : "",
+    sellItems.length > 0 ? `Bán ròng: ${sellItems.slice(0, 5).join(", ")}` : "",
+  ].filter(Boolean);
+  return parts.length > 0 ? `${parts.join(". ")}.` : "";
 }
 
 function isWeakOutlook(text: string | undefined): boolean {
@@ -238,6 +253,7 @@ export function EveningNews() {
   const foreignNetSummary = parseForeignNetFlow(data.foreign_flow);
   const propNetSummary = parseNamedNetFlow(data.notable_trades, "Tự doanh");
   const individualNetSummary = parseNamedNetFlow(data.notable_trades, "Cá nhân");
+  const foreignFlashnote = buildFlowFlashnote(data.foreign_flow, foreignTopBuy, foreignTopSell);
   const sectorGainers = normalizeFlowItems(data.sector_gainers);
   const sectorLosers = normalizeFlowItems(data.sector_losers);
   const buySignals = normalizeFlowItems(data.buy_signals);
@@ -318,12 +334,12 @@ export function EveningNews() {
             )}
 
             {/* Khối ngoại */}
-            {data.foreign_flow && (
+            {foreignFlashnote && (
               <FlashBullet
                 icon={<Users className="w-3.5 h-3.5" style={{ color: TONE.amber.text }} />}
                 tone="amber"
               >
-                <BoldKeywords text={data.foreign_flow} />
+                <BoldKeywords text={foreignFlashnote} />
               </FlashBullet>
             )}
 
@@ -352,13 +368,13 @@ export function EveningNews() {
             {/* Row: Chỉ số phụ */}
             {normalizedSubIndices.length > 0 && (
               <GridRow label="Chỉ số">
-                <div className="flex flex-wrap gap-2">
+                <div className="space-y-2">
                   {normalizedSubIndices.map((idx) => {
                     const positive = idx.change_pct >= 0;
                     return (
-                      <span
+                      <div
                         key={idx.name}
-                        className="text-[11px] px-2 py-0.5 rounded-md border"
+                        className="w-fit text-[11px] px-2 py-0.5 rounded-md border"
                         style={{
                           color: positive ? TONE.emerald.text : TONE.red.text,
                           borderColor: positive ? TONE.emerald.border : TONE.red.border,
@@ -366,9 +382,9 @@ export function EveningNews() {
                         }}
                       >
                         {idx.name}: {idx.change_pct >= 0 ? "+" : ""}
-                        {idx.change_pts} ({idx.change_pct >= 0 ? "+" : ""}
-                        {idx.change_pct}%)
-                      </span>
+                        {formatIndexNumber(idx.change_pts)} ({idx.change_pct >= 0 ? "+" : ""}
+                        {formatIndexNumber(idx.change_pct)}%)
+                      </div>
                     );
                   })}
                 </div>
@@ -376,7 +392,7 @@ export function EveningNews() {
             )}
 
             {/* Row: Khối ngoại */}
-            {(foreignTopBuy.length || foreignTopSell.length || foreignNetSummary.length) && (
+            {(foreignTopBuy.length > 0 || foreignTopSell.length > 0 || foreignNetSummary.length > 0) && (
               <GridRow label="Giao dịch Khối ngoại">
                 <div className="space-y-1.5">
                   {foreignNetSummary.length > 0 && (
@@ -408,7 +424,7 @@ export function EveningNews() {
             )}
 
             {/* Row: Giao dịch Tự doanh */}
-            {(propTradingTopBuy.length || propTradingTopSell.length || propNetSummary.length) && (
+            {(propTradingTopBuy.length > 0 || propTradingTopSell.length > 0 || propNetSummary.length > 0) && (
               <GridRow label="Giao dịch Tự doanh">
                 <div className="space-y-1.5">
                   {propNetSummary.length > 0 && (
@@ -439,7 +455,7 @@ export function EveningNews() {
               </GridRow>
             )}
 
-            {(individualTopBuy.length || individualTopSell.length || individualNetSummary.length) && (
+            {(individualTopBuy.length > 0 || individualTopSell.length > 0 || individualNetSummary.length > 0) && (
               <GridRow label="Giao dịch Cá nhân">
                 <div className="space-y-1.5">
                   {individualNetSummary.length > 0 && (
@@ -471,7 +487,7 @@ export function EveningNews() {
             )}
 
             {/* Row: Nhóm ảnh hưởng */}
-            {(sectorGainers.length || sectorLosers.length) && (
+            {(sectorGainers.length > 0 || sectorLosers.length > 0) && (
               <GridRow label="Nhóm ảnh hưởng chỉ số">
                 <div className="space-y-1.5">
                   {sectorGainers.length > 0 && (
@@ -495,7 +511,7 @@ export function EveningNews() {
             )}
 
             {/* Row: Tín hiệu Mua/Bán chủ động */}
-            {(buySignals.length || sellSignals.length) && (
+            {(buySignals.length > 0 || sellSignals.length > 0) && (
               <GridRow label="Tín hiệu mua/bán chủ động">
                 <div className="space-y-1.5">
                   {buySignals.length > 0 && (

@@ -96,6 +96,8 @@ export function formatDatabaseEodPublicBriefText(result: DatabaseResult<DnseEodM
     "",
     "🏦 *DÒNG TIỀN NHÀ ĐẦU TƯ:*",
     `• Khối ngoại: Mua ${formatTy(foreign?.buyValue)} | Bán ${formatTy(foreign?.sellValue)} | Ròng ${formatTy(foreign?.netValue)}`,
+    `• Khối ngoại mua nổi bật: ${formatTop(fiinquant?.foreignTopBuy)}`,
+    `• Khối ngoại bán nổi bật: ${formatTop(fiinquant?.foreignTopSell)}`,
     `• Tự doanh mua nổi bật: ${formatTop(fiinquant?.propTradingTopBuy)}`,
     `• Tự doanh bán nổi bật: ${formatTop(fiinquant?.propTradingTopSell)}`,
     `• Cá nhân mua nổi bật: ${formatTop(fiinquant?.individualTopBuy)}`,

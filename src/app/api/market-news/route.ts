@@ -152,6 +152,12 @@ function billionValue(value: unknown): number | null {
   return Math.abs(numberValue) > 1_000_000_000 ? numberValue / 1_000_000_000 : numberValue;
 }
 
+function roundNumber(value: number, digits = 2): number {
+  if (!Number.isFinite(value)) return 0;
+  const factor = 10 ** digits;
+  return Math.round(value * factor) / factor;
+}
+
 function fromDatabaseV2EodPayload(raw: JsonRecord, reportDateKey: string): EodPayload | null {
   const data = pickRecord(raw, ["data"]) ?? raw;
   const indicesRaw = pickArray(data, ["indices"]);
@@ -171,9 +177,9 @@ function fromDatabaseV2EodPayload(raw: JsonRecord, reportDateKey: string): EodPa
       if (!name) return null;
       return {
         name,
-        value: toNumber(item.value ?? item.close ?? item.price),
-        change_pts: toNumber(item.change ?? item.change_pts ?? item.changePts),
-        change_pct: toNumber(item.changePct ?? item.change_pct ?? item.percentChange),
+        value: roundNumber(toNumber(item.value ?? item.close ?? item.price), 2),
+        change_pts: roundNumber(toNumber(item.change ?? item.change_pts ?? item.changePts), 2),
+        change_pct: roundNumber(toNumber(item.changePct ?? item.change_pct ?? item.percentChange), 2),
       };
     })
     .filter((item): item is { name: string; value: number; change_pts: number; change_pct: number } => item !== null);
@@ -189,6 +195,8 @@ function fromDatabaseV2EodPayload(raw: JsonRecord, reportDateKey: string): EodPa
   const down = toNumber(breadthRaw.down);
   const unchanged = toNumber(breadthRaw.unchanged);
 
+  const foreignTopBuy = sanitizeFlowList(parseStringArray(databaseLeg.foreignTopBuy ?? databaseLeg.foreign_top_buy));
+  const foreignTopSell = sanitizeFlowList(parseStringArray(databaseLeg.foreignTopSell ?? databaseLeg.foreign_top_sell));
   const propTradingTopBuy = sanitizeFlowList(parseStringArray(databaseLeg.propTradingTopBuy ?? databaseLeg.prop_trading_top_buy));
   const propTradingTopSell = sanitizeFlowList(parseStringArray(databaseLeg.propTradingTopSell ?? databaseLeg.prop_trading_top_sell));
   const individualTopBuy = sanitizeFlowList(parseStringArray(databaseLeg.individualTopBuy ?? databaseLeg.individual_top_buy));
@@ -236,12 +244,12 @@ function fromDatabaseV2EodPayload(raw: JsonRecord, reportDateKey: string): EodPa
 
   return {
     date: toViDateFromDateKey(reportDateKey),
-    vnindex: toNumber(vnindex?.value),
-    change_pct: toNumber(vnindex?.change_pct),
-    liquidity: totalLiquidity,
-    total_liquidity: totalLiquidity > 0 ? totalLiquidity : null,
-    matched_liquidity: matchedLiquidity,
-    negotiated_liquidity: negotiatedLiquidity,
+    vnindex: roundNumber(toNumber(vnindex?.value), 2),
+    change_pct: roundNumber(toNumber(vnindex?.change_pct), 2),
+    liquidity: roundNumber(totalLiquidity, 1),
+    total_liquidity: totalLiquidity > 0 ? roundNumber(totalLiquidity, 1) : null,
+    matched_liquidity: matchedLiquidity != null ? roundNumber(matchedLiquidity, 1) : null,
+    negotiated_liquidity: negotiatedLiquidity != null ? roundNumber(negotiatedLiquidity, 1) : null,
     liquidity_by_exchange: exchangeLiquidity,
     breadth: { up, down, unchanged, total: up + down + unchanged },
     session_summary: sessionSummary,
@@ -266,8 +274,8 @@ function fromDatabaseV2EodPayload(raw: JsonRecord, reportDateKey: string): EodPa
       change_pts: item.change_pts,
       change_pct: item.change_pct,
     })),
-    foreign_top_buy: [],
-    foreign_top_sell: [],
+    foreign_top_buy: foreignTopBuy,
+    foreign_top_sell: foreignTopSell,
     prop_trading_top_buy: propTradingTopBuy,
     prop_trading_top_sell: propTradingTopSell,
     individual_top_buy: individualTopBuy,

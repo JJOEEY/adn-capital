@@ -76,6 +76,9 @@ export type DnseEodFieldMapItem = {
 
 export type DnseEodEnrichment = {
   fiinquant?: {
+    foreignFlowText?: string | null;
+    foreignTopBuy: string[];
+    foreignTopSell: string[];
     propTradingTopBuy: string[];
     propTradingTopSell: string[];
     individualTopBuy: string[];
