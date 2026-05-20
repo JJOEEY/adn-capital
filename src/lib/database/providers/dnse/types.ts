@@ -62,7 +62,7 @@ export type DnseWebsocketStatus = {
 export type DnseEodFieldSource =
   | "dnse_ws"
   | "computed_from_dnse_ws"
-  | "fiinquant_fallback"
+  | "fiinquant_enrichment"
   | "adn_computed";
 
 export type DnseEodFieldMapItem = {
@@ -70,8 +70,19 @@ export type DnseEodFieldMapItem = {
   source: DnseEodFieldSource;
   dnseChannels: string[];
   dnseFields: string[];
-  fallbackSource: "fiinquant" | "adn" | null;
+  enrichmentSource: "fiinquant" | "adn" | null;
   note: string;
+};
+
+export type DnseEodEnrichment = {
+  fiinquant?: {
+    propTradingTopBuy: string[];
+    propTradingTopSell: string[];
+    individualTopBuy: string[];
+    individualTopSell: string[];
+    missingFields: string[];
+    retrievedAt: string;
+  };
 };
 
 export type DnseEodMarketData = {
@@ -125,16 +136,8 @@ export type DnseEodMarketData = {
     notableTrades: string | null;
     outlook: string | null;
   };
-  fallback?: {
-    fiinquant?: {
-      propTradingTopBuy: string[];
-      propTradingTopSell: string[];
-      individualTopBuy: string[];
-      individualTopSell: string[];
-      missingFields: string[];
-      retrievedAt: string;
-    };
-  };
+  enrichment?: DnseEodEnrichment;
+  fallback?: DnseEodEnrichment;
   ohlcv?: Array<{
     ticker: string;
     open: number | null;

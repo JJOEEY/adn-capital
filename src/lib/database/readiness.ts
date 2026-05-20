@@ -3,7 +3,11 @@ import { getDatabaseRealtimeHealth } from "@/lib/database/radar-realtime";
 import { getDatabaseToolLatest } from "@/lib/database/tool-latest";
 
 function isFiinquantInvestorFlowField(field: string) {
-  return field.includes("requires-fiinquant-fallback") || field.toLowerCase().includes("fiinquant");
+  return (
+    field.includes("requires-fiinquant-enrichment") ||
+    field.includes("requires-fiinquant-fallback") ||
+    field.toLowerCase().includes("fiinquant")
+  );
 }
 
 function splitEodMissingFields(fields: string[]) {

@@ -144,7 +144,7 @@ function buildMarketContext(params: {
   eod: Awaited<ReturnType<typeof getDatabaseEodMarketDataset>>;
 }): DatabaseAidenMarketContext | null {
   if (!params.eod.data) return null;
-  const fallback = params.eod.data.fallback?.fiinquant;
+  const fiinquant = params.eod.data.enrichment?.fiinquant ?? params.eod.data.fallback?.fiinquant;
   return {
     tradingDate: params.tradingDate,
     previousTradingDate: params.previousTradingDate,
@@ -152,12 +152,12 @@ function buildMarketContext(params: {
     breadth: params.eod.data.breadth ?? null,
     liquidity: params.eod.data.liquidity ?? null,
     foreignFlow: params.eod.data.foreignFlow ?? null,
-    investorFlow: fallback
+    investorFlow: fiinquant
       ? {
-          propTradingTopBuy: fallback.propTradingTopBuy,
-          propTradingTopSell: fallback.propTradingTopSell,
-          individualTopBuy: fallback.individualTopBuy,
-          individualTopSell: fallback.individualTopSell,
+          propTradingTopBuy: fiinquant.propTradingTopBuy,
+          propTradingTopSell: fiinquant.propTradingTopSell,
+          individualTopBuy: fiinquant.individualTopBuy,
+          individualTopSell: fiinquant.individualTopSell,
         }
       : null,
   };
@@ -278,6 +278,7 @@ export async function getDatabaseAidenContext(options?: {
   previousTradingDate?: string;
   windowHours?: number;
   useFiinquantFallback?: boolean;
+  useFiinquantEnrichment?: boolean;
 }): Promise<DatabaseResult<DatabaseAidenContext>> {
   const startedAt = Date.now();
   const tradingDate = options?.tradingDate ?? dateKeyInVietnam();
@@ -287,7 +288,7 @@ export async function getDatabaseAidenContext(options?: {
     const eodPromise = getCachedDatabaseEodMarketDataset({ tradingDate: previousTradingDate })
       .then((cached) => cached ?? getDatabaseEodMarketDataset({
         tradingDate: previousTradingDate,
-        useFiinquantFallback: options?.useFiinquantFallback ?? true,
+        useFiinquantEnrichment: options?.useFiinquantEnrichment ?? options?.useFiinquantFallback ?? true,
       }));
     const [eod, latestNews, marketNews, macroNews, globalNews, tickerResults] = await Promise.all([
       eodPromise,
@@ -358,6 +359,7 @@ export async function getDatabaseAidenContext(options?: {
 export async function getDatabaseAidenHealth(options?: {
   sampleTickers?: string[];
   useFiinquantFallback?: boolean;
+  useFiinquantEnrichment?: boolean;
 }): Promise<DatabaseAidenHealth> {
   const sampleTickers = (options?.sampleTickers?.length ? options.sampleTickers : DEFAULT_SAMPLE_TICKERS)
     .map(normalizeTicker)
@@ -365,7 +367,7 @@ export async function getDatabaseAidenHealth(options?: {
     .slice(0, 6);
   const context = await getDatabaseAidenContext({
     tickers: sampleTickers,
-    useFiinquantFallback: options?.useFiinquantFallback,
+    useFiinquantEnrichment: options?.useFiinquantEnrichment ?? options?.useFiinquantFallback,
   });
   const data = context.data;
   const availableIndices = (data?.market?.indices ?? [])

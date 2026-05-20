@@ -30,7 +30,7 @@ const EOD_FIELD_MAP: DnseEodFieldMapItem[] = [
     source: "computed_from_dnse_ws",
     dnseChannels: ["market_index.*.json", "ohlc_closed.1D.json"],
     dnseFields: ["transactTime", "time", "timestamp"],
-    fallbackSource: "adn",
+    enrichmentSource: "adn",
     note: "Ngày EOD lấy theo timestamp DNSE; nếu chưa có message thì dùng lịch giao dịch ADN.",
   },
   {
@@ -38,7 +38,7 @@ const EOD_FIELD_MAP: DnseEodFieldMapItem[] = [
     source: "dnse_ws",
     dnseChannels: ["market_index.VNINDEX.json"],
     dnseFields: ["valueIndexes", "changedValue", "changedRatio", "priorValueIndexes"],
-    fallbackSource: null,
+    enrichmentSource: null,
     note: "Điểm số và biến động chỉ số chính.",
   },
   {
@@ -46,7 +46,7 @@ const EOD_FIELD_MAP: DnseEodFieldMapItem[] = [
     source: "dnse_ws",
     dnseChannels: ["market_index.VN30.json", "market_index.HNX.json", "market_index.UPCOM.json"],
     dnseFields: ["valueIndexes", "changedValue", "changedRatio"],
-    fallbackSource: null,
+    enrichmentSource: null,
     note: "VN30, HNX, UPCOM cho phần chỉ số phụ.",
   },
   {
@@ -60,7 +60,7 @@ const EOD_FIELD_MAP: DnseEodFieldMapItem[] = [
       "fluctuationUpperLimitIssueCount",
       "fluctuationLowerLimitIssueCount",
     ],
-    fallbackSource: null,
+    enrichmentSource: null,
     note: "Độ rộng tăng/giảm/đứng giá/trần/sàn lấy từ thống kê chỉ số.",
   },
   {
@@ -68,7 +68,7 @@ const EOD_FIELD_MAP: DnseEodFieldMapItem[] = [
     source: "dnse_ws",
     dnseChannels: ["market_index.VNINDEX.json", "market_index.HNX.json", "market_index.UPCOM.json"],
     dnseFields: ["contauctAccTrdVal", "contauctAccTrdVol", "grossTradeAmount", "totalVolumeTraded"],
-    fallbackSource: null,
+    enrichmentSource: null,
     note: "GTGD khớp lệnh và volume theo sàn/chỉ số.",
   },
   {
@@ -76,7 +76,7 @@ const EOD_FIELD_MAP: DnseEodFieldMapItem[] = [
     source: "dnse_ws",
     dnseChannels: ["market_index.*.json"],
     dnseFields: ["blkTrdAccTrdVal", "blkTrdAccTrdVol"],
-    fallbackSource: null,
+    enrichmentSource: null,
     note: "GTGD thỏa thuận nếu DNSE đẩy field block trade trong market index.",
   },
   {
@@ -84,7 +84,7 @@ const EOD_FIELD_MAP: DnseEodFieldMapItem[] = [
     source: "dnse_ws",
     dnseChannels: ["ohlc_closed.1D.json"],
     dnseFields: ["open", "high", "low", "close", "volume", "value"],
-    fallbackSource: null,
+    enrichmentSource: null,
     note: "Nến ngày từng mã/chỉ số, cần collector chạy trong phiên để giữ bản cuối ngày.",
   },
   {
@@ -92,23 +92,23 @@ const EOD_FIELD_MAP: DnseEodFieldMapItem[] = [
     source: "computed_from_dnse_ws",
     dnseChannels: ["foreign.G1.json"],
     dnseFields: ["totalBuyTradedAmount", "totalSellTradedAmount", "buyTradedAmount", "sellTradedAmount"],
-    fallbackSource: null,
+    enrichmentSource: null,
     note: "Khối ngoại tính net = buy - sell; top mua/bán cần subscribe đủ universe.",
   },
   {
     field: "prop_trading_top_buy/prop_trading_top_sell/notable_trades.proprietary",
-    source: "fiinquant_fallback",
+    source: "fiinquant_enrichment",
     dnseChannels: [],
     dnseFields: [],
-    fallbackSource: "fiinquant",
+    enrichmentSource: "fiinquant",
     note: "Chưa thấy kênh tự doanh trong DNSE LightSpeed SDK hiện tại.",
   },
   {
     field: "individual_top_buy/individual_top_sell/notable_trades.retail",
-    source: "fiinquant_fallback",
+    source: "fiinquant_enrichment",
     dnseChannels: [],
     dnseFields: [],
-    fallbackSource: "fiinquant",
+    enrichmentSource: "fiinquant",
     note: "Chưa thấy kênh cá nhân/retail trong DNSE LightSpeed SDK hiện tại.",
   },
   {
@@ -116,7 +116,7 @@ const EOD_FIELD_MAP: DnseEodFieldMapItem[] = [
     source: "computed_from_dnse_ws",
     dnseChannels: ["tick_extra.G1.json", "ohlc_closed.1D.json"],
     dnseFields: ["symbol", "matchPrice", "changedRatio", "close", "volume"],
-    fallbackSource: "adn",
+    enrichmentSource: "adn",
     note: "DNSE cấp giá; ADN cần mapping ngành riêng để gom sector.",
   },
   {
@@ -124,7 +124,7 @@ const EOD_FIELD_MAP: DnseEodFieldMapItem[] = [
     source: "adn_computed",
     dnseChannels: ["tick_extra.G1.json", "ohlc_closed.1D.json"],
     dnseFields: ["symbol", "matchPrice", "highestPrice", "lowestPrice", "totalVolumeTraded"],
-    fallbackSource: "adn",
+    enrichmentSource: "adn",
     note: "Không phải dữ liệu provider; ADN scanner tự tính từ giá/volume.",
   },
   {
@@ -132,7 +132,7 @@ const EOD_FIELD_MAP: DnseEodFieldMapItem[] = [
     source: "computed_from_dnse_ws",
     dnseChannels: ["market_index.*.json", "foreign.G1.json"],
     dnseFields: ["fieldMap-derived"],
-    fallbackSource: "adn",
+    enrichmentSource: "adn",
     note: "Câu chữ EOD được dựng từ dữ liệu đã map, không lấy trực tiếp từ DNSE.",
   },
 ];
@@ -506,11 +506,11 @@ export async function getDnseEodMarketDataset(options?: {
 
   const activeChannels = Array.from(new Set(result.messages.map((message) => readString(message, ["channel"]) ?? "").filter(Boolean)));
   const presentFields = messageKeys(result.messages);
-  const unsupported = EOD_FIELD_MAP.filter((item) => item.source === "fiinquant_fallback").map((item) => item.field);
+  const fiinquantEnrichmentFields = EOD_FIELD_MAP.filter((item) => item.source === "fiinquant_enrichment").map((item) => item.field);
   const unavailableNow = EOD_FIELD_MAP
-    .filter((item) => item.source !== "fiinquant_fallback" && item.dnseFields.length > 0 && !hasAnyField(result.messages, item.dnseFields))
+    .filter((item) => item.source !== "fiinquant_enrichment" && item.dnseFields.length > 0 && !hasAnyField(result.messages, item.dnseFields))
     .map((item) => item.field);
-  const missingFields = [...unavailableNow.map((field) => `${field}:no-live-ws-message`), ...unsupported.map((field) => `${field}:requires-fiinquant-fallback`)];
+  const missingFields = [...unavailableNow.map((field) => `${field}:no-live-ws-message`), ...fiinquantEnrichmentFields.map((field) => `${field}:requires-fiinquant-enrichment`)];
 
   const data: DnseEodMarketData = {
     mode: "lightspeed-websocket",
@@ -529,7 +529,7 @@ export async function getDnseEodMarketDataset(options?: {
     ok: missingFields.length === 0,
     code: missingFields.length ? "dnse_eod_partial_coverage" : undefined,
     message: missingFields.length
-      ? "DNSE LightSpeed EOD map is defined, but some fields need live-session collection or FiinQuant fallback."
+      ? "DNSE LightSpeed EOD map is defined, but some fields need live-session collection or FiinQuant enrichment."
       : undefined,
     retryable: unavailableNow.length > 0,
   };

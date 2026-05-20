@@ -14,15 +14,22 @@ function dateKeyInVietnam(date = new Date()) {
   }).format(date);
 }
 
-function needsFiinquantFallback(missingFields: string[]) {
-  return missingFields.some((field) => field.includes("requires-fiinquant-fallback"));
+function needsFiinquantEnrichment(missingFields: string[]) {
+  return missingFields.some((field) =>
+    field.includes("requires-fiinquant-enrichment") ||
+    field.includes("requires-fiinquant-fallback"),
+  );
 }
 
-function isFiinquantFallbackField(field: string) {
-  return field.includes("requires-fiinquant-fallback") || field.toLowerCase().includes("fiinquant");
+function isFiinquantEnrichmentField(field: string) {
+  return (
+    field.includes("requires-fiinquant-enrichment") ||
+    field.includes("requires-fiinquant-fallback") ||
+    field.toLowerCase().includes("fiinquant")
+  );
 }
 
-function hasFallbackData(data: NonNullable<DnseEodMarketData["fallback"]>["fiinquant"]) {
+function hasFiinquantEnrichmentData(data: NonNullable<DnseEodMarketData["enrichment"]>["fiinquant"]) {
   return Boolean(
     data &&
       (
@@ -49,12 +56,12 @@ function buildEodBriefFields(data: DnseEodMarketData): NonNullable<DnseEodMarket
   const vnindex = data.indices?.find((item) => item.ticker === "VNINDEX") ?? data.indices?.[0] ?? null;
   const liquidity = formatBillion(data.liquidity?.matchedValue);
   const foreignNet = formatBillion(data.foreignFlow?.netValue);
-  const fallback = data.fallback?.fiinquant;
-  const proprietary = fallback && (fallback.propTradingTopBuy.length || fallback.propTradingTopSell.length)
-    ? `Tự doanh mua ròng: ${fallback.propTradingTopBuy.slice(0, 5).join(", ") || "không đáng kể"}. Bán ròng: ${fallback.propTradingTopSell.slice(0, 5).join(", ") || "không đáng kể"}.`
+  const fiinquant = data.enrichment?.fiinquant ?? data.fallback?.fiinquant;
+  const proprietary = fiinquant && (fiinquant.propTradingTopBuy.length || fiinquant.propTradingTopSell.length)
+    ? `Tự doanh mua ròng: ${fiinquant.propTradingTopBuy.slice(0, 5).join(", ") || "không đáng kể"}. Bán ròng: ${fiinquant.propTradingTopSell.slice(0, 5).join(", ") || "không đáng kể"}.`
     : null;
-  const retail = fallback && (fallback.individualTopBuy.length || fallback.individualTopSell.length)
-    ? `Cá nhân mua ròng: ${fallback.individualTopBuy.slice(0, 5).join(", ") || "không đáng kể"}. Bán ròng: ${fallback.individualTopSell.slice(0, 5).join(", ") || "không đáng kể"}.`
+  const retail = fiinquant && (fiinquant.individualTopBuy.length || fiinquant.individualTopSell.length)
+    ? `Cá nhân mua ròng: ${fiinquant.individualTopBuy.slice(0, 5).join(", ") || "không đáng kể"}. Bán ròng: ${fiinquant.individualTopSell.slice(0, 5).join(", ") || "không đáng kể"}.`
     : null;
   const sessionSummary = vnindex?.value != null
     ? `VN-Index ghi nhận ${vnindex.value.toLocaleString("vi-VN")} điểm${formatPct(vnindex.changePct) ? ` (${formatPct(vnindex.changePct)})` : ""}.`
@@ -123,6 +130,7 @@ export async function getDatabaseEodMarketDataset(options?: {
   symbols?: string[];
   tradingDate?: string;
   useFiinquantFallback?: boolean;
+  useFiinquantEnrichment?: boolean;
   fiinquantTimeoutMs?: number;
 }): Promise<DatabaseResult<DnseEodMarketData>> {
   const startedAt = Date.now();
@@ -134,12 +142,13 @@ export async function getDatabaseEodMarketDataset(options?: {
 
   let data = dnse.data;
   let missingFields = [...dnse.missingFields];
-  let fallbackError: string | null = null;
+  let enrichmentError: string | null = null;
+  const shouldUseFiinquantEnrichment = options?.useFiinquantEnrichment ?? options?.useFiinquantFallback ?? true;
 
-  if (data && options?.useFiinquantFallback !== false && needsFiinquantFallback(missingFields)) {
+  if (data && shouldUseFiinquantEnrichment && needsFiinquantEnrichment(missingFields)) {
     try {
       const fiin = await fetchEodMarketData(tradingDate, { timeout: options?.fiinquantTimeoutMs ?? 45_000 });
-      const fiinFallback: NonNullable<DnseEodMarketData["fallback"]>["fiinquant"] = {
+      const fiinquantEnrichment: NonNullable<DnseEodMarketData["enrichment"]>["fiinquant"] = {
         propTradingTopBuy: fiin?.prop_trading_top_buy ?? [],
         propTradingTopSell: fiin?.prop_trading_top_sell ?? [],
         individualTopBuy: fiin?.individual_top_buy ?? [],
@@ -149,16 +158,23 @@ export async function getDatabaseEodMarketDataset(options?: {
       };
       data = {
         ...data,
+        enrichment: {
+          ...data.enrichment,
+          fiinquant: fiinquantEnrichment,
+        },
         fallback: {
           ...data.fallback,
-          fiinquant: fiinFallback,
+          fiinquant: fiinquantEnrichment,
         },
       };
-      if (hasFallbackData(fiinFallback)) {
-        missingFields = missingFields.filter((field) => !field.includes("requires-fiinquant-fallback"));
+      if (hasFiinquantEnrichmentData(fiinquantEnrichment)) {
+        missingFields = missingFields.filter((field) =>
+          !field.includes("requires-fiinquant-enrichment") &&
+          !field.includes("requires-fiinquant-fallback"),
+        );
       }
     } catch (error) {
-      fallbackError = error instanceof Error ? error.message.slice(0, 180) : String(error).slice(0, 180);
+      enrichmentError = error instanceof Error ? error.message.slice(0, 180) : String(error).slice(0, 180);
     }
   }
 
@@ -175,12 +191,12 @@ export async function getDatabaseEodMarketDataset(options?: {
     httpStatus: null,
     latencyMs: Date.now() - startedAt,
     code: missingFields.length ? "database_v2_eod_partial" : undefined,
-    message: fallbackError
-      ? `FiinQuant fallback failed: ${fallbackError}`
+    message: enrichmentError
+      ? `FiinQuant enrichment failed: ${enrichmentError}`
       : missingFields.length
-        ? missingFields.every(isFiinquantFallbackField)
-          ? "DNSE market data is ready; FiinQuant investor-flow fallback is pending."
-          : "Database v2 EOD is still partial after controlled fallback."
+        ? missingFields.every(isFiinquantEnrichmentField)
+          ? "DNSE market data is ready; FiinQuant investor-flow enrichment is pending."
+          : "Database v2 EOD is still partial after DNSE + FiinQuant merge."
         : undefined,
     retryable: missingFields.length > 0,
   };

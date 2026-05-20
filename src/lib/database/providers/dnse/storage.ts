@@ -176,10 +176,10 @@ function buildEodDataFromMessages(params: {
   const messages = rows.map((row) => row.payload).filter((item): item is JsonRecord => Boolean(item));
   const activeChannels = Array.from(new Set(rows.map((row) => row.channel))).filter(Boolean);
   const presentFields = messageKeys(messages);
-  const unsupported = DNSE_EOD_FIELD_MAP.filter((item) => item.source === "fiinquant_fallback").map((item) => item.field);
+  const fiinquantEnrichmentFields = DNSE_EOD_FIELD_MAP.filter((item) => item.source === "fiinquant_enrichment").map((item) => item.field);
   const unavailable = DNSE_EOD_FIELD_MAP
     .filter((item) =>
-      item.source !== "fiinquant_fallback" &&
+      item.source !== "fiinquant_enrichment" &&
       item.dnseFields.length > 0 &&
       !item.dnseFields.includes("fieldMap-derived") &&
       !hasAnyField(messages, item.dnseFields),
@@ -222,7 +222,7 @@ function buildEodDataFromMessages(params: {
   const lastReceivedAt = latestReceivedAt(params.latestRows);
   const missingFields = [
     ...unavailable.map((field) => `${field}:not-in-database`),
-    ...unsupported.map((field) => `${field}:requires-fiinquant-fallback`),
+    ...fiinquantEnrichmentFields.map((field) => `${field}:requires-fiinquant-enrichment`),
   ];
 
   return {
@@ -279,7 +279,7 @@ export async function collectDnseEodMarketToDatabase(options?: {
   const ws = await collectDnseLightspeedMessages({
     subscriptions: channels,
     timeoutMs: options?.timeoutMs ?? 15_000,
-    maxMessages: options?.maxMessages ?? 96,
+    maxMessages: options?.maxMessages ?? Math.min(Math.max(160, symbols.length * 3), 600),
   });
 
   let storedEvents = 0;

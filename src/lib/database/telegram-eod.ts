@@ -71,7 +71,7 @@ export function formatDatabaseEodPublicBriefText(result: DatabaseResult<DnseEodM
   const breadth = data?.breadth;
   const liquidity = data?.liquidity;
   const foreign = data?.foreignFlow;
-  const fallback = data?.fallback?.fiinquant;
+  const fiinquant = data?.enrichment?.fiinquant ?? data?.fallback?.fiinquant;
   const foreignNet = typeof foreign?.netValue === "number" ? foreign.netValue : null;
   const flowNote =
     foreignNet == null
@@ -96,10 +96,10 @@ export function formatDatabaseEodPublicBriefText(result: DatabaseResult<DnseEodM
     "",
     "🏦 *DÒNG TIỀN NHÀ ĐẦU TƯ:*",
     `• Khối ngoại: Mua ${formatTy(foreign?.buyValue)} | Bán ${formatTy(foreign?.sellValue)} | Ròng ${formatTy(foreign?.netValue)}`,
-    `• Tự doanh mua nổi bật: ${formatTop(fallback?.propTradingTopBuy)}`,
-    `• Tự doanh bán nổi bật: ${formatTop(fallback?.propTradingTopSell)}`,
-    `• Cá nhân mua nổi bật: ${formatTop(fallback?.individualTopBuy)}`,
-    `• Cá nhân bán nổi bật: ${formatTop(fallback?.individualTopSell)}`,
+    `• Tự doanh mua nổi bật: ${formatTop(fiinquant?.propTradingTopBuy)}`,
+    `• Tự doanh bán nổi bật: ${formatTop(fiinquant?.propTradingTopSell)}`,
+    `• Cá nhân mua nổi bật: ${formatTop(fiinquant?.individualTopBuy)}`,
+    `• Cá nhân bán nổi bật: ${formatTop(fiinquant?.individualTopSell)}`,
     "",
     "💡 *NHẬN ĐỊNH SMART MONEY:*",
     `• ${flowNote}`,

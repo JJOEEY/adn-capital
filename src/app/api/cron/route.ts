@@ -349,17 +349,17 @@ function hasDatabaseEodRequiredFields(result: Awaited<ReturnType<typeof getDatab
   const hasLiquidity = data?.liquidity?.matchedValue != null;
   const hasBreadth = data?.breadth?.up != null && data?.breadth?.down != null;
   const hasForeign = data?.foreignFlow?.netValue != null;
-  const fallback = data?.fallback?.fiinquant;
-  const hasInvestorFallback = Boolean(
-    fallback &&
+  const fiinquant = data?.enrichment?.fiinquant ?? data?.fallback?.fiinquant;
+  const hasInvestorFlow = Boolean(
+    fiinquant &&
       (
-        fallback.propTradingTopBuy.length ||
-        fallback.propTradingTopSell.length ||
-        fallback.individualTopBuy.length ||
-        fallback.individualTopSell.length
+        fiinquant.propTradingTopBuy.length ||
+        fiinquant.propTradingTopSell.length ||
+        fiinquant.individualTopBuy.length ||
+        fiinquant.individualTopSell.length
       ),
   );
-  return hasVnindex && hasLiquidity && hasBreadth && hasForeign && hasInvestorFallback;
+  return hasVnindex && hasLiquidity && hasBreadth && hasForeign && hasInvestorFlow;
 }
 
 async function handleDatabaseEodPublish(forceRun: boolean, dateISO: string, today: string): Promise<NextResponse> {
@@ -401,7 +401,7 @@ async function handleDatabaseEodPublish(forceRun: boolean, dateISO: string, toda
 
     const eod = await getDatabaseEodMarketDataset({
       tradingDate: dateISO,
-      useFiinquantFallback: true,
+      useFiinquantEnrichment: true,
       fiinquantTimeoutMs: 180_000,
     });
     if (!eod.data || !hasDatabaseEodRequiredFields(eod)) {
@@ -637,7 +637,7 @@ async function handleDatabaseV2Cron(type: CanonicalCronType, forceRun = false): 
       }
       const result = await collectDnseEodMarketToDatabase({
         timeoutMs: forceRun ? 30_000 : 15_000,
-        maxMessages: forceRun ? 160 : 96,
+        maxMessages: forceRun ? 600 : 420,
       });
       const duration = Date.now() - startTime;
       await logCron(
@@ -731,7 +731,7 @@ async function handleDatabaseV2Cron(type: CanonicalCronType, forceRun = false): 
       const result = await getDatabaseAidenContext({
         tickers: ["HPG", "FPT", "DGC"],
         previousTradingDate: databaseEodReadDateKey(),
-        useFiinquantFallback: false,
+        useFiinquantEnrichment: false,
       });
       await persistDatabaseToolCronPayload({
         tool: "aiden",
@@ -866,7 +866,7 @@ async function handleDatabaseV2Cron(type: CanonicalCronType, forceRun = false): 
       const tradingDate = databaseEodReadDateKey();
       const result = await getDatabaseEodMarketDataset({
         tradingDate,
-        useFiinquantFallback: true,
+        useFiinquantEnrichment: true,
         fiinquantTimeoutMs: type === "database_eod_collect" ? 240_000 : 60_000,
       });
       await persistDatabaseToolCronPayload({

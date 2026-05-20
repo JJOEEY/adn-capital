@@ -29,13 +29,14 @@ export async function getDatabaseMorningReadiness(options?: {
   tradingDate?: string;
   previousTradingDate?: string;
   useFiinquantFallback?: boolean;
+  useFiinquantEnrichment?: boolean;
 }): Promise<DatabaseMorningReadiness> {
   const tradingDate = options?.tradingDate ?? dateKeyInVietnam();
   const previousTradingDate = options?.previousTradingDate ?? previousTradingDateKey();
   const eodPromise = getCachedDatabaseEodMarketDataset({ tradingDate: previousTradingDate })
     .then((cached) => cached ?? getDatabaseEodMarketDataset({
       tradingDate: previousTradingDate,
-      useFiinquantFallback: options?.useFiinquantFallback ?? true,
+      useFiinquantEnrichment: options?.useFiinquantEnrichment ?? options?.useFiinquantFallback ?? true,
     }));
   const [news, eod] = await Promise.all([
     getDatabaseNewsHealth({ windowHours: 36 }),
