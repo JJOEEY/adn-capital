@@ -43,7 +43,8 @@ function hasFiinquantEnrichmentData(data: NonNullable<DnseEodMarketData["enrichm
 
 function formatBillion(value: number | null | undefined) {
   if (typeof value !== "number" || !Number.isFinite(value)) return null;
-  const billion = Math.abs(value) > 1_000_000_000 ? value / 1_000_000_000 : value;
+  const absValue = Math.abs(value);
+  const billion = absValue > 1_000_000_000 ? absValue / 1_000_000_000 : absValue;
   return `${Number(billion.toFixed(1)).toLocaleString("vi-VN")} tỷ`;
 }
 
