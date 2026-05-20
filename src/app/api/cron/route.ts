@@ -43,9 +43,11 @@ import {
   collectDnseEodMarketToDatabase,
   getDatabaseRealtimeHealth,
   getDatabaseV2Readiness,
+  getCachedDatabaseEodMarketDataset,
   getDatabaseEodMarketDataset,
   getDatabaseMorningBrief,
   getDatabaseAidenContext,
+  getDatabaseToolLatest,
   isDatabaseV2RadarRealtimeEnabled,
   upsertDatabaseToolLatest,
 } from "@/lib/database";
@@ -399,11 +401,17 @@ async function handleDatabaseEodPublish(forceRun: boolean, dateISO: string, toda
       });
     }
 
-    const eod = await getDatabaseEodMarketDataset({
+    const cachedEod = await getCachedDatabaseEodMarketDataset({
       tradingDate: dateISO,
-      useFiinquantEnrichment: true,
-      fiinquantTimeoutMs: 180_000,
-    });
+      maxAgeMs: 48 * 60 * 60_000,
+    }).catch(() => null);
+    const eod = cachedEod?.ok
+      ? cachedEod
+      : await getDatabaseEodMarketDataset({
+          tradingDate: dateISO,
+          useFiinquantEnrichment: true,
+          fiinquantTimeoutMs: 180_000,
+        });
     if (!eod.data || !hasDatabaseEodRequiredFields(eod)) {
       const duration = Date.now() - startTime;
       const retryWindow = !forceRun && getVnMinuteOfDay() <= 20 * 60;
@@ -500,7 +508,18 @@ async function persistDatabaseToolCronPayload(params: {
   providerStatus?: unknown;
   ttlMs?: number;
   tradingDate?: string;
+  preserveComplete?: boolean;
 }) {
+  if (params.preserveComplete && (params.missingFields?.length ?? 0) > 0) {
+    const existing = await getDatabaseToolLatest({
+      tool: params.tool,
+      dataset: params.dataset,
+      key: "latest",
+      tradingDate: params.tradingDate,
+      ignoreExpires: true,
+    }).catch(() => null);
+    if (existing && existing.missingFields.length === 0) return existing;
+  }
   return upsertDatabaseToolLatest({
     tool: params.tool,
     dataset: params.dataset,
@@ -877,6 +896,7 @@ async function handleDatabaseV2Cron(type: CanonicalCronType, forceRun = false): 
         providerStatus: result.providerStatus,
         ttlMs: 24 * 60 * 60_000,
         tradingDate,
+        preserveComplete: true,
       });
       const duration = Date.now() - startTime;
       await logCron(
