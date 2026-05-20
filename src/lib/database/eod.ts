@@ -33,8 +33,6 @@ function hasFiinquantEnrichmentData(data: NonNullable<DnseEodMarketData["enrichm
   return Boolean(
     data &&
       (
-        data.foreignTopBuy.length ||
-        data.foreignTopSell.length ||
         data.propTradingTopBuy.length ||
         data.propTradingTopSell.length ||
         data.individualTopBuy.length ||
@@ -59,7 +57,6 @@ function buildEodBriefFields(data: DnseEodMarketData): NonNullable<DnseEodMarket
   const liquidity = formatBillion(data.liquidity?.matchedValue);
   const foreignNet = formatBillion(data.foreignFlow?.netValue);
   const fiinquant = data.enrichment?.fiinquant ?? data.fallback?.fiinquant;
-  const foreignFlowText = fiinquant?.foreignFlowText?.trim();
   const proprietary = fiinquant && (fiinquant.propTradingTopBuy.length || fiinquant.propTradingTopSell.length)
     ? `Tự doanh mua ròng: ${fiinquant.propTradingTopBuy.slice(0, 5).join(", ") || "không đáng kể"}. Bán ròng: ${fiinquant.propTradingTopSell.slice(0, 5).join(", ") || "không đáng kể"}.`
     : null;
@@ -72,7 +69,7 @@ function buildEodBriefFields(data: DnseEodMarketData): NonNullable<DnseEodMarket
   return {
     sessionSummary,
     liquidityDetail: liquidity ? `GTGD khớp lệnh toàn thị trường đạt khoảng ${liquidity}.` : null,
-    foreignFlow: foreignFlowText || (foreignNet ? `Khối ngoại ${data.foreignFlow?.netValue != null && data.foreignFlow.netValue >= 0 ? "mua ròng" : "bán ròng"} ${foreignNet}.` : null),
+    foreignFlow: foreignNet ? `Khối ngoại ${data.foreignFlow?.netValue != null && data.foreignFlow.netValue >= 0 ? "mua ròng" : "bán ròng"} ${foreignNet}.` : null,
     notableTrades: [proprietary, retail].filter(Boolean).join(" | ") || null,
     outlook: "Ưu tiên kiểm soát tỷ trọng, theo dõi phản ứng dòng tiền ở nhóm dẫn dắt và tuân thủ điểm dừng lỗ.",
   };
@@ -152,9 +149,9 @@ export async function getDatabaseEodMarketDataset(options?: {
     try {
       const fiin = await fetchEodMarketData(tradingDate, { timeout: options?.fiinquantTimeoutMs ?? 45_000 });
       const fiinquantEnrichment: NonNullable<DnseEodMarketData["enrichment"]>["fiinquant"] = {
-        foreignFlowText: fiin?.foreign_flow ?? null,
-        foreignTopBuy: fiin?.foreign_top_buy ?? [],
-        foreignTopSell: fiin?.foreign_top_sell ?? [],
+        foreignFlowText: null,
+        foreignTopBuy: [],
+        foreignTopSell: [],
         propTradingTopBuy: fiin?.prop_trading_top_buy ?? [],
         propTradingTopSell: fiin?.prop_trading_top_sell ?? [],
         individualTopBuy: fiin?.individual_top_buy ?? [],

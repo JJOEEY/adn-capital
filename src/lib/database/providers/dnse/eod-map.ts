@@ -154,8 +154,8 @@ export function toDnseWireSymbol(symbol: string) {
 export function dnseEodChannels(symbols: string[]) {
   const normalized = Array.from(new Set(symbols.map(normalizeDnseSymbol).filter(Boolean)));
   const chunks = [];
-  for (let index = 0; index < normalized.length; index += 100) {
-    chunks.push(normalized.slice(index, index + 100));
+  for (let index = 0; index < normalized.length; index += 50) {
+    chunks.push(normalized.slice(index, index + 50));
   }
   return [
     ...DNSE_REQUIRED_EOD_INDICES.map((index) => ({ name: `market_index.${index}.json`, symbols: [] })),

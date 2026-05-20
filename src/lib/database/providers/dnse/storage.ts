@@ -152,6 +152,11 @@ function sumValues(values: Array<number | null>) {
   return numbers.length ? numbers.reduce((total, value) => total + value, 0) : null;
 }
 
+function formatForeignFlowItem(symbol: string, value: number) {
+  const billion = Math.abs(value) > 1_000_000_000 ? value / 1_000_000_000 : value;
+  return `${symbol} (${Number(billion.toFixed(1)).toLocaleString("vi-VN")} tỷ)`;
+}
+
 function buildEodDataFromMessages(params: {
   tradingDate: string;
   channels: Array<{ name: string; symbols: string[] }>;
@@ -217,8 +222,32 @@ function buildEodDataFromMessages(params: {
       };
     });
 
-  const buyValue = sumValues(foreignPayloads.map((payload) => readNumber(payload, ["totalBuyTradedAmount", "buyTradedAmount"])));
-  const sellValue = sumValues(foreignPayloads.map((payload) => readNumber(payload, ["totalSellTradedAmount", "sellTradedAmount"])));
+  const foreignRows = rows
+    .filter((row) => row.channel === "foreign.G1.json")
+    .map((row) => {
+      const payload = row.payload;
+      const buyValue = readNumber(payload, ["totalBuyTradedAmount", "buyTradedAmount"]);
+      const sellValue = readNumber(payload, ["totalSellTradedAmount", "sellTradedAmount"]);
+      return {
+        symbol: row.symbol,
+        buyValue,
+        sellValue,
+        netValue: buyValue != null && sellValue != null ? buyValue - sellValue : null,
+      };
+    })
+    .filter((row) => row.netValue != null && row.symbol && row.symbol !== "MARKET");
+  const buyValue = sumValues(foreignRows.map((row) => row.buyValue));
+  const sellValue = sumValues(foreignRows.map((row) => row.sellValue));
+  const foreignTopBuy = foreignRows
+    .filter((row): row is typeof row & { netValue: number } => typeof row.netValue === "number" && row.netValue > 0)
+    .sort((a, b) => b.netValue - a.netValue)
+    .slice(0, 10)
+    .map((row) => formatForeignFlowItem(row.symbol, row.netValue));
+  const foreignTopSell = foreignRows
+    .filter((row): row is typeof row & { netValue: number } => typeof row.netValue === "number" && row.netValue < 0)
+    .sort((a, b) => a.netValue - b.netValue)
+    .slice(0, 10)
+    .map((row) => formatForeignFlowItem(row.symbol, Math.abs(row.netValue)));
   const lastReceivedAt = latestReceivedAt(params.latestRows);
   const missingFields = [
     ...unavailable.map((field) => `${field}:not-in-database`),
@@ -261,6 +290,8 @@ function buildEodDataFromMessages(params: {
       buyValue,
       sellValue,
       netValue: buyValue != null && sellValue != null ? buyValue - sellValue : null,
+      topBuy: foreignTopBuy,
+      topSell: foreignTopSell,
     },
     ohlcv,
   };

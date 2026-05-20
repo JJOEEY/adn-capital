@@ -195,8 +195,8 @@ function fromDatabaseV2EodPayload(raw: JsonRecord, reportDateKey: string): EodPa
   const down = toNumber(breadthRaw.down);
   const unchanged = toNumber(breadthRaw.unchanged);
 
-  const foreignTopBuy = sanitizeFlowList(parseStringArray(databaseLeg.foreignTopBuy ?? databaseLeg.foreign_top_buy));
-  const foreignTopSell = sanitizeFlowList(parseStringArray(databaseLeg.foreignTopSell ?? databaseLeg.foreign_top_sell));
+  const foreignTopBuy = sanitizeFlowList(parseStringArray(foreignFlow.topBuy ?? foreignFlow.top_buy ?? databaseLeg.foreignTopBuy ?? databaseLeg.foreign_top_buy));
+  const foreignTopSell = sanitizeFlowList(parseStringArray(foreignFlow.topSell ?? foreignFlow.top_sell ?? databaseLeg.foreignTopSell ?? databaseLeg.foreign_top_sell));
   const propTradingTopBuy = sanitizeFlowList(parseStringArray(databaseLeg.propTradingTopBuy ?? databaseLeg.prop_trading_top_buy));
   const propTradingTopSell = sanitizeFlowList(parseStringArray(databaseLeg.propTradingTopSell ?? databaseLeg.prop_trading_top_sell));
   const individualTopBuy = sanitizeFlowList(parseStringArray(databaseLeg.individualTopBuy ?? databaseLeg.individual_top_buy));

@@ -13,6 +13,7 @@ const CHANNELS = [
   { name: "tick.G1.json", symbols: SYMBOLS },
   { name: "ohlc.1m.json", symbols: SYMBOLS },
   { name: "ohlc.5m.json", symbols: SYMBOLS },
+  { name: "foreign.G1.json", symbols: SYMBOLS },
 ];
 
 function loadEnvFile(file) {

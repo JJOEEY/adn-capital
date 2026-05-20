@@ -131,6 +131,8 @@ export type DnseEodMarketData = {
     buyValue: number | null;
     sellValue: number | null;
     netValue: number | null;
+    topBuy?: string[];
+    topSell?: string[];
   };
   brief?: {
     sessionSummary: string | null;
