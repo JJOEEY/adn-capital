@@ -3,7 +3,6 @@ import { prisma } from "@/lib/prisma";
 import { getMarketSnapshot, getInvestorTradingText } from "@/lib/marketDataFetcher";
 import { fetchAllCafefNews } from "@/lib/cafefScraper";
 import { fetchEodNews, fetchMorningNews, type FiinEodNews, type FiinMorningNews } from "@/lib/fiinquantClient";
-import { filterVnReferenceIndices, normalizeReferenceIndexName } from "@/lib/vn-reference-indices";
 
 export const dynamic = "force-dynamic";
 
@@ -865,12 +864,9 @@ async function enrichMorningPayload(
 
 function normalizeIndexName(raw: unknown): string {
   const source = String(raw ?? "").trim();
-  const referenceName = normalizeReferenceIndexName(source);
-  if (referenceName) return referenceName;
   const n = normalizeForCheck(source).replace(/[^a-z0-9]/g, "");
   if (n === "vnindex") return "VN-INDEX";
   if (n === "vn30") return "VN30";
-  if (n === "vn30f1m" || n.startsWith("vn30f")) return "VN30F1M";
   if (n === "hnxindex" || n === "hnx") return "HNX-INDEX";
   if (n === "upcomindex" || n === "upcom") return "UPCOM-INDEX";
   if (n === "dowjones" || n === "dow") return "DOW JONES";
@@ -896,10 +892,12 @@ function normalizeSentenceList(content: string, fallback: string): string[] {
   return lines;
 }
 
-function parseIndexLine(content: string, ticker: "VN-INDEX" | "VN30" | "VN30F1M") {
+function parseIndexLine(content: string, ticker: "VN-INDEX" | "DOW JONES" | "DXY" | "VÀNG" | "DẦU WTI") {
   const escaped = ticker
     .replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")
-    .replace("VN\\-INDEX", "(?:VN\\-INDEX|VNINDEX)");
+    .replace("VÀNG", "(?:VÀNG|VANG|GOLD)")
+    .replace("DẦU WTI", "(?:DẦU\\s*WTI|DAU\\s*WTI|WTI)")
+    .replace("DOW JONES", "(?:DOW\\s*JONES|DOWJONES)");
 
   const rgx = new RegExp(`${escaped}[^\\d]{0,12}([\\d.,]+)(?:\\s*\\|\\s*([+-]?[\\d.,]+)%)?`, "i");
   const match = content.match(rgx);
@@ -928,7 +926,13 @@ function extractIndices(snapshot: JsonRecord, content: string): IndexRow[] {
   const byName = new Map<string, IndexRow>();
   for (const row of rows) byName.set(row.name, row);
 
-  const refs: Array<"VN-INDEX" | "VN30" | "VN30F1M"> = ["VN-INDEX", "VN30", "VN30F1M"];
+  const refs: Array<"VN-INDEX" | "DOW JONES" | "DXY" | "VÀNG" | "DẦU WTI"> = [
+    "VN-INDEX",
+    "DOW JONES",
+    "DXY",
+    "VÀNG",
+    "DẦU WTI",
+  ];
   for (const ref of refs) {
     if (byName.has(ref)) continue;
     const parsed = parseIndexLine(content, ref);
@@ -945,7 +949,7 @@ function extractIndices(snapshot: JsonRecord, content: string): IndexRow[] {
     if (vn) byName.set("VN-INDEX", { ...vn, name: "VN-INDEX" });
   }
 
-  return filterVnReferenceIndices(Array.from(byName.values()));
+  return Array.from(byName.values());
 }
 
 function parseBreadthFromString(raw: string) {
@@ -1777,7 +1781,7 @@ function backfillMorningPayload(base: MorningPayload, history: MorningPayload[])
     };
   });
 
-  const preferredIndexNames = ["VN-INDEX", "VN30", "VN30F1M"];
+  const preferredIndexNames = ["VN-INDEX", "DOW JONES", "DXY", "VÃ€NG", "Dáº¦U WTI", "VÀNG", "DẦU WTI"];
   for (const preferredName of preferredIndexNames) {
     const exists = referenceIndices.some(
       (item) => normalizeIndexKey(item.name) === normalizeIndexKey(preferredName),
