@@ -1,5 +1,10 @@
 import { buildTopicContext } from "./producer-context";
 import { resolveTopicFamily, resolveTopicStaleWindowMs } from "./policy";
+import {
+  invalidateDataHubRedisCache,
+  readDataHubRedisCache,
+  writeDataHubRedisCache,
+} from "./redis-cache";
 import { resolveTopicDefinition } from "./registry";
 import { TopicContext, TopicDefinition, TopicEnvelope, TopicError, TopicFreshness } from "./types";
 import { emitObservabilityEvent, maskIdentifier } from "@/lib/observability";
@@ -211,6 +216,29 @@ export async function getTopicEnvelope(topicKey: string, context?: TopicContext)
     const attemptMs = Date.now();
     const refreshStartedAt = Date.now();
     try {
+      if (!force) {
+        const redisEnvelope = await readDataHubRedisCache({
+          cacheKey,
+          topic: normalizedTopic,
+          scopeUserId: scopedContext.userId ?? null,
+          definition,
+        });
+        if (redisEnvelope) {
+          const cachedEnvelope = withFreshness(redisEnvelope, definition, attemptMs);
+          const expiresAtMs = new Date(redisEnvelope.expiresAt).getTime();
+          state.cache.set(cacheKey, {
+            cacheKey,
+            topic: normalizedTopic,
+            scopeUserId: scopedContext.userId ?? null,
+            envelope: cachedEnvelope,
+            updatedAtMs: new Date(redisEnvelope.updatedAt).getTime() || attemptMs,
+            expiresAtMs: Number.isFinite(expiresAtMs) ? expiresAtMs : attemptMs,
+            lastAttemptMs: attemptMs,
+            tags: definition.tags,
+          });
+          return cachedEnvelope;
+        }
+      }
       const value = await definition.resolve(normalizedTopic, scopedContext, params);
       const envelope: TopicEnvelope = {
         topic: normalizedTopic,
@@ -232,6 +260,15 @@ export async function getTopicEnvelope(topicKey: string, context?: TopicContext)
         lastAttemptMs: attemptMs,
         tags: definition.tags,
       });
+      void writeDataHubRedisCache(
+        {
+          cacheKey,
+          topic: normalizedTopic,
+          scopeUserId: scopedContext.userId ?? null,
+          definition,
+        },
+        envelope,
+      );
       emitObservabilityEvent({
         domain: "datahub",
         event: "refresh_success",
@@ -390,6 +427,11 @@ export function invalidateTopics(input: {
       tagsCount: tags.size,
       prefixesCount: prefixes.length,
     },
+  });
+  void invalidateDataHubRedisCache({
+    topics: Array.from(topics),
+    tags: Array.from(tags),
+    prefixes,
   });
 
   return {

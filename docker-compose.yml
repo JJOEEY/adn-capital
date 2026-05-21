@@ -40,6 +40,19 @@ services:
     networks:
       - adn-net
 
+  redis:
+    image: redis:7-alpine
+    container_name: adn-redis
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - adn-net
+
   web:
     build:
       context: .
@@ -53,6 +66,10 @@ services:
       - PYTHON_BRIDGE_URL=${PYTHON_BRIDGE_URL:-http://fiinquant:8000}
       - SCANNER_WEBHOOK_INGEST_ENABLED=false
       - GUIDE_UPLOAD_DIR=/app/storage/guides
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - DATAHUB_REDIS_ENABLED=${DATAHUB_REDIS_ENABLED:-true}
+      - DATAHUB_REDIS_PREFIX=${DATAHUB_REDIS_PREFIX:-adn:datahub:v1}
+      - DATAHUB_REDIS_PRIVATE_ENABLED=${DATAHUB_REDIS_PRIVATE_ENABLED:-false}
       - DATABASE_URL=postgresql://${POSTGRES_USER:-adnuser}:${POSTGRES_PASSWORD}@pgbouncer:5432/${POSTGRES_DB:-adncapital}?schema=public&pgbouncer=true
       - DIRECT_DATABASE_URL=postgresql://${POSTGRES_USER:-adnuser}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-adncapital}?schema=public
     volumes:
@@ -64,6 +81,8 @@ services:
         condition: service_healthy
       pgbouncer:
         condition: service_started
+      redis:
+        condition: service_healthy
       fiinquant:
         condition: service_started
     networks:
