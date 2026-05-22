@@ -11,6 +11,7 @@ const CRONS = [
   "database_eod_readiness",
   "database_radar_realtime_collect",
   "database_realtime_health",
+  "database_adn_signal_core_universe_collect",
   "database_adn_radar_collect",
   "database_adn_radar_readiness",
   "database_adn_art_collect",

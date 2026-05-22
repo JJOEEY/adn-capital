@@ -29,7 +29,8 @@
     "verify:database:v2-cron-setup": "node scripts/verify-database-v2-cron-setup.mjs",
     "verify:database:readiness": "node scripts/verify-database-readiness.mjs",
     "verify:database:radar-realtime": "node scripts/verify-database-radar-realtime.mjs",
-    "verify:datahub:redis-cache": "node scripts/verify-datahub-redis-cache.mjs"
+    "verify:datahub:redis-cache": "node scripts/verify-datahub-redis-cache.mjs",
+    "verify:adn-signal-core": "node scripts/verify-adn-signal-core.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",

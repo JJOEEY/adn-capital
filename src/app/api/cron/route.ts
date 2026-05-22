@@ -49,6 +49,8 @@ import {
   getDatabaseAidenContext,
   getDatabaseToolLatest,
   isDatabaseV2RadarRealtimeEnabled,
+  collectAdnSignalCoreUniverse,
+  runAdnSignalCoreScan,
   upsertDatabaseToolLatest,
 } from "@/lib/database";
 import { formatDatabaseMorningBriefText } from "@/lib/database/morning-brief";
@@ -485,6 +487,7 @@ const DATABASE_V2_CRON_TYPES = new Set<CanonicalCronType>([
   "database_eod_readiness",
   "database_radar_realtime_collect",
   "database_realtime_health",
+  "database_adn_signal_core_universe_collect",
   "database_adn_radar_collect",
   "database_adn_radar_readiness",
   "database_adn_art_collect",
@@ -718,6 +721,13 @@ async function handleDatabaseV2Cron(type: CanonicalCronType, forceRun = false): 
         timeoutMs: forceRun ? 50_000 : 45_000,
         maxMessages: forceRun ? 2_500 : 1_800,
       });
+      const adnSignalCore = result.data
+        ? await runAdnSignalCoreScan({
+            realtime: result.data,
+            slotLabel: "radar-realtime",
+            sendTelegram: false,
+          }).catch((error) => ({ ok: false, error: String(error) }))
+        : null;
       const duration = Date.now() - startTime;
       await logCron(
         type,
@@ -726,9 +736,30 @@ async function handleDatabaseV2Cron(type: CanonicalCronType, forceRun = false): 
           ? `Database v2 Radar realtime covered ${result.data?.coverage.covered ?? 0}/${result.data?.coverage.requested ?? 0}`
           : "Database v2 Radar realtime is partial",
         duration,
-        summarizeDatabasePayload(result),
+        summarizeDatabasePayload({ ...result, adnSignalCore }),
       );
       invalidateTopics({ tags: ["signal", "radar"] });
+      return NextResponse.json({ type, ...result }, { status: result.ok ? 200 : 207 });
+    }
+
+    if (type === "database_adn_signal_core_universe_collect") {
+      if (!forceRun && !isTradingDay()) {
+        const duration = Date.now() - startTime;
+        await logCron(type, "skipped", "ADN Signal Core universe skipped on non-trading day", duration);
+        return NextResponse.json({ type, skipped: true, reason: "non_trading_day" });
+      }
+      const result = await collectAdnSignalCoreUniverse();
+      const duration = Date.now() - startTime;
+      await logCron(
+        type,
+        result.ok ? "success" : "skipped",
+        result.ok
+          ? `ADN Signal Core universe ready ${result.data?.accepted ?? 0}/${result.data?.requested ?? 0}`
+          : "ADN Signal Core universe is partial",
+        duration,
+        summarizeDatabasePayload(result),
+      );
+      invalidateTopics({ topics: ["signal:market:radar:adn-signal-core"], tags: ["signal", "radar"] });
       return NextResponse.json({ type, ...result }, { status: result.ok ? 200 : 207 });
     }
 

@@ -16,6 +16,7 @@ export type CanonicalCronType =
   | "database_eod_readiness"
   | "database_radar_realtime_collect"
   | "database_realtime_health"
+  | "database_adn_signal_core_universe_collect"
   | "database_adn_radar_collect"
   | "database_adn_radar_readiness"
   | "database_adn_art_collect"
@@ -44,6 +45,7 @@ export const CANONICAL_CRON_TYPES: readonly CanonicalCronType[] = [
   "database_eod_readiness",
   "database_radar_realtime_collect",
   "database_realtime_health",
+  "database_adn_signal_core_universe_collect",
   "database_adn_radar_collect",
   "database_adn_radar_readiness",
   "database_adn_art_collect",
@@ -73,6 +75,7 @@ export const CRON_TYPE_ALIASES: Record<string, CanonicalCronType> = {
   database_eod_readiness: "database_eod_readiness",
   database_radar_realtime_collect: "database_radar_realtime_collect",
   database_realtime_health: "database_realtime_health",
+  database_adn_signal_core_universe_collect: "database_adn_signal_core_universe_collect",
   database_adn_radar_collect: "database_adn_radar_collect",
   database_adn_radar_readiness: "database_adn_radar_readiness",
   database_adn_art_collect: "database_adn_art_collect",
@@ -110,6 +113,7 @@ export const CRON_TYPE_ALIASES: Record<string, CanonicalCronType> = {
   database_v2_eod_readiness: "database_eod_readiness",
   database_v2_radar_realtime_collect: "database_radar_realtime_collect",
   database_v2_realtime_health: "database_realtime_health",
+  database_v2_adn_signal_core_universe_collect: "database_adn_signal_core_universe_collect",
   database_v2_adn_radar_collect: "database_adn_radar_collect",
   database_v2_adn_radar_readiness: "database_adn_radar_readiness",
   database_v2_adn_art_collect: "database_adn_art_collect",
@@ -148,6 +152,7 @@ export const LEGACY_CRON_ALIASES = [
   "database_v2_eod_readiness",
   "database_v2_radar_realtime_collect",
   "database_v2_realtime_health",
+  "database_v2_adn_signal_core_universe_collect",
   "database_v2_adn_radar_collect",
   "database_v2_adn_radar_readiness",
   "database_v2_adn_art_collect",

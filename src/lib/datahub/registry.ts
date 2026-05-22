@@ -24,6 +24,7 @@ import { RADAR_SCAN_BUDGET, SIGNAL_SCAN_SLOTS } from "@/lib/signals/radar-scan-c
 import { loadReportedSignalSummary } from "@/lib/signals/report-history";
 import { normalizeSignalPrice } from "@/lib/signals/price-units";
 import {
+  getAdnSignalCoreLatest,
   getDatabaseRadarRealtime,
   getDatabaseToolLatest,
   isDatabaseV2RadarRealtimeEnabled,
@@ -3120,6 +3121,16 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     tags: ["signal", "public"],
     match: (topicKey) => (topicKey === "signal:market:radar" ? { ok: true } : { ok: false }),
     resolve: async () => loadSignalList("RADAR"),
+  },
+  {
+    id: "signal:market:radar:adn-signal-core",
+    ttlMs: 60_000,
+    minIntervalMs: 10_000,
+    source: "database:v2",
+    version: "v1",
+    tags: ["signal", "signal-scan", "radar", "internal"],
+    match: (topicKey) => (topicKey === "signal:market:radar:adn-signal-core" ? { ok: true } : { ok: false }),
+    resolve: async () => getAdnSignalCoreLatest(),
   },
   {
     id: "radar:watchlist:active",

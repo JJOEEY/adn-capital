@@ -110,6 +110,11 @@ const CRON_JOB_POLICIES: Record<CanonicalCronType, CronJobPolicy> = {
     staleGraceMinutes: 10,
     tradingWindowOnly: true,
   },
+  database_adn_signal_core_universe_collect: {
+    slotsMinutes: [8 * 60 + 20, 15 * 60 + 20],
+    staleGraceMinutes: 24 * 60,
+    tradingWindowOnly: false,
+  },
   database_adn_radar_collect: {
     slotsMinutes: [10 * 60 + 5, 10 * 60 + 35, 14 * 60 + 5, 14 * 60 + 30],
     staleGraceMinutes: 45,
