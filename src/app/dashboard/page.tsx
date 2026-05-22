@@ -33,7 +33,7 @@ interface MarketData {
   totalVolume: string;
   aiSummary: string;
   date: string;
-  globalIndices: Array<{ name: string; value: number; changePercent: number; icon: string }>;
+  globalIndices: Array<{ name: string; value: number | null; changePercent: number | null; icon: string }>;
   vnMarketBullets: string[];
   macroBullets: string[];
   riskBullets: string[];
@@ -99,19 +99,25 @@ type PulseRankRow = {
   volume: number;
 };
 
-type SmartflowMa200Leader = {
+type SmartflowIndexImpactRow = {
   ticker: string;
-  currentPrice: number;
-  ma200: number;
-  distanceToMa200Pct: number;
+  impact: number;
+  changePct: number;
 };
 
-type SmartflowSpikeRow = {
+type SmartflowInvestorRow = {
   ticker: string;
-  currentPrice: number;
+  exchange?: string;
   netBuyValue: number;
-  spikeRatio: number;
-  reason?: string | null;
+  netBuyVolume?: number | null;
+};
+
+type SmartflowInvestorPeriod = {
+  netValue: number;
+  netVolume?: number | null;
+  series?: Array<{ date: string; netValue: number; netVolume?: number | null }>;
+  topBuy?: SmartflowInvestorRow[];
+  topSell?: SmartflowInvestorRow[];
 };
 
 type SmartflowAccumulationRow = {
@@ -125,13 +131,18 @@ type SmartflowAccumulationRow = {
 type SmartflowPayload = {
   title?: string;
   subtitle?: string;
-  ma200BreadthPercent?: number | null;
-  ma200BreadthCount?: number | null;
-  ma200BreadthTotal?: number | null;
-  ma200Leaders?: SmartflowMa200Leader[];
+  indexImpact?: {
+    index?: string;
+    updatedAt?: string | null;
+    positive?: SmartflowIndexImpactRow[];
+    negative?: SmartflowIndexImpactRow[];
+  } | null;
+  investorFlow?: {
+    foreign?: Record<string, SmartflowInvestorPeriod>;
+    proprietary?: Record<string, SmartflowInvestorPeriod>;
+  } | null;
   activeBuySellTrend1M?: string | null;
   activeBuySellTrendNet?: number | null;
-  institutionalFlowSpikes?: SmartflowSpikeRow[];
   institutionalAccumulation3M?: SmartflowAccumulationRow[];
   updatedAt?: string | null;
 };
@@ -385,10 +396,10 @@ export default function DashboardPage() {
     timeoutMs: 5_000,
   });
   const smartflowTopic = useTopic<SmartflowPayload>("pulse:smartflow", {
-    refreshInterval: 300_000,
+    refreshInterval: 15_000,
     revalidateOnFocus: false,
-    dedupingInterval: 120_000,
-    timeoutMs: 45_000,
+    dedupingInterval: 15_000,
+    timeoutMs: 8_000,
   });
 
   const data = marketOverviewTopic.data;
@@ -398,6 +409,12 @@ export default function DashboardPage() {
 
   // Dùng overview nếu có (đầy đủ), fallback về marketStatus (từ cache)
   const effectiveOverview = overview ?? marketStatus ?? null;
+  const effectiveAdnCoreScore = effectiveOverview
+    ? normalizeAdnCoreDisplayScore(effectiveOverview.score, effectiveOverview.max_score)
+    : null;
+  const effectiveAdnCoreLabel = effectiveAdnCoreScore != null
+    ? getScoreLabel(effectiveAdnCoreScore)
+    : null;
 
 
   /* ── Derived state ── */
@@ -421,11 +438,11 @@ export default function DashboardPage() {
       { name: "VNINDEX", value: data.vnindex?.value ?? 0, change: data.vnindex?.change ?? 0, changePercent: data.vnindex?.changePercent ?? 0 },
       { name: "VN30", value: data.vn30?.value ?? 0, change: data.vn30?.change ?? 0, changePercent: data.vn30?.changePercent ?? 0 },
       { name: "HNX", value: data.hnx?.value ?? 0, change: data.hnx?.change ?? 0, changePercent: data.hnx?.changePercent ?? 0 },
-      ...gi.filter((i) => !["VN-INDEX", "HNX"].includes(i.name)).map((i) => ({
+      ...gi.filter((i) => !["VN-INDEX", "VN30", "HNX"].includes(i.name) && typeof i.value === "number").map((i) => ({
         name: i.name,
-        value: i.value,
+        value: i.value ?? 0,
         change: 0,
-        changePercent: i.changePercent,
+        changePercent: i.changePercent ?? 0,
       })),
     ];
   }, [data]);
@@ -516,10 +533,10 @@ export default function DashboardPage() {
             <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
               <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>ADNCore</p>
               <p className="mt-1 text-2xl font-black" style={{ color: "var(--text-primary)" }}>
-                {effectiveOverview?.score ?? "--"}<span className="text-xs" style={{ color: "var(--text-muted)" }}>/{effectiveOverview?.max_score ?? 14}</span>
+                {effectiveAdnCoreScore ?? "--"}<span className="text-xs" style={{ color: "var(--text-muted)" }}>/10</span>
               </p>
               <p className="mt-1 line-clamp-1 text-xs" style={{ color: "var(--text-secondary)" }}>
-                {effectiveOverview?.status_badge ? cleanStatusBadge(effectiveOverview.status_badge) : "Đang đọc thị trường"}
+                {effectiveAdnCoreLabel ?? "Đang đọc thị trường"}
               </p>
             </div>
             <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
@@ -680,33 +697,35 @@ export default function DashboardPage() {
  *  GaugeCard – SVG bán nguyệt nhẹ (0-10 điểm, không dùng Recharts)
  * ═══════════════════════════════════════════════════════════════════════════ */
 
-function getScoreLabel(score: number, maxScore: number = 14): string {
-  if (maxScore <= 10) {
-    // Legacy 10-point scale
-    if (score < 4) return "NGỦ ĐÔNG";
-    if (score <= 7) return "THĂM DÒ";
-    return "THIÊN THỜI";
+function normalizeAdnCoreDisplayScore(score: number, maxScore: number = 10): number {
+  if (!Number.isFinite(score)) return 0;
+  if (maxScore > 10) {
+    return Math.round((Math.max(0, score) / maxScore) * 100) / 10;
   }
-  // 14-point ADNCore
-  if (score < 6) return "NGỦ ĐÔNG";
-  if (score < 11) return "THĂM DÒ";
-  return "THIÊN THỜI";
+  return Math.max(0, Math.min(10, score));
 }
 
-function getScoreColor(score: number, maxScore: number = 14): string {
-  if (maxScore <= 10) {
-    if (score < 4) return "#ef4444";
-    if (score <= 7) return "#f97316";
-    return "#a855f7";
-  }
-  if (score < 6) return "#ef4444";
-  if (score < 11) return "#f97316";
-  return "#a855f7";
+function getScoreLabel(score: number): string {
+  if (score <= 3.49) return "NGỦ ĐÔNG - TẮT APP";
+  if (score <= 5.49) return "KHÔNG ĐẠT";
+  if (score <= 6.99) return "TÌM KIẾM LEADER";
+  if (score < 8.5) return "GIA TĂNG MARGIN";
+  if (score < 9) return "FULL MARGIN, CỔ PHIẾU ĐẦU NGÀNH";
+  return "QUẢN TRỊ RỦI RO - ƯU TIÊN CHỐT LÃI";
+}
+
+function getScoreColor(score: number): string {
+  if (score <= 3.49) return "#ef4444";
+  if (score <= 5.49) return "#f97316";
+  if (score <= 6.99) return "#eab308";
+  if (score < 8.5) return "#22c55e";
+  if (score < 9) return "#a855f7";
+  return "#f97316";
 }
 
 function GaugeSVG({ score, maxScore }: { score: number; maxScore: number }) {
   const safe = Math.max(0, Math.min(maxScore, score));
-  const color = getScoreColor(safe, maxScore);
+  const color = getScoreColor(safe);
   const cx = 150, cy = 125, r = 90;
   const SEGS = 60;
 
@@ -793,11 +812,12 @@ const GaugeCard = memo(function GaugeCard({
   overview: MarketOverview | null;
   marketData: MarketData | null;
 }) {
-  const fallbackScore = !overview && marketData ? (marketData.status === "GOOD" ? 11 : marketData.status === "BAD" ? 2 : 6) : 0;
-  const score = overview?.score ?? fallbackScore;
-  const maxScore = overview?.max_score ?? 14;
-  const color = getScoreColor(score, maxScore);
-  const label = getScoreLabel(score, maxScore);
+  const fallbackScore = !overview && marketData ? (marketData.status === "GOOD" ? 7 : marketData.status === "BAD" ? 2 : 5) : 0;
+  const rawScore = overview?.score ?? fallbackScore;
+  const score = normalizeAdnCoreDisplayScore(rawScore, overview?.max_score ?? 10);
+  const maxScore = 10;
+  const color = getScoreColor(score);
+  const label = getScoreLabel(score);
 
   return (
     <div
@@ -870,7 +890,15 @@ function GaugeCardSkeleton() {
 
 function formatSmartflowValue(value: number | null | undefined) {
   if (value == null || !Number.isFinite(value)) return "-";
-  return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(Math.abs(value));
+  const abs = Math.abs(value);
+  const maximumFractionDigits = abs >= 100 ? 0 : abs >= 10 ? 1 : 2;
+  return new Intl.NumberFormat("vi-VN", { maximumFractionDigits }).format(abs);
+}
+
+function formatSmartflowNetValue(value: number | null | undefined) {
+  if (value == null || !Number.isFinite(value)) return "--";
+  const sign = value > 0 ? "+" : value < 0 ? "-" : "";
+  return `${sign}${formatSmartflowValue(value)} tỷ`;
 }
 
 function formatSmartflowVolume(value: number | null | undefined) {
@@ -888,22 +916,71 @@ const ADNSmartflowCard = memo(function ADNSmartflowCard({
   data: SmartflowPayload | null;
   compact?: boolean;
 }) {
-  const breadth = readFiniteNumber(data?.ma200BreadthPercent);
-  const isUptrend = breadth != null && breadth >= 50;
-  const progressColor = breadth == null ? "#14b8a6" : isUptrend ? "#16a34a" : "#ef4444";
-  const trendLabel = breadth == null ? "Đang cập nhật" : isUptrend ? "Uptrend" : "Downtrend";
-  const progressWidth = breadth == null ? 0 : Math.max(0, Math.min(100, breadth));
-  const leaderLimit = compact ? 3 : 5;
-  const ma200Leaders = Array.isArray(data?.ma200Leaders) ? data.ma200Leaders.slice(0, leaderLimit) : [];
-  const spikes = Array.isArray(data?.institutionalFlowSpikes) ? data.institutionalFlowSpikes.slice(0, compact ? 3 : 5) : [];
+  const [smartView, setSmartView] = useState<"impact" | "heatmap">("impact");
+  const [flowTab, setFlowTab] = useState<"foreign" | "proprietary">("foreign");
+  const [flowMarket, setFlowMarket] = useState("ALL");
+  const [flowTimeframe, setFlowTimeframe] = useState("1D");
+  const positiveImpact = Array.isArray(data?.indexImpact?.positive) ? data.indexImpact.positive.slice(0, compact ? 5 : 10) : [];
+  const negativeImpact = Array.isArray(data?.indexImpact?.negative) ? data.indexImpact.negative.slice(0, compact ? 5 : 10) : [];
+  const maxImpact = Math.max(...positiveImpact.map((row) => Math.abs(row.impact)), ...negativeImpact.map((row) => Math.abs(row.impact)), 1);
+  const flowPeriod = flowTab === "foreign"
+    ? data?.investorFlow?.foreign?.[flowTimeframe]
+    : data?.investorFlow?.proprietary?.[flowTimeframe];
+  const filterByMarket = (row: SmartflowInvestorRow) =>
+    flowMarket === "ALL" || !row.exchange || row.exchange === "ALL" || row.exchange === flowMarket;
+  const topBuy = (flowPeriod?.topBuy ?? []).filter(filterByMarket).slice(0, compact ? 5 : 10);
+  const topSell = (flowPeriod?.topSell ?? []).filter(filterByMarket).slice(0, compact ? 5 : 10);
+  const flowSeries = (flowPeriod?.series ?? []).slice(-24);
   const accumulation = Array.isArray(data?.institutionalAccumulation3M) ? data.institutionalAccumulation3M.slice(0, compact ? 3 : 5) : [];
   const maxAccumulation = Math.max(...accumulation.map((row) => Math.abs(row.netBuyValue3M)), 1);
+  const flowColor = (flowPeriod?.netValue ?? 0) >= 0 ? "#16a34a" : "#ef4444";
 
   const emptyText = (
     <p className="rounded-lg border px-3 py-2 text-xs" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
-      Chưa có mã đủ điều kiện dữ liệu.
+      Đang cập nhật dữ liệu đủ điều kiện.
     </p>
   );
+  const renderFlowChart = () => {
+    if (flowSeries.length === 0) return <div className="flex h-24 items-center justify-center text-xs" style={{ color: "var(--text-muted)" }}>Đang cập nhật biểu đồ</div>;
+    const values = flowSeries.map((row) => row.netValue);
+    const min = Math.min(...values, 0);
+    const max = Math.max(...values, 0);
+    const range = Math.max(1, max - min);
+    const points = flowSeries.map((row, index) => {
+      const x = flowSeries.length === 1 ? 100 : (index / (flowSeries.length - 1)) * 100;
+      const y = 88 - ((row.netValue - min) / range) * 72;
+      return `${x.toFixed(2)},${y.toFixed(2)}`;
+    }).join(" ");
+    const zeroY = 88 - ((0 - min) / range) * 72;
+    return (
+      <svg viewBox="0 0 100 100" className="h-24 w-full overflow-visible" preserveAspectRatio="none">
+        <line x1="0" y1={zeroY} x2="100" y2={zeroY} stroke="rgba(148,163,184,0.35)" strokeWidth="1" />
+        <polyline points={points} fill="none" stroke={flowColor} strokeWidth="2.4" vectorEffect="non-scaling-stroke" />
+      </svg>
+    );
+  };
+  const renderFlowRows = (rows: SmartflowInvestorRow[], tone: "buy" | "sell") => {
+    const color = tone === "buy" ? "#16a34a" : "#ef4444";
+    if (rows.length === 0) return emptyText;
+    return (
+      <div className="overflow-hidden rounded-lg border" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+        <div className="grid grid-cols-[52px_1fr_86px] gap-2 border-b px-2 py-1.5 text-[10px] font-bold uppercase tracking-wide" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
+          <span>Mã</span>
+          <span className="text-right">KL ròng</span>
+          <span className="text-right">Giá trị</span>
+        </div>
+        {rows.map((row) => (
+          <div key={`${tone}-${row.ticker}`} className="grid grid-cols-[52px_1fr_86px] gap-2 border-b px-2 py-1.5 text-[11px] last:border-b-0" style={{ borderColor: "var(--border)" }}>
+            <span className="font-mono font-black" style={{ color }}>{row.ticker}</span>
+            <span className="text-right font-mono" style={{ color: "var(--text-secondary)" }}>{formatSmartflowVolume(row.netBuyVolume)}</span>
+            <span className="text-right font-mono font-black" style={{ color }}>
+              {formatSmartflowValue(row.netBuyValue)} tỷ
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <div className={`rounded-2xl border ${compact ? "p-3" : "p-4 sm:p-5"}`} style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
@@ -921,9 +998,9 @@ const ADNSmartflowCard = memo(function ADNSmartflowCard({
         </div>
         <span
           className="rounded-full border px-2 py-0.5 text-[10px] font-black uppercase"
-          style={{ color: progressColor, borderColor: `${progressColor}45`, background: `${progressColor}14` }}
+          style={{ color: "#14b8a6", borderColor: "rgba(20,184,166,0.28)", background: "rgba(20,184,166,0.10)" }}
         >
-          {trendLabel}
+          Realtime
         </span>
       </div>
 
@@ -931,72 +1008,94 @@ const ADNSmartflowCard = memo(function ADNSmartflowCard({
         <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
           <div className="mb-2 flex items-center justify-between gap-2">
             <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-              MA200 Breadth
+              Tác động tới INDEX
             </span>
-            <span className="font-mono text-sm font-black" style={{ color: progressColor }}>
-              {breadth == null ? "--" : `${breadth.toFixed(1)}%`}
-            </span>
-          </div>
-          <div className="h-2 overflow-hidden rounded-full" style={{ background: "var(--bg-hover)" }}>
-            <div className="h-full rounded-full transition-all" style={{ width: `${progressWidth}%`, background: progressColor }} />
-          </div>
-          <div className="mt-2 flex items-center justify-between gap-2 text-[11px]">
-            <span style={{ color: "var(--text-secondary)" }}>{data?.activeBuySellTrend1M ?? "Đang đọc dòng tiền"}</span>
-            <span className="font-mono" style={{ color: "var(--text-muted)" }}>
-              {data?.ma200BreadthCount ?? 0}/{data?.ma200BreadthTotal ?? 0}
-            </span>
-          </div>
-          <div className="mt-3 overflow-hidden rounded-lg border" style={{ borderColor: "var(--border)" }}>
-            <div className="grid grid-cols-[0.8fr_1fr_1fr_1fr] border-b px-2 py-1.5 text-[10px] font-bold uppercase tracking-wide" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
-              <span>Mã</span>
-              <span className="text-right">Giá</span>
-              <span className="text-right">MA200</span>
-              <span className="text-right">+/-</span>
+            <div className="flex rounded-full p-0.5" style={{ background: "var(--bg-hover)" }}>
+              {(["impact", "heatmap"] as const).map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setSmartView(item)}
+                  className="rounded-full px-2 py-0.5 text-[10px] font-bold"
+                  style={{
+                    background: smartView === item ? "var(--primary)" : "transparent",
+                    color: smartView === item ? "var(--bg)" : "var(--text-muted)",
+                  }}
+                >
+                  {item === "impact" ? "Tác động" : "Heatmap"}
+                </button>
+              ))}
             </div>
-            {ma200Leaders.length > 0 ? (
-              <div className="divide-y" style={{ borderColor: "var(--border)" }}>
-                {ma200Leaders.map((row) => (
-                  <div key={row.ticker} className="grid grid-cols-[0.8fr_1fr_1fr_1fr] px-2 py-1.5 text-[11px]" style={{ borderColor: "var(--border)" }}>
-                    <span className="font-mono font-black" style={{ color: "var(--text-primary)" }}>{row.ticker}</span>
-                    <span className="text-right font-mono" style={{ color: "var(--text-secondary)" }}>{formatPrice(row.currentPrice)}</span>
-                    <span className="text-right font-mono" style={{ color: "var(--text-secondary)" }}>{formatPrice(row.ma200)}</span>
-                    <span className="text-right font-mono font-bold" style={{ color: "#16a34a" }}>{formatPercent(row.distanceToMa200Pct)}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="p-2">{emptyText}</div>
-            )}
           </div>
-        </div>
-
-        <div className="rounded-xl border p-3" style={{ borderColor: "rgba(20,184,166,0.28)", background: "rgba(20,184,166,0.06)" }}>
-          <div className="mb-2 flex items-center gap-2">
-            <Zap className="h-3.5 w-3.5" style={{ color: "#f59e0b" }} />
-            <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-              Đột biến dòng tiền
-            </span>
-          </div>
-          {spikes.length > 0 ? (
-            <div className="overflow-hidden rounded-lg border" style={{ borderColor: "rgba(20,184,166,0.24)" }}>
-              <div className="grid grid-cols-[0.8fr_1fr_1.15fr_0.9fr] border-b px-2 py-1.5 text-[10px] font-bold uppercase tracking-wide" style={{ borderColor: "rgba(20,184,166,0.24)", color: "var(--text-muted)" }}>
-                <span>Mã</span>
-                <span className="text-right">Giá</span>
-                <span className="text-right">Mua ròng</span>
-                <span className="text-right">Đột biến</span>
-              </div>
-              {spikes.map((row) => (
-                <div key={row.ticker} className="grid grid-cols-[0.8fr_1fr_1.15fr_0.9fr] border-b px-2 py-1.5 text-[11px] last:border-b-0" style={{ borderColor: "rgba(20,184,166,0.18)" }}>
-                  <span className="font-mono font-black" style={{ color: "#f59e0b" }}>{row.ticker}</span>
-                  <span className="text-right font-mono" style={{ color: "var(--text-secondary)" }}>{formatPrice(row.currentPrice)}</span>
-                  <span className="text-right font-mono font-bold" style={{ color: "#14b8a6" }}>{formatSmartflowValue(row.netBuyValue)} tỷ</span>
-                  <span className="text-right font-mono font-bold" style={{ color: "#f59e0b" }}>{row.spikeRatio.toFixed(1)}x</span>
+          {smartView === "heatmap" ? (
+            <div className="grid grid-cols-3 gap-1">
+              {[...positiveImpact.slice(0, 9), ...negativeImpact.slice(0, 9)].slice(0, 12).map((row) => (
+                <div key={`${row.ticker}-${row.changePct}`} className="rounded-lg px-2 py-2 text-center" style={{ background: row.changePct >= 0 ? "rgba(22,163,74,0.22)" : "rgba(239,68,68,0.22)" }}>
+                  <div className="font-mono text-xs font-black" style={{ color: row.changePct >= 0 ? "#16a34a" : "#ef4444" }}>{row.ticker}</div>
+                  <div className="font-mono text-[11px]" style={{ color: "var(--text-secondary)" }}>{formatPercent(row.changePct)}</div>
                 </div>
               ))}
             </div>
           ) : (
-            emptyText
+            <div className="space-y-1.5">
+              {[...positiveImpact, ...negativeImpact].length > 0 ? [...positiveImpact, ...negativeImpact].map((row) => {
+                const isPositive = row.impact >= 0;
+                return (
+                  <div key={`${row.ticker}-${row.impact}`} className="grid grid-cols-[42px_1fr_52px] items-center gap-2 text-[11px]">
+                    <span className="font-mono font-black" style={{ color: "var(--text-primary)" }}>{row.ticker}</span>
+                    <span className="h-2 overflow-hidden rounded-full" style={{ background: "var(--bg-hover)" }}>
+                      <span className="block h-full rounded-full" style={{ width: `${Math.max(5, (Math.abs(row.impact) / maxImpact) * 100)}%`, background: isPositive ? "#16a34a" : "#ef4444", marginLeft: isPositive ? 0 : "auto" }} />
+                    </span>
+                    <span className="text-right font-mono font-bold" style={{ color: isPositive ? "#16a34a" : "#ef4444" }}>{formatPercent(row.changePct)}</span>
+                  </div>
+                );
+              }) : emptyText}
+            </div>
           )}
+        </div>
+
+        <div className="rounded-xl border p-3" style={{ borderColor: "rgba(20,184,166,0.28)", background: "rgba(20,184,166,0.06)" }}>
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex rounded-full p-0.5" style={{ background: "var(--bg-hover)" }}>
+              {(["foreign", "proprietary"] as const).map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setFlowTab(item)}
+                  className="rounded-full px-2 py-1 text-[10px] font-black"
+                  style={{ background: flowTab === item ? "var(--primary)" : "transparent", color: flowTab === item ? "var(--bg)" : "var(--text-muted)" }}
+                >
+                  {item === "foreign" ? "NĐT NN" : "Tự doanh"}
+                </button>
+              ))}
+            </div>
+            <select value={flowMarket} onChange={(event) => setFlowMarket(event.target.value)} className="rounded-md border px-2 py-1 text-[10px] font-bold" style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--text-secondary)" }}>
+              <option value="ALL">Toàn thị trường</option>
+              <option value="HSX">HSX</option>
+              <option value="HNX">HNX</option>
+              <option value="UPCOM">UPCOM</option>
+            </select>
+          </div>
+          <div className="mb-2 grid grid-cols-6 rounded-lg p-0.5" style={{ background: "var(--bg-hover)" }}>
+            {["1D", "1W", "1M", "3M", "6M", "1Y"].map((item) => (
+              <button key={item} type="button" onClick={() => setFlowTimeframe(item)} className="rounded-md py-1 text-[10px] font-black" style={{ background: flowTimeframe === item ? "var(--primary-light)" : "transparent", color: flowTimeframe === item ? "var(--primary)" : "var(--text-muted)" }}>{item}</button>
+            ))}
+          </div>
+          <div className="mb-2 flex items-end justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Mua/bán ròng</span>
+            <span className="font-mono text-lg font-black" style={{ color: flowColor }}>{formatSmartflowNetValue(flowPeriod?.netValue)}</span>
+          </div>
+          {renderFlowChart()}
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            <div>
+              <div className="mb-1 text-[10px] font-black uppercase" style={{ color: "#16a34a" }}>Top mua ròng</div>
+              {renderFlowRows(topBuy.slice(0, compact ? 5 : 10), "buy")}
+            </div>
+            <div>
+              <div className="mb-1 text-[10px] font-black uppercase" style={{ color: "#ef4444" }}>Top bán ròng</div>
+              {renderFlowRows(topSell.slice(0, compact ? 5 : 10), "sell")}
+            </div>
+          </div>
         </div>
 
         <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
@@ -1169,12 +1268,13 @@ const MarketStatusCard = memo(function MarketStatusCard({
   overview: MarketOverview | null;
   marketData: MarketData | null;
 }) {
-  const fallbackScore = !overview && marketData ? (marketData.status === "GOOD" ? 11 : marketData.status === "BAD" ? 2 : 6) : 0;
+  const fallbackScore = !overview && marketData ? (marketData.status === "GOOD" ? 7 : marketData.status === "BAD" ? 2 : 5) : 0;
   const fallbackLevel = !overview && marketData ? (marketData.status === "GOOD" ? 3 : marketData.status === "BAD" ? 1 : 2) : 1;
   const level = (overview?.level ?? fallbackLevel) as 1 | 2 | 3;
-  const score = overview?.score ?? fallbackScore;
-  const maxScore = overview?.max_score ?? 14;
-  const statusBadge = overview?.status_badge ?? (marketData?.status === "GOOD" ? "🟢 THIÊN THỜI" : marketData?.status === "BAD" ? "🔴 NGỦ ĐÔNG" : "🟡 THĂM DÒ");
+  const rawScore = overview?.score ?? fallbackScore;
+  const score = normalizeAdnCoreDisplayScore(rawScore, overview?.max_score ?? 10);
+  const maxScore = 10;
+  const statusBadge = overview ? getScoreLabel(score) : (marketData?.status === "GOOD" ? "GIA TĂNG MARGIN" : marketData?.status === "BAD" ? "NGỦ ĐÔNG - TẮT APP" : "KHÔNG ĐẠT");
   const breadth = overview?.market_breadth ?? (marketData ? `Tăng: ${marketData.updown?.up ?? 0} | Giảm: ${marketData.updown?.down ?? 0} | Không đổi: ${marketData.updown?.unchanged ?? 0}` : "Không có dữ liệu");
   const highlights = overview?.technical_highlights;
   const actionMessage = overview?.action_message ?? marketData?.aiSummary ?? "Đang phân tích thị trường...";

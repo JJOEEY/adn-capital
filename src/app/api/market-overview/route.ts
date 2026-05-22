@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
+import { getTopicEnvelope } from "@/lib/datahub/core";
+import { buildTopicContext } from "@/lib/datahub/producer-context";
+import { getMarketPayloadRows, readMarketNumber } from "@/lib/market-price-normalization";
+import { normalizeAdnCoreV2 } from "@/lib/adn-core-scoring";
+import { calculateRPI, getLatestRPI, type OHLCVData } from "@/lib/rpi/calculator";
 
 const CACHE_FILE = path.join(process.cwd(), "market_cache.json");
 const BACKEND = getPythonBridgeUrl();
@@ -49,6 +54,42 @@ function saveCacheToFile(data: CachePayload) {
   }
 }
 
+function readDate(row: Record<string, unknown>) {
+  const value = row.date ?? row.tradingDate ?? row.time ?? row.timestamp;
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (typeof value === "number") return new Date(value).toISOString().slice(0, 10);
+  if (typeof value === "string") return value.trim().slice(0, 10);
+  return null;
+}
+
+function toOhlcvRows(value: unknown): OHLCVData[] {
+  return getMarketPayloadRows(value)
+    .map((row) => {
+      const date = readDate(row);
+      const open = readMarketNumber(row.open ?? row.o);
+      const high = readMarketNumber(row.high ?? row.h);
+      const low = readMarketNumber(row.low ?? row.l);
+      const close = readMarketNumber(row.close ?? row.c ?? row.price);
+      const volume = readMarketNumber(row.volume ?? row.v ?? row.matchVolume) ?? 0;
+      if (!date || open == null || high == null || low == null || close == null) return null;
+      if ([open, high, low, close].some((item) => !Number.isFinite(item) || item <= 0)) return null;
+      return { date, open, high, low, close, volume };
+    })
+    .filter((row): row is OHLCVData => row != null)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+async function readCurrentAdnArtScore(force: boolean) {
+  try {
+    const context = await buildTopicContext({ force });
+    const envelope = await getTopicEnvelope("vn:historical:VN30:1d", context);
+    const latest = getLatestRPI(calculateRPI(toOhlcvRows(envelope.value)));
+    return latest?.rpi ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchLiveOverview(): Promise<CachePayload | null> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 12_000);
@@ -71,8 +112,9 @@ export async function GET(req: Request) {
   const forceRefresh = new URL(req.url).searchParams.get("force") === "1";
   const cached = readCacheFromFile();
   if (cached && cached.ageMs <= TTL_MS && !forceRefresh && hasCompleteValuation(cached.data)) {
+    const normalized = normalizeAdnCoreV2(cached.data);
     return NextResponse.json({
-      ...cached.data,
+      ...normalized,
       stale: false,
       source: "cache",
     });
@@ -80,17 +122,19 @@ export async function GET(req: Request) {
 
   const live = await fetchLiveOverview();
   if (live) {
-    saveCacheToFile(live);
+    const normalized = normalizeAdnCoreV2(live, { artScore: await readCurrentAdnArtScore(forceRefresh) });
+    saveCacheToFile(normalized);
     return NextResponse.json({
-      ...live,
+      ...normalized,
       stale: false,
       source: "live",
     });
   }
 
   if (cached && hasCompleteValuation(cached.data)) {
+    const normalized = normalizeAdnCoreV2(cached.data);
     return NextResponse.json({
-      ...cached.data,
+      ...normalized,
       stale: true,
       source: "cache-stale",
     });
@@ -98,13 +142,13 @@ export async function GET(req: Request) {
 
   return NextResponse.json({
     score: 0,
-    max_score: 14,
+    max_score: 10,
     level: 1,
-    status_badge: "Dang cap nhat...",
-    market_breadth: "Dang tinh toan...",
-    action_message: "He thong dang cap nhat du lieu vi mo, vui long quay lai sau.",
     last_updated: new Date().toISOString(),
     stale: true,
     source: "fallback",
+    status_badge: "\u0110ang c\u1eadp nh\u1eadt...",
+    market_breadth: "\u0110ang t\u00ednh to\u00e1n...",
+    action_message: "H\u1ec7 th\u1ed1ng \u0111ang c\u1eadp nh\u1eadt d\u1eef li\u1ec7u v\u0129 m\u00f4, vui l\u00f2ng quay l\u1ea1i sau.",
   });
 }

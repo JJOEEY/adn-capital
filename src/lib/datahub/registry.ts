@@ -85,9 +85,11 @@ async function loadRadarWatchlistActive() {
   return {
     kind: "radar_watchlist_active",
     version: "v1",
+    universe: "RADAR_WATCHLIST_500",
     policy: "hot_plus_wide_confirm",
     slots: SIGNAL_SCAN_SLOTS,
     budget: RADAR_SCAN_BUDGET,
+    maxTickers: RADAR_SCAN_BUDGET.wideScanMaxTickers,
     updatedAt: new Date().toISOString(),
   };
 }
@@ -2084,6 +2086,13 @@ const DEFAULT_SMARTFLOW_UNIVERSE = [
   "KBC", "BCM", "REE", "FRT", "DGW", "PNJ", "SAB", "VJC", "HVN", "LPB",
 ];
 
+const SMARTFLOW_INDEX_IMPACT_UNIVERSE = [
+  "VCB", "BID", "CTG", "TCB", "MBB", "VPB", "ACB", "STB", "HDB", "VIB", "LPB",
+  "FPT", "MWG", "VNM", "MSN", "HPG", "SSI", "VND", "VCI", "HCM",
+  "VIC", "VHM", "VRE", "GAS", "BSR", "PLX", "GVR", "SAB", "VJC", "PNJ",
+  "DGC", "FRT", "GMD", "KBC", "BCM", "REE", "PVD", "PVS", "DIG", "DXG",
+];
+
 function smartflowNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value !== "string") return null;
@@ -2200,10 +2209,14 @@ function readSmartflowForeignNet(row: JsonRecord) {
     smartflowNumber(row.netForeignValue);
   if (direct != null) return normalizeMoneyToBillion(direct);
   const buy =
+    smartflowNumber(row.totalBuyTradedAmount) ??
+    smartflowNumber(row.buyTradedAmount) ??
     smartflowNumber(row.foreignBuyValueMatched) ??
     smartflowNumber(row.foreignBuyValueTotal) ??
     smartflowNumber(row.foreignBuyValue);
   const sell =
+    smartflowNumber(row.totalSellTradedAmount) ??
+    smartflowNumber(row.sellTradedAmount) ??
     smartflowNumber(row.foreignSellValueMatched) ??
     smartflowNumber(row.foreignSellValueTotal) ??
     smartflowNumber(row.foreignSellValue);
@@ -2239,6 +2252,16 @@ function readSmartflowInstitutionalVolume(row: JsonRecord) {
   if (direct != null) return direct;
 
   const foreignNet =
+    smartflowNumber(row.totalBuyVolume) != null ||
+    smartflowNumber(row.totalSellVolume) != null ||
+    smartflowNumber(row.buyVolume) != null ||
+    smartflowNumber(row.sellVolume) != null
+      ? (smartflowNumber(row.totalBuyVolume) ?? smartflowNumber(row.buyVolume) ?? 0) -
+        (smartflowNumber(row.totalSellVolume) ?? smartflowNumber(row.sellVolume) ?? 0)
+      : null;
+  if (foreignNet != null) return foreignNet;
+
+  const foreignNetValue =
     smartflowNumber(row.foreignNetVolume) ??
     smartflowNumber(row.foreign_net_volume) ??
     smartflowNumber(row.foreignTotalNetVolume) ??
@@ -2251,10 +2274,12 @@ function readSmartflowInstitutionalVolume(row: JsonRecord) {
     smartflowNumber(row.proprietaryTotalNetVolume);
 
   const foreignBuy =
+    smartflowNumber(row.buyVolume) ??
     smartflowNumber(row.foreignBuyVolumeMatched) ??
     smartflowNumber(row.foreignBuyVolumeTotal) ??
     smartflowNumber(row.foreignBuyVolume);
   const foreignSell =
+    smartflowNumber(row.sellVolume) ??
     smartflowNumber(row.foreignSellVolumeMatched) ??
     smartflowNumber(row.foreignSellVolumeTotal) ??
     smartflowNumber(row.foreignSellVolume);
@@ -2267,7 +2292,7 @@ function readSmartflowInstitutionalVolume(row: JsonRecord) {
     smartflowNumber(row.proprietaryTotalSellTradeVolume) ??
     smartflowNumber(row.selfTradingSellVolume);
 
-  if (foreignNet != null || proprietaryNet != null) return (foreignNet ?? 0) + (proprietaryNet ?? 0);
+  if (foreignNetValue != null || proprietaryNet != null) return (foreignNetValue ?? 0) + (proprietaryNet ?? 0);
   if (foreignBuy != null || foreignSell != null || proprietaryBuy != null || proprietarySell != null) {
     return (foreignBuy ?? 0) - (foreignSell ?? 0) + (proprietaryBuy ?? 0) - (proprietarySell ?? 0);
   }
@@ -2281,10 +2306,12 @@ function readSmartflowDateKey(row: JsonRecord) {
 }
 
 function readSmartflowExchange(row: JsonRecord) {
-  const raw = String(row.exchange ?? row.floor ?? row.market ?? row.board ?? "").toUpperCase();
+  const raw = String(row.exchange ?? row.floor ?? row.market ?? row.marketId ?? row.board ?? row.boardId ?? "").toUpperCase();
   if (raw.includes("HOSE") || raw.includes("HSX")) return "HSX";
+  if (raw.includes("STX")) return "HSX";
   if (raw.includes("HNX")) return "HNX";
   if (raw.includes("UPCOM")) return "UPCOM";
+  if (raw.includes("UPX")) return "UPCOM";
   return "ALL";
 }
 
@@ -2394,7 +2421,24 @@ async function loadMa200Breadth(tickers: string[]) {
   };
 }
 
-function buildIndexImpact(snapshot: Awaited<ReturnType<typeof getMarketSnapshot>> | null) {
+function normalizeSmartflowIndexImpactRows(rows: SmartflowIndexImpactRow[], direction: "positive" | "negative") {
+  return rows
+    .filter((row) =>
+      row.ticker &&
+      Number.isFinite(row.impact) &&
+      Number.isFinite(row.changePct) &&
+      (direction === "positive" ? row.changePct > 0 : row.changePct < 0)
+    )
+    .sort((a, b) => Math.abs(b.impact) - Math.abs(a.impact))
+    .slice(0, 10)
+    .map((row) => ({
+      ticker: row.ticker,
+      impact: Number(row.impact.toFixed(2)),
+      changePct: Number(row.changePct.toFixed(2)),
+    }));
+}
+
+function buildIndexImpactFromSnapshot(snapshot: Awaited<ReturnType<typeof getMarketSnapshot>> | null) {
   const gainers = (snapshot?.topGainers ?? [])
     .map((row) => ({
       ticker: row.ticker,
@@ -2417,6 +2461,147 @@ function buildIndexImpact(snapshot: Awaited<ReturnType<typeof getMarketSnapshot>
     updatedAt: snapshot?.timestamp ?? new Date().toISOString(),
     positive: gainers,
     negative: losers,
+  };
+}
+
+function readSmartflowChangePctFromRows(rows: JsonRecord[], fallbackClose: number | null) {
+  const closes = rows
+    .map((row) => readPositiveNumber(row.close ?? row.c ?? row.price))
+    .filter((value): value is number => value != null && Number.isFinite(value) && value > 0);
+  if (closes.length < 2) return null;
+
+  const current = fallbackClose ?? closes[closes.length - 1];
+  const latestClose = closes[closes.length - 1];
+  const previousClose = Math.abs(current - latestClose) / Math.max(1, latestClose) <= 0.001
+    ? closes[closes.length - 2]
+    : latestClose;
+  if (!previousClose || previousClose <= 0) return null;
+  return ((current - previousClose) / previousClose) * 100;
+}
+
+async function buildIndexImpactFromMarketData() {
+  const tickers = Array.from(new Set(SMARTFLOW_INDEX_IMPACT_UNIVERSE));
+  const board = await loadMarketBoardForTickers(tickers.join(",")).catch(() => null);
+  const histories = await smartflowMapLimit(tickers, 8, async (ticker) => {
+    const history = await fetchDnseOhlc(ticker, {
+      timeframe: "1d",
+      days: 30,
+      timeoutMs: 8_000,
+      preferRealtime: false,
+    }).catch(() => null);
+    return [ticker, history] as const;
+  });
+  const historyMap = new Map(histories);
+
+  const rows = tickers
+    .map((ticker) => {
+      const boardRow = ((board?.prices as JsonRecord | undefined)?.[ticker] as JsonRecord | undefined) ?? {};
+      const normalizedBoard = normalizeMarketBoardRow(boardRow);
+      const currentPrice = readPositiveNumber(
+        normalizedBoard.close ??
+        normalizedBoard.price ??
+        normalizedBoard.currentPrice ??
+        normalizedBoard.lastPrice,
+      );
+      const boardChangePct = smartflowNumber(normalizedBoard.changePct ?? normalizedBoard.percentChange);
+      const historyRows = getMarketPayloadRows(historyMap.get(ticker));
+      const changePct =
+        boardChangePct != null && Number.isFinite(boardChangePct)
+          ? boardChangePct
+          : readSmartflowChangePctFromRows(historyRows, currentPrice);
+      if (changePct == null || !Number.isFinite(changePct) || changePct === 0) return null;
+
+      const volume =
+        readPositiveNumber(normalizedBoard.volume ?? normalizedBoard.matchVolume ?? normalizedBoard.totalVolume) ??
+        readPositiveNumber(historyRows[historyRows.length - 1]?.volume ?? historyRows[historyRows.length - 1]?.v) ??
+        0;
+      const tradedValue =
+        readPositiveNumber(normalizedBoard.value ?? normalizedBoard.tradingValue ?? normalizedBoard.amount) ??
+        (currentPrice != null && volume > 0 ? currentPrice * volume : null);
+      const valueBillion = tradedValue != null && tradedValue > 0 ? tradedValue / 1_000_000_000 : 0;
+      const liquidityWeight = Math.max(1, Math.log10(valueBillion + 10));
+      const impact = changePct * liquidityWeight;
+
+      return {
+        ticker,
+        impact,
+        changePct,
+      };
+    })
+    .filter((row): row is SmartflowIndexImpactRow => Boolean(row));
+
+  return {
+    positive: normalizeSmartflowIndexImpactRows(rows, "positive"),
+    negative: normalizeSmartflowIndexImpactRows(rows, "negative"),
+  };
+}
+
+async function buildIndexImpactFromDatabase() {
+  const rows = await prisma.databaseMarketLatest.findMany({
+    where: {
+      source: "dnse",
+      dataset: "market.eod",
+      channel: "ohlc_closed.1D.json",
+      tradingDate: currentVnDateKey(),
+    },
+    orderBy: { updatedAt: "desc" },
+    take: 220,
+    select: {
+      symbol: true,
+      payload: true,
+    },
+  });
+  const impactRows = rows
+    .map((row) => {
+      const payload = row.payload && typeof row.payload === "object" && !Array.isArray(row.payload) ? row.payload as JsonRecord : null;
+      const ticker = readSmartflowTicker(payload ?? { symbol: row.symbol ?? "" });
+      if (!payload || !ticker) return null;
+      const open = readPositiveNumber(payload.openPrice ?? payload.open ?? payload.o);
+      const close = readPositiveNumber(payload.matchPrice ?? payload.close ?? payload.c);
+      if (open == null || close == null || open <= 0) return null;
+      const changePct = ((close - open) / open) * 100;
+      if (!Number.isFinite(changePct) || changePct === 0) return null;
+      const tradedValue = readPositiveNumber(payload.grossTradeAmount ?? payload.value ?? payload.tradingValue) ?? 0;
+      const volume = readPositiveNumber(payload.totalVolumeTraded ?? payload.volume ?? payload.v) ?? 0;
+      const valueBillion = tradedValue > 0
+        ? tradedValue
+        : close > 0 && volume > 0
+          ? (close * volume) / 1_000_000_000
+          : 0;
+      return {
+        ticker,
+        impact: changePct * Math.max(1, Math.log10(valueBillion + 10)),
+        changePct,
+      };
+    })
+    .filter((row): row is SmartflowIndexImpactRow => Boolean(row));
+
+  return {
+    positive: normalizeSmartflowIndexImpactRows(impactRows, "positive"),
+    negative: normalizeSmartflowIndexImpactRows(impactRows, "negative"),
+  };
+}
+
+async function buildIndexImpact(snapshot: Awaited<ReturnType<typeof getMarketSnapshot>> | null) {
+  const fromSnapshot = buildIndexImpactFromSnapshot(snapshot);
+  if (fromSnapshot.positive.length > 0 || fromSnapshot.negative.length > 0) return fromSnapshot;
+
+  const fromDatabase = await buildIndexImpactFromDatabase().catch(() => ({ positive: [], negative: [] }));
+  if (fromDatabase.positive.length > 0 || fromDatabase.negative.length > 0) {
+    return {
+      index: "VNINDEX",
+      updatedAt: snapshot?.timestamp ?? new Date().toISOString(),
+      positive: fromDatabase.positive,
+      negative: fromDatabase.negative,
+    };
+  }
+
+  const fallback = await buildIndexImpactFromMarketData().catch(() => ({ positive: [], negative: [] }));
+  return {
+    index: "VNINDEX",
+    updatedAt: snapshot?.timestamp ?? new Date().toISOString(),
+    positive: fallback.positive,
+    negative: fallback.negative,
   };
 }
 
@@ -2494,6 +2679,62 @@ function buildSmartflowInvestorFlow(payloadByTimeframe: Record<string, unknown>)
   };
 }
 
+function latestInvestorRowsByDate(payload: unknown, kind: "foreign" | "proprietary") {
+  const rows = smartflowToArray(payload)
+    .map((item) => (item && typeof item === "object" ? (item as JsonRecord) : null))
+    .filter((row): row is JsonRecord => {
+      if (!row) return false;
+      const ticker = readSmartflowTicker(row);
+      const net = kind === "foreign" ? readSmartflowForeignNet(row) : readSmartflowProprietaryNet(row);
+      return Boolean(ticker) && net != null && Number.isFinite(net);
+    });
+  const latestDate = rows
+    .map(readSmartflowDateKey)
+    .filter(Boolean)
+    .sort()
+    .pop();
+  return latestDate ? rows.filter((row) => readSmartflowDateKey(row) === latestDate) : rows;
+}
+
+async function loadSmartflowRealtimeForeignPeriod() {
+  const tradingDate = currentVnDateKey();
+  const rows = await prisma.databaseMarketLatest.findMany({
+    where: {
+      source: "dnse",
+      dataset: "market.eod",
+      channel: "foreign.G1.json",
+      tradingDate,
+    },
+    orderBy: { updatedAt: "desc" },
+    take: 220,
+    select: {
+      payload: true,
+      updatedAt: true,
+    },
+  });
+  const payloads = rows
+    .map((row) => (row.payload && typeof row.payload === "object" && !Array.isArray(row.payload) ? row.payload as JsonRecord : null))
+    .filter((row): row is JsonRecord => Boolean(row));
+  if (payloads.length === 0) return null;
+
+  const period = buildSmartflowInvestorRows(payloads, "foreign");
+  if (period.topBuy.length === 0 && period.topSell.length === 0) return null;
+  const latestUpdatedAt = rows.reduce<Date | null>((latest, row) => {
+    if (!latest || row.updatedAt > latest) return row.updatedAt;
+    return latest;
+  }, null);
+  return {
+    ...period,
+    series: [
+      {
+        date: latestUpdatedAt?.toISOString() ?? tradingDate,
+        netValue: period.netValue,
+        netVolume: period.netVolume,
+      },
+    ],
+  };
+}
+
 async function loadSmartflowPriceMap(tickers: string[]) {
   const normalized = Array.from(new Set(tickers.map((ticker) => ticker.toUpperCase()).filter(Boolean))).slice(0, 50);
   if (normalized.length === 0) return new Map<string, number>();
@@ -2515,8 +2756,9 @@ async function loadSmartflowPriceMap(tickers: string[]) {
 }
 
 async function loadPulseSmartflow() {
-  const [snapshot, oneDayFlow, oneWeekFlow, oneMonthFlow, threeMonthFlow, sixMonthFlow, oneYearFlow] = await Promise.all([
+  const [snapshot, realtimeForeignFlow, oneDayFlow, oneWeekFlow, oneMonthFlow, threeMonthFlow, sixMonthFlow, oneYearFlow] = await Promise.all([
     getMarketSnapshot().catch(() => null),
+    loadSmartflowRealtimeForeignPeriod().catch(() => null),
     fetchInvestorTrading({ fromDate: getSmartflowDate(0), toDate: getSmartflowDate(0) }).catch(() => null),
     fetchInvestorTrading({ fromDate: getSmartflowDate(7), toDate: getSmartflowDate(0) }).catch(() => null),
     fetchInvestorTrading({ fromDate: getSmartflowDate(31), toDate: getSmartflowDate(0) }).catch(() => null),
@@ -2536,6 +2778,13 @@ async function loadPulseSmartflow() {
     "6M": sixMonthFlow,
     "1Y": oneYearFlow,
   });
+  if (realtimeForeignFlow) {
+    investorFlow.foreign["1D"] = realtimeForeignFlow;
+  }
+  const latestProprietaryRows = latestInvestorRowsByDate(oneWeekFlow, "proprietary");
+  if (latestProprietaryRows.length > 0) {
+    investorFlow.proprietary["1D"] = buildSmartflowInvestorRows(latestProprietaryRows, "proprietary");
+  }
   const realtimeNet =
     snapshot?.supplyDemand.netVolume ??
     snapshot?.investorTrading.foreign.net ??
@@ -2544,39 +2793,13 @@ async function loadPulseSmartflow() {
   const activeBuySellTrend1M =
     activeTrendNet == null ? "Trung tính" : activeTrendNet >= 0 ? "Mua chủ động" : "Bán chủ động";
 
-  const absoluteNets = oneMonthRows.map((row) => Math.abs(row.netBuyValue)).sort((a, b) => a - b);
-  const median = absoluteNets.length > 0 ? absoluteNets[Math.floor(absoluteNets.length / 2)] : 0;
-  const spikeThreshold = Math.max(median * 2.5, 20);
-  const spikeCandidates = oneMonthRows
-    .map((row) => ({
-      ...row,
-      spikeRatio: median > 0 ? row.netBuyValue / median : row.netBuyValue >= spikeThreshold ? 2.5 : 0,
-    }))
-    .filter((row) => row.netBuyValue > 0 && row.netBuyValue >= spikeThreshold && row.spikeRatio >= 2.5)
-    .sort((a, b) => b.netBuyValue - a.netBuyValue)
-    .slice(0, 8);
   const accumulationCandidates = threeMonthRows
     .filter((row) => row.netBuyValue > 0)
     .sort((a, b) => b.netBuyValue - a.netBuyValue)
     .slice(0, 8);
   const smartflowPrices = await loadSmartflowPriceMap([
-    ...spikeCandidates.map((row) => row.ticker),
     ...accumulationCandidates.map((row) => row.ticker),
   ]);
-  const institutionalFlowSpikes = spikeCandidates
-    .map((row) => {
-      const currentPrice = smartflowPrices.get(row.ticker);
-      if (currentPrice == null) return null;
-      return {
-        ticker: row.ticker,
-        currentPrice,
-        netBuyValue: row.netBuyValue,
-        spikeRatio: Number(row.spikeRatio.toFixed(1)),
-        reason: `Mua ròng ${Math.round(row.netBuyValue)} tỷ, cao hơn nền 1 tháng ${row.spikeRatio.toFixed(1)} lần`,
-      };
-    })
-    .filter((row): row is NonNullable<typeof row> => Boolean(row))
-    .slice(0, 5);
   const institutionalAccumulation3M = accumulationCandidates
     .map((row, index) => {
       const currentPrice = smartflowPrices.get(row.ticker);
@@ -2595,11 +2818,11 @@ async function loadPulseSmartflow() {
     .filter((row): row is NonNullable<typeof row> => Boolean(row))
     .slice(0, 5);
 
-  const indexImpact = buildIndexImpact(snapshot);
+  const indexImpact = await buildIndexImpact(snapshot);
   const missingFields = [
     indexImpact.positive.length === 0 && indexImpact.negative.length === 0 ? "indexImpact" : null,
     oneMonthRows.length === 0 ? "activeBuySellTrend1M" : null,
-    investorFlow.foreign["1D"].topBuy.length === 0 && investorFlow.proprietary["1D"].topBuy.length === 0 ? "investorFlow" : null,
+    investorFlow.foreign["1D"].topBuy.length === 0 && investorFlow.foreign["1D"].topSell.length === 0 ? "foreignInvestorFlow" : null,
     institutionalAccumulation3M.length === 0 ? "institutionalAccumulation3M" : null,
   ].filter((item): item is string => Boolean(item));
 
@@ -2610,7 +2833,6 @@ async function loadPulseSmartflow() {
     activeBuySellTrend1M,
     activeBuySellTrendNet: activeTrendNet,
     investorFlow,
-    institutionalFlowSpikes,
     institutionalAccumulation3M,
     sourceStatus: {
       primary: "dnse",
