@@ -5,7 +5,14 @@ import path from "node:path";
 const apiKey = process.env.GEMINI_API_KEY;
 let genAI: GoogleGenAI | null = null;
 
+function isDirectGeminiDisabled() {
+  return process.env.DISABLE_DIRECT_GEMINI === "1" || process.env.DISABLE_DIRECT_GEMINI === "true";
+}
+
 function getGenAIClient(): GoogleGenAI {
+  if (isDirectGeminiDisabled()) {
+    throw new Error("Direct Gemini API is disabled");
+  }
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY is missing");
   }
@@ -27,6 +34,11 @@ const DEFAULT_NINEROUTER_MODEL = "ADN-COMBO";
 const DEFAULT_NINEROUTER_AIDEN_MODEL = "AIDENfast";
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 const ROUTER_TIMEOUT_MS = Number(process.env.AI_ROUTER_TIMEOUT_MS ?? 45000);
+const NEWS_ROUTER_TIMEOUT_MS = Number(
+  process.env.AI_ROUTER_NEWS_TIMEOUT_MS ?? process.env.AI_ROUTER_TIMEOUT_MS ?? 90000,
+);
+const DEFAULT_ROUTER_MAX_TOKENS = Number(process.env.AI_ROUTER_MAX_TOKENS ?? 1800);
+const NEWS_ROUTER_MAX_TOKENS = Number(process.env.AI_ROUTER_NEWS_MAX_TOKENS ?? 4000);
 
 export const MODEL_FLASH = process.env.AIDEN_MODEL_LABEL ?? "aiden-router-flash";
 
@@ -406,9 +418,11 @@ async function callOpenAICompatibleProvider(
   provider: RouterProvider,
   prompt: string,
   systemInstruction: string,
+  timeoutMs = ROUTER_TIMEOUT_MS,
+  maxTokens = DEFAULT_ROUTER_MAX_TOKENS,
 ): Promise<string> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), ROUTER_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   const endpoint = `${normalizeBaseUrl(provider.baseUrl)}/chat/completions`;
 
   try {
@@ -424,7 +438,7 @@ async function callOpenAICompatibleProvider(
         model: provider.model,
         stream: false,
         temperature: 0.2,
-        max_tokens: 1800,
+        max_tokens: maxTokens,
         messages: [
           { role: "system", content: withCustomerOutputRules(systemInstruction) },
           { role: "user", content: prompt },
@@ -457,10 +471,18 @@ async function executeRouterChain(
 ): Promise<string | null> {
   const providers = buildRouterProviders(intent, options);
   if (providers.length === 0) return null;
+  const timeoutMs = intent === INTENT.NEWS ? NEWS_ROUTER_TIMEOUT_MS : ROUTER_TIMEOUT_MS;
+  const maxTokens = intent === INTENT.NEWS ? NEWS_ROUTER_MAX_TOKENS : DEFAULT_ROUTER_MAX_TOKENS;
 
   for (const provider of providers) {
     try {
-      const output = await callOpenAICompatibleProvider(provider, prompt, systemInstruction);
+      const output = await callOpenAICompatibleProvider(
+        provider,
+        prompt,
+        systemInstruction,
+        timeoutMs,
+        maxTokens,
+      );
       console.log(`[AI Router] provider=${provider.name} model=${provider.model}`);
       return output;
     } catch (err) {
@@ -589,6 +611,10 @@ export async function executeAIRequest(
   const sysInstr = systemInstruction ?? SYSTEM_INSTRUCTIONS[intent];
   const routedOutput = await executeRouterChain(prompt, intent, sysInstr);
   if (routedOutput) return sanitizeModelOutput(routedOutput);
+  if (isDirectGeminiDisabled()) {
+    console.warn(`[Gemini] direct fallback disabled. intent=${intent}`);
+    return OVERLOAD_MESSAGE;
+  }
 
   const modelsToTry: string[] = [primary, fallback];
   let lastErr: unknown;
@@ -652,6 +678,10 @@ export async function executeFlashOnlyAIRequest(
     nineRouterModelOverride: getAidenRouterModel(),
   });
   if (routedOutput) return sanitizeModelOutput(routedOutput);
+  if (isDirectGeminiDisabled()) {
+    console.warn("[Gemini] direct flash fallback disabled.");
+    throw new Error("Direct Gemini API is disabled");
+  }
 
   let lastErr: unknown;
   for (const model of [FLASH_PRIMARY, FLASH_FALLBACK]) {
@@ -686,6 +716,10 @@ export async function streamFlashOnlyAIRequest(
     signal: options.signal,
   });
   if (routedOutput) return sanitizeModelOutput(routedOutput);
+  if (isDirectGeminiDisabled()) {
+    console.warn("[Gemini] direct flash stream fallback disabled.");
+    throw new Error("Direct Gemini API is disabled");
+  }
 
   let lastErr: unknown;
   for (const model of [FLASH_PRIMARY, FLASH_FALLBACK]) {
