@@ -545,21 +545,7 @@ export async function fetchDnseOhlc(
     if (realtime[normalized]?.data.length) return realtime[normalized];
   }
 
-  const to = Math.floor(Date.now() / 1000);
-  const from = to - (options?.days ?? (timeframe === "1d" ? 260 : 5)) * 86400;
-  const marketType = INDEX_SYMBOLS.has(normalized) ? "INDEX" : "STOCK";
-  const payload = await dnseGet<unknown>(
-    "/price/ohlc",
-    {
-      type: marketType,
-      symbol: normalized,
-      resolution: timeframeToResolution(timeframe),
-      from,
-      to,
-    },
-    { timeoutMs: options?.timeoutMs ?? 12_000, cacheKey: `ohlc:${normalized}:${timeframe}:${options?.days ?? ""}` },
-  );
-  return normalizeOhlc(normalized, timeframe, payload, marketType);
+  throw new Error("DNSE REST OHLC is not supported, use websocket + DB v2");
 }
 
 function latestRow(rows: unknown[]): JsonRecord | null {

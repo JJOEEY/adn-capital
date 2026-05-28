@@ -33,12 +33,10 @@ export type ChartTimeframe = "1m" | "5m" | "15m" | "30m" | "1h" | "4h" | "1D" | 
 interface StockChartProps {
   symbol: string;
   exchange?: string;
-  candles?: Candle[];
   sourceLabel?: string;
   timeframe?: ChartTimeframe;
   onTimeframeChange?: (timeframe: ChartTimeframe) => void;
   onSymbolSubmit?: (symbol: string) => void;
-  allowFallbackFetch?: boolean;
   isLive?: boolean;
 }
 
@@ -360,12 +358,10 @@ function ToolbarGroup({ children, vertical = false }: { children: ReactNode; ver
 export function StockChart({
   symbol,
   exchange = "HOSE",
-  candles,
   sourceLabel,
   timeframe = "1D",
   onTimeframeChange,
   onSymbolSubmit,
-  allowFallbackFetch = true,
   isLive = false,
 }: StockChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
@@ -384,9 +380,11 @@ export function StockChart({
   const [fullscreen, setFullscreen] = useState(false);
   const [enabledIndicators, setEnabledIndicators] = useState<IndicatorId[]>(DEFAULT_INDICATORS);
   const [symbolSearch, setSymbolSearch] = useState(symbol);
+  const [loadedCandles, setLoadedCandles] = useState<Candle[]>([]);
+  const [chartReadyVersion, setChartReadyVersion] = useState(0);
   const { theme } = useTheme();
   const isDark = theme === "dark";
-  const chartCandles = useMemo(() => sanitizeCandles(candles), [candles]);
+  const chartCandles = useMemo(() => sanitizeCandles(loadedCandles), [loadedCandles]);
   const latestCandle = chartCandles.at(-1) ?? null;
   const previousCandle = chartCandles.at(-2) ?? null;
   const change = latestCandle && previousCandle ? latestCandle.close - previousCandle.close : null;
@@ -603,6 +601,7 @@ export function StockChart({
 
         chartRef.current = chart;
         seriesRef.current = nextSeries;
+        setChartReadyVersion((value) => value + 1);
 
         const observer = new ResizeObserver(() => {
           if (container.clientWidth > 0) {
@@ -643,15 +642,40 @@ export function StockChart({
   useEffect(() => {
     let disposed = false;
 
-    async function updateData() {
-      let nextCandles = chartCandles;
+    async function fetchChartData() {
       try {
-        if (!nextCandles.length && allowFallbackFetch && ["1D", "1W", "1M", "1h", "4h"].includes(timeframe)) {
-          const res = await fetch(`/api/chart?symbol=${symbol}&timeframe=${timeframe}`);
-          if (!res.ok) throw new Error("Không tải được dữ liệu biểu đồ");
-          const payload = await res.json() as { candles?: Candle[] };
-          nextCandles = sanitizeCandles(payload.candles);
+        setLoading(true);
+        setError(null);
+        setLoadedCandles([]);
+        const res = await fetch(`/api/chart?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(timeframe)}`, {
+          cache: "no-store",
+        });
+        const payload = await res.json() as { candles?: Candle[]; error?: string };
+        if (!res.ok) throw new Error(payload.error || "Không tải được dữ liệu biểu đồ");
+        const nextCandles = sanitizeCandles(payload.candles);
+        if (!nextCandles.length) throw new Error("Biểu đồ đang cập nhật dữ liệu cho khung này");
+        if (!disposed) setLoadedCandles(nextCandles);
+      } catch (err) {
+        if (!disposed) {
+          setLoadedCandles([]);
+          setError(err instanceof Error ? err.message : "Lỗi tải biểu đồ");
+          setLoading(false);
         }
+      }
+    }
+
+    void fetchChartData();
+    return () => {
+      disposed = true;
+    };
+  }, [symbol, timeframe]);
+
+  useEffect(() => {
+    let disposed = false;
+
+    async function updateData() {
+      try {
+        const nextCandles = chartCandles;
         if (!nextCandles.length) throw new Error("Biểu đồ đang cập nhật dữ liệu cho khung này");
         if (disposed || !chartRef.current || !seriesRef.current.candle) return;
 
@@ -735,7 +759,7 @@ export function StockChart({
     return () => {
       disposed = true;
     };
-  }, [chartCandles, symbol, timeframe, allowFallbackFetch, enabledIndicators]);
+  }, [chartCandles, symbol, timeframe, enabledIndicators, chartReadyVersion]);
 
   function addDrawing(point: { x: number; y: number }) {
     if (activeTool === "cursor" || drawingsLocked) return;

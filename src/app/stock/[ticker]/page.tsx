@@ -17,15 +17,8 @@ import {
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { AidenMessageRenderer } from "@/components/chat/AidenMessageRenderer";
-import { StockChart, type Candle, type ChartTimeframe } from "@/components/chat/StockChart";
+import { StockChart, type ChartTimeframe } from "@/components/chat/StockChart";
 import { useTopic } from "@/hooks/useTopic";
-import {
-  applyMarketPriceScale,
-  chooseMarketDisplayPrice,
-  getMarketPayloadRows,
-  latestTurnoverPriceFromPayload,
-  marketPriceScaleFromPayload,
-} from "@/lib/market-price-normalization";
 import { extractExplicitTickerCandidate, sanitizeTicker } from "@/lib/ticker-text";
 
 type JsonRecord = Record<string, unknown>;
@@ -210,136 +203,8 @@ function fmtPercent(value: number | null | undefined) {
   return `${sign}${value.toFixed(2)}%`;
 }
 
-function readNumber(record: unknown, keys: string[]) {
-  if (!record || typeof record !== "object") return null;
-  const source = record as JsonRecord;
-  for (const key of keys) {
-    const value = Number(source[key]);
-    if (Number.isFinite(value)) return value;
-  }
-  return null;
-}
-
-function readUnixTime(value: unknown) {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value > 10_000_000_000 ? Math.floor(value / 1000) : Math.floor(value);
-  }
-  if (typeof value !== "string" || !value.trim()) return null;
-  const text = value.trim();
-  const normalized = text.includes("T")
-    ? text
-    : text.includes(" ")
-      ? `${text.replace(" ", "T")}+07:00`
-      : `${text}T00:00:00+07:00`;
-  const timestamp = Date.parse(normalized);
-  return Number.isFinite(timestamp) ? Math.floor(timestamp / 1000) : null;
-}
-
-function normalizeCandles(payload: unknown): Candle[] {
-  if (!payload || typeof payload !== "object") return [];
-  const record = payload as JsonRecord;
-  const rows = getMarketPayloadRows(record);
-  const scale = marketPriceScaleFromPayload(record);
-
-  return rows
-    .map((row) => {
-      const item = row as JsonRecord;
-      const time = readUnixTime(item.time ?? item.timestamp ?? item.date);
-      const open = applyMarketPriceScale(readNumber(row, ["open", "o"]), scale);
-      const high = applyMarketPriceScale(readNumber(row, ["high", "h"]), scale);
-      const low = applyMarketPriceScale(readNumber(row, ["low", "l"]), scale);
-      const close = applyMarketPriceScale(readNumber(row, ["close", "c", "price"]), scale);
-      const volume = readNumber(row, ["volume", "v"]) ?? 0;
-      if (time == null || open == null || high == null || low == null || close == null) return null;
-      return { time, open, high, low, close, volume };
-    })
-    .filter((item): item is Candle => item !== null)
-    .sort((a, b) => a.time - b.time)
-    .filter((item, index, all) => index === 0 || item.time !== all[index - 1].time);
-}
-
-function getIsoWeek(date: Date) {
-  const target = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-  const day = target.getUTCDay() || 7;
-  target.setUTCDate(target.getUTCDate() + 4 - day);
-  const yearStart = new Date(Date.UTC(target.getUTCFullYear(), 0, 1));
-  return Math.ceil((((target.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-}
-
-function aggregateIntradayCandles(candles: Candle[], minutes: number) {
-  const buckets = new Map<string, Candle>();
-  const offsetSeconds = 7 * 60 * 60;
-  for (const candle of candles) {
-    const local = new Date((candle.time + offsetSeconds) * 1000);
-    const dateKey = `${local.getUTCFullYear()}-${String(local.getUTCMonth() + 1).padStart(2, "0")}-${String(local.getUTCDate()).padStart(2, "0")}`;
-    const minuteOfDay = local.getUTCHours() * 60 + local.getUTCMinutes();
-    const bucketMinute = Math.floor(minuteOfDay / minutes) * minutes;
-    const key = `${dateKey}-${bucketMinute}`;
-    const existing = buckets.get(key);
-    if (!existing) {
-      buckets.set(key, { ...candle });
-      continue;
-    }
-    existing.high = Math.max(existing.high, candle.high);
-    existing.low = Math.min(existing.low, candle.low);
-    existing.close = candle.close;
-    existing.volume += candle.volume;
-    existing.time = candle.time;
-  }
-  return Array.from(buckets.values()).sort((a, b) => a.time - b.time);
-}
-
-function aggregateChartCandles(candles: Candle[], timeframe: ChartTimeframe) {
-  if (timeframe === "1h") return aggregateIntradayCandles(candles, 60);
-  if (timeframe === "4h") return aggregateIntradayCandles(candles, 240);
-  if (timeframe !== "1W" && timeframe !== "1M") return candles;
-  const buckets = new Map<string, Candle>();
-  for (const candle of candles) {
-    const date = new Date(candle.time * 1000);
-    const key = timeframe === "1M"
-      ? `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`
-      : `${date.getUTCFullYear()}-${String(getIsoWeek(date)).padStart(2, "0")}`;
-    const existing = buckets.get(key);
-    if (!existing) {
-      buckets.set(key, { ...candle });
-      continue;
-    }
-    existing.high = Math.max(existing.high, candle.high);
-    existing.low = Math.min(existing.low, candle.low);
-    existing.close = candle.close;
-    existing.volume += candle.volume;
-    existing.time = candle.time;
-  }
-  return Array.from(buckets.values()).sort((a, b) => a.time - b.time);
-}
-
-function readRealtimePrice(payload: unknown) {
-  const direct = readNumber(payload, ["currentPrice", "current", "price", "close"]);
-  if (direct != null) return direct;
-  const data = payload && typeof payload === "object" ? (payload as JsonRecord).data : null;
-  const rows = Array.isArray(data) ? data : [];
-  return readNumber(rows.at(-1), ["close", "price", "current"]);
-}
-
-function readRealtimeChangePct(payload: unknown) {
-  const data = payload && typeof payload === "object" ? (payload as JsonRecord).data : null;
-  const rows = Array.isArray(data) ? data : [];
-  const first = readNumber(rows[0], ["close", "price"]);
-  const last = readNumber(rows.at(-1), ["close", "price"]);
-  if (first == null || last == null || first <= 0) return null;
-  return ((last - first) / first) * 100;
-}
-
 function marketDefaultTimeframe(): ChartTimeframe {
   return "1D";
-}
-
-function isHistoricalTimeframe(timeframe: ChartTimeframe) {
-  return timeframe === "1D" || timeframe === "1W" || timeframe === "1M";
-}
-
-function datahubRealtimeTimeframe(timeframe: ChartTimeframe) {
-  return timeframe === "1h" || timeframe === "4h" ? "30m" : timeframe;
 }
 
 function isVietnamTradingSession(date = new Date()) {
@@ -357,25 +222,6 @@ function isVietnamTradingSession(date = new Date()) {
   if (weekday === "Sat" || weekday === "Sun") return false;
   const minutes = hour * 60 + minute;
   return minutes >= 9 * 60 && minutes <= 15 * 60;
-}
-
-const MIN_USABLE_INTRADAY_CANDLES = 20;
-const MAX_INTRADAY_DAILY_DEVIATION = 0.08;
-
-function hasUsableIntradayCandles(intraday: Candle[], daily: Candle[]) {
-  if (intraday.length < MIN_USABLE_INTRADAY_CANDLES) return false;
-  const intradayClose = intraday.at(-1)?.close;
-  const dailyClose = daily.at(-1)?.close;
-  if (!intradayClose || !dailyClose) return true;
-  return Math.abs(intradayClose - dailyClose) / Math.max(1, dailyClose) <= MAX_INTRADAY_DAILY_DEVIATION;
-}
-
-function readHistoricalMarketPrice(payload: unknown) {
-  const rows = getMarketPayloadRows(payload);
-  const last = rows.at(-1);
-  const scale = marketPriceScaleFromPayload(payload);
-  const scaledClose = applyMarketPriceScale(readNumber(last, ["close", "c", "price"]), scale);
-  return chooseMarketDisplayPrice(scaledClose, latestTurnoverPriceFromPayload(payload));
 }
 
 function InfoItem({ label, value }: { label: string; value: string }) {
@@ -762,9 +608,7 @@ export default function StockDetailPage() {
   });
   const resolvedTicker = tickerResolutionTopic.data?.valid ? tickerResolutionTopic.data.ticker : ticker;
   const isTickerValid = tickerResolutionTopic.data?.valid === true;
-  const isLongTimeframe = isHistoricalTimeframe(timeframe);
   const isMarketLive = useMemo(() => isVietnamTradingSession(new Date(sessionClock)), [sessionClock]);
-  const realtimeTimeframe = datahubRealtimeTimeframe(timeframe);
 
   useEffect(() => {
     const interval = window.setInterval(() => setSessionClock(Date.now()), 60_000);
@@ -781,17 +625,6 @@ export default function StockDetailPage() {
     refreshInterval: isMarketLive ? 15_000 : 0,
     revalidateOnFocus: false,
     dedupingInterval: 10_000,
-  });
-  const realtimeTopic = useTopic<unknown>(`vn:realtime:${resolvedTicker}:${isLongTimeframe ? "5m" : realtimeTimeframe}`, {
-    enabled: isTickerValid,
-    refreshInterval: isLongTimeframe || !isMarketLive ? 0 : 5_000,
-    revalidateOnFocus: false,
-    dedupingInterval: 5_000,
-  });
-  const historicalTopic = useTopic<unknown>(`vn:historical:${resolvedTicker}:1d`, {
-    enabled: isTickerValid,
-    revalidateOnFocus: false,
-    dedupingInterval: 60_000,
   });
   const depthTopic = useTopic<DepthPayload>(`vn:depth:${resolvedTicker}`, {
     enabled: isTickerValid,
@@ -899,37 +732,16 @@ export default function StockDetailPage() {
     dedupingInterval: 15_000,
   });
 
-  const historicalCandles = useMemo(() => normalizeCandles(historicalTopic.data), [historicalTopic.data]);
-  const realtimeCandles = useMemo(() => normalizeCandles(realtimeTopic.data), [realtimeTopic.data]);
-  const intradayUsable = useMemo(
-    () => hasUsableIntradayCandles(realtimeCandles, historicalCandles),
-    [historicalCandles, realtimeCandles],
-  );
-  const historicalChartCandles = isLongTimeframe ? aggregateChartCandles(historicalCandles, timeframe) : historicalCandles;
-  const realtimeChartCandles = isLongTimeframe ? [] : aggregateChartCandles(realtimeCandles, timeframe);
-  const chartCandles = isLongTimeframe || !intradayUsable ? historicalChartCandles : realtimeChartCandles;
   const workbench = workbenchTopic.data;
   const priceSnapshot = priceSnapshotTopic.data ?? workbench?.priceSnapshot ?? null;
-  const historicalMarketPrice = useMemo(() => readHistoricalMarketPrice(historicalTopic.data), [historicalTopic.data]);
-  const realtimePrice = priceSnapshot?.price ?? chooseMarketDisplayPrice(
-    readRealtimePrice(realtimeTopic.data) ?? workbench?.ta?.currentPrice ?? null,
-    historicalMarketPrice,
-  );
-  const realtimeChangePct = priceSnapshot?.changePct ?? readRealtimeChangePct(realtimeTopic.data) ?? workbench?.ta?.changePct ?? null;
+  const realtimePrice = priceSnapshot?.price ?? workbench?.ta?.currentPrice ?? null;
+  const realtimeChangePct = priceSnapshot?.changePct ?? workbench?.ta?.changePct ?? null;
   const activeAidenRecommendation = aidenRecommendations[resolvedTicker] ?? null;
-
-  useEffect(() => {
-    if (!isLongTimeframe && !realtimeTopic.isLoading && !realtimeTopic.isValidating && !intradayUsable && historicalCandles.length > 0) {
-      setTimeframe("1D");
-    }
-  }, [isLongTimeframe, realtimeTopic.isLoading, realtimeTopic.isValidating, intradayUsable, historicalCandles.length]);
 
   const refreshAll = () => {
     void tickerResolutionTopic.refresh(true);
     void workbenchTopic.refresh(true);
     void priceSnapshotTopic.refresh(true);
-    void realtimeTopic.refresh(true);
-    void historicalTopic.refresh(true);
     void depthTopic.refresh(true);
     void boardTopic.refresh(true);
   };
@@ -1133,7 +945,7 @@ export default function StockDetailPage() {
             <div className="mt-1 flex flex-wrap gap-1.5">
               <FreshnessBadge label="Mã" freshness={tickerResolutionTopic.freshness} />
               <FreshnessBadge label="Phân tích" freshness={workbenchTopic.freshness} />
-              <FreshnessBadge label="Giá" freshness={priceSnapshotTopic.freshness ?? realtimeTopic.freshness} />
+              <FreshnessBadge label="Giá" freshness={priceSnapshotTopic.freshness} />
               <FreshnessBadge label="Sổ lệnh" freshness={depthTopic.freshness} />
             </div>
           </div>
@@ -1164,7 +976,7 @@ export default function StockDetailPage() {
               </button>
             </form>
             <button onClick={refreshAll} className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold" style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--text-secondary)" }}>
-              <RefreshCw className={`h-4 w-4 ${workbenchTopic.isValidating || priceSnapshotTopic.isValidating || realtimeTopic.isValidating ? "animate-spin" : ""}`} />
+              <RefreshCw className={`h-4 w-4 ${workbenchTopic.isValidating || priceSnapshotTopic.isValidating ? "animate-spin" : ""}`} />
               Làm mới
             </button>
           </div>
@@ -1182,13 +994,11 @@ export default function StockDetailPage() {
               <>
                 <StockChart
                   symbol={resolvedTicker}
-                  candles={chartCandles}
                   sourceLabel="ADN Stock"
                   timeframe={timeframe}
                   onTimeframeChange={setTimeframe}
                   onSymbolSubmit={(next) => selectTicker(next)}
-                  allowFallbackFetch={true}
-                  isLive={!isLongTimeframe && isMarketLive && intradayUsable}
+                  isLive={isMarketLive}
                 />
                 <StockOverviewPanel
                   workbench={workbench ?? null}
