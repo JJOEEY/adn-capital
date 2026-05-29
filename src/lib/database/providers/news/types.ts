@@ -1,6 +1,6 @@
 export type DatabaseNewsCategory = "market" | "macro" | "global" | "morning" | "latest";
 
-export type DatabaseNewsSourceName = "cafef" | "vietstock";
+export type DatabaseNewsSourceName = "cafef" | "vietstock" | "vnstock_news";
 
 export type DatabaseNewsItem = {
   id?: string;
@@ -84,5 +84,6 @@ export type DatabaseMorningBriefPayload = {
     generatedAt: string;
     newsSources: DatabaseNewsSourceName[];
     format: "database-v2-morning-brief";
+    rewriteSource?: "freemodel" | "deterministic";
   };
 };

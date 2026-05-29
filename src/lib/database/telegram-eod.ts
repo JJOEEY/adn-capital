@@ -71,7 +71,9 @@ export function formatDatabaseEodPublicBriefText(result: DatabaseResult<DnseEodM
   const breadth = data?.breadth;
   const liquidity = data?.liquidity;
   const foreign = data?.foreignFlow;
+  const vnstock = data?.enrichment?.vnstock ?? data?.fallback?.vnstock;
   const fiinquant = data?.enrichment?.fiinquant ?? data?.fallback?.fiinquant;
+  const proprietary = vnstock ?? fiinquant;
   const foreignNet = typeof foreign?.netValue === "number" ? foreign.netValue : null;
   const flowNote =
     foreignNet == null
@@ -98,10 +100,12 @@ export function formatDatabaseEodPublicBriefText(result: DatabaseResult<DnseEodM
     `• Khối ngoại: Mua ${formatTy(foreign?.buyValue)} | Bán ${formatTy(foreign?.sellValue)} | Ròng ${formatTy(foreign?.netValue)}`,
     `• Khối ngoại mua nổi bật: ${formatTop(foreign?.topBuy)}`,
     `• Khối ngoại bán nổi bật: ${formatTop(foreign?.topSell)}`,
-    `• Tự doanh mua nổi bật: ${formatTop(fiinquant?.propTradingTopBuy)}`,
-    `• Tự doanh bán nổi bật: ${formatTop(fiinquant?.propTradingTopSell)}`,
+    `• Tự doanh mua nổi bật: ${formatTop(proprietary?.propTradingTopBuy)}`,
+    `• Tự doanh bán nổi bật: ${formatTop(proprietary?.propTradingTopSell)}`,
     `• Cá nhân mua nổi bật: ${formatTop(fiinquant?.individualTopBuy)}`,
     `• Cá nhân bán nổi bật: ${formatTop(fiinquant?.individualTopSell)}`,
+    vnstock ? `• Dòng tiền chủ động mua nổi bật: ${formatTop(vnstock.activeTopBuy)}` : null,
+    vnstock ? `• Dòng tiền chủ động bán nổi bật: ${formatTop(vnstock.activeTopSell)}` : null,
     "",
     "💡 *NHẬN ĐỊNH SMART MONEY:*",
     `• ${flowNote}`,

@@ -1,6 +1,7 @@
 import type { DatabaseResult } from "@/lib/database/contracts";
 import { databaseOk } from "@/lib/database/contracts";
 import { getCachedDatabaseEodMarketDataset, getDatabaseEodMarketDataset } from "@/lib/database/eod";
+import { rewriteMorningBriefWithFreeModel } from "@/lib/database/morning-freemodel";
 import { getDatabaseNewsDataset } from "@/lib/database/providers/news";
 import type { DatabaseMorningBriefPayload, DatabaseNewsItem } from "@/lib/database/providers/news";
 
@@ -229,8 +230,17 @@ export async function getDatabaseMorningBrief(options?: {
       generatedAt: new Date().toISOString(),
       newsSources: Array.from(new Set(allNews.map((item) => item.source))),
       format: "database-v2-morning-brief",
+      rewriteSource: "deterministic",
     },
   };
+
+  const rewritten = await rewriteMorningBriefWithFreeModel({ payload, news: allNews });
+  if (rewritten) {
+    payload.vn_market = rewritten.vn_market;
+    payload.macro = rewritten.macro;
+    payload.risk_opportunity = rewritten.risk_opportunity;
+    payload.metadata.rewriteSource = "freemodel";
+  }
 
   const macroOrGlobalMissing = !macroNews.data?.length && !globalNews.data?.length
     ? [...macroNews.missingFields, ...globalNews.missingFields]

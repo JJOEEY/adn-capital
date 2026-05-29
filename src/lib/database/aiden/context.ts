@@ -144,6 +144,7 @@ function buildMarketContext(params: {
   eod: Awaited<ReturnType<typeof getDatabaseEodMarketDataset>>;
 }): DatabaseAidenMarketContext | null {
   if (!params.eod.data) return null;
+  const vnstock = params.eod.data.enrichment?.vnstock ?? params.eod.data.fallback?.vnstock;
   const fiinquant = params.eod.data.enrichment?.fiinquant ?? params.eod.data.fallback?.fiinquant;
   return {
     tradingDate: params.tradingDate,
@@ -152,12 +153,23 @@ function buildMarketContext(params: {
     breadth: params.eod.data.breadth ?? null,
     liquidity: params.eod.data.liquidity ?? null,
     foreignFlow: params.eod.data.foreignFlow ?? null,
-    investorFlow: fiinquant
+    investorFlow: vnstock
+      ? {
+          propTradingTopBuy: vnstock.propTradingTopBuy,
+          propTradingTopSell: vnstock.propTradingTopSell,
+          individualTopBuy: [],
+          individualTopSell: [],
+          activeTopBuy: vnstock.activeTopBuy,
+          activeTopSell: vnstock.activeTopSell,
+          source: "vnstock",
+        }
+      : fiinquant
       ? {
           propTradingTopBuy: fiinquant.propTradingTopBuy,
           propTradingTopSell: fiinquant.propTradingTopSell,
           individualTopBuy: fiinquant.individualTopBuy,
           individualTopSell: fiinquant.individualTopSell,
+          source: "fiinquant",
         }
       : null,
   };

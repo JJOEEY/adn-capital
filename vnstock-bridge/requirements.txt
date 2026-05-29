@@ -1,0 +1,14 @@
+fastapi>=0.115.6,<1
+uvicorn[standard]>=0.34.0,<1
+pandas>=2.3.2
+requests>=2.32.3
+vnstock_installer==3.1.2
+vnai>=2.4.8
+html2text>=2025.4.15
+flask>=3.1.1
+lxml>=5.4.0
+pyarrow>=20.0.0
+scipy>=1.15.3
+tenacity>=9.1.2
+beautifulsoup4>=4.13.4
+vnstock>=3.2.6

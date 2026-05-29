@@ -4,6 +4,7 @@ import type { DatabaseDataset, DatabaseResult } from "@/lib/database/contracts";
 import { databaseOk } from "@/lib/database/contracts";
 import { fetchAllCafefNews } from "@/lib/cafefScraper";
 import { prisma } from "@/lib/prisma";
+import { fetchVnstockMorningNews } from "@/lib/vnstockClient";
 import type {
   DatabaseNewsCategory,
   DatabaseNewsCollectResult,
@@ -192,10 +193,29 @@ async function fetchVietstockItems(): Promise<RawNewsItem[]> {
   return items;
 }
 
+async function fetchVnstockNewsItems(): Promise<RawNewsItem[]> {
+  const response = await fetchVnstockMorningNews({ limit: 42, timeout: 60_000 });
+  if (!response?.articles?.length) return [];
+  return response.articles.map((article) => ({
+    source: "vnstock_news",
+    category: article.category,
+    title: article.title,
+    url: article.url,
+    summary: article.summary,
+    publishedAt: article.publishedAt,
+    fetchedAt: article.fetchedAt,
+    rawPayload: {
+      ...(article.rawPayload ?? {}),
+      providerSite: article.providerSite,
+      source: article.source,
+    },
+  }));
+}
+
 export async function collectDatabaseNews(options?: {
   sources?: DatabaseNewsSourceName[];
 }): Promise<DatabaseNewsCollectResult> {
-  const sources: DatabaseNewsSourceName[] = options?.sources?.length ? options.sources : ["cafef", "vietstock"];
+  const sources: DatabaseNewsSourceName[] = options?.sources?.length ? options.sources : ["cafef", "vietstock", "vnstock_news"];
   const errors: string[] = [];
   const rawItems: RawNewsItem[] = [];
 
@@ -211,6 +231,13 @@ export async function collectDatabaseNews(options?: {
       rawItems.push(...await fetchVietstockItems());
     } catch (error) {
       errors.push(error instanceof Error ? `vietstock:${error.message}` : `vietstock:${String(error)}`);
+    }
+  }
+  if (sources.includes("vnstock_news")) {
+    try {
+      rawItems.push(...await fetchVnstockNewsItems());
+    } catch (error) {
+      errors.push(error instanceof Error ? `vnstock_news:${error.message}` : `vnstock_news:${String(error)}`);
     }
   }
 
@@ -258,6 +285,7 @@ export async function collectDatabaseNews(options?: {
   const missingFields = [
     sources.includes("cafef") && !bySource.cafef ? "news.cafef" : null,
     sources.includes("vietstock") && !bySource.vietstock ? "news.vietstock" : null,
+    sources.includes("vnstock_news") && !bySource.vnstock_news ? "news.vnstock_news" : null,
   ].filter((item): item is string => Boolean(item));
 
   return {

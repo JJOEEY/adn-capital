@@ -63,6 +63,7 @@ export type DnseEodFieldSource =
   | "dnse_ws"
   | "computed_from_dnse_ws"
   | "fiinquant_enrichment"
+  | "vnstock_enrichment"
   | "adn_computed";
 
 export type DnseEodFieldMapItem = {
@@ -70,7 +71,7 @@ export type DnseEodFieldMapItem = {
   source: DnseEodFieldSource;
   dnseChannels: string[];
   dnseFields: string[];
-  enrichmentSource: "fiinquant" | "adn" | null;
+  enrichmentSource: "fiinquant" | "vnstock" | "adn" | null;
   note: string;
 };
 
@@ -83,6 +84,25 @@ export type DnseEodEnrichment = {
     propTradingTopSell: string[];
     individualTopBuy: string[];
     individualTopSell: string[];
+    missingFields: string[];
+    retrievedAt: string;
+  };
+  vnstock?: {
+    foreignFlowText?: string | null;
+    foreignTopBuy: string[];
+    foreignTopSell: string[];
+    propTradingTopBuy: string[];
+    propTradingTopSell: string[];
+    activeTopBuy: string[];
+    activeTopSell: string[];
+    indexContribution: Array<{
+      exchange: string;
+      symbol: string;
+      point: number;
+      type?: string | null;
+      time?: string | null;
+    }>;
+    contributionAsOf?: string | null;
     missingFields: string[];
     retrievedAt: string;
   };

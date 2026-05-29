@@ -34,6 +34,9 @@ export type DatabaseAidenMarketContext = {
     propTradingTopSell: string[];
     individualTopBuy: string[];
     individualTopSell: string[];
+    activeTopBuy?: string[];
+    activeTopSell?: string[];
+    source?: "fiinquant" | "vnstock";
   } | null;
 };
 
