@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useMemo, useState, useCallback } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import {
   ResponsiveContainer,
@@ -244,6 +244,32 @@ function TEIDot(props: { cx?: number; cy?: number }) {
 /* ══════════════════════════════════════════════════════════════════════════
  *  MAIN TEI PAGE COMPONENT
  * ══════════════════════════════════════════════════════════════════════════ */
+function useAnimatedTEIValue(targetValue: number, durationMs = 1050, resetKey = "") {
+  const [displayValue, setDisplayValue] = useState(0);
+
+  useEffect(() => {
+    const target = Math.max(0, Math.min(5, targetValue));
+    if (!Number.isFinite(target) || target <= 0) {
+      setDisplayValue(0);
+      return;
+    }
+
+    let frameId = 0;
+    const startedAt = performance.now();
+    const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+    const tick = (now: number) => {
+      const progress = Math.min(1, (now - startedAt) / durationMs);
+      setDisplayValue(Number((target * easeOutCubic(progress)).toFixed(2)));
+      if (progress < 1) frameId = requestAnimationFrame(tick);
+    };
+
+    frameId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frameId);
+  }, [targetValue, durationMs, resetKey]);
+
+  return displayValue;
+}
+
 export default function TEIPage() {
   const [ticker, setTicker] = useState("VN30");
   const [inputTicker, setInputTicker] = useState("");
@@ -267,9 +293,11 @@ export default function TEIPage() {
   );
 
   const [refreshing, setRefreshing] = useState(false);
+  const [animationNonce, setAnimationNonce] = useState(0);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
+    setAnimationNonce((value) => value + 1);
     await mutate();
     setRefreshing(false);
   }, [mutate]);
@@ -277,6 +305,7 @@ export default function TEIPage() {
   const handleTickerSelect = useCallback((t: string) => {
     setTicker(t.toUpperCase().trim());
     setInputTicker("");
+    setAnimationNonce((value) => value + 1);
   }, []);
 
   const handleCustomTicker = useCallback(() => {
@@ -284,6 +313,7 @@ export default function TEIPage() {
     if (t.length >= 2 && t.length <= 10) {
       setTicker(t);
       setInputTicker("");
+      setAnimationNonce((value) => value + 1);
     }
   }, [inputTicker]);
 
@@ -321,6 +351,7 @@ export default function TEIPage() {
 
   const currentTEI = latest?.rpi ?? 0;
   const currentMA7 = latest?.ma7 ?? 0;
+  const displayTEI = useAnimatedTEIValue(currentTEI, 1050, `${ticker}:${latest?.date ?? ""}:${animationNonce}`);
   const classification = classifyTEI(currentTEI);
 
   const dateRange = useMemo(() => {
@@ -437,10 +468,10 @@ export default function TEIPage() {
             <div className="grid md:grid-cols-[1fr_1fr] gap-6 items-center">
               {/* Left: Gauge */}
               <div className="flex flex-col items-center">
-                <GaugeSVG value={currentTEI} />
+                <GaugeSVG value={displayTEI} />
                 <div className="text-center -mt-2">
                   <p className="text-4xl font-black tabular-nums" style={{ color: "var(--text-primary)" }}>
-                    {currentTEI.toFixed(2)}{" "}
+                    {displayTEI.toFixed(2)}{" "}
                     <span className="text-lg font-bold" style={{ color: "var(--text-muted)" }}>ĐIỂM</span>
                   </p>
                   <p

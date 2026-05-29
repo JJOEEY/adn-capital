@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { RatingTable } from "@/components/rs-rating/RatingTable";
+import { RankTimelineHeatmap, type RankTimelinePayload } from "@/components/rs-rating/RankTimelineHeatmap";
 import { LockOverlay } from "@/components/ui/LockOverlay";
 import { useSubscription } from "@/hooks/useSubscription";
 import { BarChart2, RefreshCw } from "lucide-react";
@@ -54,11 +55,22 @@ function formatUpdatedAt(value: string) {
 
 export default function RSRatingPage() {
   const { isRsRatingLocked } = useSubscription();
+  const [activeTab, setActiveTab] = useState<"stocks" | "sectors">("stocks");
   const [selectedDate, setSelectedDate] = useState("");
   const [datedPayload, setDatedPayload] = useState<RsRatingPayload | null>(null);
   const [datedLoading, setDatedLoading] = useState(false);
   const [datedError, setDatedError] = useState<string | null>(null);
   const rsTopic = useTopic<RsRatingPayload>("research:rs-rating:list", {
+    refreshInterval: 900_000,
+    revalidateOnFocus: false,
+    dedupingInterval: 60_000,
+  });
+  const stockHistoryTopic = useTopic<RankTimelinePayload>("research:rank:stocks:history", {
+    refreshInterval: 900_000,
+    revalidateOnFocus: false,
+    dedupingInterval: 60_000,
+  });
+  const sectorHistoryTopic = useTopic<RankTimelinePayload>("research:rank:sectors:history", {
     refreshInterval: 900_000,
     revalidateOnFocus: false,
     dedupingInterval: 60_000,
@@ -182,12 +194,16 @@ export default function RSRatingPage() {
               </span>
             ) : null}
             <button
-              onClick={() => void rsTopic.refresh(true)}
-              disabled={rsTopic.isValidating}
+              onClick={() => {
+                void rsTopic.refresh(true);
+                void stockHistoryTopic.refresh(true);
+                void sectorHistoryTopic.refresh(true);
+              }}
+              disabled={rsTopic.isValidating || stockHistoryTopic.isValidating || sectorHistoryTopic.isValidating}
               className="rounded-lg border border-[var(--border)] p-2 text-[var(--text-muted)] transition-all hover:text-[var(--text-primary)] disabled:opacity-50"
               title="Làm mới"
             >
-              <RefreshCw className={`h-4 w-4 ${rsTopic.isValidating ? "animate-spin" : ""}`} />
+              <RefreshCw className={`h-4 w-4 ${rsTopic.isValidating || stockHistoryTopic.isValidating || sectorHistoryTopic.isValidating ? "animate-spin" : ""}`} />
             </button>
           </div>
         </div>
@@ -230,15 +246,51 @@ export default function RSRatingPage() {
             isLocked={isRsRatingLocked}
             message={`Nâng cấp VIP/Premium để xem bảng xếp hạng ${PRODUCT_NAMES.rsRating} đầy đủ`}
           >
-            <RatingTable
-              stocks={stocks}
-              selectedDate={selectedDate}
-              asOfDate={effectiveAsOfDate}
-              dateLoading={datedLoading}
-              onDateChange={setSelectedDate}
-              onClearDate={() => setSelectedDate("")}
-              onDownload={handleDownload}
-            />
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("stocks")}
+                  className="rounded-full border px-4 py-2 text-sm font-bold transition"
+                  style={
+                    activeTab === "stocks"
+                      ? { background: "rgba(16,185,129,0.16)", borderColor: "rgba(16,185,129,0.35)", color: "#34d399" }
+                      : { borderColor: "var(--border)", color: "var(--text-muted)" }
+                  }
+                >
+                  Cổ phiếu
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("sectors")}
+                  className="rounded-full border px-4 py-2 text-sm font-bold transition"
+                  style={
+                    activeTab === "sectors"
+                      ? { background: "rgba(96,165,250,0.16)", borderColor: "rgba(96,165,250,0.35)", color: "#93c5fd" }
+                      : { borderColor: "var(--border)", color: "var(--text-muted)" }
+                  }
+                >
+                  Nhóm ngành
+                </button>
+              </div>
+
+              {activeTab === "stocks" ? (
+                <>
+                  <RankTimelineHeatmap mode="stocks" data={stockHistoryTopic.data ?? null} />
+                  <RatingTable
+                    stocks={stocks}
+                    selectedDate={selectedDate}
+                    asOfDate={effectiveAsOfDate}
+                    dateLoading={datedLoading}
+                    onDateChange={setSelectedDate}
+                    onClearDate={() => setSelectedDate("")}
+                    onDownload={handleDownload}
+                  />
+                </>
+              ) : (
+                <RankTimelineHeatmap mode="sectors" data={sectorHistoryTopic.data ?? null} />
+              )}
+            </div>
           </LockOverlay>
         )}
       </div>

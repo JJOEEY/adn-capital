@@ -28,7 +28,9 @@ import {
   getDatabaseToolLatest,
   isDatabaseV2RadarRealtimeEnabled,
   isDatabaseV2ReplaceV1Enabled,
+  listDatabaseToolLatest,
 } from "@/lib/database";
+import { classifyTickerSector } from "@/lib/market/sector-classification";
 import {
   applyMarketPriceScale,
   chooseMarketDisplayPrice,
@@ -2123,6 +2125,32 @@ function readSmartflowTicker(row: JsonRecord) {
     .replace(/[^A-Z0-9]/g, "");
 }
 
+function readFirstSmartflowNumber(row: JsonRecord, keys: string[]) {
+  for (const key of keys) {
+    const value = smartflowNumber(row[key]);
+    if (value != null && Number.isFinite(value)) return value;
+  }
+  return null;
+}
+
+function rankRowsFromPayload(payload: unknown): JsonRecord[] {
+  if (!payload || typeof payload !== "object") return [];
+  const record = payload as JsonRecord;
+  const candidates = [record.stocks, record.data, record.items, record.rows];
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) {
+      return candidate.filter((item): item is JsonRecord => Boolean(item) && typeof item === "object" && !Array.isArray(item));
+    }
+  }
+  return [];
+}
+
+function estimateTradeValueBillion(price: number | null, volume: number | null) {
+  if (price == null || volume == null || price <= 0 || volume <= 0) return 0;
+  const priceVnd = price < 1000 ? price * 1000 : price;
+  return (priceVnd * volume) / 1_000_000_000;
+}
+
 function readSmartflowInstitutionalNet(row: JsonRecord) {
   const direct =
     smartflowNumber(row.institutionalNet) ??
@@ -2627,6 +2655,190 @@ async function loadPulseSmartflowTopic(force = false) {
   const cached = await loadLatestPrecomputedTopicValue("pulse_smartflow_precompute", "pulse:smartflow");
   if (cached) return cached;
   throw new Error("pulse_smartflow_precomputed_unavailable");
+}
+
+async function loadRankSnapshots(limit = 90) {
+  const dbRows = await listDatabaseToolLatest<JsonRecord>({
+    tool: "rank",
+    dataset: "rank.rs",
+    limit,
+    ignoreExpires: true,
+  }).catch(() => []);
+  const dbSnapshots = dbRows
+    .map((row) => ({
+      date: String((row.payload as JsonRecord)?.asOfDate ?? row.tradingDate),
+      payload: row.payload,
+      updatedAt: row.updatedAt,
+      source: "database_v2",
+    }))
+    .filter((row) => rankRowsFromPayload(row.payload).length > 0);
+
+  const cronRows = await prisma.cronLog.findMany({
+    where: { cronName: "adn_rank_15h", status: "success" },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    select: { resultData: true, createdAt: true },
+  }).catch(() => []);
+  const cronSnapshots = cronRows
+    .map((row) => {
+      const payload = extractPrecomputedTopicValue(row, "research:rs-rating:list", 180 * 24 * 60 * 60_000);
+      return {
+        date: String((payload as JsonRecord | null)?.asOfDate ?? row.createdAt.toISOString().slice(0, 10)),
+        payload,
+        updatedAt: row.createdAt.toISOString(),
+        source: "cron_log",
+      };
+    })
+    .filter((row) => rankRowsFromPayload(row.payload).length > 0);
+
+  const byDate = new Map<string, { date: string; payload: unknown; updatedAt: string; source: string }>();
+  for (const row of cronSnapshots) byDate.set(row.date, row);
+  for (const row of dbSnapshots) byDate.set(row.date, row);
+  return Array.from(byDate.values())
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(-limit);
+}
+
+function normalizeRankHistoryRow(row: JsonRecord) {
+  const ticker = readSmartflowTicker(row);
+  const score = readFirstSmartflowNumber(row, ["rsRating", "rsScore", "rs_rating", "rs_score"]);
+  if (!ticker || score == null) return null;
+  const price = readFirstSmartflowNumber(row, ["price", "close", "lastPrice"]) ?? 0;
+  const volume = readFirstSmartflowNumber(row, ["volume", "matchVolume", "totalVolume"]) ?? 0;
+  return {
+    ticker,
+    name: String(row.name ?? row.companyName ?? ticker),
+    sector: classifyTickerSector(ticker, String(row.sector ?? row.industry ?? "")),
+    score: Number(score.toFixed(2)),
+    price,
+    volume,
+    changePercent: readFirstSmartflowNumber(row, ["changePercent", "changePct"]) ?? 0,
+    valueBillion: estimateTradeValueBillion(price, volume),
+  };
+}
+
+async function loadRankStocksHistory() {
+  const snapshots = await loadRankSnapshots(90);
+  const timeline = snapshots.map((snapshot) => snapshot.date);
+  const byTicker = new Map<string, {
+    ticker: string;
+    name: string;
+    sector: string;
+    latestScore: number;
+    values: Array<{ date: string; score: number | null }>;
+  }>();
+
+  for (const snapshot of snapshots) {
+    for (const item of rankRowsFromPayload(snapshot.payload)) {
+      const row = normalizeRankHistoryRow(item);
+      if (!row) continue;
+      const current = byTicker.get(row.ticker) ?? {
+        ticker: row.ticker,
+        name: row.name,
+        sector: row.sector,
+        latestScore: row.score,
+        values: [],
+      };
+      current.latestScore = row.score;
+      current.values.push({ date: snapshot.date, score: row.score });
+      byTicker.set(row.ticker, current);
+    }
+  }
+
+  return {
+    timeline,
+    rows: Array.from(byTicker.values())
+      .map((row) => ({
+        ...row,
+        values: timeline.map((date) => row.values.find((item) => item.date === date) ?? { date, score: null }),
+      }))
+      .sort((a, b) => b.latestScore - a.latestScore),
+    updatedAt: snapshots.at(-1)?.updatedAt ?? new Date().toISOString(),
+  };
+}
+
+function median(values: number[]) {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+async function loadRankSectorsHistory() {
+  const snapshots = await loadRankSnapshots(90);
+  const timeline = snapshots.map((snapshot) => snapshot.date);
+  const latestDate = snapshots.at(-1)?.date ?? null;
+  const bySector = new Map<string, {
+    sector: string;
+    stockCount: number;
+    liquidStockCount: number;
+    latestScore: number;
+    values: Array<{ date: string; score: number | null; stockCount: number }>;
+    members: Array<{
+      ticker: string;
+      name: string;
+      sector: string;
+      latestScore: number | null;
+      price: number | null;
+      changePercent: number | null;
+      valueBillion: number | null;
+    }>;
+  }>();
+
+  for (const snapshot of snapshots) {
+    const groups = new Map<string, ReturnType<typeof normalizeRankHistoryRow>[]>();
+    for (const item of rankRowsFromPayload(snapshot.payload)) {
+      const row = normalizeRankHistoryRow(item);
+      if (!row) continue;
+      const current = groups.get(row.sector) ?? [];
+      current.push(row);
+      groups.set(row.sector, current);
+    }
+    for (const [sector, rows] of groups.entries()) {
+      const score = median(rows.map((row) => row?.score ?? 0).filter((value) => Number.isFinite(value)));
+      if (score == null) continue;
+      const current = bySector.get(sector) ?? {
+        sector,
+        stockCount: rows.length,
+        liquidStockCount: 0,
+        latestScore: score,
+        values: [],
+        members: [],
+      };
+      current.stockCount = rows.length;
+      current.liquidStockCount = rows.filter((row) => (row?.valueBillion ?? 0) >= 10).length;
+      current.latestScore = score;
+      current.values.push({ date: snapshot.date, score: Number(score.toFixed(2)), stockCount: rows.length });
+      if (snapshot.date === latestDate) {
+        current.members = rows
+          .filter((row): row is NonNullable<typeof row> => Boolean(row))
+          .map((row) => ({
+            ticker: row.ticker,
+            name: row.name,
+            sector: row.sector,
+            latestScore: row.score,
+            price: row.price,
+            changePercent: row.changePercent,
+            valueBillion: row.valueBillion,
+          }))
+          .sort((a, b) => (b.latestScore ?? -1) - (a.latestScore ?? -1));
+      }
+      bySector.set(sector, current);
+    }
+  }
+
+  return {
+    timeline,
+    rows: Array.from(bySector.values())
+      .map((row) => ({
+        ...row,
+        latestScore: Number(row.latestScore.toFixed(2)),
+        values: timeline.map((date) => row.values.find((item) => item.date === date) ?? { date, score: null, stockCount: 0 }),
+      }))
+      .sort((a, b) => b.latestScore - a.latestScore),
+    liquidityRule: "Hiển thị toàn bộ nhóm ngành có dữ liệu ADN Rank; GTGD chỉ dùng để tham khảo.",
+    updatedAt: snapshots.at(-1)?.updatedAt ?? new Date().toISOString(),
+  };
 }
 
 async function loadCanonicalMarketTopic(topicKey: string) {
@@ -3722,6 +3934,28 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
         ? { ok: true }
         : { ok: false },
     resolve: async (_, context) => loadDatabaseV2RankTopic(context.force === true),
+  },
+  {
+    id: "research:rank:stocks:history",
+    ttlMs: 900_000,
+    minIntervalMs: 60_000,
+    staleWhileRevalidateMs: 900_000,
+    source: "database:rank-history",
+    version: "v1",
+    tags: ["research", "rank", "history"],
+    match: (topicKey) => (topicKey === "research:rank:stocks:history" ? { ok: true } : { ok: false }),
+    resolve: async () => loadRankStocksHistory(),
+  },
+  {
+    id: "research:rank:sectors:history",
+    ttlMs: 900_000,
+    minIntervalMs: 60_000,
+    staleWhileRevalidateMs: 900_000,
+    source: "database:rank-sector-history",
+    version: "v1",
+    tags: ["research", "rank", "history", "sector"],
+    match: (topicKey) => (topicKey === "research:rank:sectors:history" ? { ok: true } : { ok: false }),
+    resolve: async () => loadRankSectorsHistory(),
   },
 ];
 

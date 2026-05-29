@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useMemo, useEffect } from "react";
+import { memo, useMemo, useEffect, useState } from "react";
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -195,6 +195,32 @@ function ARTDot(props: { cx?: number; cy?: number }) {
   return <circle cx={cx} cy={cy} r={3} fill={CHART_THEME.dot} stroke={CHART_THEME.dot} strokeWidth={1} />;
 }
 
+function useAnimatedArtValue(targetValue: number, durationMs = 1050) {
+  const [displayValue, setDisplayValue] = useState(0);
+
+  useEffect(() => {
+    const target = Math.max(0, Math.min(5, targetValue));
+    if (!Number.isFinite(target) || target <= 0) {
+      setDisplayValue(0);
+      return;
+    }
+
+    let frameId = 0;
+    const startedAt = performance.now();
+    const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+    const tick = (now: number) => {
+      const progress = Math.min(1, (now - startedAt) / durationMs);
+      setDisplayValue(Number((target * easeOutCubic(progress)).toFixed(2)));
+      if (progress < 1) frameId = requestAnimationFrame(tick);
+    };
+
+    frameId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frameId);
+  }, [targetValue, durationMs]);
+
+  return displayValue;
+}
+
 function FreshnessBadge({ freshness }: { freshness: string | null }) {
   if (!freshness) return null;
   const state = freshness.toLowerCase();
@@ -274,6 +300,7 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
 
   // Render ngay kể cả khi isLoading — không block UI
   const artValue = latest?.rpi ?? 0;
+  const displayArtValue = useAnimatedArtValue(artValue);
   const artMA7 = latest?.ma7 ?? 0;
   const classification = classifyART(artValue);
   const cfg = getColorConfig(classification.color);
@@ -313,7 +340,7 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
         <div className="flex flex-col sm:flex-row items-center gap-4 mb-4 mt-3">
           {/* Gauge — luôn render (với value=0 nếu đang load) */}
           <div className="flex flex-col items-center shrink-0">
-            <GaugeSVG value={artValue} />
+            <GaugeSVG value={displayArtValue} />
             <div className="text-center -mt-2">
               {isLoading && !latest ? (
                 <div className="flex flex-col items-center gap-1">
@@ -323,7 +350,7 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
               ) : (
                 <>
                   <p className="text-2xl font-black tabular-nums" style={{ color: "var(--text-primary)" }}>
-                    {artValue.toFixed(2)}{" "}
+                    {displayArtValue.toFixed(2)}{" "}
                     <span className="text-sm font-bold" style={{ color: "var(--text-muted)" }}>ĐIỂM</span>
                   </p>
                   <p className="text-sm font-black mt-0.5" style={{ color: classification.color }}>
