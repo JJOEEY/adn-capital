@@ -167,6 +167,28 @@ export interface FiinInvestorTradingResponse {
   to_date: string;
 }
 
+export interface FiinIndexContributionRow {
+  ticker: string;
+  contribution?: number;
+  contributionPoints?: number;
+  contributionAsOf?: string;
+  contributionAsOfSource?: string;
+  sourceType?: string;
+}
+
+export interface FiinIndexContributionResponse {
+  ticker: string;
+  contributionDay: string;
+  contributionAsOf?: string;
+  contributionAsOfSource?: string;
+  sourceType?: string;
+  topGainers: FiinIndexContributionRow[];
+  topLosers: FiinIndexContributionRow[];
+  rows?: FiinIndexContributionRow[];
+  updatedAt?: string;
+  count?: number;
+}
+
 export interface FiinMorningNews {
   date: string;
   reference_indices: Array<{ name: string; value: number; change_pct: number }>;
@@ -610,5 +632,22 @@ export async function fetchInvestorTrading(options?: {
   return fiinFetch<FiinInvestorTradingResponse>(
     `/api/v1/investor-trading${qs ? `?${qs}` : ""}`,
     { timeout: options?.timeout ?? 60_000 },
+  );
+}
+
+/** Điểm đóng góp chỉ số từ FiinQuant MoneyFlow. */
+export async function fetchIndexContribution(options?: {
+  ticker?: string;
+  contributionDay?: "1Day" | "5Day" | "10Day" | "20Day";
+  top?: number;
+  timeout?: number;
+}): Promise<FiinIndexContributionResponse | null> {
+  const params = new URLSearchParams();
+  params.set("ticker", options?.ticker ?? "VNINDEX");
+  params.set("contribution_day", options?.contributionDay ?? "1Day");
+  params.set("top", String(options?.top ?? 15));
+  return fiinFetch<FiinIndexContributionResponse>(
+    `/api/v1/index-contribution?${params.toString()}`,
+    { timeout: options?.timeout ?? 45_000 },
   );
 }

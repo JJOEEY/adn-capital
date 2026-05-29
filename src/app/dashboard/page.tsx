@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useState, useMemo, useCallback, memo, Suspense, Component, type ReactNode } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { RefreshCw, Zap, ShieldAlert, Flame, TrendingUp, TrendingDown, Activity, BarChart3 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -18,6 +19,18 @@ import { useTopic } from "@/hooks/useTopic";
 import { PRODUCT_NAMES } from "@/lib/brand/productNames";
 import { classifyTickerSector } from "@/lib/market/sector-classification";
 import { formatPercent, formatPrice, getRsBgStyle, getRsColor, getRsLabel } from "@/lib/utils";
+import { PulseIndexImpactChart, type PulseIndexImpactPayload } from "@/components/dashboard/PulseIndexImpactChart";
+import { PulseTopMoversCard, type PulseTopMoversPayload } from "@/components/dashboard/PulseTopMoversCard";
+
+const PulseBubbleHeatmap = dynamic(() => import("@/components/dashboard/PulseBubbleHeatmap"), {
+  ssr: false,
+  loading: () => (
+    <div className="min-h-[560px] rounded-2xl border p-6" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+      <div className="h-5 w-44 animate-pulse rounded" style={{ background: "var(--surface-2)" }} />
+      <div className="mt-4 h-[500px] animate-pulse rounded-xl" style={{ background: "var(--surface-2)" }} />
+    </div>
+  ),
+});
 
 interface MarketData {
   status: "GOOD" | "BAD" | "NEUTRAL";
@@ -133,6 +146,23 @@ type SmartflowPayload = {
   activeBuySellTrendNet?: number | null;
   institutionalFlowSpikes?: SmartflowSpikeRow[];
   institutionalAccumulation3M?: SmartflowAccumulationRow[];
+  updatedAt?: string | null;
+};
+
+type PulseHeatmapPayload = {
+  sectors?: Array<{
+    sector: string;
+    totalValueBillion: number;
+    stocks: Array<{
+      ticker: string;
+      sector: string;
+      price: number;
+      changePct: number;
+      valueBillion: number;
+      state: "ceiling" | "up" | "unchanged" | "down" | "floor";
+    }>;
+  }>;
+  count?: number;
   updatedAt?: string | null;
 };
 
@@ -390,6 +420,24 @@ export default function DashboardPage() {
     dedupingInterval: 120_000,
     timeoutMs: 45_000,
   });
+  const heatmapTopic = useTopic<PulseHeatmapPayload>("pulse:market:heatmap", {
+    refreshInterval: 60_000,
+    revalidateOnFocus: false,
+    dedupingInterval: 30_000,
+    timeoutMs: 20_000,
+  });
+  const indexImpactTopic = useTopic<PulseIndexImpactPayload>("pulse:index-impact", {
+    refreshInterval: 300_000,
+    revalidateOnFocus: false,
+    dedupingInterval: 120_000,
+    timeoutMs: 45_000,
+  });
+  const topMoversTopic = useTopic<PulseTopMoversPayload>("pulse:top-movers", {
+    refreshInterval: 60_000,
+    revalidateOnFocus: false,
+    dedupingInterval: 30_000,
+    timeoutMs: 20_000,
+  });
 
   const data = marketOverviewTopic.data;
   const marketStatus = marketCompositeCacheTopic.data;
@@ -412,7 +460,10 @@ export default function DashboardPage() {
     void vnIndexHistoryTopic.refresh(true);
     void rsRatingTopic.refresh(true);
     void smartflowTopic.refresh(true);
-  }, [marketOverviewTopic, marketCompositeCacheTopic, marketCompositeLiveTopic, eodTopic, vnIndexHistoryTopic, rsRatingTopic, smartflowTopic]);
+    void heatmapTopic.refresh(true);
+    void indexImpactTopic.refresh(true);
+    void topMoversTopic.refresh(true);
+  }, [marketOverviewTopic, marketCompositeCacheTopic, marketCompositeLiveTopic, eodTopic, vnIndexHistoryTopic, rsRatingTopic, smartflowTopic, heatmapTopic, indexImpactTopic, topMoversTopic]);
 
   const tickerItems = useMemo(() => {
     if (!data) return [];
@@ -589,9 +640,9 @@ export default function DashboardPage() {
         </div>
 
         {/* ═══ HERO: Chart + ADNCore ═══ */}
-        <div className="grid w-full min-w-0 grid-cols-1 lg:grid-cols-10 gap-4">
+        <PulseReveal key="hero" delayMs={0} className="grid w-full min-w-0 grid-cols-1 gap-4 xl:grid-cols-12">
           {/* Cột Trái: Chart + Breadth */}
-          <div className="lg:col-span-6 w-full min-w-0 flex flex-col gap-3">
+          <div className="w-full min-w-0 flex flex-col gap-3 xl:col-span-7">
             <SafeSection fallback={<><VNIndexChartSkeleton /><MarketBreadthSkeleton /></>}>
               {dashboardChartData.length > 0 ? (
                 <VNIndexChart
@@ -616,7 +667,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Cột Phải: Gauge + Market Status Card */}
-          <div className="lg:col-span-4 w-full min-w-0 flex flex-col gap-3">
+          <div className="w-full min-w-0 flex flex-col gap-3 xl:col-span-5">
             <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem đánh giá thị trường">
               <SafeSection fallback={<GaugeCardSkeleton />}>
                 {/* Đồng hồ Gauge */}
@@ -639,15 +690,28 @@ export default function DashboardPage() {
               </SafeSection>
             </LockOverlay>
           </div>
-        </div>
+        </PulseReveal>
+
+        {/* ═══ MARKET HEATMAP: full-width market map under chart + ADNCore ═══ */}
+        <PulseReveal key="heatmap" delayMs={120}>
+          <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem Heatmap thị trường">
+            <PulseBubbleHeatmap data={heatmapTopic.data ?? null} />
+          </LockOverlay>
+        </PulseReveal>
 
         {/* ═══ ADN Smartflow: opportunity flow under market breadth ═══ */}
-        <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem ADN Smartflow">
-          <ADNSmartflowCard data={smartflowTopic.data ?? null} />
-        </LockOverlay>
+        <PulseReveal key="smartflow" delayMs={220}>
+          <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem ADN Smartflow">
+            <ADNSmartflowCard
+              data={smartflowTopic.data ?? null}
+              indexImpact={indexImpactTopic.data ?? null}
+              topMovers={topMoversTopic.data ?? null}
+            />
+          </LockOverlay>
+        </PulseReveal>
 
         {/* ═══ BOTTOM: Morning + EOD + ART/Rank ═══ */}
-        <div className="grid w-full min-w-0 grid-cols-1 xl:grid-cols-3 gap-4 items-start">
+        <PulseReveal key="bottom" delayMs={320} className="grid w-full min-w-0 grid-cols-1 xl:grid-cols-3 gap-4 items-start">
           <SafeSection fallback={<MorningNewsSkeleton />}>
             <Suspense fallback={<MorningNewsSkeleton />}>
               <MorningNews />
@@ -671,9 +735,44 @@ export default function DashboardPage() {
               <ADNRankMiniCard rows={topRankRows} />
             </LockOverlay>
           </div>
-        </div>
+        </PulseReveal>
       </div>
     </MainLayout>
+  );
+}
+
+function PulseReveal({
+  children,
+  delayMs = 0,
+  className = "",
+}: {
+  children: ReactNode;
+  delayMs?: number;
+  className?: string;
+}) {
+  return (
+    <div
+      className={className}
+      style={{
+        animation: `pulseRevealIn 680ms cubic-bezier(0.16, 1, 0.3, 1) ${delayMs}ms both`,
+      }}
+    >
+      {children}
+      <style jsx>{`
+        @keyframes pulseRevealIn {
+          from {
+            opacity: 0;
+            transform: translateY(12px);
+            filter: blur(3px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+            filter: blur(0);
+          }
+        }
+      `}</style>
+    </div>
   );
 }
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -883,9 +982,13 @@ function formatSmartflowVolume(value: number | null | undefined) {
 
 const ADNSmartflowCard = memo(function ADNSmartflowCard({
   data,
+  indexImpact,
+  topMovers,
   compact = false,
 }: {
   data: SmartflowPayload | null;
+  indexImpact?: PulseIndexImpactPayload | null;
+  topMovers?: PulseTopMoversPayload | null;
   compact?: boolean;
 }) {
   const breadth = readFiniteNumber(data?.ma200BreadthPercent);
@@ -904,6 +1007,67 @@ const ADNSmartflowCard = memo(function ADNSmartflowCard({
       Chưa có mã đủ điều kiện dữ liệu.
     </p>
   );
+
+  if (!compact) {
+    return (
+      <div className="rounded-2xl border p-4 sm:p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <Activity className="h-4 w-4" style={{ color: "#14b8a6" }} />
+              <span className="text-[12px] font-bold uppercase tracking-wider" style={{ color: "var(--text-primary)" }}>
+                ADN Smartflow
+              </span>
+            </div>
+            <p className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
+              Smart Money · Accumulation · Market Breadth
+            </p>
+          </div>
+          <span
+            className="rounded-full border px-2 py-0.5 text-[10px] font-black uppercase"
+            style={{ color: progressColor, borderColor: `${progressColor}45`, background: `${progressColor}14` }}
+          >
+            Realtime
+          </span>
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-3">
+          <PulseIndexImpactChart data={indexImpact ?? null} />
+
+          <div className="rounded-xl border p-3" style={{ borderColor: "rgba(20,184,166,0.28)", background: "rgba(20,184,166,0.06)" }}>
+            <div className="mb-2 flex items-center gap-2">
+              <Zap className="h-3.5 w-3.5" style={{ color: "#f59e0b" }} />
+              <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                Dòng tiền nổi bật
+              </span>
+            </div>
+            {spikes.length > 0 ? (
+              <div className="overflow-hidden rounded-lg border" style={{ borderColor: "rgba(20,184,166,0.24)" }}>
+                <div className="grid grid-cols-[0.8fr_1fr_1.15fr_0.9fr] border-b px-2 py-1.5 text-[10px] font-bold uppercase tracking-wide" style={{ borderColor: "rgba(20,184,166,0.24)", color: "var(--text-muted)" }}>
+                  <span>Mã</span>
+                  <span className="text-right">Giá</span>
+                  <span className="text-right">Mua ròng</span>
+                  <span className="text-right">Đột biến</span>
+                </div>
+                {spikes.map((row) => (
+                  <div key={row.ticker} className="grid grid-cols-[0.8fr_1fr_1.15fr_0.9fr] border-b px-2 py-1.5 text-[11px] last:border-b-0" style={{ borderColor: "rgba(20,184,166,0.18)" }}>
+                    <span className="font-mono font-black" style={{ color: "#f59e0b" }}>{row.ticker}</span>
+                    <span className="text-right font-mono" style={{ color: "var(--text-secondary)" }}>{formatPrice(row.currentPrice)}</span>
+                    <span className="text-right font-mono font-bold" style={{ color: "#14b8a6" }}>{formatSmartflowValue(row.netBuyValue)} tỷ</span>
+                    <span className="text-right font-mono font-bold" style={{ color: "#f59e0b" }}>{row.spikeRatio.toFixed(1)}x</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              emptyText
+            )}
+          </div>
+
+          <PulseTopMoversCard data={topMovers ?? null} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`rounded-2xl border ${compact ? "p-3" : "p-4 sm:p-5"}`} style={{ background: "var(--surface)", borderColor: "var(--border)" }}>

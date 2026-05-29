@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import {
+  fetchIndexContribution,
   fetchIndexValuation,
   fetchInvestorTrading,
   fetchMarketBoard,
@@ -2070,8 +2071,36 @@ type SmartflowMa200Leader = {
 type SmartflowIndexImpactRow = {
   ticker: string;
   impact: number;
+  contributionPoints: number;
   changePct: number;
+  contributionType?: "actual" | "estimated";
+  contributionAsOf?: string | null;
+  contributionAsOfSource?: string | null;
+  sourceType?: string | null;
+  price?: number | null;
+  realtimePatched?: boolean;
+  realtimeUpdatedAt?: string | null;
+  updatedAt?: string | null;
 };
+
+type PulseStockRow = {
+  ticker: string;
+  name: string;
+  sector: string;
+  exchange: string;
+  price: number;
+  reference: number | null;
+  ceiling: number | null;
+  floor: number | null;
+  changePct: number;
+  volume: number;
+  valueBillion: number;
+  marketCapBillion: number | null;
+  state: "ceiling" | "up" | "unchanged" | "down" | "floor";
+  rsRating: number | null;
+};
+
+type PulseTopMoverTimeframe = "5m" | "15m" | "30m" | "1h" | "1W";
 
 type SmartflowInvestorFlowPoint = {
   date: string;
@@ -2085,6 +2114,8 @@ const DEFAULT_SMARTFLOW_UNIVERSE = [
   "VIC", "VHM", "VRE", "GAS", "BSR", "PVD", "PVS", "PLX", "GMD", "DGC",
   "KBC", "BCM", "REE", "FRT", "DGW", "PNJ", "SAB", "VJC", "HVN", "LPB",
 ];
+
+const PULSE_TOP_MOVER_TIMEFRAMES: PulseTopMoverTimeframe[] = ["5m", "15m", "30m", "1h", "1W"];
 
 function smartflowNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -2149,6 +2180,45 @@ function estimateTradeValueBillion(price: number | null, volume: number | null) 
   if (price == null || volume == null || price <= 0 || volume <= 0) return 0;
   const priceVnd = price < 1000 ? price * 1000 : price;
   return (priceVnd * volume) / 1_000_000_000;
+}
+
+function normalizeTradeValueBillion(value: number | null, price: number, volume: number) {
+  if (value != null && Number.isFinite(value) && value > 0) {
+    if (value > 1_000_000_000) return value / 1_000_000_000;
+    if (value > 1_000_000) return value / 1_000;
+    return value;
+  }
+  return estimateTradeValueBillion(price, volume);
+}
+
+function normalizeMarketCapBillion(value: number | null) {
+  if (value == null || !Number.isFinite(value) || value <= 0) return null;
+  if (value > 1_000_000_000) return value / 1_000_000_000;
+  if (value > 1_000_000) return value / 1_000;
+  return value;
+}
+
+function normalizeExchange(value: unknown) {
+  const raw = String(value ?? "").toUpperCase();
+  if (raw.includes("HOSE") || raw.includes("HSX")) return "HOSE";
+  if (raw.includes("HNX")) return "HNX";
+  if (raw.includes("UPCOM")) return "UPCOM";
+  return "ALL";
+}
+
+function classifyPriceState(
+  price: number,
+  reference: number | null,
+  ceiling: number | null,
+  floor: number | null,
+  changePct: number,
+): PulseStockRow["state"] {
+  if (ceiling != null && ceiling > 0 && Math.abs(price - ceiling) / ceiling < 0.001) return "ceiling";
+  if (floor != null && floor > 0 && Math.abs(price - floor) / floor < 0.001) return "floor";
+  if (reference != null && reference > 0 && Math.abs(price - reference) / reference < 0.001) return "unchanged";
+  if (changePct > 0) return "up";
+  if (changePct < 0) return "down";
+  return "unchanged";
 }
 
 function readSmartflowInstitutionalNet(row: JsonRecord) {
@@ -2422,29 +2492,116 @@ async function loadMa200Breadth(tickers: string[]) {
   };
 }
 
-function buildIndexImpact(snapshot: Awaited<ReturnType<typeof getMarketSnapshot>> | null) {
-  const gainers = (snapshot?.topGainers ?? [])
+function readIndexContributionPoints(row: JsonRecord) {
+  return readFirstSmartflowNumber(row, [
+    "contributionPoints",
+    "contribution_points",
+    "indexContributionPoints",
+    "index_contribution_points",
+    "contribution",
+    "impactPoints",
+    "pointContribution",
+  ]);
+}
+
+function normalizeSmartflowIndexImpactRows(rows: SmartflowIndexImpactRow[], direction: "positive" | "negative") {
+  return rows
+    .filter((row) =>
+      row.ticker &&
+      Number.isFinite(row.contributionPoints) &&
+      Number.isFinite(row.changePct) &&
+      (direction === "positive" ? row.contributionPoints > 0 : row.contributionPoints < 0)
+    )
+    .sort((a, b) => Math.abs(b.contributionPoints) - Math.abs(a.contributionPoints))
+    .slice(0, 10)
     .map((row) => ({
-      ticker: row.ticker,
-      impact: Number(Math.abs(row.changePct).toFixed(2)),
+      ...row,
+      impact: Number(row.contributionPoints.toFixed(2)),
+      contributionPoints: Number(row.contributionPoints.toFixed(2)),
       changePct: Number(row.changePct.toFixed(2)),
-    }))
-    .filter((row) => row.ticker && Number.isFinite(row.changePct))
-    .slice(0, 10);
-  const losers = (snapshot?.topLosers ?? [])
-    .map((row) => ({
-      ticker: row.ticker,
-      impact: -Number(Math.abs(row.changePct).toFixed(2)),
-      changePct: Number(row.changePct.toFixed(2)),
-    }))
-    .filter((row) => row.ticker && Number.isFinite(row.changePct))
-    .slice(0, 10);
+    }));
+}
+
+async function buildIndexImpactFromFiinQuant(indexTicker = "VNINDEX", contributionDay: "1Day" | "5Day" | "10Day" | "20Day" = "1Day") {
+  const payload = await fetchIndexContribution({
+    ticker: indexTicker,
+    contributionDay,
+    top: 15,
+  }).catch(() => null);
+  const contributionAsOf = String(payload?.contributionAsOf ?? payload?.updatedAt ?? new Date().toISOString());
+  const contributionAsOfSource = String(payload?.contributionAsOfSource ?? "collector_received_at");
+  const rowsFromPayload = [
+    ...smartflowToArray(payload?.topGainers),
+    ...smartflowToArray(payload?.topLosers),
+  ];
+  const baseRows = rowsFromPayload
+    .map((item): SmartflowIndexImpactRow | null => {
+      const row = item && typeof item === "object" ? (item as JsonRecord) : null;
+      if (!row) return null;
+      const ticker = readSmartflowTicker(row);
+      const contributionPoints = readIndexContributionPoints(row);
+      if (!ticker || contributionPoints == null || !Number.isFinite(contributionPoints) || contributionPoints === 0) return null;
+      return {
+        ticker,
+        impact: contributionPoints,
+        contributionPoints,
+        changePct: 0,
+        contributionType: "actual",
+        contributionAsOf: String(row.contributionAsOf ?? contributionAsOf),
+        contributionAsOfSource: String(row.contributionAsOfSource ?? contributionAsOfSource),
+        sourceType: String(row.sourceType ?? payload?.sourceType ?? "fiinquant"),
+        realtimePatched: false,
+        updatedAt: payload?.updatedAt ?? contributionAsOf,
+      };
+    })
+    .filter((row): row is SmartflowIndexImpactRow => Boolean(row));
+
+  if (baseRows.length === 0) {
+    return {
+      index: indexTicker,
+      updatedAt: payload?.updatedAt ?? new Date().toISOString(),
+      positive: [] as SmartflowIndexImpactRow[],
+      negative: [] as SmartflowIndexImpactRow[],
+    };
+  }
+
+  const board = await loadMarketBoardForTickers(baseRows.map((row) => row.ticker).join(",")).catch(() => null);
+  const boardPrices = board?.prices && typeof board.prices === "object" ? board.prices as Record<string, JsonRecord> : {};
+  const boardUpdatedAt = board?.updatedAt ?? new Date().toISOString();
+  const patchedRows = baseRows.map((row) => {
+    const boardRow = boardPrices[row.ticker] ?? null;
+    const normalizedBoard = boardRow ? normalizeMarketBoardRow(boardRow) : null;
+    const price = normalizedBoard
+      ? smartflowNumber(normalizedBoard.close ?? normalizedBoard.price ?? normalizedBoard.matchPrice)
+      : null;
+    const changePct = normalizedBoard
+      ? smartflowNumber(normalizedBoard.changePct ?? normalizedBoard.percentChange)
+      : null;
+    return {
+      ...row,
+      price: price != null && Number.isFinite(price) ? price : null,
+      changePct: changePct != null && Number.isFinite(changePct) ? changePct : row.changePct,
+      realtimePatched: Boolean(normalizedBoard),
+      realtimeUpdatedAt: normalizedBoard ? String(boardUpdatedAt) : null,
+      updatedAt: new Date().toISOString(),
+    };
+  });
 
   return {
+    index: indexTicker,
+    updatedAt: payload?.updatedAt ?? new Date().toISOString(),
+    positive: normalizeSmartflowIndexImpactRows(patchedRows, "positive"),
+    negative: normalizeSmartflowIndexImpactRows(patchedRows, "negative"),
+  };
+}
+
+async function buildIndexImpact(snapshot: Awaited<ReturnType<typeof getMarketSnapshot>> | null) {
+  const fromFiinQuant = await buildIndexImpactFromFiinQuant("VNINDEX", "1Day").catch(() => ({ updatedAt: null, positive: [], negative: [] }));
+  return {
     index: "VNINDEX",
-    updatedAt: snapshot?.timestamp ?? new Date().toISOString(),
-    positive: gainers,
-    negative: losers,
+    updatedAt: fromFiinQuant.updatedAt ?? snapshot?.timestamp ?? new Date().toISOString(),
+    positive: fromFiinQuant.positive,
+    negative: fromFiinQuant.negative,
   };
 }
 
@@ -2623,7 +2780,7 @@ async function loadPulseSmartflow() {
     .filter((row): row is NonNullable<typeof row> => Boolean(row))
     .slice(0, 5);
 
-  const indexImpact = buildIndexImpact(snapshot);
+  const indexImpact = await buildIndexImpact(snapshot);
   const missingFields = [
     indexImpact.positive.length === 0 && indexImpact.negative.length === 0 ? "indexImpact" : null,
     oneMonthRows.length === 0 ? "activeBuySellTrend1M" : null,
@@ -2655,6 +2812,170 @@ async function loadPulseSmartflowTopic(force = false) {
   const cached = await loadLatestPrecomputedTopicValue("pulse_smartflow_precompute", "pulse:smartflow");
   if (cached) return cached;
   throw new Error("pulse_smartflow_precomputed_unavailable");
+}
+
+async function loadPulseRankStocks(force = false, limit = 260): Promise<PulseStockRow[]> {
+  const rankPayload =
+    (!force ? await loadDatabaseV2ToolPayload("rank", "rank.rs", 24 * 60 * 60_000).catch(() => null) : null) ??
+    await loadRsRatingTopic(force).catch(() => null);
+  const rawRows = rankRowsFromPayload(rankPayload).slice(0, limit);
+  const tickers = Array.from(new Set(rawRows.map((row) => readSmartflowTicker(row)).filter(Boolean)));
+  const board = tickers.length > 0 ? await loadMarketBoardForTickers(tickers.join(",")).catch(() => null) : null;
+  const boardMap = board?.prices && typeof board.prices === "object" ? board.prices as Record<string, JsonRecord> : {};
+
+  return rawRows
+    .map((row): PulseStockRow | null => {
+      const ticker = readSmartflowTicker(row);
+      if (!ticker) return null;
+      const boardRow = boardMap[ticker] ?? {};
+      const normalizedBoard = normalizeMarketBoardRow(boardRow);
+      const price =
+        readFirstSmartflowNumber(normalizedBoard, ["close", "price", "currentPrice", "matchPrice", "lastPrice"]) ??
+        readFirstSmartflowNumber(row, ["price", "close", "lastPrice"]) ??
+        0;
+      if (!Number.isFinite(price) || price <= 0) return null;
+      const reference = readFirstSmartflowNumber(normalizedBoard, ["reference", "refPrice", "previousClose", "basicPrice"]);
+      const ceiling = readFirstSmartflowNumber(normalizedBoard, ["ceiling", "ceilingPrice"]);
+      const floor = readFirstSmartflowNumber(normalizedBoard, ["floor", "floorPrice"]);
+      const changePct =
+        readFirstSmartflowNumber(normalizedBoard, ["changePct", "percentChange", "changePercent"]) ??
+        readFirstSmartflowNumber(row, ["changePct", "changePercent"]) ??
+        (reference != null && reference > 0 ? ((price - reference) / reference) * 100 : 0);
+      const volume =
+        readFirstSmartflowNumber(normalizedBoard, ["volume", "matchVolume", "totalVolume", "totalVolumeTraded"]) ??
+        readFirstSmartflowNumber(row, ["volume", "matchVolume", "totalVolume"]) ??
+        0;
+      const tradedValue = readFirstSmartflowNumber(normalizedBoard, ["grossTradeAmount", "tradingValue", "value", "amount"]);
+      const valueBillion = normalizeTradeValueBillion(tradedValue, price, volume);
+      const marketCapBillion = normalizeMarketCapBillion(
+        readFirstSmartflowNumber(normalizedBoard, ["marketCap", "marketCapitalization", "capitalization", "marketValue"]) ??
+        readFirstSmartflowNumber(row, ["marketCap", "marketCapitalization", "capitalization", "marketValue"]) ??
+        null,
+      );
+      const sector = classifyTickerSector(ticker, String(row.sector ?? row.industry ?? ""));
+      return {
+        ticker,
+        name: String(row.name ?? row.companyName ?? ticker),
+        sector,
+        exchange: normalizeExchange(normalizedBoard.exchange ?? row.exchange ?? row.floor),
+        price,
+        reference,
+        ceiling,
+        floor,
+        changePct,
+        volume,
+        valueBillion,
+        marketCapBillion,
+        state: classifyPriceState(price, reference, ceiling, floor, changePct),
+        rsRating: readFirstSmartflowNumber(row, ["rsRating", "rsScore", "rs_rating", "rs_score"]),
+      };
+    })
+    .filter((row): row is PulseStockRow => Boolean(row))
+    .sort((a, b) => b.valueBillion - a.valueBillion);
+}
+
+async function loadPulseMarketHeatmap(force = false) {
+  const stocks = await loadPulseRankStocks(force, 300);
+  const sectorMap = new Map<string, PulseStockRow[]>();
+  for (const stock of stocks.filter((item) => item.valueBillion > 0).slice(0, 240)) {
+    const rows = sectorMap.get(stock.sector) ?? [];
+    rows.push(stock);
+    sectorMap.set(stock.sector, rows);
+  }
+  const sectors = Array.from(sectorMap.entries())
+    .map(([sector, rows]) => ({
+      sector,
+      totalValueBillion: Number(rows.reduce((sum, row) => sum + row.valueBillion, 0).toFixed(2)),
+      stocks: rows
+        .sort((a, b) => b.valueBillion - a.valueBillion)
+        .slice(0, 24)
+        .map((row) => ({
+          ticker: row.ticker,
+          sector: row.sector,
+          price: Number(row.price.toFixed(2)),
+          changePct: Number(row.changePct.toFixed(2)),
+          valueBillion: Number(row.valueBillion.toFixed(2)),
+          state: row.state,
+        })),
+    }))
+    .filter((sector) => sector.totalValueBillion > 0)
+    .sort((a, b) => b.totalValueBillion - a.totalValueBillion)
+    .slice(0, 16);
+
+  return {
+    sectors,
+    count: sectors.reduce((sum, sector) => sum + sector.stocks.length, 0),
+    sourceStatus: {
+      publish: sectors.length > 0,
+      missingFields: sectors.length > 0 ? [] : ["marketHeatmap"],
+    },
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function topMoverRowFromStock(stock: PulseStockRow, periodChangePercent: number) {
+  return {
+    ticker: stock.ticker,
+    exchange: stock.exchange,
+    sector: stock.sector,
+    price: Number(stock.price.toFixed(2)),
+    volume: Math.round(stock.volume),
+    valueBillion: Number(stock.valueBillion.toFixed(2)),
+    marketCapBillion: stock.marketCapBillion == null ? null : Number(stock.marketCapBillion.toFixed(2)),
+    changePercent1D: Number(stock.changePct.toFixed(2)),
+    periodChangePercent: Number(periodChangePercent.toFixed(2)),
+  };
+}
+
+async function loadPulseTopMovers(force = false) {
+  const stocks = await loadPulseRankStocks(force, 260);
+  const rows = stocks.map((stock) => topMoverRowFromStock(stock, stock.changePct));
+  const frames = Object.fromEntries(
+    PULSE_TOP_MOVER_TIMEFRAMES.map((timeframe) => [
+      timeframe,
+      {
+        enabled: rows.length > 0,
+        label: timeframe === "1W" ? "Gần nhất" : timeframe.replace("m", " phút").replace("h", " giờ"),
+        rows,
+        missingReason: rows.length > 0 ? null : "Chưa có dữ liệu biến động gần nhất.",
+      },
+    ]),
+  );
+
+  return {
+    defaultTimeframe: "5m",
+    timeframes: frames,
+    sourceStatus: {
+      publish: rows.length > 0,
+      missingFields: rows.length > 0 ? [] : ["topMovers"],
+    },
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+async function loadPulseIndexImpactTopic() {
+  const impact = await buildIndexImpact(null);
+  const combined = [...impact.positive, ...impact.negative]
+    .sort((a, b) => Math.abs(b.contributionPoints) - Math.abs(a.contributionPoints));
+  return {
+    indices: {
+      VNINDEX: {
+        index: "VNINDEX",
+        updatedAt: impact.updatedAt,
+        contributionType: combined.some((row) => row.contributionType === "estimated") ? "estimated" : "actual",
+        rows: combined,
+        missingFields: combined.length > 0 ? [] : ["indexContributionPoints"],
+      },
+      VN30: { index: "VN30", rows: [], missingFields: ["indexContributionPoints"] },
+      HNX: { index: "HNX", rows: [], missingFields: ["indexContributionPoints"] },
+      UPCOM: { index: "UPCOM", rows: [], missingFields: ["indexContributionPoints"] },
+    },
+    sourceStatus: {
+      publish: combined.length > 0,
+      missingFields: combined.length > 0 ? [] : ["indexImpact"],
+    },
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 async function loadRankSnapshots(limit = 90) {
@@ -3007,6 +3328,39 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     tags: ["dashboard", "pulse", "smartflow", "market"],
     match: (topicKey) => (topicKey === "pulse:smartflow" ? { ok: true } : { ok: false }),
     resolve: async (_, context) => loadDatabaseV2PulseTopic(context.force === true),
+  },
+  {
+    id: "pulse:market:heatmap",
+    ttlMs: 60_000,
+    minIntervalMs: 30_000,
+    staleWhileRevalidateMs: 120_000,
+    source: "datahub:rank-board-heatmap",
+    version: "v1",
+    tags: ["dashboard", "pulse", "heatmap", "market"],
+    match: (topicKey) => (topicKey === "pulse:market:heatmap" ? { ok: true } : { ok: false }),
+    resolve: async (_, context) => loadPulseMarketHeatmap(context.force === true),
+  },
+  {
+    id: "pulse:index-impact",
+    ttlMs: 300_000,
+    minIntervalMs: 60_000,
+    staleWhileRevalidateMs: 300_000,
+    source: "datahub:fiinquant-index-contribution",
+    version: "v1",
+    tags: ["dashboard", "pulse", "index-impact"],
+    match: (topicKey) => (topicKey === "pulse:index-impact" ? { ok: true } : { ok: false }),
+    resolve: async () => loadPulseIndexImpactTopic(),
+  },
+  {
+    id: "pulse:top-movers",
+    ttlMs: 60_000,
+    minIntervalMs: 30_000,
+    staleWhileRevalidateMs: 120_000,
+    source: "datahub:rank-board-movers",
+    version: "v1",
+    tags: ["dashboard", "pulse", "top-movers"],
+    match: (topicKey) => (topicKey === "pulse:top-movers" ? { ok: true } : { ok: false }),
+    resolve: async (_, context) => loadPulseTopMovers(context.force === true),
   },
   {
     id: "news:morning:latest",
