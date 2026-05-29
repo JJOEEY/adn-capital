@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import {
+  alignMarketPriceToAnchor,
   applyMarketPriceScale,
   getMarketPayloadRows,
   marketPriceScaleFromPayload,
@@ -105,6 +106,10 @@ function readNumber(row: Record<string, unknown>, keys: string[]): number | null
   return null;
 }
 
+function positiveNumber(value: number | null | undefined): number | null {
+  return value != null && Number.isFinite(value) && value > 0 ? value : null;
+}
+
 function toInputJson(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
@@ -179,17 +184,21 @@ function normalizeRowPayload(row: {
   const low = applyMarketPriceScale(readNumber(payload, ["low", "lowestPrice", "l"]), scale);
   const close = applyMarketPriceScale(readNumber(payload, ["close", "matchPrice", "c", "price"]), scale);
   const volume = readNumber(payload, ["volume", "v", "totalVolumeTraded"]) ?? 0;
-  if (time == null || open == null || high == null || low == null || close == null) return null;
+  const cleanOpen = positiveNumber(open);
+  const cleanHigh = positiveNumber(high);
+  const cleanLow = positiveNumber(low);
+  const cleanClose = positiveNumber(close);
+  if (time == null || cleanOpen == null || cleanHigh == null || cleanLow == null || cleanClose == null) return null;
   const explicitFinal = typeof payload.isFinal === "boolean" ? payload.isFinal : null;
   const today = vnDateKey();
   const isToday = row.tradingDate === today;
   const isFinal = explicitFinal ?? (row.source === "fiinquant" || !isToday || isVnMarketClosed());
   return {
     time,
-    open,
-    high,
-    low,
-    close,
+    open: cleanOpen,
+    high: cleanHigh,
+    low: cleanLow,
+    close: cleanClose,
     volume,
     source: row.source,
     tradingDate: row.tradingDate,
@@ -229,8 +238,12 @@ function normalizeCandles(payload: unknown): Candle[] {
       const low = applyMarketPriceScale(readNumber(item, ["low", "l"]), scale);
       const close = applyMarketPriceScale(readNumber(item, ["close", "c", "price"]), scale);
       const volume = readNumber(item, ["volume", "v"]) ?? 0;
-      if (time == null || open == null || high == null || low == null || close == null) return null;
-      return { time, open, high, low, close, volume };
+      const cleanOpen = positiveNumber(open);
+      const cleanHigh = positiveNumber(high);
+      const cleanLow = positiveNumber(low);
+      const cleanClose = positiveNumber(close);
+      if (time == null || cleanOpen == null || cleanHigh == null || cleanLow == null || cleanClose == null) return null;
+      return { time, open: cleanOpen, high: cleanHigh, low: cleanLow, close: cleanClose, volume };
     })
     .filter((value): value is Candle => value !== null)
     .sort((a, b) => a.time - b.time)
@@ -437,19 +450,22 @@ async function readLatestRadarTick(symbol: string) {
 }
 
 function mergeTickIntoDailyCandle(symbol: string, dailyCandles: Candle[], tickPayload: Record<string, unknown>, tickUpdatedAt: Date): Candle | null {
-  const price = readNumber(tickPayload, ["price", "matchPrice", "lastPrice", "close"]);
-  if (price == null || price <= 0) return null;
+  void symbol;
+  void tickUpdatedAt;
   const today = vnDateKey();
-  const todayTime = unixTimeForDateKey(today);
   const base = dailyCandles.find((candle) => candleDateKey(candle) === today) ?? null;
   const previous = [...dailyCandles].reverse().find((candle) => candleDateKey(candle) < today) ?? dailyCandles.at(-1) ?? null;
-  const reference = readNumber(tickPayload, ["reference", "refPrice", "previousClose"]) ?? previous?.close ?? price;
-  const open = base?.open ?? reference ?? price;
-  const highTick = readNumber(tickPayload, ["high", "highestPrice"]);
-  const lowTick = readNumber(tickPayload, ["low", "lowestPrice"]);
+  const anchor = positiveNumber(base?.close) ?? positiveNumber(previous?.close);
+  const price = alignMarketPriceToAnchor(readNumber(tickPayload, ["price", "matchPrice", "lastPrice", "close"]), anchor);
+  if (price == null || price <= 0) return null;
+  const todayTime = unixTimeForDateKey(today);
+  const reference = alignMarketPriceToAnchor(readNumber(tickPayload, ["reference", "refPrice", "previousClose"]), anchor) ?? positiveNumber(previous?.close) ?? price;
+  const open = positiveNumber(base?.open) ?? reference ?? price;
+  const highTick = alignMarketPriceToAnchor(readNumber(tickPayload, ["high", "highestPrice"]), price);
+  const lowTick = alignMarketPriceToAnchor(readNumber(tickPayload, ["low", "lowestPrice"]), price);
   const volume = readNumber(tickPayload, ["volume", "totalVolumeTraded"]) ?? base?.volume ?? 0;
-  const high = Math.max(base?.high ?? open, highTick ?? price, price, open);
-  const low = Math.min(base?.low ?? open, lowTick ?? price, price, open);
+  const high = Math.max(positiveNumber(base?.high) ?? open, highTick ?? price, price, open);
+  const low = Math.min(positiveNumber(base?.low) ?? open, lowTick ?? price, price, open);
   return {
     time: base?.time ?? todayTime,
     open,
