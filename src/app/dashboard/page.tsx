@@ -516,7 +516,7 @@ export default function DashboardPage() {
             <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
               <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>ADNCore</p>
               <p className="mt-1 text-2xl font-black" style={{ color: "var(--text-primary)" }}>
-                {effectiveOverview?.score ?? "--"}<span className="text-xs" style={{ color: "var(--text-muted)" }}>/{effectiveOverview?.max_score ?? 14}</span>
+                {effectiveOverview?.score ?? "--"}<span className="text-xs" style={{ color: "var(--text-muted)" }}>/{effectiveOverview?.max_score ?? 10}</span>
               </p>
               <p className="mt-1 line-clamp-1 text-xs" style={{ color: "var(--text-secondary)" }}>
                 {effectiveOverview?.status_badge ? cleanStatusBadge(effectiveOverview.status_badge) : "Đang đọc thị trường"}
@@ -680,20 +680,20 @@ export default function DashboardPage() {
  *  GaugeCard – SVG bán nguyệt nhẹ (0-10 điểm, không dùng Recharts)
  * ═══════════════════════════════════════════════════════════════════════════ */
 
-function getScoreLabel(score: number, maxScore: number = 14): string {
+function getScoreLabel(score: number, maxScore: number = 10): string {
   if (maxScore <= 10) {
     // Legacy 10-point scale
     if (score < 4) return "NGỦ ĐÔNG";
     if (score <= 7) return "THĂM DÒ";
     return "THIÊN THỜI";
   }
-  // 14-point ADNCore
+  // Legacy scale support
   if (score < 6) return "NGỦ ĐÔNG";
   if (score < 11) return "THĂM DÒ";
   return "THIÊN THỜI";
 }
 
-function getScoreColor(score: number, maxScore: number = 14): string {
+function getScoreColor(score: number, maxScore: number = 10): string {
   if (maxScore <= 10) {
     if (score < 4) return "#ef4444";
     if (score <= 7) return "#f97316";
@@ -795,7 +795,7 @@ const GaugeCard = memo(function GaugeCard({
 }) {
   const fallbackScore = !overview && marketData ? (marketData.status === "GOOD" ? 11 : marketData.status === "BAD" ? 2 : 6) : 0;
   const score = overview?.score ?? fallbackScore;
-  const maxScore = overview?.max_score ?? 14;
+  const maxScore = overview?.max_score ?? 10;
   const color = getScoreColor(score, maxScore);
   const label = getScoreLabel(score, maxScore);
 
@@ -1173,7 +1173,7 @@ const MarketStatusCard = memo(function MarketStatusCard({
   const fallbackLevel = !overview && marketData ? (marketData.status === "GOOD" ? 3 : marketData.status === "BAD" ? 1 : 2) : 1;
   const level = (overview?.level ?? fallbackLevel) as 1 | 2 | 3;
   const score = overview?.score ?? fallbackScore;
-  const maxScore = overview?.max_score ?? 14;
+  const maxScore = overview?.max_score ?? 10;
   const statusBadge = overview?.status_badge ?? (marketData?.status === "GOOD" ? "🟢 THIÊN THỜI" : marketData?.status === "BAD" ? "🔴 NGỦ ĐÔNG" : "🟡 THĂM DÒ");
   const breadth = overview?.market_breadth ?? (marketData ? `Tăng: ${marketData.updown?.up ?? 0} | Giảm: ${marketData.updown?.down ?? 0} | Không đổi: ${marketData.updown?.unchanged ?? 0}` : "Không có dữ liệu");
   const highlights = overview?.technical_highlights;

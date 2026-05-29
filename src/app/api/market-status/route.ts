@@ -9,11 +9,27 @@ import path from "path";
 
 const CACHE_FILE = path.join(process.cwd(), "market_cache.json");
 
+function normalizeAdnCoreScale(data: Record<string, unknown>) {
+  const score = Number(data.score);
+  const maxScore = Number(data.max_score);
+  if (Number.isFinite(score) && Number.isFinite(maxScore) && maxScore > 0 && maxScore !== 10) {
+    return {
+      ...data,
+      score: Math.round((score / maxScore) * 100) / 10,
+      max_score: 10,
+    };
+  }
+  return {
+    ...data,
+    max_score: 10,
+  };
+}
+
 export async function GET() {
   try {
     if (fs.existsSync(CACHE_FILE)) {
       const data = fs.readFileSync(CACHE_FILE, "utf-8");
-      return NextResponse.json(JSON.parse(data));
+      return NextResponse.json(normalizeAdnCoreScale(JSON.parse(data)));
     }
   } catch (err) {
     console.error("[/api/market-status] Cache read error:", err);
@@ -22,7 +38,7 @@ export async function GET() {
   // Fallback nếu chưa có cache
   return NextResponse.json({
     score: 0,
-    max_score: 14,
+    max_score: 10,
     level: 1,
     status_badge: "⏳ Đang tải...",
     market_breadth: "Đang cập nhật...",

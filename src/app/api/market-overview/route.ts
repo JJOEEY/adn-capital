@@ -49,6 +49,22 @@ function saveCacheToFile(data: CachePayload) {
   }
 }
 
+function normalizeAdnCoreScale(data: CachePayload): CachePayload {
+  const score = Number(data.score);
+  const maxScore = Number(data.max_score);
+  if (Number.isFinite(score) && Number.isFinite(maxScore) && maxScore > 0 && maxScore !== 10) {
+    return {
+      ...data,
+      score: Math.round((score / maxScore) * 100) / 10,
+      max_score: 10,
+    };
+  }
+  return {
+    ...data,
+    max_score: 10,
+  };
+}
+
 async function fetchLiveOverview(): Promise<CachePayload | null> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 12_000);
@@ -72,7 +88,7 @@ export async function GET(req: Request) {
   const cached = readCacheFromFile();
   if (cached && cached.ageMs <= TTL_MS && !forceRefresh && hasCompleteValuation(cached.data)) {
     return NextResponse.json({
-      ...cached.data,
+      ...normalizeAdnCoreScale(cached.data),
       stale: false,
       source: "cache",
     });
@@ -82,7 +98,7 @@ export async function GET(req: Request) {
   if (live) {
     saveCacheToFile(live);
     return NextResponse.json({
-      ...live,
+      ...normalizeAdnCoreScale(live),
       stale: false,
       source: "live",
     });
@@ -90,7 +106,7 @@ export async function GET(req: Request) {
 
   if (cached && hasCompleteValuation(cached.data)) {
     return NextResponse.json({
-      ...cached.data,
+      ...normalizeAdnCoreScale(cached.data),
       stale: true,
       source: "cache-stale",
     });
@@ -98,7 +114,7 @@ export async function GET(req: Request) {
 
   return NextResponse.json({
     score: 0,
-    max_score: 14,
+    max_score: 10,
     level: 1,
     status_badge: "Dang cap nhat...",
     market_breadth: "Dang tinh toan...",

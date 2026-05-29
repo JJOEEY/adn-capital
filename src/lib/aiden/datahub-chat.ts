@@ -4,6 +4,7 @@ import { MODEL_FLASH } from "@/lib/gemini";
 import { emitObservabilityEvent, type ObservabilityMeta } from "@/lib/observability";
 import {
   applyMarketPriceScale,
+  alignMarketPriceToAnchor,
   chooseMarketDisplayPrice,
   getMarketPayloadRows,
   latestClosePriceFromPayload,
@@ -14,6 +15,7 @@ import { normalizeHistoricalPriceWithSnapshot, type StockPriceSnapshot } from "@
 import { classifyAidenIntent, type AidenIntent } from "@/lib/aiden/intent";
 import { extractTickerCandidates as extractTickerCandidatesFromText } from "@/lib/ticker-text";
 import { resolveMarketTicker } from "@/lib/ticker-resolver";
+import { prisma } from "@/lib/prisma";
 
 type JsonRecord = Record<string, unknown>;
 function readPositiveIntegerEnv(name: string, fallback: number): number {
@@ -165,6 +167,141 @@ function normalizeHistoricalCandles(value: unknown) {
       return { date, open, high, low, close, volume };
     })
     .filter((item): item is { date: string; open: number; high: number; low: number; close: number; volume: number | null } => item !== null);
+}
+
+function sma(values: number[], period: number) {
+  if (values.length < period) return null;
+  const slice = values.slice(-period);
+  return slice.reduce((sum, value) => sum + value, 0) / period;
+}
+
+function emaSeries(values: number[], period: number) {
+  if (values.length < period) return [];
+  const multiplier = 2 / (period + 1);
+  const result: number[] = [];
+  let previous = values.slice(0, period).reduce((sum, value) => sum + value, 0) / period;
+  result.push(previous);
+  for (const value of values.slice(period)) {
+    previous = value * multiplier + previous * (1 - multiplier);
+    result.push(previous);
+  }
+  return result;
+}
+
+function rsi(values: number[], period = 14) {
+  if (values.length <= period) return null;
+  let gain = 0;
+  let loss = 0;
+  for (let index = values.length - period; index < values.length; index += 1) {
+    const diff = values[index] - values[index - 1];
+    if (diff >= 0) gain += diff;
+    else loss += Math.abs(diff);
+  }
+  if (loss === 0) return 100;
+  const rs = gain / period / (loss / period);
+  return 100 - 100 / (1 + rs);
+}
+
+function macdHistogram(values: number[]) {
+  const ema12 = emaSeries(values, 12);
+  const ema26 = emaSeries(values, 26);
+  if (!ema12.length || !ema26.length) return { histogram: null, histogramPrev: null };
+  const offset = ema12.length - ema26.length;
+  const macd = ema26.map((value, index) => ema12[index + offset] - value);
+  const signal = emaSeries(macd, 9);
+  if (!signal.length) return { histogram: null, histogramPrev: null };
+  const signalOffset = macd.length - signal.length;
+  const hist = signal.map((value, index) => macd[index + signalOffset] - value);
+  return {
+    histogram: hist.at(-1) ?? null,
+    histogramPrev: hist.at(-2) ?? null,
+  };
+}
+
+function buildIndicatorsFromCandles(candles: ReturnType<typeof normalizeHistoricalCandles>) {
+  const closes = candles.map((item) => item.close).filter((value) => Number.isFinite(value));
+  const volumes = candles.map((item) => item.volume ?? 0).filter((value) => Number.isFinite(value));
+  const macd = macdHistogram(closes);
+  const last = candles.at(-1);
+  const last52w = candles.slice(-252);
+  return stripInternalFields({
+    currentPrice: last?.close ?? null,
+    changePct: closes.length >= 2 && closes.at(-2)
+      ? Number((((closes.at(-1)! - closes.at(-2)!) / closes.at(-2)!) * 100).toFixed(2))
+      : null,
+    sma20: sma(closes, 20),
+    sma50: sma(closes, 50),
+    sma200: sma(closes, 200),
+    avgVolume20: sma(volumes, 20),
+    low52w: last52w.length ? Math.min(...last52w.map((item) => item.low)) : null,
+    high52w: last52w.length ? Math.max(...last52w.map((item) => item.high)) : null,
+    rsi14: rsi(closes, 14),
+    macd,
+    volume10: volumes.slice(-10),
+  });
+}
+
+async function loadDatabaseV2DailyPayload(ticker: string) {
+  const rows = await prisma.databaseMarketLatest.findMany({
+    where: {
+      dataset: "market.ohlcv",
+      symbol: ticker,
+      channel: { in: ["ohlcv.1D", "ohlc_closed.1D.json"] },
+    },
+    orderBy: [{ tradingDate: "asc" }, { updatedAt: "desc" }],
+    take: 700,
+  });
+  const byDate = new Map<string, JsonRecord>();
+  for (const row of rows) {
+    if (byDate.has(row.tradingDate)) continue;
+    const payload = asRecord(row.payload);
+    const scale = marketPriceScaleFromPayload(payload);
+    const open = applyMarketPriceScale(asNumber(payload.open ?? payload.openPrice ?? payload.o), scale);
+    const high = applyMarketPriceScale(asNumber(payload.high ?? payload.highestPrice ?? payload.h), scale);
+    const low = applyMarketPriceScale(asNumber(payload.low ?? payload.lowestPrice ?? payload.l), scale);
+    const close = applyMarketPriceScale(asNumber(payload.close ?? payload.matchPrice ?? payload.c ?? payload.price), scale);
+    if (open == null || high == null || low == null || close == null) continue;
+    byDate.set(row.tradingDate, {
+      date: row.tradingDate,
+      time: row.tradingDate,
+      open,
+      high,
+      low,
+      close,
+      volume: asNumber(payload.volume ?? payload.v ?? payload.totalVolumeTraded) ?? 0,
+    });
+  }
+  const data = Array.from(byDate.values());
+  return data.length ? { data } : null;
+}
+
+async function loadDatabaseV2PriceSnapshot(ticker: string, historicalPayload: unknown) {
+  const latestTick = await prisma.databaseToolLatest.findFirst({
+    where: { tool: "radar", dataset: "radar.realtime.tick", key: ticker },
+    orderBy: { updatedAt: "desc" },
+  });
+  const rows = normalizeHistoricalCandles(historicalPayload);
+  const latestCandle = rows.at(-1);
+  const previousCandle = rows.at(-2);
+  const tick = asRecord(latestTick?.payload);
+  const rawPrice = asNumber(tick.price ?? tick.matchPrice ?? tick.lastPrice ?? tick.close);
+  const anchor = latestCandle?.close ?? previousCandle?.close ?? null;
+  const price = chooseMarketDisplayPrice(alignMarketPriceToAnchor(rawPrice, anchor), anchor);
+  const effectivePrice = price ?? latestCandle?.close ?? null;
+  const reference = alignMarketPriceToAnchor(asNumber(tick.reference ?? tick.refPrice ?? tick.previousClose), anchor) ?? previousCandle?.close ?? null;
+  const changePct = asNumber(tick.changePct ?? tick.changedRatio) ??
+    (effectivePrice != null && reference ? Number((((effectivePrice - reference) / reference) * 100).toFixed(2)) : null);
+  return stripInternalFields({
+    price: effectivePrice,
+    close: latestCandle?.close ?? null,
+    previousClose: reference,
+    changePct,
+    latestVolume: asNumber(tick.volume ?? tick.totalVolumeTraded) ?? latestCandle?.volume ?? null,
+    volumeMa20: sma(rows.map((item) => item.volume ?? 0), 20),
+    priceDate: latestCandle?.date ?? null,
+    realtimeAt: latestTick?.updatedAt?.toISOString() ?? null,
+    historicalScale: 1,
+  });
 }
 
 function pctDiff(value: number | null, base: number | null) {
@@ -390,25 +527,35 @@ async function readTopicSoft(topic: string, context: TopicContext, timeoutMs: nu
   }
 }
 
-function buildTickerContext(ticker: string, envelopes: Array<{ topic: string; envelope: TopicEnvelope }>) {
+function buildTickerContext(
+  ticker: string,
+  envelopes: Array<{ topic: string; envelope: TopicEnvelope }>,
+  databaseOverride?: {
+    historical?: unknown;
+    priceSnapshot?: unknown;
+    ta?: unknown;
+  },
+) {
   const workbench = envelopes.find((item) => item.topic.startsWith("research:workbench:"))?.envelope.value;
   const standaloneTA = envelopes.find((item) => item.topic.startsWith("vn:ta:"))?.envelope.value;
   const standaloneFA = envelopes.find((item) => item.topic.startsWith("vn:fa:"))?.envelope.value;
   const priceSnapshot = envelopes.find((item) => item.topic.startsWith("vn:price-snapshot:"))?.envelope.value;
   const realtime = envelopes.find((item) => item.topic.startsWith("vn:realtime:"))?.envelope.value;
   const depth = envelopes.find((item) => item.topic.startsWith("vn:depth:"))?.envelope.value;
-  const historical = envelopes.find((item) => item.topic.startsWith("vn:historical:"))?.envelope.value;
+  const historical = databaseOverride?.historical ?? envelopes.find((item) => item.topic.startsWith("vn:historical:"))?.envelope.value;
   const wb = asRecord(workbench);
   const wbTA = asRecord(wb.ta);
   const wbFA = asRecord(wb.fa);
-  const ta = Object.keys(asRecord(standaloneTA)).length > 0 ? standaloneTA : wbTA;
+  const taBase = Object.keys(asRecord(standaloneTA)).length > 0 ? standaloneTA : wbTA;
+  const ta = { ...asRecord(taBase), ...asRecord(databaseOverride?.ta) };
   const fa = Object.keys(asRecord(standaloneFA)).length > 0 ? standaloneFA : wbFA;
-  const mergedWorkbench = { ...wb, ta, fa, priceSnapshot: priceSnapshot ?? wb.priceSnapshot };
-  const analysisMetrics = buildAnalysisMetrics(mergedWorkbench, realtime, historical, priceSnapshot);
+  const effectivePriceSnapshot = databaseOverride?.priceSnapshot ?? priceSnapshot ?? wb.priceSnapshot;
+  const mergedWorkbench = { ...wb, ta, fa, priceSnapshot: effectivePriceSnapshot };
+  const analysisMetrics = buildAnalysisMetrics(mergedWorkbench, realtime, historical, effectivePriceSnapshot);
 
   return {
     ticker,
-    priceSnapshot: stripInternalFields(priceSnapshot ?? wb.priceSnapshot ?? null),
+    priceSnapshot: stripInternalFields(effectivePriceSnapshot ?? null),
     analysisMetrics,
     ta: stripInternalFields({
       currentPrice: asRecord(analysisMetrics).price ?? asRecord(priceSnapshot).price ?? asRecord(ta).currentPrice ?? null,
@@ -1063,11 +1210,15 @@ function buildCoreArtLine(contexts: unknown[]) {
   const core = asRecord(metrics.adnCore ?? context.adnCore);
   const art = asRecord(metrics.adnArt ?? context.adnArt);
 
-  const coreScore = asNumber(core.score ?? core.totalScore ?? core.value);
-  const coreMax = asNumber(core.max_score ?? core.maxScore ?? core.max);
+  const rawCoreScore = asNumber(core.score ?? core.totalScore ?? core.value);
+  const rawCoreMax = asNumber(core.max_score ?? core.maxScore ?? core.max) ?? 10;
+  const coreScore = rawCoreScore != null && rawCoreMax > 0 && rawCoreMax !== 10
+    ? Number(((rawCoreScore / rawCoreMax) * 10).toFixed(1))
+    : rawCoreScore;
+  const coreMax = 10;
   const coreStatus = firstText(core.status_badge, core.statusBadge, core.status, core.action_message, core.actionMessage);
   const corePieces = [
-    coreScore != null ? `${formatDecimal(coreScore)}${coreMax != null ? `/${formatDecimal(coreMax)}` : ""}` : null,
+    coreScore != null ? `${formatDecimal(coreScore)}/${formatDecimal(coreMax)}` : null,
     coreStatus,
   ].filter(Boolean);
 
@@ -1127,8 +1278,31 @@ async function loadTickerContexts(tickers: string[], context: TopicContext) {
         `vn:historical:${ticker}:1d`,
         `vn:depth:${ticker}`,
       ];
-      const envelopes = await Promise.all(topics.map((topic) => readTopicSoft(topic, context, TICKER_TOPIC_TIMEOUT_MS)));
-      return { ticker, topics, envelopes, context: buildTickerContext(ticker, envelopes) };
+      const [envelopes, databaseHistorical] = await Promise.all([
+        Promise.all(topics.map((topic) => readTopicSoft(topic, context, TICKER_TOPIC_TIMEOUT_MS))),
+        loadDatabaseV2DailyPayload(ticker).catch((error) => {
+          console.warn("[AIDEN] Database v2 chart context unavailable:", ticker, error);
+          return null;
+        }),
+      ]);
+      const databaseCandles = normalizeHistoricalCandles(databaseHistorical);
+      const databasePriceSnapshot = databaseHistorical
+        ? await loadDatabaseV2PriceSnapshot(ticker, databaseHistorical).catch((error) => {
+            console.warn("[AIDEN] Database v2 price context unavailable:", ticker, error);
+            return null;
+          })
+        : null;
+      const databaseTa = databaseCandles.length ? buildIndicatorsFromCandles(databaseCandles) : null;
+      return {
+        ticker,
+        topics: databaseHistorical ? [`database:v2:chart:${ticker}`, ...topics] : topics,
+        envelopes,
+        context: buildTickerContext(ticker, envelopes, {
+          historical: databaseHistorical ?? undefined,
+          priceSnapshot: databasePriceSnapshot ?? undefined,
+          ta: databaseTa ?? undefined,
+        }),
+      };
     }),
   );
 }
@@ -1319,6 +1493,7 @@ export async function prepareAidenDatahubTurn(input: {
 
   const perTicker = await loadTickerContexts(tickers, context);
   const contexts = perTicker.map((item) => item.context);
+  const deterministicTickerReport = contexts.length === 1 ? buildAidenStockDeterministicReport(contexts[0]) : null;
   return {
     message,
     intent: contexts.length >= 2 ? "compare" : "ticker_analysis",
@@ -1328,8 +1503,9 @@ export async function prepareAidenDatahubTurn(input: {
     usedTopics: perTicker.flatMap((item) => item.topics),
     model: MODEL_FLASH,
     dataFreshness: collectFreshness(perTicker),
-    prompt: buildPrompt(message, contexts),
-    fallbackMessage: buildFlashUnavailableMessage(contexts),
+    prompt: deterministicTickerReport ? undefined : buildPrompt(message, contexts),
+    staticMessage: deterministicTickerReport ?? undefined,
+    fallbackMessage: deterministicTickerReport ?? buildFlashUnavailableMessage(contexts),
     systemInstruction,
     tickerContexts: contexts,
   };
