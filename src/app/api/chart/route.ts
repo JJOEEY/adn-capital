@@ -25,6 +25,7 @@ type ChartPayload = {
   timeframe: string;
   source: "database_v2";
   cached?: boolean;
+  realtime?: boolean;
 };
 
 type CacheEntry = {
@@ -40,6 +41,7 @@ const DAILY_CHANNEL = "ohlcv.1D";
 const LEGACY_DNSE_DAILY_CHANNEL = "ohlc_closed.1D.json";
 const MIN_DAILY_BARS = Math.max(30, Number(process.env.ADN_STOCK_CHART_MIN_DAILY_BARS ?? 180));
 const BOOTSTRAP_DAYS = Math.max(MIN_DAILY_BARS + 40, Number(process.env.ADN_STOCK_CHART_BOOTSTRAP_DAYS ?? 1825));
+const LATEST_TICK_STALE_MS = Math.max(30_000, Number(process.env.ADN_STOCK_CHART_LATEST_STALE_MS ?? 90_000));
 
 function getCache(cacheKey: string): ChartPayload | null {
   const key = cacheKey.toUpperCase();
@@ -142,6 +144,23 @@ function isVnMarketClosed() {
 
 function candleDateKey(candle: Candle) {
   return vnDateKey(new Date(candle.time * 1000));
+}
+
+function unixTimeForDateKey(dateKey: string) {
+  return Math.floor(Date.parse(`${dateKey}T00:00:00+07:00`) / 1000);
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function readTickUpdatedAt(payload: Record<string, unknown>, fallback: Date) {
+  const raw = payload.updatedAt ?? payload.providerTime;
+  if (typeof raw === "string" && raw.trim()) {
+    const parsed = Date.parse(raw);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return fallback.getTime();
 }
 
 function normalizeRowPayload(row: {
@@ -391,6 +410,78 @@ async function loadChartData(symbol: string, timeframe: string, force: boolean):
   return payload;
 }
 
+async function readLatestRadarTick(symbol: string) {
+  const row = await prisma.databaseToolLatest.findFirst({
+    where: {
+      tool: "radar",
+      dataset: "radar.realtime.tick",
+      key: symbol,
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+  if (row) {
+    return { payload: asRecord(row.payload), updatedAt: row.updatedAt };
+  }
+
+  const state = await prisma.databaseToolLatest.findFirst({
+    where: {
+      tool: "radar",
+      dataset: "radar.realtime",
+      key: "latest",
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+  const latest = Array.isArray(asRecord(state?.payload).latest) ? asRecord(state?.payload).latest as unknown[] : [];
+  const tick = latest.map(asRecord).find((item) => String(item.ticker ?? "").toUpperCase() === symbol);
+  return tick && state ? { payload: tick, updatedAt: state.updatedAt } : null;
+}
+
+function mergeTickIntoDailyCandle(symbol: string, dailyCandles: Candle[], tickPayload: Record<string, unknown>, tickUpdatedAt: Date): Candle | null {
+  const price = readNumber(tickPayload, ["price", "matchPrice", "lastPrice", "close"]);
+  if (price == null || price <= 0) return null;
+  const today = vnDateKey();
+  const todayTime = unixTimeForDateKey(today);
+  const base = dailyCandles.find((candle) => candleDateKey(candle) === today) ?? null;
+  const previous = [...dailyCandles].reverse().find((candle) => candleDateKey(candle) < today) ?? dailyCandles.at(-1) ?? null;
+  const reference = readNumber(tickPayload, ["reference", "refPrice", "previousClose"]) ?? previous?.close ?? price;
+  const open = base?.open ?? reference ?? price;
+  const highTick = readNumber(tickPayload, ["high", "highestPrice"]);
+  const lowTick = readNumber(tickPayload, ["low", "lowestPrice"]);
+  const volume = readNumber(tickPayload, ["volume", "totalVolumeTraded"]) ?? base?.volume ?? 0;
+  const high = Math.max(base?.high ?? open, highTick ?? price, price, open);
+  const low = Math.min(base?.low ?? open, lowTick ?? price, price, open);
+  return {
+    time: base?.time ?? todayTime,
+    open,
+    high,
+    low,
+    close: price,
+    volume,
+  };
+}
+
+async function loadLatestChartCandle(symbol: string, timeframe: string): Promise<ChartPayload | null> {
+  if (isIntradayTimeframe(timeframe)) return null;
+
+  const tick = await readLatestRadarTick(symbol);
+  if (!tick) return null;
+  const tickUpdatedAt = readTickUpdatedAt(tick.payload, tick.updatedAt);
+  if (Date.now() - tickUpdatedAt > LATEST_TICK_STALE_MS) return null;
+
+  const dailyCandles = await readDailyCandlesFromDatabase(symbol);
+  const latestDaily = mergeTickIntoDailyCandle(symbol, dailyCandles, tick.payload, tick.updatedAt);
+  if (!latestDaily) return null;
+  if (timeframe === "1D") {
+    return { symbol, timeframe, candles: [latestDaily], source: "database_v2", realtime: true };
+  }
+
+  const today = candleDateKey(latestDaily);
+  const mergedDaily = dailyCandles.filter((candle) => candleDateKey(candle) !== today).concat(latestDaily);
+  const candles = aggregateCandles(mergedDaily, timeframe);
+  const latest = candles.at(-1);
+  return latest ? { symbol, timeframe, candles: [latest], source: "database_v2", realtime: true } : null;
+}
+
 export async function GET(req: NextRequest) {
   const symbol = req.nextUrl.searchParams.get("symbol")?.toUpperCase();
   if (!symbol || !/^[A-Z0-9]{2,10}$/.test(symbol)) {
@@ -398,6 +489,12 @@ export async function GET(req: NextRequest) {
   }
   const timeframe = normalizeTimeframe(req.nextUrl.searchParams.get("timeframe"));
   const force = req.nextUrl.searchParams.get("force") === "1";
+  const latestOnly = req.nextUrl.searchParams.get("latest") === "1";
+
+  if (latestOnly) {
+    const payload = await loadLatestChartCandle(symbol, timeframe);
+    return payload ? NextResponse.json(payload) : new NextResponse(null, { status: 204 });
+  }
 
   const cached = force ? null : getCache(`${symbol}:${timeframe}`);
   if (cached) return NextResponse.json(cached);

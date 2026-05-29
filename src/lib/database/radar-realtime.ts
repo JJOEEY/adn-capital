@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import type { DatabaseProviderStatus, DatabaseResult } from "@/lib/database/contracts";
 import { databaseOk } from "@/lib/database/contracts";
-import { getRealtimeCache, inspectRealtimeCache, setRealtimeCache } from "@/lib/database/realtime-cache";
+import { getRealtimeCache, setRealtimeCache } from "@/lib/database/realtime-cache";
 import { getDatabaseToolLatest, listDatabaseToolLatest, upsertDatabaseToolLatest } from "@/lib/database/tool-latest";
 import { prisma } from "@/lib/prisma";
 import { collectDnseLightspeedMessages } from "@/lib/providers/dnse/lightspeed-ws";
@@ -273,7 +273,6 @@ export async function getDatabaseRadarRealtime(): Promise<DatabaseResult<Databas
 }
 
 export async function getDatabaseRealtimeHealth() {
-  const cache = inspectRealtimeCache();
   const latest = await getDatabaseToolLatest<DatabaseRadarRealtimeState>({
     tool: "radar",
     dataset: "radar.realtime",
@@ -288,18 +287,29 @@ export async function getDatabaseRealtimeHealth() {
     maxAgeMs: 24 * 60 * 60_000,
     ignoreExpires: true,
   });
+  const staleCutoffMs = Math.max(30_000, Number(process.env.DATABASE_REALTIME_HEALTH_STALE_MS ?? 90_000));
+  const now = Date.now();
+  const staleTicks = ticks.filter((row) => now - Date.parse(row.updatedAt) > staleCutoffMs);
+  const freshTicks = ticks.length - staleTicks.length;
   const missingFields = [
     !latest ? "radar.realtime.latest" : null,
     ticks.length === 0 ? "radar.realtime.ticks" : null,
+    ticks.length > 0 && freshTicks === 0 ? "radar.realtime.fresh_ticks" : null,
   ].filter((item): item is string => Boolean(item));
+  const status = missingFields.length === 0
+    ? "ok"
+    : latest || ticks.length
+      ? "degraded"
+      : "blocked";
   return {
     ok: missingFields.length === 0,
-    status: missingFields.length === 0 ? "ok" : latest || ticks.length ? "degraded" : "blocked",
+    status,
     checkedAt: new Date().toISOString(),
-    cache,
     radar: {
       latestUpdatedAt: latest?.updatedAt ?? null,
       tickRows: ticks.length,
+      freshTickRows: freshTicks,
+      staleTickCount: staleTicks.length,
       coverage: latest?.payload.coverage ?? null,
     },
     missingFields,

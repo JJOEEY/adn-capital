@@ -303,6 +303,22 @@ function constantLine(data: Array<{ time: number }>, value: number): LinePoint[]
   return data.map((item) => ({ time: item.time, value }));
 }
 
+function mergeLatestCandle(candles: Candle[], latest: Candle) {
+  const sanitizedLatest = sanitizeCandles([latest])[0];
+  if (!sanitizedLatest) return candles;
+  const next = candles.filter((candle) => candle.time !== sanitizedLatest.time).concat(sanitizedLatest);
+  return sanitizeCandles(next);
+}
+
+function lastPoint<T extends { time: number }>(points: T[]) {
+  return points.length ? points[points.length - 1] : null;
+}
+
+function updateLastPoint(series: any, points: LinePoint[]) {
+  const point = lastPoint(points);
+  if (point) series.update(point as any);
+}
+
 function pointFromEvent(event: PointerEvent<SVGSVGElement>) {
   const rect = event.currentTarget.getBoundingClientRect();
   return {
@@ -369,6 +385,9 @@ export function StockChart({
   const seriesRef = useRef<ChartSeriesRefs>({ overlays: [] });
   const pendingPointRef = useRef<{ x: number; y: number } | null>(null);
   const didFitRef = useRef(false);
+  const chartCandlesRef = useRef<Candle[]>([]);
+  const requestTokenRef = useRef(0);
+  const skipNextFullRenderRef = useRef(false);
   const [pendingPoint, setPendingPoint] = useState<{ x: number; y: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -395,6 +414,10 @@ export function StockChart({
   const enabledKey = enabledIndicators.join(",");
 
   useEffect(() => {
+    chartCandlesRef.current = chartCandles;
+  }, [chartCandles]);
+
+  useEffect(() => {
     setSymbolSearch(symbol);
   }, [symbol]);
 
@@ -404,6 +427,71 @@ export function StockChart({
     if (!next) return;
     setSymbolSearch(next);
     onSymbolSubmit?.(next);
+  };
+
+  const applyLatestCandlePatch = (latest: Candle, nextCandles: Candle[]) => {
+    const refs = seriesRef.current;
+    if (!chartRef.current || !refs.candle) return;
+    refs.candle.update({
+      time: latest.time as number,
+      open: latest.open,
+      high: latest.high,
+      low: latest.low,
+      close: latest.close,
+    } as any);
+    refs.volume?.update({
+      time: latest.time as number,
+      value: latest.volume,
+      color: latest.close >= latest.open ? "rgba(0,192,135,0.38)" : "rgba(255,77,90,0.38)",
+    } as any);
+
+    const closeData = nextCandles.map((item) => ({ time: item.time, close: item.close }));
+    for (const item of refs.overlays) {
+      if (item.id === "ema10") updateLastPoint(item.series, calcEMA(closeData, 10));
+      if (item.id === "ema20") updateLastPoint(item.series, calcEMA(closeData, 20));
+      if (item.id === "ema30") updateLastPoint(item.series, calcEMA(closeData, 30));
+      if (item.id === "ema50") updateLastPoint(item.series, calcEMA(closeData, 50));
+      if (item.id === "ema200") updateLastPoint(item.series, calcEMA(closeData, 200));
+      if (item.id === "sma20") updateLastPoint(item.series, calcSMA(closeData, 20));
+      if (item.id === "sma50") updateLastPoint(item.series, calcSMA(closeData, 50));
+      if (item.id === "sma200") updateLastPoint(item.series, calcSMA(closeData, 200));
+    }
+
+    if (enabledIndicators.includes("bb")) {
+      const bb = calcBollinger(closeData);
+      const upper = refs.overlays.find((item) => item.id === "bb-upper")?.series;
+      const middle = refs.overlays.find((item) => item.id === "bb-middle")?.series;
+      const lower = refs.overlays.find((item) => item.id === "bb-lower")?.series;
+      if (upper) updateLastPoint(upper, bb.upper);
+      if (middle) updateLastPoint(middle, bb.middle);
+      if (lower) updateLastPoint(lower, bb.lower);
+    }
+    if (refs.macd) {
+      const macd = calcMACD(closeData);
+      const hist = lastPoint(macd.histogram);
+      updateLastPoint(refs.macd.macd, macd.macd);
+      updateLastPoint(refs.macd.signal, macd.signal);
+      if (hist) {
+        refs.macd.histogram.update({
+          time: hist.time as number,
+          value: hist.value,
+          color: hist.value >= 0 ? "rgba(34,197,94,0.85)" : "rgba(239,68,68,0.85)",
+        } as any);
+      }
+    }
+    if (refs.rsi) {
+      const rsi = calcRSI(closeData);
+      updateLastPoint(refs.rsi.line, rsi);
+      updateLastPoint(refs.rsi.upper, constantLine(rsi, 70));
+      updateLastPoint(refs.rsi.lower, constantLine(rsi, 30));
+    }
+    if (refs.stoch) {
+      const stoch = calcStoch(nextCandles);
+      updateLastPoint(refs.stoch.k, stoch.k);
+      updateLastPoint(refs.stoch.d, stoch.d);
+      updateLastPoint(refs.stoch.upper, constantLine(stoch.k, 80));
+      updateLastPoint(refs.stoch.lower, constantLine(stoch.k, 20));
+    }
   };
 
   useEffect(() => {
@@ -643,6 +731,7 @@ export function StockChart({
     let disposed = false;
 
     async function fetchChartData() {
+      const token = ++requestTokenRef.current;
       try {
         setLoading(true);
         setError(null);
@@ -654,9 +743,9 @@ export function StockChart({
         if (!res.ok) throw new Error(payload.error || "Không tải được dữ liệu biểu đồ");
         const nextCandles = sanitizeCandles(payload.candles);
         if (!nextCandles.length) throw new Error("Biểu đồ đang cập nhật dữ liệu cho khung này");
-        if (!disposed) setLoadedCandles(nextCandles);
+        if (!disposed && token === requestTokenRef.current) setLoadedCandles(nextCandles);
       } catch (err) {
-        if (!disposed) {
+        if (!disposed && token === requestTokenRef.current) {
           setLoadedCandles([]);
           setError(err instanceof Error ? err.message : "Lỗi tải biểu đồ");
           setLoading(false);
@@ -678,6 +767,12 @@ export function StockChart({
         const nextCandles = chartCandles;
         if (!nextCandles.length) throw new Error("Biểu đồ đang cập nhật dữ liệu cho khung này");
         if (disposed || !chartRef.current || !seriesRef.current.candle) return;
+        if (skipNextFullRenderRef.current) {
+          skipNextFullRenderRef.current = false;
+          setError(null);
+          setLoading(false);
+          return;
+        }
 
         const chartData = nextCandles.map((c) => ({
           time: c.time as number,
@@ -760,6 +855,42 @@ export function StockChart({
       disposed = true;
     };
   }, [chartCandles, symbol, timeframe, enabledIndicators, chartReadyVersion]);
+
+  useEffect(() => {
+    if (!chartReadyVersion || !chartCandles.length) return;
+    let disposed = false;
+    const token = requestTokenRef.current;
+
+    async function pollLatest() {
+      try {
+        const res = await fetch(`/api/chart?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(timeframe)}&latest=1`, {
+          cache: "no-store",
+        });
+        if (disposed || token !== requestTokenRef.current) return;
+        if (res.status === 204) return;
+        const payload = await res.json() as { symbol?: string; timeframe?: string; candles?: Candle[] };
+        if (!res.ok) return;
+        if (payload.symbol?.toUpperCase() !== symbol.toUpperCase() || payload.timeframe !== timeframe) return;
+        const latest = sanitizeCandles(payload.candles)[0];
+        if (!latest) return;
+        const nextCandles = mergeLatestCandle(chartCandlesRef.current, latest);
+        const mergedLatest = nextCandles.find((candle) => candle.time === latest.time) ?? latest;
+        applyLatestCandlePatch(mergedLatest, nextCandles);
+        chartCandlesRef.current = nextCandles;
+        skipNextFullRenderRef.current = true;
+        setLoadedCandles(nextCandles);
+      } catch {
+        // Latest polling is best-effort; keep the loaded chart stable.
+      }
+    }
+
+    void pollLatest();
+    const interval = window.setInterval(pollLatest, 10_000);
+    return () => {
+      disposed = true;
+      window.clearInterval(interval);
+    };
+  }, [symbol, timeframe, chartReadyVersion, chartCandles.length, enabledKey]);
 
   function addDrawing(point: { x: number; y: number }) {
     if (activeTool === "cursor" || drawingsLocked) return;

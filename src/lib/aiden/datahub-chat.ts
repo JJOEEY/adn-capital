@@ -1,6 +1,6 @@
 import { getTopicEnvelope } from "@/lib/datahub/core";
 import type { TopicContext, TopicEnvelope } from "@/lib/datahub/types";
-import { executeFlashOnlyAIRequest, MODEL_FLASH } from "@/lib/gemini";
+import { MODEL_FLASH } from "@/lib/gemini";
 import { emitObservabilityEvent, type ObservabilityMeta } from "@/lib/observability";
 import {
   applyMarketPriceScale,
@@ -24,6 +24,9 @@ function readPositiveIntegerEnv(name: string, fallback: number): number {
 }
 
 const GENERAL_CHAT_TIMEOUT_MS = readPositiveIntegerEnv("AIDEN_CHAT_TIMEOUT_MS", 25_000);
+const AIDEN_FREEMODEL_TIMEOUT_MS = readPositiveIntegerEnv("AIDEN_FREEMODEL_TIMEOUT_MS", 10_000);
+const AIDEN_FREEMODEL_MODEL = process.env.AIDEN_FREEMODEL_MODEL ?? "gpt-5.4";
+const AIDEN_FREEMODEL_BASE_URL = (process.env.FREEMODEL_OPENAI_BASE_URL ?? "https://api.freemodel.dev/v1").replace(/\/+$/, "");
 const GENERAL_TOPIC_TIMEOUT_MS = 3_500;
 const TICKER_TOPIC_TIMEOUT_MS = 15_000;
 type AidenSurface = "aiden" | "stock";
@@ -794,6 +797,112 @@ function buildAidenTickerBriefMessage(context: unknown) {
   ].filter((line): line is string => Boolean(line)).join("\n");
 }
 
+function formatDistanceFromPrice(price: number | null, anchor: number | null) {
+  const diff = pctDiff(price, anchor);
+  return diff == null ? null : `${diff >= 0 ? "trên" : "dưới"} ${formatDecimal(Math.abs(diff))}%`;
+}
+
+function buildAidenStockDeterministicReport(context: unknown) {
+  const record = asRecord(context);
+  const ticker = String(record.ticker ?? "").trim().toUpperCase();
+  if (!ticker) return null;
+
+  const metrics = asRecord(record.analysisMetrics);
+  const movingAverages = asRecord(metrics.movingAverages);
+  const momentum = asRecord(metrics.momentum);
+  const volume = asRecord(metrics.volume);
+  const priceZones = asRecord(metrics.priceZones);
+  const radarAction = asRecord(metrics.radarAction);
+  const lastCandle = asRecord(metrics.lastCandle);
+  const valuation = asRecord(metrics.valuation);
+
+  const price = roundedPrice(metrics.price);
+  const changePct = asNumber(metrics.changePct);
+  const ma20 = roundedPrice(movingAverages.ma20);
+  const ma50 = roundedPrice(movingAverages.ma50);
+  const ma200 = roundedPrice(movingAverages.ma200);
+  const rsi = asNumber(momentum.rsi14);
+  const macdHistogram = asNumber(momentum.macdHistogram);
+  const latestVolume = roundedPrice(volume.latestVolume);
+  const volumeMa20 = roundedPrice(volume.volumeMa20);
+  const volumeVsMa20 = asNumber(volume.volumeVsMa20);
+  const support = roundedPrice(priceZones.support);
+  const resistance = roundedPrice(priceZones.resistance);
+  const target = roundedPrice(radarAction.target);
+  const stoploss = roundedPrice(radarAction.stoploss);
+
+  const pe = asNumber(valuation.pe);
+  const pb = asNumber(valuation.pb);
+  const eps = asNumber(valuation.eps);
+  const bvps = asNumber(valuation.bookValuePerShare);
+  const roe = normalizePercentMetric(asNumber(valuation.roe));
+  const roa = normalizePercentMetric(asNumber(valuation.roa));
+  const reportDate = String(valuation.reportDate ?? "").trim();
+  const valuationFacts = [
+    pe != null ? `P/E ${formatDecimal(pe)}x` : null,
+    pb != null ? `P/B ${formatDecimal(pb)}x` : null,
+    eps != null ? `EPS ${formatDecimal(eps)} đồng/cp` : null,
+    bvps != null ? `BVPS ${formatDecimal(bvps)} đồng/cp` : null,
+    roe != null ? `ROE ${formatDecimal(roe)}%` : null,
+    roa != null ? `ROA ${formatDecimal(roa)}%` : null,
+  ].filter(Boolean);
+
+  const priceVsMa20 = formatDistanceFromPrice(price, ma20);
+  const priceVsMa50 = formatDistanceFromPrice(price, ma50);
+  const priceVsMa200 = formatDistanceFromPrice(price, ma200);
+  const bodyPct = asNumber(lastCandle.bodyPct);
+  const candleDirection = firstText(lastCandle.direction);
+  const candleDate = firstText(lastCandle.date);
+  const trendView = buildTickerTrendView(price, ma20, ma50, ma200);
+  const actionView = buildTickerActionView({ price, ma20, support, resistance, target, stoploss });
+
+  return [
+    `**Phân tích cấu trúc (Biểu đồ cổ phiếu)**`,
+    `Giá hiện tại ${price != null ? formatPrice(price) : "đang cập nhật"}${changePct != null ? `, biến động ${formatPct(changePct)}%` : ""}. ${[
+      ma20 != null ? `so với MA20 ${formatPrice(ma20)}${priceVsMa20 ? ` (${priceVsMa20})` : ""}` : null,
+      ma50 != null ? `so với MA50 ${formatPrice(ma50)}${priceVsMa50 ? ` (${priceVsMa50})` : ""}` : null,
+      ma200 != null ? `so với MA200 ${formatPrice(ma200)}${priceVsMa200 ? ` (${priceVsMa200})` : ""}` : null,
+    ].filter(Boolean).join(", ")}.`,
+    candleDirection || bodyPct != null || volumeVsMa20 != null
+      ? `Nến gần nhất${candleDate ? ` (${candleDate})` : ""} ${candleDirection === "down" ? "giảm" : candleDirection === "up" ? "tăng" : "cân bằng"}${bodyPct != null ? `, thân nến ${formatDecimal(bodyPct)}%` : ""}${latestVolume != null ? `, thanh khoản ${formatPrice(latestVolume)}` : ""}${volumeVsMa20 != null ? `, bằng ${formatDecimal(volumeVsMa20 * 100)}% so với MA20 volume` : ""}.`
+      : null,
+    `RSI${rsi != null ? ` ${formatDecimal(rsi)}` : ""}${macdHistogram != null ? `, MACD histogram ${formatDecimal(macdHistogram)}` : ""}. ${trendView}`,
+    "",
+    `**Phân tích vùng giá**`,
+    support != null || resistance != null
+      ? `Hỗ trợ: ${support != null ? formatPrice(support) : "vùng nền gần nhất"}; kháng cự: ${resistance != null ? formatPrice(resistance) : "vùng cản gần nhất"}.`
+      : "Ưu tiên quan sát vùng nền gần nhất và phản ứng thanh khoản trước khi tăng tỷ trọng.",
+    ma20 != null ? `Vùng cần lấy lại/giữ vững: quanh MA20 ${formatPrice(ma20)}.` : null,
+    "",
+    `**Chiến lược**`,
+    actionView,
+    "",
+    `**Phân tích cơ bản**`,
+    valuationFacts.length > 0
+      ? `Chỉ số định giá${reportDate ? ` theo kỳ báo cáo ${reportDate}` : " theo kỳ báo cáo gần nhất"}: ${valuationFacts.join(" · ")}.`
+      : "Theo kỳ báo cáo gần nhất, nên đánh giá thận trọng bằng chất lượng lợi nhuận, vị thế ngành và vùng giá hiện tại.",
+    pe != null && pb != null ? "Mức định giá cần được đối chiếu với tốc độ tăng trưởng lợi nhuận và dòng tiền thực tế, không nên chỉ nhìn riêng P/E hoặc P/B." : null,
+    "",
+    `**Kịch bản rủi ro**`,
+    stoploss != null
+      ? `Rủi ro tăng nếu giá mất vùng ${formatPrice(stoploss)} hoặc hồi lên nhưng thanh khoản suy yếu.`
+      : support != null
+        ? `Rủi ro tăng nếu giá mất vùng hỗ trợ ${formatPrice(support)}.`
+        : "Rủi ro tăng nếu giá mất nền hỗ trợ gần nhất hoặc thị trường chung suy yếu.",
+    macdHistogram != null && macdHistogram < 0 ? `MACD histogram âm (${formatDecimal(macdHistogram)}) cho thấy xung lực cần thêm xác nhận.` : null,
+    "",
+    `**Cảnh báo**`,
+    `Ủng hộ: giá giữ được vùng ${ma20 != null ? formatPrice(ma20) : support != null ? formatPrice(support) : "nền gần nhất"} với thanh khoản cải thiện.`,
+    `Cảnh báo: mất ${support != null ? formatPrice(support) : "vùng hỗ trợ gần nhất"} hoặc thanh khoản tăng mạnh trong phiên giảm.`,
+    `Note: ${latestVolume != null ? `khối lượng gần nhất ${formatPrice(latestVolume)}` : "cần theo dõi thêm khối lượng xác nhận"}${volumeMa20 != null ? `, MA20 volume ${formatPrice(volumeMa20)}` : ""}.`,
+    "",
+    `**Kết luận**`,
+    price != null && ma20 != null && price >= ma20
+      ? `Hành động: có thể tiếp tục quan sát/nắm giữ có điều kiện, ưu tiên quản trị rủi ro tại vùng hỗ trợ.`
+      : `Hành động: chưa mua đuổi, chờ giá lấy lại vùng kỹ thuật quan trọng và có xác nhận dòng tiền.`,
+  ].filter((line): line is string => Boolean(line)).join("\n");
+}
+
 function buildAidenConversationFallbackMessage(message: string, marketContext: unknown, tickerContexts: unknown[]) {
   if (tickerContexts.length === 0) return buildGeneralFallbackMessage(message, marketContext);
 
@@ -861,6 +970,11 @@ ${body}
 }
 
 function buildFlashUnavailableMessage(contexts: unknown[]) {
+  if (contexts.length === 1) {
+    const deterministicReport = buildAidenStockDeterministicReport(contexts[0]);
+    if (deterministicReport) return deterministicReport;
+  }
+
   const statusLines = contexts.map((item) => {
     const record = asRecord(item);
     const ticker = String(record.ticker ?? "Mã cổ phiếu");
@@ -1046,6 +1160,63 @@ function isInvestmentIntent(intent: AidenIntent) {
   return intent !== "smalltalk";
 }
 
+function readOpenAiAssistantContent(payload: unknown) {
+  const choices = asRecord(payload).choices;
+  if (!Array.isArray(choices) || choices.length === 0) return "";
+  const message = asRecord(asRecord(choices[0]).message);
+  const content = message.content;
+  if (typeof content === "string") return content.trim();
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => {
+        const text = asRecord(part).text;
+        return typeof text === "string" ? text : "";
+      })
+      .join("")
+      .trim();
+  }
+  return "";
+}
+
+async function executeAidenFreemodelRequest(prompt: string, systemInstruction: string) {
+  const apiKey = process.env.FREEMODEL_API_KEY;
+  if (!apiKey) throw new Error("FREEMODEL_API_KEY is missing");
+
+  const response = await fetch(`${AIDEN_FREEMODEL_BASE_URL}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: AIDEN_FREEMODEL_MODEL,
+      stream: false,
+      temperature: 0.2,
+      max_tokens: 1800,
+      messages: [
+        { role: "system", content: systemInstruction },
+        { role: "user", content: prompt },
+      ],
+    }),
+    signal: AbortSignal.timeout(AIDEN_FREEMODEL_TIMEOUT_MS),
+  });
+
+  const text = await response.text();
+  let payload: unknown = null;
+  try {
+    payload = JSON.parse(text);
+  } catch {
+    payload = null;
+  }
+  if (!response.ok) {
+    const error = asRecord(asRecord(payload).error).message ?? asRecord(payload).message ?? text;
+    throw new Error(`FreeModel HTTP ${response.status}: ${String(error).slice(0, 180)}`);
+  }
+  const output = readOpenAiAssistantContent(payload);
+  if (!output) throw new Error("FreeModel returned empty assistant response");
+  return output;
+}
+
 export function finalizeAidenPreparedAnswer(answer: string, turn: AidenDatahubPreparedTurn) {
   let finalAnswer = answer.trim();
   if (!isInvestmentIntent(turn.intent)) {
@@ -1171,16 +1342,17 @@ async function completeAidenPreparedTurn(turn: AidenDatahubPreparedTurn, surface
   } else if (turn.prompt) {
     try {
       answer = await withTimeout(
-        executeFlashOnlyAIRequest(turn.prompt, turn.systemInstruction),
-        GENERAL_CHAT_TIMEOUT_MS,
+        executeAidenFreemodelRequest(turn.prompt, turn.systemInstruction),
+        Math.min(GENERAL_CHAT_TIMEOUT_MS, AIDEN_FREEMODEL_TIMEOUT_MS),
         `${surface}-aiden`,
       );
     } catch (error) {
-      console.warn("[AIDEN] Flash-only generation failed:", error);
+      console.warn("[AIDEN] FreeModel generation failed:", error);
       emitAidenFallback(`${surface}_fallback`, error, {
         surface,
         tickerCount: turn.tickerContexts.length,
-        timeoutMs: GENERAL_CHAT_TIMEOUT_MS,
+        timeoutMs: Math.min(GENERAL_CHAT_TIMEOUT_MS, AIDEN_FREEMODEL_TIMEOUT_MS),
+        model: AIDEN_FREEMODEL_MODEL,
       });
       answer = turn.fallbackMessage;
     }
@@ -1194,7 +1366,7 @@ async function completeAidenPreparedTurn(turn: AidenDatahubPreparedTurn, surface
     tickers: turn.tickers,
     recommendation: turn.recommendation,
     usedTopics: turn.usedTopics,
-    model: turn.model,
+    model: turn.staticMessage ? turn.model : AIDEN_FREEMODEL_MODEL,
     dataFreshness: turn.dataFreshness,
     intent: turn.intent,
   };
