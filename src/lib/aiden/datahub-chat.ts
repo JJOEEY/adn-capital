@@ -670,14 +670,15 @@ Quy tắc bắt buộc:
 function buildPrompt(message: string, contexts: unknown[]) {
   const comparison = contexts.length >= 2;
   const outputContract = `OUTPUT_CONTRACT:
-- Bắt buộc dùng đúng 7 heading theo thứ tự: **Phân tích cấu trúc (Biểu đồ cổ phiếu)**, **Phân tích vùng giá**, **Chiến lược**, **Phân tích cơ bản**, **Kịch bản rủi ro**, **Cảnh báo**, **Kết luận**.
-- Mỗi phần 2-5 bullet/câu ngắn. Không viết chung chung nếu context có số; phải đưa số cụ thể.
+- Bắt buộc dùng đúng 7 heading theo thứ tự và dùng Markdown heading cấp 3: ### Phân tích cấu trúc (Biểu đồ cổ phiếu), ### Phân tích vùng giá, ### Chiến lược, ### Phân tích cơ bản, ### Kịch bản rủi ro, ### Cảnh báo, ### Kết luận.
+- Sau mỗi heading phải xuống dòng trống rồi mới viết nội dung. Không viết heading và diễn giải trên cùng một dòng.
+- Mỗi phần 2-5 bullet/câu ngắn. Ưu tiên bullet bắt đầu bằng "- " để tránh dính đoạn. Không viết chung chung nếu context có số; phải đưa số cụ thể.
 - Phân tích cấu trúc: nêu vị trí giá so với MA20, MA50, MA200; mẫu hình hiện tại; nến gần nhất theo VSA/Wyckoff dựa vào analysisMetrics.lastCandle/recentCandles/volume.
 - Phân tích vùng giá: nêu hỗ trợ, kháng cự, vùng an toàn bằng số.
 - Chiến lược: có 2 kịch bản rõ ràng: nếu đang lãi và nếu đang lỗ. Mỗi kịch bản có điểm chốt lời/giảm tỷ trọng và điểm cắt lỗ hoặc điều kiện giữ lại.
 - Phân tích cơ bản: mở bằng **Chỉ số định giá:** nếu context có P/E/P/B/EPS/BVPS/ROE/ROA; so với giá hiện tại và bối cảnh thị trường để đánh giá hấp dẫn hay không.
 - Kịch bản rủi ro: nêu điều kiện làm phân tích thất bại, ví dụ mất MA20/MA50, volume tăng, MACD histogram xấu đi, RSI suy yếu, selling climax hoặc phân phối.
-- Cảnh báo: bắt buộc có 3 dòng **Ủng hộ:**, **Cảnh báo:**, **Note:**. Mỗi dòng phải có ít nhất một số liệu hoặc điều kiện rõ.
+- Cảnh báo: bắt buộc có 3 dòng **Ủng hộ:**, **Tiêu cực:**, **Note:**. Mỗi dòng phải có ít nhất một số liệu hoặc điều kiện rõ.
 - Kết luận: nêu ADNCore và ADN ART nếu có trong context, sau đó phân loại hành động: quan sát, chờ mua, mua thăm dò, nắm giữ, giảm tỷ trọng, hoặc tránh mua.
 - Kết thúc bằng đúng disclaimer:
 ⚠️ Phân tích tham khảo, không phải khuyến nghị đầu tư.
@@ -926,6 +927,116 @@ function buildAidenTickerBriefMessage(context: unknown) {
     "",
     "**4. Hành động phù hợp**",
     actionView,
+  ].filter((line): line is string => Boolean(line)).join("\n");
+}
+
+function formatDistanceFromPrice(price: number | null, anchor: number | null) {
+  const diff = pctDiff(price, anchor);
+  return diff == null ? null : `${diff >= 0 ? "trên" : "dưới"} ${formatDecimal(Math.abs(diff))}%`;
+}
+
+function buildAidenStockDeterministicReport(context: unknown) {
+  const record = asRecord(context);
+  const ticker = String(record.ticker ?? "").trim().toUpperCase();
+  if (!ticker) return null;
+
+  const metrics = asRecord(record.analysisMetrics);
+  const movingAverages = asRecord(metrics.movingAverages);
+  const momentum = asRecord(metrics.momentum);
+  const volume = asRecord(metrics.volume);
+  const priceZones = asRecord(metrics.priceZones);
+  const radarAction = asRecord(metrics.radarAction);
+  const lastCandle = asRecord(metrics.lastCandle);
+  const valuation = asRecord(metrics.valuation);
+
+  const price = roundedPrice(metrics.price);
+  const changePct = asNumber(metrics.changePct);
+  const ma20 = roundedPrice(movingAverages.ma20);
+  const ma50 = roundedPrice(movingAverages.ma50);
+  const ma200 = roundedPrice(movingAverages.ma200);
+  const rsi = asNumber(momentum.rsi14);
+  const macdHistogram = asNumber(momentum.macdHistogram);
+  const latestVolume = roundedPrice(volume.latestVolume);
+  const volumeMa20 = roundedPrice(volume.volumeMa20);
+  const volumeVsMa20 = asNumber(volume.volumeVsMa20);
+  const support = roundedPrice(priceZones.support);
+  const resistance = roundedPrice(priceZones.resistance);
+  const target = roundedPrice(radarAction.target);
+  const stoploss = roundedPrice(radarAction.stoploss);
+
+  const pe = asNumber(valuation.pe);
+  const pb = asNumber(valuation.pb);
+  const eps = asNumber(valuation.eps);
+  const bvps = asNumber(valuation.bookValuePerShare);
+  const roe = normalizePercentMetric(asNumber(valuation.roe));
+  const roa = normalizePercentMetric(asNumber(valuation.roa));
+  const reportDate = String(valuation.reportDate ?? "").trim();
+  const valuationFacts = [
+    pe != null ? `P/E ${formatDecimal(pe)}x` : null,
+    pb != null ? `P/B ${formatDecimal(pb)}x` : null,
+    eps != null ? `EPS ${formatDecimal(eps)} đồng/cp` : null,
+    bvps != null ? `BVPS ${formatDecimal(bvps)} đồng/cp` : null,
+    roe != null ? `ROE ${formatDecimal(roe)}%` : null,
+    roa != null ? `ROA ${formatDecimal(roa)}%` : null,
+  ].filter(Boolean);
+
+  const priceVsMa20 = formatDistanceFromPrice(price, ma20);
+  const priceVsMa50 = formatDistanceFromPrice(price, ma50);
+  const priceVsMa200 = formatDistanceFromPrice(price, ma200);
+  const bodyPct = asNumber(lastCandle.bodyPct);
+  const candleDirection = firstText(lastCandle.direction);
+  const candleDate = firstText(lastCandle.date);
+  const trendView = buildTickerTrendView(price, ma20, ma50, ma200);
+  const actionView = buildTickerActionView({ price, ma20, support, resistance, target, stoploss });
+
+  return [
+    `### Phân tích cấu trúc (Biểu đồ cổ phiếu)`,
+    `- Giá hiện tại ${price != null ? formatPrice(price) : "đang cập nhật"}${changePct != null ? `, biến động ${formatPct(changePct)}%` : ""}. ${[
+      ma20 != null ? `so với MA20 ${formatPrice(ma20)}${priceVsMa20 ? ` (${priceVsMa20})` : ""}` : null,
+      ma50 != null ? `so với MA50 ${formatPrice(ma50)}${priceVsMa50 ? ` (${priceVsMa50})` : ""}` : null,
+      ma200 != null ? `so với MA200 ${formatPrice(ma200)}${priceVsMa200 ? ` (${priceVsMa200})` : ""}` : null,
+    ].filter(Boolean).join(", ")}.`,
+    candleDirection || bodyPct != null || volumeVsMa20 != null
+      ? `- Nến gần nhất${candleDate ? ` (${candleDate})` : ""} ${candleDirection === "down" ? "giảm" : candleDirection === "up" ? "tăng" : "cân bằng"}${bodyPct != null ? `, thân nến ${formatDecimal(bodyPct)}%` : ""}${latestVolume != null ? `, thanh khoản ${formatPrice(latestVolume)}` : ""}${volumeVsMa20 != null ? `, bằng ${formatDecimal(volumeVsMa20 * 100)}% so với MA20 volume` : ""}.`
+      : null,
+    `- RSI${rsi != null ? ` ${formatDecimal(rsi)}` : ""}${macdHistogram != null ? `, MACD histogram ${formatDecimal(macdHistogram)}` : ""}.`,
+    `- ${trendView}`,
+    "",
+    `### Phân tích vùng giá`,
+    support != null || resistance != null
+      ? [
+          `- Hỗ trợ: ${support != null ? formatPrice(support) : "vùng nền gần nhất"}.`,
+          `- Kháng cự: ${resistance != null ? formatPrice(resistance) : "vùng cản gần nhất"}.`,
+        ].join("\n")
+      : "- Ưu tiên quan sát vùng nền gần nhất và phản ứng thanh khoản trước khi tăng tỷ trọng.",
+    ma20 != null ? `- Vùng cần lấy lại/giữ vững: quanh MA20 ${formatPrice(ma20)}.` : null,
+    "",
+    `### Chiến lược`,
+    actionView,
+    "",
+    `### Phân tích cơ bản`,
+    valuationFacts.length > 0
+      ? `**Chỉ số định giá:** ${valuationFacts.join(" · ")}${reportDate ? ` theo kỳ báo cáo gần nhất ${reportDate}` : " theo kỳ báo cáo gần nhất"}.`
+      : "Theo kỳ báo cáo gần nhất, nên đánh giá thận trọng bằng chất lượng lợi nhuận, vị thế ngành và vùng giá hiện tại.",
+    pe != null && pb != null ? "Mức định giá cần được đối chiếu với tốc độ tăng trưởng lợi nhuận và dòng tiền thực tế, không nên chỉ nhìn riêng P/E hoặc P/B." : null,
+    "",
+    `### Kịch bản rủi ro`,
+    stoploss != null
+      ? `- Rủi ro tăng nếu giá mất vùng ${formatPrice(stoploss)} hoặc hồi lên nhưng thanh khoản suy yếu.`
+      : support != null
+        ? `- Rủi ro tăng nếu giá mất vùng hỗ trợ ${formatPrice(support)}.`
+        : "- Rủi ro tăng nếu giá mất nền hỗ trợ gần nhất hoặc thị trường chung suy yếu.",
+    macdHistogram != null && macdHistogram < 0 ? `- MACD histogram âm (${formatDecimal(macdHistogram)}) cho thấy xung lực cần thêm xác nhận.` : null,
+    "",
+    `### Cảnh báo`,
+    `- Ủng hộ: giá giữ được vùng ${ma20 != null ? formatPrice(ma20) : support != null ? formatPrice(support) : "nền gần nhất"} với thanh khoản cải thiện.`,
+    `- Tiêu cực: mất ${support != null ? formatPrice(support) : "vùng hỗ trợ gần nhất"} hoặc thanh khoản tăng mạnh trong phiên giảm.`,
+    `Note: ${latestVolume != null ? `khối lượng gần nhất ${formatPrice(latestVolume)}` : "cần theo dõi thêm khối lượng xác nhận"}${volumeMa20 != null ? `, MA20 volume ${formatPrice(volumeMa20)}` : ""}.`,
+    "",
+    `### Kết luận`,
+    price != null && ma20 != null && price >= ma20
+      ? `- Hành động: có thể tiếp tục quan sát/nắm giữ có điều kiện, ưu tiên quản trị rủi ro tại vùng hỗ trợ.`
+      : `- Hành động: chưa mua đuổi, chờ giá lấy lại vùng kỹ thuật quan trọng và có xác nhận dòng tiền.`,
   ].filter((line): line is string => Boolean(line)).join("\n");
 }
 
