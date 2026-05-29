@@ -144,6 +144,10 @@ async function loadRadarHotlist(limit: number) {
   return Array.from(new Set(tickers)).slice(0, limit);
 }
 
+export async function getDatabaseRadarUniverse(limit: number = RADAR_SCAN_BUDGET.hotScanMaxTickers) {
+  return loadRadarHotlist(Math.max(1, limit));
+}
+
 function cacheRadarState(state: DatabaseRadarRealtimeState) {
   setRealtimeCache("database.radar.realtime", "latest", state, 90_000);
   for (const tick of state.latest) {
@@ -174,6 +178,65 @@ async function persistRadarState(state: DatabaseRadarRealtimeState) {
       }),
     ),
   );
+}
+
+export async function ingestDatabaseRadarWsMessages(input: {
+  messages?: unknown[];
+  connected?: boolean;
+  authenticated?: boolean;
+  reconnectCount?: number;
+  subscribedCount?: number;
+  lastHeartbeatAt?: string | null;
+  lastMarketDataAt?: string | null;
+  lastError?: string | null;
+}): Promise<DatabaseResult<DatabaseRadarRealtimeState>> {
+  const startedAt = Date.now();
+  const tradingDate = dateKeyInVietnam();
+  const latestByTicker = new Map<string, DatabaseRadarTick>();
+  for (const raw of Array.isArray(input.messages) ? input.messages : []) {
+    const tick = tickFromMessage(asRecord(raw));
+    if (!tick) continue;
+    latestByTicker.set(tick.ticker, tick);
+  }
+  const latest = Array.from(latestByTicker.values()).sort((a, b) => a.ticker.localeCompare(b.ticker));
+  const requested = Math.max(Number(input.subscribedCount ?? 0), latest.length);
+  const state: DatabaseRadarRealtimeState = {
+    dataset: "radar.realtime",
+    mode: "dnse-websocket-hotlist",
+    tradingDate,
+    tickers: latest.map((tick) => tick.ticker),
+    latest,
+    coverage: {
+      requested,
+      covered: latest.length,
+      coveragePct: requested ? Number(((latest.length / requested) * 100).toFixed(2)) : 0,
+    },
+    websocket: {
+      opened: input.connected !== false,
+      authenticated: input.authenticated !== false,
+      receivedMessages: Array.isArray(input.messages) ? input.messages.length : 0,
+      errors: input.lastError ? [input.lastError] : [],
+    },
+    updatedAt: new Date().toISOString(),
+  };
+  cacheRadarState(state);
+  if (latest.length > 0 || input.lastError) {
+    await persistRadarState(state);
+  }
+  const missingFields = [
+    latest.length === 0 ? "radar.realtime.ticks" : null,
+    input.connected === false ? "websocket.connected" : null,
+    input.authenticated === false ? "websocket.authenticated" : null,
+  ].filter((item): item is string => Boolean(item));
+  return databaseOk("radar.realtime", "dnse", state, {
+    provider: "dnse",
+    ok: missingFields.length === 0,
+    endpoint: "wss:lightspeed/ws-ingest",
+    latencyMs: Date.now() - startedAt,
+    code: missingFields.length ? "database_v2_radar_ws_ingest_partial" : undefined,
+    message: input.lastError ?? undefined,
+    retryable: missingFields.length > 0,
+  }, missingFields);
 }
 
 async function collectRadarRealtimeInternal(options?: {
