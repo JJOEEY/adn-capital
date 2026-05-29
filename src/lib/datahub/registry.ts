@@ -2117,6 +2117,13 @@ const DEFAULT_SMARTFLOW_UNIVERSE = [
 
 const PULSE_TOP_MOVER_TIMEFRAMES: PulseTopMoverTimeframe[] = ["5m", "15m", "30m", "1h", "1W"];
 
+function formatPulseTopMoverTimeframe(timeframe: PulseTopMoverTimeframe): string {
+  if (timeframe === "1W") return "Gần nhất";
+  if (timeframe.endsWith("m")) return `${timeframe.slice(0, -1)} phút`;
+  if (timeframe.endsWith("h")) return `${timeframe.slice(0, -1)} giờ`;
+  return timeframe;
+}
+
 function smartflowNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value !== "string") return null;
@@ -2935,7 +2942,7 @@ async function loadPulseTopMovers(force = false) {
       timeframe,
       {
         enabled: rows.length > 0,
-        label: timeframe === "1W" ? "Gần nhất" : timeframe.replace("m", " phút").replace("h", " giờ"),
+        label: formatPulseTopMoverTimeframe(timeframe),
         rows,
         missingReason: rows.length > 0 ? null : "Chưa có dữ liệu biến động gần nhất.",
       },
