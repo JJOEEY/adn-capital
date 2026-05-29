@@ -248,7 +248,7 @@ async function loadDatabaseV2DailyPayload(ticker: string) {
       symbol: ticker,
       channel: { in: ["ohlcv.1D", "ohlc_closed.1D.json"] },
     },
-    orderBy: [{ tradingDate: "asc" }, { updatedAt: "desc" }],
+    orderBy: [{ tradingDate: "desc" }, { updatedAt: "desc" }],
     take: 700,
   });
   const byDate = new Map<string, JsonRecord>();
@@ -271,7 +271,7 @@ async function loadDatabaseV2DailyPayload(ticker: string) {
       volume: asNumber(payload.volume ?? payload.v ?? payload.totalVolumeTraded) ?? 0,
     });
   }
-  const data = Array.from(byDate.values());
+  const data = Array.from(byDate.values()).sort((a, b) => String(a.date).localeCompare(String(b.date)));
   return data.length ? { data } : null;
 }
 
