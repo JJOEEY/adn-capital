@@ -170,9 +170,13 @@ type PendingAidenQuery = {
 
 const DEFAULT_WATCHLIST = ["SSI", "HPG", "FPT", "GVR", "MBB", "VND", "VCB", "VHM"];
 const LAST_STOCK_TICKER_STORAGE_KEY = "adn-stock-last-ticker-v1";
-const AIDEN_CHAT_STORAGE_KEY = "adn-stock-aiden-chat-v1";
+const AIDEN_CHAT_STORAGE_KEY_PREFIX = "adn-stock-aiden-chat-v2";
 const AIDEN_RECOMMENDATION_STORAGE_KEY = "adn-stock-aiden-recommendations-v1";
 const AIDEN_PENDING_QUERY_STORAGE_KEY = "adn-stock-aiden-pending-query-v1";
+
+function buildAidenChatStorageKey(ticker: string) {
+  return `${AIDEN_CHAT_STORAGE_KEY_PREFIX}:${ticker.trim().toUpperCase() || "UNKNOWN"}`;
+}
 
 function fmtValue(value: number | null | undefined, suffix = "") {
   if (value == null || !Number.isFinite(value)) return "--";
@@ -597,6 +601,7 @@ export default function StockDetailPage() {
   const [chatLoading, setChatLoading] = useState(false);
   const [watchlist, setWatchlist] = useState<string[]>([]);
   const [chatHydrated, setChatHydrated] = useState(false);
+  const [chatHydratedTicker, setChatHydratedTicker] = useState<string | null>(null);
   const [recommendationsHydrated, setRecommendationsHydrated] = useState(false);
   const [aidenRecommendations, setAidenRecommendations] = useState<Record<string, AidenRecommendation>>({});
   const [sessionClock, setSessionClock] = useState(() => Date.now());
@@ -609,6 +614,7 @@ export default function StockDetailPage() {
   const resolvedTicker = tickerResolutionTopic.data?.valid ? tickerResolutionTopic.data.ticker : ticker;
   const isTickerValid = tickerResolutionTopic.data?.valid === true;
   const isMarketLive = useMemo(() => isVietnamTradingSession(new Date(sessionClock)), [sessionClock]);
+  const aidenChatStorageKey = useMemo(() => buildAidenChatStorageKey(resolvedTicker), [resolvedTicker]);
 
   useEffect(() => {
     const interval = window.setInterval(() => setSessionClock(Date.now()), 60_000);
@@ -647,13 +653,14 @@ export default function StockDetailPage() {
   }, [isTickerValid, resolvedTicker]);
 
   useEffect(() => {
-    if (chatHydrated) return;
+    if (chatHydrated && chatHydratedTicker === resolvedTicker) return;
     try {
-      const raw = window.sessionStorage.getItem(AIDEN_CHAT_STORAGE_KEY);
+      const raw = window.sessionStorage.getItem(aidenChatStorageKey);
       const saved = raw ? JSON.parse(raw) as ChatMessage[] : [];
       if (Array.isArray(saved) && saved.length > 0) {
         setMessages(saved.map((message) => ({ ...message, streaming: false })));
         setChatHydrated(true);
+        setChatHydratedTicker(resolvedTicker);
         return;
       }
     } catch {
@@ -668,19 +675,20 @@ export default function StockDetailPage() {
       },
     ]);
     setChatHydrated(true);
-  }, [chatHydrated, resolvedTicker]);
+    setChatHydratedTicker(resolvedTicker);
+  }, [aidenChatStorageKey, chatHydrated, chatHydratedTicker, resolvedTicker]);
 
   useEffect(() => {
-    if (!chatHydrated) return;
+    if (!chatHydrated || chatHydratedTicker !== resolvedTicker) return;
     try {
       const persisted = messages
         .slice(-60)
         .map((message) => ({ ...message, streaming: false }));
-      window.sessionStorage.setItem(AIDEN_CHAT_STORAGE_KEY, JSON.stringify(persisted));
+      window.sessionStorage.setItem(aidenChatStorageKey, JSON.stringify(persisted));
     } catch {
       // Session persistence is best-effort only.
     }
-  }, [chatHydrated, messages]);
+  }, [aidenChatStorageKey, chatHydrated, chatHydratedTicker, messages, resolvedTicker]);
 
   useEffect(() => {
     if (recommendationsHydrated) return;
