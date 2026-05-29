@@ -164,6 +164,141 @@ function normalizeHistoricalCandles(value: unknown) {
     .filter((item): item is { date: string; open: number; high: number; low: number; close: number; volume: number | null } => item !== null);
 }
 
+function sma(values: number[], period: number) {
+  if (values.length < period) return null;
+  const slice = values.slice(-period);
+  return slice.reduce((sum, value) => sum + value, 0) / period;
+}
+
+function emaSeries(values: number[], period: number) {
+  if (values.length < period) return [];
+  const multiplier = 2 / (period + 1);
+  const result: number[] = [];
+  let previous = values.slice(0, period).reduce((sum, value) => sum + value, 0) / period;
+  result.push(previous);
+  for (const value of values.slice(period)) {
+    previous = value * multiplier + previous * (1 - multiplier);
+    result.push(previous);
+  }
+  return result;
+}
+
+function rsi(values: number[], period = 14) {
+  if (values.length <= period) return null;
+  let gain = 0;
+  let loss = 0;
+  for (let index = values.length - period; index < values.length; index += 1) {
+    const diff = values[index] - values[index - 1];
+    if (diff >= 0) gain += diff;
+    else loss += Math.abs(diff);
+  }
+  if (loss === 0) return 100;
+  const rs = gain / period / (loss / period);
+  return 100 - 100 / (1 + rs);
+}
+
+function macdHistogram(values: number[]) {
+  const ema12 = emaSeries(values, 12);
+  const ema26 = emaSeries(values, 26);
+  if (!ema12.length || !ema26.length) return { histogram: null, histogramPrev: null };
+  const offset = ema12.length - ema26.length;
+  const macd = ema26.map((value, index) => ema12[index + offset] - value);
+  const signal = emaSeries(macd, 9);
+  if (!signal.length) return { histogram: null, histogramPrev: null };
+  const signalOffset = macd.length - signal.length;
+  const hist = signal.map((value, index) => macd[index + signalOffset] - value);
+  return {
+    histogram: hist.at(-1) ?? null,
+    histogramPrev: hist.at(-2) ?? null,
+  };
+}
+
+function buildIndicatorsFromCandles(candles: ReturnType<typeof normalizeHistoricalCandles>) {
+  const closes = candles.map((item) => item.close).filter((value) => Number.isFinite(value));
+  const volumes = candles.map((item) => item.volume ?? 0).filter((value) => Number.isFinite(value));
+  const macd = macdHistogram(closes);
+  const last = candles.at(-1);
+  const last52w = candles.slice(-252);
+  return stripInternalFields({
+    currentPrice: last?.close ?? null,
+    changePct: closes.length >= 2 && closes.at(-2)
+      ? Number((((closes.at(-1)! - closes.at(-2)!) / closes.at(-2)!) * 100).toFixed(2))
+      : null,
+    sma20: sma(closes, 20),
+    sma50: sma(closes, 50),
+    sma200: sma(closes, 200),
+    avgVolume20: sma(volumes, 20),
+    low52w: last52w.length ? Math.min(...last52w.map((item) => item.low)) : null,
+    high52w: last52w.length ? Math.max(...last52w.map((item) => item.high)) : null,
+    rsi14: rsi(closes, 14),
+    macd,
+    volume10: volumes.slice(-10),
+  });
+}
+
+async function loadDatabaseV2DailyPayload(ticker: string) {
+  const rows = await prisma.databaseMarketLatest.findMany({
+    where: {
+      dataset: "market.ohlcv",
+      symbol: ticker,
+      channel: { in: ["ohlcv.1D", "ohlc_closed.1D.json"] },
+    },
+    orderBy: [{ tradingDate: "desc" }, { updatedAt: "desc" }],
+    take: 700,
+  });
+  const byDate = new Map<string, JsonRecord>();
+  for (const row of rows) {
+    if (byDate.has(row.tradingDate)) continue;
+    const payload = asRecord(row.payload);
+    const scale = marketPriceScaleFromPayload(payload);
+    const open = applyMarketPriceScale(asNumber(payload.open ?? payload.openPrice ?? payload.o), scale);
+    const high = applyMarketPriceScale(asNumber(payload.high ?? payload.highestPrice ?? payload.h), scale);
+    const low = applyMarketPriceScale(asNumber(payload.low ?? payload.lowestPrice ?? payload.l), scale);
+    const close = applyMarketPriceScale(asNumber(payload.close ?? payload.matchPrice ?? payload.c ?? payload.price), scale);
+    if (open == null || high == null || low == null || close == null) continue;
+    byDate.set(row.tradingDate, {
+      date: row.tradingDate,
+      time: row.tradingDate,
+      open,
+      high,
+      low,
+      close,
+      volume: asNumber(payload.volume ?? payload.v ?? payload.totalVolumeTraded) ?? 0,
+    });
+  }
+  const data = Array.from(byDate.values()).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  return data.length ? { data } : null;
+}
+
+async function loadDatabaseV2PriceSnapshot(ticker: string, historicalPayload: unknown) {
+  const latestTick = await prisma.databaseToolLatest.findFirst({
+    where: { tool: "radar", dataset: "radar.realtime.tick", key: ticker },
+    orderBy: { updatedAt: "desc" },
+  });
+  const rows = normalizeHistoricalCandles(historicalPayload);
+  const latestCandle = rows.at(-1);
+  const previousCandle = rows.at(-2);
+  const tick = asRecord(latestTick?.payload);
+  const rawPrice = asNumber(tick.price ?? tick.matchPrice ?? tick.lastPrice ?? tick.close);
+  const anchor = latestCandle?.close ?? previousCandle?.close ?? null;
+  const price = chooseMarketDisplayPrice(alignMarketPriceToAnchor(rawPrice, anchor), anchor);
+  const effectivePrice = price ?? latestCandle?.close ?? null;
+  const reference = alignMarketPriceToAnchor(asNumber(tick.reference ?? tick.refPrice ?? tick.previousClose), anchor) ?? previousCandle?.close ?? null;
+  const changePct = asNumber(tick.changePct ?? tick.changedRatio) ??
+    (effectivePrice != null && reference ? Number((((effectivePrice - reference) / reference) * 100).toFixed(2)) : null);
+  return stripInternalFields({
+    price: effectivePrice,
+    close: latestCandle?.close ?? null,
+    previousClose: reference,
+    changePct,
+    latestVolume: asNumber(tick.volume ?? tick.totalVolumeTraded) ?? latestCandle?.volume ?? null,
+    volumeMa20: sma(rows.map((item) => item.volume ?? 0), 20),
+    priceDate: latestCandle?.date ?? null,
+    realtimeAt: latestTick?.updatedAt?.toISOString() ?? null,
+    historicalScale: 1,
+  });
+}
+
 function pctDiff(value: number | null, base: number | null) {
   if (value == null || base == null || base === 0) return null;
   return Number((((value - base) / base) * 100).toFixed(2));
