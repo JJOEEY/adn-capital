@@ -962,9 +962,19 @@ function formatSignedSmartflowValue(value: number | null | undefined) {
   return `${prefix}${formatSmartflowValue(value)} tỷ`;
 }
 
+const SMARTFLOW_INVESTOR_TIMEFRAMES = [
+  { key: "1D", label: "1D" },
+  { key: "1W", label: "1W" },
+  { key: "1M", label: "1M" },
+  { key: "3M", label: "3 tháng" },
+  { key: "6M", label: "6 tháng" },
+  { key: "1Y", label: "1 năm" },
+] as const;
+
 function SmartflowInvestorFlowCard({ investorFlow }: { investorFlow?: SmartflowPayload["investorFlow"] }) {
-  const foreign = investorFlow?.foreign?.["1D"] ?? null;
-  const proprietary = investorFlow?.proprietary?.["1D"] ?? null;
+  const [timeframe, setTimeframe] = useState<(typeof SMARTFLOW_INVESTOR_TIMEFRAMES)[number]["key"]>("1D");
+  const foreign = investorFlow?.foreign?.[timeframe] ?? null;
+  const proprietary = investorFlow?.proprietary?.[timeframe] ?? null;
 
   const groups = [
     { key: "foreign", title: "NĐT nước ngoài", data: foreign, color: "#f59e0b" },
@@ -980,6 +990,26 @@ function SmartflowInvestorFlowCard({ investorFlow }: { investorFlow?: SmartflowP
         <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
           Dòng tiền NĐT
         </span>
+      </div>
+      <div className="mb-3 grid grid-cols-3 gap-1 rounded-lg p-1 sm:grid-cols-6" style={{ background: "rgba(255,255,255,0.04)" }}>
+        {SMARTFLOW_INVESTOR_TIMEFRAMES.map((item) => {
+          const active = item.key === timeframe;
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => setTimeframe(item.key)}
+              className="rounded-md px-2 py-1 text-[10px] font-black transition"
+              style={{
+                color: active ? "var(--text-primary)" : "var(--text-muted)",
+                background: active ? "rgba(168,85,247,0.22)" : "transparent",
+                border: active ? "1px solid rgba(168,85,247,0.35)" : "1px solid transparent",
+              }}
+            >
+              {item.label}
+            </button>
+          );
+        })}
       </div>
 
       {hasData ? (
