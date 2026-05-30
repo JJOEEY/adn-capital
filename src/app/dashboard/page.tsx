@@ -1,7 +1,6 @@
 ﻿"use client";
 
 import { useEffect, useState, useMemo, useCallback, memo, Suspense, Component, type ReactNode } from "react";
-import dynamic from "next/dynamic";
 import Link from "next/link";
 import { RefreshCw, Zap, ShieldAlert, Flame, TrendingUp, TrendingDown, Activity, BarChart3 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -21,16 +20,6 @@ import { classifyTickerSector } from "@/lib/market/sector-classification";
 import { formatPercent, formatPrice, getRsBgStyle, getRsColor, getRsLabel } from "@/lib/utils";
 import { PulseIndexImpactChart, type PulseIndexImpactPayload } from "@/components/dashboard/PulseIndexImpactChart";
 import { PulseTopMoversCard, type PulseTopMoversPayload } from "@/components/dashboard/PulseTopMoversCard";
-
-const PulseBubbleHeatmap = dynamic(() => import("@/components/dashboard/PulseBubbleHeatmap"), {
-  ssr: false,
-  loading: () => (
-    <div className="min-h-[560px] rounded-2xl border p-6" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
-      <div className="h-5 w-44 animate-pulse rounded" style={{ background: "var(--surface-2)" }} />
-      <div className="mt-4 h-[500px] animate-pulse rounded-xl" style={{ background: "var(--surface-2)" }} />
-    </div>
-  ),
-});
 
 interface MarketData {
   status: "GOOD" | "BAD" | "NEUTRAL";
@@ -135,6 +124,20 @@ type SmartflowAccumulationRow = {
   accumulationRank?: number | null;
 };
 
+type SmartflowInvestorRow = {
+  ticker: string;
+  exchange?: string | null;
+  netBuyValue: number;
+  netBuyVolume?: number | null;
+};
+
+type SmartflowInvestorBucket = {
+  netValue: number;
+  netVolume?: number | null;
+  topBuy?: SmartflowInvestorRow[];
+  topSell?: SmartflowInvestorRow[];
+};
+
 type SmartflowPayload = {
   title?: string;
   subtitle?: string;
@@ -144,25 +147,12 @@ type SmartflowPayload = {
   ma200Leaders?: SmartflowMa200Leader[];
   activeBuySellTrend1M?: string | null;
   activeBuySellTrendNet?: number | null;
+  investorFlow?: {
+    foreign?: Record<string, SmartflowInvestorBucket>;
+    proprietary?: Record<string, SmartflowInvestorBucket>;
+  };
   institutionalFlowSpikes?: SmartflowSpikeRow[];
   institutionalAccumulation3M?: SmartflowAccumulationRow[];
-  updatedAt?: string | null;
-};
-
-type PulseHeatmapPayload = {
-  sectors?: Array<{
-    sector: string;
-    totalValueBillion: number;
-    stocks: Array<{
-      ticker: string;
-      sector: string;
-      price: number;
-      changePct: number;
-      valueBillion: number;
-      state: "ceiling" | "up" | "unchanged" | "down" | "floor";
-    }>;
-  }>;
-  count?: number;
   updatedAt?: string | null;
 };
 
@@ -420,12 +410,6 @@ export default function DashboardPage() {
     dedupingInterval: 120_000,
     timeoutMs: 45_000,
   });
-  const heatmapTopic = useTopic<PulseHeatmapPayload>("pulse:market:heatmap", {
-    refreshInterval: 60_000,
-    revalidateOnFocus: false,
-    dedupingInterval: 30_000,
-    timeoutMs: 20_000,
-  });
   const indexImpactTopic = useTopic<PulseIndexImpactPayload>("pulse:index-impact", {
     refreshInterval: 300_000,
     revalidateOnFocus: false,
@@ -460,10 +444,9 @@ export default function DashboardPage() {
     void vnIndexHistoryTopic.refresh(true);
     void rsRatingTopic.refresh(true);
     void smartflowTopic.refresh(true);
-    void heatmapTopic.refresh(true);
     void indexImpactTopic.refresh(true);
     void topMoversTopic.refresh(true);
-  }, [marketOverviewTopic, marketCompositeCacheTopic, marketCompositeLiveTopic, eodTopic, vnIndexHistoryTopic, rsRatingTopic, smartflowTopic, heatmapTopic, indexImpactTopic, topMoversTopic]);
+  }, [marketOverviewTopic, marketCompositeCacheTopic, marketCompositeLiveTopic, eodTopic, vnIndexHistoryTopic, rsRatingTopic, smartflowTopic, indexImpactTopic, topMoversTopic]);
 
   const tickerItems = useMemo(() => {
     if (!data) return [];
@@ -692,15 +675,8 @@ export default function DashboardPage() {
           </div>
         </PulseReveal>
 
-        {/* ═══ MARKET HEATMAP: full-width market map under chart + ADNCore ═══ */}
-        <PulseReveal key="heatmap" delayMs={120}>
-          <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem Heatmap thị trường">
-            <PulseBubbleHeatmap data={heatmapTopic.data ?? null} />
-          </LockOverlay>
-        </PulseReveal>
-
         {/* ═══ ADN Smartflow: opportunity flow under market breadth ═══ */}
-        <PulseReveal key="smartflow" delayMs={220}>
+        <PulseReveal key="smartflow" delayMs={140}>
           <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem ADN Smartflow">
             <ADNSmartflowCard
               data={smartflowTopic.data ?? null}
@@ -711,7 +687,7 @@ export default function DashboardPage() {
         </PulseReveal>
 
         {/* ═══ BOTTOM: Morning + EOD + ART/Rank ═══ */}
-        <PulseReveal key="bottom" delayMs={320} className="grid w-full min-w-0 grid-cols-1 xl:grid-cols-3 gap-4 items-start">
+        <PulseReveal key="bottom" delayMs={240} className="grid w-full min-w-0 grid-cols-1 xl:grid-cols-3 gap-4 items-start">
           <SafeSection fallback={<MorningNewsSkeleton />}>
             <Suspense fallback={<MorningNewsSkeleton />}>
               <MorningNews />
@@ -980,6 +956,94 @@ function formatSmartflowVolume(value: number | null | undefined) {
   return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(abs);
 }
 
+function formatSignedSmartflowValue(value: number | null | undefined) {
+  if (value == null || !Number.isFinite(value)) return "-";
+  const prefix = value > 0 ? "+" : value < 0 ? "-" : "";
+  return `${prefix}${formatSmartflowValue(value)} tỷ`;
+}
+
+function SmartflowInvestorFlowCard({ investorFlow }: { investorFlow?: SmartflowPayload["investorFlow"] }) {
+  const foreign = investorFlow?.foreign?.["1D"] ?? null;
+  const proprietary = investorFlow?.proprietary?.["1D"] ?? null;
+
+  const groups = [
+    { key: "foreign", title: "NĐT nước ngoài", data: foreign, color: "#f59e0b" },
+    { key: "proprietary", title: "Tự doanh", data: proprietary, color: "#a855f7" },
+  ];
+
+  const hasData = groups.some((group) => group.data && ((group.data.topBuy?.length ?? 0) > 0 || (group.data.topSell?.length ?? 0) > 0));
+
+  return (
+    <div className="rounded-xl border p-3" style={{ borderColor: "rgba(168,85,247,0.28)", background: "rgba(168,85,247,0.06)" }}>
+      <div className="mb-3 flex items-center gap-2">
+        <BarChart3 className="h-3.5 w-3.5" style={{ color: "#a855f7" }} />
+        <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+          Dòng tiền NĐT
+        </span>
+      </div>
+
+      {hasData ? (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+          {groups.map((group) => {
+            const net = group.data?.netValue ?? null;
+            const positive = net != null && net >= 0;
+            const topBuy = group.data?.topBuy?.slice(0, 5) ?? [];
+            const topSell = group.data?.topSell?.slice(0, 5) ?? [];
+            return (
+              <div key={group.key} className="rounded-lg border p-2.5" style={{ borderColor: `${group.color}35`, background: "rgba(0,0,0,0.10)" }}>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-black" style={{ color: group.color }}>{group.title}</span>
+                  <span className="text-[11px] font-black" style={{ color: positive ? "#16a34a" : "var(--danger)" }}>
+                    {formatSignedSmartflowValue(net)}
+                  </span>
+                </div>
+
+                <div className="grid gap-2">
+                  <div>
+                    <div className="mb-1 text-[10px] font-bold uppercase tracking-wide" style={{ color: "#16a34a" }}>Top mua ròng</div>
+                    {topBuy.length > 0 ? (
+                      <div className="space-y-1">
+                        {topBuy.map((row) => (
+                          <div key={`${group.key}-buy-${row.ticker}`} className="flex items-center justify-between gap-2 text-[11px]">
+                            <span className="font-black" style={{ color: "var(--text-primary)" }}>{row.ticker}</span>
+                            <span className="font-bold" style={{ color: "#16a34a" }}>{formatSmartflowValue(row.netBuyValue)} tỷ</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-[11px]" style={{ color: "var(--text-muted)" }}>Chưa có dữ liệu mua ròng.</div>
+                    )}
+                  </div>
+
+                  <div>
+                    <div className="mb-1 text-[10px] font-bold uppercase tracking-wide" style={{ color: "var(--danger)" }}>Top bán ròng</div>
+                    {topSell.length > 0 ? (
+                      <div className="space-y-1">
+                        {topSell.map((row) => (
+                          <div key={`${group.key}-sell-${row.ticker}`} className="flex items-center justify-between gap-2 text-[11px]">
+                            <span className="font-black" style={{ color: "var(--text-primary)" }}>{row.ticker}</span>
+                            <span className="font-bold" style={{ color: "var(--danger)" }}>{formatSmartflowValue(row.netBuyValue)} tỷ</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-[11px]" style={{ color: "var(--text-muted)" }}>Chưa có dữ liệu bán ròng.</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="rounded-lg border px-3 py-2 text-xs" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
+          Đang đồng bộ dòng tiền NĐT nước ngoài và tự doanh.
+        </p>
+      )}
+    </div>
+  );
+}
+
 const ADNSmartflowCard = memo(function ADNSmartflowCard({
   data,
   indexImpact,
@@ -1034,34 +1098,7 @@ const ADNSmartflowCard = memo(function ADNSmartflowCard({
         <div className="grid gap-4 xl:grid-cols-3">
           <PulseIndexImpactChart data={indexImpact ?? null} />
 
-          <div className="rounded-xl border p-3" style={{ borderColor: "rgba(20,184,166,0.28)", background: "rgba(20,184,166,0.06)" }}>
-            <div className="mb-2 flex items-center gap-2">
-              <Zap className="h-3.5 w-3.5" style={{ color: "#f59e0b" }} />
-              <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-                Dòng tiền nổi bật
-              </span>
-            </div>
-            {spikes.length > 0 ? (
-              <div className="overflow-hidden rounded-lg border" style={{ borderColor: "rgba(20,184,166,0.24)" }}>
-                <div className="grid grid-cols-[0.8fr_1fr_1.15fr_0.9fr] border-b px-2 py-1.5 text-[10px] font-bold uppercase tracking-wide" style={{ borderColor: "rgba(20,184,166,0.24)", color: "var(--text-muted)" }}>
-                  <span>Mã</span>
-                  <span className="text-right">Giá</span>
-                  <span className="text-right">Mua ròng</span>
-                  <span className="text-right">Đột biến</span>
-                </div>
-                {spikes.map((row) => (
-                  <div key={row.ticker} className="grid grid-cols-[0.8fr_1fr_1.15fr_0.9fr] border-b px-2 py-1.5 text-[11px] last:border-b-0" style={{ borderColor: "rgba(20,184,166,0.18)" }}>
-                    <span className="font-mono font-black" style={{ color: "#f59e0b" }}>{row.ticker}</span>
-                    <span className="text-right font-mono" style={{ color: "var(--text-secondary)" }}>{formatPrice(row.currentPrice)}</span>
-                    <span className="text-right font-mono font-bold" style={{ color: "#14b8a6" }}>{formatSmartflowValue(row.netBuyValue)} tỷ</span>
-                    <span className="text-right font-mono font-bold" style={{ color: "#f59e0b" }}>{row.spikeRatio.toFixed(1)}x</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              emptyText
-            )}
-          </div>
+          <SmartflowInvestorFlowCard investorFlow={data?.investorFlow} />
 
           <PulseTopMoversCard data={topMovers ?? null} />
         </div>
