@@ -2,6 +2,10 @@ import { getCachedDatabaseEodMarketDataset, getDatabaseEodMarketDataset } from "
 import { getDatabaseNewsHealth } from "@/lib/database/providers/news";
 import type { DatabaseMorningReadiness } from "@/lib/database/providers/news";
 
+function isOptionalMorningEodMissing(field: string) {
+  return field.includes("requires-fiinquant-enrichment");
+}
+
 function dateKeyInVietnam(date = new Date()) {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Ho_Chi_Minh",
@@ -51,11 +55,13 @@ export async function getDatabaseMorningReadiness(options?: {
     ((news.byCategory.market ?? 0) > 0 || (news.byCategory.morning ?? 0) > 0) &&
     ((news.byCategory.macro ?? 0) > 0 || (news.byCategory.global ?? 0) > 0);
   const eodOk = eod.data != null && eod.data.runtimeCoverage.latestRows != null && eod.data.runtimeCoverage.latestRows > 0;
+  const blockingEodMissingFields = (eod.missingFields ?? []).filter((field) => !isOptionalMorningEodMissing(field));
+  const optionalEodMissingFields = (eod.missingFields ?? []).filter(isOptionalMorningEodMissing);
   const missingFields = [
     ...(!referenceOk ? requiredIndices.filter((ticker) => !available.includes(ticker)).map((ticker) => `reference_index:${ticker}`) : []),
     ...(!newsOk ? news.missingFields : []),
     ...(!eodOk ? ["market.eod:previous_trading_date"] : []),
-    ...(eod.missingFields ?? []).map((field) => `eod:${field}`),
+    ...blockingEodMissingFields.map((field) => `eod:${field}`),
   ];
 
   return {
@@ -85,6 +91,7 @@ export async function getDatabaseMorningReadiness(options?: {
         dataset: eod.dataset,
         providerCode: eod.providerStatus.code ?? null,
         missingFields: eod.missingFields,
+        optionalMissingFields: optionalEodMissingFields,
       },
     },
   };

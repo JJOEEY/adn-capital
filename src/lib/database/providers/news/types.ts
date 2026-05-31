@@ -65,6 +65,7 @@ export type DatabaseMorningReadiness = {
       dataset: string;
       providerCode: string | null;
       missingFields: string[];
+      optionalMissingFields?: string[];
     };
   };
 };

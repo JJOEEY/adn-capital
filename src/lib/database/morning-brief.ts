@@ -18,6 +18,10 @@ const POSITIVE_WORDS = ["tang", "mua rong", "ho tro", "huong loi", "ky luc", "do
 const NEGATIVE_WORDS = ["giam", "ban rong", "ap luc", "rui ro", "khoi to", "thua lo", "suy giam", "no xau", "pha san", "dieu tra"];
 const REQUIRED_REFERENCE_INDICES = new Set(["VN-INDEX", "VN30"]);
 
+function isOptionalMorningEodMissing(field: string) {
+  return field.includes("requires-fiinquant-enrichment");
+}
+
 function dateKeyInVietnam(date = new Date()) {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Ho_Chi_Minh",
@@ -245,6 +249,7 @@ export async function getDatabaseMorningBrief(options?: {
   const macroOrGlobalMissing = !macroNews.data?.length && !globalNews.data?.length
     ? [...macroNews.missingFields, ...globalNews.missingFields]
     : [];
+  const blockingEodMissingFields = eod.missingFields.filter((field) => !isOptionalMorningEodMissing(field));
   const missingFields = [
     ...(!payload.vn_market.length ? ["morning.vn_market"] : []),
     ...(!payload.macro.length ? ["morning.macro"] : []),
@@ -254,7 +259,7 @@ export async function getDatabaseMorningBrief(options?: {
       .map((item) => `morning.reference_index:${item.name}`),
     ...marketNews.missingFields.map((field) => `news:${field}`),
     ...macroOrGlobalMissing.map((field) => `news:${field}`),
-    ...eod.missingFields.map((field) => `eod:${field}`),
+    ...blockingEodMissingFields.map((field) => `eod:${field}`),
   ];
 
   const providerStatus = {
