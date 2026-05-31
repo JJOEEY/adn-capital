@@ -8,7 +8,7 @@ function readSources(value: unknown): DatabaseNewsSourceName[] | undefined {
   const raw = Array.isArray(value) ? value : String(value ?? "").split(",");
   const sources = raw
     .map((item) => String(item ?? "").trim().toLowerCase())
-    .filter((item): item is DatabaseNewsSourceName => item === "cafef" || item === "vietstock");
+    .filter((item): item is DatabaseNewsSourceName => item === "cafef" || item === "vietstock" || item === "vnstock_news");
   return sources.length ? Array.from(new Set(sources)) : undefined;
 }
 
