@@ -24,7 +24,12 @@ const DEFAULT_VNSTOCK_BRIDGE_URL =
   process.env.NODE_ENV === "production" ? "http://fiinquant:8000" : "http://127.0.0.1:8000";
 
 function getVnstockBridgeUrl() {
-  return (process.env.VNSTOCK_BRIDGE_URL || process.env.PYTHON_BRIDGE_URL || DEFAULT_VNSTOCK_BRIDGE_URL).replace(/\/$/, "");
+  return (
+    process.env.VNSTOCK_NEWS_BRIDGE_URL ||
+    process.env.PYTHON_BRIDGE_URL ||
+    process.env.VNSTOCK_BRIDGE_URL ||
+    DEFAULT_VNSTOCK_BRIDGE_URL
+  ).replace(/\/$/, "");
 }
 
 export async function fetchVnstockMorningNews(options?: {
