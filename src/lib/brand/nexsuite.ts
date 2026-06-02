@@ -1,5 +1,3 @@
-import { PRODUCT_NAMES, PRODUCT_TAGLINES } from "./productNames";
-
 export type ProductPillar = "Analyst" | "Discipline" | "Network";
 export type ProductStatus = "Public" | "Premium" | "Pilot" | "Admin";
 export type ProductScene =
@@ -15,7 +13,8 @@ export type ProductScene =
   | "lab"
   | "sentinel"
   | "flow"
-  | "advisory";
+  | "advisory"
+  | "diary";
 
 export type ProductModule = {
   slug: string;
@@ -28,161 +27,93 @@ export type ProductModule = {
   outcome: string;
   tagline: string;
   bullets: string[];
+  demoImage?: string;
   safetyNote?: string;
 };
 
-export const PRODUCT_MODULES: ProductModule[] = [
+export const PUBLIC_PRODUCT_MODULES: ProductModule[] = [
   {
-    slug: "nexpulse",
-    name: PRODUCT_NAMES.market,
+    slug: "adn-pulse",
+    name: "ADN Pulse",
     pillar: "Analyst",
     route: "/dashboard",
     status: "Public",
     scene: "pulse",
-    outcome: "Một màn hình để đọc nhịp thị trường trong ngày.",
-    tagline: PRODUCT_TAGLINES.market,
-    bullets: ["Chỉ số và thanh khoản", "Độ rộng thị trường", "Bản tin và dòng tiền"],
+    demoImage: "/hero-showcase/app-adn-pulse-real.png",
+    outcome: "Nơi tham khảo nhịp đập thị trường trong ngày.",
+    tagline:
+      "ADN Pulse gom chỉ số, độ rộng, thanh khoản, dòng tiền và trạng thái ADNCore vào một màn hình để anh/chị biết thị trường đang khỏe, đang phân hóa hay cần thận trọng.",
+    bullets: ["Chỉ số và độ rộng thị trường", "Dòng tiền nhà đầu tư", "Top biến động và trạng thái rủi ro"],
   },
   {
-    slug: "nexlens",
-    name: PRODUCT_NAMES.stock,
+    slug: "adn-stock",
+    name: "ADN Stock",
     pillar: "Analyst",
-    route: "/stock/HPG",
+    route: "/stock/VHM",
     status: "Public",
     scene: "lens",
-    outcome: "Soi từng cổ phiếu qua cùng một bộ dữ liệu có kiểm soát.",
-    tagline: PRODUCT_TAGLINES.stock,
-    bullets: ["Kỹ thuật và cơ bản", "Tin tức và tâm lý", "Nhận định AIDEN theo bối cảnh"],
+    demoImage: "/hero-showcase/app-adn-stock-real.png",
+    outcome: "Tra cứu từng cổ phiếu cùng biểu đồ, định giá và AIDEN.",
+    tagline:
+      "ADN Stock đặt giá, thanh khoản, vùng kỹ thuật, chỉ số cơ bản và phần giải thích của AIDEN vào cùng một khung nhìn để anh/chị hiểu bối cảnh trước khi hành động.",
+    bullets: ["Biểu đồ và vùng giá", "Định giá cơ bản", "AIDEN giải thích bằng dữ liệu"],
   },
   {
-    slug: "nexradar",
-    name: PRODUCT_NAMES.signals,
+    slug: "adn-radar",
+    name: "ADN Radar",
     pillar: "Discipline",
     route: "/dashboard/signal-map",
     status: "Public",
     scene: "radar",
-    outcome: "Theo dõi cơ hội mới, tín hiệu đang theo dõi và vị thế đã kết thúc.",
-    tagline: PRODUCT_TAGLINES.signals,
-    bullets: ["Tín hiệu mới", "Trạng thái theo dõi", "Đồng bộ web, app và thông báo"],
+    demoImage: "/hero-showcase/app-adn-radar-real.png",
+    outcome: "Theo dõi các tín hiệu đáng chú ý trong phiên.",
+    tagline:
+      "ADN Radar giúp anh/chị biết mã nào cần quan sát kỹ hơn, tín hiệu nào cần chờ xác nhận thêm và không phải nhìn bảng giá cả ngày.",
+    bullets: ["Tín hiệu nổi bật", "Theo dõi trong phiên", "Kỷ luật trước khi ra quyết định"],
   },
   {
-    slug: "nexrank",
-    name: PRODUCT_NAMES.rank,
+    slug: "adn-rank",
+    name: "ADN Rank",
     pillar: "Analyst",
     route: "/rs-rating",
-    status: "Premium",
+    status: "Public",
     scene: "rank",
-    outcome: "Xếp hạng sức mạnh tương đối để ưu tiên danh sách theo dõi.",
-    tagline: PRODUCT_TAGLINES.rank,
-    bullets: ["RS theo cổ phiếu", "RS theo danh mục", "Bộ lọc Premium/VIP"],
+    demoImage: "/hero-showcase/app-adn-rank-real.png",
+    outcome: "Bảng xếp hạng sức mạnh cổ phiếu và nhóm ngành.",
+    tagline:
+      "ADN Rank giúp anh/chị bắt đầu từ nơi dòng tiền đang thể hiện rõ hơn: cổ phiếu khỏe, nhóm ngành khỏe và sự thay đổi sức mạnh qua nhiều phiên.",
+    bullets: ["Xếp hạng cổ phiếu", "Xếp hạng nhóm ngành", "Timeline sức mạnh nhiều phiên"],
   },
   {
-    slug: "nexart",
-    name: PRODUCT_NAMES.art,
+    slug: "adn-art",
+    name: "ADN ART",
     pillar: "Discipline",
     route: "/art",
     status: "Public",
     scene: "art",
-    outcome: "Đọc trạng thái hành động, rủi ro và xu hướng mà không lộ công thức.",
-    tagline: PRODUCT_TAGLINES.art,
-    bullets: ["Gauge trực quan", "Không công khai công thức", "Kiểm tra bối cảnh thị trường"],
+    demoImage: "/hero-showcase/app-adn-art-real.png",
+    outcome: "Theo dõi xu hướng đảo chiều để nhận biết vùng mua, vùng bán.",
+    tagline:
+      "ADN ART là lớp quan sát khi thị trường bắt đầu đổi nhịp: sau một đoạn giảm dài, sau một nhịp tăng nóng hoặc khi cổ phiếu chạm vùng quan trọng.",
+    bullets: ["Điểm đảo chiều", "Vùng rủi ro", "Trạng thái hành động"],
   },
   {
-    slug: "nexguard",
-    name: PRODUCT_NAMES.risk,
+    slug: "adn-diary",
+    name: "ADN Diary",
     pillar: "Discipline",
-    route: "/dashboard/signal-map",
-    status: "Admin",
-    scene: "guard",
-    outcome: "Lớp kiểm soát nội bộ, không hiển thị như một sản phẩm public riêng.",
-    tagline: PRODUCT_TAGLINES.risk,
-    bullets: ["Vùng giá", "Tỷ trọng tham khảo", "Điểm sai và trạng thái dữ liệu"],
-    safetyNote: "ADN Guard đã được ẩn khỏi trang sản phẩm public để tránh trùng điểm đến với ADN ART.",
-  },
-  {
-    slug: "nexvault",
-    name: PRODUCT_NAMES.portfolio,
-    pillar: "Network",
-    route: "/portfolio",
+    route: "/journal",
     status: "Public",
-    scene: "vault",
-    outcome: "Đưa danh mục, vị thế và rủi ro vào cùng một ngữ cảnh.",
-    tagline: PRODUCT_TAGLINES.portfolio,
-    bullets: ["Danh mục đang nắm giữ", "Tỷ trọng và PnL", "Bối cảnh trước hành động"],
-  },
-  {
-    slug: "nexlink",
-    name: PRODUCT_NAMES.broker,
-    pillar: "Network",
-    route: "/dashboard/dnse-trading",
-    status: "Premium",
-    scene: "link",
-    outcome: "Kết nối tài khoản DNSE, kiểm tra sức mua và đặt lệnh có kiểm soát.",
-    tagline: PRODUCT_TAGLINES.broker,
-    bullets: ["Tài khoản liên kết", "Tổng tài sản ròng, tiền mặt, sức mua", "Xác thực khi gửi lệnh"],
-    safetyNote: "ADN Link luôn kiểm tra điều kiện an toàn trước khi gửi lệnh.",
-  },
-  {
-    slug: "nexpilot",
-    name: PRODUCT_NAMES.aiBroker,
-    pillar: "Discipline",
-    route: "/dashboard/signal-map",
-    status: "Admin",
-    scene: "radar",
-    outcome: "Tên cũ đã được hợp nhất vào ADN Radar trên trang signal-map.",
-    tagline: PRODUCT_TAGLINES.aiBroker,
-    bullets: ["Tín hiệu trong bối cảnh danh mục", "Kiểm tra trước khi xác nhận", "Không gửi lệnh thật khi chưa đủ điều kiện"],
-    safetyNote: "Module này chỉ giữ lại để tương thích đường dẫn cũ; tên public thống nhất là ADN Radar.",
-  },
-  {
-    slug: "nexlab",
-    name: PRODUCT_NAMES.backtest,
-    pillar: "Analyst",
-    route: "/backtest",
-    status: "Public",
-    scene: "lab",
-    outcome: "Kiểm chứng ý tưởng trước khi đưa vào thực chiến.",
-    tagline: PRODUCT_TAGLINES.backtest,
-    bullets: ["Kịch bản quá khứ", "Drawdown và kỷ luật vốn", "Không hứa lợi nhuận"],
-  },
-  {
-    slug: "nexsentinel",
-    name: PRODUCT_NAMES.alerts,
-    pillar: "Network",
-    route: "/notifications?tab=updates",
-    status: "Public",
-    scene: "sentinel",
-    outcome: "Cảnh báo tín hiệu, rủi ro, bản tin và cập nhật sản phẩm.",
-    tagline: PRODUCT_TAGLINES.alerts,
-    bullets: ["Thông báo theo GMT+7", "Feed cập nhật", "App và web cùng nguồn"],
-  },
-  {
-    slug: "nexflow",
-    name: PRODUCT_NAMES.workflow,
-    pillar: "Network",
-    route: "/admin/workflows",
-    status: "Admin",
-    scene: "flow",
-    outcome: "Luồng vận hành nội bộ cho brief, signal và cảnh báo.",
-    tagline: "Điều phối workflow nội bộ mà không tạo scheduler thứ hai.",
-    bullets: ["Trigger có kiểm soát", "Run log", "Chỉ admin vận hành"],
-  },
-  {
-    slug: "aiden-advisory",
-    name: PRODUCT_NAMES.advisory,
-    shortName: PRODUCT_NAMES.advisoryShort,
-    pillar: "Analyst",
-    route: "/aiden",
-    status: "Public",
-    scene: "advisory",
-    outcome: "Hỏi thị trường, hỏi mã hoặc hỏi kiến thức đầu tư như một ứng dụng chat.",
-    tagline: PRODUCT_TAGLINES.advisory,
-    bullets: ["Chat thường", "Phân tích mã khi có dữ liệu", "Không bịa số khi thiếu dữ liệu"],
+    scene: "diary",
+    demoImage: "/hero-showcase/app-adn-diary-real.png",
+    outcome: "Nơi ghi lại giao dịch, lý do vào lệnh và cảm xúc thật.",
+    tagline:
+      "ADN Diary giúp anh/chị nhìn lại mình mua vì kế hoạch hay vì cảm xúc, thường sai ở đâu và cần sửa điều gì trước khi tăng quy mô vốn.",
+    bullets: ["Nhật ký mua bán", "Lý do và cảm xúc", "AI đọc lại hành vi giao dịch"],
   },
 ];
 
-export function getProductModule(slug: string) {
-  return PRODUCT_MODULES.find((product) => product.slug === slug);
-}
+export const PRODUCT_MODULES: ProductModule[] = PUBLIC_PRODUCT_MODULES;
 
-export const PUBLIC_PRODUCT_MODULES = PRODUCT_MODULES.filter((product) => product.status !== "Admin");
+export function getProductModule(slug: string) {
+  return PUBLIC_PRODUCT_MODULES.find((product) => product.slug === slug);
+}

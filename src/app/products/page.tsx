@@ -1,94 +1,65 @@
 import Link from "next/link";
-import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { ArrowRight, Sparkles } from "lucide-react";
 import { PublicSiteFooter } from "@/components/adnexus/PublicSiteFooter";
 import { PublicSiteHeader } from "@/components/adnexus/PublicSiteHeader";
 import { ProductModuleCard } from "@/components/adnexus/ProductModuleCard";
-import { BRAND, PRODUCT_NAMES } from "@/lib/brand/productNames";
+import { publicBodyFont, publicSerifFont } from "@/components/adnexus/publicFonts";
 import { PUBLIC_PRODUCT_MODULES } from "@/lib/brand/nexsuite";
 
 const visibleProducts = PUBLIC_PRODUCT_MODULES;
 
+export const metadata = {
+  title: "Công cụ ADN Capital",
+  description: "Danh sách công cụ ADN Capital dành cho nhà đầu tư Việt Nam.",
+};
+
 export default function ProductsPage() {
   return (
-    <main className="min-h-screen" style={{ background: "var(--page-background)", color: "var(--text-primary)" }}>
+    <main className={`${publicBodyFont.variable} ${publicSerifFont.variable} ${publicBodyFont.className} adn-public-type min-h-screen`}>
       <PublicSiteHeader />
 
-      <section className="flex min-h-[calc(100svh-76px)] w-full items-center px-5 py-12 sm:px-8 lg:px-12 lg:py-10 xl:px-16">
-        <div className="grid w-full gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.32em]" style={{ color: "var(--primary)" }}>
-              {BRAND.name} - {PRODUCT_NAMES.suite}
+      <section
+        className="relative overflow-hidden px-5 py-20 sm:px-8 lg:px-12 xl:px-16"
+        style={{ background: "var(--bg-base)", color: "var(--text-primary)" }}
+      >
+        <div className="pointer-events-none absolute inset-0 opacity-70 [background:radial-gradient(circle_at_18%_12%,color-mix(in_srgb,var(--primary)_18%,transparent),transparent_30%),radial-gradient(circle_at_78%_10%,rgba(255,255,255,0.08),transparent_24%)]" />
+        <div className="relative mx-auto max-w-[1500px]">
+          <div className="max-w-4xl animate-adn-rise">
+            <p className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-black uppercase tracking-[0.18em]" style={{ borderColor: "var(--border)", color: "var(--primary)" }}>
+              <Sparkles className="h-4 w-4" /> Hệ sinh thái ADN Capital
             </p>
-            <h1 className="mt-6 max-w-5xl text-5xl font-black leading-[1.02] tracking-[-0.04em] sm:text-7xl sm:leading-[0.98] lg:text-8xl">
-              Một hệ sinh thái cho toàn bộ hành trình đầu tư.
+            <h1 className="mt-8 text-[clamp(3.4rem,8vw,9rem)] font-black leading-[1.15] tracking-tight">
+              Mỗi công cụ giải một việc cụ thể trong hành trình đầu tư.
             </h1>
-            <p className="mt-7 max-w-2xl text-lg leading-8" style={{ color: "var(--text-secondary)" }}>
-              Từ đọc thị trường, soi cổ phiếu, theo dõi cơ hội đến quản trị danh mục, mỗi công cụ trong ADN Capital được đặt trong một workflow dễ hiểu và dễ kiểm soát.
+            <p className="mt-7 max-w-3xl text-xl font-normal leading-[1.7]" style={{ color: "var(--text-secondary)" }}>
+              Anh/chị không cần mở tất cả cùng lúc. Hãy bắt đầu từ vấn đề đang gặp: đọc thị trường, lọc cổ phiếu,
+              theo dõi tín hiệu, tra cứu từng mã hoặc ghi lại quyết định của chính mình.
             </p>
-            <div className="mt-8 flex flex-wrap gap-3">
+            <div className="mt-9 flex flex-wrap gap-3">
               <Link
-                href="/#products"
-                className="inline-flex items-center gap-2 rounded-2xl px-5 py-3 font-black"
-                style={{ background: "var(--primary)", color: "white" }}
+                href="/#journey"
+                className="inline-flex items-center gap-2 rounded-full px-6 py-4 text-sm font-black"
+                style={{ background: "var(--primary)", color: "var(--on-primary)" }}
               >
-                Xem trên trang chủ <ArrowRight className="h-4 w-4" />
+                Làm bài test <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
-                href="/pricing"
-                className="inline-flex items-center gap-2 rounded-2xl border px-5 py-3 font-black"
+                href="/#membership"
+                className="inline-flex items-center gap-2 rounded-full border px-6 py-4 text-sm font-black"
                 style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
               >
-                Xem bảng giá
+                Xem gói dịch vụ <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
           </div>
 
-          <div
-            className="rounded-[2.5rem] border p-5 shadow-2xl shadow-black/10"
-            style={{ background: "var(--bg-surface)", borderColor: "var(--border)" }}
-          >
-            <p className="text-xs font-black uppercase tracking-[0.24em]" style={{ color: "var(--text-muted)" }}>
-              ADN Capital workflow
-            </p>
-            <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              {[
-                ["Đọc thị trường", PRODUCT_NAMES.market],
-                ["Soi cổ phiếu", PRODUCT_NAMES.stock],
-                ["Theo dõi cơ hội", PRODUCT_NAMES.signals],
-                ["Quản trị danh mục", PRODUCT_NAMES.portfolio],
-              ].map(([title, value]) => (
-                <div key={title} className="rounded-3xl border bg-[var(--surface-2)] p-5" style={{ borderColor: "var(--border)" }}>
-                  <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                  <p className="mt-5 text-sm font-bold" style={{ color: "var(--text-muted)" }}>{title}</p>
-                  <p className="mt-2 text-2xl font-black" style={{ color: "var(--text-primary)" }}>{value}</p>
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 rounded-3xl border p-5" style={{ borderColor: "var(--border)" }}>
-              <p className="text-sm leading-7" style={{ color: "var(--text-secondary)" }}>
-                Các tính năng broker chỉ hiển thị theo chế độ pilot/safe-mode khi đủ điều kiện. Trang public không gọi DNSE runtime và không tự động đặt lệnh.
-              </p>
-            </div>
+          <div className="mt-14 grid gap-8">
+            {visibleProducts.map((product, index) => (
+              <div key={product.slug} className="animate-adn-rise" style={{ animationDelay: `${index * 70}ms` }}>
+                <ProductModuleCard product={product} />
+              </div>
+            ))}
           </div>
-        </div>
-      </section>
-
-      <section className="px-5 pb-24 sm:px-8 lg:px-12 xl:px-16">
-        <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.28em]" style={{ color: "var(--primary)" }}>
-              Bộ công cụ
-            </p>
-            <h2 className="mt-3 text-4xl font-black tracking-[-0.04em] lg:text-6xl">
-              Các module trong hệ sinh thái ADN
-            </h2>
-          </div>
-        </div>
-
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {visibleProducts.map((product) => (
-            <ProductModuleCard key={product.slug} product={product} />
-          ))}
         </div>
       </section>
 

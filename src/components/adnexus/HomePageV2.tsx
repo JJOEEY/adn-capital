@@ -1,405 +1,459 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { ArrowRight, BarChart3, LineChart, ShieldCheck } from "lucide-react";
+import {
+  ArrowRight,
+  BarChart3,
+  Check,
+  LineChart,
+  NotebookTabs,
+  Radar,
+  ShieldCheck,
+  Sparkles,
+  TrendingUp,
+} from "lucide-react";
 import { PwaEntryRedirect } from "@/components/pwa/PwaEntryRedirect";
-import { BRAND, PRODUCT_NAMES } from "@/lib/brand/productNames";
-import { AdnHeroProductShowcase } from "./AdnHeroProductShowcase";
+import { PUBLIC_PRODUCT_MODULES } from "@/lib/brand/nexsuite";
+import { ProductDemoImage } from "./ProductDemoImage";
 import { PublicSiteFooter } from "./PublicSiteFooter";
 import { PublicSiteHeader } from "./PublicSiteHeader";
+import { publicBodyFont, publicSerifFont } from "./publicFonts";
 
-const subheadline =
-  'Tối đa hóa hiệu suất danh mục và ra quyết định chuẩn xác với hệ sinh thái AI mang DNA của ngành quản lý tài sản. Được "đo ni đóng giày" cho các nhà đầu tư và công ty chứng khoán, đảm bảo tính khách quan và tuân thủ tuyệt đối.';
+const iconBySlug = {
+  "adn-pulse": BarChart3,
+  "adn-stock": LineChart,
+  "adn-radar": Radar,
+  "adn-rank": TrendingUp,
+  "adn-art": Sparkles,
+  "adn-diary": NotebookTabs,
+};
 
-const ecosystemProducts = [
+const surveyQuestions = [
   {
-    id: "product-adn-pulse",
-    name: PRODUCT_NAMES.market,
-    label: "Nhịp thị trường",
-    text: "Tổng hợp chỉ số, thanh khoản, độ rộng và bản tin quan trọng trong ngày.",
-    icon: BarChart3,
+    question: "Khi một khoản đầu tư vẫn còn đúng lý do ban đầu, anh/chị thường muốn giữ bao lâu?",
+    answers: [
+      { label: "Tôi có thể giữ vài tháng nếu câu chuyện doanh nghiệp vẫn tốt.", type: "value" },
+      { label: "Tôi muốn xoay vòng nhanh khi cổ phiếu không còn chạy như kỳ vọng.", type: "trading" },
+      { label: "Tôi chưa chắc, miễn là có mốc theo dõi rõ ràng.", type: "balanced" },
+    ],
   },
   {
-    id: "product-adn-lens",
-    name: PRODUCT_NAMES.stock,
-    label: "Góc nhìn cổ phiếu",
-    text: "Đặt từng mã vào bối cảnh kỹ thuật, cơ bản, tin tức và nhận định AIDEN.",
-    icon: LineChart,
+    question: "Khi tài khoản giảm, điều gì làm anh/chị khó chịu nhất?",
+    answers: [
+      { label: "Mất vốn lâu dài vì chọn sai doanh nghiệp hoặc sai chu kỳ ngành.", type: "value" },
+      { label: "Bị kẹt tiền trong một mã đứng yên quá lâu.", type: "trading" },
+      { label: "Không biết nên giữ, bán hay chờ thêm tín hiệu.", type: "balanced" },
+    ],
   },
   {
-    id: "product-adn-art",
-    name: PRODUCT_NAMES.art,
-    label: "Action - Risk - Trend",
-    text: "Theo dõi trạng thái hành động, rủi ro và xu hướng mà không lộ công thức nội bộ.",
-    icon: ShieldCheck,
+    question: "Anh/chị ra quyết định tốt hơn theo cách nào?",
+    answers: [
+      { label: "Đọc bối cảnh doanh nghiệp, ngành và vùng giá quan trọng.", type: "value" },
+      { label: "Theo dõi tín hiệu, thanh khoản và phản ứng giá trong phiên.", type: "trading" },
+      { label: "Có báo cáo cuối ngày để nhìn lại trước khi hành động.", type: "balanced" },
+    ],
+  },
+  {
+    question: "Thói quen nào anh/chị muốn cải thiện trước?",
+    answers: [
+      { label: "Kiên nhẫn với vị thế tốt, không bán quá sớm.", type: "value" },
+      { label: "Ra/vào có kế hoạch, không mua bán theo cảm xúc.", type: "trading" },
+      { label: "Ghi lại giao dịch để biết mình thường sai ở đâu.", type: "balanced" },
+    ],
+  },
+] as const;
+
+const packages = [
+  {
+    name: "ADN Base",
+    period: "3 tháng",
+    focus: "Làm quen có kỷ luật",
+    bullets: ["Xem dữ liệu công khai", "Tra cứu cổ phiếu cơ bản", "Tập thói quen ghi nhật ký"],
+  },
+  {
+    name: "ADN VIP",
+    period: "6 tháng",
+    focus: "Dùng công cụ hằng ngày",
+    bullets: ["Mở đầy đủ công cụ phân tích", "Theo dõi lộ trình rõ ràng", "Nhận hỗ trợ khi cần kiểm tra cách dùng"],
+    featured: true,
+  },
+  {
+    name: "ADN Premium",
+    period: "12 tháng",
+    focus: "Theo sát phương pháp",
+    bullets: ["Ưu tiên hỗ trợ trong quá trình sử dụng", "Đồng bộ quyền dùng theo tài khoản", "Phù hợp người muốn theo đuổi nghiêm túc"],
   },
 ];
 
-const faqs = [
-  {
-    q: "ADN Capital có tự động đặt lệnh cho khách hàng không?",
-    a: "Không. Các tính năng liên quan hành động giao dịch luôn cần xác thực, phiên hợp lệ và xác nhận của người dùng. DNSE real submit không được bật công khai.",
-  },
-  {
-    q: "AIDEN có tự tạo tín hiệu mua bán không?",
-    a: "Không. AIDEN giải thích, tóm tắt và cá nhân hóa bối cảnh từ dữ liệu có sẵn; tín hiệu gốc đi theo luồng kiểm soát riêng.",
-  },
-  {
-    q: "Dùng thử VIP 1 tuần áp dụng thế nào?",
-    a: "Trial dành cho tài khoản mới hoặc khách hàng chưa từng kích hoạt VIP/payment, nhằm tránh lạm dụng khuyến mãi.",
-  },
-];
+const fadeUp = {
+  hidden: { opacity: 0, y: 26 },
+  show: { opacity: 1, y: 0 },
+};
 
 export function HomePageV2() {
-  const reduceMotion = useReducedMotion();
-  const motionProps = reduceMotion
+  const shouldReduceMotion = useReducedMotion();
+  const [questionIndex, setQuestionIndex] = useState(0);
+  const [answers, setAnswers] = useState<string[]>([]);
+  const finished = answers.length === surveyQuestions.length;
+  const currentQuestion = surveyQuestions[Math.min(questionIndex, surveyQuestions.length - 1)];
+
+  const profile = useMemo(() => {
+    const score = answers.reduce(
+      (acc, item) => {
+        acc[item as keyof typeof acc] += 1;
+        return acc;
+      },
+      { value: 0, trading: 0, balanced: 0 },
+    );
+
+    if (score.trading > score.value && score.trading >= score.balanced) {
+      return {
+        title: "Nhóm giao dịch linh hoạt",
+        body: "Anh/chị phù hợp với nhịp quan sát nhanh hơn, nhưng vẫn cần kỷ luật cho từng quyết định mua bán.",
+        tools: ["ADN Radar", "ADN ART", "ADN Stock", "ADN Diary"],
+      };
+    }
+
+    if (score.value >= score.trading && score.value >= score.balanced) {
+      return {
+        title: "Nhóm nắm giữ theo câu chuyện doanh nghiệp",
+        body: "Anh/chị hợp với cách chọn doanh nghiệp, theo dõi ngành và kiên nhẫn với vị thế còn đúng lý do ban đầu.",
+        tools: ["ADN Pulse", "ADN Rank", "ADN Stock", "ADN Diary"],
+      };
+    }
+
+    return {
+      title: "Nhóm cần lộ trình rõ ràng",
+      body: "Anh/chị nên bắt đầu bằng khung quan sát an toàn: hiểu thị trường, tra cứu từng mã và ghi lại quyết định.",
+      tools: ["ADN Pulse", "ADN Stock", "ADN ART", "ADN Diary"],
+    };
+  }, [answers]);
+
+  const motionProps = shouldReduceMotion
     ? {}
     : {
-        initial: { opacity: 0, y: 22 },
-        whileInView: { opacity: 1, y: 0 },
-        viewport: { once: true, amount: 0.22 },
-        transition: { duration: 0.5, ease: "easeOut" },
+        initial: "hidden",
+        whileInView: "show",
+        viewport: { once: true, margin: "-80px" },
+        variants: fadeUp,
+        transition: { duration: 0.65, ease: "easeOut" },
       };
 
+  const chooseAnswer = (type: string) => {
+    const next = [...answers, type];
+    setAnswers(next);
+    setQuestionIndex(Math.min(next.length, surveyQuestions.length - 1));
+  };
+
+  const resetSurvey = () => {
+    setAnswers([]);
+    setQuestionIndex(0);
+  };
+
   return (
-    <PwaEntryRedirect>
-      <main
-        className="min-h-screen overflow-x-hidden pt-[76px]"
-        style={{ background: "var(--page-background)", color: "var(--text-primary)" }}
-      >
-        <PublicSiteHeader />
+    <main className={`${publicBodyFont.variable} ${publicSerifFont.variable} ${publicBodyFont.className} adn-public-type min-h-screen`}>
+      <PwaEntryRedirect />
+      <PublicSiteHeader />
 
-        <section className="relative flex min-h-[calc(100svh-76px)] w-full items-center overflow-hidden px-5 py-16 sm:px-8 sm:py-20 lg:px-12 lg:py-24 xl:px-16">
-          <div
-            className="absolute inset-0 -z-10"
-            style={{
-              background:
-                "radial-gradient(circle at 86% 10%, var(--glow-primary), transparent 32%), radial-gradient(circle at 8% 88%, var(--glow-secondary), transparent 30%)",
-            }}
-          />
-          <div className="grid w-full min-w-0 items-center gap-8 xl:grid-cols-[0.9fr_1.1fr] xl:gap-10">
-            <motion.div
-              {...motionProps}
-              className="w-full min-w-0 max-w-[780px]"
-            >
-              <p className="max-w-full text-[0.68rem] font-black uppercase leading-5 tracking-[0.22em] sm:text-xs sm:tracking-[0.34em]" style={{ color: "var(--primary)" }}>
-                {BRAND.company} - {BRAND.tagline}
-              </p>
-              <h1 className="mt-6 max-w-[11.5em] text-left text-5xl font-black leading-[1.06] tracking-normal sm:text-6xl md:text-7xl lg:text-[4.6rem] xl:text-[4.85rem] 2xl:text-[5.15rem]">
-                <span className="block">Nâng Tầm</span>
-                <span className="block">Trải Nghiệm Đầu Tư</span>
-                <span className="block text-[0.82em]">cùng AI Chuyên biệt</span>
-                <span className="block text-[0.72em]">
-                  tại{" "}
-                  <span className="inline-block font-black leading-[1.08] tracking-normal text-[var(--primary)]">
-                    ADN Capital
-                  </span>
-                </span>
-              </h1>
-              <p
-                className="mt-6 max-w-[20.5rem] text-[0.95rem] leading-8 sm:max-w-2xl sm:text-lg sm:leading-9"
-                style={{ color: "var(--text-secondary)" }}
-              >
-                {subheadline}
-              </p>
-              <div className="mt-8 flex flex-wrap gap-2">
-                <Link
-                  href="/auth?mode=register"
-                  className="inline-flex items-center gap-2 rounded-2xl px-5 py-3.5 text-sm font-black sm:text-[0.95rem]"
-                  style={{ background: "var(--primary)", color: "var(--on-primary)" }}
-                >
-                  Đăng ký dùng thử MIỄN PHÍ <ArrowRight className="h-4 w-4" />
-                </Link>
-                <Link
-                  href="#ecosystem"
-                  className="inline-flex items-center gap-2 rounded-2xl border px-5 py-3.5 text-sm font-black sm:text-[0.95rem]"
-                  style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
-                >
-                  Trải nghiệm hệ sinh thái ADN <ArrowRight className="h-4 w-4" />
-                </Link>
-              </div>
-            </motion.div>
-
-            <motion.div
-              {...motionProps}
-              className="w-full min-w-0 overflow-hidden"
-              transition={{ duration: 0.65, delay: 0.08, ease: "easeOut" }}
-            >
-              <AdnHeroProductShowcase />
-            </motion.div>
-          </div>
-        </section>
-
-        <section id="ecosystem" className="mt-8 flex min-h-[100svh] w-full scroll-mt-24 items-center px-5 py-24 sm:px-8 lg:px-12 lg:py-32 xl:px-16">
-          <div className="w-full">
-            <motion.div {...motionProps} className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-              <div className="max-w-5xl">
-                <p className="text-xs font-black uppercase tracking-[0.34em]" style={{ color: "var(--primary)" }}>
-                  Hệ sinh thái ADN
-                </p>
-                <h2 className="mt-5 max-w-[720px] text-5xl font-black leading-[1.02] tracking-normal sm:text-6xl md:text-7xl lg:text-[5rem] xl:text-[5.6rem]">
-                  <span className="block">All-in-one cho</span>
-                  <span className="block">toàn bộ</span>
-                  <span className="block">Hành trình đầu tư</span>
-                </h2>
-              </div>
-              <div className="flex flex-wrap gap-3">
-                <Link
-                  href="/products"
-                  className="inline-flex items-center gap-2 rounded-2xl border px-5 py-3 font-black"
-                  style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
-                >
-                  Xem thêm <ArrowRight className="h-4 w-4" />
-                </Link>
-                <Link
-                  href="/auth?mode=register"
-                  className="inline-flex items-center gap-2 rounded-2xl px-5 py-3 font-black"
-                  style={{ background: "var(--primary)", color: "var(--on-primary)" }}
-                >
-                  Đăng ký dùng thử MIỄN PHÍ <ArrowRight className="h-4 w-4" />
-                </Link>
-              </div>
-            </motion.div>
-
-            <div id="products" className="mt-12 grid gap-5 lg:grid-cols-3">
-              {ecosystemProducts.map((product) => {
-                const Icon = product.icon;
-                return (
-                  <motion.article
-                    key={product.id}
-                    id={product.id}
-                    {...motionProps}
-                    className="rounded-[2.35rem] border p-8 shadow-xl shadow-black/5"
-                    style={{ background: "var(--bg-surface)", borderColor: "var(--border)" }}
-                  >
-                    <span
-                      className="flex h-12 w-12 items-center justify-center rounded-2xl"
-                      style={{ background: "var(--primary-light)", color: "var(--primary)" }}
-                    >
-                      <Icon className="h-5 w-5" />
-                    </span>
-                    <p className="mt-8 text-xs font-black uppercase tracking-[0.25em]" style={{ color: "var(--text-muted)" }}>
-                      {product.label}
-                    </p>
-                    <h3 className="mt-3 text-4xl font-black tracking-normal">{product.name}</h3>
-                    <p className="mt-5 min-h-[84px] leading-8" style={{ color: "var(--text-secondary)" }}>
-                      {product.text}
-                    </p>
-                    <ProductMiniVisual name={product.name} />
-                  </motion.article>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-
-        <section id="pricing" className="mt-8 flex min-h-[100svh] w-full scroll-mt-24 items-center px-5 py-24 sm:px-8 lg:px-12 lg:py-32 xl:px-16">
-          <div className="w-full">
-            <motion.div {...motionProps} className="mb-10 max-w-5xl">
-              <p className="text-xs font-black uppercase tracking-[0.34em]" style={{ color: "var(--primary)" }}>
-                Hướng dẫn sử dụng
-              </p>
-              <h2 className="mt-5 text-[clamp(2.75rem,5.2vw,5.8rem)] font-black leading-[0.99] tracking-normal">
-                Bắt đầu miễn phí, có ADN Support khi cần đi sâu hơn.
-              </h2>
-              <p className="mt-6 max-w-3xl text-lg leading-8" style={{ color: "var(--text-secondary)" }}>
-                Trang chủ chỉ giải thích lựa chọn phù hợp. Bảng giá chi tiết và thanh toán PayOS nằm ở trang Bảng giá.
-              </p>
-            </motion.div>
-
-            <div
-              className="grid gap-0 overflow-hidden rounded-[2.5rem] border shadow-2xl shadow-black/5 lg:grid-cols-2"
-              style={{ background: "var(--bg-surface)", borderColor: "var(--border)", color: "var(--text-primary)" }}
-            >
-              <SupportCard
-                eyebrow="Gói 01 - Tự trải nghiệm"
-                title="Free User"
-                subtitle="Không có ADN Support"
-                items={[
-                  "Truy cập dashboard cơ bản",
-                  "Đọc tin tức và dữ liệu công khai",
-                  "Tự kiểm tra tín hiệu theo giao diện có sẵn",
-                  "Không có hỗ trợ phân tích riêng từ đội ADN",
-                  "Không ưu tiên xử lý yêu cầu cá nhân",
-                ]}
-                cta="Bắt đầu miễn phí"
-                href="/auth?mode=register"
-              />
-              <SupportCard
-                highlighted
-                eyebrow="Gói 02 - VIP / Premium"
-                title="VIP/PREMIUM User"
-                subtitle="Có ADN Support"
-                items={[
-                  "Được hỗ trợ onboarding và sử dụng hệ sinh thái ADN",
-                  "Nhận phân tích, cảnh báo và bối cảnh từ AIDEN sâu hơn",
-                  "Ưu tiên hỗ trợ khi cần kiểm tra dữ liệu hoặc workflow",
-                  "Có thể gửi mã khách hàng để admin duyệt ưu đãi",
-                  "Phù hợp cho người dùng ADN Capital hằng ngày",
-                ]}
-                cta="Xem bảng giá"
-                href="/pricing"
-              />
-            </div>
-          </div>
-        </section>
-
-        <section id="faq" className="mt-8 min-h-[70svh] w-full scroll-mt-24 px-5 py-24 sm:px-8 lg:px-12 lg:py-32 xl:px-16">
-          <div className="grid gap-12 lg:grid-cols-[0.75fr_1.25fr]">
-            <motion.div {...motionProps}>
-              <p className="text-xs font-black uppercase tracking-[0.34em]" style={{ color: "var(--primary)" }}>
-                FAQ
-              </p>
-              <h2 className="mt-6 text-[clamp(2.75rem,4.8vw,5.4rem)] font-black leading-[0.99] tracking-normal">
-                Những điểm cần rõ trước khi dùng.
-              </h2>
-            </motion.div>
-            <div className="grid gap-4">
-              {faqs.map((item) => (
-                <motion.div
-                  key={item.q}
-                  {...motionProps}
-                  className="rounded-[2rem] border p-6"
-                  style={{ background: "var(--bg-surface)", borderColor: "var(--border)" }}
-                >
-                  <h3 className="text-xl font-black">{item.q}</h3>
-                  <p className="mt-3 leading-8" style={{ color: "var(--text-secondary)" }}>
-                    {item.a}
-                  </p>
-                </motion.div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section id="contact" className="mt-8 flex min-h-[70svh] w-full scroll-mt-24 items-center px-5 py-24 sm:px-8 lg:px-12 lg:py-32 xl:px-16">
-          <div
-            className="w-full rounded-[3rem] border p-8 text-center sm:p-12 lg:p-16"
-            style={{ background: "var(--bg-surface)", borderColor: "var(--border)" }}
-          >
-            <ShieldCheck className="mx-auto h-12 w-12 text-[var(--primary)]" />
-            <h2 className="mx-auto mt-8 max-w-4xl text-[clamp(2.75rem,5.1vw,5.8rem)] font-black leading-[0.99] tracking-normal">
-              Mở ADN Capital và kiểm tra thị trường hôm nay.
-            </h2>
-            <p className="mx-auto mt-6 max-w-2xl leading-8" style={{ color: "var(--text-secondary)" }}>
-              Bắt đầu bằng dashboard dễ đọc, sau đó mở rộng sang ADN Stock, ADN ART và AIDEN khi cần phân tích sâu hơn.
+      <section className="relative overflow-hidden px-5 py-20 sm:px-8 lg:px-12 xl:px-16" style={{ background: "var(--bg-base)", color: "var(--text-primary)" }}>
+        <div className="pointer-events-none absolute inset-0 opacity-75 [background:radial-gradient(circle_at_18%_12%,color-mix(in_srgb,var(--primary)_16%,transparent),transparent_30%),radial-gradient(circle_at_72%_10%,rgba(255,255,255,0.1),transparent_26%)]" />
+        <div className="relative mx-auto grid max-w-[1600px] gap-12 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
+          <motion.div {...motionProps}>
+            <p className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-black uppercase tracking-[0.18em]" style={{ borderColor: "var(--border)", color: "var(--primary)" }}>
+              <Sparkles className="h-4 w-4" /> ADN - Hệ thống giao dịch định lượng
             </p>
-            <div className="mt-10 flex flex-wrap justify-center gap-3">
-              <Link href="/auth?mode=register" className="rounded-2xl px-6 py-4 font-black" style={{ background: "var(--primary)", color: "var(--on-primary)" }}>
-                Đăng ký dùng thử MIỄN PHÍ
+            <h1 className="mt-7 text-[clamp(3.6rem,8vw,9.4rem)] font-black leading-[1.15] tracking-tight">
+              Hiểu rõ bản thân{" "}
+              <span className={`${publicSerifFont.className} block font-black italic`} style={{ color: "var(--primary)" }}>
+                trước khi chọn cách đầu tư.
+              </span>
+            </h1>
+            <p className="mt-7 max-w-3xl text-xl font-normal leading-[1.7]" style={{ color: "var(--text-secondary)" }}>
+              ADN Capital giúp anh/chị nhận biết phong cách phù hợp với bản thân: nắm giữ theo doanh nghiệp,
+              giao dịch linh hoạt theo nhịp thị trường, hay cần một lộ trình quan sát rõ ràng hơn.
+            </p>
+            <div className="mt-9 flex flex-wrap gap-3">
+              <Link
+                href="#journey"
+                className="inline-flex items-center gap-2 rounded-full px-6 py-4 text-sm font-black"
+                style={{ background: "var(--primary)", color: "var(--on-primary)" }}
+              >
+                Làm bài test 3 phút <ArrowRight className="h-4 w-4" />
               </Link>
-              <Link href="/pricing" className="rounded-2xl border px-6 py-4 font-black" style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}>
-                Xem bảng giá
+              <Link
+                href="#tools"
+                className="inline-flex items-center gap-2 rounded-full border px-6 py-4 text-sm font-black"
+                style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
+              >
+                Xem công cụ hỗ trợ <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
-          </div>
-        </section>
+          </motion.div>
 
-        <PublicSiteFooter />
-      </main>
-    </PwaEntryRedirect>
-  );
-}
-
-function ProductMiniVisual({ name }: { name: string }) {
-  if (name === PRODUCT_NAMES.art) {
-    return (
-      <div className="mt-10 rounded-[2rem] bg-[var(--surface-2)] p-6">
-        <div className="mx-auto h-28 max-w-64 rounded-t-full border-[18px] border-b-0 border-emerald-300 bg-gradient-to-r from-emerald-300 via-amber-300 to-red-300" />
-        <div className="mt-4 text-center">
-          <p className="text-5xl font-black">2.70</p>
-          <p className="font-black text-amber-500">TRUNG TÍNH</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (name === PRODUCT_NAMES.stock) {
-    return (
-      <div className="mt-10 grid gap-3 rounded-[2rem] bg-[var(--surface-2)] p-5">
-        {["HPG", "FPT", "MWG"].map((ticker, index) => (
-          <div key={ticker} className="flex items-center justify-between rounded-2xl px-4 py-3" style={{ background: "var(--bg-surface)" }}>
-            <strong>{ticker}</strong>
-            <span className={index === 1 ? "text-emerald-600" : "text-amber-600"}>{index === 1 ? "Mạnh" : "Theo dõi"}</span>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  return (
-    <div className="mt-10 rounded-[2rem] bg-[var(--surface-2)] p-5">
-      <div className="flex h-36 items-end gap-2">
-        {[42, 64, 51, 80, 58, 76, 66].map((height, index) => (
-          <div key={`${height}-${index}`} className="w-full rounded-t-xl bg-[var(--primary)]" style={{ height }} />
-        ))}
-      </div>
-      <div className="mt-4 grid grid-cols-3 gap-3">
-        {["HOSE", "HNX", "UPCOM"].map((exchange) => (
-          <div key={exchange} className="rounded-2xl p-3 text-center text-sm font-black" style={{ background: "var(--bg-surface)" }}>
-            {exchange}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function SupportCard({
-  eyebrow,
-  title,
-  subtitle,
-  items,
-  cta,
-  href,
-  highlighted = false,
-}: {
-  eyebrow: string;
-  title: string;
-  subtitle: string;
-  items: string[];
-  cta: string;
-  href: string;
-  highlighted?: boolean;
-}) {
-  return (
-    <article
-      className={`min-h-[650px] p-8 sm:p-10 lg:p-14 ${highlighted ? "lg:border-l" : ""}`}
-      style={{ background: highlighted ? "var(--surface-2)" : "var(--bg-surface)", borderColor: "var(--border)" }}
-    >
-      <div className="flex items-start justify-between gap-4">
-        <p className="text-xs font-black uppercase tracking-[0.32em] text-[var(--text-muted)]">{eyebrow}</p>
-        {highlighted ? (
-          <span
-            className="rounded-full px-3 py-1 text-xs font-black"
-            style={{ background: "color-mix(in srgb, var(--secondary) 16%, var(--bg-surface))", color: "var(--secondary)" }}
+          <motion.div
+            {...motionProps}
+            className="rounded-[2.4rem] border p-5"
+            style={{ borderColor: "var(--border-strong)", background: "var(--bg-elevated)" }}
           >
-            ADN SUPPORT
-          </span>
-        ) : null}
-      </div>
-      <h3 className="mt-12 text-[clamp(3rem,4.6vw,5.2rem)] font-black leading-none tracking-normal">{title}</h3>
-      <p className="mt-5 text-2xl font-black text-[var(--text-secondary)]">{subtitle}</p>
-      <div className="mt-10 h-px bg-[var(--border)]" />
-      <div className="mt-10 grid gap-6">
-        {items.map((item, index) => (
-          <p key={item} className="grid grid-cols-[44px_1fr] gap-4 text-lg font-bold text-[var(--text-primary)]">
-            <span className="font-mono text-[var(--text-muted)]">{String(index + 1).padStart(2, "0")}</span>
-            <span>{item}</span>
+            <div className="rounded-[1.8rem] p-6" style={{ background: "var(--bg-surface)" }}>
+              <p className="text-sm font-black" style={{ color: "var(--primary)" }}>
+                Kết quả sau bài test
+              </p>
+              <h2 className="mt-4 text-[clamp(2.2rem,4vw,4.6rem)] font-black leading-[1.15] tracking-tight">
+                Một hồ sơ đầu tư rõ ràng, không phải một danh sách mã để mua ngay.
+              </h2>
+              <div className="mt-7 grid gap-3">
+                {["Phong cách đầu tư phù hợp với bản thân", "Nhịp nắm giữ nên theo", "Công cụ ADN nên dùng trước", "Rủi ro cần kiểm soát"].map((item) => (
+                  <div key={item} className="flex items-center gap-3 rounded-2xl border px-5 py-4" style={{ borderColor: "var(--border)", background: "var(--bg-elevated)" }}>
+                    <Check className="h-5 w-5" style={{ color: "var(--success)" }} />
+                    <span className="text-base font-semibold">{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      <section id="journey" className="px-5 py-20 sm:px-8 lg:px-12 xl:px-16" style={{ background: "var(--surface-2)", color: "var(--text-primary)" }}>
+        <div className="mx-auto grid max-w-[1600px] gap-10 lg:grid-cols-[0.78fr_1.22fr]">
+          <motion.div {...motionProps}>
+            <p className="text-sm font-black uppercase tracking-[0.2em]" style={{ color: "var(--primary)" }}>
+              Bài test nhận diện phong cách
+            </p>
+            <h2 className="mt-5 text-[clamp(3rem,6vw,7.2rem)] font-black leading-[1.15] tracking-tight">
+              Không bắt đầu bằng mã cổ phiếu.
+              <span className={`${publicSerifFont.className} mt-2 block font-black italic`} style={{ color: "var(--primary)" }}>
+                Bắt đầu bằng cách anh/chị ra quyết định.
+              </span>
+            </h2>
+            <p className="mt-7 max-w-xl text-lg font-normal leading-[1.7]" style={{ color: "var(--text-secondary)" }}>
+              Người mới đi từ vàng, bất động sản hoặc tiết kiệm sang chứng khoán thường không thiếu mã để mua.
+              Thứ cần rõ trước là thời gian nắm giữ, mức chịu lỗ và cách theo dõi thị trường của chính mình.
+            </p>
+          </motion.div>
+
+          <motion.div {...motionProps} className="rounded-[2rem] border p-5" style={{ borderColor: "var(--border-strong)", background: "var(--bg-elevated)" }}>
+            {finished ? (
+              <div className="p-4 sm:p-6">
+                <p className="text-sm font-black uppercase tracking-[0.18em]" style={{ color: "var(--primary)" }}>
+                  Kết quả gợi ý
+                </p>
+                <h3 className="mt-4 text-[clamp(2.2rem,4vw,4.8rem)] font-black leading-[1.15] tracking-tight">{profile.title}</h3>
+                <p className="mt-4 text-lg font-normal leading-[1.7]" style={{ color: "var(--text-secondary)" }}>
+                  {profile.body}
+                </p>
+                <div className="mt-7 grid gap-3 sm:grid-cols-2">
+                  {profile.tools.map((tool) => (
+                    <div key={tool} className="rounded-2xl border p-4 text-base font-semibold" style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}>
+                      {tool}
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-8 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={resetSurvey}
+                    className="rounded-full border px-5 py-3 text-sm font-black"
+                    style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
+                  >
+                    Làm lại bài test
+                  </button>
+                  <Link
+                    href="#tools"
+                    className="inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-black"
+                    style={{ background: "var(--primary)", color: "var(--on-primary)" }}
+                  >
+                    Xem công cụ phù hợp <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 sm:p-6">
+                <div className="flex items-center justify-between gap-4">
+                  <p className="text-sm font-black" style={{ color: "var(--primary)" }}>
+                    Câu {questionIndex + 1}/{surveyQuestions.length}
+                  </p>
+                  <span className="rounded-full border px-4 py-2 text-sm font-semibold" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
+                    Chọn một đáp án
+                  </span>
+                </div>
+                <div className="mt-4 h-2 overflow-hidden rounded-full" style={{ background: "var(--border)" }}>
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{ width: `${(answers.length / surveyQuestions.length) * 100}%`, background: "var(--primary)" }}
+                  />
+                </div>
+                <h3 className="mt-8 text-[clamp(2.2rem,4vw,4.8rem)] font-black leading-[1.15] tracking-tight">
+                  {currentQuestion.question}
+                </h3>
+                <div className="mt-8 grid gap-4">
+                  {currentQuestion.answers.map((answer, index) => (
+                    <button
+                      key={answer.label}
+                      type="button"
+                      onClick={() => chooseAnswer(answer.type)}
+                      className="group grid grid-cols-[42px_1fr] items-center gap-4 rounded-[1.3rem] border p-4 text-left transition hover:-translate-y-0.5"
+                      style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}
+                    >
+                      <span className="flex h-10 w-10 items-center justify-center rounded-full border text-sm font-black" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
+                        {index + 1}
+                      </span>
+                      <span className="text-lg font-semibold leading-[1.35]">{answer.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </motion.div>
+        </div>
+      </section>
+
+      <section id="tools" className="px-5 py-20 sm:px-8 lg:px-12 xl:px-16" style={{ background: "var(--bg-base)", color: "var(--text-primary)" }}>
+        <div className="mx-auto max-w-[1600px]">
+          <motion.div {...motionProps} className="max-w-4xl">
+            <p className="text-sm font-black uppercase tracking-[0.22em]" style={{ color: "var(--primary)" }}>
+              Công cụ ADN Capital
+            </p>
+            <h2 className="mt-5 text-[clamp(3rem,6vw,7.2rem)] font-black leading-[1.15] tracking-tight">
+              Mỗi công cụ là một cách nhìn.
+              <span className={`${publicSerifFont.className} block font-black italic`} style={{ color: "var(--primary)" }}>
+                Không cần dùng thừa.
+              </span>
+            </h2>
+          </motion.div>
+
+          <div className="mt-12 grid gap-10">
+            {PUBLIC_PRODUCT_MODULES.map((product, index) => {
+              const Icon = iconBySlug[product.slug as keyof typeof iconBySlug] ?? Sparkles;
+              return (
+                <motion.article
+                  key={product.slug}
+                  {...motionProps}
+                  className="grid overflow-hidden rounded-[2.2rem] border lg:grid-cols-[0.86fr_1.14fr]"
+                  style={{ borderColor: "var(--border-strong)", background: "var(--bg-surface)" }}
+                >
+                  <div className="flex min-h-[380px] flex-col justify-between p-6 sm:p-8">
+                    <div>
+                      <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.24em]" style={{ color: "var(--primary)" }}>
+                        <Icon className="h-4 w-4" /> {product.name}
+                      </p>
+                      <h3 className="mt-6 text-[clamp(2.2rem,3.6vw,4.8rem)] font-black leading-[1.15] tracking-tight">
+                        {product.outcome}
+                      </h3>
+                      <p className="mt-5 text-lg font-normal leading-[1.7]" style={{ color: "var(--text-secondary)" }}>
+                        {product.tagline}
+                      </p>
+                    </div>
+                    <Link
+                      href={`/products/${product.slug}`}
+                      className="mt-8 inline-flex w-fit items-center gap-2 rounded-full px-5 py-3 text-sm font-black"
+                      style={{ background: "var(--primary)", color: "var(--on-primary)" }}
+                    >
+                      Xem giới thiệu <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  </div>
+
+                  <div className="relative min-h-[380px] overflow-hidden border-t lg:min-h-[520px] lg:border-l lg:border-t-0" style={{ borderColor: "var(--border)", background: "#090B0F" }}>
+                    <ProductDemoImage
+                      src={product.demoImage}
+                      alt={`Ảnh demo ${product.name}`}
+                      productName={product.name}
+                      sizes="(min-width: 1024px) 54vw, 100vw"
+                      className="object-cover object-top"
+                      priority={index === 0}
+                    />
+                    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,7,10,0.02),rgba(5,7,10,0.16)_54%,rgba(5,7,10,0.82))]" />
+                  </div>
+                </motion.article>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      <section id="membership" className="px-5 py-20 sm:px-8 lg:px-12 xl:px-16" style={{ background: "var(--surface-2)", color: "var(--text-primary)" }}>
+        <div className="mx-auto max-w-[1600px]">
+          <motion.div {...motionProps} className="max-w-5xl">
+            <p className="text-sm font-black uppercase tracking-[0.22em]" style={{ color: "var(--primary)" }}>
+              Hệ sinh thái ADNCapital
+            </p>
+            <h2 className="mt-5 text-[clamp(3rem,6vw,7.4rem)] font-black leading-[1.15] tracking-tight">
+              Mở khóa toàn diện{" "}
+              <span className={`${publicSerifFont.className} block font-black italic`} style={{ color: "var(--primary)" }}>
+                giải pháp đầu tư.
+              </span>
+            </h2>
+            <p className="mt-6 max-w-3xl text-lg font-normal leading-[1.7]" style={{ color: "var(--text-secondary)" }}>
+              Sau khi hiểu phong cách và công cụ phù hợp, anh/chị chọn thời hạn sử dụng theo nhu cầu.
+              Quyền dùng được quản lý theo tài khoản ADN, rõ ngày bắt đầu và ngày hết hạn.
+            </p>
+          </motion.div>
+
+          <div className="mt-12 grid gap-5 lg:grid-cols-3">
+            {packages.map((item) => (
+              <motion.div
+                key={item.name}
+                {...motionProps}
+                className="rounded-[2rem] border p-7"
+                style={{
+                  borderColor: item.featured ? "color-mix(in srgb, var(--primary) 55%, var(--border))" : "var(--border)",
+                  background: item.featured ? "color-mix(in srgb, var(--primary) 10%, var(--bg-surface))" : "var(--bg-surface)",
+                }}
+              >
+                <ShieldCheck className="h-6 w-6" style={{ color: "var(--primary)" }} />
+                <p className="mt-8 text-sm font-semibold" style={{ color: "var(--text-muted)" }}>
+                  {item.focus}
+                </p>
+                <h3 className="mt-3 text-4xl font-black leading-[1.15] tracking-tight">{item.name}</h3>
+                <p className="mt-3 text-2xl font-black" style={{ color: "var(--primary)" }}>
+                  {item.period}
+                </p>
+                <div className="mt-7 grid gap-3">
+                  {item.bullets.map((bullet) => (
+                    <p key={bullet} className="flex items-start gap-3 text-sm font-normal leading-7" style={{ color: "var(--text-secondary)" }}>
+                      <Check className="mt-1 h-4 w-4 shrink-0" style={{ color: "var(--primary)" }} />
+                      {bullet}
+                    </p>
+                  ))}
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="px-5 py-20 sm:px-8 lg:px-12 xl:px-16" style={{ background: "var(--bg-base)", color: "var(--text-primary)" }}>
+        <motion.div
+          {...motionProps}
+          className="mx-auto max-w-[1300px] rounded-[2.4rem] border p-8 text-center sm:p-12"
+          style={{ borderColor: "var(--border-strong)", background: "var(--bg-elevated)" }}
+        >
+          <p className="text-sm font-black uppercase tracking-[0.22em]" style={{ color: "var(--primary)" }}>
+            Trải nghiệm dịch vụ
           </p>
-        ))}
-      </div>
-      <Link
-        href={href}
-        className="mt-14 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-6 py-5 text-lg font-black"
-        style={{
-          background: highlighted ? "var(--primary)" : "var(--text-primary)",
-          color: highlighted ? "var(--on-primary)" : "var(--page-surface)",
-        }}
-      >
-        {cta} <ArrowRight className="h-5 w-5" />
-      </Link>
-    </article>
+          <h2 className="mx-auto mt-5 max-w-4xl text-[clamp(3rem,6vw,7rem)] font-black leading-[1.15] tracking-tight">
+            Bắt đầu bằng một hồ sơ đầu tư rõ ràng.
+          </h2>
+          <p className="mx-auto mt-6 max-w-3xl text-lg font-normal leading-[1.7]" style={{ color: "var(--text-secondary)" }}>
+            ADN Capital không đưa anh/chị vào một danh sách mã để mua ngay. Trải nghiệm đầu tiên là hiểu phong cách,
+            chọn đúng công cụ, rồi dùng dữ liệu để ra quyết định có kỷ luật hơn.
+          </p>
+          <Link
+            href="/auth?mode=register"
+            className="mt-9 inline-flex items-center gap-2 rounded-full px-7 py-4 text-sm font-black"
+            style={{ background: "var(--primary)", color: "var(--on-primary)" }}
+          >
+            Mở tài khoản ADN <ArrowRight className="h-4 w-4" />
+          </Link>
+        </motion.div>
+      </section>
+
+      <PublicSiteFooter />
+    </main>
   );
 }
+
+export default HomePageV2;

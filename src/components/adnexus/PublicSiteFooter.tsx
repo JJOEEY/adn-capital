@@ -3,7 +3,7 @@ import { BRAND } from "@/lib/brand/productNames";
 import { PUBLIC_PRODUCT_MODULES } from "@/lib/brand/nexsuite";
 
 export function PublicSiteFooter() {
-  const primaryProducts = PUBLIC_PRODUCT_MODULES.slice(0, 8);
+  const primaryProducts = PUBLIC_PRODUCT_MODULES;
 
   return (
     <footer
@@ -17,10 +17,11 @@ export function PublicSiteFooter() {
             {BRAND.name}
           </p>
           <p className="mt-2 text-sm uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
-            {BRAND.tagline}
+            Hệ thống giao dịch định lượng
           </p>
-          <p className="mt-5 max-w-md text-sm leading-7" style={{ color: "var(--text-secondary)" }}>
-            ADN Capital xây dựng hệ sinh thái AI đầu tư cho nhà đầu tư Việt Nam: đọc thị trường, giữ kỷ luật, theo dõi danh mục và hỏi AIDEN trong cùng một trải nghiệm.
+          <p className="mt-5 max-w-md text-sm font-normal leading-7" style={{ color: "var(--text-secondary)" }}>
+            ADN Capital xây dựng hệ sinh thái công cụ đầu tư cho nhà đầu tư Việt Nam: đọc thị trường,
+            giữ kỷ luật, tra cứu cổ phiếu và ghi lại hành vi giao dịch trong cùng một trải nghiệm.
           </p>
         </div>
 
@@ -37,7 +38,6 @@ export function PublicSiteFooter() {
             links={[
               { href: "/pricing", label: "Bảng giá" },
               { href: "/hdsd", label: "Hướng dẫn sử dụng" },
-              { href: "/backtest", label: "ADN Lab" },
               { href: "/tin-tuc", label: "Tin tức" },
             ]}
           />
@@ -47,14 +47,14 @@ export function PublicSiteFooter() {
               { href: "tel:0962977179", label: "0962 977 179" },
               { href: "https://zalo.me/0962977179", label: "Zalo ADN Capital" },
               { href: "/auth", label: "Đăng nhập" },
-              { href: "/dashboard", label: "Dùng thử dashboard" },
+              { href: "/auth?mode=register", label: "Mở tài khoản" },
             ]}
           />
         </div>
       </div>
 
       <div
-        className="mt-10 flex flex-col gap-3 border-t pt-6 text-xs sm:flex-row sm:items-center sm:justify-between"
+        className="mt-10 flex flex-col gap-3 border-t pt-6 text-xs font-normal sm:flex-row sm:items-center sm:justify-between"
         style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
       >
         <p>© {new Date().getFullYear()} {BRAND.legalName}. Không cam kết lợi nhuận. Tín hiệu chỉ hỗ trợ quyết định.</p>
@@ -75,7 +75,7 @@ function FooterColumn({ title, links }: { title: string; links: Array<{ href: st
           <Link
             key={`${link.href}-${link.label}`}
             href={link.href}
-            className="text-sm font-bold hover:underline"
+            className="text-sm font-normal hover:underline"
             style={{ color: "var(--text-secondary)" }}
           >
             {link.label}
