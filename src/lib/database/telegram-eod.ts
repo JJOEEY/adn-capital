@@ -51,7 +51,10 @@ function formatNumber(value: number | null | undefined, digits = 2) {
 
 function formatTy(value: number | null | undefined) {
   if (typeof value !== "number" || !Number.isFinite(value)) return "chưa đủ số liệu";
-  return `${(value / 1_000_000_000).toLocaleString("vi-VN", { maximumFractionDigits: 1 })} tỷ`;
+  const absValue = Math.abs(value);
+  const tyValue = absValue > 1_000_000_000 ? absValue / 1_000_000_000 : absValue;
+  const signedValue = value < 0 ? -tyValue : tyValue;
+  return `${signedValue.toLocaleString("vi-VN", { maximumFractionDigits: 1 })} tỷ`;
 }
 
 const EOD_LIQUIDITY_EXCHANGES = ["HOSE", "HNX", "UPCOM"] as const;
