@@ -1,9 +1,10 @@
 import { getTopicEnvelope } from "@/lib/datahub/core";
 import type { TopicContext, TopicEnvelope } from "@/lib/datahub/types";
-import { executeFlashOnlyAIRequest, MODEL_FLASH } from "@/lib/gemini";
 import { emitObservabilityEvent, type ObservabilityMeta } from "@/lib/observability";
+import { prisma } from "@/lib/prisma";
 import {
   applyMarketPriceScale,
+  alignMarketPriceToAnchor,
   chooseMarketDisplayPrice,
   getMarketPayloadRows,
   latestClosePriceFromPayload,
@@ -23,9 +24,11 @@ function readPositiveIntegerEnv(name: string, fallback: number): number {
   return Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
-const GENERAL_CHAT_TIMEOUT_MS = readPositiveIntegerEnv("AIDEN_CHAT_TIMEOUT_MS", 25_000);
 const GENERAL_TOPIC_TIMEOUT_MS = 3_500;
 const TICKER_TOPIC_TIMEOUT_MS = 15_000;
+const AIDEN_MODEL = process.env.AIDEN_FREEMODEL_MODEL || "gpt-5.4";
+const AIDEN_MODEL_TIMEOUT_MS = readPositiveIntegerEnv("AIDEN_FREEMODEL_TIMEOUT_MS", 10_000);
+const AIDEN_ALLOW_LEGACY_MARKET_CONTEXT = process.env.AIDEN_ALLOW_LEGACY_MARKET_CONTEXT === "true";
 type AidenSurface = "aiden" | "stock";
 
 export type AidenDatahubChatResult = {
@@ -110,6 +113,37 @@ async function withTimeout<T>(task: Promise<T>, timeoutMs: number, label: string
   } finally {
     if (timeoutHandle) clearTimeout(timeoutHandle);
   }
+}
+
+async function executeAidenFreeModelRequest(prompt: string, systemInstruction: string) {
+  const apiKey = process.env.FREEMODEL_API_KEY;
+  if (!apiKey) throw new Error("FREEMODEL_API_KEY is not configured");
+
+  const baseUrl = (process.env.FREEMODEL_OPENAI_BASE_URL || "https://api.freemodel.dev/v1").replace(/\/+$/, "");
+  const response = await fetch(`${baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: AIDEN_MODEL,
+      temperature: 0.25,
+      messages: [
+        { role: "system", content: systemInstruction },
+        { role: "user", content: prompt },
+      ],
+    }),
+  });
+
+  if (!response.ok) throw new Error(`FreeModel ${response.status}`);
+
+  const payload = asRecord(await response.json());
+  const choices = Array.isArray(payload.choices) ? payload.choices : [];
+  const message = asRecord(asRecord(choices[0]).message);
+  const content = message.content;
+  if (typeof content === "string" && content.trim()) return content.trim();
+  throw new Error("FreeModel response missing content");
 }
 
 function formatDecimal(value: number) {
@@ -522,14 +556,29 @@ async function readTopicSoft(topic: string, context: TopicContext, timeoutMs: nu
   }
 }
 
-function buildTickerContext(ticker: string, envelopes: Array<{ topic: string; envelope: TopicEnvelope }>) {
+type TickerContextOverrides = {
+  historical?: unknown | null;
+  priceSnapshot?: unknown | null;
+};
+
+function buildTickerContext(
+  ticker: string,
+  envelopes: Array<{ topic: string; envelope: TopicEnvelope }>,
+  overrides: TickerContextOverrides = {},
+) {
   const workbench = envelopes.find((item) => item.topic.startsWith("research:workbench:"))?.envelope.value;
   const standaloneTA = envelopes.find((item) => item.topic.startsWith("vn:ta:"))?.envelope.value;
   const standaloneFA = envelopes.find((item) => item.topic.startsWith("vn:fa:"))?.envelope.value;
-  const priceSnapshot = envelopes.find((item) => item.topic.startsWith("vn:price-snapshot:"))?.envelope.value;
-  const realtime = envelopes.find((item) => item.topic.startsWith("vn:realtime:"))?.envelope.value;
+  const legacyPriceSnapshot = envelopes.find((item) => item.topic.startsWith("vn:price-snapshot:"))?.envelope.value;
+  const realtime = AIDEN_ALLOW_LEGACY_MARKET_CONTEXT
+    ? envelopes.find((item) => item.topic.startsWith("vn:realtime:"))?.envelope.value
+    : null;
   const depth = envelopes.find((item) => item.topic.startsWith("vn:depth:"))?.envelope.value;
-  const historical = envelopes.find((item) => item.topic.startsWith("vn:historical:"))?.envelope.value;
+  const legacyHistorical = AIDEN_ALLOW_LEGACY_MARKET_CONTEXT
+    ? envelopes.find((item) => item.topic.startsWith("vn:historical:"))?.envelope.value
+    : null;
+  const historical = overrides.historical ?? legacyHistorical;
+  const priceSnapshot = overrides.priceSnapshot ?? legacyPriceSnapshot;
   const wb = asRecord(workbench);
   const wbTA = asRecord(wb.ta);
   const wbFA = asRecord(wb.fa);
@@ -1255,12 +1304,35 @@ async function loadTickerContexts(tickers: string[], context: TopicContext) {
         `vn:price-snapshot:${ticker}`,
         `vn:ta:${ticker}`,
         `vn:fa:${ticker}`,
-        `vn:realtime:${ticker}:5m`,
-        `vn:historical:${ticker}:1d`,
         `vn:depth:${ticker}`,
       ];
+      if (AIDEN_ALLOW_LEGACY_MARKET_CONTEXT) {
+        topics.push(`vn:realtime:${ticker}:5m`, `vn:historical:${ticker}:1d`);
+      }
       const envelopes = await Promise.all(topics.map((topic) => readTopicSoft(topic, context, TICKER_TOPIC_TIMEOUT_MS)));
-      return { ticker, topics, envelopes, context: buildTickerContext(ticker, envelopes) };
+      const databaseHistorical = await loadDatabaseV2DailyPayload(ticker).catch((error) => {
+        emitAidenFallback("database_v2_historical_context_failed", error, { ticker });
+        return null;
+      });
+      const databasePriceSnapshot = databaseHistorical
+        ? await loadDatabaseV2PriceSnapshot(ticker, databaseHistorical).catch((error) => {
+            emitAidenFallback("database_v2_price_context_failed", error, { ticker });
+            return null;
+          })
+        : null;
+      const databaseTopics = [
+        databaseHistorical ? `database:v2:market.ohlcv:${ticker}` : null,
+        databasePriceSnapshot ? `database:v2:radar.realtime.tick:${ticker}` : null,
+      ].filter((item): item is string => Boolean(item));
+      return {
+        ticker,
+        topics: [...topics, ...databaseTopics],
+        envelopes,
+        context: buildTickerContext(ticker, envelopes, {
+          historical: databaseHistorical,
+          priceSnapshot: databasePriceSnapshot,
+        }),
+      };
     }),
   );
 }
@@ -1336,7 +1408,7 @@ export async function prepareAidenDatahubTurn(input: {
         tickers: [],
         recommendation: null,
         usedTopics: [],
-        model: MODEL_FLASH,
+        model: AIDEN_MODEL,
         dataFreshness: {},
         prompt: buildAidenSmalltalkPrompt(message),
         staticMessage: buildAidenHelpMessage(),
@@ -1361,7 +1433,7 @@ export async function prepareAidenDatahubTurn(input: {
       tickers,
       recommendation: tickerContexts.length === 1 ? buildRecommendation(tickerContexts[0]) : null,
       usedTopics: [...general.topics, ...perTicker.flatMap((item) => item.topics)],
-      model: MODEL_FLASH,
+      model: AIDEN_MODEL,
       dataFreshness: collectFreshness(perTicker, general.envelopes),
       prompt: deterministicTickerBrief ? undefined : buildAidenConversationPrompt(message, general.context, tickerContexts),
       staticMessage: deterministicTickerBrief ?? undefined,
@@ -1383,7 +1455,7 @@ export async function prepareAidenDatahubTurn(input: {
       tickers: [],
       recommendation: null,
       usedTopics: general.topics,
-      model: MODEL_FLASH,
+      model: AIDEN_MODEL,
       dataFreshness,
       prompt: buildGeneralPrompt(message, general.context),
       fallbackMessage: buildGeneralFallbackMessage(message, general.context),
@@ -1401,7 +1473,7 @@ export async function prepareAidenDatahubTurn(input: {
     tickers,
     recommendation: buildRecommendation(contexts[0]),
     usedTopics: perTicker.flatMap((item) => item.topics),
-    model: MODEL_FLASH,
+    model: AIDEN_MODEL,
     dataFreshness: collectFreshness(perTicker),
     prompt: buildPrompt(message, contexts),
     fallbackMessage: buildFlashUnavailableMessage(contexts),
@@ -1417,16 +1489,16 @@ async function completeAidenPreparedTurn(turn: AidenDatahubPreparedTurn, surface
   } else if (turn.prompt) {
     try {
       answer = await withTimeout(
-        executeFlashOnlyAIRequest(turn.prompt, turn.systemInstruction),
-        GENERAL_CHAT_TIMEOUT_MS,
+        executeAidenFreeModelRequest(turn.prompt, turn.systemInstruction),
+        AIDEN_MODEL_TIMEOUT_MS,
         `${surface}-aiden`,
       );
     } catch (error) {
-      console.warn("[AIDEN] Flash-only generation failed:", error);
+      console.warn("[AIDEN] FreeModel generation failed:", error);
       emitAidenFallback(`${surface}_fallback`, error, {
         surface,
         tickerCount: turn.tickerContexts.length,
-        timeoutMs: GENERAL_CHAT_TIMEOUT_MS,
+        timeoutMs: AIDEN_MODEL_TIMEOUT_MS,
       });
       answer = turn.fallbackMessage;
     }

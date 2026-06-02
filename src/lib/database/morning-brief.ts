@@ -16,7 +16,7 @@ const GROUPS: Array<{ label: string; keywords: string[] }> = [
 
 const POSITIVE_WORDS = ["tang", "mua rong", "ho tro", "huong loi", "ky luc", "dot pha", "loi nhuan", "co tuc", "mo rong", "hop tac"];
 const NEGATIVE_WORDS = ["giam", "ban rong", "ap luc", "rui ro", "khoi to", "thua lo", "suy giam", "no xau", "pha san", "dieu tra"];
-const REQUIRED_REFERENCE_INDICES = new Set(["VN-INDEX", "VN30"]);
+const REQUIRED_REFERENCE_INDICES = new Set(["VN-INDEX", "VN30", "HNX-INDEX", "UPCOM-INDEX"]);
 
 function isOptionalMorningEodMissing(field: string) {
   return field.includes("requires-fiinquant-enrichment");
@@ -54,8 +54,39 @@ function normalizeForCheck(text: string) {
   return stripDiacritics(text).toLowerCase().replace(/\s+/g, " ").trim();
 }
 
-function cleanLine(text: string) {
+function decodeHtmlEntities(text: string) {
+  const named: Record<string, string> = {
+    amp: "&",
+    apos: "'",
+    gt: ">",
+    lt: "<",
+    nbsp: " ",
+    quot: '"',
+  };
   return text
+    .replace(/&#(\d+);/g, (match, code) => {
+      const value = Number(code);
+      if (!Number.isFinite(value)) return match;
+      try {
+        return String.fromCodePoint(value);
+      } catch {
+        return match;
+      }
+    })
+    .replace(/&#x([0-9a-f]+);/gi, (match, code) => {
+      const value = Number.parseInt(code, 16);
+      if (!Number.isFinite(value)) return match;
+      try {
+        return String.fromCodePoint(value);
+      } catch {
+        return match;
+      }
+    })
+    .replace(/&([a-z]+);/gi, (match, name) => named[name.toLowerCase()] ?? match);
+}
+
+function cleanLine(text: string) {
+  return decodeHtmlEntities(text)
     .replace(/<[^>]+>/g, " ")
     .replace(/[*_`]/g, "")
     .replace(/^\s*(?:[-•]+|\d+[.)])\s*/u, "")
@@ -138,6 +169,17 @@ function findIndex(
   return data?.indices?.find((item) => item.ticker === ticker) ?? null;
 }
 
+function findIndexAny(
+  data: Awaited<ReturnType<typeof getDatabaseEodMarketDataset>>["data"],
+  tickers: string[],
+) {
+  for (const ticker of tickers) {
+    const found = findIndex(data, ticker);
+    if (found) return found;
+  }
+  return null;
+}
+
 function formatPct(value: number | null | undefined) {
   if (typeof value !== "number" || !Number.isFinite(value)) return null;
   return `${value > 0 ? "+" : ""}${value.toFixed(2)}%`;
@@ -145,11 +187,12 @@ function formatPct(value: number | null | undefined) {
 
 function buildReferenceIndices(data: Awaited<ReturnType<typeof getDatabaseEodMarketDataset>>["data"]) {
   return [
-    { source: "VNINDEX", name: "VN-INDEX" },
-    { source: "VN30", name: "VN30" },
-    { source: "VN30F1M", name: "VN30F1M" },
+    { sources: ["VNINDEX"], name: "VN-INDEX" },
+    { sources: ["VN30"], name: "VN30" },
+    { sources: ["HNXINDEX", "HNX"], name: "HNX-INDEX" },
+    { sources: ["UPCOMINDEX", "UPCOM"], name: "UPCOM-INDEX" },
   ].map((item) => {
-    const found = findIndex(data, item.source);
+    const found = findIndexAny(data, item.sources);
     return {
       name: item.name,
       value: found?.value ?? null,
