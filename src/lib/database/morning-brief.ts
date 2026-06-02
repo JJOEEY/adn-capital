@@ -102,6 +102,15 @@ function compact(text: string, max = 245) {
   return `${cut.slice(0, at > 150 ? at : max).trim()}...`;
 }
 
+function isUsableNewsText(text: string) {
+  const cleaned = cleanLine(text);
+  if (cleaned.length < 18) return false;
+  const normalized = normalizeForCheck(cleaned);
+  if (/^\d+\s*(phut|gio|ngay)\s+truoc$/.test(normalized)) return false;
+  if (/^\d{1,2}[:/]\d{1,2}(?:[:/]\d{2,4})?$/.test(normalized)) return false;
+  return true;
+}
+
 function dedupe(items: string[]) {
   const seen = new Set<string>();
   const out: string[] = [];
@@ -115,7 +124,12 @@ function dedupe(items: string[]) {
 }
 
 function itemText(item: DatabaseNewsItem) {
-  return cleanLine(item.summary || item.title);
+  const candidates = [item.summary, item.title].filter((value): value is string => Boolean(value));
+  for (const candidate of candidates) {
+    const cleaned = cleanLine(candidate);
+    if (isUsableNewsText(cleaned)) return cleaned;
+  }
+  return "";
 }
 
 function joinTitles(items: DatabaseNewsItem[], maxItems = 3) {
@@ -135,9 +149,10 @@ function classifySentiment(item: DatabaseNewsItem): "positive" | "negative" | "n
 function buildVietnamHighlights(items: DatabaseNewsItem[]) {
   const used = new Set<string>();
   const output: string[] = [];
+  const usableItems = items.filter((item) => Boolean(itemText(item)));
 
   for (const group of GROUPS) {
-    const matched = items.filter((item) => {
+    const matched = usableItems.filter((item) => {
       const n = normalizeForCheck(`${item.title} ${item.summary ?? ""}`);
       return group.keywords.some((keyword) => n.includes(keyword));
     });
@@ -147,7 +162,7 @@ function buildVietnamHighlights(items: DatabaseNewsItem[]) {
     if (output.length >= 5) break;
   }
 
-  const remaining = items.filter((item) => !used.has(item.hash));
+  const remaining = usableItems.filter((item) => !used.has(item.hash));
   if (remaining.length && output.length < 5) {
     output.push(compact(`Các mã đáng chú ý khác: ${joinTitles(remaining, 4)}`));
   }

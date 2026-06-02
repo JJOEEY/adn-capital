@@ -307,6 +307,14 @@ async function handleDatabaseMorningPublish(forceRun = false): Promise<NextRespo
       { source: "database_v2", brief, newsCollect: collect },
       { source: "database_v2", missingFields: brief.missingFields, metadata: brief.data.metadata },
     );
+    await persistDatabaseToolCronPayload({
+      tool: "brief",
+      dataset: "brief.morning",
+      payload: brief.data,
+      missingFields: brief.missingFields,
+      providerStatus: brief.providerStatus,
+      ttlMs: 24 * 60 * 60_000,
+    });
     await pushNotification("morning_brief", `☀️ ${title}`, safeReport);
     invalidateTopics({ tags: ["news", "brief", "dashboard", "market"] });
     await emitWorkflowTrigger({
