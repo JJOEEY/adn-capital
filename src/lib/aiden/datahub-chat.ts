@@ -1,7 +1,7 @@
 import { getTopicEnvelope } from "@/lib/datahub/core";
 import type { TopicContext, TopicEnvelope } from "@/lib/datahub/types";
-import { MODEL_FLASH } from "@/lib/gemini";
 import { emitObservabilityEvent, type ObservabilityMeta } from "@/lib/observability";
+import { prisma } from "@/lib/prisma";
 import {
   applyMarketPriceScale,
   alignMarketPriceToAnchor,
@@ -15,7 +15,6 @@ import { normalizeHistoricalPriceWithSnapshot, type StockPriceSnapshot } from "@
 import { classifyAidenIntent, type AidenIntent } from "@/lib/aiden/intent";
 import { extractTickerCandidates as extractTickerCandidatesFromText } from "@/lib/ticker-text";
 import { resolveMarketTicker } from "@/lib/ticker-resolver";
-import { prisma } from "@/lib/prisma";
 
 type JsonRecord = Record<string, unknown>;
 function readPositiveIntegerEnv(name: string, fallback: number): number {
@@ -25,12 +24,14 @@ function readPositiveIntegerEnv(name: string, fallback: number): number {
   return Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
-const GENERAL_CHAT_TIMEOUT_MS = readPositiveIntegerEnv("AIDEN_CHAT_TIMEOUT_MS", 25_000);
 const AIDEN_FREEMODEL_TIMEOUT_MS = readPositiveIntegerEnv("AIDEN_FREEMODEL_TIMEOUT_MS", 10_000);
 const AIDEN_FREEMODEL_MODEL = process.env.AIDEN_FREEMODEL_MODEL ?? "gpt-5.4";
 const AIDEN_FREEMODEL_BASE_URL = (process.env.FREEMODEL_OPENAI_BASE_URL ?? "https://api.freemodel.dev/v1").replace(/\/+$/, "");
 const GENERAL_TOPIC_TIMEOUT_MS = 3_500;
 const TICKER_TOPIC_TIMEOUT_MS = 15_000;
+const AIDEN_MODEL = AIDEN_FREEMODEL_MODEL;
+const AIDEN_MODEL_TIMEOUT_MS = AIDEN_FREEMODEL_TIMEOUT_MS;
+const AIDEN_ALLOW_LEGACY_MARKET_CONTEXT = process.env.AIDEN_ALLOW_LEGACY_MARKET_CONTEXT === "true";
 type AidenSurface = "aiden" | "stock";
 
 export type AidenDatahubChatResult = {
@@ -527,29 +528,37 @@ async function readTopicSoft(topic: string, context: TopicContext, timeoutMs: nu
   }
 }
 
+type TickerContextOverrides = {
+  historical?: unknown | null;
+  priceSnapshot?: unknown | null;
+  ta?: unknown | null;
+};
+
 function buildTickerContext(
   ticker: string,
   envelopes: Array<{ topic: string; envelope: TopicEnvelope }>,
-  databaseOverride?: {
-    historical?: unknown;
-    priceSnapshot?: unknown;
-    ta?: unknown;
-  },
+  overrides: TickerContextOverrides = {},
 ) {
   const workbench = envelopes.find((item) => item.topic.startsWith("research:workbench:"))?.envelope.value;
   const standaloneTA = envelopes.find((item) => item.topic.startsWith("vn:ta:"))?.envelope.value;
   const standaloneFA = envelopes.find((item) => item.topic.startsWith("vn:fa:"))?.envelope.value;
-  const priceSnapshot = envelopes.find((item) => item.topic.startsWith("vn:price-snapshot:"))?.envelope.value;
-  const realtime = envelopes.find((item) => item.topic.startsWith("vn:realtime:"))?.envelope.value;
+  const legacyPriceSnapshot = envelopes.find((item) => item.topic.startsWith("vn:price-snapshot:"))?.envelope.value;
+  const realtime = AIDEN_ALLOW_LEGACY_MARKET_CONTEXT
+    ? envelopes.find((item) => item.topic.startsWith("vn:realtime:"))?.envelope.value
+    : null;
   const depth = envelopes.find((item) => item.topic.startsWith("vn:depth:"))?.envelope.value;
-  const historical = databaseOverride?.historical ?? envelopes.find((item) => item.topic.startsWith("vn:historical:"))?.envelope.value;
+  const legacyHistorical = AIDEN_ALLOW_LEGACY_MARKET_CONTEXT
+    ? envelopes.find((item) => item.topic.startsWith("vn:historical:"))?.envelope.value
+    : null;
+  const historical = overrides.historical ?? legacyHistorical;
+  const priceSnapshot = overrides.priceSnapshot ?? legacyPriceSnapshot;
   const wb = asRecord(workbench);
   const wbTA = asRecord(wb.ta);
   const wbFA = asRecord(wb.fa);
   const taBase = Object.keys(asRecord(standaloneTA)).length > 0 ? standaloneTA : wbTA;
-  const ta = { ...asRecord(taBase), ...asRecord(databaseOverride?.ta) };
+  const ta = { ...asRecord(taBase), ...asRecord(overrides.ta) };
   const fa = Object.keys(asRecord(standaloneFA)).length > 0 ? standaloneFA : wbFA;
-  const effectivePriceSnapshot = databaseOverride?.priceSnapshot ?? priceSnapshot ?? wb.priceSnapshot;
+  const effectivePriceSnapshot = priceSnapshot ?? wb.priceSnapshot;
   const mergedWorkbench = { ...wb, ta, fa, priceSnapshot: effectivePriceSnapshot };
   const analysisMetrics = buildAnalysisMetrics(mergedWorkbench, realtime, historical, effectivePriceSnapshot);
 
@@ -1279,33 +1288,36 @@ async function loadTickerContexts(tickers: string[], context: TopicContext) {
         `vn:price-snapshot:${ticker}`,
         `vn:ta:${ticker}`,
         `vn:fa:${ticker}`,
-        `vn:realtime:${ticker}:5m`,
-        `vn:historical:${ticker}:1d`,
         `vn:depth:${ticker}`,
       ];
-      const [envelopes, databaseHistorical] = await Promise.all([
-        Promise.all(topics.map((topic) => readTopicSoft(topic, context, TICKER_TOPIC_TIMEOUT_MS))),
-        loadDatabaseV2DailyPayload(ticker).catch((error) => {
-          console.warn("[AIDEN] Database v2 chart context unavailable:", ticker, error);
-          return null;
-        }),
-      ]);
-      const databaseCandles = normalizeHistoricalCandles(databaseHistorical);
+      if (AIDEN_ALLOW_LEGACY_MARKET_CONTEXT) {
+        topics.push(`vn:realtime:${ticker}:5m`, `vn:historical:${ticker}:1d`);
+      }
+      const envelopes = await Promise.all(topics.map((topic) => readTopicSoft(topic, context, TICKER_TOPIC_TIMEOUT_MS)));
+      const databaseHistorical = await loadDatabaseV2DailyPayload(ticker).catch((error) => {
+        emitAidenFallback("database_v2_historical_context_failed", error, { ticker });
+        return null;
+      });
       const databasePriceSnapshot = databaseHistorical
         ? await loadDatabaseV2PriceSnapshot(ticker, databaseHistorical).catch((error) => {
-            console.warn("[AIDEN] Database v2 price context unavailable:", ticker, error);
+            emitAidenFallback("database_v2_price_context_failed", error, { ticker });
             return null;
           })
         : null;
+      const databaseCandles = normalizeHistoricalCandles(databaseHistorical);
       const databaseTa = databaseCandles.length ? buildIndicatorsFromCandles(databaseCandles) : null;
+      const databaseTopics = [
+        databaseHistorical ? `database:v2:market.ohlcv:${ticker}` : null,
+        databasePriceSnapshot ? `database:v2:radar.realtime.tick:${ticker}` : null,
+      ].filter((item): item is string => Boolean(item));
       return {
         ticker,
-        topics: databaseHistorical ? [`database:v2:chart:${ticker}`, ...topics] : topics,
+        topics: [...topics, ...databaseTopics],
         envelopes,
         context: buildTickerContext(ticker, envelopes, {
-          historical: databaseHistorical ?? undefined,
-          priceSnapshot: databasePriceSnapshot ?? undefined,
-          ta: databaseTa ?? undefined,
+          historical: databaseHistorical,
+          priceSnapshot: databasePriceSnapshot,
+          ta: databaseTa,
         }),
       };
     }),
@@ -1357,7 +1369,7 @@ function readOpenAiAssistantContent(payload: unknown) {
   return "";
 }
 
-async function executeAidenFreemodelRequest(prompt: string, systemInstruction: string) {
+async function executeAidenFreeModelRequest(prompt: string, systemInstruction: string) {
   const apiKey = process.env.FREEMODEL_API_KEY;
   if (!apiKey) throw new Error("FREEMODEL_API_KEY is missing");
 
@@ -1440,7 +1452,7 @@ export async function prepareAidenDatahubTurn(input: {
         tickers: [],
         recommendation: null,
         usedTopics: [],
-        model: MODEL_FLASH,
+        model: AIDEN_MODEL,
         dataFreshness: {},
         prompt: buildAidenSmalltalkPrompt(message),
         staticMessage: buildAidenHelpMessage(),
@@ -1465,7 +1477,7 @@ export async function prepareAidenDatahubTurn(input: {
       tickers,
       recommendation: tickerContexts.length === 1 ? buildRecommendation(tickerContexts[0]) : null,
       usedTopics: [...general.topics, ...perTicker.flatMap((item) => item.topics)],
-      model: MODEL_FLASH,
+      model: AIDEN_MODEL,
       dataFreshness: collectFreshness(perTicker, general.envelopes),
       prompt: deterministicTickerBrief ? undefined : buildAidenConversationPrompt(message, general.context, tickerContexts),
       staticMessage: deterministicTickerBrief ?? undefined,
@@ -1487,7 +1499,7 @@ export async function prepareAidenDatahubTurn(input: {
       tickers: [],
       recommendation: null,
       usedTopics: general.topics,
-      model: MODEL_FLASH,
+      model: AIDEN_MODEL,
       dataFreshness,
       prompt: buildGeneralPrompt(message, general.context),
       fallbackMessage: buildGeneralFallbackMessage(message, general.context),
@@ -1506,7 +1518,7 @@ export async function prepareAidenDatahubTurn(input: {
     tickers,
     recommendation: buildRecommendation(contexts[0]),
     usedTopics: perTicker.flatMap((item) => item.topics),
-    model: MODEL_FLASH,
+    model: AIDEN_MODEL,
     dataFreshness: collectFreshness(perTicker),
     prompt: deterministicTickerReport ? undefined : buildPrompt(message, contexts),
     staticMessage: deterministicTickerReport ?? undefined,
@@ -1523,8 +1535,8 @@ async function completeAidenPreparedTurn(turn: AidenDatahubPreparedTurn, surface
   } else if (turn.prompt) {
     try {
       answer = await withTimeout(
-        executeAidenFreemodelRequest(turn.prompt, turn.systemInstruction),
-        Math.min(GENERAL_CHAT_TIMEOUT_MS, AIDEN_FREEMODEL_TIMEOUT_MS),
+        executeAidenFreeModelRequest(turn.prompt, turn.systemInstruction),
+        AIDEN_MODEL_TIMEOUT_MS,
         `${surface}-aiden`,
       );
     } catch (error) {
@@ -1532,7 +1544,7 @@ async function completeAidenPreparedTurn(turn: AidenDatahubPreparedTurn, surface
       emitAidenFallback(`${surface}_fallback`, error, {
         surface,
         tickerCount: turn.tickerContexts.length,
-        timeoutMs: Math.min(GENERAL_CHAT_TIMEOUT_MS, AIDEN_FREEMODEL_TIMEOUT_MS),
+        timeoutMs: AIDEN_MODEL_TIMEOUT_MS,
         model: AIDEN_FREEMODEL_MODEL,
       });
       answer = turn.fallbackMessage;
