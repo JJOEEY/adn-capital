@@ -316,7 +316,7 @@ export async function getDatabaseNewsDataset(options?: {
   };
   const rows = await prisma.databaseNewsItem.findMany({
     where,
-    orderBy: [{ publishedAt: "desc" }, { fetchedAt: "desc" }],
+    orderBy: [{ fetchedAt: "desc" }, { publishedAt: "desc" }],
     take: options?.limit ?? 30,
   });
   const items = rows.map(rowToNewsItem);
