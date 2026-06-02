@@ -48,6 +48,35 @@ function formatBillion(value: number | null | undefined) {
   return `${Number(billion.toFixed(1)).toLocaleString("vi-VN")} tỷ`;
 }
 
+const EOD_LIQUIDITY_EXCHANGES = ["HOSE", "HNX", "UPCOM"] as const;
+type EodLiquidityField = "matchedValue" | "matchedVolume" | "negotiatedValue" | "negotiatedVolume";
+
+function exchangeLiquidityComplete(data: DnseEodMarketData) {
+  const byExchange = data.liquidityByExchange;
+  return Boolean(
+    byExchange &&
+      EOD_LIQUIDITY_EXCHANGES.every((exchange) => {
+        const value = byExchange[exchange]?.matchedValue;
+        return typeof value === "number" && Number.isFinite(value) && value > 0;
+      }),
+  );
+}
+
+function totalExchangeLiquidity(data: DnseEodMarketData, field: EodLiquidityField) {
+  const byExchange = data.liquidityByExchange;
+  if (!byExchange) return data.liquidity?.[field] ?? null;
+  if (!exchangeLiquidityComplete(data)) return null;
+  return EOD_LIQUIDITY_EXCHANGES.reduce((total, exchange) => total + (byExchange[exchange]?.[field] ?? 0), 0);
+}
+
+function formatExchangeLiquidityDetail(data: DnseEodMarketData) {
+  const byExchange = data.liquidityByExchange;
+  if (!byExchange || !exchangeLiquidityComplete(data)) return null;
+  return EOD_LIQUIDITY_EXCHANGES
+    .map((exchange) => `${exchange} ${formatBillion(byExchange[exchange]?.matchedValue) ?? "-"}`)
+    .join(", ");
+}
+
 function formatPct(value: number | null | undefined) {
   if (typeof value !== "number" || !Number.isFinite(value)) return null;
   return `${value > 0 ? "+" : ""}${value.toFixed(2)}%`;
@@ -55,7 +84,8 @@ function formatPct(value: number | null | undefined) {
 
 function buildEodBriefFields(data: DnseEodMarketData): NonNullable<DnseEodMarketData["brief"]> {
   const vnindex = data.indices?.find((item) => item.ticker === "VNINDEX") ?? data.indices?.[0] ?? null;
-  const liquidity = formatBillion(data.liquidity?.matchedValue);
+  const liquidity = formatBillion(totalExchangeLiquidity(data, "matchedValue"));
+  const liquidityByExchange = formatExchangeLiquidityDetail(data);
   const foreignNet = formatBillion(data.foreignFlow?.netValue);
   const fiinquant = data.enrichment?.fiinquant ?? data.fallback?.fiinquant;
   const proprietary = fiinquant && (fiinquant.propTradingTopBuy.length || fiinquant.propTradingTopSell.length)
@@ -69,7 +99,9 @@ function buildEodBriefFields(data: DnseEodMarketData): NonNullable<DnseEodMarket
     : null;
   return {
     sessionSummary,
-    liquidityDetail: liquidity ? `GTGD khớp lệnh toàn thị trường đạt khoảng ${liquidity}.` : null,
+    liquidityDetail: liquidity
+      ? `GTGD khớp lệnh toàn thị trường đạt khoảng ${liquidity}${liquidityByExchange ? ` (${liquidityByExchange})` : ""}.`
+      : null,
     foreignFlow: foreignNet ? `Khối ngoại ${data.foreignFlow?.netValue != null && data.foreignFlow.netValue >= 0 ? "mua ròng" : "bán ròng"} ${foreignNet}.` : null,
     notableTrades: [proprietary, retail].filter(Boolean).join(" | ") || null,
     outlook: "Ưu tiên kiểm soát tỷ trọng, theo dõi phản ứng dòng tiền ở nhóm dẫn dắt và tuân thủ điểm dừng lỗ.",

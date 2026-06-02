@@ -9,11 +9,13 @@ import {
   dnseEodChannels,
   normalizeDnseSymbol,
 } from "./eod-map";
-import type { DnseEodMarketData, DnseMarketStorageCollectResult } from "./types";
+import type { DnseEodMarketData, DnseExchangeLiquidity, DnseMarketStorageCollectResult } from "./types";
 
 type JsonRecord = Record<string, unknown>;
+type LiquidityExchange = "HOSE" | "HNX" | "UPCOM";
 
 const DNSE_LIGHTSPEED_ENDPOINT = "wss://ws-openapi.dnse.com.vn/v1/stream";
+const REQUIRED_LIQUIDITY_EXCHANGES: LiquidityExchange[] = ["HOSE", "HNX", "UPCOM"];
 const DATA_FIELDS = Array.from(new Set(DNSE_EOD_FIELD_MAP.flatMap((item) => item.dnseFields))).filter(
   (field) => field !== "fieldMap-derived",
 );
@@ -152,6 +154,32 @@ function sumValues(values: Array<number | null>) {
   return numbers.length ? numbers.reduce((total, value) => total + value, 0) : null;
 }
 
+function exchangeFromIndexSymbol(symbol: string | null | undefined): LiquidityExchange | null {
+  const normalized = normalizeDnseSymbol(symbol ?? "").replace(/[^A-Z0-9]/g, "");
+  if (normalized === "VNINDEX") return "HOSE";
+  if (normalized === "HNXINDEX" || normalized === "HNX") return "HNX";
+  if (normalized === "UPCOMINDEX" || normalized === "UPCOM") return "UPCOM";
+  return null;
+}
+
+function readExchangeLiquidity(payload: JsonRecord | null, updatedAt: string | null): DnseExchangeLiquidity {
+  return {
+    matchedValue: readNumber(payload, ["contauctAccTrdVal", "grossTradeAmount"]),
+    matchedVolume: readNumber(payload, ["contauctAccTrdVol", "totalVolumeTraded"]),
+    negotiatedValue: readNumber(payload, ["blkTrdAccTrdVal"]),
+    negotiatedVolume: readNumber(payload, ["blkTrdAccTrdVol"]),
+    updatedAt,
+  };
+}
+
+function hasMatchedLiquidity(value: DnseExchangeLiquidity | null | undefined) {
+  return typeof value?.matchedValue === "number" && Number.isFinite(value.matchedValue) && value.matchedValue > 0;
+}
+
+function totalLiquidityField(byExchange: Record<LiquidityExchange, DnseExchangeLiquidity | null>, field: keyof Omit<DnseExchangeLiquidity, "updatedAt">) {
+  return sumValues(REQUIRED_LIQUIDITY_EXCHANGES.map((exchange) => byExchange[exchange]?.[field] ?? null));
+}
+
 function formatForeignFlowItem(symbol: string, value: number) {
   const billion = Math.abs(value) > 1_000_000_000 ? value / 1_000_000_000 : value;
   return `${symbol} (${Number(billion.toFixed(1)).toLocaleString("vi-VN")} tỷ)`;
@@ -205,6 +233,33 @@ function buildEodDataFromMessages(params: {
   });
 
   const indexPayloads = indexRows.map((row) => toRecord(row.payload));
+  const liquidityByExchange: Record<LiquidityExchange, DnseExchangeLiquidity | null> = {
+    HOSE: null,
+    HNX: null,
+    UPCOM: null,
+  };
+  for (const row of indexRows) {
+    const payload = toRecord(row.payload);
+    const exchange = exchangeFromIndexSymbol(indexSymbolFromMessage(payload ?? {}) ?? row.symbol ?? symbolFromChannel(row.channel));
+    if (!exchange) continue;
+    const updatedAt = row.receivedAt.toISOString();
+    const next = readExchangeLiquidity(payload, updatedAt);
+    const current = liquidityByExchange[exchange];
+    if (
+      !current ||
+      (hasMatchedLiquidity(next) && !hasMatchedLiquidity(current)) ||
+      updatedAt > (current.updatedAt ?? "")
+    ) {
+      liquidityByExchange[exchange] = next;
+    }
+  }
+  const missingLiquidityExchanges = REQUIRED_LIQUIDITY_EXCHANGES.filter((exchange) => !hasMatchedLiquidity(liquidityByExchange[exchange]));
+  const liquidityTotals = {
+    matchedValue: totalLiquidityField(liquidityByExchange, "matchedValue"),
+    matchedVolume: totalLiquidityField(liquidityByExchange, "matchedVolume"),
+    negotiatedValue: totalLiquidityField(liquidityByExchange, "negotiatedValue"),
+    negotiatedVolume: totalLiquidityField(liquidityByExchange, "negotiatedVolume"),
+  };
   const foreignPayloads = rows.filter((row) => row.channel === "foreign.G1.json").map((row) => row.payload);
   const ohlcv = rows
     .filter((row) => row.channel === "ohlc_closed.1D.json")
@@ -251,6 +306,7 @@ function buildEodDataFromMessages(params: {
   const lastReceivedAt = latestReceivedAt(params.latestRows);
   const missingFields = [
     ...unavailable.map((field) => `${field}:not-in-database`),
+    ...missingLiquidityExchanges.map((exchange) => `liquidity.${exchange}:missing-market-index`),
     ...fiinquantEnrichmentFields.map((field) => `${field}:requires-fiinquant-enrichment`),
   ];
 
@@ -281,11 +337,12 @@ function buildEodDataFromMessages(params: {
       floor: sumValues(indexPayloads.map((payload) => readNumber(payload, ["fluctuationLowerLimitIssueCount"]))),
     },
     liquidity: {
-      matchedValue: sumValues(indexPayloads.map((payload) => readNumber(payload, ["contauctAccTrdVal", "grossTradeAmount"]))),
-      matchedVolume: sumValues(indexPayloads.map((payload) => readNumber(payload, ["contauctAccTrdVol", "totalVolumeTraded"]))),
-      negotiatedValue: sumValues(indexPayloads.map((payload) => readNumber(payload, ["blkTrdAccTrdVal"]))),
-      negotiatedVolume: sumValues(indexPayloads.map((payload) => readNumber(payload, ["blkTrdAccTrdVol"]))),
+      matchedValue: liquidityTotals.matchedValue,
+      matchedVolume: liquidityTotals.matchedVolume,
+      negotiatedValue: liquidityTotals.negotiatedValue,
+      negotiatedVolume: liquidityTotals.negotiatedVolume,
     },
+    liquidityByExchange,
     foreignFlow: {
       buyValue,
       sellValue,

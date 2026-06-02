@@ -353,10 +353,21 @@ async function handleDatabaseMorningPublish(forceRun = false): Promise<NextRespo
   }
 }
 
+function hasCompleteDatabaseEodLiquidity(data: Awaited<ReturnType<typeof getDatabaseEodMarketDataset>>["data"]) {
+  const byExchange = data?.liquidityByExchange;
+  return Boolean(
+    byExchange &&
+      (["HOSE", "HNX", "UPCOM"] as const).every((exchange) => {
+        const value = byExchange[exchange]?.matchedValue;
+        return typeof value === "number" && Number.isFinite(value) && value > 0;
+      }),
+  );
+}
+
 function hasDatabaseEodRequiredFields(result: Awaited<ReturnType<typeof getDatabaseEodMarketDataset>>) {
   const data = result.data;
   const hasVnindex = Boolean(data?.indices?.some((item) => item.ticker === "VNINDEX" && item.value != null));
-  const hasLiquidity = data?.liquidity?.matchedValue != null;
+  const hasLiquidity = hasCompleteDatabaseEodLiquidity(data);
   const hasBreadth = data?.breadth?.up != null && data?.breadth?.down != null;
   const hasForeign = data?.foreignFlow?.netValue != null;
   const fiinquant = data?.enrichment?.fiinquant ?? data?.fallback?.fiinquant;
@@ -422,7 +433,7 @@ async function handleDatabaseEodPublish(forceRun: boolean, dateISO: string, toda
         });
     if (!eod.data || !hasDatabaseEodRequiredFields(eod)) {
       const duration = Date.now() - startTime;
-      const retryWindow = !forceRun && getVnMinuteOfDay() <= 20 * 60;
+      const retryWindow = !forceRun && getVnMinuteOfDay() >= EOD_FULL_MINUTE_VN;
       await logCron("eod_full_19h", "skipped", retryWindow ? "Database v2 EOD waiting for complete data" : "Database v2 EOD missing required fields", duration, {
         source: "database_v2",
         missingFields: eod.missingFields,

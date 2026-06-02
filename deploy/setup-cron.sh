@@ -52,9 +52,9 @@ ${CRON_SMARTFLOW_INTRADAY_SCHEDULE:-*/15 9-14 * * 1-5} ${CURL_CMD} "${APP_URL}/a
 ${CRON_SMARTFLOW_1510_SCHEDULE:-10 15 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_SMARTFLOW_PRECOMPUTE:-pulse_smartflow_precompute}" >> ${LOG_DIR}/pulse_smartflow_precompute.log 2>&1
 ${CRON_SMARTFLOW_1910_SCHEDULE:-10 19 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_SMARTFLOW_PRECOMPUTE:-pulse_smartflow_precompute}" >> ${LOG_DIR}/pulse_smartflow_precompute.log 2>&1
 
-# Type 3 - Full EOD retry window 19:00-20:00 VN, Mon-Fri
+# Type 3 - Full EOD retry window 19:00-21:45 VN, Mon-Fri
 ${CRON_EOD_19H_SCHEDULE:-0,5,10,15,20,30,45 19 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_EOD_19H:-eod_full_19h}" >> ${LOG_DIR}/eod_full_19h.log 2>&1
-${CRON_EOD_20H_SCHEDULE:-0 20 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_EOD_19H:-eod_full_19h}" >> ${LOG_DIR}/eod_full_19h.log 2>&1
+${CRON_EOD_20H_SCHEDULE:-0,15,30,45 20,21 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_EOD_19H:-eod_full_19h}" >> ${LOG_DIR}/eod_full_19h.log 2>&1
 
 # ADN ART - daily refresh 19:05 VN, Mon-Fri
 ${CRON_ART_1905_SCHEDULE:-5 19 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_ART_1905:-art_daily_1905}" >> ${LOG_DIR}/art_daily_1905.log 2>&1
@@ -68,8 +68,8 @@ ${CRON_DATABASE_DNSE_MARKET_COLLECT_SCHEDULE:-*/5 9-15 * * 1-5} ${CURL_CMD} "${A
 ${CRON_DATABASE_MORNING_READINESS_SCHEDULE:-55 7 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_DATABASE_MORNING_READINESS:-database_morning_readiness}&sync=1" >> ${LOG_DIR}/database_v2_morning_readiness.log 2>&1
 ${CRON_DATABASE_MORNING_BRIEF_SCHEDULE:-0 8 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_DATABASE_MORNING_BRIEF:-database_morning_brief}&sync=1" >> ${LOG_DIR}/database_v2_morning_brief.log 2>&1
 ${CRON_DATABASE_EOD_COLLECT_1510_SCHEDULE:-10 15 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_DATABASE_EOD_COLLECT:-database_eod_collect}&sync=1" >> ${LOG_DIR}/database_v2_eod_collect.log 2>&1
-${CRON_DATABASE_EOD_COLLECT_19H_SCHEDULE:-0,5,10,20,30,45 19 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_DATABASE_EOD_COLLECT:-database_eod_collect}&sync=1" >> ${LOG_DIR}/database_v2_eod_collect.log 2>&1
-${CRON_DATABASE_EOD_READINESS_SCHEDULE:-0 20 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_DATABASE_EOD_READINESS:-database_eod_readiness}&sync=1" >> ${LOG_DIR}/database_v2_eod_readiness.log 2>&1
+${CRON_DATABASE_EOD_COLLECT_19H_SCHEDULE:-0,5,10,20,30,45 19,20,21 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_DATABASE_EOD_COLLECT:-database_eod_collect}&sync=1" >> ${LOG_DIR}/database_v2_eod_collect.log 2>&1
+${CRON_DATABASE_EOD_READINESS_SCHEDULE:-0,30 20,21 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_DATABASE_EOD_READINESS:-database_eod_readiness}&sync=1" >> ${LOG_DIR}/database_v2_eod_readiness.log 2>&1
 ${CRON_DATABASE_RADAR_REALTIME_COLLECT_SCHEDULE:-* 9-14 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_DATABASE_RADAR_REALTIME_COLLECT:-database_radar_realtime_collect}&sync=1" >> ${LOG_DIR}/database_v2_radar_realtime_collect.log 2>&1
 ${CRON_DATABASE_REALTIME_HEALTH_SCHEDULE:-*/5 9-14 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_DATABASE_REALTIME_HEALTH:-database_realtime_health}&sync=1" >> ${LOG_DIR}/database_v2_realtime_health.log 2>&1
 ${CRON_DATABASE_ADN_RADAR_COLLECT_SCHEDULE:-5,35 10 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_DATABASE_ADN_RADAR_COLLECT:-database_adn_radar_collect}&sync=1" >> ${LOG_DIR}/database_v2_adn_radar_collect.log 2>&1

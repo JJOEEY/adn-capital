@@ -54,6 +54,33 @@ function formatTy(value: number | null | undefined) {
   return `${(value / 1_000_000_000).toLocaleString("vi-VN", { maximumFractionDigits: 1 })} tỷ`;
 }
 
+const EOD_LIQUIDITY_EXCHANGES = ["HOSE", "HNX", "UPCOM"] as const;
+type EodLiquidityField = "matchedValue" | "matchedVolume" | "negotiatedValue" | "negotiatedVolume";
+
+function hasCompleteExchangeLiquidity(data: DnseEodMarketData | null | undefined) {
+  const byExchange = data?.liquidityByExchange;
+  return Boolean(
+    byExchange &&
+      EOD_LIQUIDITY_EXCHANGES.every((exchange) => {
+        const value = byExchange[exchange]?.matchedValue;
+        return typeof value === "number" && Number.isFinite(value) && value > 0;
+      }),
+  );
+}
+
+function totalExchangeLiquidity(data: DnseEodMarketData | null | undefined, field: EodLiquidityField) {
+  const byExchange = data?.liquidityByExchange;
+  if (!byExchange) return data?.liquidity?.[field] ?? null;
+  if (!hasCompleteExchangeLiquidity(data)) return null;
+  return EOD_LIQUIDITY_EXCHANGES.reduce((total, exchange) => total + (byExchange[exchange]?.[field] ?? 0), 0);
+}
+
+function formatExchangeLiquidityDetail(data: DnseEodMarketData | null | undefined) {
+  const byExchange = data?.liquidityByExchange;
+  if (!byExchange || !hasCompleteExchangeLiquidity(data)) return null;
+  return EOD_LIQUIDITY_EXCHANGES.map((exchange) => `${exchange} ${formatTy(byExchange[exchange]?.matchedValue)}`).join(" | ");
+}
+
 function formatPct(value: number | null | undefined) {
   return typeof value === "number" && Number.isFinite(value)
     ? `${value > 0 ? "+" : ""}${value.toFixed(2)}%`
@@ -69,7 +96,9 @@ export function formatDatabaseEodPublicBriefText(result: DatabaseResult<DnseEodM
   const vnindex = data?.indices?.find((item) => item.ticker === "VNINDEX");
   const vn30 = data?.indices?.find((item) => item.ticker === "VN30");
   const breadth = data?.breadth;
-  const liquidity = data?.liquidity;
+  const matchedLiquidity = totalExchangeLiquidity(data, "matchedValue");
+  const negotiatedLiquidity = totalExchangeLiquidity(data, "negotiatedValue");
+  const exchangeLiquidityDetail = formatExchangeLiquidityDetail(data);
   const foreign = data?.foreignFlow;
   const fiinquant = data?.enrichment?.fiinquant ?? data?.fallback?.fiinquant;
   const foreignNet = typeof foreign?.netValue === "number" ? foreign.netValue : null;
@@ -90,8 +119,9 @@ export function formatDatabaseEodPublicBriefText(result: DatabaseResult<DnseEodM
     `• VN30: ${formatNumber(vn30?.value)} | ${formatPct(vn30?.changePct)}`,
     "",
     "💧 *THANH KHOẢN & ĐỘ RỘNG:*",
-    `• Giá trị khớp lệnh: ${formatTy(liquidity?.matchedValue)}`,
-    `• Thỏa thuận: ${formatTy(liquidity?.negotiatedValue)}`,
+    `• Giá trị khớp lệnh: ${formatTy(matchedLiquidity)}`,
+    exchangeLiquidityDetail ? `• Theo sàn: ${exchangeLiquidityDetail}` : null,
+    `• Thỏa thuận: ${formatTy(negotiatedLiquidity)}`,
     `• Độ rộng: ${formatNumber(breadth?.up, 0)} mã tăng / ${formatNumber(breadth?.down, 0)} mã giảm / ${formatNumber(breadth?.unchanged, 0)} mã đứng giá`,
     "",
     "🏦 *DÒNG TIỀN NHÀ ĐẦU TƯ:*",
@@ -108,5 +138,5 @@ export function formatDatabaseEodPublicBriefText(result: DatabaseResult<DnseEodM
     `• Thị trường cần được theo dõi theo thanh khoản, độ rộng và nhóm dẫn dắt trong phiên kế tiếp.`,
     "",
     "_Powered by ADN Capital AI_",
-  ].join("\n").slice(0, 3900);
+  ].filter((line): line is string => Boolean(line)).join("\n").slice(0, 3900);
 }

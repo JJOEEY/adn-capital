@@ -88,6 +88,14 @@ export type DnseEodEnrichment = {
   };
 };
 
+export type DnseExchangeLiquidity = {
+  matchedValue: number | null;
+  matchedVolume: number | null;
+  negotiatedValue: number | null;
+  negotiatedVolume: number | null;
+  updatedAt: string | null;
+};
+
 export type DnseEodMarketData = {
   mode: "lightspeed-websocket" | "database-storage";
   channels: Array<{ name: string; symbols: string[] }>;
@@ -126,6 +134,11 @@ export type DnseEodMarketData = {
     matchedVolume: number | null;
     negotiatedValue: number | null;
     negotiatedVolume: number | null;
+  };
+  liquidityByExchange?: {
+    HOSE: DnseExchangeLiquidity | null;
+    HNX: DnseExchangeLiquidity | null;
+    UPCOM: DnseExchangeLiquidity | null;
   };
   foreignFlow?: {
     buyValue: number | null;
