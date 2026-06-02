@@ -279,7 +279,7 @@ async function handleDatabaseMorningPublish(forceRun = false): Promise<NextRespo
       });
     }
 
-    const collect = await collectDatabaseNews();
+    const collect = await collectDatabaseNews({ sources: ["vnstock_news"] });
     const brief = await getDatabaseMorningBrief({ previousTradingDate: databaseEodReadDateKey() });
     if (!brief.data || !brief.ok) {
       const duration = Date.now() - startTime;

@@ -43,7 +43,7 @@ export async function getDatabaseMorningReadiness(options?: {
       useFiinquantEnrichment: options?.useFiinquantEnrichment ?? options?.useFiinquantFallback ?? true,
     }));
   const [news, eod] = await Promise.all([
-    getDatabaseNewsHealth({ windowHours: 36 }),
+    getDatabaseNewsHealth({ sources: ["vnstock_news"], windowHours: 36 }),
     eodPromise,
   ]);
 
@@ -51,9 +51,10 @@ export async function getDatabaseMorningReadiness(options?: {
   const available = requiredIndices.filter((ticker) => hasIndex(eod.data, ticker));
   const referenceOk = requiredIndices.every((ticker) => available.includes(ticker));
   const newsOk =
-    ((news.bySource.vnstock_news ?? 0) > 0 || (news.bySource.cafef ?? 0) > 0 || (news.bySource.vietstock ?? 0) > 0) &&
+    (news.bySource.vnstock_news ?? 0) > 0 &&
     ((news.byCategory.market ?? 0) > 0 || (news.byCategory.morning ?? 0) > 0) &&
-    ((news.byCategory.macro ?? 0) > 0 || (news.byCategory.global ?? 0) > 0);
+    (news.byCategory.macro ?? 0) > 0 &&
+    (news.byCategory.global ?? 0) > 0;
   const eodOk = eod.data != null && eod.data.runtimeCoverage.latestRows != null && eod.data.runtimeCoverage.latestRows > 0;
   const blockingEodMissingFields = (eod.missingFields ?? []).filter((field) => !isOptionalMorningEodMissing(field));
   const optionalEodMissingFields = (eod.missingFields ?? []).filter(isOptionalMorningEodMissing);

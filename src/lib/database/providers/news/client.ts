@@ -304,6 +304,7 @@ export async function collectDatabaseNews(options?: {
 
 export async function getDatabaseNewsDataset(options?: {
   category?: DatabaseNewsCategory;
+  sources?: DatabaseNewsSourceName[];
   limit?: number;
   windowHours?: number;
 }): Promise<DatabaseResult<DatabaseNewsItem[]>> {
@@ -312,6 +313,7 @@ export async function getDatabaseNewsDataset(options?: {
   const since = new Date(Date.now() - windowHours * 60 * 60 * 1000);
   const where = {
     fetchedAt: { gte: since },
+    ...(options?.sources?.length ? { source: { in: options.sources } } : {}),
     ...(options?.category && options.category !== "latest" ? { category: options.category } : {}),
   };
   const rows = await prisma.databaseNewsItem.findMany({
@@ -332,12 +334,16 @@ export async function getDatabaseNewsDataset(options?: {
 }
 
 export async function getDatabaseNewsHealth(options?: {
+  sources?: DatabaseNewsSourceName[];
   windowHours?: number;
 }): Promise<DatabaseNewsHealth> {
   const windowHours = options?.windowHours ?? NEWS_WINDOW_HOURS;
   const since = new Date(Date.now() - windowHours * 60 * 60 * 1000);
   const rows = await prisma.databaseNewsItem.findMany({
-    where: { fetchedAt: { gte: since } },
+    where: {
+      fetchedAt: { gte: since },
+      ...(options?.sources?.length ? { source: { in: options.sources } } : {}),
+    },
     orderBy: [{ publishedAt: "desc" }, { fetchedAt: "desc" }],
     take: 80,
   });
@@ -347,11 +353,13 @@ export async function getDatabaseNewsHealth(options?: {
     bySource[row.source] = (bySource[row.source] ?? 0) + 1;
     byCategory[row.category] = (byCategory[row.category] ?? 0) + 1;
   }
+  const requiresVnstockOnly = options?.sources?.length === 1 && options.sources[0] === "vnstock_news";
   const missingFields = [
     !bySource.vnstock_news ? "news.vnstock_news" : null,
-    !bySource.cafef && !bySource.vietstock ? "news.cafef_or_vietstock" : null,
+    !requiresVnstockOnly && !bySource.cafef && !bySource.vietstock ? "news.cafef_or_vietstock" : null,
     !(byCategory.market || byCategory.morning) ? "news.market" : null,
-    !byCategory.macro && !byCategory.global ? "news.macro_or_global" : null,
+    !byCategory.macro ? "news.macro" : null,
+    !byCategory.global ? "news.global" : null,
   ].filter((item): item is string => Boolean(item));
 
   return {

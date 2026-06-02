@@ -3,7 +3,7 @@ import { databaseOk } from "@/lib/database/contracts";
 import { getCachedDatabaseEodMarketDataset, getDatabaseEodMarketDataset } from "@/lib/database/eod";
 import { rewriteMorningBriefWithFreeModel } from "@/lib/database/morning-freemodel";
 import { getDatabaseNewsDataset } from "@/lib/database/providers/news";
-import type { DatabaseMorningBriefPayload, DatabaseNewsItem } from "@/lib/database/providers/news";
+import type { DatabaseMorningBriefPayload, DatabaseNewsItem, DatabaseNewsSourceName } from "@/lib/database/providers/news";
 
 const GROUPS: Array<{ label: string; keywords: string[] }> = [
   { label: "Nhóm dầu khí & năng lượng", keywords: ["dau khi", "nang luong", "dien", "xang dau", "pvn", "bsr", "gas", "plx", "pow", "pvd", "pvs"] },
@@ -17,6 +17,7 @@ const GROUPS: Array<{ label: string; keywords: string[] }> = [
 const POSITIVE_WORDS = ["tang", "mua rong", "ho tro", "huong loi", "ky luc", "dot pha", "loi nhuan", "co tuc", "mo rong", "hop tac"];
 const NEGATIVE_WORDS = ["giam", "ban rong", "ap luc", "rui ro", "khoi to", "thua lo", "suy giam", "no xau", "pha san", "dieu tra"];
 const REQUIRED_REFERENCE_INDICES = new Set(["VN-INDEX", "VN30", "HNX-INDEX", "UPCOM-INDEX"]);
+const MORNING_NEWS_SOURCES: DatabaseNewsSourceName[] = ["vnstock_news"];
 
 function isOptionalMorningEodMissing(field: string) {
   return field.includes("requires-fiinquant-enrichment");
@@ -264,15 +265,16 @@ export async function getDatabaseMorningBrief(options?: {
   const startedAt = Date.now();
   const tradingDate = options?.tradingDate ?? dateKeyInVietnam();
   const previousTradingDate = options?.previousTradingDate ?? previousTradingDateKey();
+  const newsWindowHours = options?.windowHours ?? 36;
   const eodPromise = getCachedDatabaseEodMarketDataset({ tradingDate: previousTradingDate })
     .then((cached) => cached ?? getDatabaseEodMarketDataset({
       tradingDate: previousTradingDate,
       useFiinquantEnrichment: options?.useFiinquantEnrichment ?? options?.useFiinquantFallback ?? false,
     }));
   const [marketNews, macroNews, globalNews, eod] = await Promise.all([
-    getDatabaseNewsDataset({ category: "market", limit: 24, windowHours: options?.windowHours ?? 36 }),
-    getDatabaseNewsDataset({ category: "macro", limit: 12, windowHours: options?.windowHours ?? 36 }),
-    getDatabaseNewsDataset({ category: "global", limit: 12, windowHours: options?.windowHours ?? 36 }),
+    getDatabaseNewsDataset({ category: "market", sources: MORNING_NEWS_SOURCES, limit: 24, windowHours: newsWindowHours }),
+    getDatabaseNewsDataset({ category: "macro", sources: MORNING_NEWS_SOURCES, limit: 12, windowHours: newsWindowHours }),
+    getDatabaseNewsDataset({ category: "global", sources: MORNING_NEWS_SOURCES, limit: 12, windowHours: newsWindowHours }),
     eodPromise,
   ]);
 
@@ -304,7 +306,7 @@ export async function getDatabaseMorningBrief(options?: {
     payload.metadata.rewriteSource = "freemodel";
   }
 
-  const macroOrGlobalMissing = !macroNews.data?.length && !globalNews.data?.length
+  const macroOrGlobalMissing = !macroDomestic.length || !macroGlobal.length
     ? [...macroNews.missingFields, ...globalNews.missingFields]
     : [];
   const blockingEodMissingFields = eod.missingFields.filter((field) => !isOptionalMorningEodMissing(field));
@@ -315,7 +317,7 @@ export async function getDatabaseMorningBrief(options?: {
     ...payload.reference_indices
       .filter((item) => REQUIRED_REFERENCE_INDICES.has(item.name) && item.value == null)
       .map((item) => `morning.reference_index:${item.name}`),
-    ...marketNews.missingFields.map((field) => `news:${field}`),
+    ...(!vnNews.length ? marketNews.missingFields.map((field) => `news:${field}`) : []),
     ...macroOrGlobalMissing.map((field) => `news:${field}`),
     ...blockingEodMissingFields.map((field) => `eod:${field}`),
   ];
