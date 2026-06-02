@@ -152,6 +152,36 @@ function billionValue(value: unknown): number | null {
   return Math.abs(numberValue) > 1_000_000_000 ? numberValue / 1_000_000_000 : numberValue;
 }
 
+function exchangeLiquidityValue(
+  exchanges: JsonRecord | null | undefined,
+  exchange: keyof ExchangeLiquidity,
+  keys: string[],
+): number | null {
+  if (!exchanges) return null;
+  const row = exchanges[exchange];
+  if (isRecord(row)) {
+    for (const key of keys) {
+      const value = billionValue(row[key]);
+      if (value != null && value > 0) return value;
+    }
+    return null;
+  }
+  if (keys.includes("matchedValue")) {
+    const legacyValue = billionValue(row);
+    if (legacyValue != null && legacyValue > 0) return legacyValue;
+  }
+  return null;
+}
+
+function sumExchangeField(
+  exchanges: JsonRecord | null | undefined,
+  keys: string[],
+): number | null {
+  const values = (["HOSE", "HNX", "UPCOM"] as const).map((exchange) => exchangeLiquidityValue(exchanges, exchange, keys));
+  if (values.some((value) => value == null || value <= 0)) return null;
+  return (values as number[]).reduce((sum, value) => sum + value, 0);
+}
+
 function roundNumber(value: number, digits = 2): number {
   if (!Number.isFinite(value)) return 0;
   const factor = 10 ** digits;
@@ -162,6 +192,7 @@ function fromDatabaseV2EodPayload(raw: JsonRecord, reportDateKey: string): EodPa
   const data = pickRecord(raw, ["data"]) ?? raw;
   const indicesRaw = pickArray(data, ["indices"]);
   const liquidity = pickRecord(data, ["liquidity"]) ?? {};
+  const liquidityByExchangeRaw = pickRecord(data, ["liquidityByExchange", "liquidity_by_exchange"]);
   const breadthRaw = pickRecord(data, ["breadth"]) ?? {};
   const foreignFlow = pickRecord(data, ["foreignFlow", "foreign_flow"]) ?? {};
   const brief = pickRecord(data, ["brief"]) ?? {};
@@ -185,8 +216,16 @@ function fromDatabaseV2EodPayload(raw: JsonRecord, reportDateKey: string): EodPa
     .filter((item): item is { name: string; value: number; change_pts: number; change_pct: number } => item !== null);
 
   const vnindex = indices.find((item) => item.name === "VN-INDEX");
-  const matchedLiquidity = billionValue(liquidity.matchedValue ?? liquidity.matched_value);
-  const negotiatedLiquidity = billionValue(liquidity.negotiatedValue ?? liquidity.negotiated_value);
+  const exchangeLiquidity = normalizeExchangeLiquidity({
+    HOSE: exchangeLiquidityValue(liquidityByExchangeRaw, "HOSE", ["matchedValue", "matched_value", "value"]),
+    HNX: exchangeLiquidityValue(liquidityByExchangeRaw, "HNX", ["matchedValue", "matched_value", "value"]),
+    UPCOM: exchangeLiquidityValue(liquidityByExchangeRaw, "UPCOM", ["matchedValue", "matched_value", "value"]),
+  });
+  const matchedLiquidity =
+    sumExchangeLiquidity(exchangeLiquidity) ?? billionValue(liquidity.matchedValue ?? liquidity.matched_value);
+  const negotiatedLiquidity =
+    sumExchangeField(liquidityByExchangeRaw, ["negotiatedValue", "negotiated_value"]) ??
+    billionValue(liquidity.negotiatedValue ?? liquidity.negotiated_value);
   const totalLiquidity =
     matchedLiquidity != null && negotiatedLiquidity != null
       ? matchedLiquidity + negotiatedLiquidity
@@ -227,7 +266,6 @@ function fromDatabaseV2EodPayload(raw: JsonRecord, reportDateKey: string): EodPa
   const foreignBuy = billionValue(foreignFlow.buyValue ?? foreignFlow.buy_value);
   const foreignSell = billionValue(foreignFlow.sellValue ?? foreignFlow.sell_value);
 
-  const exchangeLiquidity = normalizeExchangeLiquidity({ HOSE: null, HNX: null, UPCOM: null });
   const sessionSummary =
     sanitizeNarrativeLine(String(brief.sessionSummary ?? "")) ||
     (vnindex
