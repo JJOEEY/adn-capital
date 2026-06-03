@@ -1,0 +1,12 @@
+{
+  "source": "https://github.com/tuanminhhole/openclaw-setup.git",
+  "vendorPath": "vendor/openclaw-setup",
+  "observedCommit": "7e70dc034414b29f75045b03c5a8a331d0def283",
+  "channels": ["telegram", "zalo-bot", "zalo-personal"],
+  "plugins": [
+    "@openclaw/zalouser",
+    "openclaw-zalo-mod",
+    "openclaw-facebook-crawler",
+    "openclaw-n8n-facebook-poster"
+  ]
+}
