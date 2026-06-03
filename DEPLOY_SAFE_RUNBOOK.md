@@ -15,6 +15,7 @@ Architecture baseline: [docs/architecture/ADN_MASTER_ARCHITECTURE.md](docs/archi
    - `close_brief_15h`
    - `eod_full_19h`
 7. Legacy cron aliases are compatibility only. Do not use aliases as source-of-truth in new deploy scripts/config.
+8. Before deploy, read and log the current commit and the target commit. After deploy, verify the deployed commit still matches the target commit.
 
 ## Canonical Operator Flow
 ```bash
@@ -27,6 +28,16 @@ Enable migrations only when precheck confirms pending production-safe migrations
 ```bash
 ssh root@14.225.204.117 "cd /home/adncapital/app/adn-capital && RUN_MIGRATIONS=1 bash deploy/safe-web-deploy.sh"
 ```
+
+## Commit Guard
+`deploy/safe-web-deploy.sh` enforces a commit guard:
+- reads current commit before deploy and stores it in `.deploy_prev_ref`;
+- fetches target branch and stores target commit in `.deploy_target_ref`;
+- refuses to deploy if tracked files are dirty, unless `ALLOW_DIRTY_DEPLOY=1` is explicitly set for an approved emergency;
+- verifies the checked-out commit matches the fetched target commit before build;
+- verifies the deployed commit still matches the target commit after smoke and stores it in `.deploy_deployed_ref`.
+
+If the deployed commit differs from the target commit, treat the deploy as failed and rollback before making more changes.
 
 ## Manual Commands (when needed)
 Precheck only:
@@ -72,11 +83,16 @@ DIRECT_DATABASE_URL=postgresql://adnuser:***@db:5432/adncapital?schema=public
 - Deploy script captures rollback metadata before pull/build:
   - `.deploy_prev_ref`
   - `.deploy_prev_image` (best-effort)
+- Deploy script captures and verifies commit metadata:
+  - `.deploy_target_ref`
+  - `.deploy_deployed_ref`
 
 ## Abort Conditions
 - Predeploy reports missing env contract/service mismatch.
 - Build fails.
 - Postdeploy smoke fails.
+- Current tracked files are dirty before deploy and `ALLOW_DIRTY_DEPLOY=1` was not explicitly approved.
+- Checked-out or deployed commit differs from the fetched target commit.
 - User count check is 0.
 - Any endpoint required by smoke returns 5xx.
 
