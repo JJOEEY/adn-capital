@@ -47,8 +47,7 @@ export async function getDatabaseMorningReadiness(options?: {
   const available = requiredIndices.filter((ticker) => hasIndex(eod.data, ticker));
   const referenceOk = requiredIndices.every((ticker) => available.includes(ticker));
   const newsOk =
-    (news.bySource.cafef ?? 0) > 0 &&
-    (news.bySource.vietstock ?? 0) > 0 &&
+    ((news.bySource.vnstock_news ?? 0) > 0 || (news.bySource.cafef ?? 0) > 0 || (news.bySource.vietstock ?? 0) > 0) &&
     ((news.byCategory.market ?? 0) > 0 || (news.byCategory.morning ?? 0) > 0) &&
     ((news.byCategory.macro ?? 0) > 0 || (news.byCategory.global ?? 0) > 0);
   const eodOk = eod.data != null && eod.data.runtimeCoverage.latestRows != null && eod.data.runtimeCoverage.latestRows > 0;
@@ -76,6 +75,7 @@ export async function getDatabaseMorningReadiness(options?: {
         ok: newsOk,
         cafefCount: news.bySource.cafef ?? 0,
         vietstockCount: news.bySource.vietstock ?? 0,
+        vnstockNewsCount: news.bySource.vnstock_news ?? 0,
         marketCount: news.byCategory.market ?? 0,
         macroCount: (news.byCategory.macro ?? 0) + (news.byCategory.global ?? 0),
         latest: news.latest,

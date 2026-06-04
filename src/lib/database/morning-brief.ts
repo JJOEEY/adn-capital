@@ -1,6 +1,7 @@
 import type { DatabaseResult } from "@/lib/database/contracts";
 import { databaseOk } from "@/lib/database/contracts";
 import { getCachedDatabaseEodMarketDataset, getDatabaseEodMarketDataset } from "@/lib/database/eod";
+import { rewriteMorningBriefWithFreeModel } from "@/lib/database/morning-freemodel";
 import { getDatabaseNewsDataset } from "@/lib/database/providers/news";
 import type { DatabaseMorningBriefPayload, DatabaseNewsItem } from "@/lib/database/providers/news";
 
@@ -49,8 +50,20 @@ function normalizeForCheck(text: string) {
   return stripDiacritics(text).toLowerCase().replace(/\s+/g, " ").trim();
 }
 
-function cleanLine(text: string) {
+function decodeHtmlEntities(text: string) {
   return text
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => String.fromCodePoint(Number.parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec: string) => String.fromCodePoint(Number.parseInt(dec, 10)))
+    .replace(/&quot;/g, "\"")
+    .replace(/&#0*39;|&apos;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&nbsp;/g, " ");
+}
+
+function cleanLine(text: string) {
+  return decodeHtmlEntities(text)
     .replace(/<[^>]+>/g, " ")
     .replace(/[*_`]/g, "")
     .replace(/^\s*(?:[-•]+|\d+[.)])\s*/u, "")
@@ -70,6 +83,7 @@ function dedupe(items: string[]) {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const item of items.map(cleanLine).filter(Boolean)) {
+    if (isNoiseLine(item)) continue;
     const key = normalizeForCheck(item);
     if (seen.has(key)) continue;
     seen.add(key);
@@ -82,11 +96,48 @@ function itemText(item: DatabaseNewsItem) {
   return cleanLine(item.summary || item.title);
 }
 
-function joinTitles(items: DatabaseNewsItem[], maxItems = 3) {
+function isNoiseLine(text: string) {
+  const normalized = normalizeForCheck(text);
+  return (
+    /^\d+\s*(phut|gio|ngay)\s*truoc$/.test(normalized) ||
+    /^hom\s+(nay|qua)$/.test(normalized) ||
+    /^cap\s+nhat$/.test(normalized)
+  );
+}
+
+function meaningfulItems(items: DatabaseNewsItem[], maxItems = 4) {
   return dedupe(items.map(itemText))
     .slice(0, maxItems)
-    .map((item) => compact(item, 120))
-    .join("; ");
+    .map((item) => compact(item, 130));
+}
+
+function extractTickers(items: DatabaseNewsItem[]) {
+  const tickers = new Set<string>();
+  for (const item of items) {
+    const text = `${item.title} ${item.summary ?? ""}`;
+    for (const match of text.match(/\b[A-Z]{2,5}\b/g) ?? []) {
+      if (!["USD", "GDP", "ETF", "IPO", "CEO", "CFO", "ESG"].includes(match)) tickers.add(match);
+    }
+  }
+  return Array.from(tickers).slice(0, 6);
+}
+
+function summarizeNewsItems(items: DatabaseNewsItem[], maxItems = 3) {
+  return meaningfulItems(items, maxItems).join("; ");
+}
+
+function summarizeGroup(label: string, items: DatabaseNewsItem[]) {
+  const tickers = extractTickers(items);
+  const positiveCount = items.filter((item) => classifySentiment(item) === "positive").length;
+  const negativeCount = items.filter((item) => classifySentiment(item) === "negative").length;
+  const topic = summarizeNewsItems(items, 2);
+  const tickerText = tickers.length ? ` Các mã nổi bật gồm ${tickers.join(", ")}.` : "";
+  const tone = positiveCount > negativeCount
+    ? "Thông tin nghiêng về hỗ trợ kỳ vọng, nhưng dòng tiền vẫn cần xác nhận bằng thanh khoản."
+    : negativeCount > positiveCount
+      ? "Tin tức cho thấy áp lực ngắn hạn tăng lên, cần ưu tiên quản trị rủi ro và tránh mua đuổi."
+      : "Các thông tin đang tạo sự phân hóa, phù hợp để theo dõi nhóm có câu chuyện riêng thay vì mua lan tỏa.";
+  return compact(`${label}: ${topic}.${tickerText} ${tone}`, 360);
 }
 
 function classifySentiment(item: DatabaseNewsItem): "positive" | "negative" | "neutral" {
@@ -107,13 +158,13 @@ function buildVietnamHighlights(items: DatabaseNewsItem[]) {
     });
     if (!matched.length) continue;
     matched.forEach((item) => used.add(item.hash));
-    output.push(compact(`${group.label}: ${joinTitles(matched)}`));
+    output.push(summarizeGroup(group.label, matched));
     if (output.length >= 5) break;
   }
 
   const remaining = items.filter((item) => !used.has(item.hash));
   if (remaining.length && output.length < 5) {
-    output.push(compact(`Các mã đáng chú ý khác: ${joinTitles(remaining, 4)}`));
+    output.push(summarizeGroup("Các mã đáng chú ý khác", remaining));
   }
 
   return output;
@@ -121,8 +172,12 @@ function buildVietnamHighlights(items: DatabaseNewsItem[]) {
 
 function buildMacroHighlights(domestic: DatabaseNewsItem[], global: DatabaseNewsItem[]) {
   const output: string[] = [];
-  if (domestic.length) output.push(compact(`Vĩ mô trong nước: ${joinTitles(domestic, 3)}`));
-  if (global.length) output.push(compact(`Quốc tế: ${joinTitles(global, 3)}`));
+  if (domestic.length) {
+    output.push(compact(`Vĩ mô trong nước: ${summarizeNewsItems(domestic, 3)}. Các thông tin này ảnh hưởng trực tiếp tới kỳ vọng lãi suất, tín dụng, đầu tư công và sức cầu trong nước.`, 360));
+  }
+  if (global.length) {
+    output.push(compact(`Quốc tế: ${summarizeNewsItems(global, 3)}. Nhà đầu tư nên theo dõi tác động tới tỷ giá, giá hàng hóa và tâm lý dòng tiền ngoại.`, 360));
+  }
   return output;
 }
 
@@ -174,8 +229,8 @@ function buildRiskOpportunity(params: {
 
   const negative = params.news.find((item) => classifySentiment(item) === "negative");
   const positive = params.news.find((item) => classifySentiment(item) === "positive");
-  if (negative) output.push(compact(`Rủi ro: ${itemText(negative)}`));
-  if (positive) output.push(compact(`Cơ hội: ${itemText(positive)}`));
+  if (negative) output.push(compact(`Rủi ro: ${itemText(negative)}. Nhóm liên quan cần được quan sát kỹ hơn vì tin xấu có thể làm dòng tiền thận trọng.`));
+  if (positive) output.push(compact(`Cơ hội: ${itemText(positive)}. Đây là nhóm có thể hút sự chú ý nếu đi kèm thanh khoản cải thiện.`));
 
   const marketTone =
     typeof vnindex?.changePct === "number"
@@ -183,8 +238,8 @@ function buildRiskOpportunity(params: {
         ? "nghiêng về thận trọng"
         : "giữ được sắc thái tích cực"
       : "cần thêm xác nhận từ dữ liệu thị trường";
-  output.push(compact(
-    `Nhận định chung: Thị trường ${marketTone}, dòng tiền có xu hướng phân hóa theo từng nhóm ngành. Nhà đầu tư nên ưu tiên quan sát dòng tiền và thông tin hỗ trợ cụ thể của từng mã.`,
+  output.unshift(compact(
+    `Nhận định chung: Thị trường ${marketTone}, dòng tiền có xu hướng phân hóa theo từng nhóm ngành. Ưu tiên theo dõi các cổ phiếu có câu chuyện rõ, thanh khoản xác nhận và tránh mua đuổi khi tin tức chỉ mới ở mức kỳ vọng.`,
     300,
   ));
 
@@ -229,8 +284,17 @@ export async function getDatabaseMorningBrief(options?: {
       generatedAt: new Date().toISOString(),
       newsSources: Array.from(new Set(allNews.map((item) => item.source))),
       format: "database-v2-morning-brief",
+      rewriteSource: "deterministic",
     },
   };
+
+  const rewritten = await rewriteMorningBriefWithFreeModel({ payload, news: allNews });
+  if (rewritten) {
+    payload.vn_market = rewritten.vn_market;
+    payload.macro = rewritten.macro;
+    payload.risk_opportunity = rewritten.risk_opportunity;
+    payload.metadata.rewriteSource = "freemodel";
+  }
 
   const macroOrGlobalMissing = !macroNews.data?.length && !globalNews.data?.length
     ? [...macroNews.missingFields, ...globalNews.missingFields]

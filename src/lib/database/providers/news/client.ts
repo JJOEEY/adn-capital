@@ -4,6 +4,7 @@ import type { DatabaseDataset, DatabaseResult } from "@/lib/database/contracts";
 import { databaseOk } from "@/lib/database/contracts";
 import { fetchAllCafefNews } from "@/lib/cafefScraper";
 import { prisma } from "@/lib/prisma";
+import { fetchVnstockMorningNews } from "@/lib/vnstockClient";
 import type {
   DatabaseNewsCategory,
   DatabaseNewsCollectResult,
@@ -27,12 +28,14 @@ const VIETSTOCK_MARKET_URL = "https://vietstock.vn/chung-khoan.htm";
 const NEWS_WINDOW_HOURS = 36;
 
 function normalizeText(value: unknown) {
-  return String(value ?? "").replace(/\s+/g, " ").trim();
+  return decodeXml(String(value ?? "")).replace(/\s+/g, " ").trim();
 }
 
 function decodeXml(text: string) {
   return text
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => String.fromCodePoint(Number.parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec: string) => String.fromCodePoint(Number.parseInt(dec, 10)))
     .replace(/&quot;/g, "\"")
     .replace(/&#0*39;|&apos;/g, "'")
     .replace(/&amp;/g, "&")
@@ -69,10 +72,26 @@ function toPrismaJson(value: Record<string, unknown>): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
 
+function normalizeForNoiseCheck(text: string) {
+  return normalizeText(text)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function isNoiseTitle(title: string) {
+  const normalized = normalizeForNoiseCheck(title);
+  return (
+    /^\d+\s*(phut|gio|ngay)\s*truoc$/.test(normalized) ||
+    /^hom\s+(nay|qua)$/.test(normalized) ||
+    /^cap\s+nhat$/.test(normalized)
+  );
+}
+
 function normalizeRawItem(item: RawNewsItem): RawNewsItem | null {
   const title = normalizeText(item.title);
   const url = normalizeText(item.url);
-  if (!title || title.length < 12 || !url) return null;
+  if (!title || title.length < 12 || !url || isNoiseTitle(title)) return null;
   return {
     ...item,
     title,
@@ -192,10 +211,29 @@ async function fetchVietstockItems(): Promise<RawNewsItem[]> {
   return items;
 }
 
+async function fetchVnstockNewsItems(): Promise<RawNewsItem[]> {
+  const response = await fetchVnstockMorningNews({ limit: 42, timeout: 60_000 });
+  if (!response?.articles?.length) return [];
+  return response.articles.map((article) => ({
+    source: "vnstock_news",
+    category: article.category,
+    title: article.title,
+    url: article.url,
+    summary: article.summary,
+    publishedAt: article.publishedAt,
+    fetchedAt: article.fetchedAt,
+    rawPayload: {
+      ...(article.rawPayload ?? {}),
+      providerSite: article.providerSite,
+      source: article.source,
+    },
+  }));
+}
+
 export async function collectDatabaseNews(options?: {
   sources?: DatabaseNewsSourceName[];
 }): Promise<DatabaseNewsCollectResult> {
-  const sources: DatabaseNewsSourceName[] = options?.sources?.length ? options.sources : ["cafef", "vietstock"];
+  const sources: DatabaseNewsSourceName[] = options?.sources?.length ? options.sources : ["vnstock_news", "cafef", "vietstock"];
   const errors: string[] = [];
   const rawItems: RawNewsItem[] = [];
 
@@ -211,6 +249,13 @@ export async function collectDatabaseNews(options?: {
       rawItems.push(...await fetchVietstockItems());
     } catch (error) {
       errors.push(error instanceof Error ? `vietstock:${error.message}` : `vietstock:${String(error)}`);
+    }
+  }
+  if (sources.includes("vnstock_news")) {
+    try {
+      rawItems.push(...await fetchVnstockNewsItems());
+    } catch (error) {
+      errors.push(error instanceof Error ? `vnstock_news:${error.message}` : `vnstock_news:${String(error)}`);
     }
   }
 
@@ -256,6 +301,7 @@ export async function collectDatabaseNews(options?: {
     byCategory[item.category] = (byCategory[item.category] ?? 0) + 1;
   }
   const missingFields = [
+    sources.includes("vnstock_news") && !bySource.vnstock_news ? "news.vnstock_news" : null,
     sources.includes("cafef") && !bySource.cafef ? "news.cafef" : null,
     sources.includes("vietstock") && !bySource.vietstock ? "news.vietstock" : null,
   ].filter((item): item is string => Boolean(item));
@@ -320,8 +366,8 @@ export async function getDatabaseNewsHealth(options?: {
     byCategory[row.category] = (byCategory[row.category] ?? 0) + 1;
   }
   const missingFields = [
-    !bySource.cafef ? "news.cafef" : null,
-    !bySource.vietstock ? "news.vietstock" : null,
+    !bySource.vnstock_news ? "news.vnstock_news" : null,
+    !bySource.cafef && !bySource.vietstock ? "news.cafef_or_vietstock" : null,
     !(byCategory.market || byCategory.morning) ? "news.market" : null,
     !byCategory.macro && !byCategory.global ? "news.macro_or_global" : null,
   ].filter((item): item is string => Boolean(item));
