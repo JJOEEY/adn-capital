@@ -86,6 +86,6 @@ export type DatabaseMorningBriefPayload = {
     generatedAt: string;
     newsSources: DatabaseNewsSourceName[];
     format: "database-v2-morning-brief";
-    rewriteSource?: "deterministic" | "freemodel";
+    rewriteSource?: "deterministic" | "freemodel" | "openrouter";
   };
 };

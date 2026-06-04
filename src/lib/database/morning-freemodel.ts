@@ -9,10 +9,13 @@ type MorningRewriteOutput = {
   vn_market: string[];
   macro: string[];
   risk_opportunity: string[];
+  provider: "freemodel" | "openrouter";
 };
 
 const DEFAULT_FREEMODEL_BASE_URL = "https://api.freemodel.dev/v1";
 const DEFAULT_FREEMODEL_MODEL = "gpt-5.4";
+const DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+const DEFAULT_OPENROUTER_MODEL = "openai/gpt-5.4";
 const DEFAULT_TIMEOUT_MS = 45_000;
 
 function decodeHtmlEntities(text: string) {
@@ -117,7 +120,7 @@ function buildPrompt(input: MorningRewriteInput) {
   ].join("\n");
 }
 
-export async function rewriteMorningBriefWithFreeModel(input: MorningRewriteInput): Promise<MorningRewriteOutput | null> {
+async function rewriteMorningBriefWithSingleFreeModel(input: MorningRewriteInput): Promise<MorningRewriteOutput | null> {
   const apiKey = process.env.FREEMODEL_API_KEY?.trim();
   if (!apiKey) return null;
 
@@ -159,6 +162,7 @@ export async function rewriteMorningBriefWithFreeModel(input: MorningRewriteInpu
       vn_market: sanitizeArray(parsed.vn_market, 6),
       macro: sanitizeArray(parsed.macro, 5),
       risk_opportunity: sanitizeArray(parsed.risk_opportunity, 5),
+      provider: "freemodel" as const,
     };
     if (!output.vn_market.length || !output.macro.length || !output.risk_opportunity.length) {
       throw new Error("freemodel_incomplete_output");
@@ -168,4 +172,69 @@ export async function rewriteMorningBriefWithFreeModel(input: MorningRewriteInpu
     console.warn("[database:morning] FreeModel rewrite skipped", error instanceof Error ? error.message : String(error));
     return null;
   }
+}
+
+function parseTimeoutMs(value: string | undefined) {
+  const parsedTimeoutMs = Number(value || DEFAULT_TIMEOUT_MS);
+  return Number.isFinite(parsedTimeoutMs) ? Math.max(parsedTimeoutMs, DEFAULT_TIMEOUT_MS) : DEFAULT_TIMEOUT_MS;
+}
+
+async function rewriteMorningBriefWithOpenRouter(input: MorningRewriteInput): Promise<MorningRewriteOutput | null> {
+  const apiKey = (process.env.MORNING_BRIEF_OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY)?.trim();
+  if (!apiKey) return null;
+
+  const baseUrl = (process.env.OPENROUTER_BASE_URL || DEFAULT_OPENROUTER_BASE_URL).replace(/\/+$/, "");
+  const model = process.env.MORNING_BRIEF_OPENROUTER_MODEL || process.env.OPENROUTER_MODEL || DEFAULT_OPENROUTER_MODEL;
+  const timeoutMs = parseTimeoutMs(process.env.MORNING_BRIEF_OPENROUTER_TIMEOUT_MS);
+
+  try {
+    const res = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": process.env.OPENROUTER_SITE_URL || "https://adncapital.com.vn",
+        "X-Title": process.env.OPENROUTER_APP_NAME || "ADN Capital Morning Brief",
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0.25,
+        max_tokens: 1500,
+        messages: [
+          {
+            role: "system",
+            content: "Báº¡n viáº¿t tiáº¿ng Viá»‡t rÃµ rÃ ng, thá»±c dá»¥ng, dÃ nh cho nhÃ  Ä‘áº§u tÆ° cÃ¡ nhÃ¢n. LuÃ´n tráº£ JSON há»£p lá»‡.",
+          },
+          { role: "user", content: buildPrompt(input) },
+        ],
+      }),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+
+    if (!res.ok) throw new Error(`openrouter_http_${res.status}`);
+    const json = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
+    const content = json.choices?.[0]?.message?.content ?? "";
+    const parsedText = extractJsonObject(content);
+    if (!parsedText) throw new Error("openrouter_invalid_json");
+    const parsed = JSON.parse(parsedText) as Partial<MorningRewriteOutput>;
+
+    const output = {
+      vn_market: sanitizeArray(parsed.vn_market, 6),
+      macro: sanitizeArray(parsed.macro, 5),
+      risk_opportunity: sanitizeArray(parsed.risk_opportunity, 5),
+      provider: "openrouter" as const,
+    };
+    if (!output.vn_market.length || !output.macro.length || !output.risk_opportunity.length) {
+      throw new Error("openrouter_incomplete_output");
+    }
+    return output;
+  } catch (error) {
+    console.warn("[database:morning] OpenRouter rewrite skipped", error instanceof Error ? error.message : String(error));
+    return null;
+  }
+}
+
+export async function rewriteMorningBriefWithFreeModel(input: MorningRewriteInput): Promise<MorningRewriteOutput | null> {
+  return await rewriteMorningBriefWithSingleFreeModel(input)
+    ?? await rewriteMorningBriefWithOpenRouter(input);
 }
