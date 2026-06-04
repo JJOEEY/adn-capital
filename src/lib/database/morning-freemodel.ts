@@ -16,6 +16,10 @@ const DEFAULT_FREEMODEL_BASE_URL = "https://api.freemodel.dev/v1";
 const DEFAULT_FREEMODEL_MODEL = "gpt-5.4";
 const DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 const DEFAULT_OPENROUTER_MODEL = "openai/gpt-5.4";
+const DEFAULT_OPENROUTER_FALLBACK_MODELS = [
+  "~anthropic/claude-sonnet-latest",
+  "openai/gpt-5.5",
+];
 const DEFAULT_TIMEOUT_MS = 45_000;
 
 function decodeHtmlEntities(text: string) {
@@ -179,15 +183,25 @@ function parseTimeoutMs(value: string | undefined) {
   return Number.isFinite(parsedTimeoutMs) ? Math.max(parsedTimeoutMs, DEFAULT_TIMEOUT_MS) : DEFAULT_TIMEOUT_MS;
 }
 
+function parseModelList(value: string | undefined) {
+  return String(value || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 async function rewriteMorningBriefWithOpenRouter(input: MorningRewriteInput): Promise<MorningRewriteOutput | null> {
   const apiKey = (process.env.MORNING_BRIEF_OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY)?.trim();
   if (!apiKey) return null;
 
   const baseUrl = (process.env.OPENROUTER_BASE_URL || DEFAULT_OPENROUTER_BASE_URL).replace(/\/+$/, "");
-  const model = process.env.MORNING_BRIEF_OPENROUTER_MODEL || process.env.OPENROUTER_MODEL || DEFAULT_OPENROUTER_MODEL;
+  const primaryModel = process.env.MORNING_BRIEF_OPENROUTER_MODEL || process.env.OPENROUTER_MODEL || DEFAULT_OPENROUTER_MODEL;
+  const fallbackModels = parseModelList(process.env.MORNING_BRIEF_OPENROUTER_FALLBACK_MODELS);
+  const models = Array.from(new Set([primaryModel, ...(fallbackModels.length ? fallbackModels : DEFAULT_OPENROUTER_FALLBACK_MODELS)]));
   const timeoutMs = parseTimeoutMs(process.env.MORNING_BRIEF_OPENROUTER_TIMEOUT_MS);
 
-  try {
+  for (const model of models) {
+    try {
     const res = await fetch(`${baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
@@ -228,10 +242,11 @@ async function rewriteMorningBriefWithOpenRouter(input: MorningRewriteInput): Pr
       throw new Error("openrouter_incomplete_output");
     }
     return output;
-  } catch (error) {
-    console.warn("[database:morning] OpenRouter rewrite skipped", error instanceof Error ? error.message : String(error));
-    return null;
+    } catch (error) {
+      console.warn("[database:morning] OpenRouter rewrite model skipped", model, error instanceof Error ? error.message : String(error));
+    }
   }
+  return null;
 }
 
 export async function rewriteMorningBriefWithFreeModel(input: MorningRewriteInput): Promise<MorningRewriteOutput | null> {
