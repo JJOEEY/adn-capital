@@ -15,8 +15,39 @@ const DEFAULT_FREEMODEL_BASE_URL = "https://api.freemodel.dev/v1";
 const DEFAULT_FREEMODEL_MODEL = "gpt-5.4";
 const DEFAULT_TIMEOUT_MS = 18_000;
 
+function decodeHtmlEntities(text: string) {
+  const named: Record<string, string> = {
+    amp: "&",
+    apos: "'",
+    gt: ">",
+    lt: "<",
+    nbsp: " ",
+    quot: "\"",
+  };
+  return text
+    .replace(/&#(\d+);/g, (match, code) => {
+      const value = Number(code);
+      if (!Number.isFinite(value)) return match;
+      try {
+        return String.fromCodePoint(value);
+      } catch {
+        return match;
+      }
+    })
+    .replace(/&#x([0-9a-f]+);/gi, (match, code) => {
+      const value = Number.parseInt(code, 16);
+      if (!Number.isFinite(value)) return match;
+      try {
+        return String.fromCodePoint(value);
+      } catch {
+        return match;
+      }
+    })
+    .replace(/&([a-z]+);/gi, (match, name) => named[name.toLowerCase()] ?? match);
+}
+
 function cleanOutputLine(value: unknown) {
-  return String(value ?? "")
+  return decodeHtmlEntities(String(value ?? ""))
     .replace(/<[^>]+>/g, " ")
     .replace(/[*_`]/g, "")
     .replace(/^\s*(?:[-•]+|\d+[.)])\s*/u, "")
@@ -61,14 +92,15 @@ function buildPrompt(input: MorningRewriteInput) {
 
   return [
     "Bạn là biên tập viên bản tin sáng thị trường chứng khoán Việt Nam cho ADN Capital.",
-    "Nhiệm vụ: viết lại các tin đã crawl thành các gạch đầu dòng có phân tích, không chỉ chép tiêu đề.",
+    "Nhiệm vụ: đọc các tin đã crawl, gom nhóm và viết lại thành bản tin phân tích buổi sáng. Không chép tiêu đề, không liệt kê thời gian đăng tin.",
     "Chỉ dùng dữ liệu được cung cấp. Không bịa số liệu, không khuyến nghị mua bán chắc chắn.",
     "Không nhắc tên nguồn dữ liệu, API, backend, provider, cache hoặc lỗi kỹ thuật.",
+    "Văn phong: ngắn gọn, rõ ý, giống bản tin thị trường cho nhà đầu tư cá nhân. Mỗi ý phải nói được 'tin này ảnh hưởng gì tới thị trường/nhóm ngành'.",
     "Trả về JSON thuần, không markdown, không giải thích ngoài JSON.",
     'Schema bắt buộc: {"vn_market":["..."],"macro":["..."],"risk_opportunity":["..."]}',
     "Yêu cầu nội dung:",
-    "- vn_market: 4-6 ý, gom theo nhóm ngành/mã nổi bật, mỗi ý nói rõ tác động tới thị trường.",
-    "- macro: 3-5 ý, gồm trong nước và quốc tế nếu có dữ liệu.",
+    "- vn_market: 4-6 ý, gom theo nhóm ngành/mã nổi bật, ví dụ Năng lượng & Điện, Doanh nghiệp biến động lớn, Dòng tiền/Huy động vốn, Cổ tức/KQKD.",
+    "- macro: 3-5 ý. Tin category macro dùng cho vĩ mô trong nước; tin category global dùng cho vĩ mô quốc tế.",
     "- risk_opportunity: 3-5 ý, phân tích rõ rủi ro/cơ hội và nhận định chung cho phiên tới.",
     "",
     "Dữ liệu hiện có:",

@@ -6,12 +6,12 @@ import { getDatabaseNewsDataset } from "@/lib/database/providers/news";
 import type { DatabaseMorningBriefPayload, DatabaseNewsItem, DatabaseNewsSourceName } from "@/lib/database/providers/news";
 
 const GROUPS: Array<{ label: string; keywords: string[] }> = [
-  { label: "Nhóm dầu khí & năng lượng", keywords: ["dau khi", "nang luong", "dien", "xang dau", "pvn", "bsr", "gas", "plx", "pow", "pvd", "pvs"] },
-  { label: "Nhóm bất động sản & xây dựng", keywords: ["bat dong san", "xay dung", "ha tang", "du an", "can gio", "long thanh", "vic", "vhm", "pdr", "dxg", "kdh", "acv"] },
-  { label: "Nhóm ngân hàng", keywords: ["ngan hang", "tin dung", "lai suat", "trai phieu", "vpb", "ctg", "bid", "tcb", "mbb", "stb", "hdb", "vcb"] },
-  { label: "Nhóm chứng khoán", keywords: ["chung khoan", "moi gioi", "tu doanh", "ssi", "vnd", "vci", "hcm", "shs", "bsi"] },
-  { label: "Nhóm thép & vật liệu", keywords: ["thep", "vat lieu", "xi mang", "hpg", "hsg", "nkg"] },
-  { label: "Nhóm bán lẻ & tiêu dùng", keywords: ["ban le", "tieu dung", "mw g", "mwg", "pnj", "fpt retail", "dg w", "dgw"] },
+  { label: "Nhóm dầu khí & năng lượng", keywords: ["dau khi", "nang luong", "dien", "xang dau", "pvn", "bsr", "gas", "plx", "pow", "nt2", "tmp", "pvd", "pvs"] },
+  { label: "Bất động sản & hạ tầng", keywords: ["bat dong san", "xay dung", "ha tang", "du an", "do thi", "long thanh", "vic", "vhm", "pdr", "dxg", "kdh", "acv"] },
+  { label: "Ngân hàng & dòng tiền", keywords: ["ngan hang", "tin dung", "lai suat", "trai phieu", "huy dong von", "vpb", "ctg", "bid", "tcb", "mbb", "stb", "hdb", "vcb"] },
+  { label: "Chứng khoán & huy động vốn", keywords: ["chung khoan", "moi gioi", "tu doanh", "ipo", "tang von", "ssi", "vnd", "vci", "hcm", "shs", "bsi"] },
+  { label: "Cổ tức & kết quả kinh doanh", keywords: ["co tuc", "ket qua kinh doanh", "loi nhuan", "doanh thu", "san luong", "eps", "dtd", "fmc", "hlb"] },
+  { label: "Bán lẻ & tiêu dùng", keywords: ["ban le", "tieu dung", "mwg", "pnj", "fpt retail", "dgw"] },
 ];
 
 const POSITIVE_WORDS = ["tang", "mua rong", "ho tro", "huong loi", "ky luc", "dot pha", "loi nhuan", "co tuc", "mo rong", "hop tac"];
@@ -133,18 +133,46 @@ function itemText(item: DatabaseNewsItem) {
   return "";
 }
 
-function joinTitles(items: DatabaseNewsItem[], maxItems = 3) {
-  return dedupe(items.map(itemText))
-    .slice(0, maxItems)
-    .map((item) => compact(item, 120))
-    .join("; ");
-}
-
 function classifySentiment(item: DatabaseNewsItem): "positive" | "negative" | "neutral" {
   const n = normalizeForCheck(`${item.title} ${item.summary ?? ""}`);
   if (NEGATIVE_WORDS.some((word) => n.includes(word))) return "negative";
   if (POSITIVE_WORDS.some((word) => n.includes(word))) return "positive";
   return "neutral";
+}
+
+function extractTickers(items: DatabaseNewsItem[]) {
+  const ignored = new Set(["ETF", "GDP", "USD", "VND", "CEO", "IPO", "FED", "SBV", "FTA", "WTI", "PMI"]);
+  const tickers: string[] = [];
+  for (const item of items) {
+    const text = `${item.title} ${item.summary ?? ""}`;
+    for (const ticker of text.match(/\b[A-Z]{2,5}\b/g) ?? []) {
+      if (ignored.has(ticker) || tickers.includes(ticker)) continue;
+      tickers.push(ticker);
+      if (tickers.length >= 6) return tickers;
+    }
+  }
+  return tickers;
+}
+
+function summarizeNewsItems(items: DatabaseNewsItem[], maxItems = 3) {
+  const texts = dedupe(items.map(itemText)).slice(0, maxItems).map((item) => compact(item, 135));
+  if (!texts.length) return "";
+  if (texts.length === 1) return texts[0];
+  if (texts.length === 2) return `${texts[0]}; đồng thời ${texts[1].charAt(0).toLowerCase()}${texts[1].slice(1)}`;
+  return `${texts[0]}; ${texts[1]}; ngoài ra ${texts[2].charAt(0).toLowerCase()}${texts[2].slice(1)}`;
+}
+
+function summarizeGroup(items: DatabaseNewsItem[]) {
+  const tickers = extractTickers(items);
+  const positive = items.filter((item) => classifySentiment(item) === "positive").length;
+  const negative = items.filter((item) => classifySentiment(item) === "negative").length;
+  const tone = positive > negative
+    ? "thiên về hỗ trợ tâm lý ngắn hạn"
+    : negative > positive
+      ? "cần theo dõi rủi ro và phản ứng dòng tiền"
+      : "cho thấy thị trường đang phân hóa theo từng câu chuyện riêng";
+  const tickerText = tickers.length ? ` Các mã đáng chú ý: ${tickers.join(", ")}.` : "";
+  return compact(`${summarizeNewsItems(items)}. Nhóm này ${tone}.${tickerText}`, 310);
 }
 
 function buildVietnamHighlights(items: DatabaseNewsItem[]) {
@@ -159,13 +187,13 @@ function buildVietnamHighlights(items: DatabaseNewsItem[]) {
     });
     if (!matched.length) continue;
     matched.forEach((item) => used.add(item.hash));
-    output.push(compact(`${group.label}: ${joinTitles(matched)}`));
+    output.push(`${group.label}: ${summarizeGroup(matched)}`);
     if (output.length >= 5) break;
   }
 
   const remaining = usableItems.filter((item) => !used.has(item.hash));
   if (remaining.length && output.length < 5) {
-    output.push(compact(`Các mã đáng chú ý khác: ${joinTitles(remaining, 4)}`));
+    output.push(`Các mã/doanh nghiệp đáng chú ý khác: ${summarizeGroup(remaining.slice(0, 5))}`);
   }
 
   return output;
@@ -173,8 +201,12 @@ function buildVietnamHighlights(items: DatabaseNewsItem[]) {
 
 function buildMacroHighlights(domestic: DatabaseNewsItem[], global: DatabaseNewsItem[]) {
   const output: string[] = [];
-  if (domestic.length) output.push(compact(`Vĩ mô trong nước: ${joinTitles(domestic, 3)}`));
-  if (global.length) output.push(compact(`Quốc tế: ${joinTitles(global, 3)}`));
+  if (domestic.length) {
+    output.push(compact(`Vĩ mô trong nước: ${summarizeNewsItems(domestic, 4)}. Các thông tin này có thể ảnh hưởng tới kỳ vọng chính sách, lãi suất và dòng tiền trong nước.`, 330));
+  }
+  if (global.length) {
+    output.push(compact(`Quốc tế: ${summarizeNewsItems(global, 4)}. Nhà đầu tư nên theo dõi tác động tới hàng hóa, tỷ giá và tâm lý rủi ro toàn cầu.`, 330));
+  }
   return output;
 }
 
@@ -238,8 +270,12 @@ function buildRiskOpportunity(params: {
 
   const negative = params.news.find((item) => classifySentiment(item) === "negative");
   const positive = params.news.find((item) => classifySentiment(item) === "positive");
-  if (negative) output.push(compact(`Rủi ro: ${itemText(negative)}`));
-  if (positive) output.push(compact(`Cơ hội: ${itemText(positive)}`));
+  if (negative) {
+    output.push(compact(`Rủi ro: ${itemText(negative)}. Nếu thông tin này lan rộng, tâm lý thận trọng có thể tăng ở nhóm liên quan.`));
+  }
+  if (positive) {
+    output.push(compact(`Cơ hội: ${itemText(positive)}. Dòng tiền có thể ưu tiên các mã có câu chuyện rõ và thanh khoản xác nhận.`));
+  }
 
   const marketTone =
     typeof vnindex?.changePct === "number"
@@ -248,7 +284,7 @@ function buildRiskOpportunity(params: {
         : "giữ được sắc thái tích cực"
       : "cần thêm xác nhận từ dữ liệu thị trường";
   output.push(compact(
-    `Nhận định chung: Thị trường ${marketTone}, dòng tiền có xu hướng phân hóa theo từng nhóm ngành. Nhà đầu tư nên ưu tiên quan sát dòng tiền và thông tin hỗ trợ cụ thể của từng mã.`,
+    `Nhận định chung: Thị trường ${marketTone}, dòng tiền có xu hướng phân hóa theo nhóm ngành và câu chuyện riêng. Nhà đầu tư nên ưu tiên quan sát thanh khoản, độ rộng và phản ứng ở các mã dẫn dắt trước khi tăng tỷ trọng.`,
     300,
   ));
 
