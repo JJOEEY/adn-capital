@@ -231,7 +231,7 @@ async function fetchVietstockItems(): Promise<RawNewsItem[]> {
 }
 
 async function fetchVnstockNewsItems(): Promise<RawNewsItem[]> {
-  const response = await fetchVnstockMorningNews({ limit: 42, timeout: 60_000 });
+  const response = await fetchVnstockMorningNews({ limit: 42, timeout: 20_000 });
   if (!response?.articles?.length) return [];
   return response.articles.map((article) => ({
     source: "vnstock_news",

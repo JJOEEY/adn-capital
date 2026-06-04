@@ -95,11 +95,11 @@ function buildPrompt(input: MorningRewriteInput) {
     "Nhiệm vụ: đọc các tin đã crawl, gom nhóm và viết lại thành bản tin phân tích buổi sáng. Không chép tiêu đề, không liệt kê thời gian đăng tin.",
     "Chỉ dùng dữ liệu được cung cấp. Không bịa số liệu, không khuyến nghị mua bán chắc chắn.",
     "Không nhắc tên nguồn dữ liệu, API, backend, provider, cache hoặc lỗi kỹ thuật.",
-    "Văn phong: ngắn gọn, rõ ý, giống bản tin thị trường cho nhà đầu tư cá nhân. Mỗi ý phải nói được 'tin này ảnh hưởng gì tới thị trường/nhóm ngành'.",
+    "Văn phong: ngắn gọn, rõ ý, giống bản tin thị trường cho nhà đầu tư cá nhân. Mỗi ý phải nói được tin này ảnh hưởng gì tới thị trường hoặc nhóm ngành.",
     "Trả về JSON thuần, không markdown, không giải thích ngoài JSON.",
     'Schema bắt buộc: {"vn_market":["..."],"macro":["..."],"risk_opportunity":["..."]}',
     "Yêu cầu nội dung:",
-    "- vn_market: 4-6 ý, gom theo nhóm ngành/mã nổi bật, ví dụ Năng lượng & Điện, Doanh nghiệp biến động lớn, Dòng tiền/Huy động vốn, Cổ tức/KQKD.",
+    "- vn_market: 4-6 ý, gom theo nhóm ngành hoặc mã nổi bật, ví dụ Năng lượng & Điện, Doanh nghiệp biến động lớn, Dòng tiền/Huy động vốn, Cổ tức/KQKD.",
     "- macro: 3-5 ý. Tin category macro dùng cho vĩ mô trong nước; tin category global dùng cho vĩ mô quốc tế.",
     "- risk_opportunity: 3-5 ý, phân tích rõ rủi ro/cơ hội và nhận định chung cho phiên tới.",
     "",
@@ -123,7 +123,8 @@ export async function rewriteMorningBriefWithFreeModel(input: MorningRewriteInpu
 
   const baseUrl = (process.env.FREEMODEL_OPENAI_BASE_URL || DEFAULT_FREEMODEL_BASE_URL).replace(/\/+$/, "");
   const model = process.env.MORNING_BRIEF_FREEMODEL_MODEL || DEFAULT_FREEMODEL_MODEL;
-  const timeoutMs = Number(process.env.MORNING_BRIEF_FREEMODEL_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
+  const parsedTimeoutMs = Number(process.env.MORNING_BRIEF_FREEMODEL_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
+  const timeoutMs = Number.isFinite(parsedTimeoutMs) ? parsedTimeoutMs : DEFAULT_TIMEOUT_MS;
 
   try {
     const res = await fetch(`${baseUrl}/chat/completions`, {
@@ -144,7 +145,7 @@ export async function rewriteMorningBriefWithFreeModel(input: MorningRewriteInpu
           { role: "user", content: buildPrompt(input) },
         ],
       }),
-      signal: AbortSignal.timeout(Number.isFinite(timeoutMs) ? timeoutMs : DEFAULT_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     });
 
     if (!res.ok) throw new Error(`freemodel_http_${res.status}`);

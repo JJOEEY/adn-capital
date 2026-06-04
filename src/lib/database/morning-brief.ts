@@ -18,6 +18,7 @@ const POSITIVE_WORDS = ["tang", "mua rong", "ho tro", "huong loi", "ky luc", "do
 const NEGATIVE_WORDS = ["giam", "ban rong", "ap luc", "rui ro", "khoi to", "thua lo", "suy giam", "no xau", "pha san", "dieu tra"];
 const REQUIRED_REFERENCE_INDICES = new Set(["VN-INDEX", "VN30", "HNX-INDEX", "UPCOM-INDEX"]);
 const MORNING_NEWS_SOURCES: DatabaseNewsSourceName[] = ["vnstock_news"];
+const MORNING_REWRITE_TIMEOUT_MS = 22_000;
 
 function isOptionalMorningEodMissing(field: string) {
   return field.includes("requires-fiinquant-enrichment");
@@ -103,6 +104,11 @@ function compact(text: string, max = 245) {
   return `${cut.slice(0, at > 150 ? at : max).trim()}...`;
 }
 
+function lowerFirst(text: string) {
+  if (!text) return text;
+  return text.charAt(0).toLocaleLowerCase("vi-VN") + text.slice(1);
+}
+
 function isUsableNewsText(text: string) {
   const cleaned = cleanLine(text);
   if (cleaned.length < 18) return false;
@@ -158,8 +164,8 @@ function summarizeNewsItems(items: DatabaseNewsItem[], maxItems = 3) {
   const texts = dedupe(items.map(itemText)).slice(0, maxItems).map((item) => compact(item, 135));
   if (!texts.length) return "";
   if (texts.length === 1) return texts[0];
-  if (texts.length === 2) return `${texts[0]}; đồng thời ${texts[1].charAt(0).toLowerCase()}${texts[1].slice(1)}`;
-  return `${texts[0]}; ${texts[1]}; ngoài ra ${texts[2].charAt(0).toLowerCase()}${texts[2].slice(1)}`;
+  if (texts.length === 2) return `${texts[0]}; đồng thời ${lowerFirst(texts[1])}`;
+  return `${texts[0]}; ${texts[1]}; ngoài ra ${lowerFirst(texts[2])}`;
 }
 
 function summarizeGroup(items: DatabaseNewsItem[]) {
@@ -291,6 +297,20 @@ function buildRiskOpportunity(params: {
   return dedupe(output).slice(0, 5);
 }
 
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export async function getDatabaseMorningBrief(options?: {
   tradingDate?: string;
   previousTradingDate?: string;
@@ -334,7 +354,10 @@ export async function getDatabaseMorningBrief(options?: {
     },
   };
 
-  const rewritten = await rewriteMorningBriefWithFreeModel({ payload, news: allNews });
+  const rewritten = await withTimeout(
+    rewriteMorningBriefWithFreeModel({ payload, news: allNews }),
+    MORNING_REWRITE_TIMEOUT_MS,
+  );
   if (rewritten) {
     payload.vn_market = rewritten.vn_market;
     payload.macro = rewritten.macro;
