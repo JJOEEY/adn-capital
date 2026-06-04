@@ -18,7 +18,7 @@ const POSITIVE_WORDS = ["tang", "mua rong", "ho tro", "huong loi", "ky luc", "do
 const NEGATIVE_WORDS = ["giam", "ban rong", "ap luc", "rui ro", "khoi to", "thua lo", "suy giam", "no xau", "pha san", "dieu tra"];
 const REQUIRED_REFERENCE_INDICES = new Set(["VN-INDEX", "VN30", "HNX-INDEX", "UPCOM-INDEX"]);
 const MORNING_NEWS_SOURCES: DatabaseNewsSourceName[] = ["vnstock_news"];
-const MORNING_REWRITE_TIMEOUT_MS = 22_000;
+const MORNING_REWRITE_TIMEOUT_MS = 45_000;
 
 function isOptionalMorningEodMissing(field: string) {
   return field.includes("requires-fiinquant-enrichment");
