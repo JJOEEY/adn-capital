@@ -362,7 +362,7 @@ export async function getDatabaseMorningBrief(options?: {
     payload.vn_market = rewritten.vn_market;
     payload.macro = rewritten.macro;
     payload.risk_opportunity = rewritten.risk_opportunity;
-    payload.metadata.rewriteSource = "freemodel";
+    payload.metadata.rewriteSource = rewritten.provider;
   }
 
   const macroOrGlobalMissing = !macroDomestic.length || !macroGlobal.length
