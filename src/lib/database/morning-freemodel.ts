@@ -13,7 +13,7 @@ type MorningRewriteOutput = {
 
 const DEFAULT_FREEMODEL_BASE_URL = "https://api.freemodel.dev/v1";
 const DEFAULT_FREEMODEL_MODEL = "gpt-5.4";
-const DEFAULT_TIMEOUT_MS = 18_000;
+const DEFAULT_TIMEOUT_MS = 45_000;
 
 function decodeHtmlEntities(text: string) {
   const named: Record<string, string> = {
@@ -124,7 +124,7 @@ export async function rewriteMorningBriefWithFreeModel(input: MorningRewriteInpu
   const baseUrl = (process.env.FREEMODEL_OPENAI_BASE_URL || DEFAULT_FREEMODEL_BASE_URL).replace(/\/+$/, "");
   const model = process.env.MORNING_BRIEF_FREEMODEL_MODEL || DEFAULT_FREEMODEL_MODEL;
   const parsedTimeoutMs = Number(process.env.MORNING_BRIEF_FREEMODEL_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
-  const timeoutMs = Number.isFinite(parsedTimeoutMs) ? parsedTimeoutMs : DEFAULT_TIMEOUT_MS;
+  const timeoutMs = Number.isFinite(parsedTimeoutMs) ? Math.max(parsedTimeoutMs, DEFAULT_TIMEOUT_MS) : DEFAULT_TIMEOUT_MS;
 
   try {
     const res = await fetch(`${baseUrl}/chat/completions`, {
