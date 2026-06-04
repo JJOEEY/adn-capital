@@ -27,8 +27,43 @@ type RawNewsItem = {
 const VIETSTOCK_MARKET_URL = "https://vietstock.vn/chung-khoan.htm";
 const NEWS_WINDOW_HOURS = 36;
 
+function decodeHtmlEntities(text: string) {
+  const named: Record<string, string> = {
+    amp: "&",
+    apos: "'",
+    gt: ">",
+    lt: "<",
+    nbsp: " ",
+    quot: "\"",
+  };
+  return text
+    .replace(/&#(\d+);/g, (match, code) => {
+      const value = Number(code);
+      if (!Number.isFinite(value)) return match;
+      try {
+        return String.fromCodePoint(value);
+      } catch {
+        return match;
+      }
+    })
+    .replace(/&#x([0-9a-f]+);/gi, (match, code) => {
+      const value = Number.parseInt(code, 16);
+      if (!Number.isFinite(value)) return match;
+      try {
+        return String.fromCodePoint(value);
+      } catch {
+        return match;
+      }
+    })
+    .replace(/&([a-z]+);/gi, (match, name) => named[name.toLowerCase()] ?? match);
+}
+
 function normalizeText(value: unknown) {
-  return String(value ?? "").replace(/\s+/g, " ").trim();
+  return decodeHtmlEntities(String(value ?? ""))
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function decodeXml(text: string) {
@@ -74,6 +109,8 @@ function normalizeRawItem(item: RawNewsItem): RawNewsItem | null {
   const title = normalizeText(item.title);
   const url = normalizeText(item.url);
   if (!title || title.length < 12 || !url) return null;
+  const normalizedTitle = title.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  if (/^\d+\s*(phut|gio|ngay)\s+truoc$/.test(normalizedTitle)) return null;
   return {
     ...item,
     title,
