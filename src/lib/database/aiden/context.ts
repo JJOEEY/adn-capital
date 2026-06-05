@@ -7,15 +7,46 @@ import type { DatabaseNewsItem } from "@/lib/database/providers/news";
 import { prisma } from "@/lib/prisma";
 import type {
   DatabaseAidenContext,
+  DatabaseAidenDataSources,
+  DatabaseAidenFundamentalContext,
   DatabaseAidenHealth,
   DatabaseAidenMarketContext,
+  DatabaseAidenMetric,
+  DatabaseAidenMissingFieldGroups,
+  DatabaseAidenTechnicalContext,
   DatabaseAidenTickerContext,
 } from "./types";
 
 type JsonRecord = Record<string, unknown>;
+type DatasetPayloadRow = {
+  dataset: string;
+  payload: Prisma.JsonValue;
+  tradingDate: string | null;
+  providerTime: Date | null;
+  receivedAt: Date | null;
+  updatedAt: Date;
+  source: string | null;
+};
 
 const REQUIRED_INDICES = ["VNINDEX", "VN30", "HNXINDEX", "UPCOMINDEX"];
 const DEFAULT_SAMPLE_TICKERS = ["HPG", "FPT", "DGC"];
+
+export const AIDEN_STOCK_ALLOWED_DATASETS = new Set([
+  "market.instruments",
+  "market.realtime",
+  "market.board",
+  "market.ohlcv",
+  "technical.indicators",
+  "technical.levels",
+  "fundamental.valuation",
+  "fundamental.financials",
+  "fundamental.profile",
+]);
+
+const FINANCIAL_DATASETS = ["fundamental.financials"];
+const VALUATION_DATASETS = ["fundamental.valuation"];
+const PROFILE_DATASETS = ["fundamental.profile", "market.instruments"];
+const TECHNICAL_DATASETS = ["technical.indicators", "technical.levels"];
 
 function dateKeyInVietnam(date = new Date()) {
   return new Intl.DateTimeFormat("en-CA", {
@@ -40,40 +71,141 @@ function asRecord(value: unknown): JsonRecord {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonRecord) : {};
 }
 
-function asNumber(value: unknown): number | null {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string") {
-    const cleaned = value.replace(/[^\d.,-]/g, "").replace(/,/g, "").trim();
-    if (!cleaned) return null;
-    const parsed = Number(cleaned);
-    if (Number.isFinite(parsed)) return parsed;
-  }
-  return null;
-}
-
-function firstNumber(record: JsonRecord, keys: string[]) {
-  for (const key of keys) {
-    const value = asNumber(record[key]);
-    if (value != null) return value;
-  }
-  return null;
+function dateIso(value: Date | string | null | undefined) {
+  if (!value) return null;
+  if (value instanceof Date) return value.toISOString();
+  const parsed = new Date(value);
+  return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : null;
 }
 
 function normalizeTicker(value: string) {
   return value.trim().toUpperCase().replace(/[^A-Z0-9._-]/g, "");
 }
 
+function normalizeNumberString(input: string) {
+  const raw = input.trim();
+  if (!raw || /^n\/?a$/i.test(raw) || raw === "-") return "";
+  const cleaned = raw.replace(/%/g, "").replace(/[^\d.,-]/g, "");
+  if (!cleaned) return "";
+  const hasComma = cleaned.includes(",");
+  const hasDot = cleaned.includes(".");
+  if (hasComma && hasDot) {
+    const lastComma = cleaned.lastIndexOf(",");
+    const lastDot = cleaned.lastIndexOf(".");
+    if (lastComma > lastDot) return cleaned.replace(/\./g, "").replace(",", ".");
+    return cleaned.replace(/,/g, "");
+  }
+  if (hasComma) {
+    const parts = cleaned.split(",");
+    const decimals = parts[parts.length - 1] ?? "";
+    if (parts.length === 2 && decimals.length > 0 && decimals.length <= 2) return cleaned.replace(",", ".");
+    return cleaned.replace(/,/g, "");
+  }
+  return cleaned;
+}
+
+export function parseAidenNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const normalized = normalizeNumberString(value);
+    if (!normalized) return null;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function hasExplicitPercent(value: unknown) {
+  return typeof value === "string" && value.includes("%");
+}
+
+function isMeaningfulNumber(value: unknown, metric: string) {
+  const parsed = parseAidenNumber(value);
+  if (parsed == null) return false;
+  if ((metric === "pe" || metric === "pb") && parsed === 0) return false;
+  return true;
+}
+
+function makeMetric(value: unknown, metric: string): DatabaseAidenMetric | null {
+  if (!isMeaningfulNumber(value, metric)) return null;
+  let parsed = parseAidenNumber(value);
+  if (parsed == null) return null;
+  if ((metric === "roe" || metric === "roa") && !hasExplicitPercent(value) && Math.abs(parsed) <= 1) {
+    parsed *= 100;
+  }
+  const suffix = metric === "roe" || metric === "roa" ? "%" : "";
+  return {
+    value: parsed,
+    display: `${new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 }).format(parsed)}${suffix}`,
+  };
+}
+
+function firstRaw(record: JsonRecord, keys: string[]) {
+  for (const key of keys) {
+    const value = record[key];
+    if (value != null && value !== "") return value;
+  }
+  return null;
+}
+
+function firstNumber(record: JsonRecord, keys: string[]) {
+  for (const key of keys) {
+    const value = parseAidenNumber(record[key]);
+    if (value != null) return value;
+  }
+  return null;
+}
+
 function rowPayload(row: { payload: Prisma.JsonValue } | null) {
   return asRecord(row?.payload);
 }
 
-function rowUpdatedAt(row: { receivedAt?: Date; updatedAt?: Date; providerTime?: Date | null } | null) {
-  return (row?.providerTime ?? row?.updatedAt ?? row?.receivedAt)?.toISOString() ?? null;
+function rowUpdatedAt(row: { receivedAt?: Date | null; updatedAt?: Date; providerTime?: Date | null } | null) {
+  return dateIso(row?.providerTime ?? row?.updatedAt ?? row?.receivedAt ?? null);
+}
+
+function sourceLabel(dataset: string) {
+  return `database_v2:${dataset}`;
+}
+
+function addSource(sources: string[], dataset: string) {
+  const label = sourceLabel(dataset);
+  if (!sources.includes(label)) sources.push(label);
+}
+
+export function assertAidenStockDatasetAllowed(dataset: string) {
+  if (AIDEN_STOCK_ALLOWED_DATASETS.has(dataset)) return { ok: true as const };
+  const message = `Legacy dataset blocked for ADN Stock AIDEN: ${dataset}`;
+  if (process.env.NODE_ENV !== "production") throw new Error(message);
+  console.warn(`[AIDEN_STOCK] ${message}`);
+  return { ok: false as const, blocked: true as const, reason: message, dataset };
+}
+
+function buildEmptySources(): DatabaseAidenDataSources {
+  return {
+    quote: [],
+    ohlcv: [],
+    technical: [],
+    fundamental: [],
+    profile: [],
+    reference: [],
+    blockedLegacy: [],
+  };
+}
+
+function buildEmptyMissingGroups(): DatabaseAidenMissingFieldGroups {
+  return {
+    quote: [],
+    ohlcv: [],
+    technical: [],
+    fundamental: [],
+    profile: [],
+  };
 }
 
 function buildTickerMarket(
   latestRow: { payload: Prisma.JsonValue; tradingDate: string; providerTime: Date | null; updatedAt: Date; receivedAt: Date } | null,
-  ohlcvRow: { payload: Prisma.JsonValue; tradingDate?: string; providerTime: Date | null; updatedAt?: Date; receivedAt: Date } | null,
+  ohlcvRow: { payload: Prisma.JsonValue; tradingDate?: string | null; providerTime: Date | null; updatedAt?: Date; receivedAt: Date | null } | null,
   previousOhlcvRow?: { payload: Prisma.JsonValue } | null,
 ) {
   const latest = rowPayload(latestRow);
@@ -100,7 +232,7 @@ function buildTickerMarket(
   };
 }
 
-function buildDailyOhlcv(row: { payload: Prisma.JsonValue; providerTime: Date | null; updatedAt?: Date; receivedAt: Date } | null) {
+function buildDailyOhlcv(row: { payload: Prisma.JsonValue; providerTime: Date | null; updatedAt?: Date; receivedAt: Date | null } | null) {
   if (!row) return null;
   const payload = rowPayload(row);
   return {
@@ -163,6 +295,169 @@ function buildMarketContext(params: {
   };
 }
 
+function parsePeriodEnd(value: unknown) {
+  if (value instanceof Date && Number.isFinite(value.getTime())) return value.getTime();
+  if (typeof value === "string") {
+    const date = new Date(value);
+    if (Number.isFinite(date.getTime())) return date.getTime();
+    const match = value.trim().match(/^(\d{4})\s*-?\s*Q([1-4])$/i);
+    if (match) {
+      const year = Number(match[1]);
+      const quarter = Number(match[2]);
+      const month = quarter * 3;
+      return Date.UTC(year, month, 0);
+    }
+  }
+  return null;
+}
+
+function periodRank(record: JsonRecord, row: DatasetPayloadRow) {
+  const periodEnd = parsePeriodEnd(firstRaw(record, ["periodEnd", "period_end", "endDate", "fiscalPeriodEnd"]));
+  const reportDate = parsePeriodEnd(firstRaw(record, ["reportDate", "report_date", "publishedDate", "date"]));
+  const reportPeriod = parsePeriodEnd(firstRaw(record, ["reportPeriod", "period", "quarter", "fiscalPeriod"]));
+  const updatedAt = row.updatedAt.getTime();
+  return { periodEnd, reportDate, reportPeriod, updatedAt };
+}
+
+function compareFinancialRows(a: { record: JsonRecord; row: DatasetPayloadRow }, b: { record: JsonRecord; row: DatasetPayloadRow }) {
+  const ar = periodRank(a.record, a.row);
+  const br = periodRank(b.record, b.row);
+  return (
+    (br.periodEnd ?? -Infinity) - (ar.periodEnd ?? -Infinity) ||
+    (br.reportDate ?? -Infinity) - (ar.reportDate ?? -Infinity) ||
+    (br.reportPeriod ?? -Infinity) - (ar.reportPeriod ?? -Infinity) ||
+    br.updatedAt - ar.updatedAt
+  );
+}
+
+function hasUsableFinancial(record: JsonRecord) {
+  const metricKeys = [
+    ["eps", "EPS", "earningsPerShare", "earningPerShare"],
+    ["bvps", "BVPS", "bookValuePerShare", "book_value_per_share"],
+    ["roe", "ROE"],
+    ["roa", "ROA"],
+    ["revenue", "netRevenue", "profit", "netProfit", "assets", "equity", "liabilities"],
+  ];
+  return metricKeys.some((keys) => keys.some((key) => isMeaningfulNumber(record[key], key.toLowerCase())));
+}
+
+function pickLatestUsableFinancial(rows: DatasetPayloadRow[]) {
+  return rows
+    .map((row) => ({ row, record: rowPayload(row) }))
+    .filter(({ record }) => hasUsableFinancial(record))
+    .sort(compareFinancialRows)[0] ?? null;
+}
+
+function pickLatestValuation(rows: DatasetPayloadRow[]) {
+  return rows
+    .map((row) => ({ row, record: rowPayload(row) }))
+    .filter(({ record }) =>
+      isMeaningfulNumber(firstRaw(record, ["pe", "PE", "priceToEarnings", "price_earning_ratio"]), "pe") ||
+      isMeaningfulNumber(firstRaw(record, ["pb", "PB", "priceToBook", "price_to_book_ratio"]), "pb"))
+    .sort((a, b) => b.row.updatedAt.getTime() - a.row.updatedAt.getTime())[0] ?? null;
+}
+
+function buildTechnical(rows: DatasetPayloadRow[]): DatabaseAidenTechnicalContext | null {
+  const merged = rows.reduce<JsonRecord>((acc, row) => ({ ...acc, ...rowPayload(row) }), {});
+  const updatedAt = rows.map((row) => rowUpdatedAt(row)).find(Boolean) ?? null;
+  const technical: DatabaseAidenTechnicalContext = {
+    ma20: firstNumber(merged, ["ma20", "MA20", "sma20", "ema20"]),
+    ma50: firstNumber(merged, ["ma50", "MA50", "sma50", "ema50"]),
+    ma200: firstNumber(merged, ["ma200", "MA200", "sma200", "ema200"]),
+    rsi: firstNumber(merged, ["rsi", "RSI", "rsi14"]),
+    macdHistogram: firstNumber(merged, ["macdHistogram", "macd_histogram", "macdHist", "MACDHistogram"]),
+    volumeMa20: firstNumber(merged, ["volumeMa20", "volume_ma20", "avgVolume20", "volMa20"]),
+    support: firstNumber(merged, ["support", "nearestSupport", "support1"]),
+    resistance: firstNumber(merged, ["resistance", "nearestResistance", "resistance1"]),
+    updatedAt,
+  };
+  return Object.values(technical).some((value) => value != null) ? technical : null;
+}
+
+function buildFundamental(params: {
+  financialRows: DatasetPayloadRow[];
+  valuationRows: DatasetPayloadRow[];
+  profileRows: DatasetPayloadRow[];
+}): DatabaseAidenFundamentalContext {
+  const financial = pickLatestUsableFinancial(params.financialRows);
+  const valuation = pickLatestValuation(params.valuationRows);
+  const profile = params.profileRows[0] ? rowPayload(params.profileRows[0]) : {};
+
+  return {
+    financialPeriod: financial
+      ? {
+          reportPeriod: String(firstRaw(financial.record, ["reportPeriod", "period", "quarter", "fiscalPeriod"]) ?? "") || null,
+          periodEnd: dateIso(firstRaw(financial.record, ["periodEnd", "period_end", "endDate", "fiscalPeriodEnd"]) as string | null),
+          reportDate: dateIso(firstRaw(financial.record, ["reportDate", "report_date", "publishedDate", "date"]) as string | null),
+          updatedAt: dateIso(financial.row.updatedAt),
+          eps: makeMetric(firstRaw(financial.record, ["eps", "EPS", "earningsPerShare", "earningPerShare"]), "eps"),
+          bvps: makeMetric(firstRaw(financial.record, ["bvps", "BVPS", "bookValuePerShare", "book_value_per_share"]), "bvps"),
+          roe: makeMetric(firstRaw(financial.record, ["roe", "ROE"]), "roe"),
+          roa: makeMetric(firstRaw(financial.record, ["roa", "ROA"]), "roa"),
+        }
+      : null,
+    valuation: valuation
+      ? {
+          valuationDate: dateIso(firstRaw(valuation.record, ["valuationDate", "date", "tradingDate", "asOfDate"]) as string | null) ??
+            valuation.row.tradingDate,
+          updatedAt: dateIso(valuation.row.updatedAt),
+          pe: makeMetric(firstRaw(valuation.record, ["pe", "PE", "priceToEarnings", "price_earning_ratio"]), "pe"),
+          pb: makeMetric(firstRaw(valuation.record, ["pb", "PB", "priceToBook", "price_to_book_ratio"]), "pb"),
+        }
+      : null,
+    profile: params.profileRows.length
+      ? {
+          companyName: String(firstRaw(profile, ["companyName", "name", "organName", "shortName"]) ?? "") || null,
+          industry: String(firstRaw(profile, ["industry", "industryName", "sector"]) ?? "") || null,
+          exchange: String(firstRaw(profile, ["exchange", "market", "floor"]) ?? "") || null,
+          updatedAt: dateIso(params.profileRows[0]?.updatedAt),
+        }
+      : null,
+  };
+}
+
+async function readToolRows(datasets: string[], key: string): Promise<DatasetPayloadRow[]> {
+  datasets.forEach(assertAidenStockDatasetAllowed);
+  const rows = await prisma.databaseToolLatest.findMany({
+    where: {
+      key,
+      dataset: { in: datasets },
+    },
+    orderBy: [{ tradingDate: "desc" }, { updatedAt: "desc" }],
+    take: 80,
+  });
+  return rows.map((row) => ({
+    dataset: row.dataset,
+    payload: row.payload,
+    tradingDate: row.tradingDate,
+    providerTime: null,
+    receivedAt: row.computedAt,
+    updatedAt: row.updatedAt,
+    source: row.source,
+  }));
+}
+
+async function readMarketRows(datasets: string[], symbol: string): Promise<DatasetPayloadRow[]> {
+  datasets.forEach(assertAidenStockDatasetAllowed);
+  const rows = await prisma.databaseMarketLatest.findMany({
+    where: {
+      symbol,
+      dataset: { in: datasets },
+    },
+    orderBy: [{ tradingDate: "desc" }, { updatedAt: "desc" }],
+    take: 80,
+  });
+  return rows.map((row) => ({
+    dataset: row.dataset,
+    payload: row.payload,
+    tradingDate: row.tradingDate,
+    providerTime: row.providerTime,
+    receivedAt: row.receivedAt,
+    updatedAt: row.updatedAt,
+    source: row.source,
+  }));
+}
+
 export async function getDatabaseAidenTickerContext(options: {
   ticker: string;
   windowHours?: number;
@@ -170,106 +465,142 @@ export async function getDatabaseAidenTickerContext(options: {
 }): Promise<DatabaseResult<DatabaseAidenTickerContext>> {
   const startedAt = Date.now();
   const ticker = normalizeTicker(options.ticker);
-  const windowHours = options.windowHours ?? 72;
   if (!ticker) {
     return databaseError("aiden.stock_context", "database", {
       provider: "database",
       ok: false,
-      endpoint: "postgres:DatabaseMarketLatest+DatabaseNewsItem",
+      endpoint: "postgres:DatabaseMarketLatest+DatabaseToolLatest",
       latencyMs: Date.now() - startedAt,
       code: "database_v2_aiden_ticker_invalid",
       retryable: false,
     }, ["ticker"]);
   }
 
-  const since = new Date(Date.now() - windowHours * 60 * 60 * 1000);
-  const [latestRow, ohlcvRow, eventRows, previousEventRows, newsRows] = await Promise.all([
-    prisma.databaseMarketLatest.findFirst({
-      where: {
-        source: "dnse",
-        symbol: ticker,
-        ...(options.tradingDate ? { tradingDate: options.tradingDate } : {}),
-      },
-      orderBy: { updatedAt: "desc" },
-    }),
-    prisma.databaseMarketLatest.findFirst({
-      where: {
-        source: "dnse",
-        symbol: ticker,
-        channel: "ohlc_closed.1D.json",
-        ...(options.tradingDate ? { tradingDate: options.tradingDate } : {}),
-      },
-      orderBy: { updatedAt: "desc" },
-    }),
-    prisma.databaseMarketEvent.findMany({
-      where: {
-        source: "dnse",
-        dataset: "market.eod",
-        symbol: ticker,
-        ...(options.tradingDate ? { tradingDate: options.tradingDate } : {}),
-      },
-      orderBy: { receivedAt: "desc" },
-      take: 200,
-    }),
-    options.tradingDate
-      ? prisma.databaseMarketEvent.findMany({
-          where: {
-            source: "dnse",
-            dataset: "market.eod",
-            symbol: ticker,
-            tradingDate: { lt: options.tradingDate },
-          },
-          orderBy: { receivedAt: "desc" },
-          take: 200,
-        })
-      : Promise.resolve([]),
-    prisma.databaseNewsItem.findMany({
-      where: {
-        fetchedAt: { gte: since },
-        OR: [
-          { title: { contains: ticker } },
-          { summary: { contains: ticker } },
-        ],
-      },
-      orderBy: [{ publishedAt: "desc" }, { fetchedAt: "desc" }],
-      take: 8,
-    }),
-  ]);
+  try {
+    const [
+      latestRow,
+      ohlcvRow,
+      technicalToolRows,
+      technicalMarketRows,
+      financialToolRows,
+      financialMarketRows,
+      valuationToolRows,
+      valuationMarketRows,
+      profileToolRows,
+      profileMarketRows,
+    ] = await Promise.all([
+      prisma.databaseMarketLatest.findFirst({
+        where: {
+          symbol: ticker,
+          dataset: { in: ["market.realtime", "market.board"] },
+          ...(options.tradingDate ? { tradingDate: options.tradingDate } : {}),
+        },
+        orderBy: { updatedAt: "desc" },
+      }),
+      prisma.databaseMarketLatest.findFirst({
+        where: {
+          symbol: ticker,
+          dataset: "market.ohlcv",
+          ...(options.tradingDate ? { tradingDate: options.tradingDate } : {}),
+        },
+        orderBy: [{ tradingDate: "desc" }, { updatedAt: "desc" }],
+      }),
+      readToolRows(TECHNICAL_DATASETS, ticker),
+      readMarketRows(TECHNICAL_DATASETS, ticker),
+      readToolRows(FINANCIAL_DATASETS, ticker),
+      readMarketRows(FINANCIAL_DATASETS, ticker),
+      readToolRows(VALUATION_DATASETS, ticker),
+      readMarketRows(VALUATION_DATASETS, ticker),
+      readToolRows(PROFILE_DATASETS, ticker),
+      readMarketRows(PROFILE_DATASETS, ticker),
+    ]);
 
-  const ohlcvEventRow = eventRows.find((row) => {
-    const payload = rowPayload(row);
-    return payload.T === "te" || payload.matchPrice != null || payload.openPrice != null;
-  }) ?? null;
-  const previousOhlcvEventRow = previousEventRows.find((row) => {
-    const payload = rowPayload(row);
-    return payload.T === "te" || payload.matchPrice != null || payload.openPrice != null;
-  }) ?? null;
-  const effectiveOhlcvRow = ohlcvRow ?? ohlcvEventRow;
-  const market = buildTickerMarket(latestRow, effectiveOhlcvRow, previousOhlcvEventRow);
-  const dailyOhlcv = buildDailyOhlcv(effectiveOhlcvRow);
-  const missingFields = [
-    market.price == null ? "aiden.stock.price" : null,
-    market.changePct == null ? "aiden.stock.changePct" : null,
-    !dailyOhlcv ? "aiden.stock.ohlcv" : null,
-  ].filter((item): item is string => Boolean(item));
+    const effectiveOhlcvRow = ohlcvRow;
+    const market = buildTickerMarket(latestRow, effectiveOhlcvRow);
+    const dailyOhlcv = buildDailyOhlcv(effectiveOhlcvRow);
+    const technicalRows = [...technicalToolRows, ...technicalMarketRows];
+    const financialRows = [...financialToolRows, ...financialMarketRows];
+    const valuationRows = [...valuationToolRows, ...valuationMarketRows];
+    const profileRows = [...profileToolRows, ...profileMarketRows];
+    const technical = buildTechnical(technicalRows);
+    const fundamental = buildFundamental({ financialRows, valuationRows, profileRows });
 
-  const data: DatabaseAidenTickerContext = {
-    ticker,
-    market,
-    dailyOhlcv,
-    relatedNews: newsRows.map(newsItem),
-    missingFields,
-  };
+    const dataSources = buildEmptySources();
+    if (latestRow) addSource(dataSources.quote, latestRow.dataset || "market.realtime");
+    if (dailyOhlcv) addSource(dataSources.ohlcv, "market.ohlcv");
+    for (const row of technicalRows) addSource(dataSources.technical, row.dataset);
+    for (const row of financialRows) addSource(dataSources.fundamental, row.dataset);
+    for (const row of valuationRows) addSource(dataSources.fundamental, row.dataset);
+    for (const row of profileRows) addSource(dataSources.profile, row.dataset);
 
-  const providerStatus: DatabaseProviderStatus = {
-    provider: "database",
-    ok: missingFields.length === 0,
-    endpoint: "postgres:DatabaseMarketLatest+DatabaseNewsItem",
-    latencyMs: Date.now() - startedAt,
-    code: missingFields.length ? "database_v2_aiden_stock_partial" : undefined,
-    retryable: missingFields.length > 0,
-  };
-  return databaseOk("aiden.stock_context", "database", data, providerStatus, missingFields);
+    const missingFieldGroups = buildEmptyMissingGroups();
+    if (market.price == null) missingFieldGroups.quote.push("price");
+    if (market.changePct == null) missingFieldGroups.quote.push("changePct");
+    if (!dailyOhlcv) missingFieldGroups.ohlcv.push("dailyOhlcv");
+    if (!technical) missingFieldGroups.technical.push("technicalIndicators");
+    if (!fundamental.financialPeriod) missingFieldGroups.fundamental.push("financialPeriod");
+    if (!fundamental.valuation) missingFieldGroups.fundamental.push("valuation");
+    if (!fundamental.profile) missingFieldGroups.profile.push("profile");
+
+    const missingFields = [
+      ...missingFieldGroups.quote.map((field) => `aiden.stock.quote.${field}`),
+      ...missingFieldGroups.ohlcv.map((field) => `aiden.stock.ohlcv.${field}`),
+      ...missingFieldGroups.technical.map((field) => `aiden.stock.technical.${field}`),
+      ...missingFieldGroups.fundamental.map((field) => `aiden.stock.fundamental.${field}`),
+      ...missingFieldGroups.profile.map((field) => `aiden.stock.profile.${field}`),
+    ];
+
+    const data: DatabaseAidenTickerContext = {
+      ticker,
+      market,
+      dailyOhlcv,
+      technical,
+      fundamental,
+      relatedNews: [],
+      missingFields,
+      missingFieldGroups,
+      dataSources,
+      dataFreshness: {
+        quoteAsOf: market.updatedAt,
+        ohlcvLatestDate: effectiveOhlcvRow?.tradingDate ?? null,
+        technicalAsOf: technical?.updatedAt ?? null,
+        financialReportPeriod: fundamental.financialPeriod?.reportPeriod ?? null,
+        financialPeriodEnd: fundamental.financialPeriod?.periodEnd ?? null,
+        valuationDate: fundamental.valuation?.valuationDate ?? null,
+        contextFetchedAt: new Date().toISOString(),
+      },
+    };
+
+    console.info(
+      `[AIDEN_STOCK_CONTEXT_SOURCES] ticker=${ticker} sources=${[
+        ...dataSources.quote,
+        ...dataSources.ohlcv,
+        ...dataSources.technical,
+        ...dataSources.fundamental,
+        ...dataSources.profile,
+      ].join(",") || "none"}`,
+    );
+
+    const providerStatus: DatabaseProviderStatus = {
+      provider: "database",
+      ok: missingFields.length === 0,
+      endpoint: "postgres:DatabaseMarketLatest+DatabaseToolLatest",
+      latencyMs: Date.now() - startedAt,
+      code: missingFields.length ? "database_v2_aiden_stock_partial" : undefined,
+      retryable: missingFields.length > 0,
+    };
+    return databaseOk("aiden.stock_context", "database", data, providerStatus, missingFields);
+  } catch (error) {
+    return databaseError("aiden.stock_context", "database", {
+      provider: "database",
+      ok: false,
+      endpoint: "postgres:DatabaseMarketLatest+DatabaseToolLatest",
+      latencyMs: Date.now() - startedAt,
+      code: "database_v2_aiden_stock_unavailable",
+      message: error instanceof Error ? error.message.slice(0, 180) : String(error).slice(0, 180),
+      retryable: true,
+    }, ["aiden.stock_context"]);
+  }
 }
 
 export async function getDatabaseAidenContext(options?: {
@@ -337,7 +668,7 @@ export async function getDatabaseAidenContext(options?: {
     const providerStatus: DatabaseProviderStatus = {
       provider: "database",
       ok: missingFields.length === 0,
-      endpoint: "postgres:DatabaseMarketLatest+DatabaseNewsItem+fiinquant:eod",
+      endpoint: "postgres:DatabaseMarketLatest+DatabaseToolLatest+DatabaseNewsItem+fiinquant:eod",
       latencyMs: Date.now() - startedAt,
       code: missingFields.length ? "database_v2_aiden_partial" : undefined,
       retryable: missingFields.length > 0,
@@ -347,7 +678,7 @@ export async function getDatabaseAidenContext(options?: {
     return databaseError("aiden.context", "database", {
       provider: "database",
       ok: false,
-      endpoint: "postgres:DatabaseMarketLatest+DatabaseNewsItem+fiinquant:eod",
+      endpoint: "postgres:DatabaseMarketLatest+DatabaseToolLatest+DatabaseNewsItem+fiinquant:eod",
       latencyMs: Date.now() - startedAt,
       code: "database_v2_aiden_unavailable",
       message: error instanceof Error ? error.message.slice(0, 180) : String(error).slice(0, 180),

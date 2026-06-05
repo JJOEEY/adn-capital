@@ -37,6 +37,76 @@ export type DatabaseAidenMarketContext = {
   } | null;
 };
 
+export type DatabaseAidenMetric = {
+  value: number;
+  display: string;
+};
+
+export type DatabaseAidenTechnicalContext = {
+  ma20: number | null;
+  ma50: number | null;
+  ma200: number | null;
+  rsi: number | null;
+  macdHistogram: number | null;
+  volumeMa20: number | null;
+  support: number | null;
+  resistance: number | null;
+  updatedAt: string | null;
+};
+
+export type DatabaseAidenFundamentalContext = {
+  financialPeriod: {
+    reportPeriod: string | null;
+    periodEnd: string | null;
+    reportDate: string | null;
+    updatedAt: string | null;
+    eps: DatabaseAidenMetric | null;
+    bvps: DatabaseAidenMetric | null;
+    roe: DatabaseAidenMetric | null;
+    roa: DatabaseAidenMetric | null;
+  } | null;
+  valuation: {
+    valuationDate: string | null;
+    updatedAt: string | null;
+    pe: DatabaseAidenMetric | null;
+    pb: DatabaseAidenMetric | null;
+  } | null;
+  profile: {
+    companyName: string | null;
+    industry: string | null;
+    exchange: string | null;
+    updatedAt: string | null;
+  } | null;
+};
+
+export type DatabaseAidenMissingFieldGroups = {
+  quote: string[];
+  ohlcv: string[];
+  technical: string[];
+  fundamental: string[];
+  profile: string[];
+};
+
+export type DatabaseAidenDataSources = {
+  quote: string[];
+  ohlcv: string[];
+  technical: string[];
+  fundamental: string[];
+  profile: string[];
+  reference: string[];
+  blockedLegacy: string[];
+};
+
+export type DatabaseAidenDataFreshness = {
+  quoteAsOf: string | null;
+  ohlcvLatestDate: string | null;
+  technicalAsOf: string | null;
+  financialReportPeriod: string | null;
+  financialPeriodEnd: string | null;
+  valuationDate: string | null;
+  contextFetchedAt: string;
+};
+
 export type DatabaseAidenTickerContext = {
   ticker: string;
   market: {
@@ -58,8 +128,13 @@ export type DatabaseAidenTickerContext = {
     value: number | null;
     updatedAt: string | null;
   } | null;
+  technical: DatabaseAidenTechnicalContext | null;
+  fundamental: DatabaseAidenFundamentalContext;
   relatedNews: DatabaseNewsItem[];
   missingFields: string[];
+  missingFieldGroups: DatabaseAidenMissingFieldGroups;
+  dataSources: DatabaseAidenDataSources;
+  dataFreshness: DatabaseAidenDataFreshness;
 };
 
 export type DatabaseAidenContext = {
