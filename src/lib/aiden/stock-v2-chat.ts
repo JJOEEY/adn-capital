@@ -78,7 +78,7 @@ async function resolveTickerCandidates(message: string, currentTicker?: string |
   return resolved.slice(0, 4);
 }
 
-const TICKER_UNIVERSE_DATASETS = ["market.instruments", "market.realtime", "market.board", "market.ohlcv"];
+const TICKER_UNIVERSE_DATASETS = ["market.instruments", "reference.securities", "market.realtime", "market.board", "market.ohlcv"];
 
 async function resolveDatabaseV2Ticker(candidate: string, trustedCurrentTicker = false) {
   const ticker = candidate.trim().replace(/^\$/, "").toUpperCase();

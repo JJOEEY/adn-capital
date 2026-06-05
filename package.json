@@ -24,6 +24,7 @@
     "verify:database:dnse-websocket": "node scripts/verify-database-dnse-websocket.mjs",
     "verify:database:news": "node scripts/verify-database-news.mjs",
     "verify:database:aiden": "node scripts/verify-database-aiden.mjs",
+    "verify:aiden-stock-v2": "node scripts/verify-aiden-stock-v2-only.mjs",
     "verify:database:morning-readiness": "node scripts/verify-database-morning-readiness.mjs",
     "verify:database:morning-brief": "node scripts/verify-database-morning-brief.mjs",
     "verify:database:v2-cron-setup": "node scripts/verify-database-v2-cron-setup.mjs",

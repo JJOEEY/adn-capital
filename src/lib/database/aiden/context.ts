@@ -33,6 +33,7 @@ const DEFAULT_SAMPLE_TICKERS = ["HPG", "FPT", "DGC"];
 
 export const AIDEN_STOCK_ALLOWED_DATASETS = new Set([
   "market.instruments",
+  "reference.securities",
   "market.realtime",
   "market.board",
   "market.ohlcv",
@@ -158,6 +159,34 @@ function firstNumber(record: JsonRecord, keys: string[]) {
 
 function rowPayload(row: { payload: Prisma.JsonValue } | null) {
   return asRecord(row?.payload);
+}
+
+function payloadRecordList(payload: Prisma.JsonValue): JsonRecord[] {
+  if (Array.isArray(payload)) {
+    return payload.map(asRecord).filter((item) => Object.keys(item).length > 0);
+  }
+
+  const direct = asRecord(payload);
+  if (!Object.keys(direct).length) return [];
+
+  const nestedKeys = ["data", "items", "rows", "records", "result", "results", "financials", "valuations"];
+  for (const key of nestedKeys) {
+    const value = direct[key];
+    if (Array.isArray(value) && value.length) {
+      const records = value.map(asRecord).filter((item) => Object.keys(item).length > 0);
+      if (records.length) return records;
+    }
+  }
+
+  return [direct];
+}
+
+function expandDatasetPayloadRows(rows: DatasetPayloadRow[]): DatasetPayloadRow[] {
+  return rows.flatMap((row) => {
+    const records = payloadRecordList(row.payload);
+    if (!records.length) return [row];
+    return records.map((record) => ({ ...row, payload: record as Prisma.JsonObject }));
+  });
 }
 
 function rowUpdatedAt(row: { receivedAt?: Date | null; updatedAt?: Date; providerTime?: Date | null } | null) {
@@ -426,7 +455,7 @@ async function readToolRows(datasets: string[], key: string): Promise<DatasetPay
     orderBy: [{ tradingDate: "desc" }, { updatedAt: "desc" }],
     take: 80,
   });
-  return rows.map((row) => ({
+  return expandDatasetPayloadRows(rows.map((row) => ({
     dataset: row.dataset,
     payload: row.payload,
     tradingDate: row.tradingDate,
@@ -434,7 +463,7 @@ async function readToolRows(datasets: string[], key: string): Promise<DatasetPay
     receivedAt: row.computedAt,
     updatedAt: row.updatedAt,
     source: row.source,
-  }));
+  })));
 }
 
 async function readMarketRows(datasets: string[], symbol: string): Promise<DatasetPayloadRow[]> {
@@ -447,7 +476,7 @@ async function readMarketRows(datasets: string[], symbol: string): Promise<Datas
     orderBy: [{ tradingDate: "desc" }, { updatedAt: "desc" }],
     take: 80,
   });
-  return rows.map((row) => ({
+  return expandDatasetPayloadRows(rows.map((row) => ({
     dataset: row.dataset,
     payload: row.payload,
     tradingDate: row.tradingDate,
@@ -455,7 +484,7 @@ async function readMarketRows(datasets: string[], symbol: string): Promise<Datas
     receivedAt: row.receivedAt,
     updatedAt: row.updatedAt,
     source: row.source,
-  }));
+  })));
 }
 
 export async function getDatabaseAidenTickerContext(options: {
