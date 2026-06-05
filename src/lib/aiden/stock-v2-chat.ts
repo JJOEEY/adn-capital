@@ -27,6 +27,8 @@ const STOCK_CUE_PATTERN =
 const STOCK_CUE_WITH_TICKER_PATTERN =
   /\b(?:phan tich|co phieu|ma|ticker|gia|mua|ban|target|ho tro|khang cu|ptkt|ptcb|ta|fa|chart|dinh gia|bao cao|bctc)\s+([A-Za-z0-9._-]{2,12})\b/gi;
 
+const TICKER_UNIVERSE_DATASETS = ["market.instruments", "reference.securities", "market.realtime", "market.board", "market.ohlcv"];
+
 function stripDiacritics(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
@@ -77,8 +79,6 @@ async function resolveTickerCandidates(message: string, currentTicker?: string |
   }
   return resolved.slice(0, 4);
 }
-
-const TICKER_UNIVERSE_DATASETS = ["market.instruments", "reference.securities", "market.realtime", "market.board", "market.ohlcv"];
 
 async function resolveDatabaseV2Ticker(candidate: string, trustedCurrentTicker = false) {
   const ticker = candidate.trim().replace(/^\$/, "").toUpperCase();
@@ -157,7 +157,7 @@ function candleLabel(ctx: DatabaseAidenTickerContext) {
 
   return compactJoin(
     [
-      `Nến gần nhất ${direction}`,
+      `nến gần nhất ${direction}`,
       bodyPct ? `thân nến ${bodyPct}%` : null,
       volume ? `khối lượng ${volume}` : null,
       volumeMa ? `MA20 volume ${volumeMa}` : null,
@@ -294,8 +294,13 @@ export async function runAidenStockChatV2Only(input: AidenStockV2Input): Promise
 
   const results = await Promise.all(tickers.map((ticker) => getDatabaseAidenTickerContext({ ticker })));
   const contexts = results.map((result) => result.data).filter((item): item is DatabaseAidenTickerContext => Boolean(item));
+
+  const rendered = contexts.length
+    ? contexts.map(renderSingleTicker)
+    : [`Hệ thống hiện chưa có dữ liệu đủ dùng cho ${tickers.join(", ")}. Anh/chị thử làm mới lại sau ít phút.`];
+
   const message = [
-    ...contexts.map(renderSingleTicker),
+    ...rendered,
     "Phân tích tham khảo, không phải khuyến nghị đầu tư. — ADN Capital",
   ].join("\n\n");
 
