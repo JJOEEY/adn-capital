@@ -15,10 +15,9 @@ type MorningRewriteOutput = {
 const DEFAULT_FREEMODEL_BASE_URL = "https://api.freemodel.dev/v1";
 const DEFAULT_FREEMODEL_MODEL = "gpt-5.4";
 const DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
-const DEFAULT_OPENROUTER_MODEL = "openai/gpt-5.4";
+const DEFAULT_OPENROUTER_MODEL = "moonshotai/kimi-k2.6:free";
 const DEFAULT_OPENROUTER_FALLBACK_MODELS = [
-  "~anthropic/claude-sonnet-latest",
-  "openai/gpt-5.5",
+  "google/gemma-4-26b-a4b-it:free",
 ];
 const DEFAULT_TIMEOUT_MS = 45_000;
 
