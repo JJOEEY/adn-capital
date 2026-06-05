@@ -23,6 +23,7 @@ import { getPythonBridgeUrl } from "@/lib/runtime-config";
 import { loadReportedSignalSummary } from "@/lib/signals/report-history";
 import { formatReportedSignalSummary } from "@/lib/signals/reporting";
 import { runAidenDatahubChat } from "@/lib/aiden/datahub-chat";
+import { runAidenStockChatV2Only, shouldRouteAidenStockV2 } from "@/lib/aiden/stock-v2-chat";
 import { sanitizeCustomerVisibleAiText } from "@/lib/ai-output-sanitizer";
 
 const FIINQUANT_BRIDGE = getPythonBridgeUrl();
@@ -1324,12 +1325,20 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const aiden = await runAidenDatahubChat({
-      message,
-      currentTicker,
-      surface,
-      context: { userId: aidenUserId, userRole: aidenDbUser?.role ?? null, systemRole: aidenDbUser?.systemRole ?? null },
-    });
+    const useStockV2 = surface === "stock" || await shouldRouteAidenStockV2(message, currentTicker);
+    const aiden = useStockV2
+      ? await runAidenStockChatV2Only({
+          message,
+          currentTicker,
+          surface,
+          context: { userId: aidenUserId, userRole: aidenDbUser?.role ?? null, systemRole: aidenDbUser?.systemRole ?? null },
+        })
+      : await runAidenDatahubChat({
+          message,
+          currentTicker,
+          surface,
+          context: { userId: aidenUserId, userRole: aidenDbUser?.role ?? null, systemRole: aidenDbUser?.systemRole ?? null },
+        });
     const aidenMessage = sanitizeCustomerVisibleAiText(aiden.message);
     const aidenUsageAfter = await consumeChatQuota(aidenQuota);
     if (aidenUserId) {
