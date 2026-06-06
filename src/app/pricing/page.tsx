@@ -1,97 +1,135 @@
+import type { Metadata } from "next";
+import Link from "next/link";
 import { Suspense } from "react";
-import { MainLayout } from "@/components/layout/MainLayout";
-import { Card } from "@/components/ui/Card";
-import { BRAND } from "@/lib/brand/productNames";
-import { Gift, ShieldCheck, TicketPercent } from "lucide-react";
-import { PricingClient } from "./PricingClient";
+import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 
-export const metadata = {
-  title: `Bảng giá - ${BRAND.name}`,
-  description: "Chọn gói ADN Capital, gửi mã khách hàng để admin duyệt ưu đãi và thanh toán qua PayOS.",
+import PricingClient from "./PricingClient";
+
+export const metadata: Metadata = {
+  title: "Bảng giá dịch vụ ADN Capital",
+  description:
+    "Chọn thời hạn sử dụng hệ sinh thái ADN Capital: ADN Base, ADN VIP hoặc ADN Premium.",
 };
 
 export default function PricingPage() {
   return (
-    <MainLayout>
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <section className="mb-10 grid gap-6 lg:grid-cols-[1.08fr_0.92fr] lg:items-end">
-          <div>
-            <div
-              className="mb-4 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em]"
-              style={{ background: "var(--primary-light)", borderColor: "var(--border)", color: "var(--primary)" }}
-            >
-              <TicketPercent className="h-3.5 w-3.5" />
-              Bảng giá dịch vụ
+    <main className="min-h-screen bg-[#0D0D10] text-[#F8F1E6]">
+      <header className="border-b border-white/10 bg-[#111216]/95 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 lg:px-8">
+          <Link href="/" className="group inline-flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[#FFD166]/35 bg-[#FFD166]/10 text-lg font-black text-[#FFD166]">
+              ADN
             </div>
-            <h1 className="max-w-3xl text-3xl font-black leading-tight tracking-[-0.04em] sm:text-5xl">
-              Chọn gói ADN Capital theo chu kỳ đầu tư của bạn
+            <div>
+              <p className="text-lg font-black leading-[1.25] text-[#F8F1E6]">ADN Capital</p>
+              <p className="text-sm leading-[1.7] text-[#BFB8AE]">Hệ thống giao dịch định lượng</p>
+            </div>
+          </Link>
+          <nav className="hidden items-center gap-8 text-sm font-semibold text-[#CFC7BA] md:flex">
+            <Link href="/" className="transition hover:text-[#FFD166]">
+              Trang chủ
+            </Link>
+            <Link href="/products" className="transition hover:text-[#FFD166]">
+              Công cụ
+            </Link>
+            <Link href="/#journey" className="transition hover:text-[#FFD166]">
+              Lộ trình
+            </Link>
+            <Link href="/pricing" className="text-[#FFD166]">
+              Dịch vụ
+            </Link>
+          </nav>
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/5 px-5 py-3 text-sm font-bold text-[#F8F1E6] transition hover:border-[#FFD166]/60 hover:text-[#FFD166]"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Về trang chủ
+          </Link>
+        </div>
+      </header>
+
+      <section className="relative overflow-hidden border-b border-white/10">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,209,102,0.14),transparent_34%),radial-gradient(circle_at_80%_0%,rgba(255,255,255,0.09),transparent_28%)]" />
+        <div className="relative mx-auto grid max-w-7xl gap-10 px-5 py-20 lg:grid-cols-[1.05fr_0.95fr] lg:px-8 lg:py-28">
+          <div>
+            <p className="text-sm font-bold uppercase tracking-[0.22em] text-[#FFD166]">Dịch vụ</p>
+            <h1 className="mt-6 max-w-5xl text-5xl font-black leading-[1.15] tracking-tight text-[#F8F1E6] md:text-7xl">
+              Hệ sinh thái{" "}
+              <span className="text-[#FFD166]">ADNCapital</span>
+              <br />
+              <span className="font-serif italic tracking-normal text-[#FFD166]">
+                Mở khóa toàn diện giải pháp đầu tư.
+              </span>
             </h1>
-            <p className="mt-4 max-w-2xl text-base leading-7" style={{ color: "var(--text-secondary)" }}>
-              Mở tài khoản để được trải nghiệm VIP 1 tuần. Nếu có mã khách hàng, hệ thống sẽ gửi yêu cầu admin duyệt trước khi áp dụng ưu đãi vào PayOS.
+            <p className="mt-8 max-w-3xl text-lg leading-[1.7] text-[#CFC7BA]">
+              Anh/chị chọn thời hạn sử dụng phù hợp với nhịp đầu tư của mình. Ba gói khác nhau ở
+              thời gian đồng hành; giá trị cốt lõi vẫn là một hệ sinh thái công cụ rõ ràng, dễ theo
+              dõi và có thể dùng hằng ngày.
             </p>
+            <div className="mt-10 flex flex-col gap-4 sm:flex-row">
+              <a
+                href="#goi-dich-vu"
+                className="inline-flex min-h-14 items-center justify-center gap-3 rounded-full bg-[#FFD166] px-7 text-base font-bold text-[#101114] transition hover:bg-[#FFE09A]"
+              >
+                Xem gói dịch vụ
+                <ArrowRight className="h-5 w-5" />
+              </a>
+              <Link
+                href="/products"
+                className="inline-flex min-h-14 items-center justify-center gap-3 rounded-full border border-white/14 bg-white/5 px-7 text-base font-bold text-[#F8F1E6] transition hover:border-[#FFD166]/60 hover:text-[#FFD166]"
+              >
+                Xem công cụ
+              </Link>
+            </div>
           </div>
 
-          <Card className="p-5">
-            <div className="flex gap-3">
-              <span
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl"
-                style={{ background: "var(--primary-light)", color: "var(--primary)" }}
-              >
-                <ShieldCheck className="h-5 w-5" />
-              </span>
-              <div>
-                <h2 className="font-bold">Nguyên tắc thanh toán an toàn</h2>
-                <p className="mt-2 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
-                  Giá giảm chỉ được tính ở máy chủ khi mã khách hàng đã được admin duyệt. Client không tự quyết định mức giảm.
-                </p>
+          <div className="rounded-[40px] border border-white/14 bg-white/[0.04] p-5 shadow-[0_28px_120px_rgba(0,0,0,0.35)]">
+            <div className="rounded-[30px] border border-[#FFD166]/30 bg-[#1A1714] p-7">
+              <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#FFD166]">
+                Quyền dùng rõ ràng
+              </p>
+              <h2 className="mt-5 text-4xl font-black leading-[1.15] tracking-tight text-[#F8F1E6]">
+                Trả theo thời hạn, dùng trong đúng gói đã chọn.
+              </h2>
+              <div className="mt-8 space-y-4">
+                {[
+                  "Giá hiển thị là giá gốc của gói.",
+                  "Mã giới thiệu chỉ dùng để đối chiếu quyền lợi cộng thêm thời gian.",
+                  "Không làm rẻ giá trị gói, không tự giảm tiền khi thanh toán.",
+                ].map((item) => (
+                  <div
+                    key={item}
+                    className="rounded-2xl border border-white/10 bg-[#0D0D10] px-5 py-4 text-sm leading-[1.7] text-[#E8DED0]"
+                  >
+                    {item}
+                  </div>
+                ))}
               </div>
             </div>
-          </Card>
-        </section>
-
-        <div className="mb-6 grid gap-4 md:grid-cols-2">
-          <Card className="p-5">
-            <div className="flex gap-3">
-              <Gift className="h-6 w-6 text-[var(--primary)]" />
-              <div>
-                <h2 className="font-black">Mở tài khoản ngay để được trải nghiệm VIP 1 tuần</h2>
-                <p className="mt-2 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
-                  Trial VIP chỉ áp dụng một lần cho tài khoản mới/chưa từng kích hoạt VIP.
-                </p>
-              </div>
-            </div>
-          </Card>
-          <Card className="p-5">
-            <div className="flex gap-3">
-              <TicketPercent className="h-6 w-6 text-[var(--primary)]" />
-              <div>
-                <h2 className="font-black">Mở tài khoản DNSE bắt đầu giao dịch để nhận Promo lên tới 40%</h2>
-                <p className="mt-2 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
-                  Promo cần có mã khách hàng được admin duyệt: 20% cho 3 tháng, 30% cho 6 tháng, 40% cho 12 tháng.
-                </p>
-              </div>
-            </div>
-          </Card>
+          </div>
         </div>
+      </section>
 
-        <Suspense fallback={<Card className="p-6">Đang tải bảng giá...</Card>}>
+      <section id="goi-dich-vu" className="mx-auto max-w-7xl px-5 py-16 lg:px-8 lg:py-20">
+        <Suspense
+          fallback={
+            <div className="flex min-h-[360px] items-center justify-center rounded-[32px] border border-white/12 bg-[#141519] text-[#FFD166]">
+              <Loader2 className="mr-3 h-5 w-5 animate-spin" />
+              Đang tải bảng giá...
+            </div>
+          }
+        >
           <PricingClient />
         </Suspense>
+      </section>
 
-        <Card className="mt-8 p-6">
-          <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-center">
-            <div>
-              <h2 className="text-lg font-black">Cần kích hoạt hoặc xuất hóa đơn?</h2>
-              <p className="mt-2 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
-                Liên hệ admin ADN Capital sau khi thanh toán để kích hoạt gói, cập nhật quyền truy cập và hỗ trợ onboarding.
-              </p>
-            </div>
-            <div className="rounded-2xl border px-4 py-3 text-sm font-bold" style={{ borderColor: "var(--border)" }}>
-              Hỗ trợ qua Zalo / Telegram chính thức
-            </div>
-          </div>
-        </Card>
-      </div>
-    </MainLayout>
+      <footer className="border-t border-white/10 bg-[#111216]">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-8 text-sm leading-[1.7] text-[#9D958C] md:flex-row md:items-center md:justify-between lg:px-8">
+          <p>ADN Capital - Hệ thống giao dịch định lượng.</p>
+          <p>Phân tích tham khảo, không phải khuyến nghị đầu tư.</p>
+        </div>
+      </footer>
+    </main>
   );
 }
