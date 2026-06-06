@@ -58,7 +58,7 @@ export default function PricingPage() {
               Hệ sinh thái{" "}
               <span className="text-[#FFD166]">ADNCapital</span>
               <br />
-              <span className="font-serif italic tracking-normal text-[#FFD166]">
+              <span className="text-[#FFD166]">
                 Mở khóa toàn diện giải pháp đầu tư.
               </span>
             </h1>
@@ -94,9 +94,9 @@ export default function PricingPage() {
               </h2>
               <div className="mt-8 space-y-4">
                 {[
-                  "Giá hiển thị là giá gốc của gói.",
-                  "Mã giới thiệu chỉ dùng để đối chiếu quyền lợi cộng thêm thời gian.",
-                  "Không làm rẻ giá trị gói, không tự giảm tiền khi thanh toán.",
+                  "Mỗi gói hội viên phù hợp với một nhu cầu sử dụng khác nhau.",
+                  "Có thể nâng cấp từ ADN Base hoặc ADN VIP lên ADN Premium; thời gian còn lại sẽ được quy đổi và cộng thêm vào gói mới.",
+                  "Mã giới thiệu hợp lệ giúp cộng thêm thời gian sử dụng khi đủ điều kiện.",
                 ].map((item) => (
                   <div
                     key={item}
