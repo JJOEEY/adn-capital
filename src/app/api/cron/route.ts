@@ -702,7 +702,13 @@ async function handleDatabaseV2Cron(type: CanonicalCronType, forceRun = false): 
     }
 
     if (type === "database_morning_brief") {
+      const collect = await collectDatabaseNews({ sources: ["vnstock_news"] });
       const result = await getDatabaseMorningBrief({ previousTradingDate: databaseEodReadDateKey() });
+      const resultSummary = summarizeDatabasePayload(result);
+      const newsCollectSummary = summarizeDatabasePayload(collect);
+      const logPayload = typeof resultSummary === "object" && resultSummary !== null
+        ? { ...resultSummary, newsCollect: newsCollectSummary }
+        : { result: resultSummary, newsCollect: newsCollectSummary };
       await persistDatabaseToolCronPayload({
         tool: "brief",
         dataset: "brief.morning",
@@ -717,7 +723,7 @@ async function handleDatabaseV2Cron(type: CanonicalCronType, forceRun = false): 
         result.ok ? "success" : "skipped",
         result.ok ? "Database v2 morning brief built" : "Database v2 morning brief built with missing fields",
         duration,
-        summarizeDatabasePayload(result),
+        logPayload,
       );
       return NextResponse.json({ type, ...result }, { status: result.ok ? 200 : 207 });
     }

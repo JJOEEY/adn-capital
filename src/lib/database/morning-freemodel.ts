@@ -67,7 +67,12 @@ function sanitizeArray(value: unknown, maxItems: number) {
   const items: string[] = [];
   for (const raw of value) {
     const item = cleanOutputLine(raw);
-    if (!item || item.length < 24) continue;
+    if (
+      !item ||
+      item.length < 40 ||
+      /(?:\.{3}|…)/u.test(item) ||
+      /&#\d+;|&#x[0-9a-f]+;|&[a-z]+;/iu.test(item)
+    ) continue;
     const key = item.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
@@ -102,8 +107,9 @@ function buildPrompt(input: MorningRewriteInput) {
     "Chỉ dùng dữ liệu được cung cấp. Không bịa số liệu, không khuyến nghị mua bán chắc chắn.",
     "Không nhắc tên nguồn dữ liệu, API, backend, provider, cache hoặc lỗi kỹ thuật.",
     "Văn phong: ngắn gọn, rõ ý, giống bản tin thị trường cho nhà đầu tư cá nhân. Mỗi ý phải nói được tin này ảnh hưởng gì tới thị trường hoặc nhóm ngành.",
+    "Không dùng dấu ba chấm. Không để câu dang dở. Mỗi ý phải là một câu phân tích hoàn chỉnh.",
     "Trả về JSON thuần, không markdown, không giải thích ngoài JSON.",
-    'Schema bắt buộc: {"vn_market":["..."],"macro":["..."],"risk_opportunity":["..."]}',
+    'Schema bắt buộc: {"vn_market":["câu phân tích hoàn chỉnh"],"macro":["câu phân tích hoàn chỉnh"],"risk_opportunity":["câu phân tích hoàn chỉnh"]}',
     "Yêu cầu nội dung:",
     "- vn_market: 4-6 ý, gom theo nhóm ngành hoặc mã nổi bật, ví dụ Năng lượng & Điện, Doanh nghiệp biến động lớn, Dòng tiền/Huy động vốn, Cổ tức/KQKD.",
     "- macro: 3-5 ý. Tin category macro dùng cho vĩ mô trong nước; tin category global dùng cho vĩ mô quốc tế.",
@@ -113,11 +119,6 @@ function buildPrompt(input: MorningRewriteInput) {
     JSON.stringify({
       date: input.payload.date,
       reference_indices: input.payload.reference_indices,
-      draft: {
-        vn_market: input.payload.vn_market,
-        macro: input.payload.macro,
-        risk_opportunity: input.payload.risk_opportunity,
-      },
       news,
     }),
   ].join("\n");
@@ -216,7 +217,7 @@ async function rewriteMorningBriefWithOpenRouter(input: MorningRewriteInput): Pr
         messages: [
           {
             role: "system",
-            content: "Báº¡n viáº¿t tiáº¿ng Viá»‡t rÃµ rÃ ng, thá»±c dá»¥ng, dÃ nh cho nhÃ  Ä‘áº§u tÆ° cÃ¡ nhÃ¢n. LuÃ´n tráº£ JSON há»£p lá»‡.",
+            content: "Bạn viết tiếng Việt rõ ràng, thực dụng, dành cho nhà đầu tư cá nhân. Luôn trả JSON hợp lệ.",
           },
           { role: "user", content: buildPrompt(input) },
         ],

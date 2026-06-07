@@ -98,10 +98,15 @@ function cleanLine(text: string) {
 
 function compact(text: string, max = 245) {
   const cleaned = cleanLine(text);
-  if (cleaned.length <= max) return cleaned;
+  if (cleaned.length <= max) return cleaned.replace(/\s*(?:\.{3}|…)+$/u, ".");
   const cut = cleaned.slice(0, max);
   const at = cut.lastIndexOf(" ");
-  return `${cut.slice(0, at > 150 ? at : max).trim()}...`;
+  const trimmed = cut
+    .slice(0, at > 150 ? at : max)
+    .trim()
+    .replace(/[,:;–-]+$/u, "");
+  if (!trimmed) return "";
+  return /[.!?]$/u.test(trimmed) ? trimmed : `${trimmed}.`;
 }
 
 function lowerFirst(text: string) {
@@ -112,6 +117,7 @@ function lowerFirst(text: string) {
 function isUsableNewsText(text: string) {
   const cleaned = cleanLine(text);
   if (cleaned.length < 18) return false;
+  if (/(?:\.{3}|…)$/u.test(cleaned) || /&#\d+;|&#x[0-9a-f]+;|&[a-z]+;/iu.test(cleaned)) return false;
   const normalized = normalizeForCheck(cleaned);
   if (/^\d+\s*(phut|gio|ngay)\s+truoc$/.test(normalized)) return false;
   if (/^\d{1,2}[:/]\d{1,2}(?:[:/]\d{2,4})?$/.test(normalized)) return false;
