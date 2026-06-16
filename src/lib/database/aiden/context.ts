@@ -6,6 +6,7 @@ import { getDatabaseNewsDataset } from "@/lib/database/providers/news";
 import type { DatabaseNewsItem } from "@/lib/database/providers/news";
 import { prisma } from "@/lib/prisma";
 import { fetchFAData, type FAData } from "@/lib/stockData";
+import { getPythonBridgeUrl } from "@/lib/runtime-config";
 import type {
   DatabaseAidenContext,
   DatabaseAidenDataSources,
@@ -476,6 +477,75 @@ function bridgeFundamentalToContext(fa: FAData): {
   return { financialPeriod, valuation };
 }
 
+type BridgeTaSummary = {
+  price: number | null;
+  prevClose: number | null;
+  change: number | null;
+  changePct: number | null;
+  volume: number | null;
+  value: number | null;
+  dataDate: string | null;
+  lastCandle: DatabaseAidenTickerContext["dailyOhlcv"];
+  technical: DatabaseAidenTechnicalContext | null;
+};
+
+// Pull pre-computed price/indicators/levels/candles straight from the bridge
+// ta-summary endpoint. All values are VND (same scale as database-v2), so they
+// can be merged into the ticker context without any price-scale normalization.
+async function fetchBridgeTaSummary(ticker: string): Promise<BridgeTaSummary | null> {
+  try {
+    const res = await fetch(`${getPythonBridgeUrl()}/api/v1/ta-summary/${ticker.toUpperCase()}`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(20_000),
+      headers: { "Content-Type": "application/json", "x-api-key": process.env.FIINQUANT_API_KEY ?? "" },
+    });
+    if (!res.ok) return null;
+    const json = asRecord(await res.json());
+    const price = asRecord(json.price);
+    const ind = asRecord(json.indicators);
+    const lv = asRecord(json.levels);
+    const vol = asRecord(json.volume);
+    const candles = Array.isArray(json.recentCandles) ? json.recentCandles : [];
+    const last = candles.length ? asRecord(candles[candles.length - 1]) : {};
+    const dataDate = typeof json.dataDate === "string" ? json.dataDate : null;
+    const technical: DatabaseAidenTechnicalContext = {
+      ma20: firstNumber(ind, ["ema20", "sma20", "ma20"]),
+      ma50: firstNumber(ind, ["ema50", "sma50", "ma50"]),
+      ma200: firstNumber(ind, ["ema200", "sma200", "ma200"]),
+      rsi: firstNumber(ind, ["rsi14", "rsi"]),
+      macdHistogram: firstNumber(ind, ["macdHistogram", "macd_histogram"]),
+      volumeMa20: firstNumber(vol, ["avg20", "avgVolume20"]),
+      support: firstNumber(lv, ["support"]),
+      resistance: firstNumber(lv, ["resistance"]),
+      updatedAt: dataDate,
+    };
+    const hasCandle = Object.keys(last).length > 0;
+    return {
+      price: firstNumber(price, ["current", "price", "close"]),
+      prevClose: firstNumber(price, ["prevClose", "reference", "refPrice"]),
+      change: firstNumber(price, ["change", "changedValue"]),
+      changePct: firstNumber(price, ["changePct", "changedRatio"]),
+      volume: firstNumber(vol, ["last"]) ?? firstNumber(last, ["volume"]),
+      value: firstNumber(last, ["value"]),
+      dataDate,
+      lastCandle: hasCandle
+        ? {
+            open: firstNumber(last, ["open"]),
+            high: firstNumber(last, ["high"]),
+            low: firstNumber(last, ["low"]),
+            close: firstNumber(last, ["close"]),
+            volume: firstNumber(last, ["volume"]),
+            value: firstNumber(last, ["value"]),
+            updatedAt: typeof last.date === "string" ? last.date : dataDate,
+          }
+        : null,
+      technical: Object.values(technical).some((value) => value != null) ? technical : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function readToolRows(datasets: string[], key: string): Promise<DatasetPayloadRow[]> {
   datasets.forEach(assertAidenStockDatasetAllowed);
   const rows = await prisma.databaseToolLatest.findMany({
@@ -576,13 +646,13 @@ export async function getDatabaseAidenTickerContext(options: {
     ]);
 
     const effectiveOhlcvRow = ohlcvRow;
-    const market = buildTickerMarket(latestRow, effectiveOhlcvRow);
-    const dailyOhlcv = buildDailyOhlcv(effectiveOhlcvRow);
+    let market = buildTickerMarket(latestRow, effectiveOhlcvRow);
+    let dailyOhlcv = buildDailyOhlcv(effectiveOhlcvRow);
     const technicalRows = [...technicalToolRows, ...technicalMarketRows];
     const financialRows = [...financialToolRows, ...financialMarketRows];
     const valuationRows = [...valuationToolRows, ...valuationMarketRows];
     const profileRows = [...profileToolRows, ...profileMarketRows];
-    const technical = buildTechnical(technicalRows);
+    let technical = buildTechnical(technicalRows);
     const fundamental = buildFundamental({ financialRows, valuationRows, profileRows });
 
     const dataSources = buildEmptySources();
@@ -593,17 +663,44 @@ export async function getDatabaseAidenTickerContext(options: {
     for (const row of valuationRows) addSource(dataSources.fundamental, row.dataset);
     for (const row of profileRows) addSource(dataSources.profile, row.dataset);
 
-    if (AIDEN_FA_BRIDGE_FALLBACK && !fundamental.financialPeriod && !fundamental.valuation) {
-      try {
-        const fa = await fetchFAData(ticker);
-        if (fa) {
-          const bridged = bridgeFundamentalToContext(fa);
-          if (bridged.financialPeriod) fundamental.financialPeriod = bridged.financialPeriod;
-          if (bridged.valuation) fundamental.valuation = bridged.valuation;
-          if (bridged.financialPeriod || bridged.valuation) addSource(dataSources.fundamental, "bridge:fundamental");
+    // Bridge fallback (DB-first): database-v2 does not populate per-ticker
+    // fundamental/technical/quote datasets, so fill them from the FiinQuant bridge
+    // when the DB is empty. ta-summary candles + indicators are VND (DB scale).
+    const needFa = !fundamental.financialPeriod && !fundamental.valuation;
+    const needTa = market.price == null || !dailyOhlcv || !technical;
+    if (AIDEN_FA_BRIDGE_FALLBACK && (needFa || needTa)) {
+      const [fa, ta] = await Promise.all([
+        needFa ? fetchFAData(ticker).catch(() => null) : Promise.resolve(null),
+        needTa ? fetchBridgeTaSummary(ticker).catch(() => null) : Promise.resolve(null),
+      ]);
+      if (fa) {
+        const bridged = bridgeFundamentalToContext(fa);
+        if (bridged.financialPeriod) fundamental.financialPeriod = bridged.financialPeriod;
+        if (bridged.valuation) fundamental.valuation = bridged.valuation;
+        if (bridged.financialPeriod || bridged.valuation) addSource(dataSources.fundamental, "bridge:fundamental");
+      }
+      if (ta) {
+        if (market.price == null && ta.price != null) {
+          market = {
+            ...market,
+            price: ta.price,
+            reference: market.reference ?? ta.prevClose,
+            change: market.change ?? ta.change ?? (ta.prevClose != null ? ta.price - ta.prevClose : null),
+            changePct: market.changePct ?? ta.changePct,
+            volume: market.volume ?? ta.volume,
+            value: market.value ?? ta.value,
+            updatedAt: market.updatedAt ?? ta.dataDate,
+          };
+          addSource(dataSources.quote, "bridge:ta-summary");
         }
-      } catch (error) {
-        console.warn(`[AIDEN_STOCK] bridge FA fallback failed for ${ticker}:`, error);
+        if (!dailyOhlcv && ta.lastCandle) {
+          dailyOhlcv = ta.lastCandle;
+          addSource(dataSources.ohlcv, "bridge:ta-summary");
+        }
+        if (!technical && ta.technical) {
+          technical = ta.technical;
+          addSource(dataSources.technical, "bridge:ta-summary");
+        }
       }
     }
 
