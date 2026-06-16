@@ -301,7 +301,7 @@ function hasFreshEnoughDailyData(coverage: Awaited<ReturnType<typeof getDailyCov
 async function fetchFiinquantHistorical(symbol: string) {
   const backend = getPythonBridgeUrl();
   const res = await fetch(
-    `${backend}/api/v1/historical/${encodeURIComponent(symbol)}?days=${BOOTSTRAP_DAYS}&timeframe=1d&adjusted=false`,
+    `${backend}/api/v1/historical/${encodeURIComponent(symbol)}?days=${BOOTSTRAP_DAYS}&timeframe=1d&adjusted=true`,
     { cache: "no-store", signal: AbortSignal.timeout(45_000) },
   );
   if (!res.ok) {
@@ -406,11 +406,52 @@ function getIsoWeek(date: Date) {
   return Math.ceil((((target.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
 }
 
+// Detect corporate-action adjustments (dividends/splits): the cached daily candles
+// can keep a pre-ex-date price while the bridge already returns the adjusted value.
+// Date-based freshness can't see this (the date still looks current), so compare the
+// latest cached close against the bridge's current adjusted close.
+async function fetchBridgeLatestCandle(symbol: string): Promise<Candle | null> {
+  try {
+    const backend = getPythonBridgeUrl();
+    const res = await fetch(
+      `${backend}/api/v1/historical/${encodeURIComponent(symbol)}?days=10&timeframe=1d&adjusted=true`,
+      { cache: "no-store", signal: AbortSignal.timeout(15_000) },
+    );
+    if (!res.ok) return null;
+    return normalizeCandles(await res.json()).at(-1) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function readLatestStoredCandle(symbol: string) {
+  const row = await prisma.databaseMarketLatest.findFirst({
+    where: { dataset: "market.ohlcv", symbol, channel: { in: [DAILY_CHANNEL, LEGACY_DNSE_DAILY_CHANNEL] } },
+    orderBy: { tradingDate: "desc" },
+  });
+  return row ? normalizeRowPayload(row) : null;
+}
+
+async function dailyCacheIsStale(symbol: string): Promise<boolean> {
+  const [stored, bridge] = await Promise.all([
+    readLatestStoredCandle(symbol),
+    fetchBridgeLatestCandle(symbol),
+  ]);
+  if (!stored || !bridge || bridge.close <= 0) return false;
+  // Bridge has a newer session, or the same session's close diverged (>1%) → re-fetch.
+  if (bridge.time > stored.time) return true;
+  return Math.abs(stored.close - bridge.close) / bridge.close > 0.01;
+}
+
 async function loadChartData(symbol: string, timeframe: string, force: boolean): Promise<ChartPayload> {
   if (isIntradayTimeframe(timeframe)) {
     throw new Error("CHART_INTRADAY_DATABASE_V2_UNAVAILABLE");
   }
-  if (force || !hasFreshEnoughDailyData(await getDailyCoverage(symbol))) {
+  let needBootstrap = force || !hasFreshEnoughDailyData(await getDailyCoverage(symbol));
+  if (!needBootstrap) {
+    needBootstrap = await dailyCacheIsStale(symbol);
+  }
+  if (needBootstrap) {
     await bootstrapDailyCandles(symbol);
   }
   const candles = aggregateCandles(await readDailyCandlesFromDatabase(symbol), timeframe);
