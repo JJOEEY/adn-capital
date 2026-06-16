@@ -74,7 +74,14 @@ export function estimatePriceScaleFromRows(rows: JsonRecord[]): number {
 
   const ratio = median(ratios);
   if (ratio == null) return 1;
-  return Math.abs(ratio - 1) >= 0.08 ? ratio : 1;
+  // Only a clean power-of-10 gap is a real unit mismatch (close quoted in thousands
+  // vs VND). A sub-10x ratio is a corporate-action artifact: value/turnover uses the
+  // raw matched price while close is dividend-adjusted (e.g. ratio 1.28 on an ex-rights
+  // stock). Rescaling by it would inflate the adjusted close, so snap to the nearest
+  // power of 10 and only apply a genuine unit conversion.
+  const nearestPow10 = Math.pow(10, Math.round(Math.log10(ratio)));
+  if (nearestPow10 === 1) return 1;
+  return Math.abs(ratio - nearestPow10) / nearestPow10 <= 0.2 ? nearestPow10 : 1;
 }
 
 export function applyMarketPriceScale(value: number | null | undefined, scale: number): number | null {
