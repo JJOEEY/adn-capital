@@ -5,6 +5,7 @@ import { getCachedDatabaseEodMarketDataset, getDatabaseEodMarketDataset } from "
 import { getDatabaseNewsDataset } from "@/lib/database/providers/news";
 import type { DatabaseNewsItem } from "@/lib/database/providers/news";
 import { prisma } from "@/lib/prisma";
+import { fetchFAData, type FAData } from "@/lib/stockData";
 import type {
   DatabaseAidenContext,
   DatabaseAidenDataSources,
@@ -445,6 +446,36 @@ function buildFundamental(params: {
   };
 }
 
+// Database-v2 does not yet populate per-ticker fundamental datasets, so AIDEN
+// stock FA reads empty. When the DB has no FA for a ticker, fall back to the
+// FiinQuant bridge (P/E, P/B, EPS, ROE... are scale-independent ratios — safe).
+const AIDEN_FA_BRIDGE_FALLBACK = process.env.AIDEN_STOCK_BRIDGE_FA_FALLBACK !== "false";
+
+function bridgeFundamentalToContext(fa: FAData): {
+  financialPeriod: DatabaseAidenFundamentalContext["financialPeriod"];
+  valuation: DatabaseAidenFundamentalContext["valuation"];
+} {
+  const updatedAt = new Date().toISOString();
+  const financialPeriod =
+    fa.eps != null || fa.bookValuePerShare != null || fa.roe != null || fa.roa != null
+      ? {
+          reportPeriod: fa.reportDate ?? null,
+          periodEnd: null,
+          reportDate: null,
+          updatedAt,
+          eps: makeMetric(fa.eps, "eps"),
+          bvps: makeMetric(fa.bookValuePerShare ?? null, "bvps"),
+          roe: makeMetric(fa.roe, "roe"),
+          roa: makeMetric(fa.roa, "roa"),
+        }
+      : null;
+  const valuation =
+    fa.pe != null || fa.pb != null
+      ? { valuationDate: fa.reportDate ?? null, updatedAt, pe: makeMetric(fa.pe, "pe"), pb: makeMetric(fa.pb, "pb") }
+      : null;
+  return { financialPeriod, valuation };
+}
+
 async function readToolRows(datasets: string[], key: string): Promise<DatasetPayloadRow[]> {
   datasets.forEach(assertAidenStockDatasetAllowed);
   const rows = await prisma.databaseToolLatest.findMany({
@@ -561,6 +592,20 @@ export async function getDatabaseAidenTickerContext(options: {
     for (const row of financialRows) addSource(dataSources.fundamental, row.dataset);
     for (const row of valuationRows) addSource(dataSources.fundamental, row.dataset);
     for (const row of profileRows) addSource(dataSources.profile, row.dataset);
+
+    if (AIDEN_FA_BRIDGE_FALLBACK && !fundamental.financialPeriod && !fundamental.valuation) {
+      try {
+        const fa = await fetchFAData(ticker);
+        if (fa) {
+          const bridged = bridgeFundamentalToContext(fa);
+          if (bridged.financialPeriod) fundamental.financialPeriod = bridged.financialPeriod;
+          if (bridged.valuation) fundamental.valuation = bridged.valuation;
+          if (bridged.financialPeriod || bridged.valuation) addSource(dataSources.fundamental, "bridge:fundamental");
+        }
+      } catch (error) {
+        console.warn(`[AIDEN_STOCK] bridge FA fallback failed for ${ticker}:`, error);
+      }
+    }
 
     const missingFieldGroups = buildEmptyMissingGroups();
     if (market.price == null) missingFieldGroups.quote.push("price");
