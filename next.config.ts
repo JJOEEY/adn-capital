@@ -18,6 +18,11 @@ const nextConfig: NextConfig = {
     "next-server": localOnlyTraceExcludes,
     "**/*": localOnlyTraceExcludes,
   },
+  // npm run build runs tsc first; this skips Next's duplicate type worker,
+  // which can hang after webpack finishes on this project.
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "lh3.googleusercontent.com" },

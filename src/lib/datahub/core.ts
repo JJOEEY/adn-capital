@@ -99,6 +99,45 @@ function makeErrorEnvelope(
   };
 }
 
+function getRemoteDatahubBaseUrl() {
+  const raw = process.env.DATAHUB_REMOTE_BASE_URL?.trim();
+  if (!raw) return null;
+  return raw.replace(/\/+$/, "");
+}
+
+function isRemoteDatahubEnabled(definition: TopicDefinition) {
+  return Boolean(getRemoteDatahubBaseUrl()) && (definition.access ?? "public") === "public";
+}
+
+async function fetchRemoteTopicEnvelope(
+  topic: string,
+  definition: TopicDefinition,
+  context: TopicContext,
+): Promise<TopicEnvelope | null> {
+  const baseUrl = getRemoteDatahubBaseUrl();
+  if (!baseUrl || !isRemoteDatahubEnabled(definition)) return null;
+
+  const url = new URL(`${baseUrl}/api/hub/topic/${encodeURIComponent(topic)}`);
+  if (context.force === true) url.searchParams.set("force", "1");
+  const response = await fetch(url, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(Number(process.env.DATAHUB_REMOTE_TIMEOUT_MS ?? 45_000)),
+  });
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`remote DataHub ${topic} HTTP ${response.status}: ${text.slice(0, 220)}`);
+  }
+
+  const envelope = (await response.json()) as TopicEnvelope;
+  return {
+    ...envelope,
+    topic,
+    source: envelope.source || definition.source,
+    version: envelope.version || definition.version,
+    tags: envelope.tags ?? definition.tags,
+  };
+}
+
 function isPrivateTopicUnauthorized(definition: TopicDefinition, context: TopicContext) {
   return (definition.access ?? "public") === "private" && !context.userId;
 }
@@ -211,8 +250,9 @@ export async function getTopicEnvelope(topicKey: string, context?: TopicContext)
     const attemptMs = Date.now();
     const refreshStartedAt = Date.now();
     try {
-      const value = await definition.resolve(normalizedTopic, scopedContext, params);
-      const envelope: TopicEnvelope = {
+      const remoteEnvelope = await fetchRemoteTopicEnvelope(normalizedTopic, definition, scopedContext);
+      const value = remoteEnvelope ? null : await definition.resolve(normalizedTopic, scopedContext, params);
+      const envelope: TopicEnvelope = remoteEnvelope ?? {
         topic: normalizedTopic,
         value: (value ?? null) as TopicEnvelope["value"],
         updatedAt: nowIso(attemptMs),

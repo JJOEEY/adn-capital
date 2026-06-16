@@ -14,6 +14,7 @@ Architecture baseline: [docs/architecture/ADN_MASTER_ARCHITECTURE.md](docs/archi
    - `morning_brief`
    - `close_brief_15h`
    - `eod_full_19h`
+   - `art_daily_1905`
 7. Legacy cron aliases are compatibility only. Do not use aliases as source-of-truth in new deploy scripts/config.
 
 ## Canonical Operator Flow

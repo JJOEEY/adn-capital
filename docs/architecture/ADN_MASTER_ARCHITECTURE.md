@@ -59,6 +59,7 @@ Canonical names:
 - `close_brief_15h` (`15:00`)
 - `adn_rank_15h` (`15:00`, T2-T6)
 - `eod_full_19h` (`19:00`)
+- `art_daily_1905` (`19:05`, T2-T6)
 
 Legacy aliases are compatibility-only and not source-of-truth.
 

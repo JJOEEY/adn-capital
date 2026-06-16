@@ -16,6 +16,10 @@ export default async function DnseTradingPage() {
     redirect("/auth");
   }
 
+  if (dbUser.systemRole !== "ADMIN") {
+    redirect("/dashboard");
+  }
+
   return (
     <MainLayout>
       <DnseTradingClient />

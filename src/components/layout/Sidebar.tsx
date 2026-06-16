@@ -36,7 +36,7 @@ const navItems: Array<{
   { href: "/journal", label: "ADN Diary", icon: BookOpen, badge: null },
   { href: "/aiden", label: PRODUCT_NAMES.advisory, icon: MessageSquare, badge: "HOT" },
   { href: "/dashboard/signal-map", label: PRODUCT_NAMES.brokerWorkflow, icon: Zap, badge: null },
-  { href: "/dashboard/dnse-trading", label: PRODUCT_NAMES.brokerConnect, icon: Wallet, badge: null },
+  { href: "/dashboard/dnse-trading", label: PRODUCT_NAMES.brokerConnect, icon: Wallet, badge: null, adminOnly: true },
   { href: "/art", label: PRODUCT_NAMES.art, icon: TrendingUp, badge: "MỚI" },
   { href: "/pricing", label: "Bảng giá", icon: DollarSign, badge: null },
   { href: "/margin", label: "Giải pháp Margin", icon: Banknote, badge: "MỚI" },

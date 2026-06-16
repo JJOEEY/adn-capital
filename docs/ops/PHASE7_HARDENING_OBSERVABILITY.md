@@ -36,6 +36,7 @@ Canonical jobs:
 - `morning_brief`
 - `close_brief_15h`
 - `eod_full_19h`
+- `art_daily_1905`
 
 Stale is evaluated by expected slot + grace window per canonical job.
 Legacy aliases are compatibility-only and surfaced as `usesLegacyAliasInLastRun=true` if detected.

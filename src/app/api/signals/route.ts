@@ -183,8 +183,8 @@ export async function GET(request: NextRequest) {
             orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
           });
         }
-      } catch (error) {
-        console.error("[/api/signals] live price fallback to DB:", error);
+      } catch (err) {
+        console.error("[/api/signals] live price update failed:", err);
       }
     }
 

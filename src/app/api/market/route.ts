@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import { getMarketSnapshot } from "@/lib/marketDataFetcher";
-import { getPythonBridgeUrl } from "@/lib/runtime-config";
 
 export const revalidate = 0;
-const FIINQUANT_BRIDGE = getPythonBridgeUrl();
 
 // In-memory cache 5 phút → tránh gọi VNDirect liên tục
 let cachedMarket: { data: any; timestamp: number } | null = null;
@@ -232,31 +230,32 @@ export async function GET() {
 
     const marketData = await getMarketStatus();
 
-    // Lấy dữ liệu THỰC từ Python backend cho AI summary (tầm nhìn 30 phiên)
+    // Reuse snapshot data here; dashboard has a separate fast topic for live overview.
     let aiSummary = "";
-    let liveOverview = marketData.adnCore ?? null;
-    try {
-      const overviewRes = await fetch(`${FIINQUANT_BRIDGE}/api/v1/market-overview`, {
-        signal: AbortSignal.timeout(8000),
-      });
-      if (overviewRes.ok) {
-        const ov = await overviewRes.json();
-        liveOverview = ov;
+    const liveOverview = marketData.adnCore ?? null;
+    if (liveOverview) {
         const realLiquidity =
           marketData.snapshotLiquidity && marketData.snapshotLiquidity > 0
             ? `${Math.round(marketData.snapshotLiquidity).toLocaleString("vi-VN")} tỷ`
-            : ov.liquidity
-            ? `${Math.round(ov.liquidity).toLocaleString("vi-VN")} tỷ`
+            : typeof liveOverview.liquidity === "number" && liveOverview.liquidity > 0
+            ? `${Math.round(liveOverview.liquidity).toLocaleString("vi-VN")} tỷ`
             : marketData.totalVolume;
-        const realPrice = ov.price ? ov.price.toFixed(2).replace(".", ",") : marketData.vnindex.value.toFixed(2).replace(".", ",");
-        const realScore = ov.score ?? 0;
-        const realLevel = ov.level ?? 1;
-        const realAction = ov.action_message ?? "";
+        const realPrice =
+          typeof liveOverview.price === "number"
+            ? liveOverview.price.toFixed(2).replace(".", ",")
+            : marketData.vnindex.value.toFixed(2).replace(".", ",");
+        const realScore = liveOverview.score ?? 0;
+        const realLevel = liveOverview.level ?? 1;
+        const realAction = liveOverview.action_message ?? "";
         const pct = marketData.vnindex.changePercent;
+        const overviewExtra = liveOverview as typeof liveOverview & {
+          monthly_summary?: string;
+          weekly_summary?: string;
+        };
 
         // Multi-timeframe (W/M) summaries từ backend
-        const monthlySummary = ov.monthly_summary ?? ov.technical_highlights?.monthly ?? "";
-        const weeklySummary = ov.weekly_summary ?? ov.technical_highlights?.weekly ?? "";
+        const monthlySummary = overviewExtra.monthly_summary ?? liveOverview.technical_highlights?.monthly ?? "";
+        const weeklySummary = overviewExtra.weekly_summary ?? liveOverview.technical_highlights?.weekly ?? "";
 
         // Build nhận định Đa khung thời gian
         const parts: string[] = [];
@@ -275,9 +274,6 @@ export async function GET() {
         parts.push(realAction);
 
         aiSummary = parts.filter(Boolean).join(" ");
-      }
-    } catch {
-      // Fallback: template-based nếu Python backend không khả dụng
     }
 
     if (!aiSummary) {

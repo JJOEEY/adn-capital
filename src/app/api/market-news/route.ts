@@ -2019,6 +2019,47 @@ function backfillEodPayload(base: EodPayload, history: EodPayload[]): EodPayload
   return result;
 }
 
+function backfillEodDetailSections(base: EodPayload, history: EodPayload[]): EodPayload {
+  const pickTextField = (getter: (payload: EodPayload) => string): string => {
+    for (const payload of history) {
+      const value = getter(payload);
+      if (value && !isUnavailableText(value)) return value;
+    }
+    return "";
+  };
+  const pickArrayField = (getter: (payload: EodPayload) => string[]): string[] => {
+    for (const payload of history) {
+      const value = getter(payload);
+      if (value.length > 0) return value;
+    }
+    return [];
+  };
+  const pickSubIndices = (): EodPayload["sub_indices"] => {
+    for (const payload of history) {
+      if (payload.sub_indices.length > 0) return payload.sub_indices;
+    }
+    return [];
+  };
+  return {
+    ...base,
+    foreign_flow: base.foreign_flow || pickTextField((payload) => payload.foreign_flow),
+    notable_trades: base.notable_trades || pickTextField((payload) => payload.notable_trades),
+    sub_indices: base.sub_indices.length > 0 ? base.sub_indices : pickSubIndices(),
+    foreign_top_buy: base.foreign_top_buy.length > 0 ? base.foreign_top_buy : pickArrayField((payload) => payload.foreign_top_buy),
+    foreign_top_sell: base.foreign_top_sell.length > 0 ? base.foreign_top_sell : pickArrayField((payload) => payload.foreign_top_sell),
+    prop_trading_top_buy: base.prop_trading_top_buy.length > 0 ? base.prop_trading_top_buy : pickArrayField((payload) => payload.prop_trading_top_buy),
+    prop_trading_top_sell: base.prop_trading_top_sell.length > 0 ? base.prop_trading_top_sell : pickArrayField((payload) => payload.prop_trading_top_sell),
+    individual_top_buy: base.individual_top_buy.length > 0 ? base.individual_top_buy : pickArrayField((payload) => payload.individual_top_buy),
+    individual_top_sell: base.individual_top_sell.length > 0 ? base.individual_top_sell : pickArrayField((payload) => payload.individual_top_sell),
+    sector_gainers: base.sector_gainers.length > 0 ? base.sector_gainers : pickArrayField((payload) => payload.sector_gainers),
+    sector_losers: base.sector_losers.length > 0 ? base.sector_losers : pickArrayField((payload) => payload.sector_losers),
+    buy_signals: base.buy_signals.length > 0 ? base.buy_signals : pickArrayField((payload) => payload.buy_signals),
+    sell_signals: base.sell_signals.length > 0 ? base.sell_signals : pickArrayField((payload) => payload.sell_signals),
+    top_breakout: base.top_breakout.length > 0 ? base.top_breakout : pickArrayField((payload) => payload.top_breakout),
+    top_new_high: base.top_new_high.length > 0 ? base.top_new_high : pickArrayField((payload) => payload.top_new_high),
+  };
+}
+
 function hasValidMorningPayload(payload: MorningPayload): boolean {
   const validRefs = payload.reference_indices.filter(
     (item) => typeof item.value === "number" && item.value > 0,
@@ -2161,9 +2202,16 @@ function pickScheduledEodCandidate(reports: ReportRow[], now = new Date()): Sche
       .filter((item) => item.dateKey === candidate.dateKey)
       .map((item) => item.payload)
       .sort((a, b) => eodPayloadScore(b) - eodPayloadScore(a));
+    const detailHistory = baseCandidates
+      .filter((item) => item.dateKey < candidate.dateKey)
+      .map((item) => item.payload)
+      .sort((a, b) => eodPayloadScore(b) - eodPayloadScore(a));
     return {
       ...candidate,
-      payload: backfillEodPayload(candidate.payload, sameDatePayloads),
+      payload: backfillEodDetailSections(
+        backfillEodPayload(candidate.payload, sameDatePayloads),
+        detailHistory,
+      ),
     };
   });
 

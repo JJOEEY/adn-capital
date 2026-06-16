@@ -7,6 +7,7 @@ import { useSession } from "next-auth/react";
 import { TrendingUp, BarChart3, Heart, Newspaper, Send, Zap, Bot } from "lucide-react";
 import { StockChart } from "@/components/chat/StockChart";
 import { useTheme } from "@/components/providers/ThemeProvider";
+import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 
 type CardId = "ta" | "fa" | "tamly" | "news";
 type BrokerBadge = "MUA" | "GIỮ" | "BÁN";
@@ -209,9 +210,10 @@ interface BotBubbleProps {
   onCardClick?: (cardId: CardId, ticker: string) => void;
   cardLoading?: CardId | null;
   cardDisabled?: boolean;
+  canShowOrderAction?: boolean;
 }
 
-function BotBubble({ message, onCardClick, cardLoading, cardDisabled = false }: BotBubbleProps) {
+function BotBubble({ message, onCardClick, cardLoading, cardDisabled = false, canShowOrderAction = false }: BotBubbleProps) {
   const brokerBadge = message.brokerBadge ?? "GIỮ";
   const brokerBadgeDesign = badgeStyle(brokerBadge);
 
@@ -265,7 +267,7 @@ function BotBubble({ message, onCardClick, cardLoading, cardDisabled = false }: 
           />
         )}
 
-        {message.role === "bot" && message.ticker ? (
+        {canShowOrderAction && message.role === "bot" && message.ticker ? (
           <a
             href={buildAdnLinkHref(message.ticker)}
             className="w-fit rounded-full border px-3 py-1.5 text-xs font-bold"
@@ -302,6 +304,7 @@ export function InvestmentChat({
 }: InvestmentChatProps) {
   const { data: session } = useSession();
   const { theme } = useTheme();
+  const { isAdmin } = useCurrentDbUser();
   const userId = (session?.user as { id?: string })?.id ?? "";
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -551,6 +554,7 @@ export function InvestmentChat({
               onCardClick={msg.isCards ? handleCardClick : undefined}
               cardLoading={cardLoading}
               cardDisabled={disableInput}
+              canShowOrderAction={isAdmin}
             />
           ),
         )}

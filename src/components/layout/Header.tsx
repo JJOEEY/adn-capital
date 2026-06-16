@@ -72,6 +72,7 @@ const menuSections: MenuSection[] = [
         href: "/dashboard/dnse-trading",
         label: PRODUCT_NAMES.brokerConnect,
         icon: Wallet,
+        roles: ["ADMIN"],
       },
       { href: "/tin-tuc", label: "Tin tức", icon: Newspaper },
     ],

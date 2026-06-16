@@ -816,7 +816,7 @@ async function loadHistoricalTickerWithMarketClose(ticker: string) {
 
 async function loadVNIndexChart30d() {
   const [payload, snapshot, marketOverview] = await Promise.all([
-    loadHistoricalTicker("VNINDEX").catch(() => null),
+    loadBridgeHistoricalTicker("VNINDEX", "1d", 75, 4_000).catch(() => null),
     getMarketSnapshot().catch(() => null),
     loadMarketOverview().catch(() => null),
   ]);
@@ -3524,8 +3524,8 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
   },
   {
     id: "signal:map:latest",
-    ttlMs: 60_000,
-    minIntervalMs: 10_000,
+    ttlMs: 300_000,       // 5 min — was 60s; /api/signals now returns immediately from DB
+    minIntervalMs: 30_000, // 30s min re-fetch gap — was 10s
     source: "api:signals",
     version: "v1",
     tags: ["signal", "public", "dashboard"],
@@ -3557,8 +3557,8 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
   },
   {
     id: "signal:reported:today",
-    ttlMs: 30_000,
-    minIntervalMs: 10_000,
+    ttlMs: 120_000,       // 2 min — was 30s; no need to hit DB every 30s
+    minIntervalMs: 30_000, // 30s min re-fetch gap — was 10s
     source: "db:signal-history",
     version: "v1",
     tags: ["signal", "signal-reported", "public", "dashboard"],
