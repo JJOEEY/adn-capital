@@ -65,9 +65,12 @@ if ${COMPOSE_BIN} ps -q web >/dev/null 2>&1; then
 fi
 
 git fetch origin "${BRANCH}"
-REMOTE_REF="$(git rev-parse "origin/${BRANCH}")"
+# Use FETCH_HEAD (the tip just fetched). Plain `git fetch origin <branch>` does not
+# reliably update the refs/remotes/origin/<branch> tracking ref on all configs, so
+# reading origin/<branch> here can be stale and trip the forward-only guard falsely.
+REMOTE_REF="$(git rev-parse FETCH_HEAD)"
 echo "[safe-deploy] currently running ref: ${PREV_REF}"
-echo "[safe-deploy] target origin/${BRANCH} ref: ${REMOTE_REF}"
+echo "[safe-deploy] target ${BRANCH} (FETCH_HEAD) ref: ${REMOTE_REF}"
 
 # Guard 3: forward-only. The target must already contain the commit that is currently
 # running. Otherwise this deploy moves production BACKWARD or sideways onto code that
@@ -80,7 +83,7 @@ if [[ "${PREV_REF}" != "${REMOTE_REF}" ]]; then
     echo "[safe-deploy][WARN] Target does not contain running ref; proceeding (ALLOW_NON_FORWARD=1)."
   else
     echo "[safe-deploy][ABORT] Non-forward deploy blocked." >&2
-    echo "[safe-deploy] origin/${BRANCH} (${REMOTE_REF}) does not contain running commit (${PREV_REF})." >&2
+    echo "[safe-deploy] fetched ${BRANCH} (${REMOTE_REF}) does not contain running commit (${PREV_REF})." >&2
     echo "[safe-deploy] Deploying it would drop fixes already live. Merge into ${BRANCH} first." >&2
     echo "[safe-deploy] Intentional override (e.g. controlled rollback-forward): ALLOW_NON_FORWARD=1" >&2
     exit 1
