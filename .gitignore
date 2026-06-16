@@ -58,3 +58,8 @@ push-to-github.ps1
 # VPS credentials (NEVER commit this)
 vps-credentials.json
 .env.vps
+
+# deploy artifacts (created on the server by deploy/safe-web-deploy.sh)
+.deploy_prev_ref
+.deploy_prev_image
+.deploy_run.log

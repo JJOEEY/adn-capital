@@ -36,14 +36,15 @@ fi
 
 cd "${APP_DIR}"
 
-# Guard 2: never deploy on top of a dirty working tree. Manual edits on the server
-# break ff-only pulls and produce "half-old, half-new" code states.
-if [[ -n "$(git status --porcelain)" ]]; then
+# Guard 2: never deploy on top of MODIFIED TRACKED files (they break ff-only pull
+# and produce "half-old, half-new" code). Untracked files (e.g. this script's own
+# .deploy_* artifacts) do not block a pull, so they are intentionally ignored.
+if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
   if [[ "${ALLOW_DIRTY_TREE}" == "1" ]]; then
-    echo "[safe-deploy][WARN] Working tree has local changes (ignored by ALLOW_DIRTY_TREE=1)."
+    echo "[safe-deploy][WARN] Tracked files modified on server (ignored by ALLOW_DIRTY_TREE=1)."
   else
-    echo "[safe-deploy][ABORT] Server working tree is dirty (manual edits detected):" >&2
-    git status --short >&2
+    echo "[safe-deploy][ABORT] Server has modified tracked files (manual edits):" >&2
+    git status --short --untracked-files=no >&2
     echo "[safe-deploy] Commit/stash/discard on the server, or set ALLOW_DIRTY_TREE=1 to ignore." >&2
     exit 1
   fi
