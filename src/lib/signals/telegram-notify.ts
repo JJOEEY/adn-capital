@@ -55,7 +55,7 @@ function formatSingleSignalText(params: {
   const label = SIGNAL_LABEL_UPPER[normalized] ?? normalized;
   const nav =
     typeof params.navAllocation === "number" && Number.isFinite(params.navAllocation) && params.navAllocation > 0
-      ? `${Number(params.navAllocation.toFixed(2))}%`
+      ? `${Math.round(params.navAllocation)}%`
       : "-";
   return [
     `${params.ticker.toUpperCase().trim()} - ${label}`,
@@ -207,15 +207,20 @@ export async function sendClaimedSignalsToTelegram(params: {
   });
   const byTicker = new Map(rows.map((row) => [row.ticker.toUpperCase().trim(), row]));
 
+  const MIN_NAV_PCT = 7; // bỏ qua mã tỉ trọng < 7% (quá nhỏ, không đáng mở vị thế)
   const perSignal: Array<{ ticker: string; result: Awaited<ReturnType<typeof sendTelegramOnce>> }> = [];
   for (const signal of actionable) {
     const ticker = signal.ticker.toUpperCase().trim();
     const db = byTicker.get(ticker);
+    const navAllocation = db?.navAllocation ?? signal.navAllocation ?? null;
+    if (typeof navAllocation !== "number" || navAllocation < MIN_NAV_PCT) {
+      continue;
+    }
     const text = formatSingleSignalText({
       ticker,
       type: signal.type,
       entryPrice: signal.entryPrice ?? db?.entryPrice ?? null,
-      navAllocation: db?.navAllocation ?? signal.navAllocation ?? null,
+      navAllocation,
       reason: signal.reason ?? db?.reason ?? null,
     });
     // Chống trùng: mỗi mã chỉ bắn 1 lần/ngày.
