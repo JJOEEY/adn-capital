@@ -66,6 +66,7 @@ type PaperPosition = {
   rrRatio?: string | null;
   winRate?: number | null;
   sharpeRatio?: number | null;
+  locked?: boolean;
 };
 
 type PaperAccount = {
@@ -298,7 +299,21 @@ function PaperPositionInsight({ position }: { position: PaperPosition }) {
   );
 }
 
-function PaperPositionCard({ position }: { position: PaperPosition }) {
+function PaperPositionCard({
+  position,
+  canManage = false,
+  onAction,
+  busy = false,
+}: {
+  position: PaperPosition;
+  canManage?: boolean;
+  onAction?: (body: Record<string, unknown>) => void;
+  busy?: boolean;
+}) {
+  const [showAdjust, setShowAdjust] = useState(false);
+  const [navInput, setNavInput] = useState(String(Math.round(position.navPct)));
+  const [slInput, setSlInput] = useState(position.stoploss != null ? String(position.stoploss) : "");
+  const [tpInput, setTpInput] = useState(position.target != null ? String(position.target) : "");
   const cfg = PAPER_TIER_CONFIG[position.tier] ?? PAPER_TIER_CONFIG.NGAN_HAN;
   const pnl = position.currentPnl ?? 0;
   const pnlColor = pnl >= 0 ? "#16a34a" : "var(--danger)";
@@ -352,6 +367,11 @@ function PaperPositionCard({ position }: { position: PaperPosition }) {
           <span className="rounded-md border px-1.5 py-0.5 text-[11px] font-bold" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
             {position.exchange}
           </span>
+          {position.locked && (
+            <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-bold" style={{ background: "rgba(245,158,11,0.12)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.25)" }}>
+              <Lock className="w-3 h-3" /> Khóa giữ
+            </span>
+          )}
         </div>
 
         <div className="mb-4">
@@ -412,6 +432,81 @@ function PaperPositionCard({ position }: { position: PaperPosition }) {
 
       <PaperPositionInsight position={position} />
 
+      {canManage && onAction && (
+        <div className="mx-3 mb-3 space-y-2">
+          <div className="grid grid-cols-3 gap-1.5">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => onAction({ action: "lock", positionId: position.id, locked: !position.locked })}
+              className="rounded-lg border px-2 py-2 text-[11px] font-bold transition-all hover:opacity-90 disabled:opacity-50"
+              style={{ borderColor: "var(--border)", background: position.locked ? "rgba(245,158,11,0.12)" : "var(--surface-2)", color: position.locked ? "#f59e0b" : "var(--text-primary)" }}
+            >
+              {position.locked ? "🔓 Mở khóa" : "🔒 Khóa giữ"}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => setShowAdjust((v) => !v)}
+              className="rounded-lg border px-2 py-2 text-[11px] font-bold transition-all hover:opacity-90 disabled:opacity-50"
+              style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-primary)" }}
+            >
+              ✏️ Tỉ trọng
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                if (window.confirm(`Bán tay ${position.ticker} ngay theo giá hiện tại?`)) {
+                  onAction({ action: "sell", positionId: position.id });
+                }
+              }}
+              className="rounded-lg border px-2 py-2 text-[11px] font-bold transition-all hover:opacity-90 disabled:opacity-50"
+              style={{ borderColor: "rgba(192,57,43,0.30)", background: "rgba(192,57,43,0.08)", color: "var(--danger)" }}
+            >
+              💰 Bán tay
+            </button>
+          </div>
+          {showAdjust && (
+            <div className="rounded-lg border p-2.5 space-y-2" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+              <div className="grid grid-cols-3 gap-2">
+                <label className="block text-[11px]" style={{ color: "var(--text-secondary)" }}>
+                  Tỉ trọng %
+                  <input value={navInput} onChange={(e) => setNavInput(e.target.value)} inputMode="numeric" className="mt-0.5 w-full rounded border px-1.5 py-1 text-xs font-mono" style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--text-primary)" }} />
+                </label>
+                <label className="block text-[11px]" style={{ color: "var(--text-secondary)" }}>
+                  Stoploss
+                  <input value={slInput} onChange={(e) => setSlInput(e.target.value)} inputMode="decimal" placeholder="-" className="mt-0.5 w-full rounded border px-1.5 py-1 text-xs font-mono" style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--text-primary)" }} />
+                </label>
+                <label className="block text-[11px]" style={{ color: "var(--text-secondary)" }}>
+                  Take-profit
+                  <input value={tpInput} onChange={(e) => setTpInput(e.target.value)} inputMode="decimal" placeholder="-" className="mt-0.5 w-full rounded border px-1.5 py-1 text-xs font-mono" style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--text-primary)" }} />
+                </label>
+              </div>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  const nav = Number(navInput);
+                  onAction({
+                    action: "adjust",
+                    positionId: position.id,
+                    navPct: Number.isFinite(nav) && nav > 0 ? nav : undefined,
+                    stoploss: slInput.trim() === "" ? null : Number(slInput),
+                    target: tpInput.trim() === "" ? null : Number(tpInput),
+                  });
+                  setShowAdjust(false);
+                }}
+                className="w-full rounded-lg px-2 py-1.5 text-[11px] font-black text-white transition-all hover:opacity-90 disabled:opacity-50"
+                style={{ background: "var(--primary)" }}
+              >
+                Lưu (nhồi/giảm tỉ trọng + đặt SL/TP)
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="mx-3 mb-3">
         <Link href={`/stock/${position.ticker}`}>
           <button
@@ -437,6 +532,10 @@ export function SignalMapClient({
   const [tab, setTab] = useState<Tab>("RADAR");
   const [tierFilter, setTierFilter] = useState<TierFilter>("all");
   const [isScanning, setIsScanning] = useState(false);
+  const [paperBusy, setPaperBusy] = useState<string | null>(null);
+  const [buyTicker, setBuyTicker] = useState("");
+  const [buyNav, setBuyNav] = useState("15");
+  const [buyTier, setBuyTier] = useState("NGAN_HAN");
   const [isTradingSession, setIsTradingSession] = useState(false);
   const [watchlistTicker, setWatchlistTicker] = useState<string | null>(null);
 
@@ -552,6 +651,29 @@ export function SignalMapClient({
     } finally {
       await signalMapTopic.refresh(true);
       setIsScanning(false);
+    }
+  }
+
+  async function callPaperAction(body: Record<string, unknown>) {
+    const key = typeof body.positionId === "string" ? body.positionId : "buy";
+    setPaperBusy(key);
+    try {
+      const res = await fetch("/api/signals/paper", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.ok === false) {
+        window.alert(`Không thực hiện được: ${data?.reason ?? data?.error ?? `HTTP ${res.status}`}`);
+      } else if (body.action === "buy") {
+        setBuyTicker("");
+      }
+    } catch {
+      window.alert("Lỗi kết nối khi can thiệp tài khoản.");
+    } finally {
+      await signalMapTopic.refresh(true);
+      setPaperBusy(null);
     }
   }
 
@@ -764,9 +886,59 @@ export function SignalMapClient({
                 Snapshot gần nhất: {paperAccount.latestSnapshot.snapshotDate} {paperAccount.latestSnapshot.slot}
               </p>
             )}
+            {showExecutionActions && (
+              <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+                <p className="text-[12px] font-bold mb-2" style={{ color: "var(--text-primary)" }}>🛒 Mua tay — nạp mã hệ thống bỏ sót</p>
+                <div className="flex flex-wrap items-end gap-2">
+                  <input
+                    value={buyTicker}
+                    onChange={(e) => setBuyTicker(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
+                    placeholder="Mã (VD: CTS)"
+                    className="w-28 rounded border px-2 py-1.5 text-sm font-mono uppercase"
+                    style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--text-primary)" }}
+                  />
+                  <select
+                    value={buyTier}
+                    onChange={(e) => setBuyTier(e.target.value)}
+                    className="rounded border px-2 py-1.5 text-xs"
+                    style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--text-primary)" }}
+                  >
+                    <option value="LEADER">👑 Siêu cổ phiếu</option>
+                    <option value="TRUNG_HAN">🛡️ Trung hạn</option>
+                    <option value="NGAN_HAN">⚡ Ngắn hạn</option>
+                  </select>
+                  <input
+                    value={buyNav}
+                    onChange={(e) => setBuyNav(e.target.value)}
+                    inputMode="numeric"
+                    placeholder="Tỉ trọng %"
+                    className="w-24 rounded border px-2 py-1.5 text-sm font-mono"
+                    style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--text-primary)" }}
+                  />
+                  <button
+                    type="button"
+                    disabled={paperBusy === "buy" || !buyTicker.trim()}
+                    onClick={() => callPaperAction({ action: "buy", ticker: buyTicker.trim(), navPct: Number(buyNav) || 10, tier: buyTier })}
+                    className="rounded-lg px-4 py-1.5 text-sm font-black text-white transition-all hover:opacity-90 disabled:opacity-50"
+                    style={{ background: "#16a34a" }}
+                  >
+                    {paperBusy === "buy" ? "Đang mua…" : "Mua tay"}
+                  </button>
+                </div>
+                <p className="text-[11px] mt-1.5" style={{ color: "var(--text-muted)" }}>
+                  Mua tay mặc định được KHÓA GIỮ (hệ thống không tự bán). Bấm &quot;Mở khóa&quot; nếu muốn giao cho hệ thống quản lý.
+                </p>
+              </div>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {filteredPaperPositions.map((position) => (
-                <PaperPositionCard key={position.id} position={position} />
+                <PaperPositionCard
+                  key={position.id}
+                  position={position}
+                  canManage={showExecutionActions}
+                  onAction={callPaperAction}
+                  busy={paperBusy === position.id}
+                />
               ))}
             </div>
           </div>
