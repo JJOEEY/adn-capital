@@ -688,6 +688,21 @@ export async function syncRadarPaperAccountPrices(options: { slot?: "11:30" | "1
     const maxPnl = Math.max(position.maxPnl ?? 0, pnl);
     const heldDays = tradingDaysSince(position.openedAt, now);
 
+    // Khóa giữ: KHÔNG auto-bán (kể cả stoploss/chốt chủ động) — chỉ cập nhật giá/pnl.
+    if (position.locked) {
+      await prisma.radarPaperPosition.update({
+        where: { id: position.id },
+        data: { currentPrice: price, marketValue, currentPnl: pnl, currentPnlValue: pnlValue, maxPnl },
+      });
+      if (position.signalId) {
+        await prisma.signal.update({
+          where: { id: position.signalId },
+          data: { currentPrice: price, currentPnl: pnl },
+        });
+      }
+      continue;
+    }
+
     let nextStatus = position.status;
     let nextStoploss = position.stoploss;
     let exitReason: string | null = null;
@@ -874,6 +889,7 @@ export async function getRadarPaperAccountPayload() {
         pendingExitTriggeredAt: row.pendingExitTriggeredAt?.toISOString() ?? null,
         pendingExitPrice: row.pendingExitPrice,
         holdingAction: row.holdingAction,
+        locked: row.locked,
         triggerSignal: signal?.triggerSignal ?? null,
         aiReasoning: signal?.aiReasoning ?? null,
         reason: signal?.reason ?? null,
@@ -915,4 +931,206 @@ export async function getRadarPaperAccountPayload() {
         sellableAt: row.sellableAt.toISOString(),
       })),
   };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  CAN THIỆP TAY — Khóa giữ / Bán tay / Mua tay / Chỉnh tỉ trọng (SL-TP)
+// ═══════════════════════════════════════════════════════════════════
+
+const OPEN_STATUSES = ["ACTIVE", "HOLD_TO_DIE", "PENDING_EXIT"];
+const MANUAL_TIERS = new Set(["LEADER", "TRUNG_HAN", "NGAN_HAN", "DAU_CO"]);
+
+// Khóa / mở khóa: khi locked=true, hệ thống KHÔNG tự bán mã này.
+export async function setPaperPositionLock(positionId: string, locked: boolean) {
+  const position = await prisma.radarPaperPosition.findFirst({
+    where: { id: positionId, status: { in: OPEN_STATUSES } },
+  });
+  if (!position) return { ok: false as const, reason: "position_not_open" };
+  await prisma.radarPaperPosition.update({ where: { id: position.id }, data: { locked } });
+  await invalidateTopics({ topics: ["signal:map:latest"], tags: ["signal"] });
+  return { ok: true as const, locked };
+}
+
+// Bán tay: đóng vị thế ngay theo giá hiện tại (bỏ qua ràng buộc T+2.5 — can thiệp chủ động).
+export async function manualSellPaperPosition(positionId: string, now = new Date()) {
+  const position = await prisma.radarPaperPosition.findFirst({
+    where: { id: positionId, status: { in: OPEN_STATUSES } },
+  });
+  if (!position) return { ok: false as const, reason: "position_not_open" };
+  const prices = await getBatchPrices([position.ticker]);
+  const price =
+    normalizeSignalPrice(prices[position.ticker]?.close) ??
+    normalizeSignalPrice(position.currentPrice) ??
+    position.entryPrice;
+  if (!isValidPrice(price)) return { ok: false as const, reason: "missing_market_price" };
+  await closePosition(position, price, "Ban tay (can thiep thu cong)", now);
+  await invalidateTopics({ topics: ["signal:map:latest"], tags: ["signal"] });
+  return { ok: true as const, price };
+}
+
+// Mua tay: nạp mã bất kỳ vào danh mục (kể cả mã hệ thống miss). Mặc định KHÓA GIỮ.
+export async function manualBuyPaperPosition(params: { ticker: string; navPct: number; tier?: string; now?: Date }) {
+  const now = params.now ?? new Date();
+  const ticker = params.ticker.toUpperCase().trim();
+  if (!/^[A-Z0-9]{2,10}$/.test(ticker)) return { ok: false as const, reason: "invalid_ticker" };
+  const navPct = Number(params.navPct);
+  if (!Number.isFinite(navPct) || navPct <= 0 || navPct > 100) return { ok: false as const, reason: "invalid_nav" };
+
+  const account = await ensureRadarPaperAccountSeeded();
+  const open = await activePositions(account.id);
+  if (open.some((row) => row.ticker.toUpperCase() === ticker)) return { ok: false as const, reason: "duplicate_ticker" };
+  if (open.length >= MAX_UNIQUE_POSITIONS) return { ok: false as const, reason: "max_10_positions" };
+
+  const prices = await getBatchPrices([ticker]);
+  const price = normalizeSignalPrice(prices[ticker]?.close);
+  if (!isValidPrice(price)) return { ok: false as const, reason: "missing_market_price" };
+
+  const acct = await prisma.radarPaperAccount.findUnique({ where: { id: account.id } });
+  if (!acct) return { ok: false as const, reason: "account_missing" };
+  const totalNav = await accountTotalNav(account.id, acct.cash);
+  const quantity = Math.floor((totalNav * (navPct / 100)) / price / 100) * 100;
+  const grossValue = round2(quantity * price);
+  if (quantity <= 0 || grossValue > acct.cash) return { ok: false as const, reason: "insufficient_cash_or_size" };
+
+  const tier = params.tier && MANUAL_TIERS.has(params.tier) ? params.tier : "NGAN_HAN";
+  const signalType = tier === "LEADER" ? "SIEU_CO_PHIEU" : tier === "TRUNG_HAN" ? "TRUNG_HAN" : "DAU_CO";
+  const exchange = inferExchangeForTicker(ticker);
+  const created = await prisma.radarPaperPosition.create({
+    data: {
+      accountId: account.id,
+      signalId: null,
+      ticker,
+      exchange,
+      signalType,
+      tier,
+      status: "ACTIVE",
+      entryPrice: price,
+      quantity,
+      costBasis: grossValue,
+      navAllocation: round2((grossValue / totalNav) * 100),
+      currentPrice: price,
+      marketValue: grossValue,
+      currentPnl: 0,
+      currentPnlValue: 0,
+      maxPnl: 0,
+      openedAt: now,
+      sellableAt: addTradingDays(now, 2),
+      holdingAction: "MUA TAY",
+      locked: true,
+    },
+  });
+  await prisma.$transaction([
+    prisma.radarPaperAccount.update({ where: { id: account.id }, data: { cash: round2(acct.cash - grossValue) } }),
+    prisma.radarPaperTrade.create({
+      data: {
+        accountId: account.id,
+        positionId: created.id,
+        signalId: null,
+        ticker,
+        exchange,
+        side: "BUY",
+        price,
+        quantity,
+        grossValue,
+        reason: "Mua tay (can thiep thu cong)",
+        tradedAt: now,
+      },
+    }),
+  ]);
+  await invalidateTopics({ topics: ["signal:map:latest"], tags: ["signal"] });
+  return { ok: true as const, positionId: created.id, quantity, price };
+}
+
+// Chỉnh tỉ trọng (nhồi thêm / giảm bớt) + đặt stoploss / take-profit bằng tay.
+export async function adjustPaperPosition(params: {
+  positionId: string;
+  navPct?: number;
+  stoploss?: number | null;
+  target?: number | null;
+  now?: Date;
+}) {
+  const now = params.now ?? new Date();
+  const position = await prisma.radarPaperPosition.findFirst({
+    where: { id: params.positionId, status: { in: OPEN_STATUSES } },
+  });
+  if (!position) return { ok: false as const, reason: "position_not_open" };
+
+  const updates: Record<string, unknown> = {};
+  if (params.stoploss !== undefined) {
+    updates.stoploss = params.stoploss === null ? null : normalizeSignalPrice(params.stoploss);
+  }
+  if (params.target !== undefined) {
+    updates.target = params.target === null ? null : normalizeSignalPrice(params.target);
+  }
+
+  if (params.navPct !== undefined && Number.isFinite(params.navPct) && params.navPct > 0) {
+    const account = await prisma.radarPaperAccount.findUnique({ where: { id: position.accountId } });
+    if (!account) return { ok: false as const, reason: "account_missing" };
+    const prices = await getBatchPrices([position.ticker]);
+    const price =
+      normalizeSignalPrice(prices[position.ticker]?.close) ??
+      normalizeSignalPrice(position.currentPrice) ??
+      position.entryPrice;
+    if (!isValidPrice(price)) return { ok: false as const, reason: "missing_market_price" };
+    const totalNav = await accountTotalNav(position.accountId, account.cash);
+    const desiredQty = Math.floor((totalNav * (params.navPct / 100)) / price / 100) * 100;
+    const deltaQty = desiredQty - position.quantity;
+
+    if (deltaQty >= 100) {
+      const addCost = round2(deltaQty * price);
+      if (addCost > account.cash) return { ok: false as const, reason: "insufficient_cash" };
+      const newQty = position.quantity + deltaQty;
+      const newCost = round2(position.costBasis + addCost);
+      updates.quantity = newQty;
+      updates.costBasis = newCost;
+      updates.entryPrice = round2(newCost / newQty);
+      updates.marketValue = round2(newQty * price);
+      updates.currentPrice = price;
+      updates.navAllocation = round2(((newQty * price) / totalNav) * 100);
+      await prisma.$transaction([
+        prisma.radarPaperAccount.update({ where: { id: account.id }, data: { cash: round2(account.cash - addCost) } }),
+        prisma.radarPaperTrade.create({
+          data: {
+            accountId: account.id, positionId: position.id, signalId: position.signalId,
+            ticker: position.ticker, exchange: position.exchange, side: "BUY",
+            price, quantity: deltaQty, grossValue: addCost,
+            reason: "Nhoi them (chinh ti trong tay)", tradedAt: now,
+          },
+        }),
+      ]);
+    } else if (deltaQty <= -100) {
+      const sellQty = Math.min(position.quantity - 100, -deltaQty);
+      if (sellQty >= 100) {
+        const proceeds = round2(sellQty * price);
+        const soldCost = round2(position.costBasis * (sellQty / position.quantity));
+        const realized = round2(proceeds - soldCost);
+        const newQty = position.quantity - sellQty;
+        updates.quantity = newQty;
+        updates.costBasis = round2(position.costBasis - soldCost);
+        updates.marketValue = round2(newQty * price);
+        updates.currentPrice = price;
+        updates.navAllocation = round2(((newQty * price) / totalNav) * 100);
+        await prisma.$transaction([
+          prisma.radarPaperAccount.update({
+            where: { id: account.id },
+            data: { cash: round2(account.cash + proceeds), realizedPnl: round2(account.realizedPnl + realized) },
+          }),
+          prisma.radarPaperTrade.create({
+            data: {
+              accountId: account.id, positionId: position.id, signalId: position.signalId,
+              ticker: position.ticker, exchange: position.exchange, side: "SELL",
+              price, quantity: sellQty, grossValue: proceeds,
+              reason: "Giam ti trong (chinh ti trong tay)", tradedAt: now,
+            },
+          }),
+        ]);
+      }
+    }
+  }
+
+  if (Object.keys(updates).length > 0) {
+    await prisma.radarPaperPosition.update({ where: { id: position.id }, data: updates });
+  }
+  await invalidateTopics({ topics: ["signal:map:latest"], tags: ["signal"] });
+  return { ok: true as const };
 }
