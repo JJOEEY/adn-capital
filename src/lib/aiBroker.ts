@@ -11,7 +11,7 @@ export interface AiBrokerRuntimeConfig {
 
 const DEFAULT_CONFIG: AiBrokerRuntimeConfig = {
   minPrice: 10,
-  minWinRate: 60,
+  minWinRate: 0, // winRate KHÔNG dùng để lọc pick (theo yêu cầu — winRate không tối ưu)
   minRr: 1,
   autoPickEnabled: true,
   maxTotalNav: 90,
@@ -69,11 +69,10 @@ export function shouldAutoActivateSignal(
   if (!config.autoPickEnabled) return false;
   const priceNow = params.currentPrice ?? params.entryPrice;
   const rr = parseRrRatio(params.rrRatio);
-  const winRate = params.winRate ?? 0;
 
   if (!Number.isFinite(priceNow) || !Number.isFinite(params.entryPrice)) return false;
   if (priceNow <= config.minPrice) return false;
-  if (winRate < config.minWinRate) return false;
+  // winRate KHÔNG còn là tiêu chí lọc (theo yêu cầu: winRate không tối ưu cho pick).
   if (rr == null || rr < config.minRr) return false;
   if (params.entryPrice > priceNow) return false;
 

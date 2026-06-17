@@ -101,6 +101,18 @@ function addTradingDays(from: Date, days: number) {
   return cursor.hour(13).minute(0).second(0).millisecond(0).toDate();
 }
 
+// Đếm số phiên giao dịch (T+n) đã trôi qua kể từ ngày mở vị thế
+function tradingDaysSince(openedAt: Date, now: Date): number {
+  let cursor = toVnTime(openedAt).add(1, "day").startOf("day");
+  const end = toVnTime(now).startOf("day");
+  let count = 0;
+  while (cursor.valueOf() <= end.valueOf()) {
+    if (isVnTradingDay(cursor.toDate())) count += 1;
+    cursor = cursor.add(1, "day");
+  }
+  return count;
+}
+
 export function isExchangeSellOpen(exchange: string, at = new Date()) {
   if (!isVnTradingDay(at)) return false;
   const now = toVnTime(at);
@@ -579,13 +591,85 @@ async function markPendingExit(position: Awaited<ReturnType<typeof activePositio
   await pushNotification("radar_paper_pending_exit", `ADN Radar kich hoat ban ${position.ticker}`, `${reason}. Gia thi truong ghi nhan: ${price.toLocaleString("vi-VN")}. Cho dung T+2.5/gio san de ban.`);
 }
 
+// Xoay vốn: lấp slot trống bằng tín hiệu ACTIVE/HOLD tỉ trọng mạnh nhất chưa nắm giữ
+async function refillRadarPaperAccount(accountId: string, now: Date): Promise<number> {
+  const account = await prisma.radarPaperAccount.findUnique({ where: { id: accountId } });
+  if (!account) return 0;
+  const open = await activePositions(accountId);
+  if (open.length >= MAX_UNIQUE_POSITIONS) return 0;
+  const totalNavBefore = await accountTotalNav(accountId, account.cash);
+  if (totalNavBefore <= 0 || (account.cash / totalNavBefore) * 100 <= MIN_CASH_NAV_PCT) return 0;
+
+  const heldTickers = new Set(open.map((row) => row.ticker.toUpperCase()));
+  const candidates = await prisma.signal.findMany({
+    where: { status: { in: ["ACTIVE", "HOLD_TO_DIE"] }, tier: { not: "TAM_NGAM" } },
+    orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+    take: 120,
+  });
+  const seen = new Set<string>();
+  const eligible = candidates
+    .filter((row) => {
+      const ticker = row.ticker.toUpperCase().trim();
+      if (heldTickers.has(ticker) || seen.has(ticker)) return false;
+      seen.add(ticker);
+      return isEligibleNavForTier(row);
+    })
+    .sort((a, b) => recommendedNavPct(b) - recommendedNavPct(a));
+
+  const snapshot: OpenPosition[] = open.map((row) => ({
+    id: row.id,
+    ticker: row.ticker,
+    tier: row.tier,
+    status: row.status,
+    quantity: row.quantity,
+    costBasis: row.costBasis,
+    marketValue: row.marketValue,
+  }));
+  let filled = 0;
+  for (const row of eligible) {
+    if (snapshot.length >= MAX_UNIQUE_POSITIONS) break;
+    const acct = await prisma.radarPaperAccount.findUnique({ where: { id: accountId } });
+    if (!acct) break;
+    const totalNav = await accountTotalNav(accountId, acct.cash);
+    const navPct = recommendedNavPct(row);
+    const price = normalizeSignalPrice(row.currentPrice) ?? normalizeSignalPrice(row.entryPrice);
+    if (!isValidPrice(price)) continue;
+    const orderValue = totalNav * (navPct / 100);
+    if (orderValue > acct.cash) continue;
+    if (!passesAllocationCapsAfterBuy(snapshot, row.tier, orderValue, totalNav)) continue;
+    const created = await buyPaperPosition({
+      accountId,
+      signal: row as SignalLike,
+      price,
+      navPct,
+      reason: "xoay von: lap slot bang tin hieu manh nhat",
+      now,
+      currentPrice: normalizeSignalPrice(row.currentPrice),
+    });
+    if (!created) continue;
+    snapshot.push({
+      id: created.id,
+      ticker: created.ticker,
+      tier: created.tier,
+      status: created.status,
+      quantity: created.quantity,
+      costBasis: created.costBasis,
+      marketValue: created.marketValue,
+    });
+    filled += 1;
+  }
+  return filled;
+}
+
 export async function syncRadarPaperAccountPrices(options: { slot?: "11:30" | "15:00" | "manual"; now?: Date } = {}) {
   const account = await ensureRadarPaperAccountSeeded();
   const now = options.now ?? new Date();
   const openRows = await activePositions(account.id);
   if (openRows.length === 0) {
+    const refilled = await refillRadarPaperAccount(account.id, now);
     if (options.slot) await saveSnapshot(account.id, options.slot);
-    return { processed: 0, closed: 0, pendingExits: 0, holdToDie: 0, snapshots: options.slot ? 1 : 0 };
+    if (refilled > 0) await invalidateTopics({ topics: ["signal:map:latest"], tags: ["signal"] });
+    return { processed: 0, closed: 0, pendingExits: 0, holdToDie: 0, refilled, snapshots: options.slot ? 1 : 0 };
   }
 
   const prices = await getBatchPrices([...new Set(openRows.map((row) => row.ticker))]);
@@ -602,6 +686,7 @@ export async function syncRadarPaperAccountPrices(options: { slot?: "11:30" | "1
     const pnlValue = round2(marketValue - position.costBasis);
     const pnl = round2((pnlValue / position.costBasis) * 100);
     const maxPnl = Math.max(position.maxPnl ?? 0, pnl);
+    const heldDays = tradingDaysSince(position.openedAt, now);
 
     let nextStatus = position.status;
     let nextStoploss = position.stoploss;
@@ -627,6 +712,17 @@ export async function syncRadarPaperAccountPrices(options: { slot?: "11:30" | "1
       if (isValidPrice(stoploss) && price <= stoploss) exitReason = `Stoploss kich hoat ${stoploss.toLocaleString("vi-VN")}`;
       if (!exitReason && !isMidTermTier(position.tier) && isValidPrice(target) && price >= target) {
         exitReason = `Take Profit kich hoat ${target.toLocaleString("vi-VN")}`;
+      }
+      // ── Chốt chủ động (chỉ khi chưa đạt +20% và KHÔNG phải LEADER) ──
+      // LEADER = cổ phiếu phát động tăng trưởng → giữ, không cắt sớm (chỉ stoploss/trailing).
+      if (!exitReason && pnl < HOLD_TO_DIE_THRESHOLD && position.tier !== "LEADER") {
+        if (maxPnl >= 8 && pnl <= 5) {
+          exitReason = `Chot bao toan: lai dinh +${maxPnl}% lui ve +${pnl}%`;
+        } else if (heldDays >= 10 && pnl < 0) {
+          exitReason = `T+${heldDays} van lo (${pnl}%), thoat hang`;
+        } else if (heldDays >= 15 && maxPnl < 10) {
+          exitReason = `Tien chet: ${heldDays} phien chua dat +10% (dinh +${maxPnl}%), xoay von`;
+        }
       }
     }
 
@@ -662,11 +758,13 @@ export async function syncRadarPaperAccountPrices(options: { slot?: "11:30" | "1
     }
   }
 
+  const refilled = await refillRadarPaperAccount(account.id, now);
+
   if (options.slot) await saveSnapshot(account.id, options.slot);
-  if (closed > 0 || pendingExits > 0 || holdToDie > 0) {
+  if (closed > 0 || pendingExits > 0 || holdToDie > 0 || refilled > 0) {
     await invalidateTopics({ topics: ["signal:map:latest"], tags: ["signal"] });
   }
-  return { processed: openRows.length, closed, pendingExits, holdToDie, snapshots: options.slot ? 1 : 0 };
+  return { processed: openRows.length, closed, pendingExits, holdToDie, refilled, snapshots: options.slot ? 1 : 0 };
 }
 
 async function saveSnapshot(accountId: string, slot: string) {
