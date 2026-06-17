@@ -2,12 +2,27 @@ import { prisma } from "@/lib/prisma";
 import { sendTelegramOnce, telegramHash } from "@/lib/telegram/dispatch";
 import type { SignalScanArtifactItem } from "./scan-artifact";
 
-const SIGNAL_TYPE_LABELS: Record<string, string> = {
-  SIEU_CO_PHIEU: "Siêu cổ phiếu",
-  TRUNG_HAN: "Trung hạn",
-  DAU_CO: "Lướt sóng",
-  TAM_NGAM: "Tầm ngắm",
+// Nhãn IN HOA cho tín hiệu bắn từng mã (chỉ các nhãn hành động; TẦM NGẮM không bắn)
+const SIGNAL_LABEL_UPPER: Record<string, string> = {
+  SIEU_CO_PHIEU: "SIÊU CỔ PHIẾU",
+  TRUNG_HAN: "TRUNG HẠN",
+  DAU_CO: "LƯỚT SÓNG",
 };
+
+// entryPrice lưu theo VNĐ (vd 24350) → hiển thị "nghìn đồng" (24.35)
+function formatEntryK(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return "-";
+  const k = value >= 1000 ? value / 1000 : value;
+  return String(Number(k.toFixed(2)));
+}
+
+function friendlyBuyReason(label: string, reason: string | null | undefined) {
+  const base = `Đạt điều kiện mở mua ${label}`;
+  if (!reason) return base;
+  const paren = reason.match(/\(([^)]+)\)/);
+  const detail = (paren ? paren[1] : reason).trim();
+  return detail ? `${base} (${detail})` : base;
+}
 
 type ActiveSignalRow = {
   ticker: string;
@@ -29,9 +44,25 @@ function formatPercent(value: number | null | undefined) {
   return `${value.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}%`;
 }
 
-function formatSignalType(type: string) {
-  const normalized = type.toUpperCase().trim();
-  return SIGNAL_TYPE_LABELS[normalized] ?? normalized;
+function formatSingleSignalText(params: {
+  ticker: string;
+  type: string;
+  entryPrice: number | null | undefined;
+  navAllocation: number | null | undefined;
+  reason: string | null | undefined;
+}) {
+  const normalized = params.type.toUpperCase().trim();
+  const label = SIGNAL_LABEL_UPPER[normalized] ?? normalized;
+  const nav =
+    typeof params.navAllocation === "number" && Number.isFinite(params.navAllocation) && params.navAllocation > 0
+      ? `${Number(params.navAllocation.toFixed(2))}%`
+      : "-";
+  return [
+    `${params.ticker.toUpperCase().trim()} - ${label}`,
+    `Vùng mua: ${formatEntryK(params.entryPrice)}`,
+    `Tỉ trọng: ${nav}`,
+    `LÝ DO: ${friendlyBuyReason(label, params.reason)}`,
+  ].join("\n");
 }
 
 function signalIcon(type: string) {
@@ -85,19 +116,6 @@ function getSignalTelegramTarget() {
   return { token, chatId };
 }
 
-function signalIdentity(signals: SignalScanArtifactItem[]) {
-  return signals
-    .map((signal) =>
-      [
-        signal.ticker.toUpperCase(),
-        signal.type.toUpperCase(),
-        formatPrice(signal.entryPrice),
-      ].join(":"),
-    )
-    .sort()
-    .join("|");
-}
-
 function activeIdentity(signals: ActiveSignalRow[]) {
   return signals
     .map((signal) =>
@@ -111,42 +129,6 @@ function activeIdentity(signals: ActiveSignalRow[]) {
     )
     .sort()
     .join("|");
-}
-
-function formatSignalBatchText(params: {
-  signals: SignalScanArtifactItem[];
-  tradingDate: string;
-  slotLabel: string;
-}) {
-  const groups = new Map<string, SignalScanArtifactItem[]>();
-  for (const signal of params.signals) {
-    const type = signal.type.toUpperCase().trim();
-    const rows = groups.get(type) ?? [];
-    rows.push(signal);
-    groups.set(type, rows);
-  }
-
-  const lines = [
-    `🔔 TÍN HIỆU MỚI - ${params.tradingDate}`,
-    `Khung quét: ${params.slotLabel}`,
-    `Số mã: ${params.signals.length}`,
-    "",
-  ];
-
-  let index = 1;
-  for (const [type, rows] of groups.entries()) {
-    lines.push(`⚡ ${formatSignalType(type)} (${rows.length})`);
-    lines.push("```");
-    for (const signal of rows) {
-      lines.push(formatCompactRow(index, signal.ticker, signal.entryPrice, type));
-      index += 1;
-    }
-    lines.push("```");
-    lines.push("");
-  }
-
-  lines.push("— ADN Capital Scanner 🤖");
-  return lines.join("\n").trim();
 }
 
 function formatActiveSignalsText(params: {
@@ -205,26 +187,51 @@ export async function sendClaimedSignalsToTelegram(params: {
   slotLabel: string;
   batchId: string;
 }) {
-  if (params.signals.length === 0) {
-    return { ok: true, skipped: true, reason: "no_claimed_signals" };
+  // Chỉ bắn các nhãn hành động (LƯỚT SÓNG / TRUNG HẠN / SIÊU CỔ PHIẾU).
+  // Bỏ TẦM NGẮM (radar) — không bắn tín hiệu đang theo dõi.
+  const actionable = params.signals.filter(
+    (signal) => signal.type.toUpperCase().trim() !== "TAM_NGAM",
+  );
+  if (actionable.length === 0) {
+    return { ok: true, skipped: true, reason: "no_actionable_signals" };
   }
 
   const { token, chatId } = getSignalTelegramTarget();
-  const identity = signalIdentity(params.signals);
-  const digest = telegramHash(identity).slice(0, 16);
-  const eventKey = `signal-batch:${params.tradingDate}:${params.slotLabel}:${digest}`;
-  const text = formatSignalBatchText(params);
 
-  return sendTelegramOnce({
-    eventType: "SIGNAL_BATCH",
-    eventKey,
-    text,
-    token,
-    chatId,
-    tradingDate: params.tradingDate,
-    slot: params.slotLabel,
-    parseMode: "Markdown",
+  // Lấy tỉ trọng (navAllocation) chuẩn từ bảng Signal đã lưu (lịch sử khuyến nghị).
+  const tickers = Array.from(new Set(actionable.map((signal) => signal.ticker.toUpperCase().trim())));
+  const rows = await prisma.signal.findMany({
+    where: { ticker: { in: tickers } },
+    orderBy: { updatedAt: "asc" },
+    select: { ticker: true, navAllocation: true, entryPrice: true, reason: true },
   });
+  const byTicker = new Map(rows.map((row) => [row.ticker.toUpperCase().trim(), row]));
+
+  const perSignal: Array<{ ticker: string; result: Awaited<ReturnType<typeof sendTelegramOnce>> }> = [];
+  for (const signal of actionable) {
+    const ticker = signal.ticker.toUpperCase().trim();
+    const db = byTicker.get(ticker);
+    const text = formatSingleSignalText({
+      ticker,
+      type: signal.type,
+      entryPrice: signal.entryPrice ?? db?.entryPrice ?? null,
+      navAllocation: db?.navAllocation ?? signal.navAllocation ?? null,
+      reason: signal.reason ?? db?.reason ?? null,
+    });
+    // Chống trùng: mỗi mã chỉ bắn 1 lần/ngày.
+    const result = await sendTelegramOnce({
+      eventType: "SIGNAL",
+      eventKey: `signal:${params.tradingDate}:${ticker}`,
+      text,
+      token,
+      chatId,
+      tradingDate: params.tradingDate,
+      slot: params.slotLabel,
+    });
+    perSignal.push({ ticker, result });
+  }
+
+  return { ok: true, perSignal };
 }
 
 export async function sendActiveSignalsToTelegram(params: {

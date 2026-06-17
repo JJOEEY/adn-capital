@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { GoogleGenAI } from "@google/genai";
+import { executeAIRequest, INTENT } from "@/lib/gemini";
 import {
   countArticleWords,
   ensureReadableArticleHtml,
@@ -21,7 +21,8 @@ export const maxDuration = 60;
  *  gửi qua AI (Gemini) để rewrite, rồi lưu DB status PENDING_APPROVAL.
  * ═══════════════════════════════════════════════════════════════ */
 
-const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY ?? "" });
+// AI rewrite đi qua 9Router/OpenRouter (src/lib/gemini), không gọi Gemini trực tiếp.
+// Chỉ fallback Gemini khi router rỗng và cờ DISABLE_DIRECT_GEMINI tắt.
 
 // ── Types ──
 interface CrawledItem {
@@ -320,15 +321,11 @@ Trả về JSON với các key:
 {"title":"...","aiSummary":"...","content":"<p>...</p>","sentiment":"...","tags":["..."]}`;
 
   try {
-    const response = await genAI.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-      config: {
-        temperature: 0.2,
-      },
-    });
-
-    const text = response.text ?? "";
+    const text = await executeAIRequest(
+      prompt,
+      INTENT.NEWS,
+      "Bạn là biên tập viên tài chính chuyên nghiệp của ADN Capital. Tuân thủ yêu cầu trong prompt và CHỈ trả về JSON hợp lệ, không kèm giải thích hay markdown code block.",
+    );
     // Extract JSON from response (handle potential markdown wrapping)
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
