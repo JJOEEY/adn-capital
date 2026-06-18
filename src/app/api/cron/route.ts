@@ -2366,22 +2366,33 @@ async function handleSignalScan5m(forceRun = false): Promise<NextResponse> {
 
     const slot = forceRun ? "manual" : timeKey;
     const slotLabel = forceRun ? "manual" : windowInfo.label;
-    const scanUrl = new URL("/api/v1/scan-now", PYTHON_BRIDGE);
-    scanUrl.searchParams.set("mode", scanMode);
-    const res = await fetch(scanUrl.toString(), {
-      method: "POST",
-      signal: AbortSignal.timeout(SIGNAL_SCAN_TIMEOUT_MS),
-    });
-    if (!res.ok) throw new Error(`Python scanner HTTP ${res.status}`);
-
-    const scanResult: {
+    // Part C: quét từ DNSE WS (cache daily + giá DNSE live) — KHÔNG tốn quota FiinQuant.
+    // Fallback sang FiinQuant (scan-now) nếu cache WS chưa sẵn sàng (not_ready).
+    type ScanResp = {
+      status?: string;
       detected?: number;
       estimated_quota_cost?: number;
       scan_mode?: string;
       signals?: PythonScanSignal[];
       universe_size?: number;
       watchlist_size?: number;
-    } = await res.json();
+    };
+    const wsUrl = new URL("/api/v1/scan-now-ws", PYTHON_BRIDGE);
+    let res = await fetch(wsUrl.toString(), {
+      method: "POST",
+      signal: AbortSignal.timeout(SIGNAL_SCAN_TIMEOUT_MS),
+    });
+    let scanResult: ScanResp = res.ok ? await res.json() : {};
+    if (!res.ok || scanResult.status === "not_ready") {
+      const fbUrl = new URL("/api/v1/scan-now", PYTHON_BRIDGE);
+      fbUrl.searchParams.set("mode", scanMode);
+      res = await fetch(fbUrl.toString(), {
+        method: "POST",
+        signal: AbortSignal.timeout(SIGNAL_SCAN_TIMEOUT_MS),
+      });
+      if (!res.ok) throw new Error(`Python scanner HTTP ${res.status}`);
+      scanResult = await res.json();
+    }
     const signals = Array.isArray(scanResult.signals) ? scanResult.signals : [];
     const dnseShadow = await runSignalScanDnseShadow(signals);
     const ingestResult = await ingestSignalScanBatch({
