@@ -258,6 +258,16 @@ function detectPriceLimit(payload: JsonRecord, price: number | null, changePct: 
   return null;
 }
 
+// Quy hệ số lệch thang giá về luỹ thừa 10 gần nhất (vd 998.6→1000). Chênh lệch KHÔNG phải luỹ thừa 10
+// (vd 1.28 do ex-rights) → trả 1 (không đổi thang). Mirror logic market-price-normalization.ts.
+function scalePowerOf10(ratio: number): number {
+  if (!Number.isFinite(ratio) || ratio <= 0) return 1;
+  const log = Math.log10(ratio);
+  const rounded = Math.round(log);
+  if (rounded === 0 || Math.abs(log - rounded) > 0.1) return 1;
+  return Math.pow(10, rounded);
+}
+
 function buildTickerMarket(
   latestRow: { payload: Prisma.JsonValue; tradingDate: string; providerTime: Date | null; updatedAt: Date; receivedAt: Date } | null,
   ohlcvRow: { payload: Prisma.JsonValue; tradingDate?: string | null; providerTime: Date | null; updatedAt?: Date; receivedAt: Date | null } | null,
@@ -731,7 +741,7 @@ export async function getDatabaseAidenTickerContext(options: {
 
     // Bridge fallback (DB-first): database-v2 does not populate per-ticker
     // fundamental/technical/quote datasets, so fill them from the FiinQuant bridge
-    // when the DB is empty. ta-summary candles + indicators are VND (DB scale).
+    // when the DB is empty. CHÚ Ý: ta-summary trả giá VND thô; market.eod theo nghìn → quy thang bên dưới.
     const needFa = !fundamental.financialPeriod && !fundamental.valuation;
     const needTa = market.price == null || !dailyOhlcv || !technical;
     if (AIDEN_FA_BRIDGE_FALLBACK && (needFa || needTa)) {
@@ -746,6 +756,13 @@ export async function getDatabaseAidenTickerContext(options: {
         if (bridged.financialPeriod || bridged.valuation) addSource(dataSources.fundamental, "bridge:fundamental");
       }
       if (ta) {
+        // Bridge ta-summary trả giá VND THÔ; market.eod theo NGHÌN → lệch ×1000. Khi đã có giá v2/eod
+        // (market.price set), suy hệ số luỹ thừa 10 từ ta.price/market.price rồi quy MA/levels/candle
+        // bridge về đúng thang trước khi merge — nếu không, priceVsMA ra ~−99.9% (giá nghìn vs MA VND).
+        // Chỉ số (VNINDEX): ta.price ≈ market.price → hệ số = 1 → giữ nguyên.
+        const refPrice = market.price;
+        const scale = refPrice != null && refPrice !== 0 && ta.price != null ? scalePowerOf10(ta.price / refPrice) : 1;
+        const px = (v: number | null) => (v != null && scale !== 1 ? Number((v / scale).toFixed(4)) : v);
         if (market.price == null && ta.price != null) {
           market = {
             ...market,
@@ -760,11 +777,31 @@ export async function getDatabaseAidenTickerContext(options: {
           addSource(dataSources.quote, "bridge:ta-summary");
         }
         if (!dailyOhlcv && ta.lastCandle) {
-          dailyOhlcv = ta.lastCandle;
+          dailyOhlcv =
+            scale === 1
+              ? ta.lastCandle
+              : {
+                  ...ta.lastCandle,
+                  open: px(ta.lastCandle.open),
+                  high: px(ta.lastCandle.high),
+                  low: px(ta.lastCandle.low),
+                  close: px(ta.lastCandle.close),
+                };
           addSource(dataSources.ohlcv, "bridge:ta-summary");
         }
         if (!technical && ta.technical) {
-          technical = ta.technical;
+          technical =
+            scale === 1
+              ? ta.technical
+              : {
+                  ...ta.technical,
+                  ma20: px(ta.technical.ma20),
+                  ma50: px(ta.technical.ma50),
+                  ma200: px(ta.technical.ma200),
+                  support: px(ta.technical.support),
+                  resistance: px(ta.technical.resistance),
+                  macdHistogram: px(ta.technical.macdHistogram),
+                };
           addSource(dataSources.technical, "bridge:ta-summary");
         }
       }
