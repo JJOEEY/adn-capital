@@ -710,7 +710,11 @@ export async function executeFlashOnlyAIRequest(
         contents: prompt,
         config: {
           systemInstruction: withCustomerOutputRules(sysInstr),
-          thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
+          // gemini-3.x dùng thinkingLevel; gemini-2.5-* KHÔNG hỗ trợ thinkingLevel (API 400)
+          // → dùng thinkingBudget=0 để tắt thinking (giảm độ trễ).
+          thinkingConfig: /gemini-3/i.test(model)
+            ? { thinkingLevel: ThinkingLevel.MINIMAL }
+            : { thinkingBudget: 0 },
         },
       });
       return sanitizeModelOutput(response.text ?? "");
@@ -739,7 +743,11 @@ async function streamDirectGeminiFlash(
         contents: prompt,
         config: {
           systemInstruction: withCustomerOutputRules(sysInstr),
-          thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
+          // gemini-3.x dùng thinkingLevel; gemini-2.5-* KHÔNG hỗ trợ thinkingLevel (API 400)
+          // → dùng thinkingBudget=0 để tắt thinking (giảm độ trễ).
+          thinkingConfig: /gemini-3/i.test(model)
+            ? { thinkingLevel: ThinkingLevel.MINIMAL }
+            : { thinkingBudget: 0 },
         },
       });
       let output = "";
