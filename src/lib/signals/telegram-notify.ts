@@ -16,14 +16,6 @@ function formatEntryK(value: number | null | undefined) {
   return String(Number(k.toFixed(2)));
 }
 
-function friendlyBuyReason(label: string, reason: string | null | undefined) {
-  const base = `Đạt điều kiện mở mua ${label}`;
-  if (!reason) return base;
-  const paren = reason.match(/\(([^)]+)\)/);
-  const detail = (paren ? paren[1] : reason).trim();
-  return detail ? `${base} (${detail})` : base;
-}
-
 type ActiveSignalRow = {
   ticker: string;
   signalType: string;
@@ -49,7 +41,6 @@ function formatSingleSignalText(params: {
   type: string;
   entryPrice: number | null | undefined;
   navAllocation: number | null | undefined;
-  reason: string | null | undefined;
 }) {
   const normalized = params.type.toUpperCase().trim();
   const label = SIGNAL_LABEL_UPPER[normalized] ?? normalized;
@@ -58,20 +49,19 @@ function formatSingleSignalText(params: {
       ? `${Math.round(params.navAllocation)}%`
       : "-";
   return [
-    `${params.ticker.toUpperCase().trim()} - ${label}`,
+    `${signalIcon(normalized)} ${params.ticker.toUpperCase().trim()} - ${label}`,
     `Vùng mua: ${formatEntryK(params.entryPrice)}`,
     `Tỉ trọng: ${nav}`,
-    `LÝ DO: ${friendlyBuyReason(label, params.reason)}`,
   ].join("\n");
 }
 
 function signalIcon(type: string) {
   const normalized = type.toUpperCase().trim();
-  if (normalized === "SIEU_CO_PHIEU") return "💎";
-  if (normalized === "TRUNG_HAN") return "⭐";
-  if (normalized === "DAU_CO") return "🚀";
-  if (normalized === "TAM_NGAM") return "🔥";
-  return "🚀";
+  if (normalized === "SIEU_CO_PHIEU") return "👑"; // siêu cổ phiếu = leader, vua dòng tăng
+  if (normalized === "TRUNG_HAN") return "📈"; // trung hạn = xu hướng tăng bền
+  if (normalized === "DAU_CO") return "🌊"; // lướt sóng = đạp sóng ngắn hạn
+  if (normalized === "TAM_NGAM") return "👀";
+  return "📊";
 }
 
 function formatCompactRow(index: number, ticker: string, price: number | null | undefined, type: string) {
@@ -221,7 +211,6 @@ export async function sendClaimedSignalsToTelegram(params: {
       type: signal.type,
       entryPrice: signal.entryPrice ?? db?.entryPrice ?? null,
       navAllocation,
-      reason: signal.reason ?? db?.reason ?? null,
     });
     // Chống trùng: mỗi mã chỉ bắn 1 lần/ngày.
     const result = await sendTelegramOnce({
@@ -328,7 +317,6 @@ export async function sendPaperBuyToTelegram(params: {
     type: params.signalType,
     entryPrice: params.entryPrice,
     navAllocation: params.navAllocation,
-    reason: params.reason,
   });
   return sendTelegramOnce({
     eventType: "PAPER_BUY",
@@ -352,11 +340,11 @@ export async function sendPaperSellToTelegram(params: {
   const normalized = params.signalType.toUpperCase().trim();
   const label = SIGNAL_LABEL_UPPER[normalized] ?? normalized;
   const pnl = Number.isFinite(params.pnlPct) ? Math.round(params.pnlPct) : 0;
+  const pnlMark = pnl > 0 ? "✅" : pnl < 0 ? "🔻" : "➖";
   const text = [
-    `${params.ticker.toUpperCase().trim()} - BÁN (${label})`,
+    `${signalIcon(normalized)} ${params.ticker.toUpperCase().trim()} - BÁN (${label})`,
     `Giá bán: ${formatEntryK(params.price)}`,
-    `Lãi/lỗ: ${pnl >= 0 ? "+" : ""}${pnl}%`,
-    `LÝ DO: ${params.reason}`,
+    `Lãi/lỗ: ${pnlMark} ${pnl >= 0 ? "+" : ""}${pnl}%`,
   ].join("\n");
   return sendTelegramOnce({
     eventType: "PAPER_SELL",
