@@ -240,15 +240,17 @@ const EXCHANGE_LIMIT_PCT: Record<string, number> = { STO: 7, STX: 10, UPX: 15 };
 // market.eod "te" của DNSE KHÔNG có ceiling/floor/refPrice → tự nhận diện kịch trần/sàn từ cấu trúc
 // intraday. Khóa 1 giá cả phiên (open=high=low=close) = chắc chắn trần/sàn; hoặc đóng cửa ở đỉnh/đáy
 // phiên với biến động sát biên sàn. Chỉ áp dụng cho mã cổ phiếu có marketId hợp lệ (bỏ qua chỉ số).
-function detectPriceLimit(payload: JsonRecord, price: number | null, changePct: number | null) {
+function detectPriceLimit(payload: JsonRecord, price: number | null, changePct: number | null, marketIdHint?: string | null) {
   if (price == null || changePct == null) return null;
-  const marketId = typeof payload.marketId === "string" ? payload.marketId.toUpperCase() : "";
+  const marketRaw = typeof payload.marketId === "string" ? payload.marketId : marketIdHint ?? "";
+  const marketId = marketRaw.toUpperCase();
   const limitPct = EXCHANGE_LIMIT_PCT[marketId];
   if (limitPct == null) return null;
   const open = firstNumber(payload, ["open", "openPrice", "o"]);
   const high = firstNumber(payload, ["high", "highestPrice", "h"]);
   const low = firstNumber(payload, ["low", "lowestPrice", "l"]);
-  const locked = open != null && high != null && low != null && open === high && high === low && low === price;
+  // Khóa 1 giá cả phiên: high==low==price. eod có open (==price) để chắc; tick real-time KHÔNG có open.
+  const locked = high != null && low != null && high === low && low === price && (open == null || open === price);
   const closedAtHigh = high != null && price >= high;
   const closedAtLow = low != null && price <= low;
   // Tham chiếu EOD (last match) lệch giá ATC ~0.3-0.5% → nới biên [limit-0.5, limit+1.5].
@@ -272,6 +274,7 @@ function buildTickerMarket(
   latestRow: { payload: Prisma.JsonValue; tradingDate: string; providerTime: Date | null; updatedAt: Date; receivedAt: Date } | null,
   ohlcvRow: { payload: Prisma.JsonValue; tradingDate?: string | null; providerTime: Date | null; updatedAt?: Date; receivedAt: Date | null } | null,
   previousOhlcvRow?: { payload: Prisma.JsonValue } | null,
+  marketIdHint?: string | null,
 ) {
   const latest = rowPayload(latestRow);
   const ohlcv = rowPayload(ohlcvRow);
@@ -282,7 +285,7 @@ function buildTickerMarket(
   const payload = latestPrice != null ? latest : ohlcv;
   const price = firstNumber(payload, PRICE_KEYS);
   const reference = firstNumber(payload, ["reference", "refPrice", "basicPrice", "priorClosePrice", "previousClose"]) ??
-    firstNumber(previousOhlcv, ["close", "matchPrice", "c", "valueIndexes", "indexValue"]) ??
+    firstNumber(previousOhlcv, ["close", "matchPrice", "c", "valueIndexes", "indexValue", "price"]) ??
     firstNumber(payload, ["open", "openPrice", "o"]);
   const rawChange = firstNumber(payload, ["changedValue", "change", "priceChange"]);
   const rawChangePct = firstNumber(payload, ["changedRatio", "changePct", "percentChange"]);
@@ -290,7 +293,7 @@ function buildTickerMarket(
   let change = rawChange ?? (price != null && reference != null ? price - reference : null);
   let changePct = rawChangePct ?? (price != null && reference ? Number((((price - reference) / reference) * 100).toFixed(2)) : null);
 
-  const limit = detectPriceLimit(payload, price, changePct);
+  const limit = detectPriceLimit(payload, price, changePct, marketIdHint);
   // Khóa 1 giá cả phiên: tham chiếu EOD lệch ATC → snap changePct về đúng biên (vd +7.0%) và suy ngược
   // giá tham chiếu chính thức từ giá trần/sàn, tránh ra số kiểu +7.36% (vượt trần, khiến model phủ nhận).
   if (limit?.locked && price != null) {
@@ -720,9 +723,44 @@ export async function getDatabaseAidenTickerContext(options: {
       // mở cửa = giá khớp nên row "te" không có ref → nếu lấy openPrice làm tham chiếu sẽ ra 0% (sai).
       eodPrevRow = pricedEod.find((r) => r.tradingDate !== eodPriceRow?.tradingDate) ?? null;
     }
-    const effectiveQuoteRow = latestRow ?? eodPriceRow;
-    const effectiveOhlcvRow = ohlcvRow ?? eodPriceRow;
-    let market = buildTickerMarket(effectiveQuoteRow, effectiveOhlcvRow, latestRow ? null : eodPrevRow);
+
+    // Nguồn giá REAL-TIME chính: radar.realtime.tick (DNSE-ws đẩy LIÊN TỤC vào v2 trong phiên, thang
+    // nghìn, tool="radar"/key=ticker, 1 row/ngày). Đây là giá khách cần khi hỏi NGAY trong phiên — ưu
+    // tiên hơn market.eod (chỉ có sau ATC). Chỉ số (VNINDEX) KHÔNG nằm trong tick → vẫn dùng eod valueIndexes.
+    type TickQuoteRow = { payload: Prisma.JsonValue; tradingDate: string; providerTime: Date | null; updatedAt: Date; receivedAt: Date };
+    let tickQuoteRow: TickQuoteRow | null = null;
+    let tickPrevRow: TickQuoteRow | null = null;
+    if (!latestRow) {
+      const tickRows = await prisma.databaseToolLatest.findMany({
+        where: {
+          tool: "radar",
+          dataset: "radar.realtime.tick",
+          key: ticker,
+          ...(options.tradingDate ? { tradingDate: options.tradingDate } : {}),
+        },
+        orderBy: [{ tradingDate: "desc" }, { updatedAt: "desc" }],
+        take: 4,
+      });
+      const priced = tickRows.filter(
+        (r) => r.tradingDate != null && firstNumber(rowPayload(r), ["price", "matchPrice", "lastPrice", "close"]) != null,
+      );
+      const toQuoteRow = (r: (typeof priced)[number] | undefined): TickQuoteRow | null =>
+        r ? { payload: r.payload, tradingDate: r.tradingDate as string, providerTime: null, updatedAt: r.updatedAt, receivedAt: r.computedAt } : null;
+      tickQuoteRow = toQuoteRow(priced[0]);
+      tickPrevRow = toQuoteRow(priced.find((r) => r.tradingDate !== priced[0]?.tradingDate));
+    }
+
+    const usingTick = !latestRow && tickQuoteRow != null;
+    // marketId tĩnh theo mã (vd VHM=STO) — tick không có nên lấy từ eod để nhận diện trần/sàn.
+    const eodPayload = rowPayload(eodPriceRow);
+    const marketIdHint =
+      (typeof rowPayload(latestRow).marketId === "string" ? (rowPayload(latestRow).marketId as string) : null) ??
+      (typeof eodPayload.marketId === "string" ? (eodPayload.marketId as string) : null);
+    // Quote ưu tiên: realtime board > DNSE-ws tick (real-time) > eod. Candle (open/close) ưu tiên ohlcv/eod hơn tick.
+    const effectiveQuoteRow = latestRow ?? tickQuoteRow ?? eodPriceRow;
+    const effectiveOhlcvRow = ohlcvRow ?? eodPriceRow ?? tickQuoteRow;
+    const prevRow = latestRow ? null : usingTick ? tickPrevRow : eodPrevRow;
+    let market = buildTickerMarket(effectiveQuoteRow, effectiveOhlcvRow, prevRow, marketIdHint);
     let dailyOhlcv = buildDailyOhlcv(effectiveOhlcvRow);
     const technicalRows = [...technicalToolRows, ...technicalMarketRows];
     const financialRows = [...financialToolRows, ...financialMarketRows];
@@ -733,6 +771,8 @@ export async function getDatabaseAidenTickerContext(options: {
 
     const dataSources = buildEmptySources();
     if (latestRow) addSource(dataSources.quote, latestRow.dataset || "market.realtime");
+    else if (usingTick) addSource(dataSources.quote, "radar.realtime.tick");
+    else if (eodPriceRow) addSource(dataSources.quote, "market.eod");
     if (dailyOhlcv) addSource(dataSources.ohlcv, "market.ohlcv");
     for (const row of technicalRows) addSource(dataSources.technical, row.dataset);
     for (const row of financialRows) addSource(dataSources.fundamental, row.dataset);
@@ -804,6 +844,22 @@ export async function getDatabaseAidenTickerContext(options: {
                 };
           addSource(dataSources.technical, "bridge:ta-summary");
         }
+      }
+    }
+
+    // dailyOhlcv có thể đến từ market.ohlcv (VND thô) trong khi market.price từ tick/eod (NGHÌN) → quy
+    // candle về đúng thang giá, tránh close/open lệch ×1000 so với giá (vd FPT close 73200 vs giá 71.6).
+    if (dailyOhlcv && market.price != null && market.price !== 0 && dailyOhlcv.close != null) {
+      const candleScale = scalePowerOf10(dailyOhlcv.close / market.price);
+      if (candleScale !== 1) {
+        const cx = (v: number | null) => (v != null ? Number((v / candleScale).toFixed(4)) : v);
+        dailyOhlcv = {
+          ...dailyOhlcv,
+          open: cx(dailyOhlcv.open),
+          high: cx(dailyOhlcv.high),
+          low: cx(dailyOhlcv.low),
+          close: cx(dailyOhlcv.close),
+        };
       }
     }
 
