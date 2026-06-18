@@ -5,7 +5,7 @@ import { getRealtimeCache, setRealtimeCache } from "@/lib/database/realtime-cach
 import { getDatabaseToolLatest, listDatabaseToolLatest, upsertDatabaseToolLatest } from "@/lib/database/tool-latest";
 import { prisma } from "@/lib/prisma";
 import { collectDnseLightspeedMessages } from "@/lib/providers/dnse/lightspeed-ws";
-import { RADAR_SCAN_BUDGET } from "@/lib/signals/radar-scan-config";
+import { getPythonBridgeUrl } from "@/lib/runtime-config";
 import { DNSE_DEFAULT_EOD_SYMBOLS, normalizeDnseSymbol } from "./providers/dnse/eod-map";
 
 type JsonRecord = Record<string, unknown>;
@@ -144,8 +144,29 @@ async function loadRadarHotlist(limit: number) {
   return Array.from(new Set(tickers)).slice(0, limit);
 }
 
-export async function getDatabaseRadarUniverse(limit: number = RADAR_SCAN_BUDGET.hotScanMaxTickers) {
-  return loadRadarHotlist(Math.max(1, limit));
+async function loadRadarWatchlist500(): Promise<string[]> {
+  try {
+    const res = await fetch(`${getPythonBridgeUrl()}/api/v1/radar-watchlist?mode=wide`, {
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { tickers?: unknown };
+    return Array.isArray(data?.tickers) ? data.tickers.map((value) => String(value)) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function getDatabaseRadarUniverse(limit: number = 600) {
+  const cap = Math.max(1, limit);
+  // FULL watchlist 500 (bridge mode=wide) để DNSE WS sub đủ 500 mã, không chỉ mã đã có tín hiệu.
+  // Ưu tiên mã đang có tín hiệu (vị thế ACTIVE cần realtime), rồi tới watchlist 500.
+  const [hotlist, watchlist500] = await Promise.all([
+    loadRadarHotlist(cap),
+    loadRadarWatchlist500(),
+  ]);
+  const merged = [...hotlist, ...watchlist500].map(normalizeDnseSymbol).filter(Boolean);
+  return Array.from(new Set(merged)).slice(0, cap);
 }
 
 function cacheRadarState(state: DatabaseRadarRealtimeState) {
@@ -247,12 +268,12 @@ async function collectRadarRealtimeInternal(options?: {
   const startedAt = Date.now();
   const tradingDate = dateKeyInVietnam();
   const tickers = options?.tickers?.length
-    ? Array.from(new Set(options.tickers.map(normalizeDnseSymbol).filter(Boolean))).slice(0, RADAR_SCAN_BUDGET.hotScanMaxTickers)
-    : await loadRadarHotlist(RADAR_SCAN_BUDGET.hotScanMaxTickers);
+    ? Array.from(new Set(options.tickers.map(normalizeDnseSymbol).filter(Boolean))).slice(0, 600)
+    : await getDatabaseRadarUniverse(600);
   const ws = await collectDnseLightspeedMessages({
     subscriptions: [{ name: "tick_extra.G1.json", symbols: tickers }],
     timeoutMs: options?.timeoutMs ?? 50_000,
-    maxMessages: options?.maxMessages ?? 2_000,
+    maxMessages: options?.maxMessages ?? 6_000,
   });
   const latestByTicker = new Map<string, DatabaseRadarTick>();
   for (const raw of ws.messages) {

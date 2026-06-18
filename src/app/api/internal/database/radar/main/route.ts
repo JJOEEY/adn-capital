@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
   if (!isDatabaseInternalAuthorized(req)) {
     return NextResponse.json({ error: { code: "UNAUTHORIZED", message: "Unauthorized" } }, { status: 401 });
   }
-  const limit = Number(req.nextUrl.searchParams.get("limit") ?? 500);
+  const limit = Number(req.nextUrl.searchParams.get("limit") ?? 600);
   const tickers = await getDatabaseRadarUniverse(Number.isFinite(limit) ? limit : 500);
   return NextResponse.json({
     ok: true,
