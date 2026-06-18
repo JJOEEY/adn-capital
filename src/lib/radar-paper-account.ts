@@ -5,6 +5,7 @@ import { getVnDateISO, getVnNow, isVnTradingDay, toVnTime } from "@/lib/time";
 import { pushNotification } from "@/lib/cronHelpers";
 import { normalizeSignalPrice } from "@/lib/signals/price-units";
 import { invalidateTopics } from "@/lib/datahub/core";
+import { sendPaperBuyToTelegram, sendPaperSellToTelegram } from "@/lib/signals/telegram-notify";
 
 export const RADAR_PAPER_INITIAL_NAV = 1_000_000_000;
 const ACCOUNT_SLUG = "adn-radar";
@@ -31,6 +32,7 @@ type SignalLike = {
   navAllocation: number;
   winRate: number | null;
   rrRatio: string | null;
+  reason?: string | null;
   restoredOpenedAt?: Date;
   restoredCurrentPrice?: number | null;
 };
@@ -352,6 +354,15 @@ async function buyPaperPosition(params: {
       data: { status: "ACTIVE", entryPrice: params.price, currentPrice, currentPnl },
     }),
   ]);
+  // Hợp nhất Radar↔Telegram: bắn MUA theo lệnh THẬT của danh mục paper (dedup 1 lần/mã/ngày).
+  await sendPaperBuyToTelegram({
+    ticker: params.signal.ticker,
+    signalType: params.signal.type,
+    entryPrice: params.price,
+    navAllocation: created.navAllocation,
+    reason: params.signal.reason,
+    tradingDate: getVnDateISO(now),
+  }).catch(() => {});
   return created;
 }
 
@@ -571,6 +582,15 @@ async function closePosition(position: Awaited<ReturnType<typeof activePositions
       : []),
   ]);
   await pushNotification("radar_paper_exit", `ADN Radar ban ${position.ticker}`, `${reason}. Gia ban: ${price.toLocaleString("vi-VN")}. PnL: ${realizedPnlPct}%`);
+  // Hợp nhất Radar↔Telegram: bắn BÁN theo lệnh THẬT của danh mục paper.
+  await sendPaperSellToTelegram({
+    ticker: position.ticker,
+    signalType: position.signalType,
+    price,
+    pnlPct: realizedPnlPct,
+    reason,
+    tradingDate: getVnDateISO(now),
+  }).catch(() => {});
 }
 
 async function markPendingExit(position: Awaited<ReturnType<typeof activePositions>>[number], price: number, reason: string, now: Date) {

@@ -311,3 +311,59 @@ export async function sendActiveHoldingsToTelegram(params: {
     parseMode: "Markdown",
   });
 }
+
+// ── Hợp nhất Radar ↔ Telegram: bắn theo MUA/BÁN THẬT của tài khoản paper (1 nguồn sự thật) ──
+
+export async function sendPaperBuyToTelegram(params: {
+  ticker: string;
+  signalType: string;
+  entryPrice: number;
+  navAllocation: number;
+  reason?: string | null;
+  tradingDate: string;
+}) {
+  const { token, chatId } = getSignalTelegramTarget();
+  const text = formatSingleSignalText({
+    ticker: params.ticker,
+    type: params.signalType,
+    entryPrice: params.entryPrice,
+    navAllocation: params.navAllocation,
+    reason: params.reason,
+  });
+  return sendTelegramOnce({
+    eventType: "PAPER_BUY",
+    eventKey: `paper-buy:${params.tradingDate}:${params.ticker.toUpperCase().trim()}`,
+    text,
+    token,
+    chatId,
+    tradingDate: params.tradingDate,
+  });
+}
+
+export async function sendPaperSellToTelegram(params: {
+  ticker: string;
+  signalType: string;
+  price: number;
+  pnlPct: number;
+  reason: string;
+  tradingDate: string;
+}) {
+  const { token, chatId } = getSignalTelegramTarget();
+  const normalized = params.signalType.toUpperCase().trim();
+  const label = SIGNAL_LABEL_UPPER[normalized] ?? normalized;
+  const pnl = Number.isFinite(params.pnlPct) ? Math.round(params.pnlPct) : 0;
+  const text = [
+    `${params.ticker.toUpperCase().trim()} - BÁN (${label})`,
+    `Giá bán: ${formatEntryK(params.price)}`,
+    `Lãi/lỗ: ${pnl >= 0 ? "+" : ""}${pnl}%`,
+    `LÝ DO: ${params.reason}`,
+  ].join("\n");
+  return sendTelegramOnce({
+    eventType: "PAPER_SELL",
+    eventKey: `paper-sell:${params.tradingDate}:${params.ticker.toUpperCase().trim()}`,
+    text,
+    token,
+    chatId,
+    tradingDate: params.tradingDate,
+  });
+}

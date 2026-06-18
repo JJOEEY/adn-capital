@@ -64,9 +64,9 @@ import { chooseRadarScanMode, RADAR_SCAN_BUDGET, SIGNAL_SCAN_SLOT_SET } from "@/
 import { calculateRPI, getLatestRPI, type OHLCVData } from "@/lib/rpi/calculator";
 import { runDnseMarketDataCoverageCheck } from "@/lib/providers/dnse/market-data";
 import {
-  sendActiveSignalsToTelegram,
   sendClaimedSignalsToTelegram,
 } from "@/lib/signals/telegram-notify";
+import { syncRadarPaperAccountPrices } from "@/lib/radar-paper-account";
 
 export const maxDuration = 600;
 export const dynamic = "force-dynamic";
@@ -2406,8 +2406,6 @@ async function handleSignalScan5m(forceRun = false): Promise<NextResponse> {
     });
 
     const webNotifySignals = ingestResult.artifact.notifiedSignals;
-    let telegramSignalBatchResult: unknown = null;
-    let telegramActiveBatchResult: unknown = null;
     if (webNotifySignals.length > 0) {
       const signalText = webNotifySignals
         .map((signal) => `• ${signal.ticker}: ${signal.entryPrice.toLocaleString("vi-VN")} VNĐ${signal.reason ? ` — ${signal.reason}` : ""}`)
@@ -2417,12 +2415,6 @@ async function handleSignalScan5m(forceRun = false): Promise<NextResponse> {
         `⚡ ${slotLabel} — ${webNotifySignals.length} tín hiệu mới`,
         `## TÍN HIỆU MỚI (${slotLabel})\n\n${signalText}`,
       );
-      telegramSignalBatchResult = await sendClaimedSignalsToTelegram({
-        signals: webNotifySignals,
-        tradingDate: todayISO,
-        slotLabel,
-        batchId: ingestResult.artifact.batchId,
-      }).catch((error) => ({ ok: false, error: String(error) }));
     }
 
     if (ingestResult.activatedSignals.length > 0) {
@@ -2435,11 +2427,15 @@ async function handleSignalScan5m(forceRun = false): Promise<NextResponse> {
           }),
         ),
       );
-      telegramActiveBatchResult = await sendActiveSignalsToTelegram({
-        signals: ingestResult.activatedSignals,
-        tradingDate: todayISO,
-        slotLabel,
-      }).catch((error) => ({ ok: false, error: String(error) }));
+    }
+
+    // Hợp nhất Radar↔Telegram: paper account phản ứng NGAY mỗi lần quét (mua mã mạnh / bán mã yếu)
+    // → Telegram bắn theo lệnh THẬT của danh mục trong buyPaperPosition/closePosition (1 nguồn sự thật).
+    let paperSyncResult: unknown = null;
+    try {
+      paperSyncResult = await syncRadarPaperAccountPrices({});
+    } catch (error) {
+      paperSyncResult = { ok: false, error: String(error) };
     }
 
     invalidateTopics({ tags: ["signal", "signal-scan", "broker", "portfolio"] });
@@ -2478,8 +2474,7 @@ async function handleSignalScan5m(forceRun = false): Promise<NextResponse> {
               : scanResult.universe_size ?? 0,
         },
         scanArtifact: ingestResult.artifact,
-        telegramSignalBatchResult,
-        telegramActiveBatchResult,
+        paperSyncResult,
       },
     );
     const totalSignaledToday = await prisma.signalHistory.count({ where: { sentDate: todayISO } });
