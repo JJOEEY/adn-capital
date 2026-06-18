@@ -2711,6 +2711,35 @@ async function loadSmartflowPriceMap(tickers: string[]) {
   return prices;
 }
 
+// Chuỗi dòng tiền NGOẠI theo NGÀY (market-wide net) từ market.eod row "f" (foreign) của DNSE —
+// nguồn time-series THẬT (FiinQuant investor-trading chỉ trả tổng-hợp-cả-kỳ = 1 điểm). Net = tổng
+// (totalBuyTradedAmount − totalSellTradedAmount) theo ngày, đổi ra tỷ. Cache 20' (data theo ngày).
+let foreignDailySeriesCache: { at: number; data: SmartflowInvestorFlowPoint[] } | null = null;
+async function loadMarketForeignDailySeries(): Promise<SmartflowInvestorFlowPoint[]> {
+  if (foreignDailySeriesCache && Date.now() - foreignDailySeriesCache.at < 20 * 60_000) return foreignDailySeriesCache.data;
+  try {
+    const rows = await prisma.$queryRaw<Array<{ tradingDate: string; net_ty: unknown; net_vol: unknown }>>`
+      SELECT "tradingDate" AS "tradingDate",
+        sum(("payload"->>'totalBuyTradedAmount')::numeric - ("payload"->>'totalSellTradedAmount')::numeric) / 1e9 AS net_ty,
+        sum(("payload"->>'totalBuyVolume')::numeric - ("payload"->>'totalSellVolume')::numeric) AS net_vol
+      FROM "DatabaseMarketLatest"
+      WHERE dataset = 'market.eod' AND "payload"->>'T' = 'f' AND ("payload"->>'totalBuyTradedAmount') IS NOT NULL
+      GROUP BY "tradingDate"
+      ORDER BY "tradingDate" ASC`;
+    const series = rows
+      .filter((row) => row.tradingDate)
+      .map((row) => ({
+        date: row.tradingDate,
+        netValue: Number(Number(row.net_ty ?? 0).toFixed(2)),
+        netVolume: row.net_vol == null ? null : Math.round(Number(row.net_vol)),
+      }));
+    foreignDailySeriesCache = { at: Date.now(), data: series };
+    return series;
+  } catch {
+    return foreignDailySeriesCache?.data ?? [];
+  }
+}
+
 // Cache investor-trading theo cửa sổ ngày. Dữ liệu theo NGÀY → các khung lịch sử (1W–1Y) gần như
 // không đổi trong phiên; cache TTL bậc thang để precompute (chạy mỗi 15') không fetch lại bridge nặng
 // mỗi lần. Lỗi bridge → trả CACHE CŨ (resilient với bridge sắp hết hạn). Cache theo process (clear khi deploy).
@@ -2749,6 +2778,17 @@ async function loadPulseSmartflow() {
     "6M": sixMonthFlow,
     "1Y": oneYearFlow,
   });
+  // FiinQuant chỉ trả tổng-cả-kỳ (series=1 điểm) → thay bằng chuỗi dòng tiền ngoại theo NGÀY (market.eod)
+  // để chart/sparkline có time-series thật. Cắt theo độ dài khung.
+  const foreignDailySeries = await loadMarketForeignDailySeries();
+  if (foreignDailySeries.length >= 2 && investorFlow.foreign) {
+    const seriesDays: Record<string, number> = { "1D": 10, "1W": 8, "1M": 22, "3M": 66, "6M": 132, "1Y": 260 };
+    for (const [tf, bucket] of Object.entries(investorFlow.foreign)) {
+      if (!bucket) continue;
+      const sliced = foreignDailySeries.slice(-(seriesDays[tf] ?? 10));
+      if (sliced.length >= 2) (bucket as { series?: SmartflowInvestorFlowPoint[] }).series = sliced;
+    }
+  }
   const realtimeNet =
     snapshot?.supplyDemand.netVolume ??
     snapshot?.investorTrading.foreign.net ??
