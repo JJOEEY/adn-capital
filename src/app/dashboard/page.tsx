@@ -131,11 +131,18 @@ type SmartflowInvestorRow = {
   netBuyVolume?: number | null;
 };
 
+type SmartflowInvestorFlowPoint = {
+  date: string;
+  netValue: number;
+  netVolume?: number | null;
+};
+
 type SmartflowInvestorBucket = {
   netValue: number;
   netVolume?: number | null;
   topBuy?: SmartflowInvestorRow[];
   topSell?: SmartflowInvestorRow[];
+  series?: SmartflowInvestorFlowPoint[];
 };
 
 type SmartflowPayload = {
@@ -971,6 +978,30 @@ const SMARTFLOW_INVESTOR_TIMEFRAMES = [
   { key: "1Y", label: "1 năm" },
 ] as const;
 
+function FlowSparkline({ series }: { series?: SmartflowInvestorFlowPoint[] }) {
+  const pts = (series ?? []).filter((point) => Number.isFinite(point.netValue));
+  if (pts.length < 2) return null;
+  const W = 100;
+  const H = 34;
+  const vals = pts.map((point) => point.netValue);
+  const min = Math.min(0, ...vals);
+  const max = Math.max(0, ...vals);
+  const range = max - min || 1;
+  const px = (i: number) => (i / (pts.length - 1)) * W;
+  const py = (v: number) => H - ((v - min) / range) * H;
+  const zeroY = py(0);
+  const line = pts.map((point, i) => `${i === 0 ? "M" : "L"}${px(i).toFixed(1)},${py(point.netValue).toFixed(1)}`).join(" ");
+  const area = `${line} L${W},${zeroY.toFixed(1)} L0,${zeroY.toFixed(1)} Z`;
+  const stroke = vals[vals.length - 1] >= 0 ? "#16a34a" : "#ef4444";
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="mb-2 h-9 w-full" aria-hidden="true">
+      <path d={area} fill={stroke} opacity={0.14} />
+      <line x1={0} y1={zeroY.toFixed(1)} x2={W} y2={zeroY.toFixed(1)} stroke="rgba(148,163,184,0.32)" strokeWidth={0.5} strokeDasharray="2 2" />
+      <path d={line} fill="none" stroke={stroke} strokeWidth={1.4} vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
 function SmartflowInvestorFlowCard({ investorFlow }: { investorFlow?: SmartflowPayload["investorFlow"] }) {
   const [timeframe, setTimeframe] = useState<(typeof SMARTFLOW_INVESTOR_TIMEFRAMES)[number]["key"]>("1D");
   const foreign = investorFlow?.foreign?.[timeframe] ?? null;
@@ -1027,6 +1058,8 @@ function SmartflowInvestorFlowCard({ investorFlow }: { investorFlow?: SmartflowP
                     {formatSignedSmartflowValue(net)}
                   </span>
                 </div>
+
+                <FlowSparkline series={group.data?.series} />
 
                 <div className="grid gap-2">
                   <div>

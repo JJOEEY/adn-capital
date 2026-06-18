@@ -2711,15 +2711,31 @@ async function loadSmartflowPriceMap(tickers: string[]) {
   return prices;
 }
 
+// Cache investor-trading theo cửa sổ ngày. Dữ liệu theo NGÀY → các khung lịch sử (1W–1Y) gần như
+// không đổi trong phiên; cache TTL bậc thang để precompute (chạy mỗi 15') không fetch lại bridge nặng
+// mỗi lần. Lỗi bridge → trả CACHE CŨ (resilient với bridge sắp hết hạn). Cache theo process (clear khi deploy).
+const investorTradingCache = new Map<number, { at: number; data: Awaited<ReturnType<typeof fetchInvestorTrading>> }>();
+async function cachedInvestorTrading(fromDays: number, ttlMs: number) {
+  const now = Date.now();
+  const hit = investorTradingCache.get(fromDays);
+  if (hit && now - hit.at < ttlMs) return hit.data;
+  const data = await fetchInvestorTrading({ fromDate: getSmartflowDate(fromDays), toDate: getSmartflowDate(0) }).catch(() => null);
+  if (data) {
+    investorTradingCache.set(fromDays, { at: now, data });
+    return data;
+  }
+  return hit?.data ?? null;
+}
+
 async function loadPulseSmartflow() {
   const [snapshot, oneDayFlow, oneWeekFlow, oneMonthFlow, threeMonthFlow, sixMonthFlow, oneYearFlow] = await Promise.all([
     getMarketSnapshot().catch(() => null),
-    fetchInvestorTrading({ fromDate: getSmartflowDate(0), toDate: getSmartflowDate(0) }).catch(() => null),
-    fetchInvestorTrading({ fromDate: getSmartflowDate(7), toDate: getSmartflowDate(0) }).catch(() => null),
-    fetchInvestorTrading({ fromDate: getSmartflowDate(31), toDate: getSmartflowDate(0) }).catch(() => null),
-    fetchInvestorTrading({ fromDate: getSmartflowDate(92), toDate: getSmartflowDate(0) }).catch(() => null),
-    fetchInvestorTrading({ fromDate: getSmartflowDate(183), toDate: getSmartflowDate(0) }).catch(() => null),
-    fetchInvestorTrading({ fromDate: getSmartflowDate(365), toDate: getSmartflowDate(0) }).catch(() => null),
+    cachedInvestorTrading(0, 2 * 60_000),
+    cachedInvestorTrading(7, 30 * 60_000),
+    cachedInvestorTrading(31, 60 * 60_000),
+    cachedInvestorTrading(92, 3 * 60 * 60_000),
+    cachedInvestorTrading(183, 6 * 60 * 60_000),
+    cachedInvestorTrading(365, 6 * 60 * 60_000),
   ]);
 
   const oneMonthRows = aggregateSmartflowRows(oneMonthFlow);
