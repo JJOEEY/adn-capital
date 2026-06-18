@@ -140,11 +140,11 @@ export default function AdminCronHealthPage() {
                       <span className="text-[11px] text-[var(--text-muted)]">(+{job.staleGraceMinutes}m)</span>
                     </td>
                     <td className="py-2 pr-3">
-                      {job.lastRun ? new Date(job.lastRun.at).toLocaleString("vi-VN") : "--"}
+                      {job.lastRun ? new Date(job.lastRun.at).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }) : "--"}
                       <div className="text-[11px] text-[var(--text-muted)]">{job.minutesSinceLastRun ?? "--"} phút</div>
                     </td>
                     <td className="py-2 pr-3">
-                      {job.lastSuccess ? new Date(job.lastSuccess.at).toLocaleString("vi-VN") : "--"}
+                      {job.lastSuccess ? new Date(job.lastSuccess.at).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }) : "--"}
                     </td>
                     <td className="py-2 pr-3">{job.usesLegacyAliasInLastRun ? "yes" : "no"}</td>
                   </tr>

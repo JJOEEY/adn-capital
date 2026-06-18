@@ -169,6 +169,34 @@ export async function getDatabaseRadarUniverse(limit: number = 600) {
   return Array.from(new Set(merged)).slice(0, cap);
 }
 
+// Giá DNSE mới nhất theo TỪNG mã (cho scanner bridge dùng thay FiinQuant realtime).
+export async function getDatabaseRadarTicks(maxAgeMs: number = 30 * 60_000) {
+  const rows = await listDatabaseToolLatest<DatabaseRadarTick>({
+    tool: "radar",
+    dataset: "radar.realtime.tick",
+    limit: 700,
+    maxAgeMs,
+  });
+  const prices: Record<
+    string,
+    { price: number | null; volume: number | null; high: number | null; low: number | null; reference: number | null; updatedAt: string }
+  > = {};
+  for (const row of rows) {
+    const tick = row.payload;
+    const ticker = tick?.ticker ? String(tick.ticker).toUpperCase().trim() : "";
+    if (!ticker || prices[ticker]) continue;
+    prices[ticker] = {
+      price: tick.price ?? null,
+      volume: tick.volume ?? null,
+      high: tick.high ?? null,
+      low: tick.low ?? null,
+      reference: tick.reference ?? null,
+      updatedAt: tick.updatedAt,
+    };
+  }
+  return { count: Object.keys(prices).length, prices };
+}
+
 function cacheRadarState(state: DatabaseRadarRealtimeState) {
   setRealtimeCache("database.radar.realtime", "latest", state, 90_000);
   for (const tick of state.latest) {
