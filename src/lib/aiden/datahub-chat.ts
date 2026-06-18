@@ -16,6 +16,8 @@ import { classifyAidenIntent, type AidenIntent } from "@/lib/aiden/intent";
 import { extractTickerCandidates as extractTickerCandidatesFromText } from "@/lib/ticker-text";
 import { resolveMarketTicker } from "@/lib/ticker-resolver";
 import { isIndexTicker, canonicalIndexTicker } from "@/lib/vn-reference-indices";
+import { getDatabaseAidenTickerContext } from "@/lib/database/aiden/context";
+import type { DatabaseAidenTickerContext } from "@/lib/database/aiden/types";
 
 type JsonRecord = Record<string, unknown>;
 function readPositiveIntegerEnv(name: string, fallback: number): number {
@@ -1442,6 +1444,85 @@ function buildIndexFallbackLine(context: unknown) {
   return `- **${ticker}**: ${pieces.length > 0 ? `${pieces.join(", ")}. ` : ""}${trend}`;
 }
 
+// HƯỚNG B: webchat dùng CÙNG nguồn DB-v2-first như ADN Stock (getDatabaseAidenTickerContext).
+// Adapter này map DatabaseAidenTickerContext → đúng shape mà downstream webchat (prompt/brief/
+// recommendation) đang đọc, nên đổi được nguồn data mà KHÔNG phải viết lại downstream.
+// Giá lấy từ market/dailyOhlcv (đã điều chỉnh đúng) + fallback ta-summary trong context builder,
+// KHÔNG còn dính bridge /historical sai thang (vd HPG 26.8 → đúng 24.0).
+function dbContextToWebchatTicker(dbCtx: DatabaseAidenTickerContext) {
+  const tech = dbCtx.technical;
+  const fin = dbCtx.fundamental.financialPeriod;
+  const val = dbCtx.fundamental.valuation;
+  const metric = (m: { value: number } | null | undefined) =>
+    m && Number.isFinite(m.value) ? m.value : null;
+  const price = dbCtx.market.price ?? dbCtx.dailyOhlcv?.close ?? null;
+  const ma20 = tech?.ma20 ?? null;
+  const ma50 = tech?.ma50 ?? null;
+  const ma200 = tech?.ma200 ?? null;
+  const support = tech?.support ?? dbCtx.dailyOhlcv?.low ?? null;
+  const resistance = tech?.resistance ?? dbCtx.dailyOhlcv?.high ?? null;
+  const latestVolume = dbCtx.market.volume ?? dbCtx.dailyOhlcv?.volume ?? null;
+  const open = dbCtx.dailyOhlcv?.open ?? null;
+  const close = dbCtx.dailyOhlcv?.close ?? null;
+  const valuation = {
+    pe: metric(val?.pe),
+    pb: metric(val?.pb),
+    eps: metric(fin?.eps),
+    bookValuePerShare: metric(fin?.bvps),
+    roe: metric(fin?.roe),
+    roa: metric(fin?.roa),
+    reportDate: fin?.reportPeriod ?? val?.valuationDate ?? null,
+  };
+  const analysisMetrics = {
+    ticker: dbCtx.ticker,
+    price,
+    changePct: dbCtx.market.changePct,
+    movingAverages: {
+      ma20,
+      ma50,
+      ma200,
+      priceVsMa20Pct: pctDiff(price, ma20),
+      priceVsMa50Pct: pctDiff(price, ma50),
+      priceVsMa200Pct: pctDiff(price, ma200),
+    },
+    momentum: { rsi14: tech?.rsi ?? null, macdHistogram: tech?.macdHistogram ?? null, macdHistogramPrev: null, macdHistogramChange: null },
+    volume: { latestVolume, volumeMa20: tech?.volumeMa20 ?? null, volumeVsMa20: null },
+    priceZones: { support, resistance, safeZoneLow: support, safeZoneHigh: ma20 ?? price, low52w: null, high52w: null },
+    radarAction: { status: null, type: null, entryPrice: null, target: null, stoploss: null, currentPnl: null, winRate: null, rrRatio: null },
+    valuation,
+    lastCandle:
+      open != null && close != null
+        ? { direction: close >= open ? "up" : "down", date: dbCtx.market.tradingDate ?? null }
+        : null,
+    recentCandles: [],
+    adnCore: null,
+    adnArt: null,
+  };
+  return {
+    ticker: dbCtx.ticker,
+    priceSnapshot: {
+      price,
+      close,
+      previousClose: dbCtx.market.reference,
+      changePct: dbCtx.market.changePct,
+      latestVolume,
+      priceDate: dbCtx.market.tradingDate ?? null,
+    },
+    analysisMetrics,
+    ta: { currentPrice: price, changePct: dbCtx.market.changePct, sma20: ma20, sma50: ma50, sma200: ma200, rsi14: tech?.rsi ?? null, avgVolume20: tech?.volumeMa20 ?? null },
+    fa: valuation,
+    signal: null,
+    adnCore: null,
+    adnArt: null,
+    market: dbCtx.market,
+    investor: null,
+    news: Array.isArray(dbCtx.relatedNews) ? dbCtx.relatedNews.slice(0, 5) : [],
+    realtimeSummary: { price, updatedAt: dbCtx.market.updatedAt ?? null },
+    orderbook: null,
+    dataSummary: { hasTA: Boolean(tech), hasFA: Boolean(fin || val) },
+  };
+}
+
 async function loadTickerContexts(tickers: string[], context: TopicContext) {
   return Promise.all(
     tickers.map(async (ticker) => {
@@ -1643,8 +1724,16 @@ export async function prepareAidenDatahubTurn(input: {
     const stockTickers = tickers.filter((item) => !isIndexTicker(item));
 
     const general = await buildGeneralMarketContext(context);
-    const perTicker = stockTickers.length > 0 ? await loadTickerContexts(stockTickers, context) : [];
-    const tickerContexts = perTicker.map((item) => item.context);
+    // HƯỚNG B: webchat lấy ticker context từ getDatabaseAidenTickerContext (DB-v2-first + fallback
+    // ta-summary) — CÙNG nguồn với ADN Stock, giá đúng/đã điều chỉnh, không dính bridge /historical.
+    const stockResults =
+      stockTickers.length > 0
+        ? await Promise.all(stockTickers.map((t) => getDatabaseAidenTickerContext({ ticker: t }).catch(() => null)))
+        : [];
+    const stockDbContexts = stockResults
+      .map((r) => r?.data ?? null)
+      .filter((c): c is DatabaseAidenTickerContext => Boolean(c));
+    const tickerContexts = stockDbContexts.map(dbContextToWebchatTicker);
     const perIndex = indexTickers.length > 0 ? await loadIndexContexts(indexTickers, context) : [];
     const indexContexts = perIndex.map((item) => item.context);
     // Webchat AIDEN: luôn để LLM tự viết câu trả lời tự nhiên dựa trên số liệu đã chuẩn hóa.
@@ -1658,16 +1747,16 @@ export async function prepareAidenDatahubTurn(input: {
     return {
       message,
       intent,
-      ticker: tickers[0],
+      ticker: stockDbContexts[0]?.ticker ?? tickers[0],
       tickers,
       recommendation: tickerContexts.length === 1 ? buildRecommendation(tickerContexts[0]) : null,
       usedTopics: [
         ...general.topics,
-        ...perTicker.flatMap((item) => item.topics),
+        ...stockDbContexts.map((c) => `database:v2:aiden:${c.ticker}`),
         ...perIndex.flatMap((item) => item.topics),
       ],
       model: AIDEN_MODEL,
-      dataFreshness: collectFreshness([...perTicker, ...perIndex], general.envelopes),
+      dataFreshness: collectFreshness(perIndex, general.envelopes),
       prompt: buildAidenConversationPrompt(message, general.context, tickerContexts, indexContexts),
       fallbackMessage:
         deterministicTickerBrief ??
