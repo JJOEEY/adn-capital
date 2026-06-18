@@ -242,11 +242,13 @@ function buildTickerMarket(
   const latest = rowPayload(latestRow);
   const ohlcv = rowPayload(ohlcvRow);
   const previousOhlcv = rowPayload(previousOhlcvRow ?? null);
-  const latestPrice = firstNumber(latest, ["price", "matchPrice", "lastPrice", "close", "c"]);
+  // valueIndexes/indexValue: giá trị chỉ số trong message DNSE market_index.*.json (vd VNINDEX 1830.47).
+  const PRICE_KEYS = ["price", "matchPrice", "lastPrice", "close", "c", "valueIndexes", "indexValue"];
+  const latestPrice = firstNumber(latest, PRICE_KEYS);
   const payload = latestPrice != null ? latest : ohlcv;
-  const price = firstNumber(payload, ["price", "matchPrice", "lastPrice", "close", "c"]);
+  const price = firstNumber(payload, PRICE_KEYS);
   const reference = firstNumber(payload, ["reference", "refPrice", "basicPrice", "priorClosePrice", "previousClose"]) ??
-    firstNumber(previousOhlcv, ["close", "matchPrice", "c"]) ??
+    firstNumber(previousOhlcv, ["close", "matchPrice", "c", "valueIndexes", "indexValue"]) ??
     firstNumber(payload, ["open", "openPrice", "o"]);
   const change = firstNumber(payload, ["changedValue", "change", "priceChange"]);
   const changePct = firstNumber(payload, ["changedRatio", "changePct", "percentChange"]);
@@ -270,7 +272,7 @@ function buildDailyOhlcv(row: { payload: Prisma.JsonValue; providerTime: Date | 
     open: firstNumber(payload, ["open", "openPrice", "o"]),
     high: firstNumber(payload, ["high", "highestPrice", "h"]),
     low: firstNumber(payload, ["low", "lowestPrice", "l"]),
-    close: firstNumber(payload, ["close", "matchPrice", "c"]),
+    close: firstNumber(payload, ["close", "matchPrice", "c", "valueIndexes", "indexValue"]),
     volume: firstNumber(payload, ["volume", "v", "totalVolumeTraded"]),
     value: firstNumber(payload, ["value", "tradingValue", "grossTradeAmount"]),
     updatedAt: rowUpdatedAt(row),
@@ -650,6 +652,7 @@ export async function getDatabaseAidenTickerContext(options: {
     // ex-rights như HPG: 26.8 vs đúng 23.95). market.eod xen kẽ row "f" (foreign, không giá) và
     // "te" (có matchPrice) → chọn row gần nhất CÓ giá.
     let eodPriceRow: typeof latestRow = null;
+    let eodPrevRow: typeof latestRow = null;
     if (!latestRow || !ohlcvRow) {
       const eodRows = await prisma.databaseMarketLatest.findMany({
         where: {
@@ -658,14 +661,19 @@ export async function getDatabaseAidenTickerContext(options: {
           ...(options.tradingDate ? { tradingDate: options.tradingDate } : {}),
         },
         orderBy: [{ tradingDate: "desc" }, { updatedAt: "desc" }],
-        take: 8,
+        take: 16,
       });
-      eodPriceRow =
-        eodRows.find((r) => firstNumber(rowPayload(r), ["matchPrice", "close", "price", "lastPrice"]) != null) ?? null;
+      const pricedEod = eodRows.filter(
+        (r) => firstNumber(rowPayload(r), ["matchPrice", "close", "price", "lastPrice", "valueIndexes", "indexValue"]) != null,
+      );
+      eodPriceRow = pricedEod[0] ?? null;
+      // Phiên gần nhất TRƯỚC ngày của eodPriceRow → reference để tính changePct đúng. Mã trần (vd VHM)
+      // mở cửa = giá khớp nên row "te" không có ref → nếu lấy openPrice làm tham chiếu sẽ ra 0% (sai).
+      eodPrevRow = pricedEod.find((r) => r.tradingDate !== eodPriceRow?.tradingDate) ?? null;
     }
     const effectiveQuoteRow = latestRow ?? eodPriceRow;
     const effectiveOhlcvRow = ohlcvRow ?? eodPriceRow;
-    let market = buildTickerMarket(effectiveQuoteRow, effectiveOhlcvRow);
+    let market = buildTickerMarket(effectiveQuoteRow, effectiveOhlcvRow, latestRow ? null : eodPrevRow);
     let dailyOhlcv = buildDailyOhlcv(effectiveOhlcvRow);
     const technicalRows = [...technicalToolRows, ...technicalMarketRows];
     const financialRows = [...financialToolRows, ...financialMarketRows];

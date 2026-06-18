@@ -1397,26 +1397,49 @@ function buildIndexContext(
   });
 }
 
+// Dựng index context từ getDatabaseAidenTickerContext (giá valueIndexes từ market.eod + MA/RSI
+// tươi từ ta-summary), thay vì market.ohlcv (nến chỉ số ngừng cập nhật từ tháng 5 → stale).
+function buildIndexContextFromDb(ticker: string, dbCtx: DatabaseAidenTickerContext | null) {
+  if (!dbCtx) return buildIndexContext(ticker, null, null, []);
+  const tech = dbCtx.technical;
+  const indicators = {
+    currentPrice: dbCtx.market.price,
+    changePct: dbCtx.market.changePct,
+    sma20: tech?.ma20 ?? null,
+    sma50: tech?.ma50 ?? null,
+    sma200: tech?.ma200 ?? null,
+    avgVolume20: tech?.volumeMa20 ?? null,
+    low52w: null,
+    high52w: null,
+    rsi14: tech?.rsi ?? null,
+    macd: { histogram: tech?.macdHistogram ?? null, histogramPrev: null },
+    volume10: [],
+  };
+  const priceSnapshot = {
+    price: dbCtx.market.price,
+    close: dbCtx.dailyOhlcv?.close ?? dbCtx.market.price,
+    previousClose: dbCtx.market.reference,
+    changePct: dbCtx.market.changePct,
+    latestVolume: dbCtx.market.volume ?? dbCtx.dailyOhlcv?.volume ?? null,
+    volumeMa20: tech?.volumeMa20 ?? null,
+    priceDate: dbCtx.market.tradingDate ?? null,
+  };
+  return buildIndexContext(ticker, indicators, priceSnapshot, []);
+}
+
 async function loadIndexContexts(tickers: string[], _context: TopicContext) {
   return Promise.all(
     tickers.map(async (ticker) => {
-      const databaseHistorical = await loadDatabaseV2DailyPayload(ticker).catch((error) => {
-        emitAidenFallback("index_v2_historical_context_failed", error, { ticker });
+      const result = await getDatabaseAidenTickerContext({ ticker }).catch((error) => {
+        emitAidenFallback("index_v2_context_failed", error, { ticker });
         return null;
       });
-      const candles = normalizeHistoricalCandles(databaseHistorical);
-      const indicators = candles.length ? buildIndicatorsFromCandles(candles) : null;
-      const priceSnapshot = databaseHistorical
-        ? await loadDatabaseV2PriceSnapshot(ticker, databaseHistorical).catch((error) => {
-            emitAidenFallback("index_v2_price_context_failed", error, { ticker });
-            return null;
-          })
-        : null;
+      const dbCtx = result?.data ?? null;
       return {
         ticker,
-        topics: databaseHistorical ? [`database:v2:market.ohlcv:${ticker}`] : [],
+        topics: dbCtx ? [`database:v2:aiden:${ticker}`] : [],
         envelopes: [] as Array<{ topic: string; envelope: TopicEnvelope }>,
-        context: buildIndexContext(ticker, indicators, priceSnapshot, candles),
+        context: buildIndexContextFromDb(ticker, dbCtx),
       };
     }),
   );
