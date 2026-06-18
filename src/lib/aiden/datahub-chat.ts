@@ -69,7 +69,7 @@ export type AidenRecommendation = {
   stoploss: number | null;
 };
 
-function compactJson(value: unknown, maxLength = 5200) {
+function compactJson(value: unknown, maxLength = 16000) {
   const raw = JSON.stringify(value, null, 2);
   if (raw.length <= maxLength) return raw;
   return `${raw.slice(0, maxLength)}\n... truncated`;
@@ -779,10 +779,10 @@ function buildAidenConversationPrompt(
   const hasIndex = Array.isArray(indexContexts) && indexContexts.length > 0;
   return `INTERNAL_CONTEXT:
 ${compactJson({
-  market: marketContext,
   tickers: tickerContexts,
   indices: indexContexts,
-})}
+  market: marketContext,
+}, 24000)}
 
 OUTPUT_CONTRACT:
 - Trả lời như một trợ lý đầu tư dạng ChatGPT/Gemini: hiểu câu hỏi tự nhiên, trả lời trực tiếp, không bắt khách nhập lệnh từng dòng.
