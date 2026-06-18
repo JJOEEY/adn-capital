@@ -1,6 +1,7 @@
 import { getDatabaseAidenTickerContext, assertAidenStockDatasetAllowed } from "@/lib/database/aiden/context";
 import type { DatabaseAidenTickerContext } from "@/lib/database/aiden/types";
 import { prisma } from "@/lib/prisma";
+import { isIndexTicker } from "@/lib/vn-reference-indices";
 
 type AidenStockV2Input = {
   message: string;
@@ -280,6 +281,83 @@ function renderSingleTicker(ctx: DatabaseAidenTickerContext) {
     .join("\n");
 }
 
+// Guard chống mốc sai thang (vd bollinger-bridge 27.170 cho chỉ số ~1.800): chỉ nhận mốc nằm
+// trong dải hợp lý quanh giá hiện tại; ngoài dải coi như không hợp lệ.
+function saneIndexLevel(value: number | null | undefined, price: number | null): number | null {
+  if (value == null || !Number.isFinite(value)) return null;
+  if (price != null && price > 0 && (value < price * 0.4 || value > price * 2.5)) return null;
+  return value;
+}
+
+// Render cho CHỈ SỐ (VNINDEX/VN30/...) — GIỮ NGUYÊN format template của ADN Stock, nhưng nội dung
+// hợp với chỉ số: không gọi là "cổ phiếu", không khuyên mua/cắt lỗ trực tiếp chỉ số, và thay mục
+// "Phân tích cơ bản" (P/E/EPS doanh nghiệp) bằng bối cảnh chỉ số.
+function renderSingleIndex(ctx: DatabaseAidenTickerContext): string {
+  const price = ctx.market.price ?? ctx.dailyOhlcv?.close ?? null;
+  const changePct = ctx.market.changePct;
+  const technical = ctx.technical;
+  const support = saneIndexLevel(technical?.support, price) ?? ctx.dailyOhlcv?.low ?? null;
+  const resistance = saneIndexLevel(technical?.resistance, price) ?? ctx.dailyOhlcv?.high ?? null;
+  const supportText = formatNumber(support, 0);
+  const resistanceText = formatNumber(resistance, 0);
+  const ma20 = technical?.ma20 ?? null;
+  const ma20Text = formatNumber(ma20, 0);
+  const candle = candleLabel(ctx);
+  const maParts = compactJoin(
+    [
+      compareToLabel(price, technical?.ma20, "MA20"),
+      compareToLabel(price, technical?.ma50, "MA50"),
+      compareToLabel(price, technical?.ma200, "MA200"),
+    ],
+    ", ",
+  );
+  const rsi = formatNumber(technical?.rsi, 2);
+  const macd = formatNumber(technical?.macdHistogram, 2);
+  const aboveMa20 = price != null && ma20 != null && price >= ma20;
+  const positiveStructure =
+    price != null && technical?.ma20 != null && technical?.ma50 != null && price >= technical.ma20 && price >= technical.ma50;
+
+  return [
+    `**${ctx.ticker}** — Chỉ số thị trường`,
+    "",
+    "**Phân tích cấu trúc**",
+    `- Chỉ số hiện tại ${formatNumber(price, 0) ?? "chưa có"} điểm${changePct != null ? `, biến động ${formatPct(changePct)}` : ""}.${maParts ? ` ${maParts}.` : ""}${candle ? ` ${candle}.` : ""}${rsi ? ` RSI ${rsi}.` : ""}${macd ? ` MACD histogram ${macd}.` : ""}`,
+    positiveStructure
+      ? "Xu hướng tích cực khi chỉ số nằm trên các đường trung bình quan trọng."
+      : "Xu hướng cần thêm xác nhận, ưu tiên quan sát phản ứng tại các vùng quan trọng.",
+    "",
+    "**Phân tích vùng giá**",
+    `- Hỗ trợ: ${supportText ? `${supportText} điểm` : "vùng kỹ thuật gần nhất"}.`,
+    `- Kháng cự: ${resistanceText ? `${resistanceText} điểm` : "vùng kỹ thuật gần nhất"}.`,
+    ma20Text ? `Vùng cần giữ vững: quanh MA20 ${ma20Text} điểm.` : "Vùng cần theo dõi: các đường trung bình gần nhất.",
+    "",
+    "**Trạng thái & chiến lược thị trường**",
+    `- Nếu chỉ số giữ trên vùng ${supportText ?? "hỗ trợ gần nhất"}${ma20Text ? `/MA20 ${ma20Text}` : ""}: thị trường còn được hỗ trợ — ưu tiên nắm giữ danh mục, có thể giải ngân thăm dò vào nhóm cổ phiếu dẫn dắt.`,
+    `- Nếu chỉ số mất vùng ${supportText ?? "hỗ trợ gần nhất"}: nâng tỷ trọng tiền mặt, ưu tiên phòng thủ và chờ thị trường xác nhận lại.`,
+    "- Lưu ý: chỉ số dùng để định hướng tỷ trọng và chọn nhóm ngành, không phải lệnh mua/bán trực tiếp.",
+    "",
+    "**Bối cảnh chỉ số**",
+    `${ctx.ticker} là chỉ số thị trường, phản ánh diễn biến chung của toàn thị trường. Không áp dụng định giá doanh nghiệp (P/E, EPS, ROE) cho chỉ số; đánh giá dựa trên xu hướng kỹ thuật, thanh khoản và độ rộng thị trường.`,
+    "",
+    "**Kịch bản rủi ro**",
+    `- Rủi ro tăng nếu chỉ số mất vùng hỗ trợ ${supportText ?? "gần nhất"}.${macd ? ` MACD histogram ${macd} cho thấy xung lực cần thêm xác nhận.` : ""}`,
+    "",
+    "**Cảnh báo**",
+    `- Ủng hộ: chỉ số giữ được vùng ${ma20Text ?? supportText ?? "hỗ trợ"} với thanh khoản cải thiện.`,
+    `- Tiêu cực: mất ${supportText ?? "vùng hỗ trợ"} hoặc thanh khoản tăng mạnh trong phiên giảm.`,
+    ctx.dailyOhlcv?.volume || technical?.volumeMa20
+      ? `Note: khối lượng gần nhất ${formatNumber(ctx.dailyOhlcv?.volume ?? ctx.market.volume, 0) ?? "chưa rõ"}, MA20 volume ${formatNumber(technical?.volumeMa20, 0) ?? "chưa rõ"}.`
+      : null,
+    "",
+    "**Kết luận**",
+    aboveMa20
+      ? "Hành động: thị trường còn được hỗ trợ, ưu tiên nắm giữ danh mục có chọn lọc và quản trị rủi ro theo vùng hỗ trợ."
+      : "Hành động: thị trường cần thêm xác nhận; ưu tiên phòng thủ, giữ tỷ trọng tiền mặt hợp lý và chờ chỉ số lấy lại vùng kỹ thuật quan trọng.",
+  ]
+    .filter((line): line is string => line != null)
+    .join("\n");
+}
+
 export async function runAidenStockChatV2Only(input: AidenStockV2Input): Promise<AidenStockV2Result> {
   const tickers = await resolveTickerCandidates(input.message, input.currentTicker);
   if (!tickers.length) {
@@ -296,7 +374,7 @@ export async function runAidenStockChatV2Only(input: AidenStockV2Input): Promise
   const contexts = results.map((result) => result.data).filter((item): item is DatabaseAidenTickerContext => Boolean(item));
 
   const rendered = contexts.length
-    ? contexts.map(renderSingleTicker)
+    ? contexts.map((ctx) => (isIndexTicker(ctx.ticker) ? renderSingleIndex(ctx) : renderSingleTicker(ctx)))
     : [`Hệ thống hiện chưa có dữ liệu đủ dùng cho ${tickers.join(", ")}. Anh/chị thử làm mới lại sau ít phút.`];
 
   const message = [

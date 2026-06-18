@@ -9,8 +9,8 @@ function isDirectGeminiDisabled() {
   return process.env.DISABLE_DIRECT_GEMINI === "1" || process.env.DISABLE_DIRECT_GEMINI === "true";
 }
 
-function getGenAIClient(): GoogleGenAI {
-  if (isDirectGeminiDisabled()) {
+function getGenAIClient(allowOverride = false): GoogleGenAI {
+  if (!allowOverride && isDirectGeminiDisabled()) {
     throw new Error("Direct Gemini API is disabled");
   }
   if (!apiKey) {
@@ -20,6 +20,16 @@ function getGenAIClient(): GoogleGenAI {
     genAI = new GoogleGenAI({ apiKey });
   }
   return genAI;
+}
+
+// AIDEN webchat được phép dùng Gemini trực tiếp dù DISABLE_DIRECT_GEMINI bật (cờ đó để chặn
+// rò phí ở các path khác như crawler), bằng cách bật AIDEN_ALLOW_DIRECT_GEMINI=true. Đây là lựa
+// chọn CHỦ ĐÍCH cho webchat nên không bị cờ toàn cục chặn.
+function isAidenDirectGeminiAllowed(): boolean {
+  if (process.env.AIDEN_ALLOW_DIRECT_GEMINI === "true" || process.env.AIDEN_ALLOW_DIRECT_GEMINI === "1") {
+    return true;
+  }
+  return !isDirectGeminiDisabled();
 }
 
 const FLASH_PRIMARY = "gemini-3-flash-preview";
@@ -32,6 +42,12 @@ const DEFAULT_ROUTER_MODEL = "openai/gpt-4o-mini";
 const DEFAULT_NINEROUTER_BASE_URL = "http://127.0.0.1:20128/v1";
 const DEFAULT_NINEROUTER_MODEL = "ADN-COMBO";
 const DEFAULT_NINEROUTER_AIDEN_MODEL = "AIDENfast";
+// Nhiệt độ cho AIDEN webchat (stream). Cao hơn 0.2 để câu chữ tự nhiên, đỡ máy móc.
+// Số liệu vẫn được bảo vệ bằng INTERNAL_CONTEXT + system prompt cấm bịa, không phụ thuộc temperature.
+const AIDEN_CHAT_TEMPERATURE = (() => {
+  const value = Number(process.env.AIDEN_CHAT_TEMPERATURE ?? 0.6);
+  return Number.isFinite(value) && value >= 0 && value <= 2 ? value : 0.6;
+})();
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 const ROUTER_TIMEOUT_MS = Number(process.env.AI_ROUTER_TIMEOUT_MS ?? 45000);
 const NEWS_ROUTER_TIMEOUT_MS = Number(
@@ -63,7 +79,7 @@ const MODEL_CHAIN: Record<Intent, [string, string]> = {
 };
 
 type RouterProvider = {
-  name: "OpenRouter" | "9Router";
+  name: "OpenRouter" | "9Router" | "FreeModel";
   apiKey?: string;
   baseUrl: string;
   model: string;
@@ -149,6 +165,7 @@ function getAidenRouterModel(): string {
 
 type RouterProviderOptions = {
   nineRouterModelOverride?: string;
+  temperature?: number;
 };
 
 function buildRouterProviders(intent: Intent, options: RouterProviderOptions = {}): RouterProvider[] {
@@ -501,6 +518,7 @@ async function callOpenAICompatibleProviderStream(
   systemInstruction: string,
   onDelta: (text: string) => void,
   signal?: AbortSignal,
+  temperature = 0.2,
 ): Promise<string> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ROUTER_TIMEOUT_MS);
@@ -520,7 +538,7 @@ async function callOpenAICompatibleProviderStream(
       body: JSON.stringify({
         model: provider.model,
         stream: true,
-        temperature: 0.2,
+        temperature,
         max_tokens: 1800,
         messages: [
           { role: "system", content: withCustomerOutputRules(systemInstruction) },
@@ -587,6 +605,7 @@ async function executeRouterChainStream(
         systemInstruction,
         onDelta,
         options?.signal,
+        options?.temperature,
       );
       console.log(`[AI Router stream] provider=${provider.name} model=${provider.model}`);
       return output;
@@ -704,27 +723,18 @@ export async function executeFlashOnlyAIRequest(
   throw lastErr;
 }
 
-export async function streamFlashOnlyAIRequest(
+async function streamDirectGeminiFlash(
   prompt: string,
-  systemInstruction: string | undefined,
+  sysInstr: string,
   onDelta: (text: string) => void,
+  models: string[],
   options: { signal?: AbortSignal } = {},
+  allowOverride = false,
 ): Promise<string> {
-  const sysInstr = systemInstruction ?? SYSTEM_INSTRUCTIONS.GENERAL;
-  const routedOutput = await executeRouterChainStream(prompt, INTENT.GENERAL, sysInstr, onDelta, {
-    nineRouterModelOverride: getAidenRouterModel(),
-    signal: options.signal,
-  });
-  if (routedOutput) return sanitizeModelOutput(routedOutput);
-  if (isDirectGeminiDisabled()) {
-    console.warn("[Gemini] direct flash stream fallback disabled.");
-    throw new Error("Direct Gemini API is disabled");
-  }
-
   let lastErr: unknown;
-  for (const model of [FLASH_PRIMARY, FLASH_FALLBACK]) {
+  for (const model of models) {
     try {
-      const response = await getGenAIClient().models.generateContentStream({
+      const response = await getGenAIClient(allowOverride).models.generateContentStream({
         model,
         contents: prompt,
         config: {
@@ -742,6 +752,7 @@ export async function streamFlashOnlyAIRequest(
       }
       const sanitized = sanitizeModelOutput(output);
       if (!sanitized.trim()) throw new Error("empty assistant stream");
+      console.log(`[AIDEN chat] provider=gemini model=${model}`);
       return sanitized;
     } catch (err) {
       lastErr = err;
@@ -751,6 +762,97 @@ export async function streamFlashOnlyAIRequest(
   }
 
   throw lastErr;
+}
+
+export async function streamFlashOnlyAIRequest(
+  prompt: string,
+  systemInstruction: string | undefined,
+  onDelta: (text: string) => void,
+  options: { signal?: AbortSignal } = {},
+): Promise<string> {
+  const sysInstr = systemInstruction ?? SYSTEM_INSTRUCTIONS.GENERAL;
+  const routedOutput = await executeRouterChainStream(prompt, INTENT.GENERAL, sysInstr, onDelta, {
+    nineRouterModelOverride: getAidenRouterModel(),
+    signal: options.signal,
+    temperature: AIDEN_CHAT_TEMPERATURE,
+  });
+  if (routedOutput) return sanitizeModelOutput(routedOutput);
+  if (isDirectGeminiDisabled()) {
+    console.warn("[Gemini] direct flash stream fallback disabled.");
+    throw new Error("Direct Gemini API is disabled");
+  }
+
+  return streamDirectGeminiFlash(prompt, sysInstr, onDelta, [FLASH_PRIMARY, FLASH_FALLBACK], options);
+}
+
+// ─── AIDEN webchat: công tắc chọn backend để so sánh độ "native" ───
+// env AIDEN_CHAT_PROVIDER = "9router" (mặc định) | "freemodel" | "gemini"
+export type AidenChatProvider = "9router" | "freemodel" | "gemini";
+
+export function getAidenChatProvider(): AidenChatProvider {
+  const raw = (process.env.AIDEN_CHAT_PROVIDER ?? "9router").trim().toLowerCase();
+  return raw === "freemodel" || raw === "gemini" ? raw : "9router";
+}
+
+function getAidenGeminiModels(): string[] {
+  const override = process.env.AIDEN_GEMINI_MODEL?.trim();
+  return override ? [override, FLASH_FALLBACK] : [FLASH_PRIMARY, FLASH_FALLBACK];
+}
+
+function buildFreeModelProvider(): RouterProvider | null {
+  const apiKey = process.env.FREEMODEL_API_KEY;
+  if (!apiKey) return null;
+  const baseUrl = (process.env.FREEMODEL_OPENAI_BASE_URL ?? "https://api.freemodel.dev/v1").replace(/\/+$/, "");
+  const model = process.env.AIDEN_FREEMODEL_MODEL ?? "gpt-5.4";
+  return { name: "FreeModel", apiKey, baseUrl: normalizeBaseUrl(baseUrl), model };
+}
+
+/** Nhãn provider:model đang dùng — để hiển thị/log khi so sánh các backend. */
+export function getAidenChatModelLabel(): string {
+  const provider = getAidenChatProvider();
+  if (provider === "gemini") return `gemini:${getAidenGeminiModels()[0]}`;
+  if (provider === "freemodel") return `freemodel:${process.env.AIDEN_FREEMODEL_MODEL ?? "gpt-5.4"}`;
+  return `9router:${getAidenRouterModel()}`;
+}
+
+/** Entry point streaming cho webchat AIDEN, định tuyến theo AIDEN_CHAT_PROVIDER. */
+export async function streamAidenChat(
+  prompt: string,
+  systemInstruction: string | undefined,
+  onDelta: (text: string) => void,
+  options: { signal?: AbortSignal } = {},
+): Promise<string> {
+  const provider = getAidenChatProvider();
+  const sysInstr = systemInstruction ?? SYSTEM_INSTRUCTIONS.GENERAL;
+
+  if (provider === "gemini") {
+    if (!isAidenDirectGeminiAllowed()) {
+      throw new Error(
+        "AIDEN_CHAT_PROVIDER=gemini nhưng Gemini trực tiếp đang bị chặn. Đặt AIDEN_ALLOW_DIRECT_GEMINI=true (hoặc DISABLE_DIRECT_GEMINI=false).",
+      );
+    }
+    return streamDirectGeminiFlash(prompt, sysInstr, onDelta, getAidenGeminiModels(), options, true);
+  }
+
+  if (provider === "freemodel") {
+    const freeModel = buildFreeModelProvider();
+    if (!freeModel) {
+      throw new Error("AIDEN_CHAT_PROVIDER=freemodel nhưng thiếu FREEMODEL_API_KEY.");
+    }
+    const output = await callOpenAICompatibleProviderStream(
+      freeModel,
+      prompt,
+      sysInstr,
+      onDelta,
+      options.signal,
+      AIDEN_CHAT_TEMPERATURE,
+    );
+    console.log(`[AIDEN chat] provider=freemodel model=${freeModel.model}`);
+    return sanitizeModelOutput(output);
+  }
+
+  console.log(`[AIDEN chat] provider=9router model=${getAidenRouterModel()}`);
+  return streamFlashOnlyAIRequest(prompt, systemInstruction, onDelta, options);
 }
 
 export function getGeminiModel(_modelName?: string) {

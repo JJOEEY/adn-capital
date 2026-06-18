@@ -40,6 +40,7 @@ import { getTopicEnvelope, invalidateTopics } from "@/lib/datahub/core";
 import {
   collectDatabaseRadarRealtime,
   collectDatabaseNews,
+  collectDatabaseResearch,
   collectDnseEodMarketToDatabase,
   getDatabaseRealtimeHealth,
   getDatabaseV2Readiness,
@@ -513,6 +514,7 @@ const DATABASE_V2_CRON_TYPES = new Set<CanonicalCronType>([
   "database_adn_rank_collect",
   "database_adn_rank_readiness",
   "database_aiden_context_collect",
+  "database_research_collect",
 ]);
 
 function isDatabaseV2CronType(type: CanonicalCronType) {
@@ -682,6 +684,26 @@ async function handleDatabaseV2Cron(type: CanonicalCronType, forceRun = false): 
         type,
         result.ok ? "success" : "error",
         result.ok ? `Database v2 DNSE market stored ${result.updatedLatest} latest rows` : "Database v2 DNSE market collect failed",
+        duration,
+        summarizeDatabasePayload(result),
+      );
+      return NextResponse.json({ type, ...result }, { status: result.ok ? 200 : 502 });
+    }
+
+    if (type === "database_research_collect") {
+      if (!forceRun && !isTradingDay()) {
+        const duration = Date.now() - startTime;
+        await logCron(type, "skipped", "Database v2 research (FA/technical) collect skipped on non-trading day", duration);
+        return NextResponse.json({ type, skipped: true, reason: "non_trading_day" });
+      }
+      const result = await collectDatabaseResearch({ concurrency: forceRun ? 8 : 6 });
+      const duration = Date.now() - startTime;
+      await logCron(
+        type,
+        result.ok ? "success" : "error",
+        result.ok
+          ? `Database v2 research stored FA ${result.faStored} / TA ${result.taStored} of ${result.universe}`
+          : "Database v2 research collect failed",
         duration,
         summarizeDatabasePayload(result),
       );

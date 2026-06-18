@@ -15,6 +15,7 @@ import { normalizeHistoricalPriceWithSnapshot, type StockPriceSnapshot } from "@
 import { classifyAidenIntent, type AidenIntent } from "@/lib/aiden/intent";
 import { extractTickerCandidates as extractTickerCandidatesFromText } from "@/lib/ticker-text";
 import { resolveMarketTicker } from "@/lib/ticker-resolver";
+import { isIndexTicker, canonicalIndexTicker } from "@/lib/vn-reference-indices";
 
 type JsonRecord = Record<string, unknown>;
 function readPositiveIntegerEnv(name: string, fallback: number): number {
@@ -691,6 +692,29 @@ Quy tắc bắt buộc:
 - Kết luận phải phân biệt: quan sát, chờ mua, mua thăm dò, nắm giữ, giảm tỷ trọng, hoặc tránh mua.`;
 }
 
+// System prompt cho mặt webchat AIDEN: thiên về nhân cách + hội thoại tự nhiên thay vì bảng điều cấm.
+// Vẫn giữ nguyên kỷ luật số liệu và không lộ nguồn nội bộ.
+function buildAidenConversationSystemInstruction() {
+  return `Bạn là AIDEN — chuyên gia phân tích chứng khoán Việt Nam của ADN Capital, đang tư vấn trực tiếp cho nhà đầu tư trong khung chat.
+
+Tính cách & văn phong:
+- Sắc sảo, dứt khoát, đi thẳng vào kết luận như một chuyên gia tư vấn dày dạn — KHÔNG vòng vo, KHÔNG đọc báo cáo máy móc, không sáo rỗng.
+- Mở đầu bằng một nhận định/verdict rõ ràng cho câu hỏi, rồi mới dẫn giải bằng số liệu. Câu hỏi ngắn trả lời ngắn; chỉ phân tích dài khi nhà đầu tư thực sự muốn đào sâu một mã.
+- Xưng "AIDEN", gọi nhà đầu tư là "anh/chị". Tiếng Việt có dấu, gọn gàng, được dùng từ nối tự nhiên ("nói thẳng là", "điểm mấu chốt là", "ngược lại"...). Chuyên nghiệp, có quan điểm, không ba phải.
+- Trình bày scannable: in đậm các ý và ngưỡng giá then chốt để nhà đầu tư nắm nhanh.
+
+Kỷ luật dữ liệu (bắt buộc):
+- CHỈ dùng số liệu có trong INTERNAL_CONTEXT (giá, P/E, P/B, MA, volume, vùng giá, tín hiệu...). Tuyệt đối không bịa thêm con số, target, hay tin tức nào.
+- Khi nêu nhận định kỹ thuật/định giá, ưu tiên các số trong analysisMetrics và priceSnapshot; nếu số liệu thô khác thì bỏ qua để tránh mâu thuẫn.
+- Nếu một chỉ số chưa có trong ngữ cảnh, chuyển sang nhận định định tính một cách tự nhiên — KHÔNG nói "thiếu dữ liệu", "chưa có dữ liệu", "FA null" hay công bố nguồn lấy số.
+- Không bao giờ nhắc tên hệ thống/nguồn nội bộ (DataHub, FiinQuant, bridge, provider, API, cache, backend...). Với nhà đầu tư, số liệu chỉ đơn giản là "dữ liệu của hệ thống".
+
+Cách trình bày:
+- Markdown GFM gọn gàng, đoạn ngắn và bullet khi liệt kê; KHÔNG ép mọi câu trả lời vào một bộ heading cố định.
+- Luôn gắn nhận định với rủi ro/điều kiện đi kèm; không hứa hẹn lợi nhuận chắc chắn.
+- Khi khuyên hành động, phân biệt rõ: quan sát / chờ mua / mua thăm dò / nắm giữ / giảm tỷ trọng / tránh mua.`;
+}
+
 function buildPrompt(message: string, contexts: unknown[]) {
   const comparison = contexts.length >= 2;
   const outputContract = `OUTPUT_CONTRACT:
@@ -746,18 +770,26 @@ Người dùng hỏi:
 ${message}`;
 }
 
-function buildAidenConversationPrompt(message: string, marketContext: unknown, tickerContexts: unknown[]) {
+function buildAidenConversationPrompt(
+  message: string,
+  marketContext: unknown,
+  tickerContexts: unknown[],
+  indexContexts: unknown[] = [],
+) {
+  const hasIndex = Array.isArray(indexContexts) && indexContexts.length > 0;
   return `INTERNAL_CONTEXT:
 ${compactJson({
   market: marketContext,
   tickers: tickerContexts,
+  indices: indexContexts,
 })}
 
 OUTPUT_CONTRACT:
 - Trả lời như một trợ lý đầu tư dạng ChatGPT/Gemini: hiểu câu hỏi tự nhiên, trả lời trực tiếp, không bắt khách nhập lệnh từng dòng.
 - Không ép mọi câu trả lời vào 7 heading của ADN Stock. Chỉ dùng cấu trúc dài khi khách hỏi phân tích chi tiết một mã cụ thể.
 - Nếu khách hỏi "hôm nay mua mã gì", "top mã đáng chú ý", "lọc cổ phiếu", ưu tiên 3-5 mã có bối cảnh tốt nhất trong INTERNAL_CONTEXT, nêu điều kiện theo dõi và rủi ro. Không bịa mã ngoài ngữ cảnh.
-- Nếu khách hỏi một hoặc nhiều mã cụ thể, trả lời gọn theo các ý: nhận định nhanh, điểm đáng chú ý, rủi ro, hành động phù hợp. Dùng số liệu thực tế trong INTERNAL_CONTEXT khi có.
+- Nếu khách hỏi một hoặc nhiều mã cụ thể, trả lời gọn theo các ý: nhận định nhanh, điểm đáng chú ý, rủi ro, hành động phù hợp. Dùng số liệu thực tế trong INTERNAL_CONTEXT khi có.${hasIndex ? `
+- Nếu khách hỏi về CHỈ SỐ trong "indices" (VNINDEX/VN30/VN30F1M...): đánh giá theo XU HƯỚNG (giá so với MA20/MA50/MA200), ĐỘNG LƯỢNG (RSI/MACD), THANH KHOẢN và ĐỘ RỘNG thị trường (lấy từ "market"). Vùng quan trọng CHỈ được lấy từ các đường trung bình và đỉnh/đáy 52 tuần trong "indices.keyLevels". TUYỆT ĐỐI không nêu P/E, EPS, BVPS, ROE hay định giá doanh nghiệp cho chỉ số, và KHÔNG bịa mốc hỗ trợ/kháng cự ngoài dữ liệu đã cho. Chỉ số không có "điểm mua/cắt lỗ" như cổ phiếu — nói về trạng thái và kịch bản thị trường.` : ""}
 - Nếu khách cần biểu đồ chi tiết, gợi ý mở ADN Stock để xem chart, vùng giá và AIDEN nhận định theo mã đó.
 - Không bao giờ nhắc DataHub, FiinQuant, bridge, provider, API, cache, backend hoặc tên nguồn nội bộ trong câu trả lời khách hàng.
 - Không được nói thiếu dữ liệu FA, chưa có dữ liệu FA, chưa đủ dữ liệu hoặc công bố nguồn lấy dữ liệu. Nếu thiếu một phần số liệu, trả lời thận trọng theo dữ kiện đang có.
@@ -1064,7 +1096,23 @@ function buildAidenStockDeterministicReport(context: unknown) {
   ].filter((line): line is string => Boolean(line)).join("\n");
 }
 
-function buildAidenConversationFallbackMessage(message: string, marketContext: unknown, tickerContexts: unknown[]) {
+function buildAidenConversationFallbackMessage(
+  message: string,
+  marketContext: unknown,
+  tickerContexts: unknown[],
+  indexContexts: unknown[] = [],
+) {
+  if (tickerContexts.length === 0 && indexContexts.length > 0) {
+    const indexLines = indexContexts
+      .map((context) => buildIndexFallbackLine(context))
+      .filter((item): item is string => Boolean(item))
+      .slice(0, 3);
+    return `AIDEN nhận định nhanh chỉ số:
+
+${indexLines.length > 0 ? indexLines.join("\n") : "- Ưu tiên quan sát xu hướng so với các đường trung bình và phản ứng thanh khoản trước khi tăng/giảm tỷ trọng."}
+
+**Hành động phù hợp:** với chỉ số, ưu tiên đánh giá xu hướng và quản trị tỷ trọng theo trạng thái thị trường chung; không có điểm mua/cắt lỗ kiểu cổ phiếu.`;
+  }
   if (tickerContexts.length === 0) return buildGeneralFallbackMessage(message, marketContext);
 
   const lines = tickerContexts
@@ -1161,8 +1209,8 @@ ${statusLines.join("\n")}
 Anh/chị gửi lại câu hỏi sau ít phút. AIDEN sẽ ưu tiên số liệu mới nhất và kỳ báo cáo gần nhất khi kỳ hiện tại chưa hoàn tất.`;
 }
 
-function sanitizeCustomerAnswer(text: string) {
-  return stripInternalSourceMentions(stripSourceFraming(text))
+function sanitizeCustomerAnswer(text: string, options: { skipValuationRewrite?: boolean } = {}) {
+  let result = stripInternalSourceMentions(stripSourceFraming(text))
     .replace(/Dựa trên dữ liệu phân tích nội bộ(?: đã được chuẩn hóa)?[,.]?\s*/gi, "")
     .replace(/dựa trên dữ liệu đã kiểm chứng[,.]?\s*/gi, "")
     .replace(/\bDataHub\b/gi, "")
@@ -1172,19 +1220,29 @@ function sanitizeCustomerAnswer(text: string) {
     .replace(/\bbackend\b/gi, "")
     .replace(/\bcache\b/gi, "")
     .replace(/\bAPI\b/g, "")
-    .replace(/FA\s+null/gi, "phần định giá theo kỳ báo cáo gần nhất")
-    .replace(
-      /(?:mặc\s+dù\s*)?(?:thiếu|vắng|thiếu\s+vắng)[^.\n]*(?:chỉ\s*số|P\/E|P\/B|FA|cơ\s*bản|định\s*giá)[^.\n]*/gi,
-      "Theo kỳ báo cáo gần nhất, phần định giá được đối chiếu với vùng giá hiện tại và chất lượng tăng trưởng",
-    )
-    .replace(
-      /(?:hiện\s*)?(?:chưa|không)\s+(?:có|đủ)\s+dữ\s+liệu[^\n.]*/gi,
-      "phần định giá sử dụng kỳ báo cáo gần nhất và giá thị trường hiện tại",
-    )
-    .replace(
-      /(?:hiện\s*)?(?:chưa|không)\s+(?:có|đủ)\s+dữ\s+liệu\s+(?:FA|cơ\s*bản|P\/E|P\/B)[^\n.]*/gi,
-      "Phần định giá sử dụng kỳ báo cáo gần nhất và giá thị trường hiện tại",
-    )
+    .replace(/FA\s+null/gi, "phần định giá theo kỳ báo cáo gần nhất");
+
+  // Các rewrite "thiếu/chưa đủ dữ liệu → boilerplate định giá" là tàn dư của báo cáo cứng.
+  // Với webchat "aiden" (văn xuôi tự nhiên + có câu hỏi chỉ số), chúng BẮN NHẦM khi gặp từ
+  // "chỉ số"/"chỉ báo" (vd "thiếu tín hiệu ở các chỉ số kỹ thuật") → chèn boilerplate giữa câu.
+  // Persona đã cấm nói "thiếu dữ liệu" nên không cần các rewrite này cho surface aiden.
+  if (!options.skipValuationRewrite) {
+    result = result
+      .replace(
+        /(?:mặc\s+dù\s*)?(?:thiếu|vắng|thiếu\s+vắng)[^.\n]*(?:chỉ\s*số|P\/E|P\/B|FA|cơ\s*bản|định\s*giá)[^.\n]*/gi,
+        "Theo kỳ báo cáo gần nhất, phần định giá được đối chiếu với vùng giá hiện tại và chất lượng tăng trưởng",
+      )
+      .replace(
+        /(?:hiện\s*)?(?:chưa|không)\s+(?:có|đủ)\s+dữ\s+liệu[^\n.]*/gi,
+        "phần định giá sử dụng kỳ báo cáo gần nhất và giá thị trường hiện tại",
+      )
+      .replace(
+        /(?:hiện\s*)?(?:chưa|không)\s+(?:có|đủ)\s+dữ\s+liệu\s+(?:FA|cơ\s*bản|P\/E|P\/B)[^\n.]*/gi,
+        "Phần định giá sử dụng kỳ báo cáo gần nhất và giá thị trường hiện tại",
+      );
+  }
+
+  return result
     .replace(/[ \t]{2,}/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
@@ -1278,6 +1336,110 @@ function ensureValuationLine(answer: string, contexts: unknown[]) {
   }
 
   return `${answer.trim()}\n\n**Định giá và Phân tích cơ bản**\n${valuationLine}`;
+}
+
+// ── Chỉ số (VNINDEX/VN30/...) — context SẠCH, chỉ từ nến DB-v2 (đúng thang điểm chỉ số) ──
+// KHÔNG dùng signal-S/R, KHÔNG bollinger từ bridge (sai thang ~15×), KHÔNG FA doanh nghiệp.
+function buildIndexContext(
+  ticker: string,
+  indicators: unknown,
+  priceSnapshot: unknown,
+  candles: ReturnType<typeof normalizeHistoricalCandles>,
+) {
+  const ind = asRecord(indicators);
+  const snap = asRecord(priceSnapshot);
+  const macd = asRecord(ind.macd);
+  const price = asNumber(snap.price) ?? asNumber(ind.currentPrice);
+  const ma20 = asNumber(ind.sma20);
+  const ma50 = asNumber(ind.sma50);
+  const ma200 = asNumber(ind.sma200);
+  const low52w = asNumber(ind.low52w);
+  const high52w = asNumber(ind.high52w);
+
+  return stripInternalFields({
+    ticker,
+    kind: "index",
+    note: "Đây là CHỈ SỐ thị trường (không phải cổ phiếu): KHÔNG có P/E, EPS, BVPS, ROE hay định giá doanh nghiệp. Vùng quan trọng chỉ lấy từ đường trung bình và đỉnh/đáy 52 tuần.",
+    price,
+    changePct: asNumber(snap.changePct) ?? asNumber(ind.changePct),
+    movingAverages: {
+      ma20,
+      ma50,
+      ma200,
+      priceVsMa20Pct: pctDiff(price, ma20),
+      priceVsMa50Pct: pctDiff(price, ma50),
+      priceVsMa200Pct: pctDiff(price, ma200),
+    },
+    momentum: {
+      rsi14: asNumber(ind.rsi14),
+      macdHistogram: asNumber(macd.histogram),
+      macdHistogramPrev: asNumber(macd.histogramPrev),
+    },
+    volume: {
+      latestVolume: asNumber(snap.latestVolume),
+      volumeMa20: asNumber(snap.volumeMa20) ?? asNumber(ind.avgVolume20),
+    },
+    keyLevels: {
+      // vùng tham chiếu hợp lệ cho chỉ số: các đường trung bình + biên 52 tuần (cùng thang điểm)
+      movingAverages: [ma20, ma50, ma200].filter((value): value is number => value != null),
+      low52w,
+      high52w,
+    },
+    recentCandles: candles.slice(-6),
+    priceSnapshot: stripInternalFields({
+      price,
+      previousClose: asNumber(snap.previousClose),
+      changePct: asNumber(snap.changePct),
+      priceDate: snap.priceDate ?? null,
+    }),
+  });
+}
+
+async function loadIndexContexts(tickers: string[], _context: TopicContext) {
+  return Promise.all(
+    tickers.map(async (ticker) => {
+      const databaseHistorical = await loadDatabaseV2DailyPayload(ticker).catch((error) => {
+        emitAidenFallback("index_v2_historical_context_failed", error, { ticker });
+        return null;
+      });
+      const candles = normalizeHistoricalCandles(databaseHistorical);
+      const indicators = candles.length ? buildIndicatorsFromCandles(candles) : null;
+      const priceSnapshot = databaseHistorical
+        ? await loadDatabaseV2PriceSnapshot(ticker, databaseHistorical).catch((error) => {
+            emitAidenFallback("index_v2_price_context_failed", error, { ticker });
+            return null;
+          })
+        : null;
+      return {
+        ticker,
+        topics: databaseHistorical ? [`database:v2:market.ohlcv:${ticker}`] : [],
+        envelopes: [] as Array<{ topic: string; envelope: TopicEnvelope }>,
+        context: buildIndexContext(ticker, indicators, priceSnapshot, candles),
+      };
+    }),
+  );
+}
+
+function buildIndexFallbackLine(context: unknown) {
+  const record = asRecord(context);
+  const ticker = String(record.ticker ?? "").trim().toUpperCase();
+  if (!ticker) return null;
+
+  const movingAverages = asRecord(record.movingAverages);
+  const momentum = asRecord(record.momentum);
+  const price = roundedPrice(record.price);
+  const ma20 = roundedPrice(movingAverages.ma20);
+  const ma50 = roundedPrice(movingAverages.ma50);
+  const ma200 = roundedPrice(movingAverages.ma200);
+  const rsi = asNumber(momentum.rsi14);
+  const pieces = [
+    price != null ? `quanh ${formatPrice(price)} điểm` : null,
+    ma20 != null ? `MA20 ${formatPrice(ma20)}` : null,
+    ma50 != null ? `MA50 ${formatPrice(ma50)}` : null,
+    rsi != null ? `RSI ${formatDecimal(rsi)}` : null,
+  ].filter(Boolean);
+  const trend = buildTickerTrendView(price, ma20, ma50, ma200);
+  return `- **${ticker}**: ${pieces.length > 0 ? `${pieces.join(", ")}. ` : ""}${trend}`;
 }
 
 async function loadTickerContexts(tickers: string[], context: TopicContext) {
@@ -1408,17 +1570,23 @@ async function executeAidenFreeModelRequest(prompt: string, systemInstruction: s
   return output;
 }
 
-export function finalizeAidenPreparedAnswer(answer: string, turn: AidenDatahubPreparedTurn) {
+export function finalizeAidenPreparedAnswer(
+  answer: string,
+  turn: AidenDatahubPreparedTurn,
+  surface?: AidenSurface,
+) {
   let finalAnswer = answer.trim();
   if (!isInvestmentIntent(turn.intent)) {
     return finalAnswer;
   }
 
-  if (turn.tickerContexts.length > 0) {
+  // Chèn dòng định giá/ADNCore là để vá báo cáo cứng của ADN Stock. Với webchat "aiden" văn xuôi
+  // tự nhiên, regex chèn này phá giữa câu (vd nối vào "P/E 28.3x") nên bỏ qua — persona đã tự lo.
+  if (turn.tickerContexts.length > 0 && surface !== "aiden") {
     finalAnswer = ensureCoreArtLine(ensureValuationLine(finalAnswer, turn.tickerContexts), turn.tickerContexts);
   }
 
-  const sanitized = sanitizeCustomerAnswer(finalAnswer);
+  const sanitized = sanitizeCustomerAnswer(finalAnswer, { skipValuationRewrite: surface === "aiden" });
   return ensureDisclaimer(sanitized);
 }
 
@@ -1431,7 +1599,8 @@ export async function prepareAidenDatahubTurn(input: {
   const message = input.message.trim();
   const context = input.context ?? {};
   const surface: AidenSurface = input.surface === "stock" ? "stock" : "aiden";
-  const systemInstruction = buildSystemInstruction();
+  const systemInstruction =
+    surface === "aiden" ? buildAidenConversationSystemInstruction() : buildSystemInstruction();
 
   if (surface === "aiden") {
     const intentResult = classifyAidenIntent(message);
@@ -1440,6 +1609,14 @@ export async function prepareAidenDatahubTurn(input: {
       intent === "ticker_analysis" || intent === "compare"
         ? await resolveTickerCandidates(intentResult.candidates)
         : [];
+    // Chỉ số (VNINDEX/VN30/...) luôn được giữ kể cả khi resolver không coi là "mã giao dịch".
+    if (intent === "ticker_analysis" || intent === "compare") {
+      for (const candidate of intentResult.candidates) {
+        if (!isIndexTicker(candidate)) continue;
+        const canonical = canonicalIndexTicker(candidate);
+        if (!tickers.includes(canonical)) tickers.push(canonical);
+      }
+    }
     if ((intent === "ticker_analysis" || intent === "compare") && tickers.length === 0) {
       intent = "smalltalk";
       tickers = [];
@@ -1462,11 +1639,19 @@ export async function prepareAidenDatahubTurn(input: {
       };
     }
 
+    const indexTickers = tickers.filter((item) => isIndexTicker(item));
+    const stockTickers = tickers.filter((item) => !isIndexTicker(item));
+
     const general = await buildGeneralMarketContext(context);
-    const perTicker = tickers.length > 0 ? await loadTickerContexts(tickers, context) : [];
+    const perTicker = stockTickers.length > 0 ? await loadTickerContexts(stockTickers, context) : [];
     const tickerContexts = perTicker.map((item) => item.context);
+    const perIndex = indexTickers.length > 0 ? await loadIndexContexts(indexTickers, context) : [];
+    const indexContexts = perIndex.map((item) => item.context);
+    // Webchat AIDEN: luôn để LLM tự viết câu trả lời tự nhiên dựa trên số liệu đã chuẩn hóa.
+    // Bản template tất định (buildAidenTickerBriefMessage) chỉ còn là fallback an toàn khi LLM lỗi/timeout.
+    // Chỉ áp cho cổ phiếu đơn lẻ — chỉ số đi nhánh index riêng (không dùng template cổ phiếu).
     const deterministicTickerBrief =
-      intent === "ticker_analysis" && tickerContexts.length === 1
+      intent === "ticker_analysis" && tickerContexts.length === 1 && indexContexts.length === 0
         ? buildAidenTickerBriefMessage(tickerContexts[0])
         : null;
 
@@ -1476,12 +1661,17 @@ export async function prepareAidenDatahubTurn(input: {
       ticker: tickers[0],
       tickers,
       recommendation: tickerContexts.length === 1 ? buildRecommendation(tickerContexts[0]) : null,
-      usedTopics: [...general.topics, ...perTicker.flatMap((item) => item.topics)],
+      usedTopics: [
+        ...general.topics,
+        ...perTicker.flatMap((item) => item.topics),
+        ...perIndex.flatMap((item) => item.topics),
+      ],
       model: AIDEN_MODEL,
-      dataFreshness: collectFreshness(perTicker, general.envelopes),
-      prompt: deterministicTickerBrief ? undefined : buildAidenConversationPrompt(message, general.context, tickerContexts),
-      staticMessage: deterministicTickerBrief ?? undefined,
-      fallbackMessage: buildAidenConversationFallbackMessage(message, general.context, tickerContexts),
+      dataFreshness: collectFreshness([...perTicker, ...perIndex], general.envelopes),
+      prompt: buildAidenConversationPrompt(message, general.context, tickerContexts, indexContexts),
+      fallbackMessage:
+        deterministicTickerBrief ??
+        buildAidenConversationFallbackMessage(message, general.context, tickerContexts, indexContexts),
       systemInstruction,
       tickerContexts,
     };
@@ -1554,7 +1744,7 @@ async function completeAidenPreparedTurn(turn: AidenDatahubPreparedTurn, surface
   }
 
   return {
-    message: finalizeAidenPreparedAnswer(answer, turn),
+    message: finalizeAidenPreparedAnswer(answer, turn, surface),
     ticker: turn.ticker,
     tickers: turn.tickers,
     recommendation: turn.recommendation,

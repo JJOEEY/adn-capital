@@ -56,6 +56,8 @@ export {
   getDatabaseNewsDataset,
   getDatabaseNewsHealth,
 } from "./providers/news";
+export { collectDatabaseResearch } from "./providers/research/collector";
+export type { ResearchCollectResult } from "./providers/research/collector";
 export type {
   DatabaseMorningReadiness,
   DatabaseMorningBriefPayload,

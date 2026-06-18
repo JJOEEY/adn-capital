@@ -477,7 +477,7 @@ function bridgeFundamentalToContext(fa: FAData): {
   return { financialPeriod, valuation };
 }
 
-type BridgeTaSummary = {
+export type BridgeTaSummary = {
   price: number | null;
   prevClose: number | null;
   change: number | null;
@@ -492,7 +492,7 @@ type BridgeTaSummary = {
 // Pull pre-computed price/indicators/levels/candles straight from the bridge
 // ta-summary endpoint. All values are VND (same scale as database-v2), so they
 // can be merged into the ticker context without any price-scale normalization.
-async function fetchBridgeTaSummary(ticker: string): Promise<BridgeTaSummary | null> {
+export async function fetchBridgeTaSummary(ticker: string): Promise<BridgeTaSummary | null> {
   try {
     const res = await fetch(`${getPythonBridgeUrl()}/api/v1/ta-summary/${ticker.toUpperCase()}`, {
       cache: "no-store",

@@ -6,7 +6,7 @@ import {
   prepareAidenDatahubTurn,
   type AidenDatahubPreparedTurn,
 } from "@/lib/aiden/datahub-chat";
-import { streamFlashOnlyAIRequest } from "@/lib/gemini";
+import { streamAidenChat, getAidenChatModelLabel } from "@/lib/gemini";
 import { prisma } from "@/lib/prisma";
 import { sanitizeCustomerVisibleAiText } from "@/lib/ai-output-sanitizer";
 
@@ -107,6 +107,7 @@ function writeMeta(controller: ReadableStreamDefaultController<Uint8Array>, turn
     intent: turn.intent,
     tickers: turn.tickers,
     model: turn.model,
+    provider: getAidenChatModelLabel(),
     usedTopics: turn.usedTopics,
   });
 }
@@ -160,18 +161,34 @@ export async function POST(request: NextRequest) {
           rawAnswer = turn.staticMessage;
           await writeTextBlocks(controller, rawAnswer, request.signal);
         } else if (turn.prompt) {
-          rawAnswer = await streamFlashOnlyAIRequest(
-            turn.prompt,
-            turn.systemInstruction,
-            (text) => write(controller, "delta", { text }),
-            { signal: request.signal },
-          );
+          let streamed = "";
+          try {
+            rawAnswer = await streamAidenChat(
+              turn.prompt,
+              turn.systemInstruction,
+              (text) => {
+                streamed += text;
+                write(controller, "delta", { text });
+              },
+              { signal: request.signal },
+            );
+          } catch (error) {
+            if (request.signal.aborted) throw error;
+            // LLM lỗi/timeout: giữ phần đã stream nếu có, ngược lại rơi về template tất định an toàn.
+            console.warn("[/api/chat/stream] LLM failed, dùng fallback:", error);
+            if (streamed.trim()) {
+              rawAnswer = streamed;
+            } else {
+              rawAnswer = turn.fallbackMessage;
+              await writeTextBlocks(controller, rawAnswer, request.signal);
+            }
+          }
         } else {
           rawAnswer = turn.fallbackMessage;
           await writeTextBlocks(controller, rawAnswer, request.signal);
         }
 
-        const finalMessage = sanitizeCustomerVisibleAiText(finalizeAidenPreparedAnswer(rawAnswer, turn));
+        const finalMessage = sanitizeCustomerVisibleAiText(finalizeAidenPreparedAnswer(rawAnswer, turn, surface));
         const usageAfter = await consumeChatQuota(quota);
         if (userId) {
           await prisma.$transaction([

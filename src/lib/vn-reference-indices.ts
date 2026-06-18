@@ -23,8 +23,30 @@ export type VnReferenceIndex = {
 
 const REFERENCE_ORDER: VnReferenceIndex["ticker"][] = ["VNINDEX", "VN30", "VN30F1M"];
 
+// Các chỉ số/định danh thị trường — KHÔNG phải cổ phiếu. Dùng để định tuyến câu hỏi chỉ số
+// sang pipeline đánh giá chỉ số (không P/E/EPS, không signal-S/R, không bollinger-bridge).
+const INDEX_TICKERS = new Set([
+  "VNINDEX", "VN30", "VN30F1M", "VN100", "VNXALLSHARE",
+  "HNXINDEX", "HNX", "HNX30", "UPCOM", "UPCOMINDEX", "UPCOMIDX",
+]);
+
 function normalizeTicker(value: string) {
   return value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+/** Chuẩn hoá về dạng định danh chỉ số (bỏ ký tự lạ, viết hoa). vd "VN-INDEX" -> "VNINDEX". */
+export function canonicalIndexTicker(value: string): string {
+  return normalizeTicker(value);
+}
+
+/** True nếu ticker là một chỉ số thị trường (VNINDEX/VN30/VN30F1M, futures VN30F*, HNX, UPCOM...). */
+export function isIndexTicker(value: string | null | undefined): boolean {
+  if (!value) return false;
+  const key = normalizeTicker(value);
+  if (!key) return false;
+  if (INDEX_TICKERS.has(key)) return true;
+  if (key.startsWith("VN30F")) return true; // hợp đồng tương lai VN30 (VN30F1M, VN30F2306...)
+  return false;
 }
 
 function displayName(ticker: VnReferenceIndex["ticker"]): VnReferenceIndex["name"] {
