@@ -626,15 +626,17 @@ async function refillRadarPaperAccount(accountId: string, now: Date): Promise<nu
     orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
     take: 120,
   });
+  const tierRank = (tier: string) => (tier === "LEADER" ? 0 : tier === "TRUNG_HAN" ? 1 : tier === "NGAN_HAN" ? 2 : 3);
   const seen = new Set<string>();
   const eligible = candidates
     .filter((row) => {
       const ticker = row.ticker.toUpperCase().trim();
       if (heldTickers.has(ticker) || seen.has(ticker)) return false;
       seen.add(ticker);
-      return isEligibleNavForTier(row);
+      return true;
     })
-    .sort((a, b) => recommendedNavPct(b) - recommendedNavPct(a));
+    // Ưu tiên LEADER > TRUNG_HAN > ngắn hạn (rồi nav gợi ý) — KHÔNG lọc theo nav-min nữa.
+    .sort((a, b) => tierRank(a.tier) - tierRank(b.tier) || recommendedNavPct(b) - recommendedNavPct(a));
 
   const snapshot: OpenPosition[] = open.map((row) => ({
     id: row.id,
@@ -651,7 +653,10 @@ async function refillRadarPaperAccount(accountId: string, now: Date): Promise<nu
     const acct = await prisma.radarPaperAccount.findUnique({ where: { id: accountId } });
     if (!acct) break;
     const totalNav = await accountTotalNav(accountId, acct.cash);
-    const navPct = recommendedNavPct(row);
+    // Định cỡ vị thế = ngưỡng tier (mid 20% / swing 9%) — KHÔNG dùng nav tí xíu của tín hiệu
+    // (rebalance chia 90% cho ~268 mã ACTIVE → nav ~1% → refill không bao giờ đủ ngưỡng → rỗng).
+    const navPct = minimumNavPctForTier(row.tier);
+    if (!Number.isFinite(navPct) || navPct <= 0) continue;
     const price = normalizeSignalPrice(row.currentPrice) ?? normalizeSignalPrice(row.entryPrice);
     if (!isValidPrice(price)) continue;
     const orderValue = totalNav * (navPct / 100);
