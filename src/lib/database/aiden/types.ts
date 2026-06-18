@@ -118,6 +118,9 @@ export type DatabaseAidenTickerContext = {
     value: number | null;
     updatedAt: string | null;
     tradingDate: string | null;
+    // Trạng thái kịch biên trong phiên: "ceiling" = tăng trần, "floor" = giảm sàn.
+    limitStatus?: "ceiling" | "floor" | null;
+    limitPct?: number | null;
   };
   dailyOhlcv: {
     open: number | null;

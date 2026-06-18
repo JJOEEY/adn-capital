@@ -218,6 +218,12 @@ function renderFundamental(ctx: DatabaseAidenTickerContext) {
 function renderSingleTicker(ctx: DatabaseAidenTickerContext) {
   const price = ctx.market.price ?? ctx.dailyOhlcv?.close ?? null;
   const changePct = ctx.market.changePct;
+  const limitTag =
+    ctx.market.limitStatus === "ceiling"
+      ? " — **kịch trần**"
+      : ctx.market.limitStatus === "floor"
+        ? " — **kịch sàn**"
+        : "";
   const technical = ctx.technical;
   const support = technical?.support ?? ctx.dailyOhlcv?.low ?? null;
   const resistance = technical?.resistance ?? ctx.dailyOhlcv?.high ?? null;
@@ -241,7 +247,7 @@ function renderSingleTicker(ctx: DatabaseAidenTickerContext) {
     `**${ctx.ticker}**`,
     "",
     "**Phân tích cấu trúc (Biểu đồ cổ phiếu)**",
-    `- Giá hiện tại ${formatNumber(price, 0) ?? "chưa có"}${changePct != null ? `, biến động ${formatPct(changePct)}` : ""}.${maParts ? ` ${maParts}.` : ""}${candle ? ` ${candle}.` : ""}${rsi ? ` RSI ${rsi}.` : ""}${macd ? ` MACD histogram ${macd}.` : ""}`,
+    `- Giá hiện tại ${formatNumber(price, 0) ?? "chưa có"}${changePct != null ? `, biến động ${formatPct(changePct)}` : ""}${limitTag}.${maParts ? ` ${maParts}.` : ""}${candle ? ` ${candle}.` : ""}${rsi ? ` RSI ${rsi}.` : ""}${macd ? ` MACD histogram ${macd}.` : ""}`,
     positiveStructure
       ? "Cấu trúc kỹ thuật đang tích cực khi giá nằm trên các đường trung bình quan trọng."
       : "Cấu trúc kỹ thuật cần thêm xác nhận, ưu tiên quan sát phản ứng giá tại các vùng quan trọng.",

@@ -234,6 +234,30 @@ function buildEmptyMissingGroups(): DatabaseAidenMissingFieldGroups {
   };
 }
 
+// Biên dao động giá theo sàn (DNSE marketId): HOSE 7%, HNX 10%, UPCOM 15%.
+const EXCHANGE_LIMIT_PCT: Record<string, number> = { STO: 7, STX: 10, UPX: 15 };
+
+// market.eod "te" của DNSE KHÔNG có ceiling/floor/refPrice → tự nhận diện kịch trần/sàn từ cấu trúc
+// intraday. Khóa 1 giá cả phiên (open=high=low=close) = chắc chắn trần/sàn; hoặc đóng cửa ở đỉnh/đáy
+// phiên với biến động sát biên sàn. Chỉ áp dụng cho mã cổ phiếu có marketId hợp lệ (bỏ qua chỉ số).
+function detectPriceLimit(payload: JsonRecord, price: number | null, changePct: number | null) {
+  if (price == null || changePct == null) return null;
+  const marketId = typeof payload.marketId === "string" ? payload.marketId.toUpperCase() : "";
+  const limitPct = EXCHANGE_LIMIT_PCT[marketId];
+  if (limitPct == null) return null;
+  const open = firstNumber(payload, ["open", "openPrice", "o"]);
+  const high = firstNumber(payload, ["high", "highestPrice", "h"]);
+  const low = firstNumber(payload, ["low", "lowestPrice", "l"]);
+  const locked = open != null && high != null && low != null && open === high && high === low && low === price;
+  const closedAtHigh = high != null && price >= high;
+  const closedAtLow = low != null && price <= low;
+  // Tham chiếu EOD (last match) lệch giá ATC ~0.3-0.5% → nới biên [limit-0.5, limit+1.5].
+  const near = Math.abs(changePct) >= limitPct - 0.5 && Math.abs(changePct) <= limitPct + 1.5;
+  if (changePct > 0 && near && (locked || closedAtHigh)) return { status: "ceiling" as const, limitPct, locked };
+  if (changePct < 0 && near && (locked || closedAtLow)) return { status: "floor" as const, limitPct, locked };
+  return null;
+}
+
 function buildTickerMarket(
   latestRow: { payload: Prisma.JsonValue; tradingDate: string; providerTime: Date | null; updatedAt: Date; receivedAt: Date } | null,
   ohlcvRow: { payload: Prisma.JsonValue; tradingDate?: string | null; providerTime: Date | null; updatedAt?: Date; receivedAt: Date | null } | null,
@@ -250,18 +274,33 @@ function buildTickerMarket(
   const reference = firstNumber(payload, ["reference", "refPrice", "basicPrice", "priorClosePrice", "previousClose"]) ??
     firstNumber(previousOhlcv, ["close", "matchPrice", "c", "valueIndexes", "indexValue"]) ??
     firstNumber(payload, ["open", "openPrice", "o"]);
-  const change = firstNumber(payload, ["changedValue", "change", "priceChange"]);
-  const changePct = firstNumber(payload, ["changedRatio", "changePct", "percentChange"]);
+  const rawChange = firstNumber(payload, ["changedValue", "change", "priceChange"]);
+  const rawChangePct = firstNumber(payload, ["changedRatio", "changePct", "percentChange"]);
+  let reference2 = reference;
+  let change = rawChange ?? (price != null && reference != null ? price - reference : null);
+  let changePct = rawChangePct ?? (price != null && reference ? Number((((price - reference) / reference) * 100).toFixed(2)) : null);
+
+  const limit = detectPriceLimit(payload, price, changePct);
+  // Khóa 1 giá cả phiên: tham chiếu EOD lệch ATC → snap changePct về đúng biên (vd +7.0%) và suy ngược
+  // giá tham chiếu chính thức từ giá trần/sàn, tránh ra số kiểu +7.36% (vượt trần, khiến model phủ nhận).
+  if (limit?.locked && price != null) {
+    const signed = limit.status === "ceiling" ? limit.limitPct : -limit.limitPct;
+    changePct = signed;
+    reference2 = Number((price / (1 + signed / 100)).toFixed(2));
+    change = Number((price - reference2).toFixed(2));
+  }
 
   return {
     price,
-    reference,
-    change: change ?? (price != null && reference != null ? price - reference : null),
-    changePct: changePct ?? (price != null && reference ? Number((((price - reference) / reference) * 100).toFixed(2)) : null),
+    reference: reference2,
+    change,
+    changePct,
     volume: firstNumber(payload, ["totalVolumeTraded", "volume", "v", "matchVolume"]),
     value: firstNumber(payload, ["grossTradeAmount", "tradingValue", "value", "matchValue"]),
     updatedAt: rowUpdatedAt(latestRow ?? ohlcvRow),
     tradingDate: latestRow?.tradingDate ?? ohlcvRow?.tradingDate ?? null,
+    limitStatus: limit?.status ?? null,
+    limitPct: limit?.limitPct ?? null,
   };
 }
 
