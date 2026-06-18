@@ -43,6 +43,9 @@ const LEGACY_DNSE_DAILY_CHANNEL = "ohlc_closed.1D.json";
 const MIN_DAILY_BARS = Math.max(30, Number(process.env.ADN_STOCK_CHART_MIN_DAILY_BARS ?? 180));
 const BOOTSTRAP_DAYS = Math.max(MIN_DAILY_BARS + 40, Number(process.env.ADN_STOCK_CHART_BOOTSTRAP_DAYS ?? 1825));
 const LATEST_TICK_STALE_MS = Math.max(30_000, Number(process.env.ADN_STOCK_CHART_LATEST_STALE_MS ?? 90_000));
+// Khung intraday (1m–4h) lấy on-demand từ bridge historical (mỗi khung 1 lần gọi, cache 5s qua
+// INTRADAY_CACHE_TTL_MS). Số ngày lịch sử theo khung — khung lớn lấy nhiều ngày hơn.
+const INTRADAY_BRIDGE_DAYS: Record<string, number> = { "1m": 5, "5m": 10, "15m": 20, "30m": 30, "1h": 60, "4h": 180 };
 
 function getCache(cacheKey: string): ChartPayload | null {
   const key = cacheKey.toUpperCase();
@@ -316,6 +319,21 @@ async function fetchFiinquantHistorical(symbol: string) {
   return candles;
 }
 
+async function fetchFiinquantIntraday(symbol: string, timeframe: string): Promise<Candle[]> {
+  const backend = getPythonBridgeUrl();
+  const days = INTRADAY_BRIDGE_DAYS[timeframe] ?? 10;
+  const res = await fetch(
+    `${backend}/api/v1/historical/${encodeURIComponent(symbol)}?days=${days}&timeframe=${encodeURIComponent(timeframe)}&adjusted=true`,
+    { cache: "no-store", signal: AbortSignal.timeout(30_000) },
+  );
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`fiinquant intraday ${symbol} ${timeframe} HTTP ${res.status}: ${text.slice(0, 200)}`);
+  }
+  // normalizeCandles xử lý sẵn: parse datetime "YYYY-MM-DD HH:MM" + chuẩn hoá thang giá (VND→hiển thị).
+  return normalizeCandles(await res.json());
+}
+
 async function bootstrapDailyCandles(symbol: string) {
   const candles = await fetchFiinquantHistorical(symbol);
   for (let index = 0; index < candles.length; index += 50) {
@@ -445,7 +463,13 @@ async function dailyCacheIsStale(symbol: string): Promise<boolean> {
 
 async function loadChartData(symbol: string, timeframe: string, force: boolean): Promise<ChartPayload> {
   if (isIntradayTimeframe(timeframe)) {
-    throw new Error("CHART_INTRADAY_DATABASE_V2_UNAVAILABLE");
+    const candles = await fetchFiinquantIntraday(symbol, timeframe);
+    if (!candles.length) {
+      throw new Error("CHART_INTRADAY_UNAVAILABLE");
+    }
+    const payload: ChartPayload = { symbol, timeframe, candles, source: "database_v2" };
+    setCache(payload);
+    return payload;
   }
   let needBootstrap = force || !hasFreshEnoughDailyData(await getDailyCoverage(symbol));
   if (!needBootstrap) {
