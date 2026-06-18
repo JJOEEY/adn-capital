@@ -60,18 +60,17 @@ function ImpactRow({ ticker, value, max, side, index }: { ticker: string; value:
   const w = scaleWidth(value, max);
   const bar = (
     <div
-      className="impactBar flex items-center overflow-hidden"
-      style={
-        {
-          "--w": `${w.toFixed(1)}%`,
-          animationDelay: `${index * 50}ms`,
-          height: 22,
-          borderRadius: 8,
-          background: side === "L" ? POS : NEG,
-          padding: "0 8px",
-          justifyContent: side === "L" ? "flex-end" : "flex-start",
-        } as React.CSSProperties
-      }
+      className="flex items-center overflow-hidden"
+      style={{
+        width: `${w.toFixed(1)}%`,
+        minWidth: 30,
+        height: 22,
+        borderRadius: 8,
+        background: side === "L" ? POS : NEG,
+        padding: "0 8px",
+        justifyContent: side === "L" ? "flex-end" : "flex-start",
+        animation: `${side === "L" ? "impactRevealL" : "impactRevealR"} 700ms cubic-bezier(0.22, 1, 0.36, 1) ${index * 50}ms both`,
+      }}
     >
       <span className="whitespace-nowrap text-[12px] font-black text-white">{side === "L" ? value.toFixed(2) : `−${value.toFixed(2)}`}</span>
     </div>
@@ -155,7 +154,7 @@ export function PulseIndexImpactChart({ data }: { data: PulseIndexImpactPayload 
             <span style={{ color: NEG }}>Kéo giảm {formatPoint(totalNegative)}</span>
           </div>
           <div className="h-[22px] overflow-hidden rounded-lg" style={{ background: "var(--bg-hover)" }}>
-            <div className="summaryBar h-full w-full" style={{ background: summaryGradient }} />
+            <div className="h-full w-full" style={{ background: summaryGradient, animation: "impactRevealL 900ms ease-out both" }} />
           </div>
 
           <div className="mt-4 grid grid-cols-2 gap-4">
@@ -187,24 +186,18 @@ export function PulseIndexImpactChart({ data }: { data: PulseIndexImpactPayload 
           </div>
         </>
       )}
-      <style jsx>{`
-        .impactBar {
-          animation: growW 760ms cubic-bezier(0.22, 1, 0.36, 1) both;
-        }
-        .summaryBar {
-          animation: wipeIn 900ms ease-out both;
-        }
-        @keyframes growW {
-          from {
-            width: 0;
-          }
-          to {
-            width: var(--w);
-          }
-        }
-        @keyframes wipeIn {
+      <style jsx global>{`
+        @keyframes impactRevealL {
           from {
             clip-path: inset(0 100% 0 0);
+          }
+          to {
+            clip-path: inset(0 0 0 0);
+          }
+        }
+        @keyframes impactRevealR {
+          from {
+            clip-path: inset(0 0 0 100%);
           }
           to {
             clip-path: inset(0 0 0 0);
