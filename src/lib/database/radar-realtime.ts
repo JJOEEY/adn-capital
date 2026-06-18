@@ -5,6 +5,7 @@ import { getRealtimeCache, setRealtimeCache } from "@/lib/database/realtime-cach
 import { getDatabaseToolLatest, listDatabaseToolLatest, upsertDatabaseToolLatest } from "@/lib/database/tool-latest";
 import { prisma } from "@/lib/prisma";
 import { collectDnseLightspeedMessages } from "@/lib/providers/dnse/lightspeed-ws";
+import { collectDatabaseChartIntraday, isChartIntradayDnseEnabled } from "@/lib/database/chart-intraday-bars";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
 import { DNSE_DEFAULT_EOD_SYMBOLS, normalizeDnseSymbol } from "./providers/dnse/eod-map";
 
@@ -298,11 +299,19 @@ async function collectRadarRealtimeInternal(options?: {
   const tickers = options?.tickers?.length
     ? Array.from(new Set(options.tickers.map(normalizeDnseSymbol).filter(Boolean))).slice(0, 600)
     : await getDatabaseRadarUniverse(600);
-  const ws = await collectDnseLightspeedMessages({
-    subscriptions: [{ name: "tick_extra.G1.json", symbols: tickers }],
-    timeoutMs: options?.timeoutMs ?? 50_000,
-    maxMessages: options?.maxMessages ?? 6_000,
-  });
+  // Nến intraday 1m (ohlc.1m.json) chạy SONG SONG ở phiên WS RIÊNG — KHÔNG trộn message với phiên
+  // tick_extra nên không bao giờ làm bẩn radar.realtime.tick (AIDEN phụ thuộc). Cờ OFF mặc định +
+  // nuốt lỗi → tuyệt đối không ảnh hưởng thu tick. Dùng cùng universe tick.
+  const [ws] = await Promise.all([
+    collectDnseLightspeedMessages({
+      subscriptions: [{ name: "tick_extra.G1.json", symbols: tickers }],
+      timeoutMs: options?.timeoutMs ?? 50_000,
+      maxMessages: options?.maxMessages ?? 6_000,
+    }),
+    isChartIntradayDnseEnabled()
+      ? collectDatabaseChartIntraday({ timeoutMs: 30_000 }).catch(() => null) // tickers = mã đang xem chart (active list)
+      : Promise.resolve(null),
+  ]);
   const latestByTicker = new Map<string, DatabaseRadarTick>();
   for (const raw of ws.messages) {
     const tick = tickFromMessage(asRecord(raw));

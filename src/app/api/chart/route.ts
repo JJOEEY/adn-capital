@@ -7,6 +7,11 @@ import {
   marketPriceScaleFromPayload,
 } from "@/lib/market-price-normalization";
 import { prisma } from "@/lib/prisma";
+import {
+  isChartIntradayDnseEnabled,
+  listIntradayBars,
+  registerChartActiveTicker,
+} from "@/lib/database/chart-intraday-bars";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
 
 const VALID_TIMEFRAMES = new Set(["1m", "5m", "15m", "30m", "1h", "4h", "1D", "1W", "1M"]);
@@ -46,6 +51,7 @@ const LATEST_TICK_STALE_MS = Math.max(30_000, Number(process.env.ADN_STOCK_CHART
 // Khung intraday (1m–4h) lấy on-demand từ bridge historical (mỗi khung 1 lần gọi, cache 5s qua
 // INTRADAY_CACHE_TTL_MS). Số ngày lịch sử theo khung — khung lớn lấy nhiều ngày hơn.
 const INTRADAY_BRIDGE_DAYS: Record<string, number> = { "1m": 5, "5m": 10, "15m": 20, "30m": 30, "1h": 60, "4h": 180 };
+const TIMEFRAME_MINUTES: Record<string, number> = { "1m": 1, "5m": 5, "15m": 15, "30m": 30, "1h": 60, "4h": 240 };
 
 function getCache(cacheKey: string): ChartPayload | null {
   const key = cacheKey.toUpperCase();
@@ -461,9 +467,34 @@ async function dailyCacheIsStale(symbol: string): Promise<boolean> {
   return Math.abs(stored.close - bridge.close) / bridge.close > 0.01;
 }
 
+// Ghép nến intraday: bridge (lịch sử) + DNSE v2 (hôm nay, tươi). v2 thang nghìn → canh về thang bridge
+// (VND) bằng anchor. Cờ OFF / v2 rỗng → trả nguyên bridge (đúng hành vi hiện tại). KHÔNG bao giờ tệ hơn.
+async function mergeIntradayWithDnse(symbol: string, timeframe: string, bridge: Candle[]): Promise<Candle[]> {
+  if (!isChartIntradayDnseEnabled()) return bridge;
+  const v2 = await listIntradayBars(symbol).catch(() => []);
+  if (!v2.length) return bridge;
+  const anchor = bridge.length ? bridge[bridge.length - 1].close : null;
+  const aligned: Candle[] = v2.map((bar) => ({
+    time: bar.time,
+    open: alignMarketPriceToAnchor(bar.open, anchor) ?? bar.open,
+    high: alignMarketPriceToAnchor(bar.high, anchor) ?? bar.high,
+    low: alignMarketPriceToAnchor(bar.low, anchor) ?? bar.low,
+    close: alignMarketPriceToAnchor(bar.close, anchor) ?? bar.close,
+    volume: bar.volume,
+  }));
+  const minutes = TIMEFRAME_MINUTES[timeframe] ?? 1;
+  const aggregated = minutes > 1 ? aggregateIntradayCandles(aligned, minutes) : aligned;
+  if (!aggregated.length) return bridge;
+  const v2Start = aggregated[0].time;
+  const byTime = new Map<number, Candle>();
+  for (const candle of [...bridge.filter((c) => c.time < v2Start), ...aggregated]) byTime.set(candle.time, candle);
+  return Array.from(byTime.values()).sort((a, b) => a.time - b.time);
+}
+
 async function loadChartData(symbol: string, timeframe: string, force: boolean): Promise<ChartPayload> {
   if (isIntradayTimeframe(timeframe)) {
-    const candles = await fetchFiinquantIntraday(symbol, timeframe);
+    const bridge = await fetchFiinquantIntraday(symbol, timeframe).catch(() => [] as Candle[]);
+    const candles = await mergeIntradayWithDnse(symbol, timeframe, bridge);
     if (!candles.length) {
       throw new Error("CHART_INTRADAY_UNAVAILABLE");
     }
@@ -571,6 +602,11 @@ export async function GET(req: NextRequest) {
   const timeframe = normalizeTimeframe(req.nextUrl.searchParams.get("timeframe"));
   const force = req.nextUrl.searchParams.get("force") === "1";
   const latestOnly = req.nextUrl.searchParams.get("latest") === "1";
+
+  // Đánh dấu mã đang xem chart intraday → collector chỉ thu nến 1m cho mã active (bound volume). Cờ OFF → no-op.
+  if (isChartIntradayDnseEnabled() && isIntradayTimeframe(timeframe)) {
+    registerChartActiveTicker(symbol).catch(() => {});
+  }
 
   if (latestOnly) {
     const payload = await loadLatestChartCandle(symbol, timeframe);
