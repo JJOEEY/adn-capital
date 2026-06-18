@@ -5,7 +5,7 @@ import { Filter, X } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 
 type MoverSide = "up" | "down";
-type MoverTimeframe = "5m" | "15m" | "30m" | "1h" | "1W";
+type MoverTimeframe = "5m" | "15m" | "30m" | "1h" | "1D" | "1W" | "1M" | "3M";
 
 export type PulseTopMoverRow = {
   ticker: string;
@@ -33,11 +33,14 @@ export type PulseTopMoversPayload = {
 };
 
 const TIMEFRAMES: Array<{ key: MoverTimeframe; label: string }> = [
+  { key: "1D", label: "Hôm nay" },
+  { key: "1W", label: "Tuần" },
+  { key: "1M", label: "Tháng" },
+  { key: "3M", label: "3 tháng" },
   { key: "5m", label: "5 phút" },
   { key: "15m", label: "15 phút" },
   { key: "30m", label: "30 phút" },
   { key: "1h", label: "1 giờ" },
-  { key: "1W", label: "Tuần này" },
 ];
 
 const LIQUIDITY_OPTIONS = [
@@ -78,7 +81,7 @@ function frameHasRows(frame: PulseTopMoverFrame | null | undefined) {
 
 export function PulseTopMoversCard({ data }: { data: PulseTopMoversPayload | null }) {
   const [side, setSide] = useState<MoverSide>("up");
-  const [timeframe, setTimeframe] = useState<MoverTimeframe>(data?.defaultTimeframe ?? "5m");
+  const [timeframe, setTimeframe] = useState<MoverTimeframe>(data?.defaultTimeframe ?? "1D");
   const [filterOpen, setFilterOpen] = useState(false);
   const [exchange, setExchange] = useState("ALL");
   const [marketCap, setMarketCap] = useState("all");

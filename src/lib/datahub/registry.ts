@@ -2100,7 +2100,7 @@ type PulseStockRow = {
   rsRating: number | null;
 };
 
-type PulseTopMoverTimeframe = "5m" | "15m" | "30m" | "1h" | "1W";
+type PulseTopMoverTimeframe = "5m" | "15m" | "30m" | "1h" | "1D" | "1W" | "1M" | "3M";
 
 type SmartflowInvestorFlowPoint = {
   date: string;
@@ -2115,10 +2115,15 @@ const DEFAULT_SMARTFLOW_UNIVERSE = [
   "KBC", "BCM", "REE", "FRT", "DGW", "PNJ", "SAB", "VJC", "HVN", "LPB",
 ];
 
-const PULSE_TOP_MOVER_TIMEFRAMES: PulseTopMoverTimeframe[] = ["5m", "15m", "30m", "1h", "1W"];
+const PULSE_TOP_MOVER_TIMEFRAMES: PulseTopMoverTimeframe[] = ["5m", "15m", "30m", "1h", "1D", "1W", "1M", "3M"];
+// Số phiên giao dịch lùi lại để tính % theo kỳ (1D dùng changePct realtime, không qua bảng này).
+const PULSE_MOVER_PERIOD_DAYS: Partial<Record<PulseTopMoverTimeframe, number>> = { "1W": 5, "1M": 22, "3M": 66 };
 
 function formatPulseTopMoverTimeframe(timeframe: PulseTopMoverTimeframe): string {
-  if (timeframe === "1W") return "Gần nhất";
+  if (timeframe === "1D") return "Hôm nay";
+  if (timeframe === "1W") return "Tuần";
+  if (timeframe === "1M") return "Tháng";
+  if (timeframe === "3M") return "3 tháng";
   if (timeframe.endsWith("m")) return `${timeframe.slice(0, -1)} phút`;
   if (timeframe.endsWith("h")) return `${timeframe.slice(0, -1)} giờ`;
   return timeframe;
@@ -2934,27 +2939,78 @@ function topMoverRowFromStock(stock: PulseStockRow, periodChangePercent: number)
   };
 }
 
-async function loadPulseTopMovers(force = false) {
-  const stocks = await loadPulseRankStocks(force, 260);
-  const rows = stocks.map((stock) => topMoverRowFromStock(stock, stock.changePct));
-  const frames = Object.fromEntries(
-    PULSE_TOP_MOVER_TIMEFRAMES.map((timeframe) => [
-      timeframe,
-      {
-        enabled: rows.length > 0,
-        label: formatPulseTopMoverTimeframe(timeframe),
-        rows,
-        missingReason: rows.length > 0 ? null : "Chưa có dữ liệu biến động gần nhất.",
-      },
-    ]),
-  );
+// Lịch sử giá đóng cửa theo ngày từ radar.realtime.tick (nguồn v2, KHÔNG gọi bridge → còn giúp giảm
+// tải precompute). 1 row/mã/ngày, field price = giá đóng cửa (thang nghìn — % bất biến theo thang nên ok).
+async function loadDailyTickCloseHistory(tickers: string[]): Promise<Map<string, Array<{ date: string; close: number }>>> {
+  const map = new Map<string, Array<{ date: string; close: number }>>();
+  if (!tickers.length) return map;
+  const rows = await prisma.databaseToolLatest.findMany({
+    where: { tool: "radar", dataset: "radar.realtime.tick", key: { in: tickers } },
+    select: { key: true, tradingDate: true, payload: true },
+    orderBy: [{ key: "asc" }, { tradingDate: "asc" }],
+    take: 20000,
+  });
+  for (const row of rows) {
+    if (!row.tradingDate) continue;
+    const close = smartflowNumber((row.payload as JsonRecord | null)?.price);
+    if (close == null || close <= 0) continue;
+    const arr = map.get(row.key) ?? [];
+    arr.push({ date: row.tradingDate, close });
+    map.set(row.key, arr);
+  }
+  return map;
+}
 
+// % thay đổi qua N phiên. Đủ phiên → chính xác; thiếu nhưng phủ ≥70% N → xấp xỉ bằng phiên cũ nhất; còn lại null.
+function periodPctFromHistory(hist: Array<{ date: string; close: number }> | undefined, periodDays: number): number | null {
+  if (!hist || hist.length < 2) return null;
+  const sorted = hist.slice().sort((a, b) => (a.date < b.date ? -1 : 1));
+  const latest = sorted[sorted.length - 1].close;
+  const idx = sorted.length - 1 - periodDays;
+  let past: number | null = null;
+  if (idx >= 0) past = sorted[idx].close;
+  else if (sorted.length - 1 >= periodDays * 0.7) past = sorted[0].close;
+  if (past == null || past <= 0 || !Number.isFinite(latest)) return null;
+  return ((latest - past) / past) * 100;
+}
+
+async function loadPulseTopMovers(force = false) {
+  const stocks = await loadPulseRankStocks(force, 500);
+  const history = await loadDailyTickCloseHistory(stocks.map((stock) => stock.ticker)).catch(() => new Map());
+  const minCoverage = Math.max(20, Math.floor(stocks.length * 0.3));
+
+  const frames: Record<string, { enabled: boolean; label: string; rows: ReturnType<typeof topMoverRowFromStock>[]; missingReason: string | null }> = {};
+  for (const timeframe of PULSE_TOP_MOVER_TIMEFRAMES) {
+    const label = formatPulseTopMoverTimeframe(timeframe);
+    if (timeframe === "1D") {
+      const rows = stocks.map((stock) => topMoverRowFromStock(stock, stock.changePct));
+      frames[timeframe] = { enabled: rows.length > 0, label, rows, missingReason: rows.length > 0 ? null : "Chưa có dữ liệu hôm nay." };
+      continue;
+    }
+    const periodDays = PULSE_MOVER_PERIOD_DAYS[timeframe];
+    if (periodDays) {
+      const rows = stocks
+        .map((stock) => {
+          const pct = periodPctFromHistory(history.get(stock.ticker), periodDays);
+          return pct == null ? null : topMoverRowFromStock(stock, pct);
+        })
+        .filter((row): row is ReturnType<typeof topMoverRowFromStock> => row != null);
+      frames[timeframe] = rows.length >= minCoverage
+        ? { enabled: true, label, rows, missingReason: null }
+        : { enabled: false, label, rows: [], missingReason: `Đang tích lũy đủ dữ liệu khung ${label}.` };
+      continue;
+    }
+    // Khung intraday (5m/15m/30m/1h): chờ dữ liệu nến trong phiên (đợt khôi phục intraday).
+    frames[timeframe] = { enabled: false, label, rows: [], missingReason: "Đang cập nhật dữ liệu trong phiên." };
+  }
+
+  const publishable = Object.values(frames).some((frame) => frame.enabled);
   return {
-    defaultTimeframe: "5m",
+    defaultTimeframe: "1D",
     timeframes: frames,
     sourceStatus: {
-      publish: rows.length > 0,
-      missingFields: rows.length > 0 ? [] : ["topMovers"],
+      publish: publishable,
+      missingFields: publishable ? [] : ["topMovers"],
     },
     updatedAt: new Date().toISOString(),
   };
