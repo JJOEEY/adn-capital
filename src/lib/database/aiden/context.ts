@@ -645,8 +645,27 @@ export async function getDatabaseAidenTickerContext(options: {
       readMarketRows(PROFILE_DATASETS, ticker),
     ]);
 
-    const effectiveOhlcvRow = ohlcvRow;
-    let market = buildTickerMarket(latestRow, effectiveOhlcvRow);
+    // Nguồn giá DNSE EOD (market.eod, ~148 mã, GIÁ ĐÃ ĐIỀU CHỈNH ex-rights) khi không có
+    // realtime/board/ohlcv — tránh rơi sang bridge ta-summary (giá CHƯA điều chỉnh, sai cho mã
+    // ex-rights như HPG: 26.8 vs đúng 23.95). market.eod xen kẽ row "f" (foreign, không giá) và
+    // "te" (có matchPrice) → chọn row gần nhất CÓ giá.
+    let eodPriceRow: typeof latestRow = null;
+    if (!latestRow || !ohlcvRow) {
+      const eodRows = await prisma.databaseMarketLatest.findMany({
+        where: {
+          symbol: ticker,
+          dataset: "market.eod",
+          ...(options.tradingDate ? { tradingDate: options.tradingDate } : {}),
+        },
+        orderBy: [{ tradingDate: "desc" }, { updatedAt: "desc" }],
+        take: 8,
+      });
+      eodPriceRow =
+        eodRows.find((r) => firstNumber(rowPayload(r), ["matchPrice", "close", "price", "lastPrice"]) != null) ?? null;
+    }
+    const effectiveQuoteRow = latestRow ?? eodPriceRow;
+    const effectiveOhlcvRow = ohlcvRow ?? eodPriceRow;
+    let market = buildTickerMarket(effectiveQuoteRow, effectiveOhlcvRow);
     let dailyOhlcv = buildDailyOhlcv(effectiveOhlcvRow);
     const technicalRows = [...technicalToolRows, ...technicalMarketRows];
     const financialRows = [...financialToolRows, ...financialMarketRows];
