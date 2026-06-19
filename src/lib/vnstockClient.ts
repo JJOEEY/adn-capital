@@ -32,6 +32,56 @@ function getVnstockBridgeUrl() {
   ).replace(/\/$/, "");
 }
 
+export interface VnstockInvestorFlowRow {
+  ticker: string;
+  netValue: number;
+}
+
+export interface VnstockInvestorFlowBucket {
+  net: number | null;
+  topBuy: VnstockInvestorFlowRow[];
+  topSell: VnstockInvestorFlowRow[];
+}
+
+export interface VnstockInvestorFlowResponse {
+  source: string;
+  retrievedAt: string;
+  foreign: Record<string, VnstockInvestorFlowBucket>;
+  proprietary: Record<string, VnstockInvestorFlowBucket>;
+  missingFields?: string[];
+}
+
+// Bridge vnstock CHUYÊN BIỆT (adn-vnstock:8010, VNSTOCK_BRIDGE_URL) — khác bridge news ở trên.
+function getVnstockDataBridgeUrl() {
+  return (
+    process.env.VNSTOCK_BRIDGE_URL ||
+    (process.env.NODE_ENV === "production" ? "http://vnstock:8010" : "http://127.0.0.1:8010")
+  ).replace(/\/$/, "");
+}
+
+// Dòng tiền NĐT NN + Tự doanh toàn thị trường, đa khung (FlowInsights). Dùng làm FALLBACK cho FiinQuant.
+export async function fetchVnstockInvestorFlow(options?: {
+  top?: number;
+  timeout?: number;
+}): Promise<VnstockInvestorFlowResponse | null> {
+  const top = Math.max(3, Math.min(20, options?.top ?? 10));
+  const url = `${getVnstockDataBridgeUrl()}/api/v1/investor-flow?top=${top}`;
+  try {
+    const res = await fetch(url, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(options?.timeout ?? 60_000),
+    });
+    if (!res.ok) {
+      console.warn(`[Vnstock] /api/v1/investor-flow -> ${res.status}`);
+      return null;
+    }
+    return (await res.json()) as VnstockInvestorFlowResponse;
+  } catch (error) {
+    console.warn("[Vnstock] /api/v1/investor-flow failed:", error instanceof Error ? error.message : String(error));
+    return null;
+  }
+}
+
 export async function fetchVnstockMorningNews(options?: {
   limit?: number;
   timeout?: number;

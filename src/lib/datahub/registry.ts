@@ -10,6 +10,7 @@ import {
 import { getMarketSnapshot } from "@/lib/marketDataFetcher";
 import { prisma } from "@/lib/prisma";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
+import { fetchVnstockInvestorFlow } from "@/lib/vnstockClient";
 import { fetchFAData, fetchTAData, type FAData, type TAData } from "@/lib/stockData";
 import { resolveMarketTicker } from "@/lib/ticker-resolver";
 import {
@@ -2787,6 +2788,30 @@ async function loadPulseSmartflow() {
       if (!bucket) continue;
       const sliced = foreignDailySeries.slice(-(seriesDays[tf] ?? 10));
       if (sliced.length >= 2) (bucket as { series?: SmartflowInvestorFlowPoint[] }).series = sliced;
+    }
+  }
+  // Headline NGOẠI = điểm cuối chuỗi ngày (market.eod, DNSE-adjusted) → khớp với sparkline.
+  for (const bucket of Object.values(investorFlow.foreign)) {
+    const last = bucket?.series?.length ? bucket.series[bucket.series.length - 1] : null;
+    if (bucket && last && Number.isFinite(last.netValue)) bucket.netValue = last.netValue;
+  }
+  // Hybrid: FiinQuant là nguồn chính; bucket nào RỖNG (FiinQuant chập chờn) → lấp bằng vnstock FlowInsights
+  // (toàn thị trường, đa khung). Đặc biệt cứu Tự doanh (market.eod không có) + top names khi FiinQuant 0.
+  const vnstockFlow = await fetchVnstockInvestorFlow({ top: 10 }).catch(() => null);
+  if (vnstockFlow) {
+    for (const type of ["foreign", "proprietary"] as const) {
+      for (const [tf, bucket] of Object.entries(investorFlow[type])) {
+        const vn = vnstockFlow[type]?.[tf];
+        if (!bucket || !vn) continue;
+        const empty = bucket.topBuy.length === 0 && bucket.topSell.length === 0;
+        if (empty && (vn.topBuy.length > 0 || vn.topSell.length > 0)) {
+          bucket.topBuy = vn.topBuy.slice(0, 10).map((row) => ({ ticker: row.ticker, exchange: "", netBuyValue: row.netValue, netBuyVolume: null }));
+          bucket.topSell = vn.topSell.slice(0, 10).map((row) => ({ ticker: row.ticker, exchange: "", netBuyValue: row.netValue, netBuyVolume: null }));
+        }
+        if ((bucket.netValue == null || bucket.netValue === 0) && vn.net != null && Number.isFinite(vn.net)) {
+          bucket.netValue = vn.net;
+        }
+      }
     }
   }
   const realtimeNet =
