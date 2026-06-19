@@ -813,7 +813,12 @@ export async function getDatabaseAidenTickerContext(options: {
         ) {
           const factor = market.price / ta.prevClose;
           const freshPrice = Number((ta.price * factor).toFixed(4));
-          const ref = market.price;
+          // Tham chiếu suy từ % của bridge (= % chart hiển thị) để AIDEN khớp ĐÚNG biến động — renderSingleTicker
+          // tự tính lại %=(price−ref)/ref nên phải đặt ref = price/(1+%/100), không dùng eod close (lệch ref).
+          const ref =
+            ta.changePct != null && ta.changePct > -100
+              ? Number((freshPrice / (1 + ta.changePct / 100)).toFixed(4))
+              : market.price;
           market = {
             ...market,
             price: freshPrice,
