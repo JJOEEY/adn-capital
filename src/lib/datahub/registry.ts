@@ -2790,20 +2790,10 @@ async function loadPulseSmartflow() {
       if (sliced.length >= 2) (bucket as { series?: SmartflowInvestorFlowPoint[] }).series = sliced;
     }
   }
-  // Headline NGOẠI per-khung = TỔNG dòng tiền ròng theo cửa sổ (market.eod, DNSE-adjusted): 1D=hôm nay,
-  // 1W≈5 phiên, 1M≈22, 3M≈66… (cùng nghĩa lũy kế-cả-kỳ như Tự doanh) → mỗi khung 1 con số khác nhau.
-  if (foreignDailySeries.length > 0) {
-    const foreignNetDays: Record<string, number> = { "1D": 1, "1W": 5, "1M": 22, "3M": 66, "6M": 132, "1Y": 260 };
-    for (const [tf, bucket] of Object.entries(investorFlow.foreign)) {
-      if (!bucket) continue;
-      const window = foreignDailySeries.slice(-(foreignNetDays[tf] ?? 1));
-      if (window.length > 0) {
-        bucket.netValue = Number(window.reduce((sum, point) => sum + (Number.isFinite(point.netValue) ? point.netValue : 0), 0).toFixed(2));
-      }
-    }
-  }
-  // Hybrid: FiinQuant là nguồn chính; bucket nào RỖNG (FiinQuant chập chờn) → lấp bằng vnstock FlowInsights
-  // (toàn thị trường, đa khung). Đặc biệt cứu Tự doanh (market.eod không có) + top names khi FiinQuant 0.
+  // Hybrid: FiinQuant là nguồn chính; bucket nào RỖNG/net 0 (FiinQuant chập chờn) → lấp bằng vnstock
+  // FlowInsights (toàn TT, đa khung value_1d/10d/1m/3m/6m). Net vnstock = lũy kế-cả-kỳ THẬT nên mỗi khung
+  // KHÁC nhau → cứu việc các khung dài (1M/3M/6M) bị bằng nhau khi tổng market.eod (~23 ngày). 1Y vnstock
+  // KHÔNG có → giữ FiinQuant 1Y, hoặc rơi xuống fallback market.eod bên dưới.
   const vnstockFlow = await fetchVnstockInvestorFlow({ top: 10 }).catch(() => null);
   if (vnstockFlow) {
     for (const type of ["foreign", "proprietary"] as const) {
@@ -2818,6 +2808,18 @@ async function loadPulseSmartflow() {
         if ((bucket.netValue == null || bucket.netValue === 0) && vn.net != null && Number.isFinite(vn.net)) {
           bucket.netValue = vn.net;
         }
+      }
+    }
+  }
+  // Foreign net FALLBACK cho khung vnstock KHÔNG có (1Y) hoặc vnstock fail: tổng chuỗi ngày market.eod
+  // theo cửa sổ. CHỈ áp khi net vẫn rỗng/0 → KHÔNG ghi đè net vnstock đã differentiated theo khung.
+  if (foreignDailySeries.length > 0) {
+    const foreignNetDays: Record<string, number> = { "1D": 1, "1W": 5, "1M": 22, "3M": 66, "6M": 132, "1Y": 260 };
+    for (const [tf, bucket] of Object.entries(investorFlow.foreign)) {
+      if (!bucket || (bucket.netValue != null && bucket.netValue !== 0)) continue;
+      const window = foreignDailySeries.slice(-(foreignNetDays[tf] ?? 1));
+      if (window.length > 0) {
+        bucket.netValue = Number(window.reduce((sum, point) => sum + (Number.isFinite(point.netValue) ? point.netValue : 0), 0).toFixed(2));
       }
     }
   }
