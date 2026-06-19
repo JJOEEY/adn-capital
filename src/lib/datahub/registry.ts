@@ -2790,10 +2790,17 @@ async function loadPulseSmartflow() {
       if (sliced.length >= 2) (bucket as { series?: SmartflowInvestorFlowPoint[] }).series = sliced;
     }
   }
-  // Headline NGOẠI = điểm cuối chuỗi ngày (market.eod, DNSE-adjusted) → khớp với sparkline.
-  for (const bucket of Object.values(investorFlow.foreign)) {
-    const last = bucket?.series?.length ? bucket.series[bucket.series.length - 1] : null;
-    if (bucket && last && Number.isFinite(last.netValue)) bucket.netValue = last.netValue;
+  // Headline NGOẠI per-khung = TỔNG dòng tiền ròng theo cửa sổ (market.eod, DNSE-adjusted): 1D=hôm nay,
+  // 1W≈5 phiên, 1M≈22, 3M≈66… (cùng nghĩa lũy kế-cả-kỳ như Tự doanh) → mỗi khung 1 con số khác nhau.
+  if (foreignDailySeries.length > 0) {
+    const foreignNetDays: Record<string, number> = { "1D": 1, "1W": 5, "1M": 22, "3M": 66, "6M": 132, "1Y": 260 };
+    for (const [tf, bucket] of Object.entries(investorFlow.foreign)) {
+      if (!bucket) continue;
+      const window = foreignDailySeries.slice(-(foreignNetDays[tf] ?? 1));
+      if (window.length > 0) {
+        bucket.netValue = Number(window.reduce((sum, point) => sum + (Number.isFinite(point.netValue) ? point.netValue : 0), 0).toFixed(2));
+      }
+    }
   }
   // Hybrid: FiinQuant là nguồn chính; bucket nào RỖNG (FiinQuant chập chờn) → lấp bằng vnstock FlowInsights
   // (toàn thị trường, đa khung). Đặc biệt cứu Tự doanh (market.eod không có) + top names khi FiinQuant 0.
