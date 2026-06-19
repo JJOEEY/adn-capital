@@ -6,6 +6,7 @@ import { getDatabaseNewsDataset } from "@/lib/database/providers/news";
 import type { DatabaseNewsItem } from "@/lib/database/providers/news";
 import { prisma } from "@/lib/prisma";
 import { fetchFAData, type FAData } from "@/lib/stockData";
+import { fetchVnstockFundamental } from "@/lib/vnstockClient";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
 import type {
   DatabaseAidenContext,
@@ -881,6 +882,46 @@ export async function getDatabaseAidenTickerContext(options: {
                 };
           addSource(dataSources.technical, "bridge:ta-summary");
         }
+      }
+    }
+
+    // FA fallback CUỐI cho khi FiinQuant HẾT HẠN (27/6) → bridge /fundamental rỗng. Lấy từ adn-vnstock
+    // /api/v1/fundamental (sponsor vnstock_data: MAS ratios pe/pb/eps/bvps + roe=eps/bvps; profile Company).
+    // Dormant khi FiinQuant còn sống (chỉ chạy khi FA vẫn trống). makeMetric tự ×100 cho roe (ratio≤1).
+    if (AIDEN_FA_BRIDGE_FALLBACK && !fundamental.financialPeriod && !fundamental.valuation) {
+      const vnFa = await fetchVnstockFundamental(ticker).catch(() => null);
+      if (vnFa) {
+        const updatedAt = vnFa.retrievedAt ?? new Date().toISOString();
+        const ratio = vnFa.ratios?.[0];
+        if (ratio && (ratio.eps != null || ratio.bookValuePerShare != null || ratio.roe != null)) {
+          fundamental.financialPeriod = {
+            reportPeriod: ratio.reportDate ?? null,
+            periodEnd: null,
+            reportDate: ratio.reportDate ?? null,
+            updatedAt,
+            eps: makeMetric(ratio.eps, "eps"),
+            bvps: makeMetric(ratio.bookValuePerShare, "bvps"),
+            roe: makeMetric(ratio.roe, "roe"),
+            roa: makeMetric(null, "roa"),
+          };
+        }
+        if (vnFa.valuation && (vnFa.valuation.pe != null || vnFa.valuation.pb != null)) {
+          fundamental.valuation = {
+            valuationDate: vnFa.valuation.reportDate ?? null,
+            updatedAt,
+            pe: makeMetric(vnFa.valuation.pe, "pe"),
+            pb: makeMetric(vnFa.valuation.pb, "pb"),
+          };
+        }
+        if (!fundamental.profile && vnFa.profile?.companyName) {
+          fundamental.profile = {
+            companyName: vnFa.profile.companyName ?? null,
+            industry: vnFa.profile.industry ?? null,
+            exchange: vnFa.profile.exchange ?? null,
+            updatedAt,
+          };
+        }
+        if (fundamental.financialPeriod || fundamental.valuation) addSource(dataSources.fundamental, "vnstock:fundamental");
       }
     }
 

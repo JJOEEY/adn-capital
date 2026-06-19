@@ -82,6 +82,51 @@ export async function fetchVnstockInvestorFlow(options?: {
   }
 }
 
+export interface VnstockFundamentalResponse {
+  ticker: string;
+  source: string;
+  retrievedAt: string;
+  valuation: { pe: number | null; pb: number | null; reportDate?: string | null } | null;
+  ratios: Array<{
+    reportDate?: string | null;
+    eps?: number | null;
+    bookValuePerShare?: number | null;
+    pe?: number | null;
+    pb?: number | null;
+    roe?: number | null;
+  }>;
+  profile: {
+    companyName?: string | null;
+    industry?: string | null;
+    exchange?: string | null;
+    marketCap?: number | null;
+    currentPrice?: number | null;
+  } | null;
+  missingFields?: string[];
+}
+
+// FA (định giá + chỉ số + hồ sơ) toàn-vnstock — FALLBACK cho FiinQuant (hết hạn 27/6). Nguồn sponsor MAS.
+export async function fetchVnstockFundamental(
+  ticker: string,
+  options?: { timeout?: number },
+): Promise<VnstockFundamentalResponse | null> {
+  const url = `${getVnstockDataBridgeUrl()}/api/v1/fundamental/${encodeURIComponent(ticker.toUpperCase())}`;
+  try {
+    const res = await fetch(url, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(options?.timeout ?? 30_000),
+    });
+    if (!res.ok) {
+      console.warn(`[Vnstock] /api/v1/fundamental -> ${res.status}`);
+      return null;
+    }
+    return (await res.json()) as VnstockFundamentalResponse;
+  } catch (error) {
+    console.warn("[Vnstock] /api/v1/fundamental failed:", error instanceof Error ? error.message : String(error));
+    return null;
+  }
+}
+
 export async function fetchVnstockMorningNews(options?: {
   limit?: number;
   timeout?: number;
