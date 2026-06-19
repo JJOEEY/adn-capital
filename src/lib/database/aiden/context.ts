@@ -784,11 +784,13 @@ export async function getDatabaseAidenTickerContext(options: {
     // when the DB is empty. CHÚ Ý: ta-summary trả giá VND thô; market.eod theo nghìn → quy thang bên dưới.
     const needFa = !fundamental.financialPeriod && !fundamental.valuation;
     const needTa = market.price == null || !dailyOhlcv || !technical;
-    // Mã KHÔNG có tick/board (vd TCX, ngoài rổ realtime ~409 mã) đang lấy giá market.eod → TRONG PHIÊN
-    // eod là HÔM QUA (eod_full chỉ chạy 19h) ⇒ AIDEN lệch 1 ngày so với chart (chart dùng bridge=hôm nay).
-    // → buộc hỏi bridge để có giá hôm nay (override fresh bên dưới).
-    const relyingOnEod = !latestRow && !usingTick && eodPriceRow != null;
-    if (AIDEN_FA_BRIDGE_FALLBACK && (needFa || needTa || relyingOnEod)) {
+    // Mã KHÔNG có tick/board (vd TCX, ngoài rổ realtime ~409 mã) → giá đang dựa daily eod/ohlcv, mà TRONG
+    // PHIÊN daily là HÔM QUA (eod_full + market.ohlcv chỉ chốt cuối ngày) ⇒ AIDEN lệch 1 ngày so với chart
+    // (chart dùng bridge = hôm nay). → buộc hỏi bridge để có giá hôm nay (override fresh bên dưới).
+    // CHỈ ở chế độ LIVE (không ép tradingDate — ADN Stock + webchat). Morning-brief/internal ép
+    // previousTradingDate để chụp snapshot hôm qua → KHÔNG override (giữ đúng ngày được yêu cầu).
+    const relyingOnStaleDaily = !options.tradingDate && !latestRow && !usingTick && market.price != null;
+    if (AIDEN_FA_BRIDGE_FALLBACK && (needFa || needTa || relyingOnStaleDaily)) {
       const [fa, ta] = await Promise.all([
         needFa ? fetchFAData(ticker).catch(() => null) : Promise.resolve(null),
         needTa || relyingOnEod ? fetchBridgeTaSummary(ticker).catch(() => null) : Promise.resolve(null),
@@ -804,10 +806,10 @@ export async function getDatabaseAidenTickerContext(options: {
         // thang ĐÃ-ĐIỀU-CHỈNH của EOD bằng hệ số market.price/ta.prevClose (gộp CẢ ×1000 LẪN back-adjust
         // ex-rights, vì cả hai cùng mốc hôm qua) → khớp chart + an toàn mã ex-rights. Bridge cũ hơn → bỏ qua.
         if (
-          relyingOnEod &&
+          relyingOnStaleDaily &&
           ta.price != null && ta.prevClose != null && ta.prevClose !== 0 &&
           market.price != null && market.price !== 0 &&
-          ta.dataDate && eodPriceRow?.tradingDate && ta.dataDate > eodPriceRow.tradingDate
+          ta.dataDate && market.tradingDate && ta.dataDate > market.tradingDate
         ) {
           const factor = market.price / ta.prevClose;
           const freshPrice = Number((ta.price * factor).toFixed(4));
