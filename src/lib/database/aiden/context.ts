@@ -793,7 +793,7 @@ export async function getDatabaseAidenTickerContext(options: {
     if (AIDEN_FA_BRIDGE_FALLBACK && (needFa || needTa || relyingOnStaleDaily)) {
       const [fa, ta] = await Promise.all([
         needFa ? fetchFAData(ticker).catch(() => null) : Promise.resolve(null),
-        needTa || relyingOnEod ? fetchBridgeTaSummary(ticker).catch(() => null) : Promise.resolve(null),
+        needTa || relyingOnStaleDaily ? fetchBridgeTaSummary(ticker).catch(() => null) : Promise.resolve(null),
       ]);
       if (fa) {
         const bridged = bridgeFundamentalToContext(fa);
