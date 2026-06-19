@@ -981,47 +981,70 @@ const SMARTFLOW_INVESTOR_TIMEFRAMES = [
 function FlowSparkline({ series }: { series?: SmartflowInvestorFlowPoint[] }) {
   const pts = (series ?? []).filter((point) => Number.isFinite(point.netValue));
   if (pts.length < 2) return null;
-  const W = 100;
-  const H = 34;
+  const W = 280;
+  const H = 56;
+  const pad = 4;
   const vals = pts.map((point) => point.netValue);
-  const min = Math.min(0, ...vals);
-  const max = Math.max(0, ...vals);
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
   const range = max - min || 1;
-  const px = (i: number) => (i / (pts.length - 1)) * W;
-  const py = (v: number) => H - ((v - min) / range) * H;
-  const zeroY = py(0);
+  const px = (i: number) => pad + (i / (pts.length - 1)) * (W - 2 * pad);
+  const py = (v: number) => pad + (1 - (v - min) / range) * (H - 2 * pad);
   const line = pts.map((point, i) => `${i === 0 ? "M" : "L"}${px(i).toFixed(1)},${py(point.netValue).toFixed(1)}`).join(" ");
-  const area = `${line} L${W},${zeroY.toFixed(1)} L0,${zeroY.toFixed(1)} Z`;
+  const area = `${line} L${px(pts.length - 1).toFixed(1)},${(H - pad).toFixed(1)} L${px(0).toFixed(1)},${(H - pad).toFixed(1)} Z`;
   const stroke = vals[vals.length - 1] >= 0 ? "#16a34a" : "#ef4444";
+  const showZero = min < 0 && max > 0;
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="mb-2 h-9 w-full" aria-hidden="true">
-      <path d={area} fill={stroke} opacity={0.14} />
-      <line x1={0} y1={zeroY.toFixed(1)} x2={W} y2={zeroY.toFixed(1)} stroke="rgba(148,163,184,0.32)" strokeWidth={0.5} strokeDasharray="2 2" />
-      <path d={line} fill="none" stroke={stroke} strokeWidth={1.4} vectorEffect="non-scaling-stroke" />
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="mb-2 w-full" style={{ height: 52 }} aria-hidden="true">
+      <path d={area} fill={stroke} opacity={0.12} />
+      {showZero ? (
+        <line x1={pad} y1={py(0).toFixed(1)} x2={W - pad} y2={py(0).toFixed(1)} stroke="rgba(148,163,184,0.35)" strokeWidth={1} strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
+      ) : null}
+      <path d={line} fill="none" stroke={stroke} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
     </svg>
   );
 }
 
+const SMARTFLOW_INVESTOR_TABS = [
+  { key: "foreign", label: "NĐT nước ngoài", color: "#f59e0b", note: "Realtime đến 15h · quét chốt 19h (T2–T6)" },
+  { key: "proprietary", label: "Tự doanh", color: "#a855f7", note: "Cập nhật 19h hằng ngày · hiển thị phiên gần nhất" },
+] as const;
+
 function SmartflowInvestorFlowCard({ investorFlow }: { investorFlow?: SmartflowPayload["investorFlow"] }) {
+  const [investorType, setInvestorType] = useState<(typeof SMARTFLOW_INVESTOR_TABS)[number]["key"]>("foreign");
   const [timeframe, setTimeframe] = useState<(typeof SMARTFLOW_INVESTOR_TIMEFRAMES)[number]["key"]>("1D");
-  const foreign = investorFlow?.foreign?.[timeframe] ?? null;
-  const proprietary = investorFlow?.proprietary?.[timeframe] ?? null;
-
-  const groups = [
-    { key: "foreign", title: "NĐT nước ngoài", data: foreign, color: "#f59e0b" },
-    { key: "proprietary", title: "Tự doanh", data: proprietary, color: "#a855f7" },
-  ];
-
-  const hasData = groups.some((group) => group.data && ((group.data.topBuy?.length ?? 0) > 0 || (group.data.topSell?.length ?? 0) > 0));
+  const meta = SMARTFLOW_INVESTOR_TABS.find((tab) => tab.key === investorType) ?? SMARTFLOW_INVESTOR_TABS[0];
+  const data = investorFlow?.[investorType]?.[timeframe] ?? null;
+  const net = data?.netValue ?? null;
+  const positive = net != null && net >= 0;
+  const topBuy = data?.topBuy?.slice(0, 6) ?? [];
+  const topSell = data?.topSell?.slice(0, 6) ?? [];
+  const hasContent = topBuy.length > 0 || topSell.length > 0 || (data?.series?.length ?? 0) >= 2;
 
   return (
     <div className="rounded-xl border p-3" style={{ borderColor: "rgba(168,85,247,0.28)", background: "rgba(168,85,247,0.06)" }}>
       <div className="mb-3 flex items-center gap-2">
         <BarChart3 className="h-3.5 w-3.5" style={{ color: "#a855f7" }} />
-        <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-          Dòng tiền NĐT
-        </span>
+        <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Dòng tiền NĐT</span>
       </div>
+
+      <div className="mb-2 grid grid-cols-2 gap-1 rounded-lg p-1" style={{ background: "rgba(255,255,255,0.04)" }}>
+        {SMARTFLOW_INVESTOR_TABS.map((tab) => {
+          const active = tab.key === investorType;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setInvestorType(tab.key)}
+              className="rounded-md px-2 py-1.5 text-[11px] font-black transition"
+              style={{ color: active ? "#fff" : "var(--text-muted)", background: active ? tab.color : "transparent", border: active ? `1px solid ${tab.color}` : "1px solid transparent" }}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
       <div className="mb-3 grid grid-cols-3 gap-1 rounded-lg p-1 sm:grid-cols-6" style={{ background: "rgba(255,255,255,0.04)" }}>
         {SMARTFLOW_INVESTOR_TIMEFRAMES.map((item) => {
           const active = item.key === timeframe;
@@ -1031,11 +1054,7 @@ function SmartflowInvestorFlowCard({ investorFlow }: { investorFlow?: SmartflowP
               type="button"
               onClick={() => setTimeframe(item.key)}
               className="rounded-md px-2 py-1 text-[10px] font-black transition"
-              style={{
-                color: active ? "var(--text-primary)" : "var(--text-muted)",
-                background: active ? "rgba(168,85,247,0.22)" : "transparent",
-                border: active ? "1px solid rgba(168,85,247,0.35)" : "1px solid transparent",
-              }}
+              style={{ color: active ? "var(--text-primary)" : "var(--text-muted)", background: active ? "rgba(255,255,255,0.10)" : "transparent", border: active ? "1px solid rgba(255,255,255,0.18)" : "1px solid transparent" }}
             >
               {item.label}
             </button>
@@ -1043,66 +1062,54 @@ function SmartflowInvestorFlowCard({ investorFlow }: { investorFlow?: SmartflowP
         })}
       </div>
 
-      {hasData ? (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-          {groups.map((group) => {
-            const net = group.data?.netValue ?? null;
-            const positive = net != null && net >= 0;
-            const topBuy = group.data?.topBuy?.slice(0, 5) ?? [];
-            const topSell = group.data?.topSell?.slice(0, 5) ?? [];
-            return (
-              <div key={group.key} className="rounded-lg border p-2.5" style={{ borderColor: `${group.color}35`, background: "rgba(0,0,0,0.10)" }}>
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-black" style={{ color: group.color }}>{group.title}</span>
-                  <span className="text-[11px] font-black" style={{ color: positive ? "#16a34a" : "var(--danger)" }}>
-                    {formatSignedSmartflowValue(net)}
-                  </span>
-                </div>
-
-                <FlowSparkline series={group.data?.series} />
-
-                <div className="grid gap-2">
-                  <div>
-                    <div className="mb-1 text-[10px] font-bold uppercase tracking-wide" style={{ color: "#16a34a" }}>Top mua ròng</div>
-                    {topBuy.length > 0 ? (
-                      <div className="space-y-1">
-                        {topBuy.map((row) => (
-                          <div key={`${group.key}-buy-${row.ticker}`} className="flex items-center justify-between gap-2 text-[11px]">
-                            <span className="font-black" style={{ color: "var(--text-primary)" }}>{row.ticker}</span>
-                            <span className="font-bold" style={{ color: "#16a34a" }}>{formatSmartflowValue(row.netBuyValue)} tỷ</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-[11px]" style={{ color: "var(--text-muted)" }}>Chưa có dữ liệu mua ròng.</div>
-                    )}
-                  </div>
-
-                  <div>
-                    <div className="mb-1 text-[10px] font-bold uppercase tracking-wide" style={{ color: "var(--danger)" }}>Top bán ròng</div>
-                    {topSell.length > 0 ? (
-                      <div className="space-y-1">
-                        {topSell.map((row) => (
-                          <div key={`${group.key}-sell-${row.ticker}`} className="flex items-center justify-between gap-2 text-[11px]">
-                            <span className="font-black" style={{ color: "var(--text-primary)" }}>{row.ticker}</span>
-                            <span className="font-bold" style={{ color: "var(--danger)" }}>{formatSmartflowValue(row.netBuyValue)} tỷ</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-[11px]" style={{ color: "var(--text-muted)" }}>Chưa có dữ liệu bán ròng.</div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+      <div className="rounded-lg border p-2.5" style={{ borderColor: `${meta.color}35`, background: "rgba(0,0,0,0.10)" }}>
+        <div className="mb-2 flex items-baseline justify-between gap-2">
+          <span className="text-[12px] font-black" style={{ color: meta.color }}>{meta.label}</span>
+          <span className="text-[15px] font-black" style={{ color: positive ? "#16a34a" : "var(--danger)" }}>{formatSignedSmartflowValue(net)}</span>
         </div>
-      ) : (
-        <p className="rounded-lg border px-3 py-2 text-xs" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
-          Đang đồng bộ dòng tiền NĐT nước ngoài và tự doanh.
-        </p>
-      )}
+
+        <FlowSparkline series={data?.series} />
+
+        {hasContent ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <div className="mb-1 text-[10px] font-bold uppercase tracking-wide" style={{ color: "#16a34a" }}>Top mua ròng</div>
+              {topBuy.length > 0 ? (
+                <div className="space-y-1">
+                  {topBuy.map((row) => (
+                    <div key={`buy-${row.ticker}`} className="flex items-center justify-between gap-2 text-[11px]">
+                      <span className="font-black" style={{ color: "var(--text-primary)" }}>{row.ticker}</span>
+                      <span className="font-bold" style={{ color: "#16a34a" }}>{formatSmartflowValue(row.netBuyValue)} tỷ</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-[11px]" style={{ color: "var(--text-muted)" }}>Chưa có dữ liệu mua ròng.</div>
+              )}
+            </div>
+
+            <div>
+              <div className="mb-1 text-[10px] font-bold uppercase tracking-wide" style={{ color: "var(--danger)" }}>Top bán ròng</div>
+              {topSell.length > 0 ? (
+                <div className="space-y-1">
+                  {topSell.map((row) => (
+                    <div key={`sell-${row.ticker}`} className="flex items-center justify-between gap-2 text-[11px]">
+                      <span className="font-black" style={{ color: "var(--text-primary)" }}>{row.ticker}</span>
+                      <span className="font-bold" style={{ color: "var(--danger)" }}>{formatSmartflowValue(row.netBuyValue)} tỷ</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-[11px]" style={{ color: "var(--text-muted)" }}>Chưa có dữ liệu bán ròng.</div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p className="text-[11px]" style={{ color: "var(--text-secondary)" }}>Đang đồng bộ dòng tiền {meta.label.toLowerCase()}.</p>
+        )}
+
+        <div className="mt-2 border-t pt-1.5 text-[10px] font-bold" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>{meta.note}</div>
+      </div>
     </div>
   );
 }
