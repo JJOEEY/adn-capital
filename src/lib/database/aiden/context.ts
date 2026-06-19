@@ -784,10 +784,14 @@ export async function getDatabaseAidenTickerContext(options: {
     // when the DB is empty. CHÚ Ý: ta-summary trả giá VND thô; market.eod theo nghìn → quy thang bên dưới.
     const needFa = !fundamental.financialPeriod && !fundamental.valuation;
     const needTa = market.price == null || !dailyOhlcv || !technical;
-    if (AIDEN_FA_BRIDGE_FALLBACK && (needFa || needTa)) {
+    // Mã KHÔNG có tick/board (vd TCX, ngoài rổ realtime ~409 mã) đang lấy giá market.eod → TRONG PHIÊN
+    // eod là HÔM QUA (eod_full chỉ chạy 19h) ⇒ AIDEN lệch 1 ngày so với chart (chart dùng bridge=hôm nay).
+    // → buộc hỏi bridge để có giá hôm nay (override fresh bên dưới).
+    const relyingOnEod = !latestRow && !usingTick && eodPriceRow != null;
+    if (AIDEN_FA_BRIDGE_FALLBACK && (needFa || needTa || relyingOnEod)) {
       const [fa, ta] = await Promise.all([
         needFa ? fetchFAData(ticker).catch(() => null) : Promise.resolve(null),
-        needTa ? fetchBridgeTaSummary(ticker).catch(() => null) : Promise.resolve(null),
+        needTa || relyingOnEod ? fetchBridgeTaSummary(ticker).catch(() => null) : Promise.resolve(null),
       ]);
       if (fa) {
         const bridged = bridgeFundamentalToContext(fa);
@@ -796,6 +800,32 @@ export async function getDatabaseAidenTickerContext(options: {
         if (bridged.financialPeriod || bridged.valuation) addSource(dataSources.fundamental, "bridge:fundamental");
       }
       if (ta) {
+        // FRESHNESS: EOD đang là HÔM QUA nhưng bridge có giá HÔM NAY (mới hơn) → quy giá bridge về đúng
+        // thang ĐÃ-ĐIỀU-CHỈNH của EOD bằng hệ số market.price/ta.prevClose (gộp CẢ ×1000 LẪN back-adjust
+        // ex-rights, vì cả hai cùng mốc hôm qua) → khớp chart + an toàn mã ex-rights. Bridge cũ hơn → bỏ qua.
+        if (
+          relyingOnEod &&
+          ta.price != null && ta.prevClose != null && ta.prevClose !== 0 &&
+          market.price != null && market.price !== 0 &&
+          ta.dataDate && eodPriceRow?.tradingDate && ta.dataDate > eodPriceRow.tradingDate
+        ) {
+          const factor = market.price / ta.prevClose;
+          const freshPrice = Number((ta.price * factor).toFixed(4));
+          const ref = market.price;
+          market = {
+            ...market,
+            price: freshPrice,
+            reference: ref,
+            change: Number((freshPrice - ref).toFixed(4)),
+            changePct: ta.changePct ?? Number((((freshPrice - ref) / ref) * 100).toFixed(2)),
+            updatedAt: ta.dataDate,
+            tradingDate: ta.dataDate,
+            // limit phát hiện từ eod hôm qua không còn đúng cho giá hôm nay; không có cấu trúc intraday bridge để xác nhận → bỏ.
+            limitStatus: null,
+            limitPct: null,
+          };
+          addSource(dataSources.quote, "bridge:ta-summary(fresh)");
+        }
         // Bridge ta-summary trả giá VND THÔ; market.eod theo NGHÌN → lệch ×1000. Khi đã có giá v2/eod
         // (market.price set), suy hệ số luỹ thừa 10 từ ta.price/market.price rồi quy MA/levels/candle
         // bridge về đúng thang trước khi merge — nếu không, priceVsMA ra ~−99.9% (giá nghìn vs MA VND).
