@@ -6,6 +6,7 @@ import { getDatabaseNewsDataset } from "@/lib/database/providers/news";
 import type { DatabaseNewsItem } from "@/lib/database/providers/news";
 import { prisma } from "@/lib/prisma";
 import { fetchFAData, type FAData } from "@/lib/stockData";
+import { calcRSI, calcMACD, calcEMA } from "@/lib/rpi/indicators";
 import { fetchVnstockFundamental } from "@/lib/vnstockClient";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
 import type {
@@ -601,6 +602,93 @@ export async function fetchBridgeTaSummary(ticker: string): Promise<BridgeTaSumm
   }
 }
 
+// Tính TA TỪ NẾN lịch sử (bridge /api/v1/historical = get_ohlcv_safe: FiinQuantX→VNStock fallback, SỐNG qua
+// 27/6) thay cho ta-summary FiinQuant pre-computed. Trả CÙNG shape BridgeTaSummary nhưng giá/MA THÔ (cổ phiếu
+// = VND, chỉ số = điểm) — CỐ Ý KHÔNG normalizeVietnamPrice (làm tròn bội-10 sẽ bóp méo chỉ số 1824.53→1820);
+// nơi gọi tự quy ×1000 cho cổ phiếu qua scalePowerOf10. Đây là CÙNG nguồn nến chart đang dùng (fetchTAData)
+// nên AIDEN khớp chart, và dataDate = ngày nến THẬT (không phải calendar) → khối FRESHNESS so sánh tin cậy.
+async function fetchCandleTaSummary(ticker: string): Promise<BridgeTaSummary | null> {
+  try {
+    const backend = getPythonBridgeUrl();
+    const code = ticker.toUpperCase();
+    let rows: JsonRecord[] = [];
+    for (const attempt of [{ days: 420, t: 45_000 }, { days: 300, t: 35_000 }, { days: 220, t: 25_000 }]) {
+      try {
+        const res = await fetch(
+          `${backend}/api/v1/historical/${encodeURIComponent(code)}?days=${attempt.days}&timeframe=1d`,
+          { cache: "no-store", signal: AbortSignal.timeout(attempt.t) },
+        );
+        if (!res.ok) continue;
+        const json = asRecord(await res.json());
+        const data = Array.isArray(json.data) ? json.data : Array.isArray(json) ? (json as unknown[]) : [];
+        const parsed = data.map((r) => asRecord(r)).filter((r) => firstNumber(r, ["close"]) != null);
+        if (parsed.length >= 2) {
+          rows = parsed;
+          break;
+        }
+      } catch {
+        /* hết timeout → thử mốc days nhỏ hơn */
+      }
+    }
+    if (rows.length < 2) return null;
+
+    const closes = rows.map((r) => firstNumber(r, ["close"]) as number);
+    const volumes = rows.map((r) => firstNumber(r, ["volume"]) ?? 0);
+    const lastVal = (arr: (number | null)[]): number | null => {
+      for (let i = arr.length - 1; i >= 0; i -= 1) {
+        const v = arr[i];
+        if (v != null && Number.isFinite(v)) return v;
+      }
+      return null;
+    };
+    const emaLast = (period: number) => (closes.length >= period ? lastVal(calcEMA(closes, period)) : null);
+    const macd = calcMACD(closes);
+    const last = rows[rows.length - 1];
+    const prev = rows[rows.length - 2];
+    const close = firstNumber(last, ["close"]);
+    const prevClose = firstNumber(prev, ["close"]);
+    const change = close != null && prevClose != null ? Number((close - prevClose).toFixed(4)) : null;
+    const changePct =
+      close != null && prevClose != null && prevClose !== 0
+        ? Number((((close - prevClose) / prevClose) * 100).toFixed(2))
+        : null;
+    const dataDate = typeof last.date === "string" ? last.date.slice(0, 10) : null;
+    const vol20 = volumes.slice(-20);
+    const technical: DatabaseAidenTechnicalContext = {
+      ma20: emaLast(20),
+      ma50: emaLast(50),
+      ma200: emaLast(200),
+      rsi: lastVal(calcRSI(closes, 14)),
+      macdHistogram: lastVal(macd.histogram),
+      volumeMa20: vol20.length ? Math.round(vol20.reduce((s, v) => s + v, 0) / vol20.length) : null,
+      support: null,
+      resistance: null,
+      updatedAt: dataDate,
+    };
+    return {
+      price: close,
+      prevClose,
+      change,
+      changePct,
+      volume: firstNumber(last, ["volume"]),
+      value: firstNumber(last, ["value"]),
+      dataDate,
+      lastCandle: {
+        open: firstNumber(last, ["open"]),
+        high: firstNumber(last, ["high"]),
+        low: firstNumber(last, ["low"]),
+        close,
+        volume: firstNumber(last, ["volume"]),
+        value: firstNumber(last, ["value"]),
+        updatedAt: dataDate,
+      },
+      technical: Object.values(technical).some((value) => value != null) ? technical : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function readToolRows(datasets: string[], key: string): Promise<DatasetPayloadRow[]> {
   datasets.forEach(assertAidenStockDatasetAllowed);
   const rows = await prisma.databaseToolLatest.findMany({
@@ -794,7 +882,7 @@ export async function getDatabaseAidenTickerContext(options: {
     if (AIDEN_FA_BRIDGE_FALLBACK && (needFa || needTa || relyingOnStaleDaily)) {
       const [fa, ta] = await Promise.all([
         needFa ? fetchFAData(ticker).catch(() => null) : Promise.resolve(null),
-        needTa || relyingOnStaleDaily ? fetchBridgeTaSummary(ticker).catch(() => null) : Promise.resolve(null),
+        needTa || relyingOnStaleDaily ? fetchCandleTaSummary(ticker).catch(() => null) : Promise.resolve(null),
       ]);
       if (fa) {
         const bridged = bridgeFundamentalToContext(fa);
@@ -803,44 +891,42 @@ export async function getDatabaseAidenTickerContext(options: {
         if (bridged.financialPeriod || bridged.valuation) addSource(dataSources.fundamental, "bridge:fundamental");
       }
       if (ta) {
-        // FRESHNESS: EOD đang là HÔM QUA nhưng bridge có giá HÔM NAY (mới hơn) → quy giá bridge về đúng
-        // thang ĐÃ-ĐIỀU-CHỈNH của EOD bằng hệ số market.price/ta.prevClose (gộp CẢ ×1000 LẪN back-adjust
-        // ex-rights, vì cả hai cùng mốc hôm qua) → khớp chart + an toàn mã ex-rights. Bridge cũ hơn → bỏ qua.
+        // ta = TA tính TỪ NẾN historical (fetchCandleTaSummary): giá/MA THÔ (cổ phiếu = VND, chỉ số = điểm),
+        // KHÔNG phải ta-summary FiinQuant pre-computed. market.eod cổ phiếu theo NGHÌN → suy hệ số luỹ thừa 10
+        // từ ta.price/market.price rồi quy MA/candle/levels về đúng thang. Chỉ số (VNINDEX): ta.price ≈ market.price
+        // → hệ số = 1 → giữ nguyên. Định nghĩa scale/px TRƯỚC để khối FRESHNESS dùng chung (tránh quy đổi sai).
+        const refPrice = market.price;
+        const scale = refPrice != null && refPrice !== 0 && ta.price != null ? scalePowerOf10(ta.price / refPrice) : 1;
+        const px = (v: number | null) => (v != null && scale !== 1 ? Number((v / scale).toFixed(4)) : v);
+
+        // FRESHNESS: mã rơi xuống daily eod (TRONG PHIÊN eod = HÔM QUA) → thay bằng nến MỚI NHẤT của historical
+        // (có nến hôm nay), quy thang bằng px → khớp chart, ĐÚNG thang. dataDate lấy từ nến = ngày giao dịch THẬT
+        // nên ">=" tin cậy; nến == eod (cuối tuần/sau ATC) thì px là no-op → vô hại. Thay cho factor cũ
+        // (market.price/ta.prevClose) vốn quy đổi SAI khi eod đã là close mới nhất → VNINDEX hiện 1818.61 thay vì 1824.53.
         if (
           relyingOnStaleDaily &&
-          ta.price != null && ta.prevClose != null && ta.prevClose !== 0 &&
-          market.price != null && market.price !== 0 &&
-          ta.dataDate && market.tradingDate && ta.dataDate > market.tradingDate
+          ta.price != null && market.price != null &&
+          ta.dataDate && market.tradingDate && ta.dataDate >= market.tradingDate
         ) {
-          const factor = market.price / ta.prevClose;
-          const freshPrice = Number((ta.price * factor).toFixed(4));
-          // Tham chiếu suy từ % của bridge (= % chart hiển thị) để AIDEN khớp ĐÚNG biến động — renderSingleTicker
-          // tự tính lại %=(price−ref)/ref nên phải đặt ref = price/(1+%/100), không dùng eod close (lệch ref).
-          const ref =
-            ta.changePct != null && ta.changePct > -100
-              ? Number((freshPrice / (1 + ta.changePct / 100)).toFixed(4))
-              : market.price;
+          const freshPrice = px(ta.price);
+          const ref = px(ta.prevClose) ?? market.reference ?? null;
           market = {
             ...market,
             price: freshPrice,
             reference: ref,
-            change: Number((freshPrice - ref).toFixed(4)),
-            changePct: ta.changePct ?? Number((((freshPrice - ref) / ref) * 100).toFixed(2)),
+            change: freshPrice != null && ref != null ? Number((freshPrice - ref).toFixed(4)) : market.change,
+            changePct:
+              freshPrice != null && ref != null && ref !== 0
+                ? Number((((freshPrice - ref) / ref) * 100).toFixed(2))
+                : market.changePct,
             updatedAt: ta.dataDate,
             tradingDate: ta.dataDate,
-            // limit phát hiện từ eod hôm qua không còn đúng cho giá hôm nay; không có cấu trúc intraday bridge để xác nhận → bỏ.
+            // limit từ eod hôm qua không còn đúng cho giá hôm nay → bỏ.
             limitStatus: null,
             limitPct: null,
           };
-          addSource(dataSources.quote, "bridge:ta-summary(fresh)");
+          addSource(dataSources.quote, "historical:candles(fresh)");
         }
-        // Bridge ta-summary trả giá VND THÔ; market.eod theo NGHÌN → lệch ×1000. Khi đã có giá v2/eod
-        // (market.price set), suy hệ số luỹ thừa 10 từ ta.price/market.price rồi quy MA/levels/candle
-        // bridge về đúng thang trước khi merge — nếu không, priceVsMA ra ~−99.9% (giá nghìn vs MA VND).
-        // Chỉ số (VNINDEX): ta.price ≈ market.price → hệ số = 1 → giữ nguyên.
-        const refPrice = market.price;
-        const scale = refPrice != null && refPrice !== 0 && ta.price != null ? scalePowerOf10(ta.price / refPrice) : 1;
-        const px = (v: number | null) => (v != null && scale !== 1 ? Number((v / scale).toFixed(4)) : v);
         if (market.price == null && ta.price != null) {
           market = {
             ...market,
@@ -852,7 +938,7 @@ export async function getDatabaseAidenTickerContext(options: {
             value: market.value ?? ta.value,
             updatedAt: market.updatedAt ?? ta.dataDate,
           };
-          addSource(dataSources.quote, "bridge:ta-summary");
+          addSource(dataSources.quote, "historical:candles");
         }
         if (!dailyOhlcv && ta.lastCandle) {
           dailyOhlcv =
@@ -865,7 +951,7 @@ export async function getDatabaseAidenTickerContext(options: {
                   low: px(ta.lastCandle.low),
                   close: px(ta.lastCandle.close),
                 };
-          addSource(dataSources.ohlcv, "bridge:ta-summary");
+          addSource(dataSources.ohlcv, "historical:candles");
         }
         if (!technical && ta.technical) {
           technical =
@@ -880,7 +966,7 @@ export async function getDatabaseAidenTickerContext(options: {
                   resistance: px(ta.technical.resistance),
                   macdHistogram: px(ta.technical.macdHistogram),
                 };
-          addSource(dataSources.technical, "bridge:ta-summary");
+          addSource(dataSources.technical, "historical:candles");
         }
       }
     }
