@@ -22,6 +22,10 @@ type NormalizedRsStock = {
   phase: string | null;
   benchmark: string;
   source: "fiinquant_bridge";
+  // %-kỳ từ close history sâu của bridge (cho top-movers 1W/1M/3M).
+  pct_1w: number | null;
+  pct_1m: number | null;
+  pct_3m: number | null;
 };
 
 const CACHE_TTL = 15 * 60 * 1000;
@@ -81,6 +85,9 @@ function normalizeRsStock(item: BridgeRsItem, defaultBenchmark: string): Normali
     phase: readString(item, ["phase", "rrgPhase"], "") || null,
     benchmark: readString(item, ["benchmark", "base"], defaultBenchmark),
     source: "fiinquant_bridge",
+    pct_1w: readNullableNumber(item, ["pct_1w", "pct1w"]),
+    pct_1m: readNullableNumber(item, ["pct_1m", "pct1m"]),
+    pct_3m: readNullableNumber(item, ["pct_3m", "pct3m"]),
   };
 }
 
