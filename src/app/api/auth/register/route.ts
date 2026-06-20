@@ -15,6 +15,8 @@ export async function POST(req: Request) {
     const email = (body.email as string)?.trim().toLowerCase();
     const password = body.password as string;
     const name = (body.name as string)?.trim() || null;
+    const genderRaw = (body.gender as string)?.trim().toLowerCase();
+    const gender = genderRaw === "male" || genderRaw === "female" ? genderRaw : null;
 
     // ── Validate ──────────────────────────────────────────────────────
     if (!email || !password) {
@@ -49,6 +51,7 @@ export async function POST(req: Request) {
           email,
           password: hashedPassword,
           name,
+          gender,
           role: "FREE",
         },
       });

@@ -68,6 +68,7 @@ model User {
   systemRole      String           @default("USER")       // quyền hệ thống: ADMIN | USER
   vipUntil        DateTime?
   name            String?
+  gender          String?                                 // "male" | "female" | null — để AIDEN xưng hô đúng (anh/chị + tên)
   image           String?
   emailVerified   DateTime?
   chatCount       Int              @default(0)

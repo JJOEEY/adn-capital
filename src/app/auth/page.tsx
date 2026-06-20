@@ -194,6 +194,7 @@ function AuthPageContent() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [gender, setGender] = useState<"" | "male" | "female">("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -234,7 +235,7 @@ function AuthPageContent() {
       const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, name }),
+        body: JSON.stringify({ email, password, name, gender: gender || undefined }),
       });
 
       const data = await response.json();
@@ -340,6 +341,35 @@ function AuthPageContent() {
               <div className="relative">
                 <User className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
                 <input id="name" type="text" value={name} onChange={(event) => setName(event.target.value)} placeholder="Nguyễn Văn A" className={inputClass} style={inputStyle} />
+              </div>
+            </div>
+          )}
+
+          {mode === "register" && (
+            <div className="mb-3">
+              <label className="mb-1.5 block text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
+                Giới tính <span className="font-normal" style={{ opacity: 0.75 }}>(xác nhận để ADN phục vụ anh/chị tốt hơn)</span>
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {([["male", "Nam"], ["female", "Nữ"]] as const).map(([value, label]) => {
+                  const active = gender === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setGender(active ? "" : value)}
+                      className="rounded-xl py-3 text-sm font-semibold transition focus:outline-none focus:ring-2"
+                      style={{
+                        background: active ? "var(--primary)" : "var(--surface-2)",
+                        border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
+                        color: active ? "#EBE2CF" : "var(--text-primary)",
+                        "--tw-ring-color": "rgba(46,77,61,0.22)",
+                      } as CSSProperties}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}

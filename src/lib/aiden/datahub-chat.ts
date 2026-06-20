@@ -696,13 +696,28 @@ Quy tắc bắt buộc:
 
 // System prompt cho mặt webchat AIDEN: thiên về nhân cách + hội thoại tự nhiên thay vì bảng điều cấm.
 // Vẫn giữ nguyên kỷ luật số liệu và không lộ nguồn nội bộ.
-function buildAidenConversationSystemInstruction() {
+// Xưng hô cá nhân hoá: "anh {tên}" (nam) / "chị {tên}" (nữ); thiếu giới tính → "anh/chị {tên}"; thiếu cả tên
+// → "anh/chị". Tên gọi = TỪ CUỐI của họ tên VN ("Nguyễn Văn Minh" → "Minh"). Sanitize vì name là text khách
+// tự nhập (chống chèn lệnh qua ô tên vào system prompt).
+function buildAidenAddressTerm(name?: string | null, gender?: string | null): string {
+  const clean = (name ?? "")
+    .replace(/[ -]+/g, " ")
+    .replace(/[^\p{L}\p{M}\s.'-]/gu, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 40);
+  const given = clean ? clean.split(" ").pop() ?? "" : "";
+  const pronoun = gender === "male" ? "anh" : gender === "female" ? "chị" : "anh/chị";
+  return given ? `${pronoun} ${given}` : pronoun;
+}
+
+function buildAidenConversationSystemInstruction(addressTerm: string = "anh/chị") {
   return `Bạn là AIDEN — chuyên gia phân tích chứng khoán Việt Nam của ADN Capital, đang tư vấn trực tiếp cho nhà đầu tư trong khung chat.
 
 Tính cách & văn phong:
 - Sắc sảo, dứt khoát, đi thẳng vào kết luận như một chuyên gia tư vấn dày dạn — KHÔNG vòng vo, KHÔNG đọc báo cáo máy móc, không sáo rỗng.
 - Mở đầu bằng một nhận định/verdict rõ ràng cho câu hỏi, rồi mới dẫn giải bằng số liệu. Câu hỏi ngắn trả lời ngắn; chỉ phân tích dài khi nhà đầu tư thực sự muốn đào sâu một mã.
-- Xưng "AIDEN", gọi nhà đầu tư là "anh/chị". Tiếng Việt có dấu, gọn gàng, được dùng từ nối tự nhiên ("nói thẳng là", "điểm mấu chốt là", "ngược lại"...). Chuyên nghiệp, có quan điểm, không ba phải.
+- Xưng "AIDEN", gọi nhà đầu tư là "${addressTerm}" — nếu có tên thì chào bằng tên ở câu mở đầu cho thân thiện, nhưng KHÔNG lặp tên ở mọi câu (tự nhiên như người thật, không gượng). Tiếng Việt có dấu, gọn gàng, được dùng từ nối tự nhiên ("nói thẳng là", "điểm mấu chốt là", "ngược lại"...). Chuyên nghiệp, có quan điểm, không ba phải.
 - Trình bày scannable: in đậm các ý và ngưỡng giá then chốt để nhà đầu tư nắm nhanh.
 
 Kỷ luật dữ liệu (bắt buộc):
@@ -1706,12 +1721,16 @@ export async function prepareAidenDatahubTurn(input: {
   currentTicker?: string | null;
   context?: TopicContext;
   surface?: AidenSurface | string | null;
+  userName?: string | null;
+  userGender?: string | null;
 }): Promise<AidenDatahubPreparedTurn> {
   const message = input.message.trim();
   const context = input.context ?? {};
   const surface: AidenSurface = input.surface === "stock" ? "stock" : "aiden";
   const systemInstruction =
-    surface === "aiden" ? buildAidenConversationSystemInstruction() : buildSystemInstruction();
+    surface === "aiden"
+      ? buildAidenConversationSystemInstruction(buildAidenAddressTerm(input.userName, input.userGender))
+      : buildSystemInstruction();
 
   if (surface === "aiden") {
     const intentResult = classifyAidenIntent(message);

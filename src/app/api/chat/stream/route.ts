@@ -148,6 +148,8 @@ export async function POST(request: NextRequest) {
           message,
           currentTicker,
           surface,
+          userName: dbUser?.name ?? null,
+          userGender: dbUser?.gender ?? null,
           context: {
             userId,
             userRole: dbUser?.role ?? null,
