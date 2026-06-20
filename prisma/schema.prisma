@@ -100,6 +100,20 @@ model User {
   updatedQuotaOverrideBy AdminChatQuotaOverride[] @relation("ChatQuotaUpdatedBy")
   customerDiscountRequests CustomerDiscountRequest[] @relation("CustomerDiscountUser")
   reviewedCustomerDiscountRequests CustomerDiscountRequest[] @relation("CustomerDiscountReviewedBy")
+  labBacktests LabBacktest[]
+}
+
+model LabBacktest {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  config    Json
+  result    Json
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 model NotificationPreference {

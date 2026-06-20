@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   BarChart3,
@@ -38,6 +38,7 @@ function fmtEq(v: number): string {
 
 type ScopeType = "index" | "ticker" | "watchlist" | "sector";
 type UnknownRecord = Record<string, unknown>;
+type SavedStrategy = { id: string; name: string; config: UnknownRecord; result: UnknownRecord; createdAt: string };
 
 interface ConditionOption {
   id: string;
@@ -486,6 +487,8 @@ export function StrategyValidationStudio() {
   const [result, setResult] = useState<ProviderRunResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
+  const [saved, setSaved] = useState<SavedStrategy[]>([]);
+  const [saving, setSaving] = useState(false);
 
   const selectedCount = buySelected.length + sellSelected.length;
   const buyLabels = useMemo(
@@ -567,6 +570,72 @@ export function StrategyValidationStudio() {
       setError(`${message} Demo ADN hiện tại vẫn nằm bên dưới để xem lại kết quả đã lưu.`);
     } finally {
       setIsRunning(false);
+    }
+  };
+
+  const loadSaved = async () => {
+    try {
+      const res = await fetch("/api/lab/strategies");
+      if (res.ok) {
+        const data = await res.json();
+        setSaved(Array.isArray(data.items) ? data.items : []);
+      }
+    } catch {
+      /* im lặng */
+    }
+  };
+
+  useEffect(() => {
+    loadSaved();
+  }, []);
+
+  const saveStrategy = async () => {
+    if (!result || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const config = { strategyName, scope, selection, buySelected, sellSelected, conditionParams, assumptions };
+      const resultSummary = { metrics, equityCurve, coverage: isRecord(getResultRecord(result)?.coverage) ? getResultRecord(result)?.coverage : null };
+      const res = await fetch("/api/lab/strategies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: strategyName, config, result: resultSummary }),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => null);
+        throw new Error(e?.error ?? "Lỗi lưu chiến thuật");
+      }
+      await loadSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Lỗi lưu chiến thuật");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const loadStrategy = (item: SavedStrategy) => {
+    const c = item.config as {
+      strategyName?: string; scope?: ScopeType; selection?: string;
+      buySelected?: string[]; sellSelected?: string[];
+      conditionParams?: Record<string, Record<string, string | number>>; assumptions?: LabAssumptions;
+    };
+    if (c.strategyName) setStrategyName(c.strategyName);
+    if (c.scope) setScope(c.scope);
+    if (typeof c.selection === "string") setSelection(c.selection);
+    if (Array.isArray(c.buySelected)) setBuySelected(c.buySelected);
+    if (Array.isArray(c.sellSelected)) setSellSelected(c.sellSelected);
+    if (c.conditionParams) setConditionParams(c.conditionParams);
+    if (c.assumptions) setAssumptions({ ...defaultAssumptions, ...c.assumptions });
+    setResult(null);
+    setError(null);
+  };
+
+  const deleteStrategy = async (id: string) => {
+    try {
+      await fetch(`/api/lab/strategies/${id}`, { method: "DELETE" });
+      await loadSaved();
+    } catch {
+      /* im lặng */
     }
   };
 
@@ -841,13 +910,44 @@ export function StrategyValidationStudio() {
             </button>
             <button
               type="button"
-              className="inline-flex items-center gap-2 rounded-2xl border px-5 py-3 text-sm font-black"
+              onClick={saveStrategy}
+              disabled={!result || saving}
+              className="inline-flex items-center gap-2 rounded-2xl border px-5 py-3 text-sm font-black disabled:opacity-50"
               style={{ borderColor: "var(--border)", color: "var(--text-primary)", background: "var(--surface)" }}
+              title={result ? "Lưu chiến thuật + kết quả" : "Chạy kiểm định trước khi lưu"}
             >
               <Save className="h-4 w-4" />
-              Lưu phiên bản
+              {saving ? "Đang lưu..." : "Lưu chiến thuật"}
             </button>
           </div>
+
+          {saved.length > 0 ? (
+            <div className="rounded-[1.5rem] border p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+              <p className="mb-3 text-xs font-black uppercase tracking-[0.16em]" style={{ color: "var(--text-muted)" }}>
+                Chiến thuật đã lưu ({saved.length})
+              </p>
+              <div className="space-y-2">
+                {saved.map((item) => {
+                  const m = isRecord(item.result) && isRecord(item.result.metrics) ? item.result.metrics : null;
+                  const nr = m && typeof m.netReturn === "number" ? m.netReturn : null;
+                  return (
+                    <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-black" style={{ color: "var(--text-primary)" }}>{item.name}</p>
+                        <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+                          {new Date(item.createdAt).toLocaleString("vi-VN")}{nr !== null ? ` · ${nr >= 0 ? "+" : ""}${nr}%` : ""}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 gap-2">
+                        <button type="button" onClick={() => loadStrategy(item)} className="rounded-lg border px-3 py-1.5 text-xs font-bold" style={{ borderColor: "var(--border)", color: "var(--primary)" }}>Nạp lại</button>
+                        <button type="button" onClick={() => deleteStrategy(item.id)} className="rounded-lg border px-3 py-1.5 text-xs font-bold" style={{ borderColor: "rgba(192,57,43,0.3)", color: "var(--danger)" }}>Xóa</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
 
           {error ? (
             <div className="rounded-2xl border p-4 text-sm" style={{ borderColor: "rgba(245,158,11,0.35)", color: "#f59e0b", background: "rgba(245,158,11,0.08)" }}>
