@@ -5,12 +5,12 @@ import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import {
-  BookOpen, Lock, TrendingUp, TrendingDown, Target,
-  Brain, DollarSign, Sparkles,
+  BookOpen, Lock, Brain, DollarSign, Sparkles,
 } from "lucide-react";
 import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 import { useSubscription } from "@/hooks/useSubscription";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { JournalHero } from "@/components/journal/JournalHero";
 import { JournalForm } from "@/components/journal/JournalForm";
 import { JournalList } from "@/components/journal/JournalList";
 import { PsychologyAnalysis } from "@/components/journal/PsychologyAnalysis";
@@ -83,9 +83,6 @@ export default function JournalPage() {
   const handleDateFilter = (from: string, to: string) => {
     setDateFilter({ from, to });
   };
-
-  const buyCount = entries.filter((e) => e.action === "BUY").length;
-  const sellCount = entries.filter((e) => e.action === "SELL").length;
 
   if (!mounted || authLoading) {
     return (
@@ -195,50 +192,8 @@ export default function JournalPage() {
           </div>
         </div>
 
-        {/* Quick Stats Bar */}
-        {entries.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="grid grid-cols-3 gap-3"
-          >
-            {[
-              {
-                icon: <Target className="w-4 h-4" />,
-                label: "Tổng lệnh",
-                value: String(entries.length),
-                color: "var(--text-secondary)",
-                bg: "var(--surface-2)",
-              },
-              {
-                icon: <TrendingUp className="w-4 h-4" />,
-                label: "Mua",
-                value: String(buyCount),
-                color: "#16a34a",
-                bg: "rgba(22,163,74,0.08)",
-              },
-              {
-                icon: <TrendingDown className="w-4 h-4" />,
-                label: "Bán",
-                value: String(sellCount),
-                color: "var(--danger)",
-                bg: "rgba(192,57,43,0.08)",
-              },
-            ].map((s) => (
-              <div
-                key={s.label}
-                className="border border-[var(--border)] rounded-xl p-3 flex flex-col"
-                style={{ background: s.bg }}
-              >
-                <div className="flex items-center gap-1.5 mb-1" style={{ color: s.color }}>
-                  {s.icon}
-                  <span className="text-[12px] font-medium" style={{ color: "var(--text-muted)" }}>{s.label}</span>
-                </div>
-                <p className="text-xl font-black font-mono" style={{ color: s.color }}>{s.value}</p>
-              </div>
-            ))}
-          </motion.div>
-        )}
+        {/* Hero tiền-trước: NAV / lãi-lỗ đã chốt + đang mở / tỷ lệ thắng */}
+        {entries.length > 0 && <JournalHero />}
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
           {/* Left column */}
