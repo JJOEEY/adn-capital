@@ -495,6 +495,10 @@ export async function fetchRSRatingList(): Promise<FiinRSRating[] | null> {
       benchmark: String(s.benchmark ?? raw.benchmark ?? "VNINDEX"),
       source: String(s.source ?? "fiinquant_bridge"),
       rs_rating: rsRating,
+      // %-kỳ từ close history sâu của bridge (cho top-movers 1W/1M/3M) — giữ nguyên, đừng drop.
+      pct_1w: s.pct_1w == null ? null : Number(s.pct_1w),
+      pct_1m: s.pct_1m == null ? null : Number(s.pct_1m),
+      pct_3m: s.pct_3m == null ? null : Number(s.pct_3m),
     } as FiinRSRating;
   });
 }
