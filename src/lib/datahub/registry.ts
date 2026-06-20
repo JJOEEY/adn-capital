@@ -32,6 +32,7 @@ import {
   isDatabaseV2ReplaceV1Enabled,
   listDatabaseToolLatest,
 } from "@/lib/database";
+import { upsertDatabaseToolLatest } from "@/lib/database/tool-latest";
 import { classifyTickerSector } from "@/lib/market/sector-classification";
 import {
   applyMarketPriceScale,
@@ -2786,6 +2787,87 @@ async function loadMarketForeignDailySeries(): Promise<SmartflowInvestorFlowPoin
   }
 }
 
+// Foreign NĐT NN per-MÃ theo cửa sổ N phiên — aggregate market.eod 'f' (= DNSE foreign.G1.json, nguồn SÀN
+// THẬT) → net tổng + top mua/bán ròng. Thay vnstock cho foreign (DNSE chính xác hơn). Cache 20'.
+type DnseForeignRow = { ticker: string; exchange: string; netBuyValue: number; netBuyVolume: number | null };
+const dnseForeignWindowCache = new Map<number, { at: number; data: { net: number; topBuy: DnseForeignRow[]; topSell: DnseForeignRow[] } }>();
+async function loadDnseForeignByWindow(tradingDays: number): Promise<{ net: number; topBuy: DnseForeignRow[]; topSell: DnseForeignRow[] }> {
+  const days = Math.max(1, Math.round(tradingDays));
+  const hit = dnseForeignWindowCache.get(days);
+  if (hit && Date.now() - hit.at < 20 * 60_000) return hit.data;
+  try {
+    const rows = await prisma.$queryRaw<Array<{ symbol: string; net_ty: unknown; net_vol: unknown }>>`
+      WITH recent AS (
+        SELECT DISTINCT "tradingDate" FROM "DatabaseMarketLatest"
+        WHERE dataset = 'market.eod' AND "payload"->>'T' = 'f'
+        ORDER BY "tradingDate" DESC LIMIT ${days}
+      )
+      SELECT "symbol" AS symbol,
+        sum(("payload"->>'totalBuyTradedAmount')::numeric - ("payload"->>'totalSellTradedAmount')::numeric) / 1e9 AS net_ty,
+        sum(("payload"->>'totalBuyVolume')::numeric - ("payload"->>'totalSellVolume')::numeric) AS net_vol
+      FROM "DatabaseMarketLatest"
+      WHERE dataset = 'market.eod' AND "payload"->>'T' = 'f'
+        AND ("payload"->>'totalBuyTradedAmount') IS NOT NULL
+        AND "tradingDate" IN (SELECT "tradingDate" FROM recent)
+      GROUP BY "symbol"`;
+    const parsed: DnseForeignRow[] = rows
+      .filter((row) => row.symbol)
+      .map((row) => ({
+        ticker: String(row.symbol).toUpperCase(),
+        exchange: "",
+        netBuyValue: Number(Number(row.net_ty ?? 0).toFixed(2)),
+        netBuyVolume: row.net_vol == null ? null : Math.round(Number(row.net_vol)),
+      }))
+      .filter((row) => Number.isFinite(row.netBuyValue) && row.netBuyValue !== 0);
+    const data = {
+      net: Number(parsed.reduce((sum, row) => sum + row.netBuyValue, 0).toFixed(2)),
+      topBuy: parsed.filter((row) => row.netBuyValue > 0).sort((a, b) => b.netBuyValue - a.netBuyValue).slice(0, 10),
+      topSell: parsed.filter((row) => row.netBuyValue < 0).sort((a, b) => a.netBuyValue - b.netBuyValue).slice(0, 10),
+    };
+    dnseForeignWindowCache.set(days, { at: Date.now(), data });
+    return data;
+  } catch {
+    return hit?.data ?? { net: 0, topBuy: [], topSell: [] };
+  }
+}
+
+// Tích lũy net TỰ DOANH hằng ngày: vnstock chỉ trả net hôm nay (không có chuỗi ngày) → upsert mỗi lần
+// precompute để dựng dần time-series cho sparkline tự doanh. Giữ ~13 tháng (TTL).
+async function recordPropDailyNet(net: number | null) {
+  if (net == null || !Number.isFinite(net)) return;
+  const today = getSmartflowDate(0);
+  await upsertDatabaseToolLatest({
+    tool: "pulse",
+    dataset: "prop.net.daily",
+    key: today,
+    tradingDate: today,
+    source: "vnstock",
+    payload: { date: today, netValue: Number(net.toFixed(2)) },
+    ttlMs: 400 * 24 * 60 * 60_000,
+  }).catch(() => {});
+}
+
+async function loadPropDailySeries(): Promise<SmartflowInvestorFlowPoint[]> {
+  try {
+    const rows = await listDatabaseToolLatest<{ date?: string; netValue?: number }>({
+      tool: "pulse",
+      dataset: "prop.net.daily",
+      limit: 400,
+      maxAgeMs: 400 * 24 * 60 * 60_000,
+    });
+    return rows
+      .map((row) => ({
+        date: String(row.payload?.date ?? row.key ?? ""),
+        netValue: Number(row.payload?.netValue ?? 0),
+        netVolume: null as number | null,
+      }))
+      .filter((point) => point.date && Number.isFinite(point.netValue))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  } catch {
+    return [];
+  }
+}
+
 // Cache investor-trading theo cửa sổ ngày. Dữ liệu theo NGÀY → các khung lịch sử (1W–1Y) gần như
 // không đổi trong phiên; cache TTL bậc thang để precompute (chạy mỗi 15') không fetch lại bridge nặng
 // mỗi lần. Lỗi bridge → trả CACHE CŨ (resilient với bridge sắp hết hạn). Cache theo process (clear khi deploy).
@@ -2824,21 +2906,33 @@ async function loadPulseSmartflow() {
     "6M": sixMonthFlow,
     "1Y": oneYearFlow,
   });
-  // FiinQuant chỉ trả tổng-cả-kỳ (series=1 điểm) → thay bằng chuỗi dòng tiền ngoại theo NGÀY (market.eod)
-  // để chart/sparkline có time-series thật. Cắt theo độ dài khung.
+  // === FOREIGN (NĐT NN) → DNSE-PRIMARY (market.eod 'f' = kênh foreign.G1.json, nguồn SÀN thật). ===
+  // sparkline + top mua/bán ròng + net ngắn đều từ DNSE; vnstock chỉ còn lo NET khung DÀI hơn lịch sử
+  // DNSE (market.eod giữ ~13 phiên). FiinQuant không còn cần cho foreign.
   const foreignDailySeries = await loadMarketForeignDailySeries();
-  if (foreignDailySeries.length >= 2 && investorFlow.foreign) {
-    const seriesDays: Record<string, number> = { "1D": 10, "1W": 8, "1M": 22, "3M": 66, "6M": 132, "1Y": 260 };
-    for (const [tf, bucket] of Object.entries(investorFlow.foreign)) {
-      if (!bucket) continue;
-      const sliced = foreignDailySeries.slice(-(seriesDays[tf] ?? 10));
-      if (sliced.length >= 2) (bucket as { series?: SmartflowInvestorFlowPoint[] }).series = sliced;
+  const seriesDays: Record<string, number> = { "1D": 10, "1W": 8, "1M": 22, "3M": 66, "6M": 132, "1Y": 260 };
+  const foreignNetDays: Record<string, number> = { "1D": 1, "1W": 5, "1M": 22, "3M": 66, "6M": 132, "1Y": 260 };
+  const dnseDays = foreignDailySeries.length;
+  for (const [tf, bucket] of Object.entries(investorFlow.foreign)) {
+    if (!bucket) continue;
+    const slicedSeries = foreignDailySeries.slice(-(seriesDays[tf] ?? 10));
+    if (slicedSeries.length >= 2) (bucket as { series?: SmartflowInvestorFlowPoint[] }).series = slicedSeries;
+    const win = foreignNetDays[tf] ?? 1;
+    // CHỈ dùng DNSE (net + top-names) khi DNSE phủ ĐỦ cửa sổ — market.eod 'f' giữ ~13 phiên. Như vậy net &
+    // top-names cùng MỘT nguồn/cửa sổ (đồng nhất, sum khớp). Khung dài hơn (1M+) DNSE lịch sử ngắn → để
+    // FiinQuant/vnstock lo CẢ net LẪN top-names (tránh net dài-khung lệch với top-names ~13 ngày).
+    if (win <= dnseDays && foreignDailySeries.length > 0) {
+      const dnse = await loadDnseForeignByWindow(win);
+      if (dnse.topBuy.length > 0 || dnse.topSell.length > 0) {
+        bucket.topBuy = dnse.topBuy.slice(0, 10);
+        bucket.topSell = dnse.topSell.slice(0, 10);
+      }
+      const window = foreignDailySeries.slice(-win);
+      bucket.netValue = Number(window.reduce((sum, point) => sum + (Number.isFinite(point.netValue) ? point.netValue : 0), 0).toFixed(2));
     }
   }
-  // Hybrid: FiinQuant là nguồn chính; bucket nào RỖNG/net 0 (FiinQuant chập chờn) → lấp bằng vnstock
-  // FlowInsights (toàn TT, đa khung value_1d/10d/1m/3m/6m). Net vnstock = lũy kế-cả-kỳ THẬT nên mỗi khung
-  // KHÁC nhau → cứu việc các khung dài (1M/3M/6M) bị bằng nhau khi tổng market.eod (~23 ngày). 1Y vnstock
-  // KHÔNG có → giữ FiinQuant 1Y, hoặc rơi xuống fallback market.eod bên dưới.
+  // vnstock FlowInsights = FALLBACK: foreign NET khung dài (DNSE lịch sử ngắn) + TỰ DOANH (DNSE không có
+  // prop) net + top-names. KHÔNG đè top-names foreign DNSE đã set (chỉ lấp khi rỗng).
   const vnstockFlow = await fetchVnstockInvestorFlow({ top: 10 }).catch(() => null);
   if (vnstockFlow) {
     for (const type of ["foreign", "proprietary"] as const) {
@@ -2856,16 +2950,25 @@ async function loadPulseSmartflow() {
       }
     }
   }
-  // Foreign net FALLBACK cho khung vnstock KHÔNG có (1Y) hoặc vnstock fail: tổng chuỗi ngày market.eod
-  // theo cửa sổ. CHỈ áp khi net vẫn rỗng/0 → KHÔNG ghi đè net vnstock đã differentiated theo khung.
+  // Foreign net fallback CUỐI (DNSE + vnstock đều thiếu, vd 1Y): tổng cửa sổ chuỗi market.eod.
   if (foreignDailySeries.length > 0) {
-    const foreignNetDays: Record<string, number> = { "1D": 1, "1W": 5, "1M": 22, "3M": 66, "6M": 132, "1Y": 260 };
     for (const [tf, bucket] of Object.entries(investorFlow.foreign)) {
       if (!bucket || (bucket.netValue != null && bucket.netValue !== 0)) continue;
       const window = foreignDailySeries.slice(-(foreignNetDays[tf] ?? 1));
       if (window.length > 0) {
         bucket.netValue = Number(window.reduce((sum, point) => sum + (Number.isFinite(point.netValue) ? point.netValue : 0), 0).toFixed(2));
       }
+    }
+  }
+  // === TỰ DOANH sparkline: tích lũy net prop hằng ngày (vnstock không có chuỗi ngày) → dựng dần. ===
+  const propTodayNet = vnstockFlow?.proprietary?.["1D"]?.net ?? investorFlow.proprietary["1D"]?.netValue ?? null;
+  await recordPropDailyNet(propTodayNet);
+  const propDailySeries = await loadPropDailySeries();
+  if (propDailySeries.length >= 2) {
+    for (const [tf, bucket] of Object.entries(investorFlow.proprietary)) {
+      if (!bucket) continue;
+      const sliced = propDailySeries.slice(-(seriesDays[tf] ?? 10));
+      if (sliced.length >= 2) (bucket as { series?: SmartflowInvestorFlowPoint[] }).series = sliced;
     }
   }
   const realtimeNet =
