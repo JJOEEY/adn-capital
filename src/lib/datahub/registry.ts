@@ -2116,6 +2116,10 @@ type PulseStockRow = {
   marketCapBillion: number | null;
   state: "ceiling" | "up" | "unchanged" | "down" | "floor";
   rsRating: number | null;
+  // %-kỳ tính từ RS-rating bridge (close history sâu ~252 phiên) — đủ cho 1M/3M mà tick (20 phiên) không có.
+  pct1w: number | null;
+  pct1m: number | null;
+  pct3m: number | null;
 };
 
 type PulseTopMoverTimeframe = "5m" | "15m" | "30m" | "1h" | "1D" | "1W" | "1M" | "3M";
@@ -3118,6 +3122,9 @@ async function loadPulseRankStocks(force = false, limit = 260): Promise<PulseSto
         marketCapBillion,
         state: classifyPriceState(price, reference, ceiling, floor, changePct),
         rsRating: readFirstSmartflowNumber(row, ["rsRating", "rsScore", "rs_rating", "rs_score"]),
+        pct1w: readFirstSmartflowNumber(row, ["pct_1w", "pct1w"]),
+        pct1m: readFirstSmartflowNumber(row, ["pct_1m", "pct1m"]),
+        pct3m: readFirstSmartflowNumber(row, ["pct_3m", "pct3m"]),
       };
     })
     .filter((row): row is PulseStockRow => Boolean(row))
@@ -3227,9 +3234,16 @@ async function loadPulseTopMovers(force = false) {
     }
     const periodDays = PULSE_MOVER_PERIOD_DAYS[timeframe];
     if (periodDays) {
+      // %-kỳ ƯU TIÊN từ RS-rating bridge (close history sâu ~252 phiên → đủ cho 1M=22/3M=66); thiếu (mã
+      // ngoài RS) mới fallback tick (20 phiên). Trước đây CHỈ dùng tick → 1M/3M thiếu lịch sử bị disable.
+      const rankPct = (stock: PulseStockRow): number | null =>
+        timeframe === "1W" ? stock.pct1w : timeframe === "1M" ? stock.pct1m : timeframe === "3M" ? stock.pct3m : null;
       const rows = stocks
         .map((stock) => {
-          const pct = periodPctFromHistory(history.get(stock.ticker), periodDays);
+          const fromRank = rankPct(stock);
+          const pct = fromRank != null && Number.isFinite(fromRank)
+            ? fromRank
+            : periodPctFromHistory(history.get(stock.ticker), periodDays);
           return pct == null ? null : topMoverRowFromStock(stock, pct);
         })
         .filter((row): row is ReturnType<typeof topMoverRowFromStock> => row != null);
