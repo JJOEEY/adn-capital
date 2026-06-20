@@ -5,12 +5,14 @@ import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import {
-  BookOpen, Lock, Brain, DollarSign, Sparkles,
+  BookOpen, Lock, Brain, DollarSign, Sparkles, Plus,
 } from "lucide-react";
 import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 import { useSubscription } from "@/hooks/useSubscription";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { JournalHero } from "@/components/journal/JournalHero";
+import { EquityCurve } from "@/components/journal/EquityCurve";
+import { JournalExport } from "@/components/journal/JournalExport";
 import { JournalForm } from "@/components/journal/JournalForm";
 import { JournalList } from "@/components/journal/JournalList";
 import { PsychologyAnalysis } from "@/components/journal/PsychologyAnalysis";
@@ -196,11 +198,21 @@ export default function JournalPage() {
           >
             <BookOpen className="w-5 h-5" style={{ color: "var(--primary)" }} />
           </div>
-          <div>
+          <div className="flex-1 min-w-0">
             <h1 className="text-xl sm:text-2xl font-black" style={{ color: "var(--text-primary)" }}>Nhật Ký Giao Dịch</h1>
-            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+            <p className="text-sm truncate" style={{ color: "var(--text-muted)" }}>
               AI học hành vi · Phân tích tâm lý · Kỷ luật T+2.5
             </p>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <JournalExport entries={entries} />
+            <button
+              onClick={() => { setEditingEntry(null); setActiveTab("form"); }}
+              className="flex items-center gap-1.5 text-sm font-bold px-3.5 py-2 rounded-xl transition-transform active:scale-95"
+              style={{ background: "var(--primary)", color: "#EBE2CF" }}
+            >
+              <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Ghi lệnh</span>
+            </button>
           </div>
         </div>
 
@@ -278,10 +290,11 @@ export default function JournalPage() {
                 ))}
 
               {activeTab === "pnl" && (
-                <>
+                <div className="space-y-4">
+                  <EquityCurve />
                   <PnLSummary />
                   <JournalAiReviewCards />
-                </>
+                </div>
               )}
 
               {activeTab === "analysis" && <PsychologyAnalysis />}

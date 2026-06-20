@@ -191,10 +191,24 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // Equity curve: NAV "đã chốt" tích luỹ theo ngày = vốn ban đầu + Σ lãi/lỗ đã chốt tới ngày đó.
+    // Không cần giá lịch sử hằng ngày; component nối điểm cuối tới currentNAV (gồm cả chưa chốt).
+    const sortedClosed = [...closedTrades].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+    );
+    let runningNav = initialNAV;
+    const equityByDate = new Map<string, number>();
+    for (const t of sortedClosed) {
+      runningNav += t.pnl;
+      equityByDate.set(t.date.slice(0, 10), runningNav);
+    }
+    const equityCurve = Array.from(equityByDate.entries()).map(([date, nav]) => ({ date, nav }));
+
     return NextResponse.json({
       initialNAV,
       realizedPnL,
       unrealizedPnL,
+      equityCurve,
       holdingsCostBasis,
       holdingsMarketValue,
       currentNAV,
