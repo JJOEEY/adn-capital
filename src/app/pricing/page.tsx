@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { Suspense } from "react";
-import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
-
+import { Fragment, Suspense } from "react";
+import { ArrowRight, Check, Minus, ChevronDown, Loader2 } from "lucide-react";
+import { Shell, Reveal } from "@/components/marketing/theme";
 import PricingClient from "./PricingClient";
 
 export const metadata: Metadata = {
@@ -11,125 +10,192 @@ export const metadata: Metadata = {
     "Chọn thời hạn sử dụng hệ sinh thái ADN Capital: ADN Base, ADN VIP hoặc ADN Premium.",
 };
 
+const dong = (n: number) => `${n.toLocaleString("vi-VN")}đ`;
+
+type CellVal = boolean | string;
+const COMPARE: { group: string; rows: { label: string; base: CellVal; vip: CellVal; premium: CellVal }[] }[] = [
+  {
+    group: "Dữ liệu thị trường",
+    rows: [
+      { label: "Nhịp thị trường (Pulse)", base: true, vip: true, premium: true },
+      { label: "Dữ liệu giá", base: "EOD", vip: "Realtime", premium: "Realtime" },
+      { label: "Nhật ký giao dịch", base: true, vip: true, premium: true },
+    ],
+  },
+  {
+    group: "Công cụ phân tích",
+    rows: [
+      { label: "AIDEN (trợ lý AI)", base: "Giới hạn", vip: "Đầy đủ", premium: "Đầy đủ" },
+      { label: "ADN Stock (phân tích mã)", base: "Cơ bản", vip: "Đầy đủ", premium: "Đầy đủ" },
+      { label: "ADN Radar (tín hiệu Mua/Bán)", base: false, vip: true, premium: true },
+      { label: "Chỉ báo ART", base: false, vip: true, premium: true },
+      { label: "Xếp hạng RANK", base: false, vip: true, premium: true },
+      { label: "ADN Lab", base: false, vip: true, premium: true },
+      { label: "Cảnh báo tín hiệu real-time", base: false, vip: true, premium: true },
+    ],
+  },
+  {
+    group: "Hỗ trợ & thời hạn",
+    rows: [
+      { label: "Ưu tiên hỗ trợ", base: false, vip: true, premium: true },
+      { label: "Thời hạn", base: "3 tháng", vip: "6 tháng", premium: "12 tháng" },
+    ],
+  },
+];
+
+function CompareCell({ v, featured = false }: { v: CellVal; featured?: boolean }) {
+  return (
+    <td className={`px-3 py-3.5 text-center align-middle ${featured ? "bg-[color-mix(in_srgb,var(--mint)_55%,transparent)]" : ""}`}>
+      {v === true ? (
+        <Check className="mx-auto h-[18px] w-[18px] text-[var(--moss)]" strokeWidth={2.5} />
+      ) : v === false ? (
+        <Minus className="mx-auto h-[18px] w-[18px] text-[var(--ink-faint)] opacity-50" strokeWidth={2} />
+      ) : (
+        <span className="text-[13.5px] font-medium">{v}</span>
+      )}
+    </td>
+  );
+}
+
+const FAQ = [
+  { q: "Mở tài khoản có mất phí không?", a: "Không. Đăng ký ADN bằng Google là miễn phí, kèm 7 ngày dùng thử gói VIP để bạn trải nghiệm đầy đủ công cụ trước khi quyết định trả phí." },
+  { q: "Ba gói khác nhau ở điểm nào?", a: "Base hợp người mới: xem dữ liệu cơ bản và tập ghi nhật ký. VIP mở khoá toàn bộ công cụ (AIDEN, Radar, ART, RANK) cho người dùng hằng ngày. Premium đủ công cụ như VIP nhưng thời hạn 12 tháng và ưu tiên hỗ trợ. Bảng so sánh phía trên liệt kê từng quyền lợi." },
+  { q: "Thanh toán bằng cách nào?", a: "Bấm Thanh toán ở gói bạn chọn, hệ thống tạo mã QR qua PayOS. Quét bằng app ngân hàng bất kỳ là xong, không phải nhập số thẻ." },
+  { q: "Bao lâu sau khi trả thì dùng được?", a: "Gần như ngay lập tức. Khi PayOS xác nhận giao dịch, quyền dùng tự bật theo tài khoản, không phải chờ duyệt tay." },
+  { q: "Quyền dùng tính thế nào, có tự gia hạn không?", a: "Theo tài khoản ADN, rõ ngày bắt đầu và ngày hết hạn. Hết hạn thì bạn chủ động gia hạn; hệ thống không tự trừ tiền hay tự gia hạn." },
+  { q: "Đang dùng dở muốn nâng gói thì sao?", a: "Nâng lúc nào cũng được. Phần thời gian còn lại của gói cũ được quy đổi sang gói mới, bạn chỉ bù phần chênh lệch." },
+  { q: "Có ưu đãi hay mã giới thiệu không?", a: "Có. Mở tài khoản chứng khoán DNSE qua link giới thiệu của ADN được ưu đãi tới 40% học phí. Nhập mã lúc thanh toán, ADN duyệt rồi áp giá ưu đãi cho bạn." },
+  { q: "Không hợp thì có hoàn tiền không?", a: "Hãy tận dụng 7 ngày dùng thử VIP miễn phí để xem có hợp không trước khi mua. Trường hợp đặc biệt sau khi đã thanh toán, liên hệ ADN để được hỗ trợ." },
+];
+
 export default function PricingPage() {
   return (
-    <main className="min-h-screen bg-[#0D0D10] text-[#F8F1E6]">
-      <header className="border-b border-white/10 bg-[#111216]/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 lg:px-8">
-          <Link href="/" className="group inline-flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[#FFD166]/35 bg-[#FFD166]/10 text-lg font-black text-[#FFD166]">
-              ADN
-            </div>
-            <div>
-              <p className="text-lg font-black leading-[1.25] text-[#F8F1E6]">ADN Capital</p>
-              <p className="text-sm leading-[1.7] text-[#BFB8AE]">Hệ thống giao dịch định lượng</p>
-            </div>
-          </Link>
-          <nav className="hidden items-center gap-8 text-sm font-semibold text-[#CFC7BA] md:flex">
-            <Link href="/" className="transition hover:text-[#FFD166]">
-              Trang chủ
-            </Link>
-            <Link href="/products" className="transition hover:text-[#FFD166]">
-              Công cụ
-            </Link>
-            <Link href="/#journey" className="transition hover:text-[#FFD166]">
-              Lộ trình
-            </Link>
-            <Link href="/pricing" className="text-[#FFD166]">
-              Dịch vụ
-            </Link>
-          </nav>
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/5 px-5 py-3 text-sm font-bold text-[#F8F1E6] transition hover:border-[#FFD166]/60 hover:text-[#FFD166]"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Về trang chủ
-          </Link>
-        </div>
-      </header>
-
-      <section className="relative overflow-hidden border-b border-white/10">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,209,102,0.14),transparent_34%),radial-gradient(circle_at_80%_0%,rgba(255,255,255,0.09),transparent_28%)]" />
-        <div className="relative mx-auto grid max-w-7xl gap-10 px-5 py-20 lg:grid-cols-[1.05fr_0.95fr] lg:px-8 lg:py-28">
-          <div>
-            <p className="text-sm font-bold uppercase tracking-[0.22em] text-[#FFD166]">Dịch vụ</p>
-            <h1 className="mt-6 max-w-5xl text-5xl font-black leading-[1.15] tracking-tight text-[#F8F1E6] md:text-7xl">
-              Hệ sinh thái{" "}
-              <span className="text-[#FFD166]">ADNCapital</span>
-              <br />
-              <span className="text-[#FFD166]">
-                Mở khóa toàn diện giải pháp đầu tư.
-              </span>
+    <Shell>
+      {/* ── hero ── */}
+      <section className="relative overflow-hidden border-b border-[var(--hairline)]">
+        <div className="mx-auto max-w-[1180px] px-5 pb-12 pt-16 text-center sm:px-8 lg:pt-20">
+          <Reveal>
+            <p className="dp-mono text-[12px] font-semibold uppercase tracking-[0.2em] text-[var(--gold)]">Gói thành viên</p>
+          </Reveal>
+          <Reveal delay={0.05}>
+            <h1 className="dp-display mx-auto mt-5 max-w-[18ch] text-[clamp(2.5rem,4.8vw,3.8rem)] font-bold leading-[1.05] tracking-[-0.02em]">
+              Chọn gói theo <span className="italic text-[var(--gold)]">cách bạn dùng.</span>
             </h1>
-            <p className="mt-8 max-w-3xl text-lg leading-[1.7] text-[#CFC7BA]">
-              Anh/chị chọn thời hạn sử dụng phù hợp với nhịp đầu tư của mình. Ba gói khác nhau ở
-              thời gian đồng hành; giá trị cốt lõi vẫn là một hệ sinh thái công cụ rõ ràng, dễ theo
-              dõi và có thể dùng hằng ngày.
+          </Reveal>
+          <Reveal delay={0.1}>
+            <p className="mx-auto mt-6 max-w-[52ch] text-[18px] font-light leading-[1.55] text-[var(--ink-muted)]">
+              Bắt đầu miễn phí với 7 ngày VIP. Hợp rồi thì chọn thời hạn, quyền dùng quản lý theo tài khoản, rõ ngày bắt đầu và kết thúc.
             </p>
-            <div className="mt-10 flex flex-col gap-4 sm:flex-row">
-              <a
-                href="#goi-dich-vu"
-                className="inline-flex min-h-14 items-center justify-center gap-3 rounded-full bg-[#FFD166] px-7 text-base font-bold text-[#101114] transition hover:bg-[#FFE09A]"
-              >
-                Xem gói dịch vụ
-                <ArrowRight className="h-5 w-5" />
-              </a>
-              <Link
-                href="/products"
-                className="inline-flex min-h-14 items-center justify-center gap-3 rounded-full border border-white/14 bg-white/5 px-7 text-base font-bold text-[#F8F1E6] transition hover:border-[#FFD166]/60 hover:text-[#FFD166]"
-              >
-                Xem công cụ
-              </Link>
-            </div>
-          </div>
+          </Reveal>
+        </div>
+      </section>
 
-          <div className="rounded-[40px] border border-white/14 bg-white/[0.04] p-5 shadow-[0_28px_120px_rgba(0,0,0,0.35)]">
-            <div className="rounded-[30px] border border-[#FFD166]/30 bg-[#1A1714] p-7">
-              <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#FFD166]">
-                Quyền dùng rõ ràng
-              </p>
-              <h2 className="mt-5 text-4xl font-black leading-[1.15] tracking-tight text-[#F8F1E6]">
-                Trả theo thời hạn, dùng trong đúng gói đã chọn.
-              </h2>
-              <div className="mt-8 space-y-4">
-                {[
-                  "Mỗi gói hội viên phù hợp với một nhu cầu sử dụng khác nhau.",
-                  "Có thể nâng cấp từ ADN Base hoặc ADN VIP lên ADN Premium; thời gian còn lại sẽ được quy đổi và cộng thêm vào gói mới.",
-                  "Mã giới thiệu hợp lệ giúp cộng thêm thời gian sử dụng khi đủ điều kiện.",
-                ].map((item) => (
-                  <div
-                    key={item}
-                    className="rounded-2xl border border-white/10 bg-[#0D0D10] px-5 py-4 text-sm leading-[1.7] text-[#E8DED0]"
-                  >
-                    {item}
-                  </div>
-                ))}
+      {/* ── plans (interactive: payment + referral) ── */}
+      <section className="border-b border-[var(--hairline)] bg-[var(--cream)]">
+        <div className="mx-auto max-w-[1180px] px-5 py-20 sm:px-8 lg:py-24">
+          <p className="mb-8 text-center text-[13.5px] font-light text-[var(--ink-faint)] lg:hidden">Chạm để xem chi tiết từng gói.</p>
+          <p className="mb-8 hidden text-center text-[13.5px] font-light text-[var(--ink-faint)] lg:block">Di chuột vào từng gói để xem chi tiết, bấm Thanh toán để mua.</p>
+          <Suspense
+            fallback={
+              <div className="flex min-h-[360px] items-center justify-center text-[var(--moss)]">
+                <Loader2 className="mr-3 h-5 w-5 animate-spin" /> Đang tải bảng giá...
               </div>
-            </div>
-          </div>
+            }
+          >
+            <PricingClient />
+          </Suspense>
         </div>
       </section>
 
-      <section id="goi-dich-vu" className="mx-auto max-w-7xl px-5 py-16 lg:px-8 lg:py-20">
-        <Suspense
-          fallback={
-            <div className="flex min-h-[360px] items-center justify-center rounded-[32px] border border-white/12 bg-[#141519] text-[#FFD166]">
-              <Loader2 className="mr-3 h-5 w-5 animate-spin" />
-              Đang tải bảng giá...
+      {/* ── comparison table ── */}
+      <section className="border-b border-[var(--hairline)]">
+        <div className="mx-auto max-w-[1180px] px-5 py-20 sm:px-8 lg:py-24">
+          <Reveal>
+            <h2 className="dp-display text-[clamp(1.9rem,3.6vw,2.7rem)] font-bold leading-[1.1] tracking-[-0.015em]">So sánh <span className="italic text-[var(--gold)]">chi tiết.</span></h2>
+            <p className="mt-4 text-[15px] font-light text-[var(--ink-muted)]">Quyền lợi cụ thể của từng gói. Cuộn ngang trên điện thoại.</p>
+          </Reveal>
+          <Reveal delay={0.06}>
+            <div className="mt-10 overflow-x-auto">
+              <table className="w-full min-w-[680px] border-collapse">
+                <thead>
+                  <tr className="border-b-2 border-[var(--ink)]">
+                    <th className="dp-mono w-[37%] py-4 pr-4 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--ink-faint)]">Quyền lợi</th>
+                    <th className="px-3 py-4 text-center">
+                      <span className="dp-display block text-[18px] font-bold">ADN Base</span>
+                      <span className="dp-mono text-[10.5px] uppercase tracking-[0.1em] text-[var(--ink-faint)]">3 tháng</span>
+                      <span className="dp-num mt-1 block text-[15px] font-bold">{dong(649000)}</span>
+                    </th>
+                    <th className="bg-[color-mix(in_srgb,var(--mint)_55%,transparent)] px-3 py-4 text-center">
+                      <span className="dp-display block text-[18px] font-bold text-[var(--moss)]">ADN VIP</span>
+                      <span className="dp-mono text-[10.5px] uppercase tracking-[0.1em] text-[var(--moss)]">Phổ biến · 6 tháng</span>
+                      <span className="dp-num mt-1 block text-[15px] font-bold text-[var(--moss)]">{dong(1199000)}</span>
+                    </th>
+                    <th className="px-3 py-4 text-center">
+                      <span className="dp-display block text-[18px] font-bold">ADN Premium</span>
+                      <span className="dp-mono text-[10.5px] uppercase tracking-[0.1em] text-[var(--ink-faint)]">12 tháng</span>
+                      <span className="dp-num mt-1 block text-[15px] font-bold">{dong(1999000)}</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {COMPARE.map((g) => (
+                    <Fragment key={g.group}>
+                      <tr>
+                        <td colSpan={4} className="dp-mono pb-2 pt-7 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--gold)]">{g.group}</td>
+                      </tr>
+                      {g.rows.map((row) => (
+                        <tr key={row.label} className="border-t border-[var(--hairline)]">
+                          <td className="py-3.5 pr-4 text-[14.5px] font-light text-[var(--ink)]">{row.label}</td>
+                          <CompareCell v={row.base} />
+                          <CompareCell v={row.vip} featured />
+                          <CompareCell v={row.premium} />
+                        </tr>
+                      ))}
+                    </Fragment>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          }
-        >
-          <PricingClient />
-        </Suspense>
+          </Reveal>
+        </div>
       </section>
 
-      <footer className="border-t border-white/10 bg-[#111216]">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-8 text-sm leading-[1.7] text-[#9D958C] md:flex-row md:items-center md:justify-between lg:px-8">
-          <p>ADN Capital - Hệ thống giao dịch định lượng.</p>
-          <p>Phân tích tham khảo, không phải khuyến nghị đầu tư.</p>
+      {/* ── faq ── */}
+      <section className="border-b border-[var(--hairline)]">
+        <div className="mx-auto max-w-[760px] px-5 py-20 sm:px-8 lg:py-24">
+          <Reveal>
+            <h2 className="dp-display text-[clamp(1.8rem,3.4vw,2.6rem)] font-bold leading-[1.1] tracking-[-0.015em]">Câu hỏi <span className="italic text-[var(--gold)]">thường gặp.</span></h2>
+          </Reveal>
+          <Reveal delay={0.06}>
+            <div className="mt-10 border-t border-[var(--hairline)]">
+              {FAQ.map((f, i) => (
+                <details key={f.q} className="dp-faq border-b border-[var(--hairline)]" {...(i === 0 ? { open: true } : {})}>
+                  <summary className="flex cursor-pointer items-center justify-between gap-5 py-5">
+                    <span className="text-[17px] font-semibold tracking-tight">{f.q}</span>
+                    <ChevronDown className="dp-faq-icon h-5 w-5 shrink-0 text-[var(--moss)]" strokeWidth={2} />
+                  </summary>
+                  <p className="max-w-[64ch] pb-5 text-[15.5px] font-light leading-[1.6] text-[var(--ink-muted)]">{f.a}</p>
+                </details>
+              ))}
+            </div>
+          </Reveal>
         </div>
-      </footer>
-    </main>
+      </section>
+
+      {/* ── cta ── */}
+      <section>
+        <div className="mx-auto max-w-[1180px] px-5 py-24 sm:px-8">
+          <Reveal>
+            <div className="dp-cta relative overflow-hidden rounded-[28px] px-8 py-20 text-center sm:px-16">
+              <h2 className="dp-display mx-auto max-w-[20ch] text-[clamp(2rem,4.2vw,3.2rem)] font-bold leading-[1.06] tracking-[-0.02em] text-[var(--cream)]">
+                Cứ thử <span className="italic text-[var(--gold)]">7 ngày VIP đã.</span>
+              </h2>
+              <p className="mx-auto mt-5 max-w-[46ch] text-[17px] font-light leading-[1.55] text-white/75">Mở tài khoản miễn phí, dùng hết công cụ trong tuần đầu rồi quyết định có gắn bó hay không.</p>
+              <a href="/auth?mode=register" className="dp-btn dp-btn-on-dark dp-btn-lg mt-9">Mở tài khoản miễn phí <ArrowRight className="h-4 w-4" strokeWidth={1.75} /></a>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+    </Shell>
   );
 }
