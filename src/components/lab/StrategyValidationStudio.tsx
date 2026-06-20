@@ -15,8 +15,26 @@ import {
   SlidersHorizontal,
   Target,
 } from "lucide-react";
+import {
+  ResponsiveContainer,
+  ComposedChart,
+  Area,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Legend,
+} from "recharts";
 import { fetchBacktestManifest, runBacktestProvider } from "@/lib/providers/client";
 import type { ProviderInputValue, ProviderRunResponse } from "@/types/provider-manifest";
+
+function fmtEq(v: number): string {
+  const a = Math.abs(v);
+  if (a >= 1e9) return `${(v / 1e9).toFixed(2)} tỷ`;
+  if (a >= 1e6) return `${(v / 1e6).toFixed(0)} tr`;
+  return Math.round(v).toLocaleString("vi-VN");
+}
 
 type ScopeType = "index" | "ticker" | "watchlist" | "sector";
 type UnknownRecord = Record<string, unknown>;
@@ -181,6 +199,20 @@ function getTrades(result: ProviderRunResponse | null): UnknownRecord[] {
       ? record.result.trades
       : [];
   return rawTrades.filter(isRecord).slice(0, 30);
+}
+
+function getEquityCurve(result: ProviderRunResponse | null): { date: string; value: number; benchmark: number | null }[] {
+  const record = getResultRecord(result);
+  const raw = record && Array.isArray(record.equityCurve) ? record.equityCurve : [];
+  return raw
+    .filter(isRecord)
+    .map((p) => ({
+      date: String(p.date ?? ""),
+      value: typeof p.value === "number" ? p.value : Number(p.value) || 0,
+      benchmark:
+        p.benchmark == null ? null : typeof p.benchmark === "number" ? p.benchmark : Number(p.benchmark) || null,
+    }))
+    .filter((p) => Boolean(p.date));
 }
 
 function groupConditions(options: ConditionOption[]) {
@@ -358,6 +390,7 @@ export function StrategyValidationStudio() {
   );
   const metrics = getMetrics(result);
   const trades = getTrades(result);
+  const equityCurve = getEquityCurve(result);
 
   const scopeValues = scope === "index" ? indexOptions : scope === "watchlist" ? watchlistOptions : scope === "sector" ? sectorOptions : [];
 
@@ -728,9 +761,43 @@ export function StrategyValidationStudio() {
                 <LineChart className="h-4 w-4" style={{ color: "var(--primary)" }} />
                 <p className="text-sm font-black" style={{ color: "var(--text-primary)" }}>Equity curve so với {assumptions.benchmark}</p>
               </div>
-              <div className="mt-4 flex h-56 items-center justify-center rounded-xl border border-dashed" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
-                {result ? "Bộ kiểm định đã trả kết quả. Biểu đồ chi tiết sẽ hiển thị theo contract equity curve." : "Chưa chạy kiểm định."}
-              </div>
+              {equityCurve.length > 1 ? (
+                <div className="mt-4 h-56">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={equityCurve} margin={{ top: 6, right: 8, left: 8, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="eqFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.25} />
+                          <stop offset="100%" stopColor="var(--primary)" stopOpacity={0.02} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" strokeOpacity={0.4} vertical={false} />
+                      <XAxis
+                        dataKey="date"
+                        tick={{ fontSize: 10, fill: "var(--text-muted)" }}
+                        interval="preserveStartEnd"
+                        minTickGap={44}
+                        tickFormatter={(d) => String(d).slice(5)}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis hide domain={["auto", "auto"]} />
+                      <Tooltip
+                        contentStyle={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 10, fontSize: 12 }}
+                        labelStyle={{ color: "var(--text-muted)" }}
+                        formatter={(v) => `${fmtEq(Number(v) || 0)}₫`}
+                      />
+                      <Legend wrapperStyle={{ fontSize: 11 }} />
+                      <Area type="monotone" dataKey="value" name="Chiến thuật" stroke="var(--primary)" strokeWidth={2} fill="url(#eqFill)" />
+                      <Line type="monotone" dataKey="benchmark" name={assumptions.benchmark} stroke="var(--text-muted)" strokeWidth={1.5} dot={false} strokeDasharray="4 3" connectNulls />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="mt-4 flex h-56 items-center justify-center rounded-xl border border-dashed" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
+                  {result ? "Kết quả chưa đủ điểm để vẽ đường vốn." : "Chưa chạy kiểm định."}
+                </div>
+              )}
             </div>
           </div>
 
