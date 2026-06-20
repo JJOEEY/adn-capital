@@ -1,137 +1,144 @@
-import Link from "next/link";
+/**
+ * /products/[slug] — product detail, restyled to the marketing design.
+ * DATA + ROUTING PRESERVED: catalog = PUBLIC_PRODUCT_MODULES, generateStaticParams,
+ * generateMetadata, notFound(), primary CTA -> product.route (real tool).
+ */
+
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { ArrowRight, CheckCircle2, Sparkles } from "lucide-react";
-import { PublicSiteFooter } from "@/components/adnexus/PublicSiteFooter";
-import { PublicSiteHeader } from "@/components/adnexus/PublicSiteHeader";
-import { ProductDemoImage } from "@/components/adnexus/ProductDemoImage";
-import { publicBodyFont, publicSerifFont } from "@/components/adnexus/publicFonts";
+import { ArrowRight, ArrowUpRight, Check, Activity, Bot, Radar, BarChart3, Gauge, NotebookPen, type LucideIcon } from "lucide-react";
+import { Shell, Reveal, Frame } from "@/components/marketing/theme";
 import { PUBLIC_PRODUCT_MODULES } from "@/lib/brand/nexsuite";
 
-type PageProps = {
-  params: Promise<{ slug: string }>;
+type PageProps = { params: Promise<{ slug: string }> };
+
+const META: Record<string, { icon: LucideIcon; kicker: string }> = {
+  "adn-pulse": { icon: Activity, kicker: "Toàn cảnh" },
+  "adn-stock": { icon: Bot, kicker: "Tra cứu cùng AIDEN" },
+  "adn-radar": { icon: Radar, kicker: "Bản đồ tín hiệu" },
+  "adn-rank": { icon: BarChart3, kicker: "Xếp hạng" },
+  "adn-art": { icon: Gauge, kicker: "Chỉ báo" },
+  "adn-diary": { icon: NotebookPen, kicker: "Nhật ký" },
 };
+const iconFor = (slug: string): LucideIcon => META[slug]?.icon ?? Activity;
+const kickerFor = (slug: string) => META[slug]?.kicker ?? "Công cụ";
 
 export function generateStaticParams() {
   return PUBLIC_PRODUCT_MODULES.map((product) => ({ slug: product.slug }));
 }
 
-export async function generateMetadata({ params }: PageProps) {
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
   const product = PUBLIC_PRODUCT_MODULES.find((module) => module.slug === slug);
-
-  if (!product) {
-    return {
-      title: "Không tìm thấy công cụ",
-    };
-  }
-
-  return {
-    title: `${product.shortName ?? product.name} | ADN Capital`,
-    description: product.outcome,
-  };
+  if (!product) return { title: "Không tìm thấy công cụ" };
+  return { title: `${product.shortName ?? product.name} | ADN Capital`, description: product.outcome };
 }
 
 export default async function ProductDetailPage({ params }: PageProps) {
   const { slug } = await params;
   const product = PUBLIC_PRODUCT_MODULES.find((module) => module.slug === slug);
-
-  if (!product) {
-    notFound();
-  }
+  if (!product) notFound();
 
   const productName = product.shortName ?? product.name;
+  const Icon = iconFor(slug);
+  const related = PUBLIC_PRODUCT_MODULES.filter((m) => m.slug !== slug).slice(0, 3);
 
   return (
-    <main className={`${publicBodyFont.variable} ${publicSerifFont.variable} ${publicBodyFont.className} adn-public-type min-h-screen`}>
-      <PublicSiteHeader />
-
-      <section
-        className="relative overflow-hidden px-5 py-20 sm:px-8 lg:px-12 xl:px-16"
-        style={{ background: "var(--bg-base)", color: "var(--text-primary)" }}
-      >
-        <div className="pointer-events-none absolute inset-0 opacity-70 [background:radial-gradient(circle_at_18%_8%,color-mix(in_srgb,var(--primary)_18%,transparent),transparent_28%),radial-gradient(circle_at_78%_18%,rgba(255,255,255,0.08),transparent_24%)]" />
-        <div className="relative mx-auto grid max-w-[1560px] gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
-          <div className="animate-adn-rise">
-            <p className="text-xs font-black uppercase tracking-[0.24em]" style={{ color: "var(--primary)" }}>
-              {productName}
-            </p>
-            <h1 className="mt-5 text-[clamp(3.2rem,7vw,8rem)] font-black leading-[1.15] tracking-tight">
-              {product.outcome}
-            </h1>
-            <p className="mt-7 max-w-2xl text-xl font-normal leading-[1.7]" style={{ color: "var(--text-secondary)" }}>
-              {product.tagline}
-            </p>
-
-            <div className="mt-8 grid gap-3">
-              {product.bullets.map((bullet) => (
-                <div key={bullet} className="flex items-start gap-3 text-base font-normal leading-7" style={{ color: "var(--text-secondary)" }}>
-                  <CheckCircle2 className="mt-1 h-5 w-5 shrink-0" style={{ color: "var(--primary)" }} />
-                  <span>{bullet}</span>
+    <Shell>
+      {/* ── hero ── */}
+      <section className="relative overflow-hidden border-b border-[var(--hairline)]">
+        <div className="mx-auto max-w-[1180px] px-5 pb-16 pt-12 sm:px-8 lg:pb-20 lg:pt-16">
+          <Reveal>
+            <a href="/products" className="dp-mono inline-flex items-center gap-1.5 text-[12px] uppercase tracking-[0.14em] text-[var(--ink-faint)] transition-colors hover:text-[var(--moss)]">
+              <span aria-hidden>←</span> Công cụ
+            </a>
+          </Reveal>
+          <div className="mt-7 grid items-center gap-x-12 gap-y-10 lg:grid-cols-12">
+            <div className="min-w-0 lg:col-span-6">
+              <Reveal>
+                <span className="inline-flex items-center gap-2 rounded-full bg-[var(--mint)] px-3.5 py-1.5">
+                  <Icon className="h-4 w-4 text-[var(--moss)]" strokeWidth={1.75} />
+                  <span className="dp-mono text-[11.5px] font-semibold uppercase tracking-[0.16em] text-[var(--moss)]">{kickerFor(slug)}</span>
+                </span>
+              </Reveal>
+              <Reveal delay={0.05}>
+                <h1 className="dp-display mt-5 text-[clamp(2.6rem,4.8vw,4rem)] font-bold leading-[1.04] tracking-[-0.015em]">{productName}</h1>
+              </Reveal>
+              <Reveal delay={0.1}>
+                <p className="dp-display mt-3 text-[clamp(1.3rem,2.4vw,1.7rem)] font-medium italic text-[var(--gold)]">{product.outcome}</p>
+              </Reveal>
+              <Reveal delay={0.14}>
+                <p className="mt-6 max-w-[48ch] text-[17px] font-light leading-[1.6] text-[var(--ink-muted)]">{product.tagline}</p>
+              </Reveal>
+              <Reveal delay={0.16}>
+                <ul className="mt-6 space-y-2.5">
+                  {product.bullets.map((b) => (
+                    <li key={b} className="flex items-start gap-2.5 text-[15px] text-[var(--ink)]">
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-[var(--moss)]" strokeWidth={2.5} /> {b}
+                    </li>
+                  ))}
+                </ul>
+              </Reveal>
+              <Reveal delay={0.2}>
+                <div className="mt-8 flex flex-wrap items-center gap-3">
+                  <a href={product.route} className="dp-btn dp-btn-solid dp-btn-lg">Trải nghiệm {productName} <ArrowRight className="h-4 w-4" strokeWidth={1.75} /></a>
+                  <a href="/auth?mode=register" className="dp-btn dp-btn-ghost dp-btn-lg">Mở tài khoản miễn phí</a>
                 </div>
-              ))}
+              </Reveal>
             </div>
-
-            <div className="mt-10 flex flex-wrap gap-3">
-              <Link
-                href={product.route}
-                className="inline-flex items-center gap-2 rounded-full px-6 py-4 text-sm font-black"
-                style={{ background: "var(--primary)", color: "var(--on-primary)" }}
-              >
-                Trải nghiệm {productName} <ArrowRight className="h-4 w-4" />
-              </Link>
-              <Link
-                href="/products"
-                className="inline-flex items-center gap-2 rounded-full border px-6 py-4 text-sm font-black"
-                style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
-              >
-                Xem công cụ khác <ArrowRight className="h-4 w-4" />
-              </Link>
-            </div>
-          </div>
-
-          <div className="animate-adn-rise rounded-[2.4rem] border p-4" style={{ borderColor: "var(--border-strong)", background: "var(--bg-elevated)" }}>
-            <div className="relative min-h-[440px] overflow-hidden rounded-[1.8rem] border" style={{ borderColor: "var(--border)", background: "#090B0F" }}>
-              <ProductDemoImage
-                src={product.demoImage}
-                alt={`Ảnh demo ${productName}`}
-                productName={productName}
-                sizes="(min-width: 1024px) 54vw, 100vw"
-                className="object-cover object-top"
-                priority
-              />
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,7,10,0.02),rgba(5,7,10,0.1)_52%,rgba(5,7,10,0.72))]" />
-              <div className="absolute left-5 top-5 inline-flex items-center gap-2 rounded-full border border-white/30 bg-black/55 px-4 py-2 text-xs font-black uppercase tracking-[0.2em] text-[var(--primary)] backdrop-blur">
-                <Sparkles className="h-4 w-4" /> Ảnh demo thật
-              </div>
-              <div className="absolute inset-x-5 bottom-5 rounded-2xl border border-white/15 bg-black/70 p-5 backdrop-blur-md">
-                <p className="text-sm font-normal leading-7 text-white/88">
-                  Ảnh demo chỉ giúp anh/chị hiểu cách công cụ hoạt động. Dữ liệu đầy đủ, thao tác thật và quyền sử dụng
-                  nằm trong khu vực đăng nhập theo gói đang còn hạn.
-                </p>
-              </div>
-            </div>
+            <Reveal delay={0.12} className="min-w-0 lg:col-span-6">
+              {product.demoImage ? (
+                <Frame src={product.demoImage} alt={productName} ratio="1.7" eager />
+              ) : (
+                <div className="dp-frame flex items-center justify-center bg-[var(--mint)]" style={{ aspectRatio: "1.7" }}>
+                  <Icon className="h-20 w-20 text-[var(--moss)]" strokeWidth={1.25} />
+                </div>
+              )}
+            </Reveal>
           </div>
         </div>
       </section>
 
-      <section className="px-5 py-14 sm:px-8 lg:px-12 xl:px-16" style={{ background: "var(--surface-2)", color: "var(--text-primary)" }}>
-        <div className="mx-auto grid max-w-[1500px] gap-5 md:grid-cols-3">
-          {[
-            ["Dùng để nhìn rõ vấn đề", "Mỗi công cụ chỉ tập trung vào một việc, giúp anh/chị bớt bị nhiễu khi thị trường chạy nhanh."],
-            ["Không thay anh/chị quyết định", "ADN cung cấp dữ liệu, nhịp theo dõi và cảnh báo rủi ro. Quyết định cuối cùng vẫn thuộc về anh/chị."],
-            ["Nên dùng cùng nhật ký", "ADN Diary giúp ghi lại lý do mua bán để biết mình đang tiến bộ hay chỉ đang phản ứng theo cảm xúc."],
-          ].map(([title, body]) => (
-            <div key={title} className="rounded-[1.6rem] border p-6" style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}>
-              <p className="text-lg font-black">{title}</p>
-              <p className="mt-3 text-sm font-normal leading-7" style={{ color: "var(--text-secondary)" }}>
-                {body}
-              </p>
-            </div>
-          ))}
+      {/* ── related ── */}
+      <section className="border-b border-[var(--hairline)] bg-[var(--cream)]">
+        <div className="mx-auto max-w-[1180px] px-5 py-20 sm:px-8 lg:py-24">
+          <Reveal>
+            <h2 className="dp-display text-[clamp(1.7rem,3.2vw,2.4rem)] font-bold leading-[1.1] tracking-[-0.015em]">Công cụ <span className="italic text-[var(--gold)]">đi cùng.</span></h2>
+          </Reveal>
+          <div className="mt-10 grid gap-5 md:grid-cols-3">
+            {related.map((r, i) => {
+              const RIcon = iconFor(r.slug);
+              return (
+                <Reveal key={r.slug} delay={i * 0.07}>
+                  <a href={`/products/${r.slug}`} className="dp-tool group flex h-full flex-col rounded-[16px] border border-[var(--hairline)] bg-[var(--surface)] p-6">
+                    <div className="flex items-start justify-between">
+                      <span className="grid h-11 w-11 place-items-center rounded-[12px] bg-[var(--mint)] text-[var(--moss)]"><RIcon className="h-5 w-5" strokeWidth={1.6} /></span>
+                      <ArrowUpRight className="h-5 w-5 text-[var(--ink-faint)] transition-all duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-[var(--moss)]" strokeWidth={1.75} />
+                    </div>
+                    <h3 className="dp-display mt-5 text-[19px] font-semibold tracking-tight">{r.shortName ?? r.name}</h3>
+                    <p className="mt-2 text-[14px] font-light leading-[1.5] text-[var(--ink-muted)]">{r.outcome}</p>
+                  </a>
+                </Reveal>
+              );
+            })}
+          </div>
         </div>
       </section>
 
-      <PublicSiteFooter />
-    </main>
+      {/* ── cta ── */}
+      <section>
+        <div className="mx-auto max-w-[1180px] px-5 py-24 sm:px-8">
+          <Reveal>
+            <div className="dp-cta relative overflow-hidden rounded-[28px] px-8 py-20 text-center sm:px-16">
+              <h2 className="dp-display mx-auto max-w-[20ch] text-[clamp(2rem,4.2vw,3.2rem)] font-bold leading-[1.06] tracking-[-0.02em] text-[var(--cream)]">
+                Đừng vội tin. <span className="italic text-[var(--gold)]">Thử một phiên đi.</span>
+              </h2>
+              <p className="mx-auto mt-5 max-w-[46ch] text-[17px] font-light leading-[1.55] text-white/75">Mở tài khoản không mất phí, dùng {productName} cùng cả bộ công cụ trong vài phiên rồi tự thấy có hợp hay không.</p>
+              <a href="/auth?mode=register" className="dp-btn dp-btn-on-dark dp-btn-lg mt-9">Mở tài khoản ADN <ArrowRight className="h-4 w-4" strokeWidth={1.75} /></a>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+    </Shell>
   );
 }
