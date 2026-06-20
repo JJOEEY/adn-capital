@@ -141,6 +141,80 @@ const defaultAssumptions: LabAssumptions = {
   benchmark: "VNINDEX",
 };
 
+type ParamField =
+  | { key: string; label: string; type: "number"; default: number; step?: number }
+  | { key: string; label: string; type: "select"; default: string; options: { value: string; label: string }[] };
+
+const OP_OPTS = [
+  { value: "lt", label: "<" },
+  { value: "gt", label: ">" },
+  { value: "between", label: "Trong khoảng" },
+];
+
+// Tham số mỗi điều kiện — KHỚP DEFAULTS của engine backtest_engine.py.
+const CONDITION_PARAMS: Record<string, ParamField[]> = {
+  price: [
+    { key: "min", label: "Giá tối thiểu (nghìn)", type: "number", default: 0 },
+    { key: "max", label: "Giá tối đa (0 = ∞)", type: "number", default: 0 },
+  ],
+  avg_value: [{ key: "minTy", label: "GTGD TB ≥ (tỷ)", type: "number", default: 5 }],
+  volume_spike: [{ key: "mult", label: "KLGD ≥ ×TB20", type: "number", default: 1.5, step: 0.1 }],
+  ema_ma: [
+    { key: "period", label: "Kỳ EMA", type: "number", default: 20 },
+    { key: "mode", label: "Cách so", type: "select", default: "above", options: [
+      { value: "above", label: "Giá trên EMA" }, { value: "cross_up", label: "Giá cắt lên EMA" }, { value: "fast_above_slow", label: "EMA nhanh > chậm" } ] },
+    { key: "slow", label: "EMA chậm (chế độ nhanh-chậm)", type: "number", default: 50 },
+  ],
+  macd: [
+    { key: "fast", label: "Nhanh", type: "number", default: 12 },
+    { key: "slow", label: "Chậm", type: "number", default: 26 },
+    { key: "signal", label: "Signal", type: "number", default: 9 },
+    { key: "mode", label: "Tín hiệu", type: "select", default: "hist_pos", options: [
+      { value: "hist_pos", label: "Histogram > 0" }, { value: "cross_up", label: "Cắt lên signal" } ] },
+  ],
+  rsi: [
+    { key: "op", label: "Toán tử", type: "select", default: "between", options: OP_OPTS },
+    { key: "low", label: "Ngưỡng dưới", type: "number", default: 50 },
+    { key: "high", label: "Ngưỡng trên", type: "number", default: 70 },
+  ],
+  bollinger: [
+    { key: "period", label: "Kỳ", type: "number", default: 20 },
+    { key: "std", label: "Độ lệch chuẩn", type: "number", default: 2, step: 0.5 },
+    { key: "mode", label: "Điểm vào", type: "select", default: "above_mid", options: [
+      { value: "above_mid", label: "Trên dải giữa" }, { value: "break_upper", label: "Bung biên trên" }, { value: "bounce_lower", label: "Bật biên dưới" } ] },
+  ],
+  stoch_rsi: [
+    { key: "op", label: "Toán tử", type: "select", default: "between", options: OP_OPTS },
+    { key: "low", label: "Dưới", type: "number", default: 20 },
+    { key: "high", label: "Trên", type: "number", default: 80 },
+  ],
+  rs: [
+    { key: "period", label: "Kỳ so sánh", type: "number", default: 20 },
+    { key: "minOut", label: "Vượt benchmark ≥ (%)", type: "number", default: 0 },
+  ],
+  technical_cross: [{ key: "lookback", label: "Đỉnh N phiên", type: "number", default: 20 }],
+  ema_ma_sell: [
+    { key: "period", label: "Kỳ EMA", type: "number", default: 20 },
+    { key: "mode", label: "Cách so", type: "select", default: "below", options: [
+      { value: "below", label: "Giá dưới EMA" }, { value: "cross_down", label: "Giá cắt xuống EMA" } ] },
+  ],
+  rsi_sell: [
+    { key: "op", label: "Toán tử", type: "select", default: "gt", options: [{ value: "gt", label: ">" }, { value: "lt", label: "<" }] },
+    { key: "value", label: "Ngưỡng", type: "number", default: 75 },
+  ],
+  bollinger_sell: [
+    { key: "period", label: "Kỳ", type: "number", default: 20 },
+    { key: "std", label: "Độ lệch chuẩn", type: "number", default: 2, step: 0.5 },
+  ],
+  stoch_rsi_sell: [{ key: "value", label: "Ngưỡng quá mua", type: "number", default: 80 }],
+  rs_sell: [{ key: "period", label: "Kỳ so sánh", type: "number", default: 20 }],
+  technical_cross_sell: [{ key: "period", label: "Kỳ MA", type: "number", default: 50 }],
+  take_profit: [{ key: "percent", label: "Chốt lời (%)", type: "number", default: 15 }],
+  stop_loss: [{ key: "percent", label: "Cắt lỗ (%)", type: "number", default: 7 }],
+  trailing_stop: [{ key: "percent", label: "Trailing (%)", type: "number", default: 7 }],
+  position_drawdown: [{ key: "percent", label: "DD vị thế (%)", type: "number", default: 7 }],
+};
+
 function isRecord(value: unknown): value is UnknownRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -273,14 +347,45 @@ function safeText(value: unknown, fallback = "-") {
   return String(value);
 }
 
+function ParamInput({ field, value, onChange }: { field: ParamField; value: string | number; onChange: (v: string | number) => void }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[11px] font-semibold" style={{ color: "var(--text-muted)" }}>{field.label}</span>
+      {field.type === "select" ? (
+        <select
+          value={String(value)}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full rounded-lg border bg-transparent px-2 py-1.5 text-xs font-bold outline-none"
+          style={{ color: "var(--text-primary)", borderColor: "var(--border)" }}
+        >
+          {field.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      ) : (
+        <input
+          type="number"
+          value={String(value)}
+          step={field.step ?? 1}
+          onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))}
+          className="w-full rounded-lg border bg-transparent px-2 py-1.5 text-xs font-bold outline-none"
+          style={{ color: "var(--text-primary)", borderColor: "var(--border)" }}
+        />
+      )}
+    </label>
+  );
+}
+
 function ConditionGrid({
   options,
   selected,
   onToggle,
+  params,
+  onParam,
 }: {
   options: ConditionOption[];
   selected: string[];
   onToggle: (id: string) => void;
+  params: Record<string, Record<string, string | number>>;
+  onParam: (id: string, key: string, value: string | number) => void;
 }) {
   const grouped = groupConditions(options);
   return (
@@ -293,18 +398,17 @@ function ConditionGrid({
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {items.map((item) => {
               const checked = selected.includes(item.id);
+              const fields = CONDITION_PARAMS[item.id];
               return (
-                <button
+                <div
                   key={item.id}
-                  type="button"
-                  onClick={() => onToggle(item.id)}
-                  className="rounded-2xl border p-4 text-left transition"
+                  className="rounded-2xl border p-4 transition"
                   style={{
                     background: checked ? "var(--primary-light)" : "var(--surface)",
                     borderColor: checked ? "var(--primary)" : "var(--border)",
                   }}
                 >
-                  <div className="flex items-start gap-3">
+                  <button type="button" onClick={() => onToggle(item.id)} className="flex w-full items-start gap-3 text-left">
                     <span
                       className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border"
                       style={{
@@ -315,15 +419,18 @@ function ConditionGrid({
                       {checked ? <CheckCircle2 className="h-3.5 w-3.5 text-white" /> : null}
                     </span>
                     <span>
-                      <span className="block text-sm font-black" style={{ color: "var(--text-primary)" }}>
-                        {item.label}
-                      </span>
-                      <span className="mt-1 block text-xs leading-5" style={{ color: "var(--text-secondary)" }}>
-                        {item.description}
-                      </span>
+                      <span className="block text-sm font-black" style={{ color: "var(--text-primary)" }}>{item.label}</span>
+                      <span className="mt-1 block text-xs leading-5" style={{ color: "var(--text-secondary)" }}>{item.description}</span>
                     </span>
-                  </div>
-                </button>
+                  </button>
+                  {checked && fields && fields.length > 0 ? (
+                    <div className="mt-3 grid grid-cols-2 gap-2 border-t pt-3" style={{ borderColor: "var(--border)" }}>
+                      {fields.map((f) => (
+                        <ParamInput key={f.key} field={f} value={params[item.id]?.[f.key] ?? f.default} onChange={(v) => onParam(item.id, f.key, v)} />
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
               );
             })}
           </div>
@@ -374,6 +481,7 @@ export function StrategyValidationStudio() {
   const [buySelected, setBuySelected] = useState<string[]>(["ema_ma", "volume_spike", "rsi"]);
   const [sellSelected, setSellSelected] = useState<string[]>(["ema_ma_sell", "stop_loss"]);
   const [assumptions, setAssumptions] = useState<LabAssumptions>(defaultAssumptions);
+  const [conditionParams, setConditionParams] = useState<Record<string, Record<string, string | number>>>({});
   const [openPanel, setOpenPanel] = useState<"buy" | "sell">("buy");
   const [result, setResult] = useState<ProviderRunResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -396,6 +504,10 @@ export function StrategyValidationStudio() {
 
   const updateAssumption = <K extends keyof LabAssumptions>(key: K, value: LabAssumptions[K]) => {
     setAssumptions((current) => ({ ...current, [key]: value }));
+  };
+
+  const setConditionParam = (id: string, key: string, value: string | number) => {
+    setConditionParams((cur) => ({ ...cur, [id]: { ...(cur[id] ?? {}), [key]: value } }));
   };
 
   const toggleCondition = (id: string, side: "buy" | "sell") => {
@@ -436,6 +548,7 @@ export function StrategyValidationStudio() {
         benchmark: assumptions.benchmark,
         buyConditions: buySelected,
         sellConditions: sellSelected,
+        conditionParams: JSON.stringify(conditionParams),
       };
 
       const response = await runBacktestProvider({
@@ -687,7 +800,7 @@ export function StrategyValidationStudio() {
                 <p className="mb-5 text-sm font-bold" style={{ color: selectedCount >= MAX_CONDITIONS ? "#f59e0b" : "var(--text-muted)" }}>
                   Chỉ được chọn tối đa {MAX_CONDITIONS} điều kiện mua và bán. Đã chọn: {selectedCount}/{MAX_CONDITIONS}.
                 </p>
-                <ConditionGrid options={buyConditions} selected={buySelected} onToggle={(id) => toggleCondition(id, "buy")} />
+                <ConditionGrid options={buyConditions} selected={buySelected} onToggle={(id) => toggleCondition(id, "buy")} params={conditionParams} onParam={setConditionParam} />
               </div>
             ) : null}
           </div>
@@ -710,7 +823,7 @@ export function StrategyValidationStudio() {
                 <p className="mb-5 text-sm font-bold" style={{ color: selectedCount >= MAX_CONDITIONS ? "#f59e0b" : "var(--text-muted)" }}>
                   Chỉ được chọn tối đa {MAX_CONDITIONS} điều kiện mua và bán. Đã chọn: {selectedCount}/{MAX_CONDITIONS}.
                 </p>
-                <ConditionGrid options={sellConditions} selected={sellSelected} onToggle={(id) => toggleCondition(id, "sell")} />
+                <ConditionGrid options={sellConditions} selected={sellSelected} onToggle={(id) => toggleCondition(id, "sell")} params={conditionParams} onParam={setConditionParam} />
               </div>
             ) : null}
           </div>
