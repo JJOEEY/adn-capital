@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import {
-  BookOpen, Lock, Brain, DollarSign, Sparkles, Plus,
+  BookOpen, Lock, DollarSign, Sparkles, Plus,
 } from "lucide-react";
 import { useCurrentDbUser } from "@/hooks/useCurrentDbUser";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -15,7 +15,7 @@ import { EquityCurve } from "@/components/journal/EquityCurve";
 import { JournalExport } from "@/components/journal/JournalExport";
 import { JournalForm } from "@/components/journal/JournalForm";
 import { JournalList } from "@/components/journal/JournalList";
-import { PsychologyAnalysis } from "@/components/journal/PsychologyAnalysis";
+import { ProactiveInsight } from "@/components/journal/ProactiveInsight";
 import { GamificationCard } from "@/components/journal/GamificationCard";
 import { PnLSummary } from "@/components/journal/PnLSummary";
 import { Card } from "@/components/ui/Card";
@@ -42,7 +42,7 @@ export default function JournalPage() {
   const { isVip } = useSubscription();
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"form" | "list" | "analysis" | "pnl">("list");
+  const [activeTab, setActiveTab] = useState<"form" | "list" | "pnl">("list");
   const [mounted, setMounted] = useState(false);
   const [dateFilter, setDateFilter] = useState({ from: "", to: "" });
   const [editingEntry, setEditingEntry] = useState<JournalEntry | null>(null);
@@ -179,12 +179,6 @@ export default function JournalPage() {
       count: null,
       icon: <DollarSign className="w-3 h-3" />,
     },
-    {
-      id: "analysis" as const,
-      label: "AI Phân tích",
-      count: null,
-      icon: <Brain className="w-3 h-3" />,
-    },
   ];
 
   return (
@@ -218,6 +212,9 @@ export default function JournalPage() {
 
         {/* Hero tiền-trước: NAV / lãi-lỗ đã chốt + đang mở / tỷ lệ thắng */}
         {entries.length > 0 && <JournalHero />}
+
+        {/* AI insight chủ động — luôn hiện trong luồng, không phải vào tab bấm nút */}
+        {entries.length > 0 && <ProactiveInsight tradeCount={entries.length} />}
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
           {/* Left column */}
@@ -297,7 +294,6 @@ export default function JournalPage() {
                 </div>
               )}
 
-              {activeTab === "analysis" && <PsychologyAnalysis />}
             </motion.div>
           </div>
         </div>
