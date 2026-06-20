@@ -10,7 +10,7 @@ import {
 import { getMarketSnapshot } from "@/lib/marketDataFetcher";
 import { prisma } from "@/lib/prisma";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
-import { fetchVnstockInvestorFlow } from "@/lib/vnstockClient";
+import { fetchVnstockInvestorFlow, fetchVnstockIndexImpact } from "@/lib/vnstockClient";
 import { fetchFAData, fetchTAData, type FAData, type TAData } from "@/lib/stockData";
 import { resolveMarketTicker } from "@/lib/ticker-resolver";
 import {
@@ -108,18 +108,34 @@ async function loadRadarPrefilterLatest() {
 
 async function loadIndexValuation(ticker: string) {
   if (ticker.toUpperCase() !== "VNINDEX") throw new Error(`Unsupported index valuation ticker: ${ticker}`);
-  const valuation = await fetchIndexValuation(ticker);
-  if (!valuation) throw new Error(`index valuation unavailable: ${ticker}`);
-  return {
-    ticker: "VNINDEX",
-    pe: valuation.pe ?? null,
-    pb: valuation.pb ?? null,
-    valuationScore: valuation.valuation_score ?? null,
-    peScore: valuation.pe_score ?? null,
-    pbScore: valuation.pb_score ?? null,
-    timestamp: valuation.timestamp ?? new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
+  const valuation = await fetchIndexValuation(ticker).catch(() => null);
+  if (valuation && (valuation.pe != null || valuation.pb != null)) {
+    return {
+      ticker: "VNINDEX",
+      pe: valuation.pe ?? null,
+      pb: valuation.pb ?? null,
+      valuationScore: valuation.valuation_score ?? null,
+      peScore: valuation.pe_score ?? null,
+      pbScore: valuation.pb_score ?? null,
+      timestamp: valuation.timestamp ?? new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+  // FiinQuant rỗng (hết hạn 27/6) → vnstock SentimentInsights pe/pb.
+  const vn = await fetchVnstockIndexImpact().catch(() => null);
+  if (vn?.valuation && (vn.valuation.pe != null || vn.valuation.pb != null)) {
+    return {
+      ticker: "VNINDEX",
+      pe: vn.valuation.pe ?? null,
+      pb: vn.valuation.pb ?? null,
+      valuationScore: null,
+      peScore: null,
+      pbScore: null,
+      timestamp: vn.retrievedAt ?? new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+  throw new Error(`index valuation unavailable: ${ticker}`);
 }
 
 async function loadNews(type: "morning" | "eod" | "close") {
@@ -2608,13 +2624,42 @@ async function buildIndexImpactFromFiinQuant(indexTicker = "VNINDEX", contributi
   };
 }
 
+// Index impact từ vnstock SentimentInsights (adn-vnstock /api/v1/index-impact) — FALLBACK khi FiinQuant
+// hết hạn 27/6 (fetchIndexContribution rỗng). contribution.point = điểm tác động, value = %thay đổi.
+async function buildIndexImpactFromVnstock() {
+  const data = await fetchVnstockIndexImpact().catch(() => null);
+  const rows: SmartflowIndexImpactRow[] = (data?.contribution ?? [])
+    .filter((row) => row.ticker && Number.isFinite(row.contributionPoints) && Number.isFinite(row.changePct))
+    .map((row): SmartflowIndexImpactRow => ({
+      ticker: row.ticker,
+      impact: row.contributionPoints,
+      contributionPoints: row.contributionPoints,
+      changePct: row.changePct,
+      contributionType: "actual",
+      contributionAsOf: data?.retrievedAt ?? null,
+      contributionAsOfSource: "vnstock",
+      sourceType: "vnstock",
+      realtimePatched: false,
+      updatedAt: data?.retrievedAt ?? null,
+    }));
+  return {
+    updatedAt: data?.retrievedAt ?? null,
+    positive: normalizeSmartflowIndexImpactRows(rows, "positive"),
+    negative: normalizeSmartflowIndexImpactRows(rows, "negative"),
+  };
+}
+
 async function buildIndexImpact(snapshot: Awaited<ReturnType<typeof getMarketSnapshot>> | null) {
-  const fromFiinQuant = await buildIndexImpactFromFiinQuant("VNINDEX", "1Day").catch(() => ({ updatedAt: null, positive: [], negative: [] }));
+  let result = await buildIndexImpactFromFiinQuant("VNINDEX", "1Day").catch(() => ({ updatedAt: null as string | null, positive: [] as SmartflowIndexImpactRow[], negative: [] as SmartflowIndexImpactRow[] }));
+  // FiinQuant rỗng (hết hạn 27/6 hoặc lỗi) → fallback vnstock SentimentInsights để widget "Tác động Index" còn sống.
+  if (result.positive.length === 0 && result.negative.length === 0) {
+    result = await buildIndexImpactFromVnstock();
+  }
   return {
     index: "VNINDEX",
-    updatedAt: fromFiinQuant.updatedAt ?? snapshot?.timestamp ?? new Date().toISOString(),
-    positive: fromFiinQuant.positive,
-    negative: fromFiinQuant.negative,
+    updatedAt: result.updatedAt ?? snapshot?.timestamp ?? new Date().toISOString(),
+    positive: result.positive,
+    negative: result.negative,
   };
 }
 

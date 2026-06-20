@@ -82,6 +82,33 @@ export async function fetchVnstockInvestorFlow(options?: {
   }
 }
 
+export interface VnstockIndexImpactResponse {
+  source: string;
+  retrievedAt: string;
+  contribution: Array<{ ticker: string; contributionPoints: number; changePct: number; type?: string | null; exchange?: string }>;
+  valuation: { index: string; pe: number | null; pb: number | null } | null;
+  missingFields?: string[];
+}
+
+// Tác động tới Index (contribution) + index P/E P/B — FALLBACK cho FiinQuant (hết hạn 27/6). vnstock SentimentInsights.
+export async function fetchVnstockIndexImpact(options?: { timeout?: number }): Promise<VnstockIndexImpactResponse | null> {
+  const url = `${getVnstockDataBridgeUrl()}/api/v1/index-impact`;
+  try {
+    const res = await fetch(url, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(options?.timeout ?? 60_000),
+    });
+    if (!res.ok) {
+      console.warn(`[Vnstock] /api/v1/index-impact -> ${res.status}`);
+      return null;
+    }
+    return (await res.json()) as VnstockIndexImpactResponse;
+  } catch (error) {
+    console.warn("[Vnstock] /api/v1/index-impact failed:", error instanceof Error ? error.message : String(error));
+    return null;
+  }
+}
+
 export interface VnstockFundamentalResponse {
   ticker: string;
   source: string;
