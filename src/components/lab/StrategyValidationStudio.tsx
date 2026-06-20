@@ -489,6 +489,9 @@ export function StrategyValidationStudio() {
   const [isRunning, setIsRunning] = useState(false);
   const [saved, setSaved] = useState<SavedStrategy[]>([]);
   const [saving, setSaving] = useState(false);
+  const [coachAi, setCoachAi] = useState<string | null>(null);
+  const [coachLoading, setCoachLoading] = useState(false);
+  const [compareIds, setCompareIds] = useState<string[]>([]);
 
   const selectedCount = buySelected.length + sellSelected.length;
   const buyLabels = useMemo(
@@ -529,6 +532,7 @@ export function StrategyValidationStudio() {
     setIsRunning(true);
     setError(null);
     setResult(null);
+    setCoachAi(null);
     try {
       const manifest = await fetchBacktestManifest();
       const provider = manifest.providers[0];
@@ -636,6 +640,31 @@ export function StrategyValidationStudio() {
       await loadSaved();
     } catch {
       /* im lặng */
+    }
+  };
+
+  const analyzeCoach = async () => {
+    if (!metrics || coachLoading) return;
+    setCoachLoading(true);
+    try {
+      const res = await fetch("/api/lab/coach", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          metrics,
+          context: {
+            strategyName, scope, universe: selection, benchmark: assumptions.benchmark,
+            period: `${assumptions.startDate} → ${assumptions.endDate}`, buyLabels, sellLabels,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "ADN Coach chưa phản hồi");
+      setCoachAi(typeof data.analysis === "string" ? data.analysis : null);
+    } catch (e) {
+      setCoachAi(e instanceof Error ? e.message : "Lỗi AI");
+    } finally {
+      setCoachLoading(false);
     }
   };
 
@@ -931,8 +960,15 @@ export function StrategyValidationStudio() {
                   const m = isRecord(item.result) && isRecord(item.result.metrics) ? item.result.metrics : null;
                   const nr = m && typeof m.netReturn === "number" ? m.netReturn : null;
                   return (
-                    <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
-                      <div className="min-w-0">
+                    <div key={item.id} className="flex items-center gap-3 rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+                      <input
+                        type="checkbox"
+                        checked={compareIds.includes(item.id)}
+                        onChange={() => setCompareIds((c) => (c.includes(item.id) ? c.filter((x) => x !== item.id) : [...c, item.id]))}
+                        className="h-4 w-4 shrink-0"
+                        title="Chọn để so sánh"
+                      />
+                      <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-black" style={{ color: "var(--text-primary)" }}>{item.name}</p>
                         <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
                           {new Date(item.createdAt).toLocaleString("vi-VN")}{nr !== null ? ` · ${nr >= 0 ? "+" : ""}${nr}%` : ""}
@@ -946,6 +982,43 @@ export function StrategyValidationStudio() {
                   );
                 })}
               </div>
+              {compareIds.length >= 2 ? (
+                <div className="mt-4 overflow-x-auto border-t pt-4" style={{ borderColor: "var(--border)" }}>
+                  <p className="mb-2 text-xs font-black uppercase tracking-[0.16em]" style={{ color: "var(--text-muted)" }}>So sánh {compareIds.length} chiến thuật</p>
+                  {(() => {
+                    const sel = saved.filter((s) => compareIds.includes(s.id));
+                    const rows: { label: string; keys: string[]; fmt: (n: number | undefined) => string }[] = [
+                      { label: "Net Return", keys: ["netReturn"], fmt: formatPercent },
+                      { label: "CAGR", keys: ["cagr"], fmt: formatPercent },
+                      { label: "Max DD", keys: ["maxDrawdown"], fmt: formatDrawdown },
+                      { label: "Win Rate", keys: ["winRate"], fmt: formatPercent },
+                      { label: "Profit Factor", keys: ["profitFactor"], fmt: formatNumber },
+                      { label: "Số lệnh", keys: ["numberOfTrades"], fmt: formatNumber },
+                    ];
+                    return (
+                      <table className="w-full min-w-[420px] text-xs">
+                        <thead>
+                          <tr style={{ color: "var(--text-muted)" }}>
+                            <th className="py-2 text-left">KPI</th>
+                            {sel.map((s) => <th key={s.id} className="py-2 pl-3 text-right font-black" style={{ color: "var(--text-primary)" }}>{s.name}</th>)}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.map((r) => (
+                            <tr key={r.label} className="border-t" style={{ borderColor: "var(--border)" }}>
+                              <td className="py-2" style={{ color: "var(--text-muted)" }}>{r.label}</td>
+                              {sel.map((s) => {
+                                const m = isRecord(s.result) && isRecord(s.result.metrics) ? s.result.metrics : null;
+                                return <td key={s.id} className="py-2 pl-3 text-right font-bold" style={{ color: "var(--text-secondary)" }}>{r.fmt(pickNumber(m, r.keys))}</td>;
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    );
+                  })()}
+                </div>
+              ) : null}
             </div>
           ) : null}
 
@@ -1090,6 +1163,23 @@ export function StrategyValidationStudio() {
             <p className="mt-4 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
               {buildCoachDiagnosis(metrics, result)}
             </p>
+            {result ? (
+              <button
+                type="button"
+                onClick={analyzeCoach}
+                disabled={coachLoading}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-white disabled:opacity-60"
+                style={{ background: "var(--primary)" }}
+              >
+                <Bot className="h-3.5 w-3.5" />
+                {coachLoading ? "AIDEN đang đọc…" : "Phân tích sâu (AI)"}
+              </button>
+            ) : null}
+            {coachAi ? (
+              <p className="mt-3 whitespace-pre-line rounded-xl border p-3 text-xs leading-6" style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-secondary)" }}>
+                {coachAi}
+              </p>
+            ) : null}
             <div className="mt-5 space-y-3">
               {["Thêm bộ lọc xu hướng thị trường", "Kiểm tra lại với trượt giá cao hơn", "Xem các lệnh thua lớn nhất"].map((item) => (
                 <button
