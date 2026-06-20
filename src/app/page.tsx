@@ -1,5 +1,5 @@
-import { HomePageV2 } from "@/components/adnexus/HomePageV2";
+import { MarketingHome } from "@/components/marketing/MarketingHome";
 
 export default function Home() {
-  return <HomePageV2 />;
+  return <MarketingHome />;
 }
