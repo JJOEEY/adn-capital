@@ -24,6 +24,15 @@ export async function PATCH(req: NextRequest) {
     data.name = name;
   }
 
+  // gender — "male" | "female" | "" (xoá) → null
+  if (typeof body.gender === "string") {
+    const g = body.gender.trim().toLowerCase();
+    if (g !== "" && g !== "male" && g !== "female") {
+      return NextResponse.json({ error: "Giới tính không hợp lệ" }, { status: 400 });
+    }
+    data.gender = g === "" ? null : g;
+  }
+
   if (typeof body.image === "string") {
     // Chỉ chấp nhận URL hợp lệ hoặc chuỗi rỗng (xóa avatar)
     if (body.image && !body.image.startsWith("http")) {
@@ -56,6 +65,7 @@ export async function PATCH(req: NextRequest) {
     select: {
       id: true,
       name: true,
+      gender: true,
       image: true,
       initialJournalNAV: true,
       enableAIReview: true,

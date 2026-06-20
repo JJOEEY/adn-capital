@@ -38,6 +38,7 @@ export async function GET() {
       id: dbUser.id,
       email: dbUser.email,
       name: dbUser.name ?? null,
+      gender: dbUser.gender ?? null,
       image: dbUser.image ?? null,
       role: effectiveRole,
       systemRole,

@@ -8,6 +8,7 @@ interface CurrentDbUser {
   id: string;
   email: string;
   name: string | null;
+  gender: string | null;
   image: string | null;
   role: "FREE" | "VIP";
   systemRole: "ADMIN" | "USER" | "WRITER";

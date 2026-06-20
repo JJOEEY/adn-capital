@@ -44,6 +44,7 @@ export default function ProfilePage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [enableAIReview, setEnableAIReview] = useState(true);
   const [aiReviewLoading, setAiReviewLoading] = useState(false);
+  const [gender, setGender] = useState<"" | "male" | "female">("");
 
   // Sync enableAIReview from dbUser
   useEffect(() => {
@@ -81,6 +82,7 @@ export default function ProfilePage() {
     if (dbUser) {
       setNameValue(dbUser.name ?? "");
       setAvatarUrl(dbUser.image ?? "");
+      setGender(dbUser.gender === "male" || dbUser.gender === "female" ? dbUser.gender : "");
     }
   }, [dbUser]);
 
@@ -129,6 +131,29 @@ export default function ProfilePage() {
     if (!nameValue.trim()) return;
     setEditingName(false);
     save({ name: nameValue.trim() });
+  };
+
+  const handleSaveGender = async (value: "male" | "female") => {
+    const next = gender === value ? "" : value;
+    setGender(next);
+    setSaving(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/user/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gender: next }),
+      });
+      if (!res.ok) {
+        const e = await res.json();
+        throw new Error(e.error ?? "Lỗi cập nhật");
+      }
+      setMsg({ type: "ok", text: "Đã lưu cách xưng hô." });
+    } catch (err) {
+      setMsg({ type: "err", text: err instanceof Error ? err.message : "Lỗi" });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleSaveAvatar = () => {
@@ -537,6 +562,37 @@ export default function ProfilePage() {
                 ? `ADN - ${vipTier === "PREMIUM" ? "Premium" : "VIP"}`
                 : "ADN - Free"}
             </p>
+          </div>
+        </div>
+
+        {/* ── Cách AIDEN xưng hô (giới tính) ── */}
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5">
+          <span className="text-xs font-bold" style={{ color: "var(--text-secondary)" }}>
+            Cách AIDEN xưng hô
+          </span>
+          <p className="text-[12px] mt-1 mb-3" style={{ color: "var(--text-muted)" }}>
+            Chọn giới tính để AIDEN gọi đúng “anh/chị” kèm tên khi trò chuyện. Bỏ trống cũng được.
+          </p>
+          <div className="grid grid-cols-2 gap-2 max-w-[260px]">
+            {([["male", "Nam"], ["female", "Nữ"]] as const).map(([value, label]) => {
+              const active = gender === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  disabled={saving}
+                  onClick={() => handleSaveGender(value)}
+                  className="rounded-xl py-2.5 text-sm font-semibold transition cursor-pointer disabled:opacity-50"
+                  style={{
+                    background: active ? "var(--primary)" : "var(--surface-2)",
+                    border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
+                    color: active ? "#EBE2CF" : "var(--text-primary)",
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
