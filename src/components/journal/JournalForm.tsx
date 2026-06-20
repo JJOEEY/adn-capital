@@ -2,12 +2,15 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Save, AlertTriangle, Calendar } from "lucide-react";
+import { Save, AlertTriangle, Calendar, X } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import type { JournalEntry } from "@/types";
 
 interface JournalFormProps {
   onSaved: () => void;
+  editEntry?: JournalEntry | null;
+  onCancelEdit?: () => void;
 }
 
 const PSYCHOLOGIES = [
@@ -29,7 +32,8 @@ const defaultForm = {
   tradeDate: new Date().toISOString().split("T")[0],
 };
 
-export function JournalForm({ onSaved }: JournalFormProps) {
+export function JournalForm({ onSaved, editEntry, onCancelEdit }: JournalFormProps) {
+  const isEdit = !!editEntry;
   const [form, setForm] = useState(defaultForm);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -39,6 +43,25 @@ export function JournalForm({ onSaved }: JournalFormProps) {
     earliestSellDate?: string;
   } | null>(null);
 
+  // Nạp dữ liệu khi vào chế độ SỬA (hoặc reset khi thoát sửa)
+  useEffect(() => {
+    if (editEntry) {
+      setForm({
+        ticker: editEntry.ticker,
+        action: editEntry.action,
+        price: String(editEntry.price),
+        quantity: String(editEntry.quantity),
+        psychology: editEntry.psychologyTag || editEntry.psychology || "Có kế hoạch",
+        tradeReason: editEntry.tradeReason || "",
+        tradeDate: (editEntry.tradeDate || editEntry.createdAt || "").slice(0, 10) || defaultForm.tradeDate,
+      });
+    } else {
+      setForm(defaultForm);
+    }
+    setError("");
+    setT25Block(null);
+  }, [editEntry]);
+
   const update = (field: keyof typeof defaultForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     setError("");
@@ -46,7 +69,7 @@ export function JournalForm({ onSaved }: JournalFormProps) {
 
   // T+2.5 check khi chuyển sang BÁN
   const checkT25 = useCallback(async () => {
-    if (form.action !== "SELL" || !form.ticker || form.ticker.length < 2) {
+    if (isEdit || form.action !== "SELL" || !form.ticker || form.ticker.length < 2) {
       setT25Block(null);
       return;
     }
@@ -68,7 +91,7 @@ export function JournalForm({ onSaved }: JournalFormProps) {
     } catch {
       setT25Block(null);
     }
-  }, [form.action, form.ticker, form.tradeDate]);
+  }, [isEdit, form.action, form.ticker, form.tradeDate]);
 
   useEffect(() => {
     const timer = setTimeout(checkT25, 500);
@@ -85,16 +108,17 @@ export function JournalForm({ onSaved }: JournalFormProps) {
       setError("Vui lòng nhập lý do giao dịch chi tiết (tối thiểu 5 ký tự)");
       return;
     }
-    if (t25Block?.blocked) {
+    if (!isEdit && t25Block?.blocked) {
       setError("Cổ phiếu chưa về tài khoản theo luật T+2.5. Không thể bán!");
       return;
     }
     setLoading(true);
     try {
       const res = await fetch("/api/journal", {
-        method: "POST",
+        method: isEdit ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          ...(isEdit ? { id: editEntry!.id } : {}),
           ticker: form.ticker,
           action: form.action,
           price: parseFloat(form.price),
@@ -107,7 +131,7 @@ export function JournalForm({ onSaved }: JournalFormProps) {
       });
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error ?? "Lỗi lưu nhật ký");
+        throw new Error(data.error ?? (isEdit ? "Lỗi cập nhật" : "Lỗi lưu nhật ký"));
       }
       setForm(defaultForm);
       setT25Block(null);
@@ -127,7 +151,7 @@ export function JournalForm({ onSaved }: JournalFormProps) {
     <Card className="p-6">
       <h2 className="text-base font-bold text-white mb-5 flex items-center gap-2">
         <Save className="w-4 h-4 text-emerald-400" />
-        Ghi Nhật Ký Giao Dịch
+        {isEdit ? "Sửa lệnh" : "Ghi Nhật Ký Giao Dịch"}
       </h2>
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -288,17 +312,31 @@ export function JournalForm({ onSaved }: JournalFormProps) {
           </motion.p>
         )}
 
-        <Button
-          type="submit"
-          variant="primary"
-          size="lg"
-          loading={loading}
-          className="w-full"
-          disabled={t25Block?.blocked}
-        >
-          <Save className="w-4 h-4" />
-          Lưu Nhật Ký
-        </Button>
+        <div className="flex gap-2">
+          {isEdit && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="lg"
+              onClick={onCancelEdit}
+              className="flex-shrink-0"
+            >
+              <X className="w-4 h-4" />
+              Hủy
+            </Button>
+          )}
+          <Button
+            type="submit"
+            variant="primary"
+            size="lg"
+            loading={loading}
+            className="flex-1"
+            disabled={!isEdit && t25Block?.blocked}
+          >
+            <Save className="w-4 h-4" />
+            {isEdit ? "Cập nhật lệnh" : "Lưu Nhật Ký"}
+          </Button>
+        </div>
       </form>
     </Card>
   );

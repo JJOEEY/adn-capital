@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trash2, Clock, BookOpen, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
+import { Trash2, Pencil, Clock, BookOpen, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -13,6 +13,7 @@ import { vi } from "date-fns/locale";
 interface JournalListProps {
   entries: JournalEntry[];
   onDeleted: (id: string) => void;
+  onEdit?: (entry: JournalEntry) => void;
   onDateFilter?: (from: string, to: string) => void;
 }
 
@@ -24,7 +25,7 @@ const FILTER_LABELS: Record<Filter, string> = {
   SELL: "Bán",
 };
 
-export function JournalList({ entries, onDeleted, onDateFilter }: JournalListProps) {
+export function JournalList({ entries, onDeleted, onEdit, onDateFilter }: JournalListProps) {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -247,15 +248,25 @@ export function JournalList({ entries, onDeleted, onDateFilter }: JournalListPro
                     </div>
                   </div>
 
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    loading={deleting === entry.id}
-                    onClick={() => handleDelete(entry.id)}
-                    className="flex-shrink-0"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
+                  <div className="flex flex-col gap-1.5 flex-shrink-0">
+                    {onEdit && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => onEdit(entry)}
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </Button>
+                    )}
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      loading={deleting === entry.id}
+                      onClick={() => handleDelete(entry.id)}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
                 </div>
               </Card>
             </motion.div>

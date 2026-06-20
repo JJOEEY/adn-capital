@@ -155,6 +155,61 @@ export async function POST(req: NextRequest) {
   }
 }
 
+export async function PATCH(req: NextRequest) {
+  const dbUser = await getCurrentDbUser();
+  if (!dbUser) {
+    return NextResponse.json({ error: "Chưa đăng nhập" }, { status: 401 });
+  }
+
+  try {
+    const body = await req.json();
+    const { id, ticker, action, price, quantity, psychology, psychologyTag, tradeReason, tradeDate } = body;
+
+    if (!id) return NextResponse.json({ error: "Thiếu ID" }, { status: 400 });
+
+    // Quyền sở hữu
+    const existing = await prisma.tradingJournal.findUnique({ where: { id } });
+    if (!existing || existing.userId !== dbUser.id) {
+      return NextResponse.json({ error: "Không tìm thấy" }, { status: 404 });
+    }
+
+    if (!ticker || !action || !price || !quantity) {
+      return NextResponse.json({ error: "Thiếu thông tin bắt buộc" }, { status: 400 });
+    }
+    if (!["BUY", "SELL"].includes(action)) {
+      return NextResponse.json({ error: "Loại lệnh không hợp lệ" }, { status: 400 });
+    }
+    const tag = psychologyTag || psychology;
+    if (!tag || !VALID_PSYCHOLOGY_TAGS.includes(tag)) {
+      return NextResponse.json({ error: "Vui lòng chọn tâm lý giao dịch hợp lệ" }, { status: 400 });
+    }
+    if (!tradeReason || tradeReason.trim().length < 5) {
+      return NextResponse.json({ error: "Vui lòng nhập lý do giao dịch chi tiết (tối thiểu 5 ký tự)" }, { status: 400 });
+    }
+
+    // CHÚ Ý: SỬA = đính chính BẢN GHI lịch sử, KHÔNG phải đặt lệnh mới → KHÔNG enforce T+2.5
+    // (T+2.5 chỉ chặn lúc GHI lệnh bán MỚI qua POST).
+    const updated = await prisma.tradingJournal.update({
+      where: { id },
+      data: {
+        ticker: ticker.toUpperCase().trim(),
+        action,
+        price: parseFloat(price),
+        quantity: parseInt(quantity),
+        psychology: tag,
+        psychologyTag: tag,
+        tradeReason: tradeReason.trim(),
+        tradeDate: tradeDate ? new Date(tradeDate) : existing.tradeDate,
+      },
+    });
+
+    return NextResponse.json({ entry: updated });
+  } catch (error) {
+    console.error("[PATCH /api/journal] Error:", error);
+    return NextResponse.json({ error: "Lỗi cập nhật nhật ký" }, { status: 500 });
+  }
+}
+
 export async function DELETE(req: NextRequest) {
   const dbUser = await getCurrentDbUser();
   if (!dbUser) {

@@ -43,6 +43,7 @@ export default function JournalPage() {
   const [activeTab, setActiveTab] = useState<"form" | "list" | "analysis" | "pnl">("list");
   const [mounted, setMounted] = useState(false);
   const [dateFilter, setDateFilter] = useState({ from: "", to: "" });
+  const [editingEntry, setEditingEntry] = useState<JournalEntry | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -73,6 +74,17 @@ export default function JournalPage() {
 
   const handleSaved = () => {
     fetchEntries(dateFilter.from, dateFilter.to);
+    setEditingEntry(null);
+    setActiveTab("list");
+  };
+
+  const handleEdit = (entry: JournalEntry) => {
+    setEditingEntry(entry);
+    setActiveTab("form");
+  };
+
+  const handleCancelEdit = () => {
+    setEditingEntry(null);
     setActiveTab("list");
   };
 
@@ -158,7 +170,7 @@ export default function JournalPage() {
 
   const tabs = [
     { id: "list" as const, label: "Lịch sử", count: entries.length },
-    { id: "form" as const, label: "Ghi mới", count: null },
+    { id: "form" as const, label: editingEntry ? "Sửa lệnh" : "Ghi mới", count: null },
     {
       id: "pnl" as const,
       label: "PnL Tổng",
@@ -245,7 +257,9 @@ export default function JournalPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.2 }}
             >
-              {activeTab === "form" && <JournalForm onSaved={handleSaved} />}
+              {activeTab === "form" && (
+                <JournalForm onSaved={handleSaved} editEntry={editingEntry} onCancelEdit={handleCancelEdit} />
+              )}
 
               {activeTab === "list" &&
                 (loading ? (
@@ -258,6 +272,7 @@ export default function JournalPage() {
                   <JournalList
                     entries={entries}
                     onDeleted={handleDeleted}
+                    onEdit={handleEdit}
                     onDateFilter={handleDateFilter}
                   />
                 ))}
