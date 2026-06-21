@@ -1306,46 +1306,15 @@ export function DnseTradingClient() {
         </div>
       </div>
 
-      <div
-        className="rounded-2xl border p-4"
-        style={{ background: "var(--surface)", borderColor: "var(--border)" }}
-      >
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-black uppercase tracking-wide" style={{ color: "var(--text-primary)" }}>
-            Bảng đặt lệnh
-          </h2>
-          <div className="flex items-center gap-2">
-            <input
-              value={ticker}
-              onChange={(event) => setTicker(event.target.value.toUpperCase())}
-              placeholder="Nhập mã cổ phiếu"
-              className="w-36 rounded-lg border px-2.5 py-1.5 text-xs"
-              style={{
-                borderColor: "var(--border)",
-                background: "var(--surface-2)",
-                color: "var(--text-primary)",
-              }}
-            />
-          </div>
-        </div>
-
+      <div className="space-y-3">
         {!canTrade ? (
           <div
             className="rounded-xl border px-3 py-2 text-sm"
-            style={{
-              borderColor: "rgba(245,158,11,0.25)",
-              background: "rgba(245,158,11,0.10)",
-              color: "#92400e",
-            }}
+            style={{ borderColor: "var(--border-strong)", background: "var(--surface-2)", color: "var(--text-secondary)" }}
           >
             Bạn cần liên kết tài khoản DNSE hợp lệ trước khi đặt lệnh.
+            {needsRelogin ? " Phiên DNSE đã hết hạn — vui lòng đăng nhập lại." : ""}
           </div>
-        ) : null}
-
-        {!canTrade && needsRelogin ? (
-          <p className="mt-2 text-xs" style={{ color: "var(--danger)" }}>
-            Phiên DNSE đã hết hạn. Vui lòng đăng nhập lại trước khi kiểm tra lệnh hoặc đặt lệnh.
-          </p>
         ) : null}
 
         <DirectOrderPanel
@@ -1360,6 +1329,7 @@ export function DnseTradingClient() {
           initialBuyingPower={buyingPowerValue}
           initialLoanPackages={directOrderLoanPackages}
           canTrade={canTrade}
+          onTickerChange={setTicker}
           renderAuto={false}
           onOrderSettled={() => refreshDnseViews(true)}
         />
