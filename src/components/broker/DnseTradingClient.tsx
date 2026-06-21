@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
-  AlertTriangle,
   Bot,
   Briefcase,
   CheckCircle2,
@@ -11,7 +10,6 @@ import {
   ListOrdered,
   LogIn,
   RefreshCw,
-  ShieldCheck,
   TrendingUp,
   Wallet,
 } from "lucide-react";
@@ -287,50 +285,6 @@ function hasFutureDate(value: string | null | undefined) {
   if (!value) return false;
   const timestamp = new Date(value).getTime();
   return Number.isFinite(timestamp) && timestamp > Date.now();
-}
-
-function normalizeDnseReason(reason: string | null | undefined) {
-  if (!reason) return null;
-  const normalized = reason.trim();
-  const lower = normalized.toLowerCase();
-
-  if (/session-only mode|session api failed/.test(lower)) {
-    return "DNSE chưa trả về dữ liệu cho phiên hiện tại. Vui lòng làm mới dữ liệu hoặc đăng nhập lại DNSE.";
-  }
-
-  if (/broker connection not found for current user/.test(lower)) {
-    return "Hệ thống chưa đọc được kết nối DNSE của phiên hiện tại. Vui lòng làm mới dữ liệu hoặc đăng nhập lại DNSE.";
-  }
-
-  if (/dnse connection is not verified for current user/.test(lower)) {
-    return "Tài khoản DNSE hiện chưa ở trạng thái xác minh hợp lệ cho phiên này.";
-  }
-
-  if (
-    /token expired|authorization|unauthorized|forbidden|jwt|dnse_login_required|dnse_login_expired/.test(
-      lower,
-    )
-  ) {
-    return "Phiên DNSE đã hết hạn. Vui lòng bấm “Đăng nhập lại DNSE” để làm mới tổng tài sản ròng và danh mục.";
-  }
-
-  if (/api key not found in storage|oa-401|oa-400/.test(lower)) {
-    return "Máy chủ chưa lấy được dữ liệu fallback từ DNSE OpenAPI. Cần kiểm tra lại API key/secret.";
-  }
-
-  if (
-    /token expired|authorization|unauthorized|forbidden|jwt|dnse_login_required|dnse_login_expired/.test(
-      lower,
-    )
-  ) {
-    return "Phiên DNSE đã hết hạn. Vui lòng bấm “Đăng nhập lại DNSE” để làm mới tổng tài sản ròng và danh mục.";
-  }
-
-  if (/api key not found in storage|oa-401|oa-400/.test(lower)) {
-    return "Máy chủ chưa lấy được dữ liệu fallback từ DNSE OpenAPI. Cần kiểm tra lại API key/secret.";
-  }
-
-  return normalized;
 }
 
 function normalizeDnseReasonVi(reason: string | null | undefined) {
@@ -1261,226 +1215,6 @@ export function DnseTradingClient() {
         </div>
 
         <div
-          className="hidden rounded-2xl border p-4 md:col-span-2"
-          style={{ background: "var(--surface)", borderColor: "var(--border)" }}
-        >
-          <div className="mb-2 flex items-center gap-2">
-            <Wallet className="h-4 w-4" style={{ color: "var(--primary)" }} />
-            <h2
-              className="text-sm font-black uppercase tracking-wide"
-              style={{ color: "var(--text-primary)" }}
-            >
-              Tài khoản DNSE chính
-            </h2>
-          </div>
-
-          {statusLoading ? (
-            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              Đang tải thông tin kết nối DNSE...
-            </p>
-          ) : (
-            <>
-              <div className="mb-3 flex flex-wrap items-center gap-2">
-                <span
-                  className="rounded-full border px-2 py-1 text-xs font-semibold"
-                  style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
-                >
-                  ID: {selectedAccountId ?? "--"}
-                </span>
-                {isConnected ? (
-                  <span
-                    className="inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold"
-                    style={{
-                      borderColor: "rgba(22,163,74,0.25)",
-                      color: "#16a34a",
-                      background: "rgba(22,163,74,0.10)",
-                    }}
-                  >
-                    <CheckCircle2 className="h-3.5 w-3.5" /> Đã liên kết tài khoản
-                  </span>
-                ) : (
-                  <span
-                    className="inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold"
-                    style={{
-                      borderColor: "rgba(245,158,11,0.25)",
-                      color: "#f59e0b",
-                      background: "rgba(245,158,11,0.10)",
-                    }}
-                  >
-                    <AlertTriangle className="h-3.5 w-3.5" /> Chưa liên kết tài khoản
-                  </span>
-                )}
-                <span
-                  className="inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold"
-                  style={{
-                    borderColor: "rgba(37,99,235,0.25)",
-                    color: "#1d4ed8",
-                    background: "rgba(37,99,235,0.10)",
-                  }}
-                >
-                  <ShieldCheck className="h-3.5 w-3.5" /> Chế độ an toàn đang bật
-                </span>
-              </div>
-
-              {isConnected ? (
-                <div className="grid gap-2 text-xs md:grid-cols-2" style={{ color: "var(--text-secondary)" }}>
-                  <p>
-                    Chủ tài khoản:{" "}
-                    <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
-                      {connectionStatus?.connection?.accountName || "--"}
-                    </span>
-                  </p>
-                  <p>
-                    Tiểu khoản:{" "}
-                    <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
-                      {connectionStatus?.connection?.subAccountId || "--"}
-                    </span>
-                  </p>
-                  <p>
-                    Quyền truy cập hết hạn:{" "}
-                    <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
-                      {fmtDateTime(connectionStatus?.connection?.accessTokenExpiresAt)}
-                    </span>
-                  </p>
-                  <p>
-                    Đồng bộ gần nhất:{" "}
-                    <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
-                      {fmtDateTime(connectionStatus?.connection?.lastSyncedAt)}
-                    </span>
-                  </p>
-                  {connectionStatus?.connection?.lastError ? (
-                    <p className="md:col-span-2" style={{ color: "var(--danger)" }}>
-                      Lỗi gần nhất: {connectionStatus.connection.lastError}
-                    </p>
-                  ) : null}
-                  {brokerAccounts.length > 0 ? (
-                    <div className="md:col-span-2">
-                      <p
-                        className="mb-1 text-[11px] font-semibold uppercase tracking-wide"
-                        style={{ color: "var(--text-muted)" }}
-                      >
-                        Danh sách tài khoản giao dịch
-                      </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {brokerAccounts.map((account) => (
-                          <span
-                            key={account.accountNo}
-                            className="rounded-full border px-2 py-0.5 text-[11px] font-semibold"
-                            style={{
-                              borderColor:
-                                account.accountNo === selectedAccountId
-                                  ? "rgba(22,163,74,0.35)"
-                                  : "var(--border)",
-                              color:
-                                account.accountNo === selectedAccountId
-                                  ? "#15803d"
-                                  : "var(--text-secondary)",
-                              background:
-                                account.accountNo === selectedAccountId
-                                  ? "rgba(22,163,74,0.10)"
-                                  : "var(--surface-2)",
-                            }}
-                          >
-                            {account.accountNo}
-                            {account.accountType ? ` · ${account.accountType}` : ""}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      onClick={() => setShowLoginModal(true)}
-                      className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold"
-                      style={{
-                        borderColor: "rgba(37,99,235,0.25)",
-                        color: "#1d4ed8",
-                        background: "rgba(37,99,235,0.10)",
-                      }}
-                    >
-                      <LogIn className="h-3.5 w-3.5" />
-                      Đăng nhập DNSE
-                    </button>
-                    <button
-                      onClick={() => setShowAccountSelector(true)}
-                      className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold"
-                      style={{
-                        borderColor: "rgba(22,163,74,0.25)",
-                        color: "#15803d",
-                        background: "rgba(22,163,74,0.10)",
-                      }}
-                    >
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      Liên kết tài khoản DNSE
-                    </button>
-                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                      Đăng nhập trên DNSE trước, sau đó quay lại để đồng bộ tài khoản.
-                    </span>
-                  </div>
-
-                  <div
-                    className="grid gap-2 rounded-xl border p-3 text-xs"
-                    style={{
-                      borderColor: "var(--border)",
-                      background: "var(--surface-2)",
-                      color: "var(--text-secondary)",
-                    }}
-                  >
-                    <p className="font-semibold" style={{ color: "var(--text-primary)" }}>
-                      Trạng thái kết nối DNSE
-                    </p>
-                    <p>1. Hệ thống chỉ dùng tài khoản DNSE khách hàng đã liên kết.</p>
-                    <p>2. Khi tài khoản DNSE được xác minh, tổng tài sản ròng và danh mục sẽ tự đồng bộ.</p>
-                    <p>3. Nếu chưa có dữ liệu mới nhất, vui lòng đăng nhập lại DNSE rồi làm mới trang.</p>
-                  </div>
-
-                  {!hasApiKeyConfigured ? (
-                    <div
-                      className="rounded-xl border px-3 py-2 text-xs"
-                      style={{
-                        borderColor: "rgba(192,57,43,0.25)",
-                        color: "var(--danger)",
-                        background: "rgba(192,57,43,0.08)",
-                      }}
-                    >
-                      DNSE API chưa cấu hình đủ: thiếu DNSE_API_KEY.
-                    </div>
-                  ) : null}
-                </div>
-              )}
-            </>
-          )}
-
-          {submitMessage ? (
-            <div
-              className="mt-3 rounded-xl border px-3 py-2 text-xs"
-              style={{
-                borderColor: "rgba(22,163,74,0.25)",
-                color: "#16a34a",
-                background: "rgba(22,163,74,0.10)",
-              }}
-            >
-              {submitMessage}
-            </div>
-          ) : null}
-          {submitError ? (
-            <div
-              className="mt-3 rounded-xl border px-3 py-2 text-xs"
-              style={{
-                borderColor: "rgba(192,57,43,0.25)",
-                color: "var(--danger)",
-                background: "rgba(192,57,43,0.10)",
-              }}
-            >
-              {submitError}
-            </div>
-          ) : null}
-        </div>
-
-        <div
           className="rounded-2xl border p-4"
           style={{ background: "var(--surface)", borderColor: "var(--border)" }}
         >
@@ -1530,7 +1264,7 @@ export function DnseTradingClient() {
                 </span>
               </p>
               {effectiveBalanceTopic?.reason ? (
-                <p className="text-xs" style={{ color: "#f59e0b" }}>
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                   Ghi chú: {effectiveBalanceTopic.reason}
                 </p>
               ) : null}
