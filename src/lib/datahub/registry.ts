@@ -45,6 +45,7 @@ import {
   normalizeHistoricalPricePayload,
 } from "@/lib/market-price-normalization";
 import { buildStockPriceSnapshot, type StockPriceSnapshot } from "@/lib/market-price-snapshot";
+import { isIndexTicker } from "@/lib/vn-reference-indices";
 import { resolveTopicFamily, resolveTopicStaleWindowMs } from "./policy";
 import { TopicContext, TopicDefinition } from "./types";
 
@@ -910,7 +911,34 @@ async function loadRealtimeTicker(ticker: string, timeframe: string) {
   return normalizedRealtime;
 }
 
+// Chỉ số (VNINDEX/VN30/...) KHÔNG dùng logic scale giá cổ phiếu (nghìn↔VND, anchor) — sẽ ra số rác.
+// Lấy thẳng giá trị chỉ số từ market snapshot (cùng nguồn dashboard dùng đúng).
+async function loadIndexPriceSnapshot(ticker: string): Promise<StockPriceSnapshot> {
+  const snapshot = await getMarketSnapshot().catch(() => null);
+  const idx = snapshot?.indices?.find((item) => item.ticker === ticker) ?? null;
+  const value = idx?.value != null && Number.isFinite(idx.value) ? idx.value : null;
+  const change = idx?.change != null && Number.isFinite(idx.change) ? idx.change : null;
+  const changePct = idx?.changePct != null && Number.isFinite(idx.changePct) ? idx.changePct : null;
+  const previousClose = value != null && change != null ? Number((value - change).toFixed(2)) : null;
+  return {
+    ticker,
+    price: value,
+    close: value,
+    previousClose,
+    change,
+    changePct,
+    latestVolume: idx?.volume != null && Number.isFinite(idx.volume) ? idx.volume : null,
+    volumeMa20: null,
+    historicalScale: 1,
+    priceDate: snapshot?.requestDateVN ?? null,
+    realtimeAt: snapshot?.timestamp ?? null,
+  };
+}
+
 async function loadPriceSnapshotForTicker(ticker: string) {
+  const upper = ticker.toUpperCase();
+  if (isIndexTicker(upper)) return loadIndexPriceSnapshot(upper);
+
   const [historical, realtime, ta, board] = await Promise.all([
     loadHistoricalTicker(ticker).catch(() => null),
     loadRealtimeTicker(ticker, "5m").catch(() => null),
@@ -923,7 +951,7 @@ async function loadPriceSnapshotForTicker(ticker: string) {
     historical,
     realtime,
     ta,
-    marketBoard: board?.prices?.[ticker.toUpperCase()],
+    marketBoard: board?.prices?.[upper],
   });
 }
 

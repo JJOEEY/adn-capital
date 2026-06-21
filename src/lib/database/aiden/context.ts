@@ -9,6 +9,7 @@ import { fetchFAData, type FAData } from "@/lib/stockData";
 import { calcRSI, calcMACD, calcEMA } from "@/lib/rpi/indicators";
 import { fetchVnstockFundamental } from "@/lib/vnstockClient";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
+import { isWithinVnTradingSession } from "@/lib/time";
 import type {
   DatabaseAidenContext,
   DatabaseAidenDataSources,
@@ -839,14 +840,21 @@ export async function getDatabaseAidenTickerContext(options: {
       tickPrevRow = toQuoteRow(priced.find((r) => r.tradingDate !== priced[0]?.tradingDate));
     }
 
-    const usingTick = !latestRow && tickQuoteRow != null;
+    // TRONG phiên: ưu tiên tick (giá khớp realtime). NGOÀI phiên: ưu tiên eod (matchPrice = giá đóng cửa
+    // ATC chính thức) thay vì tick cuối phiên — nhưng chỉ khi eod thuộc cùng/mới hơn ngày của tick (tránh
+    // lúc nghỉ trưa eod hôm nay chưa có mà lại lấy nhầm đóng cửa hôm trước).
+    const inSession = isWithinVnTradingSession();
+    const eodAtLeastAsFreshAsTick =
+      eodPriceRow != null &&
+      (tickQuoteRow == null || String(eodPriceRow.tradingDate) >= String(tickQuoteRow.tradingDate));
+    const usingTick = !latestRow && tickQuoteRow != null && (inSession || !eodAtLeastAsFreshAsTick);
     // marketId tĩnh theo mã (vd VHM=STO) — tick không có nên lấy từ eod để nhận diện trần/sàn.
     const eodPayload = rowPayload(eodPriceRow);
     const marketIdHint =
       (typeof rowPayload(latestRow).marketId === "string" ? (rowPayload(latestRow).marketId as string) : null) ??
       (typeof eodPayload.marketId === "string" ? (eodPayload.marketId as string) : null);
-    // Quote ưu tiên: realtime board > DNSE-ws tick (real-time) > eod. Candle (open/close) ưu tiên ohlcv/eod hơn tick.
-    const effectiveQuoteRow = latestRow ?? tickQuoteRow ?? eodPriceRow;
+    // Quote ưu tiên: realtime board > (tick nếu trong phiên / eod nếu ngoài phiên). Candle ưu tiên ohlcv/eod.
+    const effectiveQuoteRow = latestRow ?? (usingTick ? tickQuoteRow : (eodPriceRow ?? tickQuoteRow));
     const effectiveOhlcvRow = ohlcvRow ?? eodPriceRow ?? tickQuoteRow;
     const prevRow = latestRow ? null : usingTick ? tickPrevRow : eodPrevRow;
     let market = buildTickerMarket(effectiveQuoteRow, effectiveOhlcvRow, prevRow, marketIdHint);
