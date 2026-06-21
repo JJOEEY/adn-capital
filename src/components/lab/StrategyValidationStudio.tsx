@@ -5,15 +5,17 @@ import {
   AlertTriangle,
   BarChart3,
   Bot,
-  CheckCircle2,
-  ChevronDown,
   FlaskConical,
   LineChart,
   Play,
+  Plus,
   Save,
+  Search,
   ShieldAlert,
   SlidersHorizontal,
   Target,
+  Trash2,
+  X,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -25,6 +27,11 @@ import {
   Tooltip,
   CartesianGrid,
   Legend,
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
 } from "recharts";
 import { fetchBacktestManifest, runBacktestProvider } from "@/lib/providers/client";
 import type { ProviderInputValue, ProviderRunResponse } from "@/types/provider-manifest";
@@ -273,17 +280,6 @@ function getMetrics(result: ProviderRunResponse | null) {
   return record;
 }
 
-function getTrades(result: ProviderRunResponse | null): UnknownRecord[] {
-  const record = getResultRecord(result);
-  if (!record) return [];
-  const rawTrades = Array.isArray(record.trades)
-    ? record.trades
-    : isRecord(record.result) && Array.isArray(record.result.trades)
-      ? record.result.trades
-      : [];
-  return rawTrades.filter(isRecord).slice(0, 30);
-}
-
 function getEquityCurve(result: ProviderRunResponse | null): { date: string; value: number; benchmark: number | null }[] {
   const record = getResultRecord(result);
   const raw = record && Array.isArray(record.equityCurve) ? record.equityCurve : [];
@@ -296,6 +292,64 @@ function getEquityCurve(result: ProviderRunResponse | null): { date: string; val
         p.benchmark == null ? null : typeof p.benchmark === "number" ? p.benchmark : Number(p.benchmark) || null,
     }))
     .filter((p) => Boolean(p.date));
+}
+
+function getAllTrades(result: ProviderRunResponse | null): UnknownRecord[] {
+  const record = getResultRecord(result);
+  if (!record) return [];
+  const raw = Array.isArray(record.trades)
+    ? record.trades
+    : isRecord(record.result) && Array.isArray(record.result.trades)
+      ? record.result.trades
+      : [];
+  return raw.filter(isRecord);
+}
+
+function tradePnl(t: UnknownRecord): number | null {
+  const raw = t.pnl ?? t.return;
+  const n = typeof raw === "number" ? raw : Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
+type TradeAnalysis = {
+  total: number; wins: number; losses: number; winRate: number;
+  avgPnl: number; avgWin: number; avgLoss: number; rr: number;
+  best: { ticker: string; pnl: number } | null;
+  worst: { ticker: string; pnl: number } | null;
+  distribution: { bucket: number; label: string; count: number }[];
+};
+
+function analyzeTrades(trades: UnknownRecord[]): TradeAnalysis {
+  const rows = trades
+    .map((t) => ({ ticker: safeText(t.ticker), pnl: tradePnl(t) }))
+    .filter((x): x is { ticker: string; pnl: number } => x.pnl !== null);
+  const total = rows.length;
+  const wins = rows.filter((x) => x.pnl > 0);
+  const losses = rows.filter((x) => x.pnl < 0);
+  const sum = (arr: { pnl: number }[]) => arr.reduce((s, x) => s + x.pnl, 0);
+  const avgWin = wins.length ? sum(wins) / wins.length : 0;
+  const avgLoss = losses.length ? Math.abs(sum(losses) / losses.length) : 0;
+  let best: { ticker: string; pnl: number } | null = null;
+  let worst: { ticker: string; pnl: number } | null = null;
+  for (const x of rows) {
+    if (!best || x.pnl > best.pnl) best = x;
+    if (!worst || x.pnl < worst.pnl) worst = x;
+  }
+  const buckets = new Map<number, number>();
+  for (const x of rows) {
+    const b = Math.floor(x.pnl / 5) * 5;
+    buckets.set(b, (buckets.get(b) ?? 0) + 1);
+  }
+  const distribution = [...buckets.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([bucket, count]) => ({ bucket, label: `${bucket >= 0 ? "+" : ""}${bucket}%`, count }));
+  return {
+    total, wins: wins.length, losses: losses.length,
+    winRate: total ? (wins.length / total) * 100 : 0,
+    avgPnl: total ? sum(rows) / total : 0,
+    avgWin, avgLoss, rr: avgLoss > 0 ? avgWin / avgLoss : 0,
+    best, worst, distribution,
+  };
 }
 
 function getWarnings(result: ProviderRunResponse | null): string[] {
@@ -391,68 +445,102 @@ function ParamInput({ field, value, onChange }: { field: ParamField; value: stri
   );
 }
 
-function ConditionGrid({
+// Modal chọn điều kiện — chỉ checkbox theo nhóm (tham số chỉnh sau ở chip), gọn như DNSE.
+function ConditionModal({
+  side,
   options,
   selected,
   onToggle,
-  params,
-  onParam,
+  onClose,
 }: {
+  side: "buy" | "sell";
   options: ConditionOption[];
   selected: string[];
   onToggle: (id: string) => void;
-  params: Record<string, Record<string, string | number>>;
-  onParam: (id: string, key: string, value: string | number) => void;
+  onClose: () => void;
 }) {
   const grouped = groupConditions(options);
+  const applyColor = side === "buy" ? "#16a34a" : "#dc2626";
   return (
-    <div className="space-y-5">
-      {Object.entries(grouped).map(([group, items]) => (
-        <div key={group}>
-          <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
-            {group}
-          </h4>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {items.map((item) => {
-              const checked = selected.includes(item.id);
-              const fields = CONDITION_PARAMS[item.id];
-              return (
-                <div
-                  key={item.id}
-                  className="rounded-2xl border p-4 transition"
-                  style={{
-                    background: checked ? "var(--primary-light)" : "var(--surface)",
-                    borderColor: checked ? "var(--primary)" : "var(--border)",
-                  }}
-                >
-                  <button type="button" onClick={() => onToggle(item.id)} className="flex w-full items-start gap-3 text-left">
-                    <span
-                      className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border"
-                      style={{
-                        borderColor: checked ? "var(--primary)" : "var(--border)",
-                        background: checked ? "var(--primary)" : "transparent",
-                      }}
-                    >
-                      {checked ? <CheckCircle2 className="h-3.5 w-3.5 text-white" /> : null}
-                    </span>
-                    <span>
-                      <span className="block text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{item.label}</span>
-                      <span className="mt-1 block text-xs leading-5" style={{ color: "var(--text-secondary)" }}>{item.description}</span>
-                    </span>
-                  </button>
-                  {checked && fields && fields.length > 0 ? (
-                    <div className="mt-3 grid grid-cols-2 gap-2 border-t pt-3" style={{ borderColor: "var(--border)" }}>
-                      {fields.filter((f) => !f.showIf || f.showIf(params[item.id] ?? {})).map((f) => (
-                        <ParamInput key={f.key} field={f} value={params[item.id]?.[f.key] ?? f.default} onChange={(v) => onParam(item.id, f.key, v)} />
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.55)" }} onClick={onClose}>
+      <div
+        className="max-h-[86vh] w-full max-w-3xl overflow-y-auto rounded-2xl border p-6 shadow-2xl"
+        style={{ background: "var(--surface)", borderColor: "var(--border)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
+            Thêm điều kiện {side === "buy" ? "Mua" : "Bán"}
+          </h3>
+          <button type="button" onClick={onClose} aria-label="Đóng">
+            <X className="h-5 w-5" style={{ color: "var(--text-muted)" }} />
+          </button>
         </div>
-      ))}
+        <p className="mt-1 text-xs font-semibold" style={{ color: "#f59e0b" }}>
+          *Chỉ được chọn tối đa {MAX_CONDITIONS} điều kiện Mua và Bán
+        </p>
+        <div className="mt-4 space-y-5">
+          {Object.entries(grouped).map(([group, items]) => (
+            <div key={group}>
+              <p className="mb-2.5 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>{group}</p>
+              <div className="grid gap-x-6 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-3">
+                {items.map((item) => {
+                  const checked = selected.includes(item.id);
+                  return (
+                    <label key={item.id} className="flex cursor-pointer items-center gap-2 text-sm" style={{ color: "var(--text-secondary)" }}>
+                      <input type="checkbox" checked={checked} onChange={() => onToggle(item.id)} className="h-4 w-4 shrink-0" />
+                      <span>{item.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-6 flex justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full px-6 py-2.5 text-sm font-semibold text-white"
+            style={{ background: applyColor }}
+          >
+            Áp dụng điều kiện {side === "buy" ? "Mua" : "Bán"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Chip điều kiện đã thêm — gọn, chỉnh tham số ngay tại chỗ.
+function ConditionChip({
+  item,
+  params,
+  onParam,
+  onRemove,
+}: {
+  item: ConditionOption;
+  params: Record<string, Record<string, string | number>>;
+  onParam: (id: string, key: string, value: string | number) => void;
+  onRemove: () => void;
+}) {
+  const fields = CONDITION_PARAMS[item.id];
+  const visible = fields ? fields.filter((f) => !f.showIf || f.showIf(params[item.id] ?? {})) : [];
+  return (
+    <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="truncate text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{item.label}</span>
+        <button type="button" onClick={onRemove} title="Xoá điều kiện" className="shrink-0">
+          <Trash2 className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
+        </button>
+      </div>
+      {visible.length > 0 ? (
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          {visible.map((f) => (
+            <ParamInput key={f.key} field={f} value={params[item.id]?.[f.key] ?? f.default} onChange={(v) => onParam(item.id, f.key, v)} />
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -491,6 +579,165 @@ function NumberInput({
   );
 }
 
+// Dashboard kết quả kiểu DNSE — KPI, donut tỷ lệ thắng, phân phối lợi nhuận, best/worst, bảng deal.
+function ResultDashboard({
+  metrics,
+  analysis,
+  trades,
+  warnings,
+}: {
+  metrics: UnknownRecord | null;
+  analysis: TradeAnalysis;
+  trades: UnknownRecord[];
+  warnings: string[];
+}) {
+  const [q, setQ] = useState("");
+  const netReturn = pickNumber(metrics, ["netReturn", "net_return", "totalReturn", "total_return", "return"]);
+  const nrColor = typeof netReturn === "number" ? (netReturn >= 0 ? "#16a34a" : "#dc2626") : "var(--text-primary)";
+  const donut = [
+    { name: "Số deal lãi", value: analysis.wins, color: "#16a34a" },
+    { name: "Số deal lỗ", value: analysis.losses, color: "#dc2626" },
+  ];
+  const ql = q.trim().toUpperCase();
+  const shown = ql ? trades.filter((t) => safeText(t.ticker).toUpperCase().includes(ql)) : trades;
+  return (
+    <div className="space-y-4">
+      {warnings.length > 0 ? (
+        <div className="space-y-1 rounded-2xl border p-3 text-sm leading-6" style={{ borderColor: "rgba(245,158,11,0.35)", background: "rgba(245,158,11,0.08)", color: "#f59e0b" }}>
+          {warnings.map((w, i) => (
+            <p key={i} className="flex gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><span>{w}</span></p>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+              <p className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>Lãi/lỗ luỹ kế</p>
+              <p className="mt-1 text-2xl font-bold" style={{ color: nrColor }}>{formatPercent(netReturn)}</p>
+            </div>
+            <div className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+              <p className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>Rủi ro/lợi nhuận</p>
+              <p className="mt-1 text-2xl font-bold" style={{ color: "var(--text-primary)" }}>1:{analysis.rr.toFixed(2)}</p>
+            </div>
+          </div>
+          <div className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+            <div className="relative h-44">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={donut} dataKey="value" nameKey="name" innerRadius={52} outerRadius={72} startAngle={90} endAngle={-270} paddingAngle={2} stroke="none">
+                    {donut.map((d) => <Cell key={d.name} fill={d.color} />)}
+                  </Pie>
+                  <Tooltip contentStyle={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 10, fontSize: 12 }} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>Tỷ lệ thắng</span>
+                <span className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>{analysis.winRate.toFixed(2)}%</span>
+              </div>
+            </div>
+            <div className="mt-2 flex items-center justify-center gap-4 text-xs" style={{ color: "var(--text-secondary)" }}>
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: "#16a34a" }} /> Lãi {analysis.wins}</span>
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: "#dc2626" }} /> Lỗ {analysis.losses}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+          <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Phân phối lợi nhuận</p>
+          {analysis.distribution.length > 0 ? (
+            <div className="mt-3 h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={analysis.distribution} margin={{ top: 12, right: 8, left: -16, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" strokeOpacity={0.4} vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 10, fill: "var(--text-muted)" }} interval={0} axisLine={false} tickLine={false} angle={-40} textAnchor="end" height={48} />
+                  <YAxis tick={{ fontSize: 10, fill: "var(--text-muted)" }} axisLine={false} tickLine={false} allowDecimals={false} />
+                  <Tooltip cursor={{ fill: "var(--border)", fillOpacity: 0.2 }} contentStyle={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 10, fontSize: 12 }} formatter={(v) => [`${v} deal`, "Số lượng"]} />
+                  <Bar dataKey="count" radius={[3, 3, 0, 0]}>
+                    {analysis.distribution.map((d) => <Cell key={d.bucket} fill={d.bucket < 0 ? "#dc2626" : "#16a34a"} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="mt-3 flex h-64 items-center justify-center text-sm" style={{ color: "var(--text-muted)" }}>Chưa đủ deal để vẽ phân phối.</div>
+          )}
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+          <p className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>CAGR</p>
+          <p className="mt-1 text-lg font-bold" style={{ color: "var(--text-primary)" }}>{formatPercent(pickNumber(metrics, ["cagr", "annualizedReturn", "annualized_return"]))}</p>
+        </div>
+        <div className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+          <p className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>Max Drawdown</p>
+          <p className="mt-1 text-lg font-bold" style={{ color: "#dc2626" }}>{formatDrawdown(pickNumber(metrics, ["maxDrawdown", "max_drawdown", "drawdown"]))}</p>
+        </div>
+        <div className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+          <p className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>Profit Factor</p>
+          <p className="mt-1 text-lg font-bold" style={{ color: "var(--text-primary)" }}>{formatNumber(pickNumber(metrics, ["profitFactor", "profit_factor"]))}</p>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+          <p className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>Lãi trung bình/deal</p>
+          <p className="mt-1 text-lg font-bold" style={{ color: analysis.avgPnl >= 0 ? "#16a34a" : "#dc2626" }}>{analysis.avgPnl >= 0 ? "+" : ""}{analysis.avgPnl.toFixed(2)}%</p>
+        </div>
+        <div className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+          <p className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>Số lượng deal</p>
+          <p className="mt-1 text-lg font-bold" style={{ color: "var(--text-primary)" }}>{analysis.total}</p>
+        </div>
+        <div className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+          <p className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>Lãi nhiều nhất</p>
+          <p className="mt-1 text-lg font-bold" style={{ color: "#16a34a" }}>{analysis.best ? `${analysis.best.ticker} +${analysis.best.pnl}%` : "—"}</p>
+        </div>
+        <div className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+          <p className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>Lỗ nhiều nhất</p>
+          <p className="mt-1 text-lg font-bold" style={{ color: "#dc2626" }}>{analysis.worst ? `${analysis.worst.ticker} ${analysis.worst.pnl}%` : "—"}</p>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+        <div className="flex items-center gap-2 rounded-lg border px-3 py-2" style={{ borderColor: "var(--border)" }}>
+          <Search className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tìm mã CK" className="w-full bg-transparent text-sm outline-none" style={{ color: "var(--text-primary)" }} />
+        </div>
+        <div className="mt-3 max-h-[440px] overflow-auto">
+          <table className="w-full min-w-[640px] text-sm">
+            <thead style={{ color: "var(--text-muted)" }}>
+              <tr className="border-b text-left" style={{ borderColor: "var(--border)" }}>
+                <th className="py-2.5">Mã</th><th>Ngày mua</th><th>Giá mua</th><th>Ngày bán</th><th>Giá bán</th><th className="text-right">Lãi/lỗ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.length ? shown.map((trade, index) => {
+                const pnl = tradePnl(trade);
+                const win = pnl !== null && pnl >= 0;
+                const color = pnl === null ? "var(--text-secondary)" : win ? "#16a34a" : "#dc2626";
+                return (
+                  <tr key={`${safeText(trade.ticker, "T")}-${index}`} className="border-b" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
+                    <td className="py-2.5 font-semibold" style={{ color: "var(--text-primary)" }}>{safeText(trade.ticker)}</td>
+                    <td>{safeText(trade.entryDate ?? trade.dateIn ?? trade.date)}</td>
+                    <td><span className="mr-1.5 inline-flex h-4 w-4 items-center justify-center rounded text-[10px] font-bold text-white" style={{ background: "#16a34a" }}>M</span>{safeText(trade.entry ?? trade.entryPrice)}</td>
+                    <td>{safeText(trade.exitDate ?? trade.dateOut)}</td>
+                    <td><span className="mr-1.5 inline-flex h-4 w-4 items-center justify-center rounded text-[10px] font-bold text-white" style={{ background: "#dc2626" }}>B</span>{safeText(trade.exit ?? trade.exitPrice)}</td>
+                    <td className="text-right font-bold" style={{ color }}>{pnl !== null ? `${pnl >= 0 ? "+" : ""}${pnl}%` : "—"}</td>
+                  </tr>
+                );
+              }) : (
+                <tr><td className="py-5 text-center" colSpan={6} style={{ color: "var(--text-muted)" }}>Không có deal khớp.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function StrategyValidationStudio() {
   const [strategyName, setStrategyName] = useState("Chiến thuật mới");
   const [scope, setScope] = useState<ScopeType>("ticker");
@@ -499,7 +746,10 @@ export function StrategyValidationStudio() {
   const [sellSelected, setSellSelected] = useState<string[]>(["ema_ma_sell", "stop_loss"]);
   const [assumptions, setAssumptions] = useState<LabAssumptions>(defaultAssumptions);
   const [conditionParams, setConditionParams] = useState<Record<string, Record<string, string | number>>>({});
-  const [openPanel, setOpenPanel] = useState<"buy" | "sell">("buy");
+  const [buyLogic, setBuyLogic] = useState<"and" | "or">("and");
+  const [sellLogic, setSellLogic] = useState<"and" | "or">("or");
+  const [modalSide, setModalSide] = useState<"buy" | "sell" | null>(null);
+  const [resultTab, setResultTab] = useState<"dashboard" | "equity" | "coach" | "history">("dashboard");
   const [result, setResult] = useState<ProviderRunResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
@@ -519,9 +769,10 @@ export function StrategyValidationStudio() {
     [sellSelected],
   );
   const metrics = getMetrics(result);
-  const trades = getTrades(result);
   const equityCurve = getEquityCurve(result);
   const runWarnings = getWarnings(result);
+  const allTrades = useMemo(() => getAllTrades(result), [result]);
+  const analysis = useMemo(() => analyzeTrades(allTrades), [allTrades]);
 
   const scopeValues = scope === "index" ? indexOptions : scope === "watchlist" ? watchlistOptions : scope === "sector" ? sectorOptions : [];
 
@@ -572,6 +823,8 @@ export function StrategyValidationStudio() {
         benchmark: assumptions.benchmark,
         buyConditions: buySelected,
         sellConditions: sellSelected,
+        buyLogic,
+        sellLogic,
         conditionParams: JSON.stringify(conditionParams),
       };
 
@@ -614,7 +867,7 @@ export function StrategyValidationStudio() {
   }, []);
 
   const persistRun = async (resp: ProviderRunResponse, pinned: boolean, name: string) => {
-    const config = { strategyName, scope, selection, buySelected, sellSelected, conditionParams, assumptions };
+    const config = { strategyName, scope, selection, buySelected, sellSelected, buyLogic, sellLogic, conditionParams, assumptions };
     const resultSummary = {
       metrics: getMetrics(resp),
       equityCurve: getEquityCurve(resp),
@@ -649,6 +902,7 @@ export function StrategyValidationStudio() {
     const c = item.config as {
       strategyName?: string; scope?: ScopeType; selection?: string;
       buySelected?: string[]; sellSelected?: string[];
+      buyLogic?: "and" | "or"; sellLogic?: "and" | "or";
       conditionParams?: Record<string, Record<string, string | number>>; assumptions?: LabAssumptions;
     };
     if (c.strategyName) setStrategyName(c.strategyName);
@@ -656,6 +910,8 @@ export function StrategyValidationStudio() {
     if (typeof c.selection === "string") setSelection(c.selection);
     if (Array.isArray(c.buySelected)) setBuySelected(c.buySelected);
     if (Array.isArray(c.sellSelected)) setSellSelected(c.sellSelected);
+    if (c.buyLogic === "and" || c.buyLogic === "or") setBuyLogic(c.buyLogic);
+    if (c.sellLogic === "and" || c.sellLogic === "or") setSellLogic(c.sellLogic);
     if (c.conditionParams) setConditionParams(c.conditionParams);
     if (c.assumptions) setAssumptions({ ...defaultAssumptions, ...c.assumptions });
     setResult(null);
@@ -695,33 +951,6 @@ export function StrategyValidationStudio() {
       setCoachLoading(false);
     }
   };
-
-  const metricCards = [
-    {
-      label: "Net Return",
-      value: formatPercent(pickNumber(metrics, ["netReturn", "net_return", "totalReturn", "total_return", "return"])),
-    },
-    {
-      label: "CAGR",
-      value: formatPercent(pickNumber(metrics, ["cagr", "annualizedReturn", "annualized_return"])),
-    },
-    {
-      label: "Max Drawdown",
-      value: formatDrawdown(pickNumber(metrics, ["maxDrawdown", "max_drawdown", "drawdown"])),
-    },
-    {
-      label: "Win Rate",
-      value: formatPercent(pickNumber(metrics, ["winRate", "win_rate"])),
-    },
-    {
-      label: "Profit Factor",
-      value: formatNumber(pickNumber(metrics, ["profitFactor", "profit_factor"])),
-    },
-    {
-      label: "Số lệnh",
-      value: formatNumber(pickNumber(metrics, ["numberOfTrades", "totalTrades", "total_trades", "trades"])),
-    },
-  ];
 
   return (
     <section className="space-y-6">
@@ -845,52 +1074,64 @@ export function StrategyValidationStudio() {
             )}
           </div>
 
-          {/* Tinh chỉnh điều kiện mua */}
-          <div className="rounded-[1.5rem] border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-            <button
-              type="button"
-              onClick={() => setOpenPanel(openPanel === "buy" ? "sell" : "buy")}
-              className="flex w-full items-center justify-between px-5 py-4 text-left"
-            >
-              <span className="flex items-center gap-3">
-                <span className="rounded-lg bg-emerald-500 px-2 py-1 text-xs font-semibold text-white">M</span>
-                <span className="font-semibold" style={{ color: "var(--text-primary)" }}>Điều kiện mua</span>
-                <span className="text-xs" style={{ color: "var(--text-muted)" }}>{buySelected.length} điều kiện</span>
+          {/* Điều kiện Mua — bấm + để mở modal, chỉ hiện cái đã thêm */}
+          <div className="rounded-[1.5rem] border p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <span className="rounded-lg bg-emerald-500 px-2 py-0.5 text-xs font-semibold text-white">M</span>
+                <span className="font-semibold" style={{ color: "var(--text-primary)" }}>Điều kiện Mua</span>
+                <span className="rounded-full px-2 py-0.5 text-xs font-bold" style={{ background: "var(--primary-light)", color: "var(--primary)" }}>{buySelected.length}</span>
               </span>
-              <ChevronDown className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
-            </button>
-            {openPanel === "buy" ? (
-              <div className="border-t p-5" style={{ borderColor: "var(--border)" }}>
-                <p className="mb-5 text-sm font-bold" style={{ color: selectedCount >= MAX_CONDITIONS ? "#f59e0b" : "var(--text-muted)" }}>
-                  Chỉ được chọn tối đa {MAX_CONDITIONS} điều kiện mua và bán. Đã chọn: {selectedCount}/{MAX_CONDITIONS}.
-                </p>
-                <ConditionGrid options={buyConditions} selected={buySelected} onToggle={(id) => toggleCondition(id, "buy")} params={conditionParams} onParam={setConditionParam} />
-              </div>
-            ) : null}
+              <button type="button" onClick={() => setModalSide("buy")} className="flex h-7 w-7 items-center justify-center rounded-full border" style={{ borderColor: "var(--border)", color: "var(--primary)" }} title="Thêm điều kiện mua">
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
+            {buySelected.length > 0 ? (
+              <>
+                <div className="mt-3 flex items-center gap-4 text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                  <span style={{ color: "var(--text-muted)" }}>Khớp:</span>
+                  <label className="flex cursor-pointer items-center gap-1.5"><input type="radio" name="buyLogic" checked={buyLogic === "and"} onChange={() => setBuyLogic("and")} /> Và</label>
+                  <label className="flex cursor-pointer items-center gap-1.5"><input type="radio" name="buyLogic" checked={buyLogic === "or"} onChange={() => setBuyLogic("or")} /> Hoặc</label>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {buyConditions.filter((c) => buySelected.includes(c.id)).map((item) => (
+                    <ConditionChip key={item.id} item={item} params={conditionParams} onParam={setConditionParam} onRemove={() => toggleCondition(item.id, "buy")} />
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p className="mt-3 text-xs" style={{ color: "var(--text-muted)" }}>Chưa có điều kiện. Bấm + để thêm.</p>
+            )}
           </div>
 
-          {/* Tinh chỉnh điều kiện bán */}
-          <div className="rounded-[1.5rem] border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-            <button
-              type="button"
-              onClick={() => setOpenPanel(openPanel === "sell" ? "buy" : "sell")}
-              className="flex w-full items-center justify-between px-5 py-4 text-left"
-            >
-              <span className="flex items-center gap-3">
-                <span className="rounded-lg bg-red-500 px-2 py-1 text-xs font-semibold text-white">B</span>
-                <span className="font-semibold" style={{ color: "var(--text-primary)" }}>Điều kiện bán</span>
-                <span className="text-xs" style={{ color: "var(--text-muted)" }}>{sellSelected.length} điều kiện</span>
+          {/* Điều kiện Bán */}
+          <div className="rounded-[1.5rem] border p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <span className="rounded-lg bg-red-500 px-2 py-0.5 text-xs font-semibold text-white">B</span>
+                <span className="font-semibold" style={{ color: "var(--text-primary)" }}>Điều kiện Bán</span>
+                <span className="rounded-full px-2 py-0.5 text-xs font-bold" style={{ background: "rgba(220,38,38,0.12)", color: "#dc2626" }}>{sellSelected.length}</span>
               </span>
-              <ChevronDown className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
-            </button>
-            {openPanel === "sell" ? (
-              <div className="border-t p-5" style={{ borderColor: "var(--border)" }}>
-                <p className="mb-5 text-sm font-bold" style={{ color: selectedCount >= MAX_CONDITIONS ? "#f59e0b" : "var(--text-muted)" }}>
-                  Chỉ được chọn tối đa {MAX_CONDITIONS} điều kiện mua và bán. Đã chọn: {selectedCount}/{MAX_CONDITIONS}.
-                </p>
-                <ConditionGrid options={sellConditions} selected={sellSelected} onToggle={(id) => toggleCondition(id, "sell")} params={conditionParams} onParam={setConditionParam} />
-              </div>
-            ) : null}
+              <button type="button" onClick={() => setModalSide("sell")} className="flex h-7 w-7 items-center justify-center rounded-full border" style={{ borderColor: "var(--border)", color: "#dc2626" }} title="Thêm điều kiện bán">
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
+            {sellSelected.length > 0 ? (
+              <>
+                <div className="mt-3 flex items-center gap-4 text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                  <span style={{ color: "var(--text-muted)" }}>Khớp:</span>
+                  <label className="flex cursor-pointer items-center gap-1.5"><input type="radio" name="sellLogic" checked={sellLogic === "and"} onChange={() => setSellLogic("and")} /> Và</label>
+                  <label className="flex cursor-pointer items-center gap-1.5"><input type="radio" name="sellLogic" checked={sellLogic === "or"} onChange={() => setSellLogic("or")} /> Hoặc</label>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {sellConditions.filter((c) => sellSelected.includes(c.id)).map((item) => (
+                    <ConditionChip key={item.id} item={item} params={conditionParams} onParam={setConditionParam} onRemove={() => toggleCondition(item.id, "sell")} />
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p className="mt-3 text-xs" style={{ color: "var(--text-muted)" }}>Chưa có điều kiện. Bấm + để thêm.</p>
+            )}
           </div>
 
           {/* NAV + giả định kiểm chứng */}
@@ -972,84 +1213,10 @@ export function StrategyValidationStudio() {
             </div>
           ) : null}
 
-          {saved.length > 0 ? (
-            <div className="rounded-[1.5rem] border p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-              <p className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
-                Lịch sử & chiến thuật đã lưu ({saved.length})
-              </p>
-              <div className="space-y-2">
-                {saved.slice().sort((a, b) => Number(b.pinned ?? false) - Number(a.pinned ?? false)).map((item) => {
-                  const m = isRecord(item.result) && isRecord(item.result.metrics) ? item.result.metrics : null;
-                  const nr = m && typeof m.netReturn === "number" ? m.netReturn : null;
-                  return (
-                    <div key={item.id} className="flex items-center gap-3 rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
-                      <input
-                        type="checkbox"
-                        checked={compareIds.includes(item.id)}
-                        onChange={() => setCompareIds((c) => (c.includes(item.id) ? c.filter((x) => x !== item.id) : [...c, item.id]))}
-                        className="h-4 w-4 shrink-0"
-                        title="Chọn để so sánh"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="flex items-center gap-1.5 truncate text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-                          {item.pinned ? <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold" style={{ background: "var(--primary-light)", color: "var(--primary)" }}>ĐÃ LƯU</span> : null}
-                          <span className="truncate">{item.name}</span>
-                        </p>
-                        <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
-                          {new Date(item.createdAt).toLocaleString("vi-VN")}{nr !== null ? ` · ${nr >= 0 ? "+" : ""}${nr}%` : ""}
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 gap-2">
-                        <button type="button" onClick={() => loadStrategy(item)} className="rounded-lg border px-3 py-1.5 text-xs font-bold" style={{ borderColor: "var(--border)", color: "var(--primary)" }}>Nạp lại</button>
-                        <button type="button" onClick={() => deleteStrategy(item.id)} className="rounded-lg border px-3 py-1.5 text-xs font-bold" style={{ borderColor: "rgba(192,57,43,0.3)", color: "var(--danger)" }}>Xóa</button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              {compareIds.length >= 2 ? (
-                <div className="mt-4 overflow-x-auto border-t pt-4" style={{ borderColor: "var(--border)" }}>
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>So sánh {compareIds.length} chiến thuật</p>
-                  {(() => {
-                    const sel = saved.filter((s) => compareIds.includes(s.id));
-                    const rows: { label: string; keys: string[]; fmt: (n: number | undefined) => string }[] = [
-                      { label: "Net Return", keys: ["netReturn"], fmt: formatPercent },
-                      { label: "CAGR", keys: ["cagr"], fmt: formatPercent },
-                      { label: "Max DD", keys: ["maxDrawdown"], fmt: formatDrawdown },
-                      { label: "Win Rate", keys: ["winRate"], fmt: formatPercent },
-                      { label: "Profit Factor", keys: ["profitFactor"], fmt: formatNumber },
-                      { label: "Số lệnh", keys: ["numberOfTrades"], fmt: formatNumber },
-                    ];
-                    return (
-                      <table className="w-full min-w-[420px] text-xs">
-                        <thead>
-                          <tr style={{ color: "var(--text-muted)" }}>
-                            <th className="py-2 text-left">KPI</th>
-                            {sel.map((s) => <th key={s.id} className="py-2 pl-3 text-right font-semibold" style={{ color: "var(--text-primary)" }}>{s.name}</th>)}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {rows.map((r) => (
-                            <tr key={r.label} className="border-t" style={{ borderColor: "var(--border)" }}>
-                              <td className="py-2" style={{ color: "var(--text-muted)" }}>{r.label}</td>
-                              {sel.map((s) => {
-                                const m = isRecord(s.result) && isRecord(s.result.metrics) ? s.result.metrics : null;
-                                return <td key={s.id} className="py-2 pl-3 text-right font-bold" style={{ color: "var(--text-secondary)" }}>{r.fmt(pickNumber(m, r.keys))}</td>;
-                              })}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    );
-                  })()}
-                </div>
-              ) : null}
-            </div>
-          ) : null}
         </div>
 
-        {/* ===================== CỘT PHẢI — NƠI TRẢ KẾT QUẢ ===================== */}
-        <div className="space-y-5">
+        {/* ===================== CỘT PHẢI — KẾT QUẢ (DASHBOARD + TAB) ===================== */}
+        <div className="space-y-4">
           <div className="rounded-[1.5rem] border p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
             <div className="flex flex-wrap items-center gap-2 text-xs font-bold" style={{ color: "var(--text-secondary)" }}>
               <span>{selection}</span>
@@ -1062,176 +1229,160 @@ export function StrategyValidationStudio() {
             </div>
           </div>
 
-          {/* Bento trên — Equity curve so với benchmark */}
-          <div className="rounded-[1.5rem] border p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-            <div className="flex items-center gap-2">
-              <LineChart className="h-4 w-4" style={{ color: "var(--primary)" }} />
-              <h2 className="font-semibold" style={{ color: "var(--text-primary)" }}>Equity curve so với {assumptions.benchmark}</h2>
-            </div>
-            {equityCurve.length > 1 ? (
-              <div className="mt-4 h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={equityCurve} margin={{ top: 6, right: 8, left: 8, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="eqFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.25} />
-                        <stop offset="100%" stopColor="var(--primary)" stopOpacity={0.02} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" strokeOpacity={0.4} vertical={false} />
-                    <XAxis
-                      dataKey="date"
-                      tick={{ fontSize: 10, fill: "var(--text-muted)" }}
-                      interval="preserveStartEnd"
-                      minTickGap={44}
-                      tickFormatter={(d) => String(d).slice(5)}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis hide domain={["auto", "auto"]} />
-                    <Tooltip
-                      contentStyle={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 10, fontSize: 12 }}
-                      labelStyle={{ color: "var(--text-muted)" }}
-                      formatter={(v) => `${fmtEq(Number(v) || 0)}₫`}
-                    />
-                    <Legend wrapperStyle={{ fontSize: 11 }} />
-                    <Area type="monotone" dataKey="value" name="Chiến thuật" stroke="var(--primary)" strokeWidth={2} fill="url(#eqFill)" />
-                    <Line type="monotone" dataKey="benchmark" name={assumptions.benchmark} stroke="var(--text-muted)" strokeWidth={1.5} dot={false} strokeDasharray="4 3" connectNulls />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <div className="mt-4 flex h-64 items-center justify-center rounded-xl border border-dashed" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
-                {result ? "Kết quả chưa đủ điểm để vẽ đường vốn." : "Chưa chạy kiểm định."}
-              </div>
-            )}
-          </div>
-
-          {/* Bento dưới — Trade Explorer + ADN Strategy Report */}
-          <div className="rounded-[1.5rem] border p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-            <div className="flex items-center gap-2">
-              <BarChart3 className="h-4 w-4" style={{ color: "var(--primary)" }} />
-              <h2 className="font-semibold" style={{ color: "var(--text-primary)" }}>ADN Strategy Report</h2>
-            </div>
-            {runWarnings.length > 0 ? (
-              <div className="mt-4 space-y-1 rounded-2xl border p-3 text-sm leading-6" style={{ borderColor: "rgba(245,158,11,0.35)", background: "rgba(245,158,11,0.08)", color: "#f59e0b" }}>
-                {runWarnings.map((w, i) => (
-                  <p key={i} className="flex gap-2">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                    <span>{w}</span>
-                  </p>
-                ))}
-              </div>
-            ) : null}
-            <div className="mt-5 grid gap-3 sm:grid-cols-3">
-              {metricCards.map((item) => (
-                <div key={item.label} className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
-                  <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>{item.label}</p>
-                  <p className="mt-2 text-2xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>{item.value}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-6 flex items-center gap-2">
-              <BarChart3 className="h-4 w-4" style={{ color: "var(--primary)" }} />
-              <h3 className="font-semibold" style={{ color: "var(--text-primary)" }}>Trade Explorer</h3>
-              <span className="rounded-md px-2 py-0.5 text-[11px] font-bold" style={{ background: "rgba(22,163,74,0.12)", color: "#16a34a" }}>lãi</span>
-              <span className="rounded-md px-2 py-0.5 text-[11px] font-bold" style={{ background: "rgba(220,38,38,0.12)", color: "#dc2626" }}>lỗ</span>
-            </div>
-            <div className="mt-3 overflow-x-auto">
-              <table className="w-full min-w-[680px] text-sm">
-                <thead style={{ color: "var(--text-muted)" }}>
-                  <tr className="border-b text-left" style={{ borderColor: "var(--border)" }}>
-                    <th className="py-3">Ngày mua</th>
-                    <th>Mã</th>
-                    <th>Giá mua</th>
-                    <th>Giá bán</th>
-                    <th>Nắm giữ</th>
-                    <th>P&L</th>
-                    <th>Lý do</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {trades.length ? (
-                    trades.map((trade, index) => {
-                      const pnlRaw = trade.pnl ?? trade.return;
-                      const pnlNum = typeof pnlRaw === "number" ? pnlRaw : Number(pnlRaw);
-                      const finite = Number.isFinite(pnlNum);
-                      const isWin = finite && pnlNum >= 0;
-                      const pnlColor = !finite ? "var(--text-secondary)" : isWin ? "#16a34a" : "#dc2626";
-                      const pnlBg = !finite ? "transparent" : isWin ? "rgba(22,163,74,0.12)" : "rgba(220,38,38,0.12)";
-                      const pnlText = finite ? `${pnlNum >= 0 ? "+" : ""}${pnlNum}%` : safeText(pnlRaw);
-                      return (
-                        <tr key={`${safeText(trade.ticker, "TRADE")}-${index}`} className="border-b" style={{ borderColor: "var(--border)", color: "var(--text-secondary)", borderLeft: `3px solid ${finite ? pnlColor : "transparent"}` }}>
-                          <td className="py-3 pl-3">{safeText(trade.entryDate ?? trade.dateIn ?? trade.date)}</td>
-                          <td className="font-semibold" style={{ color: "var(--text-primary)" }}>{safeText(trade.ticker)}</td>
-                          <td>{safeText(trade.entry ?? trade.entryPrice)}</td>
-                          <td>{safeText(trade.exit ?? trade.exitPrice)}</td>
-                          <td>{safeText(trade.holdingDays ?? trade.holding)}</td>
-                          <td className="py-3">
-                            <span className="inline-block rounded-md px-2 py-0.5 text-xs font-bold" style={{ color: pnlColor, background: pnlBg }}>{pnlText}</span>
-                          </td>
-                          <td>{safeText(trade.reason ?? trade.exitReason, "Theo điều kiện chiến thuật")}</td>
-                        </tr>
-                      );
-                    })
-                  ) : (
-                    <tr>
-                      <td className="py-5 text-center" colSpan={7} style={{ color: "var(--text-muted)" }}>
-                        Chưa có danh sách lệnh. Hãy chạy kiểm định để xem chi tiết từng lệnh.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-      </div>
-
-      {/* ===================== DƯỚI CÙNG — ADN COACH (AI nhận định, full-width) ===================== */}
-      <div className="rounded-[1.5rem] border p-5 md:p-6" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-        <div className="flex items-center gap-2">
-          <Bot className="h-4 w-4" style={{ color: "var(--primary)" }} />
-          <h2 className="font-semibold" style={{ color: "var(--text-primary)" }}>ADN Coach — Nhận định</h2>
-        </div>
-        <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
-          <div>
-            <p className="text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
-              {buildCoachDiagnosis(metrics, result)}
-            </p>
-            {result ? (
+          {/* thanh tab */}
+          <div className="flex flex-wrap gap-1 rounded-2xl border p-1" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+            {([
+              ["dashboard", "Bảng kết quả"],
+              ["equity", "Đường vốn"],
+              ["coach", "ADN Coach"],
+              ["history", `Lịch sử${saved.length ? ` (${saved.length})` : ""}`],
+            ] as const).map(([id, label]) => (
               <button
+                key={id}
                 type="button"
-                onClick={analyzeCoach}
-                disabled={coachLoading}
-                className="mt-3 inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-white disabled:opacity-60"
-                style={{ background: "var(--primary)" }}
+                onClick={() => setResultTab(id)}
+                className="rounded-xl px-3.5 py-2 text-sm font-semibold transition"
+                style={resultTab === id ? { background: "var(--primary)", color: "#fff" } : { color: "var(--text-muted)" }}
               >
-                <Bot className="h-3.5 w-3.5" />
-                {coachLoading ? "AIDEN đang đọc…" : "Phân tích sâu (AI)"}
-              </button>
-            ) : null}
-            {coachAi ? (
-              <p className="mt-3 whitespace-pre-line rounded-xl border p-3 text-xs leading-6" style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-secondary)" }}>
-                {coachAi}
-              </p>
-            ) : null}
-          </div>
-          <div className="space-y-3">
-            {["Thêm bộ lọc xu hướng thị trường", "Kiểm tra lại với trượt giá cao hơn", "Xem các lệnh thua lớn nhất"].map((item) => (
-              <button
-                key={item}
-                type="button"
-                className="w-full rounded-xl border px-3 py-2 text-left text-xs font-bold"
-                style={{ borderColor: "var(--border)", color: "var(--text-primary)", background: "var(--surface-2)" }}
-              >
-                {item}
+                {label}
               </button>
             ))}
           </div>
+
+          {/* nội dung tab */}
+          {resultTab === "dashboard" ? (
+            result ? (
+              <ResultDashboard metrics={metrics} analysis={analysis} trades={allTrades} warnings={runWarnings} />
+            ) : (
+              <div className="flex min-h-[420px] flex-col items-center justify-center rounded-[1.5rem] border p-10 text-center" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+                <div className="rounded-2xl p-4" style={{ background: "var(--primary-light)" }}>
+                  <BarChart3 className="h-8 w-8" style={{ color: "var(--primary)" }} />
+                </div>
+                <p className="mt-4 text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Lựa chọn điều kiện để chạy chiến thuật</p>
+                <p className="mt-1 max-w-sm text-xs leading-5" style={{ color: "var(--text-muted)" }}>Thêm điều kiện Mua/Bán bên trái rồi bấm &quot;Chạy kiểm định&quot; để xem bảng kết quả chi tiết.</p>
+              </div>
+            )
+          ) : resultTab === "equity" ? (
+            <div className="rounded-[1.5rem] border p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+              <div className="flex items-center gap-2">
+                <LineChart className="h-4 w-4" style={{ color: "var(--primary)" }} />
+                <h2 className="font-semibold" style={{ color: "var(--text-primary)" }}>Equity curve so với {assumptions.benchmark}</h2>
+              </div>
+              {equityCurve.length > 1 ? (
+                <div className="mt-4 h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={equityCurve} margin={{ top: 6, right: 8, left: 8, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="eqFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.25} />
+                          <stop offset="100%" stopColor="var(--primary)" stopOpacity={0.02} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" strokeOpacity={0.4} vertical={false} />
+                      <XAxis dataKey="date" tick={{ fontSize: 10, fill: "var(--text-muted)" }} interval="preserveStartEnd" minTickGap={44} tickFormatter={(d) => String(d).slice(5)} axisLine={false} tickLine={false} />
+                      <YAxis hide domain={["auto", "auto"]} />
+                      <Tooltip contentStyle={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 10, fontSize: 12 }} labelStyle={{ color: "var(--text-muted)" }} formatter={(v) => `${fmtEq(Number(v) || 0)}₫`} />
+                      <Legend wrapperStyle={{ fontSize: 11 }} />
+                      <Area type="monotone" dataKey="value" name="Chiến thuật" stroke="var(--primary)" strokeWidth={2} fill="url(#eqFill)" />
+                      <Line type="monotone" dataKey="benchmark" name={assumptions.benchmark} stroke="var(--text-muted)" strokeWidth={1.5} dot={false} strokeDasharray="4 3" connectNulls />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="mt-4 flex h-72 items-center justify-center rounded-xl border border-dashed" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
+                  {result ? "Kết quả chưa đủ điểm để vẽ đường vốn." : "Chưa chạy kiểm định."}
+                </div>
+              )}
+            </div>
+          ) : resultTab === "coach" ? (
+            <div className="rounded-[1.5rem] border p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+              <div className="flex items-center gap-2">
+                <Bot className="h-4 w-4" style={{ color: "var(--primary)" }} />
+                <h2 className="font-semibold" style={{ color: "var(--text-primary)" }}>ADN Coach — Nhận định</h2>
+              </div>
+              <p className="mt-4 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>{buildCoachDiagnosis(metrics, result)}</p>
+              {result ? (
+                <button type="button" onClick={analyzeCoach} disabled={coachLoading} className="mt-3 inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-white disabled:opacity-60" style={{ background: "var(--primary)" }}>
+                  <Bot className="h-3.5 w-3.5" />
+                  {coachLoading ? "AIDEN đang đọc…" : "Phân tích sâu (AI)"}
+                </button>
+              ) : null}
+              {coachAi ? (
+                <p className="mt-3 whitespace-pre-line rounded-xl border p-3 text-xs leading-6" style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-secondary)" }}>{coachAi}</p>
+              ) : null}
+            </div>
+          ) : (
+            <div className="rounded-[1.5rem] border p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+              {saved.length > 0 ? (
+                <>
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Lịch sử & chiến thuật đã lưu ({saved.length})</p>
+                  <div className="space-y-2">
+                    {saved.slice().sort((a, b) => Number(b.pinned ?? false) - Number(a.pinned ?? false)).map((item) => {
+                      const m = isRecord(item.result) && isRecord(item.result.metrics) ? item.result.metrics : null;
+                      const nr = m && typeof m.netReturn === "number" ? m.netReturn : null;
+                      return (
+                        <div key={item.id} className="flex items-center gap-3 rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+                          <input type="checkbox" checked={compareIds.includes(item.id)} onChange={() => setCompareIds((c) => (c.includes(item.id) ? c.filter((x) => x !== item.id) : [...c, item.id]))} className="h-4 w-4 shrink-0" title="Chọn để so sánh" />
+                          <div className="min-w-0 flex-1">
+                            <p className="flex items-center gap-1.5 truncate text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                              {item.pinned ? <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold" style={{ background: "var(--primary-light)", color: "var(--primary)" }}>ĐÃ LƯU</span> : null}
+                              <span className="truncate">{item.name}</span>
+                            </p>
+                            <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>{new Date(item.createdAt).toLocaleString("vi-VN")}{nr !== null ? ` · ${nr >= 0 ? "+" : ""}${nr}%` : ""}</p>
+                          </div>
+                          <div className="flex shrink-0 gap-2">
+                            <button type="button" onClick={() => loadStrategy(item)} className="rounded-lg border px-3 py-1.5 text-xs font-bold" style={{ borderColor: "var(--border)", color: "var(--primary)" }}>Nạp lại</button>
+                            <button type="button" onClick={() => deleteStrategy(item.id)} className="rounded-lg border px-3 py-1.5 text-xs font-bold" style={{ borderColor: "rgba(192,57,43,0.3)", color: "var(--danger)" }}>Xóa</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {compareIds.length >= 2 ? (
+                    <div className="mt-4 overflow-x-auto border-t pt-4" style={{ borderColor: "var(--border)" }}>
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>So sánh {compareIds.length} chiến thuật</p>
+                      {(() => {
+                        const sel = saved.filter((s) => compareIds.includes(s.id));
+                        const rows: { label: string; keys: string[]; fmt: (n: number | undefined) => string }[] = [
+                          { label: "Net Return", keys: ["netReturn"], fmt: formatPercent },
+                          { label: "CAGR", keys: ["cagr"], fmt: formatPercent },
+                          { label: "Max DD", keys: ["maxDrawdown"], fmt: formatDrawdown },
+                          { label: "Win Rate", keys: ["winRate"], fmt: formatPercent },
+                          { label: "Profit Factor", keys: ["profitFactor"], fmt: formatNumber },
+                          { label: "Số lệnh", keys: ["numberOfTrades"], fmt: formatNumber },
+                        ];
+                        return (
+                          <table className="w-full min-w-[420px] text-xs">
+                            <thead>
+                              <tr style={{ color: "var(--text-muted)" }}>
+                                <th className="py-2 text-left">KPI</th>
+                                {sel.map((s) => <th key={s.id} className="py-2 pl-3 text-right font-semibold" style={{ color: "var(--text-primary)" }}>{s.name}</th>)}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {rows.map((r) => (
+                                <tr key={r.label} className="border-t" style={{ borderColor: "var(--border)" }}>
+                                  <td className="py-2" style={{ color: "var(--text-muted)" }}>{r.label}</td>
+                                  {sel.map((s) => {
+                                    const m = isRecord(s.result) && isRecord(s.result.metrics) ? s.result.metrics : null;
+                                    return <td key={s.id} className="py-2 pl-3 text-right font-bold" style={{ color: "var(--text-secondary)" }}>{r.fmt(pickNumber(m, r.keys))}</td>;
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        );
+                      })()}
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <p className="py-10 text-center text-sm" style={{ color: "var(--text-muted)" }}>Chưa có chiến thuật nào được lưu. Chạy &amp; lưu để xem lại sau.</p>
+              )}
+            </div>
+          )}
         </div>
+
       </div>
 
       {/* Strategy DNA + Cảnh báo rủi ro */}
@@ -1270,6 +1421,16 @@ export function StrategyValidationStudio() {
           </p>
         </div>
       </div>
+
+      {modalSide ? (
+        <ConditionModal
+          side={modalSide}
+          options={modalSide === "buy" ? buyConditions : sellConditions}
+          selected={modalSide === "buy" ? buySelected : sellSelected}
+          onToggle={(id) => toggleCondition(id, modalSide)}
+          onClose={() => setModalSide(null)}
+        />
+      ) : null}
     </section>
   );
 }
