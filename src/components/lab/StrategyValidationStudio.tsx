@@ -356,7 +356,7 @@ function ParamInput({ field, value, onChange }: { field: ParamField; value: stri
         <select
           value={String(value)}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full rounded-lg border bg-transparent px-2 py-1.5 text-xs font-bold outline-none"
+          className="w-full rounded-lg border bg-transparent px-2 py-1.5 text-xs font-semibold outline-none"
           style={{ color: "var(--text-primary)", borderColor: "var(--border)" }}
         >
           {field.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -367,7 +367,7 @@ function ParamInput({ field, value, onChange }: { field: ParamField; value: stri
           value={String(value)}
           step={field.step ?? 1}
           onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))}
-          className="w-full rounded-lg border bg-transparent px-2 py-1.5 text-xs font-bold outline-none"
+          className="w-full rounded-lg border bg-transparent px-2 py-1.5 text-xs font-semibold outline-none"
           style={{ color: "var(--text-primary)", borderColor: "var(--border)" }}
         />
       )}
@@ -393,7 +393,7 @@ function ConditionGrid({
     <div className="space-y-5">
       {Object.entries(grouped).map(([group, items]) => (
         <div key={group}>
-          <h4 className="mb-3 text-xs font-black uppercase tracking-[0.16em]" style={{ color: "var(--text-muted)" }}>
+          <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
             {group}
           </h4>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -420,7 +420,7 @@ function ConditionGrid({
                       {checked ? <CheckCircle2 className="h-3.5 w-3.5 text-white" /> : null}
                     </span>
                     <span>
-                      <span className="block text-sm font-black" style={{ color: "var(--text-primary)" }}>{item.label}</span>
+                      <span className="block text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{item.label}</span>
                       <span className="mt-1 block text-xs leading-5" style={{ color: "var(--text-secondary)" }}>{item.description}</span>
                     </span>
                   </button>
@@ -454,7 +454,7 @@ function NumberInput({
 }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-xs font-bold uppercase" style={{ color: "var(--text-muted)" }}>
+      <span className="mb-2 block text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
         {label}
       </span>
       <div className="flex items-center rounded-xl border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
@@ -708,10 +708,10 @@ export function StrategyValidationStudio() {
                 <FlaskConical className="h-6 w-6" style={{ color: "var(--primary)" }} />
               </div>
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.2em]" style={{ color: "var(--primary)" }}>
+                <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--primary)" }}>
                   ADN Lab v2
                 </p>
-                <h1 className="text-2xl font-black md:text-4xl" style={{ color: "var(--text-primary)" }}>
+                <h1 className="text-2xl font-bold md:text-4xl" style={{ color: "var(--text-primary)" }}>
                   Strategy Validation Studio
                 </h1>
               </div>
@@ -728,7 +728,7 @@ export function StrategyValidationStudio() {
               ["Risk Review", "Đọc rủi ro trước"],
             ].map(([title, body]) => (
               <div key={title} className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
-                <p className="text-sm font-black" style={{ color: "var(--text-primary)" }}>{title}</p>
+                <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{title}</p>
                 <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>{body}</p>
               </div>
             ))}
@@ -741,11 +741,11 @@ export function StrategyValidationStudio() {
           <div className="rounded-[1.5rem] border p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
             <div className="flex items-center gap-2">
               <SlidersHorizontal className="h-4 w-4" style={{ color: "var(--primary)" }} />
-              <h2 className="font-black" style={{ color: "var(--text-primary)" }}>Phạm vi kiểm định</h2>
+              <h2 className="font-semibold" style={{ color: "var(--text-primary)" }}>Phạm vi kiểm định</h2>
             </div>
 
             <label className="mt-5 block">
-              <span className="mb-2 block text-xs font-bold uppercase" style={{ color: "var(--text-muted)" }}>
+              <span className="mb-2 block text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
                 Tên chiến thuật
               </span>
               <input
@@ -779,7 +779,7 @@ export function StrategyValidationStudio() {
                     borderColor: scope === item.value ? "var(--primary)" : "var(--border)",
                   }}
                 >
-                  <p className="text-sm font-black" style={{ color: "var(--text-primary)" }}>{item.label}</p>
+                  <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{item.label}</p>
                   <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>{item.helper}</p>
                 </button>
               ))}
@@ -787,11 +787,11 @@ export function StrategyValidationStudio() {
 
             {scope === "ticker" ? (
               <label className="mt-4 block">
-                <span className="mb-2 block text-xs font-bold uppercase" style={{ color: "var(--text-muted)" }}>
+                <span className="mb-2 block text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
                   Mã cổ phiếu
                 </span>
                 <input
-                  className="w-full rounded-xl border bg-transparent px-3 py-3 text-sm font-black uppercase outline-none"
+                  className="w-full rounded-xl border bg-transparent px-3 py-3 text-sm font-semibold outline-none"
                   style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
                   value={selection}
                   onChange={(event) => setSelection(event.target.value.toUpperCase())}
@@ -799,11 +799,11 @@ export function StrategyValidationStudio() {
               </label>
             ) : (
               <label className="mt-4 block">
-                <span className="mb-2 block text-xs font-bold uppercase" style={{ color: "var(--text-muted)" }}>
+                <span className="mb-2 block text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
                   Lựa chọn
                 </span>
                 <select
-                  className="w-full rounded-xl border bg-transparent px-3 py-3 text-sm font-black outline-none"
+                  className="w-full rounded-xl border bg-transparent px-3 py-3 text-sm font-semibold outline-none"
                   style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
                   value={selection}
                   onChange={(event) => setSelection(event.target.value)}
@@ -819,7 +819,7 @@ export function StrategyValidationStudio() {
           <div className="rounded-[1.5rem] border p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
             <div className="flex items-center gap-2">
               <Target className="h-4 w-4" style={{ color: "var(--primary)" }} />
-              <h2 className="font-black" style={{ color: "var(--text-primary)" }}>Giả định kiểm định</h2>
+              <h2 className="font-semibold" style={{ color: "var(--text-primary)" }}>Giả định kiểm định</h2>
             </div>
             <div className="mt-5 grid gap-4">
               <NumberInput label="Vốn giả lập" value={assumptions.capital} suffix="đ" onChange={(value) => updateAssumption("capital", value)} />
@@ -832,7 +832,7 @@ export function StrategyValidationStudio() {
               <NumberInput label="Drawdown toàn chiến thuật" value={assumptions.strategyDrawdown} suffix="%" onChange={(value) => updateAssumption("strategyDrawdown", value)} />
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
-                  <span className="mb-2 block text-xs font-bold uppercase" style={{ color: "var(--text-muted)" }}>Từ ngày</span>
+                  <span className="mb-2 block text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Từ ngày</span>
                   <input
                     type="date"
                     value={assumptions.startDate}
@@ -842,7 +842,7 @@ export function StrategyValidationStudio() {
                   />
                 </label>
                 <label className="block">
-                  <span className="mb-2 block text-xs font-bold uppercase" style={{ color: "var(--text-muted)" }}>Đến ngày</span>
+                  <span className="mb-2 block text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Đến ngày</span>
                   <input
                     type="date"
                     value={assumptions.endDate}
@@ -853,11 +853,11 @@ export function StrategyValidationStudio() {
                 </label>
               </div>
               <label className="block">
-                <span className="mb-2 block text-xs font-bold uppercase" style={{ color: "var(--text-muted)" }}>Benchmark</span>
+                <span className="mb-2 block text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Benchmark</span>
                 <select
                   value={assumptions.benchmark}
                   onChange={(event) => updateAssumption("benchmark", event.target.value)}
-                  className="w-full rounded-xl border bg-transparent px-3 py-3 text-sm font-black outline-none"
+                  className="w-full rounded-xl border bg-transparent px-3 py-3 text-sm font-semibold outline-none"
                   style={{ color: "var(--text-primary)", borderColor: "var(--border)" }}
                 >
                   {benchmarkOptions.map((item) => <option key={item} value={item}>{item}</option>)}
@@ -887,8 +887,8 @@ export function StrategyValidationStudio() {
               className="flex w-full items-center justify-between px-5 py-4 text-left"
             >
               <span className="flex items-center gap-3">
-                <span className="rounded-lg bg-emerald-500 px-2 py-1 text-xs font-black text-white">M</span>
-                <span className="font-black" style={{ color: "var(--text-primary)" }}>Điều kiện mua</span>
+                <span className="rounded-lg bg-emerald-500 px-2 py-1 text-xs font-semibold text-white">M</span>
+                <span className="font-semibold" style={{ color: "var(--text-primary)" }}>Điều kiện mua</span>
                 <span className="text-xs" style={{ color: "var(--text-muted)" }}>{buySelected.length} điều kiện</span>
               </span>
               <ChevronDown className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
@@ -910,8 +910,8 @@ export function StrategyValidationStudio() {
               className="flex w-full items-center justify-between px-5 py-4 text-left"
             >
               <span className="flex items-center gap-3">
-                <span className="rounded-lg bg-red-500 px-2 py-1 text-xs font-black text-white">B</span>
-                <span className="font-black" style={{ color: "var(--text-primary)" }}>Điều kiện bán</span>
+                <span className="rounded-lg bg-red-500 px-2 py-1 text-xs font-semibold text-white">B</span>
+                <span className="font-semibold" style={{ color: "var(--text-primary)" }}>Điều kiện bán</span>
                 <span className="text-xs" style={{ color: "var(--text-muted)" }}>{sellSelected.length} điều kiện</span>
               </span>
               <ChevronDown className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
@@ -931,7 +931,7 @@ export function StrategyValidationStudio() {
               type="button"
               onClick={runBacktest}
               disabled={isRunning}
-              className="inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-black text-white disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
               style={{ background: "var(--primary)" }}
             >
               <Play className="h-4 w-4" />
@@ -941,7 +941,7 @@ export function StrategyValidationStudio() {
               type="button"
               onClick={saveStrategy}
               disabled={!result || saving}
-              className="inline-flex items-center gap-2 rounded-2xl border px-5 py-3 text-sm font-black disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-2xl border px-5 py-3 text-sm font-semibold disabled:opacity-50"
               style={{ borderColor: "var(--border)", color: "var(--text-primary)", background: "var(--surface)" }}
               title={result ? "Lưu chiến thuật + kết quả" : "Chạy kiểm định trước khi lưu"}
             >
@@ -952,7 +952,7 @@ export function StrategyValidationStudio() {
 
           {saved.length > 0 ? (
             <div className="rounded-[1.5rem] border p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-              <p className="mb-3 text-xs font-black uppercase tracking-[0.16em]" style={{ color: "var(--text-muted)" }}>
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
                 Chiến thuật đã lưu ({saved.length})
               </p>
               <div className="space-y-2">
@@ -969,7 +969,7 @@ export function StrategyValidationStudio() {
                         title="Chọn để so sánh"
                       />
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-black" style={{ color: "var(--text-primary)" }}>{item.name}</p>
+                        <p className="truncate text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{item.name}</p>
                         <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
                           {new Date(item.createdAt).toLocaleString("vi-VN")}{nr !== null ? ` · ${nr >= 0 ? "+" : ""}${nr}%` : ""}
                         </p>
@@ -984,7 +984,7 @@ export function StrategyValidationStudio() {
               </div>
               {compareIds.length >= 2 ? (
                 <div className="mt-4 overflow-x-auto border-t pt-4" style={{ borderColor: "var(--border)" }}>
-                  <p className="mb-2 text-xs font-black uppercase tracking-[0.16em]" style={{ color: "var(--text-muted)" }}>So sánh {compareIds.length} chiến thuật</p>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>So sánh {compareIds.length} chiến thuật</p>
                   {(() => {
                     const sel = saved.filter((s) => compareIds.includes(s.id));
                     const rows: { label: string; keys: string[]; fmt: (n: number | undefined) => string }[] = [
@@ -1000,7 +1000,7 @@ export function StrategyValidationStudio() {
                         <thead>
                           <tr style={{ color: "var(--text-muted)" }}>
                             <th className="py-2 text-left">KPI</th>
-                            {sel.map((s) => <th key={s.id} className="py-2 pl-3 text-right font-black" style={{ color: "var(--text-primary)" }}>{s.name}</th>)}
+                            {sel.map((s) => <th key={s.id} className="py-2 pl-3 text-right font-semibold" style={{ color: "var(--text-primary)" }}>{s.name}</th>)}
                           </tr>
                         </thead>
                         <tbody>
@@ -1031,13 +1031,13 @@ export function StrategyValidationStudio() {
           <div className="rounded-[1.5rem] border p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
             <div className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" style={{ color: "var(--primary)" }} />
-              <h2 className="font-black" style={{ color: "var(--text-primary)" }}>ADN Strategy Report</h2>
+              <h2 className="font-semibold" style={{ color: "var(--text-primary)" }}>ADN Strategy Report</h2>
             </div>
             <div className="mt-5 grid gap-3 md:grid-cols-3">
               {metricCards.map((item) => (
                 <div key={item.label} className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
-                  <p className="text-xs font-bold uppercase" style={{ color: "var(--text-muted)" }}>{item.label}</p>
-                  <p className="mt-2 text-xl font-black" style={{ color: "var(--text-primary)" }}>{item.value}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>{item.label}</p>
+                  <p className="mt-2 text-2xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>{item.value}</p>
                 </div>
               ))}
             </div>
@@ -1045,7 +1045,7 @@ export function StrategyValidationStudio() {
             <div className="mt-5 rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
               <div className="flex items-center gap-2">
                 <LineChart className="h-4 w-4" style={{ color: "var(--primary)" }} />
-                <p className="text-sm font-black" style={{ color: "var(--text-primary)" }}>Equity curve so với {assumptions.benchmark}</p>
+                <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Equity curve so với {assumptions.benchmark}</p>
               </div>
               {equityCurve.length > 1 ? (
                 <div className="mt-4 h-56">
@@ -1090,7 +1090,7 @@ export function StrategyValidationStudio() {
           <div className="rounded-[1.5rem] border p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
             <div className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" style={{ color: "var(--primary)" }} />
-              <h2 className="font-black" style={{ color: "var(--text-primary)" }}>Trade Explorer</h2>
+              <h2 className="font-semibold" style={{ color: "var(--text-primary)" }}>Trade Explorer</h2>
             </div>
             <div className="mt-4 overflow-x-auto">
               <table className="w-full min-w-[720px] text-sm">
@@ -1110,7 +1110,7 @@ export function StrategyValidationStudio() {
                     trades.map((trade, index) => (
                       <tr key={`${safeText(trade.ticker, "TRADE")}-${index}`} className="border-b" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
                         <td className="py-3">{safeText(trade.entryDate ?? trade.dateIn ?? trade.date)}</td>
-                        <td className="font-black" style={{ color: "var(--text-primary)" }}>{safeText(trade.ticker)}</td>
+                        <td className="font-semibold" style={{ color: "var(--text-primary)" }}>{safeText(trade.ticker)}</td>
                         <td>{safeText(trade.entry ?? trade.entryPrice)}</td>
                         <td>{safeText(trade.exit ?? trade.exitPrice)}</td>
                         <td>{safeText(trade.holdingDays ?? trade.holding)}</td>
@@ -1135,7 +1135,7 @@ export function StrategyValidationStudio() {
           <div className="rounded-[1.5rem] border p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
             <div className="flex items-center gap-2">
               <ShieldAlert className="h-4 w-4" style={{ color: "#f59e0b" }} />
-              <h2 className="font-black" style={{ color: "var(--text-primary)" }}>Strategy DNA</h2>
+              <h2 className="font-semibold" style={{ color: "var(--text-primary)" }}>Strategy DNA</h2>
             </div>
             <div className="mt-5 space-y-4 text-sm">
               {[
@@ -1148,7 +1148,7 @@ export function StrategyValidationStudio() {
                 ["Benchmark", assumptions.benchmark],
               ].map(([label, value]) => (
                 <div key={label} className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
-                  <p className="text-xs font-bold uppercase" style={{ color: "var(--text-muted)" }}>{label}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>{label}</p>
                   <p className="mt-1 font-bold" style={{ color: "var(--text-primary)" }}>{value}</p>
                 </div>
               ))}
@@ -1158,7 +1158,7 @@ export function StrategyValidationStudio() {
           <div className="rounded-[1.5rem] border p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
             <div className="flex items-center gap-2">
               <Bot className="h-4 w-4" style={{ color: "var(--primary)" }} />
-              <h2 className="font-black" style={{ color: "var(--text-primary)" }}>ADN Coach</h2>
+              <h2 className="font-semibold" style={{ color: "var(--text-primary)" }}>ADN Coach</h2>
             </div>
             <p className="mt-4 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
               {buildCoachDiagnosis(metrics, result)}
@@ -1197,7 +1197,7 @@ export function StrategyValidationStudio() {
           <div className="rounded-[1.5rem] border p-5" style={{ background: "rgba(245,158,11,0.08)", borderColor: "rgba(245,158,11,0.35)" }}>
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4" style={{ color: "#f59e0b" }} />
-              <h2 className="font-black" style={{ color: "#f59e0b" }}>Cảnh báo rủi ro</h2>
+              <h2 className="font-semibold" style={{ color: "#f59e0b" }}>Cảnh báo rủi ro</h2>
             </div>
             <p className="mt-3 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
               Backtest chỉ cho biết chiến thuật từng hoạt động ra sao trong quá khứ. Kết quả tốt vẫn cần kiểm tra
