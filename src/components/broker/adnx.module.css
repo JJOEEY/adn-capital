@@ -15,21 +15,20 @@
 .down { color: var(--danger); }
 .eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); }
 
-/* shell: header / tabbar / work / context (KHÔNG rail — đã có sidebar tổng) */
-.shell { display: grid; grid-template-columns: minmax(0, 1fr) 340px; grid-template-rows: 52px auto 1fr; min-height: calc(100dvh - 0px); }
-.header { grid-column: 1 / 3; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 18px; border-bottom: 1px solid var(--border); background: var(--surface); }
-.wordmark { font-family: var(--font-fraunces), serif; font-weight: 600; font-size: 17px; letter-spacing: 0.01em; }
-.wordmark b { color: var(--primary); }
-.headActions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-
-.tabbar { grid-column: 1; grid-row: 2; display: flex; align-items: center; gap: 4px; padding: 7px 14px; border-bottom: 1px solid var(--border); background: var(--surface); overflow-x: auto; }
+/* shell: tabbar(+actions) / work / context (KHÔNG header riêng — MainLayout đã có tiêu đề) */
+.shell { display: grid; grid-template-columns: minmax(0, 1fr) 340px; grid-template-rows: auto 1fr; min-height: calc(100dvh - 120px); }
+.tabbar { grid-column: 1; grid-row: 1; display: flex; align-items: center; gap: 4px; padding: 8px 14px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.tabActions { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .tab { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border: 0; border-radius: 10px; background: transparent; color: var(--text-secondary); font-family: inherit; font-weight: 600; font-size: 13px; white-space: nowrap; cursor: pointer; transition: color .15s, background .15s; }
 .tab:hover { color: var(--text-primary); }
 .tab svg { width: 17px; height: 17px; }
 .tabOn { background: var(--primary-light); color: var(--primary); }
 
-.work { grid-column: 1; grid-row: 3; display: flex; flex-direction: column; min-width: 0; overflow: auto; }
-.ctx { grid-column: 2; grid-row: 2 / 4; border-left: 1px solid var(--border); background: var(--surface); overflow: auto; }
+.orderGrid { display: grid; grid-template-columns: minmax(360px, 430px) minmax(0, 1fr); gap: 18px; padding: 16px 18px; align-items: start; }
+.activityCol { display: grid; gap: 16px; align-content: start; }
+
+.work { grid-column: 1; grid-row: 2; display: flex; flex-direction: column; min-width: 0; overflow: auto; }
+.ctx { grid-column: 2; grid-row: 1 / 3; border-left: 1px solid var(--border); background: var(--surface); overflow: auto; }
 .cblock { padding: 16px 18px; border-bottom: 1px solid var(--border); }
 
 .secH { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
@@ -100,9 +99,9 @@
 .chip { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 7px; letter-spacing: 0.02em; }
 
 @media (max-width: 1100px) {
-  .shell { grid-template-columns: 1fr; grid-template-rows: 52px auto 1fr; }
-  .header { grid-column: 1 / -1; }
+  .shell { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
   .ctx { display: none; }
+  .orderGrid { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) {
   .segBtn, .meterFill, .meterNeedle, .modal { transition: none; animation: none; }

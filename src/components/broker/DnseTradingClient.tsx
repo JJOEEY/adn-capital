@@ -947,9 +947,16 @@ export function DnseTradingClient() {
   return (
     <div className={s.root}>
       <div className={s.shell}>
-        <header className={s.header}>
-          <div className={s.wordmark}>ADN <b>×</b> DNSE</div>
-          <div className={s.headActions}>
+        <div className={s.tabbar}>
+          {[
+            { key: "order" as const, label: "Đặt lệnh", icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 17l5-5 4 4 8-8M21 8v5M21 8h-5" /></svg>) },
+            { key: "portfolio" as const, label: "Danh mục", icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="4" width="18" height="6" rx="1.5" /><rect x="3" y="14" width="11" height="6" rx="1.5" /></svg>) },
+            { key: "orders" as const, label: "Sổ lệnh & lịch sử", icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M5 4h14M5 9h14M5 14h9M5 19h9" /></svg>) },
+            { key: "auto" as const, label: "Tự động hóa", icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="3" /><path d="M12 4v2M12 18v2M4 12h2M18 12h2M6 6l1.5 1.5M16.5 16.5L18 18" /></svg>) },
+          ].map((t) => (
+            <button key={t.key} type="button" onClick={() => setActiveTab(t.key)} className={`${s.tab} ${activeTab === t.key ? s.tabOn : ""}`}>{t.icon}<span>{t.label}</span></button>
+          ))}
+          <div className={s.tabActions}>
             {!isLinkedAccount ? (
               <>
                 <button type="button" onClick={() => setShowLoginModal(true)} className={s.pill} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><LogIn className="h-3.5 w-3.5" /> Đăng nhập DNSE</button>
@@ -961,17 +968,6 @@ export function DnseTradingClient() {
             ) : null}
             <button type="button" onClick={() => refreshDnseViews(true)} className={s.pill} aria-label="Làm mới dữ liệu"><RefreshCw className={`h-3.5 w-3.5 ${brokerTopics.isValidating || directDnse.loading ? "animate-spin" : ""}`} /></button>
           </div>
-        </header>
-
-        <div className={s.tabbar}>
-          {[
-            { key: "order" as const, label: "Đặt lệnh", icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 17l5-5 4 4 8-8M21 8v5M21 8h-5" /></svg>) },
-            { key: "portfolio" as const, label: "Danh mục", icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="4" width="18" height="6" rx="1.5" /><rect x="3" y="14" width="11" height="6" rx="1.5" /></svg>) },
-            { key: "orders" as const, label: "Sổ lệnh & lịch sử", icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M5 4h14M5 9h14M5 14h9M5 19h9" /></svg>) },
-            { key: "auto" as const, label: "Tự động hóa", icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="3" /><path d="M12 4v2M12 18v2M4 12h2M18 12h2M6 6l1.5 1.5M16.5 16.5L18 18" /></svg>) },
-          ].map((t) => (
-            <button key={t.key} type="button" onClick={() => setActiveTab(t.key)} className={`${s.tab} ${activeTab === t.key ? s.tabOn : ""}`}>{t.icon}<span>{t.label}</span></button>
-          ))}
         </div>
 
         <main className={s.work}>
@@ -986,24 +982,30 @@ export function DnseTradingClient() {
                 ))}
                 {holdings.length === 0 ? <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Nhập mã ở phiếu lệnh để bắt đầu.</span> : null}
               </div>
-              <div style={{ padding: "16px 18px" }}>
-                <div className={s.eyebrow} style={{ marginBottom: 4 }}>Phiếu lệnh</div>
-                <DirectOrderPanel
-                  ticker={(ticker || "HPG").trim().toUpperCase()}
-                  defaultPrice={queryEntryPrice ?? undefined}
-                  defaultAccountId={selectedAccountId ?? undefined}
-                  defaultSide={querySide}
-                  source={querySource}
-                  signalId={querySignalId}
-                  navPct={queryNavPct ?? undefined}
-                  initialTotalAsset={totalNavValue}
-                  initialBuyingPower={buyingPowerValue}
-                  initialLoanPackages={directOrderLoanPackages}
-                  canTrade={canTrade}
-                  onTickerChange={setTicker}
-                  renderAuto={false}
-                  onOrderSettled={() => refreshDnseViews(true)}
-                />
+              <div className={s.orderGrid}>
+                <div>
+                  <div className={s.eyebrow} style={{ marginBottom: 4 }}>Phiếu lệnh</div>
+                  <DirectOrderPanel
+                    ticker={(ticker || "HPG").trim().toUpperCase()}
+                    defaultPrice={queryEntryPrice ?? undefined}
+                    defaultAccountId={selectedAccountId ?? undefined}
+                    defaultSide={querySide}
+                    source={querySource}
+                    signalId={querySignalId}
+                    navPct={queryNavPct ?? undefined}
+                    initialTotalAsset={totalNavValue}
+                    initialBuyingPower={buyingPowerValue}
+                    initialLoanPackages={directOrderLoanPackages}
+                    canTrade={canTrade}
+                    onTickerChange={setTicker}
+                    renderAuto={false}
+                    onOrderSettled={() => refreshDnseViews(true)}
+                  />
+                </div>
+                <div className={s.activityCol}>
+                  <OrdersTable title="Lệnh trong ngày" orders={latestOrders} hint={ordersDisplayHint} limit={8} />
+                  <HoldingsTable holdings={holdings} hint={holdingsDisplayHint} limit={6} />
+                </div>
               </div>
             </>
           ) : null}
