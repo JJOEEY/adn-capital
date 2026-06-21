@@ -142,9 +142,10 @@ const defaultAssumptions: LabAssumptions = {
   benchmark: "VNINDEX",
 };
 
-type ParamField =
+type ParamField = (
   | { key: string; label: string; type: "number"; default: number; step?: number }
-  | { key: string; label: string; type: "select"; default: string; options: { value: string; label: string }[] };
+  | { key: string; label: string; type: "select"; default: string; options: { value: string; label: string }[] }
+) & { showIf?: (p: Record<string, string | number>) => boolean };
 
 const OP_OPTS = [
   { value: "lt", label: "<" },
@@ -175,8 +176,8 @@ const CONDITION_PARAMS: Record<string, ParamField[]> = {
   ],
   rsi: [
     { key: "op", label: "Toán tử", type: "select", default: "between", options: OP_OPTS },
-    { key: "low", label: "Ngưỡng dưới", type: "number", default: 50 },
-    { key: "high", label: "Ngưỡng trên", type: "number", default: 70 },
+    { key: "low", label: "Ngưỡng", type: "number", default: 50, showIf: (p) => String(p.op ?? "between") !== "gt" },
+    { key: "high", label: "Ngưỡng", type: "number", default: 70, showIf: (p) => { const op = String(p.op ?? "between"); return op === "between" || op === "gt"; } },
   ],
   bollinger: [
     { key: "period", label: "Kỳ", type: "number", default: 20 },
@@ -186,8 +187,8 @@ const CONDITION_PARAMS: Record<string, ParamField[]> = {
   ],
   stoch_rsi: [
     { key: "op", label: "Toán tử", type: "select", default: "between", options: OP_OPTS },
-    { key: "low", label: "Dưới", type: "number", default: 20 },
-    { key: "high", label: "Trên", type: "number", default: 80 },
+    { key: "low", label: "Ngưỡng", type: "number", default: 20, showIf: (p) => String(p.op ?? "between") !== "gt" },
+    { key: "high", label: "Ngưỡng", type: "number", default: 80, showIf: (p) => { const op = String(p.op ?? "between"); return op === "between" || op === "gt"; } },
   ],
   rs: [
     { key: "period", label: "Kỳ so sánh", type: "number", default: 20 },
@@ -288,6 +289,14 @@ function getEquityCurve(result: ProviderRunResponse | null): { date: string; val
         p.benchmark == null ? null : typeof p.benchmark === "number" ? p.benchmark : Number(p.benchmark) || null,
     }))
     .filter((p) => Boolean(p.date));
+}
+
+function getWarnings(result: ProviderRunResponse | null): string[] {
+  if (!result) return [];
+  const top = Array.isArray(result.warnings) ? result.warnings : [];
+  const rec = getResultRecord(result);
+  const nested = rec && Array.isArray(rec.warnings) ? rec.warnings : [];
+  return Array.from(new Set([...top, ...nested].filter((w): w is string => typeof w === "string" && w.trim().length > 0)));
 }
 
 function groupConditions(options: ConditionOption[]) {
@@ -426,7 +435,7 @@ function ConditionGrid({
                   </button>
                   {checked && fields && fields.length > 0 ? (
                     <div className="mt-3 grid grid-cols-2 gap-2 border-t pt-3" style={{ borderColor: "var(--border)" }}>
-                      {fields.map((f) => (
+                      {fields.filter((f) => !f.showIf || f.showIf(params[item.id] ?? {})).map((f) => (
                         <ParamInput key={f.key} field={f} value={params[item.id]?.[f.key] ?? f.default} onChange={(v) => onParam(item.id, f.key, v)} />
                       ))}
                     </div>
@@ -505,6 +514,7 @@ export function StrategyValidationStudio() {
   const metrics = getMetrics(result);
   const trades = getTrades(result);
   const equityCurve = getEquityCurve(result);
+  const runWarnings = getWarnings(result);
 
   const scopeValues = scope === "index" ? indexOptions : scope === "watchlist" ? watchlistOptions : scope === "sector" ? sectorOptions : [];
 
@@ -1033,6 +1043,16 @@ export function StrategyValidationStudio() {
               <BarChart3 className="h-4 w-4" style={{ color: "var(--primary)" }} />
               <h2 className="font-semibold" style={{ color: "var(--text-primary)" }}>ADN Strategy Report</h2>
             </div>
+            {runWarnings.length > 0 ? (
+              <div className="mt-4 space-y-1 rounded-2xl border p-3 text-sm leading-6" style={{ borderColor: "rgba(245,158,11,0.35)", background: "rgba(245,158,11,0.08)", color: "#f59e0b" }}>
+                {runWarnings.map((w, i) => (
+                  <p key={i} className="flex gap-2">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>{w}</span>
+                  </p>
+                ))}
+              </div>
+            ) : null}
             <div className="mt-5 grid gap-3 md:grid-cols-3">
               {metricCards.map((item) => (
                 <div key={item.label} className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
