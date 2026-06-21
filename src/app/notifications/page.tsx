@@ -382,6 +382,7 @@ function NotificationsContent() {
   const [chatHydrated, setChatHydrated] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushLoading, setPushLoading] = useState(false);
+  const [testing, setTesting] = useState(false);
   const [pushBlockedReason, setPushBlockedReason] = useState("");
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
@@ -528,6 +529,19 @@ function NotificationsContent() {
       }, {}),
     [notifications]
   );
+
+  const handleTestPush = async () => {
+    setTesting(true);
+    try {
+      const res = await fetch("/api/push/test", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) window.alert(data?.error || "Không gửi được thông báo thử.");
+    } catch {
+      window.alert("Không gửi được thông báo thử.");
+    } finally {
+      setTesting(false);
+    }
+  };
 
   const handleTogglePush = async () => {
     const blockedReason = getPushBlockedReason();
@@ -872,6 +886,16 @@ function NotificationsContent() {
                   </>
                 )}
               </button>
+              {pushEnabled ? (
+                <button
+                  onClick={handleTestPush}
+                  disabled={testing}
+                  className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-bold border transition-all cursor-pointer"
+                  style={{ background: "var(--surface-2)", color: "var(--text-muted)", borderColor: "var(--border)" }}
+                >
+                  {testing ? "Đang gửi…" : "Gửi thử"}
+                </button>
+              ) : null}
             </div>
             {isLoading ? (
               <div className="space-y-3">
