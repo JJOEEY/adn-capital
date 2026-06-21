@@ -6,7 +6,7 @@
   "scope": "/",
   "start_url": "/dashboard",
   "display": "standalone",
-  "display_override": ["standalone", "minimal-ui"],
+  "display_override": ["standalone"],
   "orientation": "portrait-primary",
   "theme_color": "#2e4d3d",
   "background_color": "#f8f7f2",

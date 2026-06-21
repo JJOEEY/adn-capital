@@ -167,6 +167,20 @@ const mobileRuntimeScript = `
 })();
 `;
 
+// Mở app đã cài (standalone, gồm cả iOS dùng trang hiện tại làm start_url) mà rơi vào
+// trang chủ "/" thì vào thẳng /dashboard ngay (pre-paint, không kịp hiện landing).
+// /dashboard tự đẩy sang /auth nếu chưa đăng nhập. Trình duyệt thường không bị ảnh hưởng.
+const pwaEntryRedirectScript = `
+(function(){
+  try{
+    if(location.pathname!=='/')return;
+    var mm=window.matchMedia;
+    var standalone=(mm&&(mm('(display-mode: standalone)').matches||mm('(display-mode: minimal-ui)').matches||mm('(display-mode: fullscreen)').matches))||navigator.standalone===true;
+    if(standalone){location.replace('/dashboard');}
+  }catch(e){}
+})();
+`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="vi" suppressHydrationWarning>
@@ -184,6 +198,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
         <JsonLd data={rootJsonLd} />
+        <script dangerouslySetInnerHTML={{ __html: pwaEntryRedirectScript }} />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <script dangerouslySetInnerHTML={{ __html: mobileRuntimeScript }} />
         <script dangerouslySetInnerHTML={{ __html: hydrationFixScript }} />
