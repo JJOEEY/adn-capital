@@ -534,99 +534,66 @@ export default function DashboardPage() {
       {/* ═══ TICKER TAPE ═══ */}
       {loading || !data ? <TickerTapeSkeleton /> : <TickerTape items={tickerItems} />}
 
-      {/* ═══ MOBILE PULSE (concept "Nhịp thị trường") — chỉ hiện < lg ═══ */}
-      <div className="px-4 pb-2 pt-1 lg:hidden">
-        <div className="mb-3 flex items-end justify-between gap-3">
-          <div>
-            <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>ADN Pulse</p>
-            <h1 className="mt-0.5 text-[22px] font-black leading-none" style={{ color: "var(--text-primary)" }}>Nhịp thị trường</h1>
-          </div>
-          <span
-            className="rounded-full border px-2.5 py-1 text-[11px] font-bold"
-            style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-secondary)" }}
-          >
-            {data?.date ?? "Live"}
-          </span>
-        </div>
-
-        {/* VN-Index hero (tái dùng VNIndexChart) */}
-        <SafeSection fallback={<VNIndexChartSkeleton />}>
-          {dashboardChartData.length > 0 ? (
-            <VNIndexChart
-              data={dashboardChartData}
-              currentValue={dashboardChartCurrentValue}
-              changePercent={dashboardChartChangePercent}
-            />
-          ) : (
-            <VNIndexChartSkeleton />
-          )}
-        </SafeSection>
-
-        {/* 3 chip thống kê nhanh */}
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          <div className="rounded-xl border p-2.5" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
-            <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>T.khoản (tỷ)</p>
-            <p className="mt-0.5 text-[15px] font-black tabular-nums" style={{ color: "var(--text-primary)" }}>
-              {effectiveLiquidityTy != null ? fmtLiquidity(effectiveLiquidityTy) : "--"}
-            </p>
-          </div>
-          <div className="rounded-xl border p-2.5" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
-            <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Độ rộng</p>
-            <p className="mt-0.5 text-[15px] font-black tabular-nums">
-              <span style={{ color: "#1f8a4d" }}>{data?.updown?.up ?? 0}</span>
-              <span style={{ color: "var(--text-muted)" }}> / </span>
-              <span style={{ color: "var(--danger)" }}>{data?.updown?.down ?? 0}</span>
-            </p>
-          </div>
-          <div className="rounded-xl border p-2.5" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
-            <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>ADNCore</p>
-            <p className="mt-0.5 text-[15px] font-black tabular-nums" style={{ color: "var(--primary)" }}>
-              {effectiveOverview?.score ?? "--"}<span className="text-[11px]" style={{ color: "var(--text-muted)" }}>/{effectiveOverview?.max_score ?? 10}</span>
-            </p>
-          </div>
-        </div>
-
-        {/* Trạng thái + hành động hôm nay */}
-        <div className="mt-3 rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[13px] font-black" style={{ color: "var(--text-primary)" }}>
-              {effectiveOverview?.status_badge ? cleanStatusBadge(effectiveOverview.status_badge) : "Đang đọc thị trường"}
+      <div className="px-4 pb-2 lg:hidden">
+        <section className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                ADN Pulse
+              </p>
+              <h1 className="mt-1 text-xl font-black" style={{ color: "var(--text-primary)" }}>
+                Chiến lược hôm nay
+              </h1>
+            </div>
+            <span
+              className="rounded-full border px-2.5 py-1 text-[11px] font-black"
+              style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--primary)" }}
+            >
+              {data?.date ?? "Live"}
             </span>
-            {effectiveOverview?.level ? (
-              <span className="shrink-0 rounded-md border px-2 py-0.5 text-[11px] font-bold" style={{ borderColor: "var(--border)", color: "var(--primary)" }}>
-                ART L{effectiveOverview.level}
-              </span>
-            ) : null}
           </div>
-          <p className="mt-1.5 text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-            {effectiveOverview?.action_message ?? "Ưu tiên quản trị rủi ro."}
-          </p>
-        </div>
 
-        {/* Dòng tiền (Smartflow compact, tái dùng) */}
-        <div className="mt-3">
-          <ADNSmartflowCard data={smartflowTopic.data ?? null} compact />
-        </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+              <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>ADNCore</p>
+              <p className="mt-1 text-2xl font-black" style={{ color: "var(--text-primary)" }}>
+                {effectiveOverview?.score ?? "--"}<span className="text-xs" style={{ color: "var(--text-muted)" }}>/{effectiveOverview?.max_score ?? 10}</span>
+              </p>
+              <p className="mt-1 line-clamp-1 text-xs" style={{ color: "var(--text-secondary)" }}>
+                {effectiveOverview?.status_badge ? cleanStatusBadge(effectiveOverview.status_badge) : "Đang đọc thị trường"}
+              </p>
+            </div>
+            <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+              <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>ADN ART</p>
+              <p className="mt-1 text-2xl font-black" style={{ color: "var(--text-primary)" }}>
+                {effectiveOverview?.level ? `L${effectiveOverview.level}` : "--"}
+              </p>
+              <p className="mt-1 line-clamp-1 text-xs" style={{ color: "var(--text-secondary)" }}>
+                {effectiveOverview?.action_message ?? "Ưu tiên quản trị rủi ro"}
+              </p>
+            </div>
+          </div>
 
-        {/* Lối tắt */}
-        <div className="mt-3 grid grid-cols-4 gap-2 text-center text-[11px] font-bold">
-          <Link className="flex flex-col items-center gap-0.5 rounded-xl border px-1 py-2.5" href="/dashboard/signal-map" style={{ borderColor: "var(--border)", color: "var(--text-primary)", background: "var(--surface)" }}>
-            Radar <span style={{ color: "var(--primary)" }}>{Array.isArray(activeSignalsTopic.data) ? activeSignalsTopic.data.length : 0}</span>
-          </Link>
-          <Link className="rounded-xl border px-1 py-2.5" href="/rs-rating" style={{ borderColor: "var(--border)", color: "var(--text-primary)", background: "var(--surface)" }}>
-            Xếp hạng
-          </Link>
-          <Link className="rounded-xl border px-1 py-2.5" href="/notifications?tab=updates" style={{ borderColor: "var(--border)", color: "var(--text-primary)", background: "var(--surface)" }}>
-            Tin sáng
-          </Link>
-          <Link className="rounded-xl border px-1 py-2.5" href="/notifications?tab=updates" style={{ borderColor: "var(--border)", color: "var(--text-primary)", background: "var(--surface)" }}>
-            EOD
-          </Link>
-        </div>
+          <div className="mt-3">
+            <ADNSmartflowCard data={smartflowTopic.data ?? null} compact />
+          </div>
+
+          <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs font-bold">
+            <Link className="rounded-xl border px-2 py-2" href="/notifications?tab=updates" style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}>
+              Morning
+            </Link>
+            <Link className="rounded-xl border px-2 py-2" href="/notifications?tab=updates" style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}>
+              EOD
+            </Link>
+            <Link className="rounded-xl border px-2 py-2" href="/dashboard/signal-map" style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}>
+              Radar {Array.isArray(activeSignalsTopic.data) ? activeSignalsTopic.data.length : 0}
+            </Link>
+          </div>
+        </section>
       </div>
 
-      <div className="hidden w-full min-w-0 overflow-x-hidden space-y-4 px-3 md:px-5 xl:px-6 lg:block">
-        {/* Header (desktop) */}
+      <div className="w-full min-w-0 overflow-x-hidden space-y-4 px-3 md:px-5 xl:px-6">
+        {/* Header */}
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-baseline gap-2">
