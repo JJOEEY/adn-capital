@@ -32,8 +32,19 @@ export async function POST(req: NextRequest) {
   const name = typeof body?.name === "string" ? body.name.trim().slice(0, 120) : "";
   if (!name) return NextResponse.json({ error: "Thiếu tên chiến thuật" }, { status: 400 });
   if (!body?.config || !body?.result) return NextResponse.json({ error: "Thiếu config hoặc kết quả" }, { status: 400 });
+  const pinned = body?.pinned === true;
   const item = await prisma.labBacktest.create({
-    data: { userId: dbUser.id, name, config: body.config, result: body.result },
+    data: { userId: dbUser.id, name, config: body.config, result: body.result, pinned },
   });
+  // Lịch sử (chưa ghim) chỉ giữ 20 cái gần nhất — prune cũ hơn.
+  if (!pinned) {
+    const old = await prisma.labBacktest.findMany({
+      where: { userId: dbUser.id, pinned: false },
+      orderBy: { createdAt: "desc" },
+      skip: 20,
+      select: { id: true },
+    });
+    if (old.length) await prisma.labBacktest.deleteMany({ where: { id: { in: old.map((o) => o.id) } } });
+  }
   return NextResponse.json({ item }, { status: 201 });
 }

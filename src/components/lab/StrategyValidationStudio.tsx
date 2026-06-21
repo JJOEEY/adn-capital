@@ -38,7 +38,7 @@ function fmtEq(v: number): string {
 
 type ScopeType = "index" | "ticker" | "watchlist" | "sector";
 type UnknownRecord = Record<string, unknown>;
-type SavedStrategy = { id: string; name: string; config: UnknownRecord; result: UnknownRecord; createdAt: string };
+type SavedStrategy = { id: string; name: string; config: UnknownRecord; result: UnknownRecord; pinned?: boolean; createdAt: string };
 
 interface ConditionOption {
   id: string;
@@ -579,6 +579,9 @@ export function StrategyValidationStudio() {
         requestInsight: true,
       });
       setResult(response);
+      // Tự lưu vào LỊCH SỬ (chưa ghim) — không chặn UI, lỗi log thì bỏ qua.
+      const stamp = new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+      persistRun(response, false, `${strategyName} · ${stamp}`).catch(() => {});
     } catch (runError) {
       const message = runError instanceof Error ? runError.message : "Bộ kiểm định chiến thuật chưa trả kết quả.";
       setError(`${message} Demo ADN hiện tại vẫn nằm bên dưới để xem lại kết quả đã lưu.`);
@@ -603,23 +606,31 @@ export function StrategyValidationStudio() {
     loadSaved();
   }, []);
 
+  const persistRun = async (resp: ProviderRunResponse, pinned: boolean, name: string) => {
+    const config = { strategyName, scope, selection, buySelected, sellSelected, conditionParams, assumptions };
+    const resultSummary = {
+      metrics: getMetrics(resp),
+      equityCurve: getEquityCurve(resp),
+      coverage: isRecord(getResultRecord(resp)?.coverage) ? getResultRecord(resp)?.coverage : null,
+    };
+    const res = await fetch("/api/lab/strategies", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, config, result: resultSummary, pinned }),
+    });
+    if (!res.ok) {
+      const e = await res.json().catch(() => null);
+      throw new Error(e?.error ?? "Lỗi lưu");
+    }
+    await loadSaved();
+  };
+
   const saveStrategy = async () => {
     if (!result || saving) return;
     setSaving(true);
     setError(null);
     try {
-      const config = { strategyName, scope, selection, buySelected, sellSelected, conditionParams, assumptions };
-      const resultSummary = { metrics, equityCurve, coverage: isRecord(getResultRecord(result)?.coverage) ? getResultRecord(result)?.coverage : null };
-      const res = await fetch("/api/lab/strategies", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: strategyName, config, result: resultSummary }),
-      });
-      if (!res.ok) {
-        const e = await res.json().catch(() => null);
-        throw new Error(e?.error ?? "Lỗi lưu chiến thuật");
-      }
-      await loadSaved();
+      await persistRun(result, true, strategyName);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Lỗi lưu chiến thuật");
     } finally {
@@ -963,10 +974,10 @@ export function StrategyValidationStudio() {
           {saved.length > 0 ? (
             <div className="rounded-[1.5rem] border p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
               <p className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
-                Chiến thuật đã lưu ({saved.length})
+                Lịch sử & chiến thuật đã lưu ({saved.length})
               </p>
               <div className="space-y-2">
-                {saved.map((item) => {
+                {saved.slice().sort((a, b) => Number(b.pinned ?? false) - Number(a.pinned ?? false)).map((item) => {
                   const m = isRecord(item.result) && isRecord(item.result.metrics) ? item.result.metrics : null;
                   const nr = m && typeof m.netReturn === "number" ? m.netReturn : null;
                   return (
@@ -979,7 +990,10 @@ export function StrategyValidationStudio() {
                         title="Chọn để so sánh"
                       />
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{item.name}</p>
+                        <p className="flex items-center gap-1.5 truncate text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                          {item.pinned ? <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold" style={{ background: "var(--primary-light)", color: "var(--primary)" }}>ĐÃ LƯU</span> : null}
+                          <span className="truncate">{item.name}</span>
+                        </p>
                         <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
                           {new Date(item.createdAt).toLocaleString("vi-VN")}{nr !== null ? ` · ${nr >= 0 ? "+" : ""}${nr}%` : ""}
                         </p>
