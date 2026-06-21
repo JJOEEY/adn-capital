@@ -768,6 +768,11 @@ export default function TinTucPage() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [visibleCount, setVisibleCount] = useState(12);
+
+  useEffect(() => {
+    setVisibleCount(12);
+  }, [activeCategory, activeSentiment, activeTag]);
 
   const overviewTopic = useTopic<MarketOverview>("vn:index:composite:live", {
     refreshInterval: 300_000,
@@ -998,9 +1003,21 @@ export default function TinTucPage() {
                       {filtered.length} bài viết
                     </span>
                   </div>
-                  {restArticles.map((article) => (
+                  {restArticles.slice(0, visibleCount).map((article) => (
                     <ArticleRow key={article.id} article={article} />
                   ))}
+                  {restArticles.length > visibleCount && (
+                    <div className="pt-2 text-center">
+                      <button
+                        type="button"
+                        onClick={() => setVisibleCount((c) => c + 12)}
+                        className="rounded-xl border px-5 py-2.5 text-sm font-bold transition"
+                        style={{ background: "var(--surface)", color: "var(--text-secondary)", borderColor: "var(--border)" }}
+                      >
+                        Xem thêm ({restArticles.length - visibleCount} bài)
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <ReportPanel />
