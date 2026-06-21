@@ -69,6 +69,9 @@ type DirectOrderPanelProps = {
   signalId?: string | null;
   navPct?: number | null;
   canTrade: boolean;
+  onTickerChange?: (next: string) => void;
+  renderAuto?: boolean;
+  onOrderSettled?: () => void;
 };
 
 type AutoConfigState = {
@@ -150,7 +153,7 @@ function sideLabel(side: "BUY" | "SELL") {
 function sourceLabel(source?: string | null) {
   if (source === "radar") return "ADN Radar";
   if (source === "aiden") return "AIDEN";
-  return "ADN Link";
+  return "ADN x DNSE";
 }
 
 function resultReasonText(result: DnseExecutionResult | null) {
@@ -243,7 +246,7 @@ function DirectStatus({ children, tone = "neutral" }: { children: string; tone?:
   );
 }
 
-function AutoRadarConfigPanel({ loanPackages }: { loanPackages: LoanPackageOption[] }) {
+export function AutoRadarConfigPanel({ loanPackages }: { loanPackages: LoanPackageOption[] }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [requestingCode, setRequestingCode] = useState(false);
@@ -545,8 +548,12 @@ export function DirectOrderPanel({
   signalId = null,
   navPct = null,
   canTrade,
+  onTickerChange,
+  renderAuto = true,
+  onOrderSettled,
 }: DirectOrderPanelProps) {
   const [side, setSide] = useState<"BUY" | "SELL">(defaultSide);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [orderType, setOrderType] = useState<OrderType>("LO");
   const [priceInput, setPriceInput] = useState(toDisplayPrice(defaultPrice));
   const [quantity, setQuantity] = useState(0);
@@ -748,7 +755,7 @@ export function DirectOrderPanel({
             orderType,
             price: orderType === "LO" ? orderPrice : null,
             loanPackageId: loanPackageId === "CASH" ? null : loanPackageId,
-            rationale: `${sourceLabel(source)} chuyển sang ADN Link`,
+            rationale: `${sourceLabel(source)} chuyển sang ADN x DNSE`,
             metadata: { source, signalId, navPct },
           },
           source: source === "radar" || source === "aiden" ? "hybrid" : "manual",
@@ -759,6 +766,7 @@ export function DirectOrderPanel({
       setPreview(data.ticket.preview ?? null);
       setPreviewOnly(Boolean(data.previewOnly));
       setMessage(data.previewOnly ? "Lệnh đã được kiểm tra, nhưng hệ thống chưa mở gửi lệnh thật cho phiên này." : "Lệnh đã được kiểm tra. Vui lòng xác nhận nếu thông tin đúng.");
+      if (data.ticket.preview && !data.previewOnly) setShowConfirm(true);
     } catch (err) {
       if (nextSide !== oldSide) setSide(oldSide);
       setError(friendlyDnseError(err, "Không kiểm tra được lệnh."));
@@ -794,8 +802,13 @@ export function DirectOrderPanel({
       if (!data.result) throw new Error(data.error ?? "Không gửi được lệnh.");
       setResult(data.result);
       setMessage(friendlyResult(data.result));
+      setShowConfirm(false);
       if (!res.ok && data.result.status !== "blocked_not_enabled") {
         setError(friendlyResult(data.result));
+      }
+      if (data.result.status === "accepted") {
+        setPreview(null);
+        onOrderSettled?.();
       }
     } catch (err) {
       setError(friendlyDnseError(err, "Không gửi được lệnh."));
@@ -839,8 +852,10 @@ export function DirectOrderPanel({
             Mã cổ phiếu
             <input
               value={ticker}
-              readOnly
-              className="mt-1 w-full rounded-xl border px-3 py-2 text-lg font-black"
+              readOnly={!onTickerChange}
+              onChange={onTickerChange ? (event) => onTickerChange(event.target.value.toUpperCase()) : undefined}
+              placeholder="Nhập mã, ví dụ HPG"
+              className="mt-1 w-full rounded-xl border px-3 py-2 text-lg font-black uppercase"
               style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-primary)" }}
             />
           </label>
@@ -997,35 +1012,29 @@ export function DirectOrderPanel({
         </div>
 
         <div className="mt-2 flex flex-wrap gap-2">
-          {[1, 10, 50, 100, 1000, 5000, 10000, 50000, 100000].map((value) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => setQuantityValue(value)}
-              className="rounded-lg border px-3 py-1.5 text-xs font-bold"
-              style={{ borderColor: "var(--border)", color: "var(--text-secondary)", background: "var(--surface-2)" }}
-            >
-              {value.toLocaleString("vi-VN")}
-            </button>
-          ))}
+          {[25, 50, 75, 100].map((pct) => {
+            const base = side === "BUY" ? maxBuy : maxSell;
+            return (
+              <button
+                key={pct}
+                type="button"
+                disabled={base <= 0}
+                onClick={() => setQuantityValue(floorToQuantity((base * pct) / 100))}
+                className="rounded-lg border px-3 py-1.5 text-xs font-bold disabled:opacity-40"
+                style={{ borderColor: "var(--border)", color: "var(--text-secondary)", background: "var(--surface-2)" }}
+              >
+                {pct === 100 ? (side === "BUY" ? "Mua tối đa" : "Bán tối đa") : `${pct}%`}
+              </button>
+            );
+          })}
           {displayRecommendedQuantity > 0 ? (
             <button
               type="button"
               onClick={() => setQuantityValue(displayRecommendedQuantity)}
               className="rounded-lg border px-3 py-1.5 text-xs font-bold"
-              style={{ borderColor: "rgba(22,163,74,0.25)", color: "#15803d", background: "rgba(22,163,74,0.10)" }}
+              style={{ borderColor: "var(--border-strong)", color: "var(--primary)", background: "var(--primary-light)" }}
             >
-              Dùng gợi ý
-            </button>
-          ) : null}
-          {side === "BUY" && maxBuy > 0 ? (
-            <button
-              type="button"
-              onClick={() => setQuantityValue(maxBuy)}
-              className="rounded-lg border px-3 py-1.5 text-xs font-bold"
-              style={{ borderColor: "rgba(22,163,74,0.25)", color: "#15803d", background: "rgba(22,163,74,0.10)" }}
-            >
-              Mua tối đa
+              Dùng gợi ý ({fmtNumber(displayRecommendedQuantity)})
             </button>
           ) : null}
         </div>
@@ -1053,9 +1062,9 @@ export function DirectOrderPanel({
             }}
             disabled={checking || sending || !canTrade}
             className="rounded-xl px-4 py-3 text-lg font-black disabled:opacity-50"
-            style={{ background: "#22c55e", color: "white" }}
+            style={{ background: "#16a34a", color: "white" }}
           >
-            MUA
+            {checking && side === "BUY" ? "Đang kiểm tra..." : "MUA"}
             <span className="block text-xs font-semibold">Giá trị: {fmtMoney(side === "BUY" ? orderValue : 0)}</span>
           </button>
           <button
@@ -1066,47 +1075,79 @@ export function DirectOrderPanel({
             }}
             disabled={checking || sending || !canTrade}
             className="rounded-xl px-4 py-3 text-lg font-black disabled:opacity-50"
-            style={{ background: "#ef4444", color: "white" }}
+            style={{ background: "var(--danger)", color: "white" }}
           >
-            BÁN
+            {checking && side === "SELL" ? "Đang kiểm tra..." : "BÁN"}
             <span className="block text-xs font-semibold">Giá trị: {fmtMoney(side === "SELL" ? orderValue : 0)}</span>
           </button>
         </div>
 
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => void checkOrder()}
-            disabled={checking || sending || !canTrade}
-            className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-bold disabled:opacity-50"
-            style={{ borderColor: "var(--border)", color: "var(--text-primary)", background: "var(--surface-2)" }}
-          >
-            <ShieldCheck className="h-4 w-4" />
-            {checking ? "Đang kiểm tra..." : "Kiểm tra lệnh"}
-          </button>
-          <button
-            type="button"
-            onClick={() => void submitOrder()}
-            disabled={sending || !preview || previewOnly}
-            className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold disabled:opacity-50"
-            style={{ background: "var(--primary)", color: "var(--on-primary)" }}
-          >
-            <CheckCircle2 className="h-4 w-4" />
-            {sending ? "Đang gửi..." : previewOnly ? "Chưa mở gửi lệnh thật" : "Xác nhận gửi lệnh"}
-          </button>
-        </div>
-
+        {previewOnly && preview ? (
+          <div className="mt-3"><DirectStatus tone="warn">Lệnh đã được kiểm tra hợp lệ, nhưng phiên này chưa mở gửi lệnh thật.</DirectStatus></div>
+        ) : null}
         {message ? <div className="mt-3"><DirectStatus tone={result?.status === "accepted" ? "good" : "warn"}>{message}</DirectStatus></div> : null}
         {error ? <div className="mt-3"><DirectStatus tone="bad">{error}</DirectStatus></div> : null}
         {result?.warnings?.length ? (
-          <div className="mt-3 flex items-start gap-2 rounded-xl border px-3 py-2 text-xs" style={{ borderColor: "rgba(245,158,11,0.25)", background: "rgba(245,158,11,0.10)", color: "#92400e" }}>
+          <div className="mt-3 flex items-start gap-2 rounded-xl border px-3 py-2 text-xs" style={{ borderColor: "var(--border-strong)", background: "var(--surface-2)", color: "var(--text-secondary)" }}>
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>{friendlyResult(result) ?? "Cần hoàn tất thêm điều kiện giao dịch trước khi gửi lệnh thật."}</span>
           </div>
         ) : null}
       </section>
 
-      <AutoRadarConfigPanel loanPackages={loanPackageOptions} />
+      {showConfirm && preview && !previewOnly ? (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+          <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.55)" }} onClick={() => setShowConfirm(false)} />
+          <div className="relative w-full max-w-sm rounded-2xl border p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5" style={{ color: side === "BUY" ? "#16a34a" : "var(--danger)" }} />
+              <h4 className="text-base font-black" style={{ color: "var(--text-primary)" }}>
+                Xác nhận lệnh <span style={{ color: side === "BUY" ? "#16a34a" : "var(--danger)" }}>{sideLabel(side)} {ticker}</span>
+              </h4>
+            </div>
+            <div className="mt-3 space-y-2 rounded-xl border p-3 text-sm" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+              {[
+                ["Loại lệnh", orderType],
+                ["Giá đặt", orderType === "LO" ? fmtMoney(orderPrice) : "Theo thị trường"],
+                ["Khối lượng", fmtNumber(quantity)],
+                ["Giá trị lệnh", fmtMoney(orderValue)],
+                ["Gói giao dịch", selectedLoanPackage?.loanPackageName ?? "Giao dịch tiền mặt"],
+              ].map(([label, value]) => (
+                <div key={label} className="flex items-center justify-between gap-3">
+                  <span style={{ color: "var(--text-muted)" }}>{label}</span>
+                  <span className="font-bold" style={{ color: "var(--text-primary)" }}>{value}</span>
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+              Vui lòng kiểm tra kỹ thông tin. Khi xác nhận, lệnh sẽ được gửi đi để khớp.
+            </p>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setShowConfirm(false)}
+                disabled={sending}
+                className="rounded-xl border px-4 py-2.5 text-sm font-bold disabled:opacity-50"
+                style={{ borderColor: "var(--border)", color: "var(--text-primary)", background: "var(--surface-2)" }}
+              >
+                Huỷ
+              </button>
+              <button
+                type="button"
+                onClick={() => void submitOrder()}
+                disabled={sending}
+                className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black text-white disabled:opacity-50"
+                style={{ background: side === "BUY" ? "#16a34a" : "var(--danger)" }}
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                {sending ? "Đang gửi..." : "Xác nhận gửi lệnh"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {renderAuto ? <AutoRadarConfigPanel loanPackages={loanPackageOptions} /> : null}
     </div>
   );
 }

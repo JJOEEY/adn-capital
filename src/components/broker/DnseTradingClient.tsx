@@ -4,15 +4,18 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
+  Bot,
+  Briefcase,
   CheckCircle2,
   CircleOff,
+  ListOrdered,
   LogIn,
   RefreshCw,
   ShieldCheck,
   TrendingUp,
   Wallet,
 } from "lucide-react";
-import { DirectOrderPanel } from "@/components/broker/DirectOrderPanel";
+import { DirectOrderPanel, AutoRadarConfigPanel } from "@/components/broker/DirectOrderPanel";
 import { DnseAccountSelector } from "@/components/broker/DnseAccountSelector";
 import { DnseLoginModal } from "@/components/broker/DnseLoginModal";
 import { DnseAccountInfo } from "@/components/broker/DnseAccountInfo";
@@ -463,6 +466,170 @@ function toDirectLoanPackagesTopic(
   };
 }
 
+function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+      <p className="text-[11px] uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>{label}</p>
+      <p className="mt-1 text-lg font-black" style={{ color: accent ? "var(--primary)" : "var(--text-primary)" }}>{value}</p>
+    </div>
+  );
+}
+
+function NavCard({
+  isConnected,
+  totalNav,
+  buyingPower,
+  allocatedPct,
+  remainingPct,
+  maxActiveNavPct,
+  queryNavPct,
+  suggestedNotional,
+  hint,
+}: {
+  isConnected: boolean;
+  totalNav: number | null;
+  buyingPower: number | null;
+  allocatedPct: number;
+  remainingPct: number;
+  maxActiveNavPct: number;
+  queryNavPct: number | null;
+  suggestedNotional: number | null;
+  hint: string | null;
+}) {
+  return (
+    <section className="rounded-2xl border p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+      <div className="mb-3 flex items-center gap-2">
+        <Wallet className="h-4 w-4" style={{ color: "var(--primary)" }} />
+        <h2 className="text-sm font-black uppercase tracking-wide" style={{ color: "var(--text-primary)" }}>Tổng tài sản &amp; sức mua</h2>
+      </div>
+      {isConnected ? (
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <Stat label="Tổng tài sản ròng" value={totalNav != null ? `${Math.round(totalNav).toLocaleString("vi-VN")} đ` : "--"} />
+            <Stat label="Sức mua khả dụng" value={buyingPower != null ? `${Math.round(buyingPower).toLocaleString("vi-VN")} đ` : "--"} accent />
+          </div>
+          <div>
+            <div className="flex items-center justify-between text-xs" style={{ color: "var(--text-secondary)" }}>
+              <span>Tỷ trọng đã dùng {allocatedPct.toFixed(1)}%</span>
+              <span>Còn lại {remainingPct.toFixed(1)}% · trần {maxActiveNavPct.toFixed(0)}%</span>
+            </div>
+            <div className="mt-1 h-2 w-full overflow-hidden rounded-full" style={{ background: "var(--surface-2)" }}>
+              <div className="h-full rounded-full" style={{ width: `${Math.min(100, allocatedPct)}%`, background: "var(--primary)" }} />
+            </div>
+          </div>
+          {queryNavPct ? (
+            <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+              <p className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>Tỷ trọng đề xuất từ ADN Radar: {queryNavPct.toFixed(1)}%</p>
+              <p className="mt-1 text-xs font-bold" style={{ color: "var(--primary)" }}>
+                {suggestedNotional ? `Giá trị lệnh gợi ý: ${Math.round(suggestedNotional).toLocaleString("vi-VN")} đ` : "Chưa tính được giá trị lệnh do thiếu tổng tài sản ròng."}
+              </p>
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <div className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
+          <CircleOff className="h-3.5 w-3.5" /> Liên kết tài khoản DNSE để xem tổng tài sản và sức mua.
+        </div>
+      )}
+      {hint ? <p className="mt-2 text-xs" style={{ color: "var(--danger)" }}>{hint}</p> : null}
+    </section>
+  );
+}
+
+function HoldingsTable({ holdings, hint, limit }: { holdings: BrokerPosition[]; hint: string | null; limit?: number }) {
+  const rows = limit ? holdings.slice(0, limit) : holdings;
+  return (
+    <section className="rounded-2xl border p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+      <div className="mb-3 flex items-center gap-2">
+        <Briefcase className="h-4 w-4" style={{ color: "var(--primary)" }} />
+        <h2 className="text-sm font-black uppercase tracking-wide" style={{ color: "var(--text-primary)" }}>Danh mục nắm giữ</h2>
+      </div>
+      {rows.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[520px] text-sm">
+            <thead>
+              <tr className="border-b" style={{ borderColor: "var(--border)" }}>
+                {["Mã", "KL", "Giá vốn", "Giá hiện tại", "Lãi/Lỗ", "Tỷ trọng"].map((h, i) => (
+                  <th key={h} className={`px-2 py-2 text-xs uppercase ${i === 0 ? "text-left" : "text-right"}`} style={{ color: "var(--text-muted)" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => {
+                const tone = pnlTone(row.pnlPercent);
+                return (
+                  <tr key={row.ticker} className="border-b" style={{ borderColor: "var(--border)" }}>
+                    <td className="px-2 py-2 font-mono font-black" style={{ color: "var(--text-primary)" }}>{row.ticker}</td>
+                    <td className="px-2 py-2 text-right" style={{ color: "var(--text-secondary)" }}>{fmtPrice(row.quantity)}</td>
+                    <td className="px-2 py-2 text-right" style={{ color: "var(--text-secondary)" }}>{fmtPrice(row.entryPrice)}</td>
+                    <td className="px-2 py-2 text-right font-semibold" style={{ color: "var(--text-primary)" }}>{fmtPrice(row.currentPrice)}</td>
+                    <td className="px-2 py-2 text-right font-bold" style={{ color: tone.color }}>{row.pnlPercent != null ? `${row.pnlPercent >= 0 ? "+" : ""}${row.pnlPercent.toFixed(2)}%` : "--"}</td>
+                    <td className="px-2 py-2 text-right" style={{ color: "var(--text-secondary)" }}>{row.navAllocation != null ? `${row.navAllocation.toFixed(1)}%` : "--"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="text-sm" style={{ color: "var(--text-muted)" }}>{hint ?? "Chưa có vị thế nắm giữ."}</p>
+      )}
+    </section>
+  );
+}
+
+function OrdersTable({
+  title,
+  orders,
+  hint,
+  limit,
+}: {
+  title: string;
+  orders: Array<{ ticker?: string | null; side?: string | null; quantity?: number | null; price?: number | null; status?: string | null; submittedAt?: string | null; brokerOrderId?: string | null }>;
+  hint: string | null;
+  limit?: number;
+}) {
+  const rows = limit ? orders.slice(0, limit) : orders;
+  return (
+    <section className="rounded-2xl border p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+      <div className="mb-3 flex items-center gap-2">
+        <ListOrdered className="h-4 w-4" style={{ color: "var(--primary)" }} />
+        <h2 className="text-sm font-black uppercase tracking-wide" style={{ color: "var(--text-primary)" }}>{title}</h2>
+      </div>
+      {rows.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[480px] text-sm">
+            <thead>
+              <tr className="border-b" style={{ borderColor: "var(--border)" }}>
+                {["Mã", "Chiều", "KL", "Giá", "Trạng thái", "Thời gian"].map((h, i) => (
+                  <th key={h} className={`px-2 py-2 text-xs uppercase ${i === 0 ? "text-left" : "text-right"}`} style={{ color: "var(--text-muted)" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, index) => {
+                const isBuy = String(row.side ?? "").toUpperCase().includes("B") || String(row.side ?? "").toUpperCase() === "NB" || String(row.side ?? "").toUpperCase() === "BUY";
+                return (
+                  <tr key={row.brokerOrderId ?? `${row.ticker}-${index}`} className="border-b" style={{ borderColor: "var(--border)" }}>
+                    <td className="px-2 py-2 font-mono font-black" style={{ color: "var(--text-primary)" }}>{row.ticker ?? "--"}</td>
+                    <td className="px-2 py-2 text-right font-bold" style={{ color: isBuy ? "#16a34a" : "var(--danger)" }}>{isBuy ? "Mua" : "Bán"}</td>
+                    <td className="px-2 py-2 text-right" style={{ color: "var(--text-secondary)" }}>{fmtPrice(row.quantity)}</td>
+                    <td className="px-2 py-2 text-right" style={{ color: "var(--text-secondary)" }}>{fmtPrice(row.price)}</td>
+                    <td className="px-2 py-2 text-right" style={{ color: "var(--text-secondary)" }}>{row.status ?? "--"}</td>
+                    <td className="px-2 py-2 text-right text-xs" style={{ color: "var(--text-muted)" }}>{fmtDateTime(row.submittedAt)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="text-sm" style={{ color: "var(--text-muted)" }}>{hint ?? "Chưa có lệnh nào."}</p>
+      )}
+    </section>
+  );
+}
+
 export function DnseTradingClient() {
   const searchParams = useSearchParams();
   const queryTicker = (searchParams.get("ticker") ?? "").trim().toUpperCase();
@@ -487,6 +654,7 @@ export function DnseTradingClient() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"order" | "portfolio" | "orders" | "auto">("order");
   const [directDnse, setDirectDnse] = useState<DirectDnseState>({
     loading: false,
     accounts: null,
@@ -944,7 +1112,7 @@ export function DnseTradingClient() {
             {PRODUCT_NAMES.brokerConnect}
           </h1>
           <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-            Kết nối tài khoản DNSE để đồng bộ tổng tài sản ròng, danh mục nắm giữ và đặt lệnh có kiểm soát.
+            Đặt lệnh trực tiếp trên nền tảng ADN qua tài khoản DNSE đã liên kết.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -1013,6 +1181,32 @@ export function DnseTradingClient() {
         </div>
       </div>
 
+      <div className="flex flex-wrap gap-1 rounded-2xl border p-1" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+        {([
+          ["order", "Đặt lệnh", Wallet],
+          ["portfolio", "Danh mục", Briefcase],
+          ["orders", "Sổ lệnh & lịch sử", ListOrdered],
+          ["auto", "Tự động hóa", Bot],
+        ] as const).map(([key, label, Icon]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setActiveTab(key)}
+            className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-bold transition-colors"
+            style={
+              activeTab === key
+                ? { background: "var(--primary)", color: "var(--on-primary)" }
+                : { background: "transparent", color: "var(--text-secondary)" }
+            }
+          >
+            <Icon className="h-4 w-4" />
+            <span className="hidden sm:inline">{label}</span>
+          </button>
+        ))}
+      </div>
+
+      {activeTab === "order" ? (
+      <>
       <div className="grid gap-3 md:grid-cols-3">
         <div className="space-y-3 md:col-span-2">
           <DnseAccountInfo
@@ -1432,8 +1626,40 @@ export function DnseTradingClient() {
           initialBuyingPower={buyingPowerValue}
           initialLoanPackages={directOrderLoanPackages}
           canTrade={canTrade}
+          renderAuto={false}
+          onOrderSettled={() => refreshDnseViews(true)}
         />
       </div>
+      </>
+      ) : null}
+
+      {activeTab === "portfolio" ? (
+        <div className="space-y-4">
+          <NavCard
+            isConnected={isConnected}
+            totalNav={totalNavValue}
+            buyingPower={buyingPowerValue}
+            allocatedPct={Number(effectiveBalanceTopic?.navAllocatedPct ?? 0)}
+            remainingPct={Number(effectiveBalanceTopic?.navRemainingPct ?? 0)}
+            maxActiveNavPct={Number(effectiveBalanceTopic?.maxActiveNavPct ?? 90)}
+            queryNavPct={queryNavPct}
+            suggestedNotional={suggestedNotional}
+            hint={balanceDisplayHint}
+          />
+          <HoldingsTable holdings={holdings} hint={holdingsDisplayHint} />
+        </div>
+      ) : null}
+
+      {activeTab === "orders" ? (
+        <div className="space-y-4">
+          <OrdersTable title="Lệnh trong ngày" orders={latestOrders} hint={ordersDisplayHint} />
+          <OrdersTable title="Lịch sử lệnh" orders={orderHistory} hint={null} />
+        </div>
+      ) : null}
+
+      {activeTab === "auto" ? (
+        <AutoRadarConfigPanel loanPackages={directOrderLoanPackages} />
+      ) : null}
 
       <DnseAccountSelector
         open={showAccountSelector}
