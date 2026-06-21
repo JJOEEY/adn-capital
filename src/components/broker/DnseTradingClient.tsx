@@ -7,6 +7,7 @@ import { DirectOrderPanel, AutoRadarConfigPanel } from "@/components/broker/Dire
 import { DnseAccountSelector } from "@/components/broker/DnseAccountSelector";
 import { DnseLoginModal } from "@/components/broker/DnseLoginModal";
 import { useTopics } from "@/hooks/useTopics";
+import { useTopic } from "@/hooks/useTopic";
 import s from "./adnx.module.css";
 
 type BrokerPosition = {
@@ -470,6 +471,46 @@ function OrdersTable({
   );
 }
 
+type DepthLevel = { price?: number | null; volume?: number | null };
+type DepthPayload = { ticker?: string; close?: number | null; bid?: DepthLevel[]; ask?: DepthLevel[]; source?: string };
+
+function OrderBook({ depth, ticker }: { depth: DepthPayload | null; ticker: string }) {
+  const asks = (depth?.ask ?? []).slice(0, 5);
+  const bids = (depth?.bid ?? []).slice(0, 5);
+  const vols = [...asks, ...bids].map((l) => Number(l.volume ?? 0)).filter((v) => v > 0);
+  const maxVol = Math.max(1, ...vols);
+  const hasData = asks.length > 0 || bids.length > 0;
+  return (
+    <section className={s.card} style={{ padding: "14px 16px" }}>
+      <div className={s.secH}><div><div className={s.eyebrow}>Bảng giá · {ticker}</div><div className={s.secTitle}>Độ sâu thị trường</div></div></div>
+      {hasData ? (
+        <div>
+          {[...asks].reverse().map((l, i) => (
+            <div key={`a${i}`} className={`${s.drow} ${s.drowAsk}`}>
+              <span className={s.bar} style={{ width: `${(Number(l.volume ?? 0) / maxVol) * 100}%` }} />
+              <span className={s.px}>{fmtPrice(l.price)}</span>
+              <span className={s.vol}>{fmtPrice(l.volume)}</span>
+            </div>
+          ))}
+          <div className={s.lastRow}>
+            <span className={s.eyebrow}>Khớp gần nhất</span>
+            <span className={s.num} style={{ fontSize: 18, fontWeight: 700, color: "var(--text-primary)" }}>{fmtPrice(depth?.close)}</span>
+          </div>
+          {bids.map((l, i) => (
+            <div key={`b${i}`} className={`${s.drow} ${s.drowBid}`}>
+              <span className={s.bar} style={{ width: `${(Number(l.volume ?? 0) / maxVol) * 100}%` }} />
+              <span className={s.px}>{fmtPrice(l.price)}</span>
+              <span className={s.vol}>{fmtPrice(l.volume)}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p style={{ fontSize: 13, color: "var(--text-muted)" }}>Bảng giá {ticker} đang được cập nhật.</p>
+      )}
+    </section>
+  );
+}
+
 export function DnseTradingClient() {
   const searchParams = useSearchParams();
   const queryTicker = (searchParams.get("ticker") ?? "").trim().toUpperCase();
@@ -540,6 +581,13 @@ export function DnseTradingClient() {
   const brokerTopics = useTopics(topicKeys, {
     enabled: !statusLoading && Boolean(connectionStatus?.connection?.linked),
     refreshInterval: 45_000,
+    revalidateOnFocus: false,
+    dedupingInterval: 10_000,
+  });
+
+  const depthTopic = useTopic<DepthPayload>(`vn:depth:${normalizedTicker}`, {
+    enabled: Boolean(normalizedTicker),
+    refreshInterval: 15_000,
     revalidateOnFocus: false,
     dedupingInterval: 10_000,
   });
@@ -1003,8 +1051,7 @@ export function DnseTradingClient() {
                   />
                 </div>
                 <div className={s.activityCol}>
-                  <OrdersTable title="Lệnh trong ngày" orders={latestOrders} hint={ordersDisplayHint} limit={8} />
-                  <HoldingsTable holdings={holdings} hint={holdingsDisplayHint} limit={6} />
+                  <OrderBook depth={depthTopic.data ?? null} ticker={(ticker || "HPG").trim().toUpperCase()} />
                 </div>
               </div>
             </>

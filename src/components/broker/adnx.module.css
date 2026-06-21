@@ -92,6 +92,17 @@
 .table tbody tr:hover { background: var(--primary-light); }
 .tnum { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--text-primary); }
 
+/* order book / depth ladder */
+.drow { display: grid; grid-template-columns: 1fr 96px; align-items: center; height: 30px; position: relative; font-size: 12px; padding: 0 10px; }
+.drow .px { font-variant-numeric: tabular-nums; font-weight: 600; z-index: 1; }
+.drow .vol { font-variant-numeric: tabular-nums; text-align: right; color: var(--text-secondary); z-index: 1; }
+.drow .bar { position: absolute; top: 3px; bottom: 3px; right: 0; border-radius: 5px; }
+.drowAsk .bar { background: color-mix(in srgb, var(--danger) 13%, transparent); }
+.drowBid .bar { background: color-mix(in srgb, var(--accent-fa) 16%, transparent); }
+.drowAsk .px { color: var(--danger); }
+.drowBid .px { color: var(--accent-fa); }
+.lastRow { display: flex; align-items: center; justify-content: space-between; padding: 9px 10px; margin: 6px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+
 /* confirm modal */
 .overlay { position: fixed; inset: 0; z-index: 130; display: flex; align-items: center; justify-content: center; padding: 16px; background: color-mix(in srgb, var(--bg-page) 60%, transparent); backdrop-filter: blur(2px); }
 .modal { width: 100%; max-width: 380px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 24px 60px -20px rgba(46,77,61,0.45); padding: 18px; animation: dxpop .14s cubic-bezier(.2,.7,.3,1); }
