@@ -200,6 +200,13 @@ const CONDITION_PARAMS: Record<string, ParamField[]> = {
     { key: "mode", label: "Cách so", type: "select", default: "below", options: [
       { value: "below", label: "Giá dưới EMA" }, { value: "cross_down", label: "Giá cắt xuống EMA" } ] },
   ],
+  macd_sell: [
+    { key: "fast", label: "Nhanh", type: "number", default: 12 },
+    { key: "slow", label: "Chậm", type: "number", default: 26 },
+    { key: "signal", label: "Signal", type: "number", default: 9 },
+    { key: "mode", label: "Tín hiệu", type: "select", default: "cross_down", options: [
+      { value: "cross_down", label: "Cắt xuống signal" }, { value: "hist_neg", label: "Histogram < 0 (động lượng âm)" } ] },
+  ],
   rsi_sell: [
     { key: "op", label: "Toán tử", type: "select", default: "gt", options: [{ value: "gt", label: ">" }, { value: "lt", label: "<" }] },
     { key: "value", label: "Ngưỡng", type: "number", default: 75 },
