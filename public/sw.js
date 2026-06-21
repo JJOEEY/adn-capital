@@ -1,6 +1,7 @@
-// ADN Capital - Service Worker v4 (with Web Push support)
-const CACHE_NAME = 'adn-capital-v4';
+// ADN Capital - Service Worker v5 (Web Push + offline fallback)
+const CACHE_NAME = 'adn-capital-v5';
 const STATIC_ASSETS = [
+  '/offline.html',
   '/icons/icon-192x192.png',
   '/icons/icon-512x512.png',
   '/logo.jpg',
@@ -93,11 +94,14 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  if (
-    url.pathname.startsWith('/_next/') ||
-    request.mode === 'navigate' ||
-    request.destination === 'document'
-  ) {
+  // Navigations: network-first, identical to before when online; only when the
+  // network truly fails (offline) do we serve the cached offline page.
+  if (request.mode === 'navigate' || request.destination === 'document') {
+    event.respondWith(fetch(request).catch(() => caches.match('/offline.html')));
+    return;
+  }
+
+  if (url.pathname.startsWith('/_next/')) {
     return;
   }
 

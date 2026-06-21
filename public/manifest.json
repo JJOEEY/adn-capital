@@ -2,26 +2,26 @@
   "name": "ADN Capital",
   "short_name": "ADN Capital",
   "description": "He sinh thai AI dau tu cho chung khoan Viet Nam.",
+  "id": "/",
+  "scope": "/",
   "start_url": "/dashboard",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait-primary",
-  "theme_color": "#0f2f22",
-  "background_color": "#f6f3ec",
-  "icons": [
-    {
-      "src": "/icons/icon-192x192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icons/icon-512x512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
-  ],
+  "theme_color": "#2e4d3d",
+  "background_color": "#f8f7f2",
   "categories": ["finance", "business"],
   "lang": "vi",
-  "dir": "ltr"
+  "dir": "ltr",
+  "icons": [
+    { "src": "/icons/icon-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/icon-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Tín hiệu Radar", "short_name": "Radar", "url": "/dashboard/signal-map" },
+    { "name": "Hỏi AIDEN", "short_name": "AIDEN", "url": "/aiden" },
+    { "name": "Theo dõi", "short_name": "Theo dõi", "url": "/watchlist" }
+  ]
 }
