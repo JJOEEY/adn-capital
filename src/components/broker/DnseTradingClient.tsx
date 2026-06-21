@@ -949,10 +949,6 @@ export function DnseTradingClient() {
       <div className={s.shell}>
         <header className={s.header}>
           <div className={s.wordmark}>ADN <b>×</b> DNSE</div>
-          <div className={s.headMid}>
-            <div className={s.kvInline}><span className={s.l}>Tài sản ròng</span><span className={s.v}>{totalNavValue != null ? `${Math.round(totalNavValue).toLocaleString("vi-VN")} đ` : "--"}</span></div>
-            <div className={s.kvInline}><span className={s.l}>Sức mua khả dụng</span><span className={s.v}>{buyingPowerValue != null ? `${Math.round(buyingPowerValue).toLocaleString("vi-VN")} đ` : "--"}</span></div>
-          </div>
           <div className={s.headActions}>
             {!isLinkedAccount ? (
               <>
@@ -967,16 +963,16 @@ export function DnseTradingClient() {
           </div>
         </header>
 
-        <nav className={s.rail}>
+        <div className={s.tabbar}>
           {[
             { key: "order" as const, label: "Đặt lệnh", icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 17l5-5 4 4 8-8M21 8v5M21 8h-5" /></svg>) },
             { key: "portfolio" as const, label: "Danh mục", icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="4" width="18" height="6" rx="1.5" /><rect x="3" y="14" width="11" height="6" rx="1.5" /></svg>) },
-            { key: "orders" as const, label: "Sổ lệnh", icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M5 4h14M5 9h14M5 14h9M5 19h9" /></svg>) },
+            { key: "orders" as const, label: "Sổ lệnh & lịch sử", icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M5 4h14M5 9h14M5 14h9M5 19h9" /></svg>) },
             { key: "auto" as const, label: "Tự động hóa", icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="3" /><path d="M12 4v2M12 18v2M4 12h2M18 12h2M6 6l1.5 1.5M16.5 16.5L18 18" /></svg>) },
           ].map((t) => (
-            <button key={t.key} type="button" title={t.label} aria-label={t.label} onClick={() => setActiveTab(t.key)} className={`${s.rtab} ${activeTab === t.key ? s.rtabOn : ""}`}>{t.icon}</button>
+            <button key={t.key} type="button" onClick={() => setActiveTab(t.key)} className={`${s.tab} ${activeTab === t.key ? s.tabOn : ""}`}>{t.icon}<span>{t.label}</span></button>
           ))}
-        </nav>
+        </div>
 
         <main className={s.work}>
           {activeTab === "order" ? (
@@ -1075,7 +1071,7 @@ export function DnseTradingClient() {
       </div>
 
       {submitMessage || submitError ? (
-        <div style={{ position: "fixed", left: 70, bottom: 16, zIndex: 60, maxWidth: 360 }}>
+        <div style={{ position: "fixed", left: 18, bottom: 16, zIndex: 60, maxWidth: 360 }}>
           {submitMessage ? <div className={s.card} style={{ padding: "10px 14px", fontSize: 12, color: "var(--primary)" }}>{submitMessage}</div> : null}
           {submitError ? <div className={s.card} style={{ padding: "10px 14px", fontSize: 12, color: "var(--danger)", marginTop: 6 }}>{submitError}</div> : null}
         </div>
