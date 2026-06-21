@@ -534,66 +534,94 @@ export default function DashboardPage() {
       {/* ═══ TICKER TAPE ═══ */}
       {loading || !data ? <TickerTapeSkeleton /> : <TickerTape items={tickerItems} />}
 
-      <div className="px-4 pb-2 lg:hidden">
-        <section className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
-          <div className="mb-3 flex items-start justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-                ADN Pulse
-              </p>
-              <h1 className="mt-1 text-xl font-black" style={{ color: "var(--text-primary)" }}>
-                Chiến lược hôm nay
-              </h1>
-            </div>
-            <span
-              className="rounded-full border px-2.5 py-1 text-[11px] font-black"
-              style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--primary)" }}
-            >
-              {data?.date ?? "Live"}
-            </span>
+      {/* ═══ MOBILE PULSE — đủ widget như web, xếp lại cho mobile (< lg). Desktop dùng layout dưới. ═══ */}
+      <div className="space-y-5 px-4 pb-3 pt-1 lg:hidden">
+        <div className="flex items-end justify-between">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+              Tổng quan · {data?.date ?? "Live"}
+            </p>
+            <h1 className="mt-0.5 text-2xl font-black leading-none" style={{ color: "var(--text-primary)" }}>Nhịp thị trường</h1>
           </div>
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            aria-label="Làm mới"
+            className="flex h-9 w-9 items-center justify-center rounded-full border disabled:opacity-50"
+            style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--text-muted)" }}
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+          </button>
+        </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
-              <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>ADNCore</p>
-              <p className="mt-1 text-2xl font-black" style={{ color: "var(--text-primary)" }}>
-                {effectiveOverview?.score ?? "--"}<span className="text-xs" style={{ color: "var(--text-muted)" }}>/{effectiveOverview?.max_score ?? 10}</span>
-              </p>
-              <p className="mt-1 line-clamp-1 text-xs" style={{ color: "var(--text-secondary)" }}>
-                {effectiveOverview?.status_badge ? cleanStatusBadge(effectiveOverview.status_badge) : "Đang đọc thị trường"}
-              </p>
-            </div>
-            <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
-              <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>ADN ART</p>
-              <p className="mt-1 text-2xl font-black" style={{ color: "var(--text-primary)" }}>
-                {effectiveOverview?.level ? `L${effectiveOverview.level}` : "--"}
-              </p>
-              <p className="mt-1 line-clamp-1 text-xs" style={{ color: "var(--text-secondary)" }}>
-                {effectiveOverview?.action_message ?? "Ưu tiên quản trị rủi ro"}
-              </p>
-            </div>
-          </div>
+        {/* Chỉ số + đường giá + độ rộng */}
+        <section className="space-y-3">
+          <SafeSection fallback={<><VNIndexChartSkeleton /><MarketBreadthSkeleton /></>}>
+            {dashboardChartData.length > 0 ? (
+              <VNIndexChart data={dashboardChartData} currentValue={dashboardChartCurrentValue} changePercent={dashboardChartChangePercent} />
+            ) : (
+              <VNIndexChartSkeleton />
+            )}
+            {data ? (
+              <MarketBreadth up={data.updown?.up ?? 0} down={data.updown?.down ?? 0} unchanged={data.updown?.unchanged ?? 0} totalVolume={liquidityDisplay} />
+            ) : (
+              <MarketBreadthSkeleton />
+            )}
+          </SafeSection>
+        </section>
 
-          <div className="mt-3">
-            <ADNSmartflowCard data={smartflowTopic.data ?? null} compact />
-          </div>
+        {/* Sức khoẻ thị trường (ADNCore + trạng thái) */}
+        <section className="space-y-2.5">
+          <p className="text-[12px] font-black uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Sức khoẻ thị trường</p>
+          <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem đánh giá thị trường">
+            <SafeSection fallback={<GaugeCardSkeleton />}>
+              {!mounted ? <GaugeCardSkeleton /> : <GaugeCard overview={effectiveOverview} marketData={data ?? null} />}
+              {mounted && (effectiveOverview || data) && (
+                <div className="mt-3">
+                  <MarketStatusCard overview={effectiveOverview} marketData={data ?? null} />
+                </div>
+              )}
+            </SafeSection>
+          </LockOverlay>
+        </section>
 
-          <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs font-bold">
-            <Link className="rounded-xl border px-2 py-2" href="/notifications?tab=updates" style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}>
-              Morning
-            </Link>
-            <Link className="rounded-xl border px-2 py-2" href="/notifications?tab=updates" style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}>
-              EOD
-            </Link>
-            <Link className="rounded-xl border px-2 py-2" href="/dashboard/signal-map" style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}>
-              Radar {Array.isArray(activeSignalsTopic.data) ? activeSignalsTopic.data.length : 0}
-            </Link>
-          </div>
+        {/* Dòng tiền (Smartflow đầy đủ: MA200 + đột biến + tích lũy + Index + Top Movers) */}
+        <section className="space-y-2.5">
+          <p className="text-[12px] font-black uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Dòng tiền</p>
+          <LockOverlay isLocked={isDashboardLocked} message="Nâng cấp VIP để xem ADN Smartflow">
+            <ADNSmartflowCard data={smartflowTopic.data ?? null} indexImpact={indexImpactTopic.data ?? null} topMovers={topMoversTopic.data ?? null} />
+          </LockOverlay>
+        </section>
+
+        {/* Tin tức */}
+        <section className="space-y-2.5">
+          <p className="text-[12px] font-black uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Tin tức</p>
+          <SafeSection fallback={<MorningNewsSkeleton />}>
+            <Suspense fallback={<MorningNewsSkeleton />}>
+              <MorningNews />
+            </Suspense>
+          </SafeSection>
+          <SafeSection fallback={<EveningNewsSkeleton />}>
+            <Suspense fallback={<EveningNewsSkeleton />}>
+              <EveningNews />
+            </Suspense>
+          </SafeSection>
+        </section>
+
+        {/* Vùng đảo chiều + Xếp hạng */}
+        <section className="space-y-3">
+          <p className="text-[12px] font-black uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Đảo chiều &amp; xếp hạng</p>
+          <LockOverlay isLocked={isDashboardLocked} message={`Nâng cấp VIP để xem ${PRODUCT_NAMES.art}`}>
+            <SafeSection fallback={<RPISkeleton />}>{!mounted ? <RPISkeleton /> : <ReversePointIndex />}</SafeSection>
+          </LockOverlay>
+          <LockOverlay isLocked={isDashboardLocked} message={`Nâng cấp VIP để xem ${PRODUCT_NAMES.rank}`}>
+            <ADNRankMiniCard rows={topRankRows} />
+          </LockOverlay>
         </section>
       </div>
 
-      <div className="w-full min-w-0 overflow-x-hidden space-y-4 px-3 md:px-5 xl:px-6">
-        {/* Header */}
+      <div className="hidden w-full min-w-0 overflow-x-hidden space-y-4 px-3 md:px-5 xl:px-6 lg:block">
+        {/* Header (desktop) */}
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-baseline gap-2">
