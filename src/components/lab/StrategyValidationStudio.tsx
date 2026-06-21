@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
-  Bot,
   ChevronDown,
   FlaskConical,
   Play,
@@ -371,45 +370,6 @@ function shortList(labels: string[]) {
   return `${labels.slice(0, 4).join(" + ")} + ${labels.length - 4} điều kiện`;
 }
 
-function buildCoachDiagnosis(metrics: UnknownRecord | null, result: ProviderRunResponse | null) {
-  const response = result as unknown as UnknownRecord | null;
-  if (typeof response?.insight === "string") return response.insight;
-  if (typeof response?.summary === "string") return response.summary;
-  if (!metrics) {
-    return "ADN Coach chỉ phân tích sau khi có kết quả kiểm định thật. Nếu bộ kiểm định chưa trả kết quả, hãy xem demo ADN hiện tại bên dưới để đối chiếu cách trình bày.";
-  }
-
-  const netReturn = pickNumber(metrics, ["netReturn", "net_return", "totalReturn", "total_return", "return"]);
-  const maxDrawdown = pickNumber(metrics, ["maxDrawdown", "max_drawdown", "drawdown"]);
-  const trades = pickNumber(metrics, ["numberOfTrades", "totalTrades", "total_trades", "trades"]);
-
-  const notes: string[] = [];
-  if (typeof netReturn === "number") {
-    notes.push(
-      netReturn > 0
-        ? "Chiến thuật có lợi nhuận dương trong giai đoạn kiểm định."
-        : "Chiến thuật chưa tạo lợi nhuận dương trong giai đoạn kiểm định.",
-    );
-  }
-  if (typeof maxDrawdown === "number") {
-    const dd = Math.abs(Math.abs(maxDrawdown) <= 1 ? maxDrawdown * 100 : maxDrawdown);
-    notes.push(
-      dd > 20
-        ? "Drawdown cao, cần giảm tỷ trọng hoặc siết điều kiện thoát lệnh."
-        : "Drawdown đang ở vùng có thể kiểm soát, nhưng vẫn cần kiểm tra thêm theo từng giai đoạn.",
-    );
-  }
-  if (typeof trades === "number") {
-    notes.push(
-      trades < 20
-        ? "Số lệnh còn thấp, chưa đủ mẫu để kết luận chắc chắn."
-        : "Số lệnh đủ để bắt đầu đọc chất lượng chiến thuật, nhưng vẫn nên forward test.",
-    );
-  }
-  notes.push("Không nên dùng tiền thật ngay; hãy kiểm tra thêm phí, trượt giá và giai đoạn thị trường xấu.");
-  return notes.join(" ");
-}
-
 function safeText(value: unknown, fallback = "-") {
   if (value == null) return fallback;
   if (typeof value === "number") return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 }).format(value);
@@ -754,8 +714,6 @@ export function StrategyValidationStudio() {
   const [isRunning, setIsRunning] = useState(false);
   const [saved, setSaved] = useState<SavedStrategy[]>([]);
   const [saving, setSaving] = useState(false);
-  const [coachAi, setCoachAi] = useState<string | null>(null);
-  const [coachLoading, setCoachLoading] = useState(false);
   const [compareIds, setCompareIds] = useState<string[]>([]);
 
   const selectedCount = buySelected.length + sellSelected.length;
@@ -799,7 +757,6 @@ export function StrategyValidationStudio() {
     setIsRunning(true);
     setError(null);
     setResult(null);
-    setCoachAi(null);
     try {
       const manifest = await fetchBacktestManifest();
       const provider = manifest.providers[0];
@@ -835,7 +792,7 @@ export function StrategyValidationStudio() {
           buyLabels,
           sellLabels,
         },
-        requestInsight: true,
+        requestInsight: false,
       });
       setResult(response);
       // Tự lưu vào LỊCH SỬ (chưa ghim) — không chặn UI, lỗi log thì bỏ qua.
@@ -926,31 +883,6 @@ export function StrategyValidationStudio() {
     }
   };
 
-  const analyzeCoach = async () => {
-    if (!metrics || coachLoading) return;
-    setCoachLoading(true);
-    try {
-      const res = await fetch("/api/lab/coach", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          metrics,
-          context: {
-            strategyName, scope, universe: selection, benchmark: assumptions.benchmark,
-            period: `${assumptions.startDate} → ${assumptions.endDate}`, buyLabels, sellLabels,
-          },
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error ?? "ADN Coach chưa phản hồi");
-      setCoachAi(typeof data.analysis === "string" ? data.analysis : null);
-    } catch (e) {
-      setCoachAi(e instanceof Error ? e.message : "Lỗi AI");
-    } finally {
-      setCoachLoading(false);
-    }
-  };
-
   return (
     <section className="space-y-6">
       <div
@@ -980,7 +912,7 @@ export function StrategyValidationStudio() {
           <div className="grid gap-3 sm:grid-cols-3 lg:w-[520px]">
             {[
               ["Backtest", "Mô phỏng quá khứ"],
-              ["AI Coach", "Giải thích kết quả"],
+              ["Phân tích lệnh", "Donut · phân phối · deal"],
               ["Risk Review", "Đọc rủi ro trước"],
             ].map(([title, body]) => (
               <div key={title} className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
@@ -1257,21 +1189,6 @@ export function StrategyValidationStudio() {
             <h3 className="mb-4 text-lg font-semibold" style={{ color: "var(--text-primary)" }}>Phân tích lệnh</h3>
             <ResultDashboard metrics={metrics} analysis={analysis} trades={allTrades} warnings={runWarnings} />
           </div>
-
-          <div className="border-t pt-7" style={{ borderColor: "var(--border)" }}>
-            <div className="flex items-center gap-2">
-              <Bot className="h-5 w-5" style={{ color: "var(--primary)" }} />
-              <h3 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>ADN Coach nhận định</h3>
-            </div>
-            <p className="mt-3 max-w-3xl text-sm leading-7" style={{ color: "var(--text-secondary)" }}>{buildCoachDiagnosis(metrics, result)}</p>
-            <button type="button" onClick={analyzeCoach} disabled={coachLoading} className="mt-3 inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-white disabled:opacity-60" style={{ background: "var(--primary)" }}>
-              <Bot className="h-3.5 w-3.5" />
-              {coachLoading ? "AIDEN đang đọc…" : "Phân tích sâu (AI)"}
-            </button>
-            {coachAi ? (
-              <p className="mt-3 max-w-3xl whitespace-pre-line rounded-xl border p-4 text-sm leading-7" style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-secondary)" }}>{coachAi}</p>
-            ) : null}
-          </div>
         </div>
       ) : (
         <div className="flex min-h-[280px] flex-col items-center justify-center rounded-[1.5rem] border p-10 text-center" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
@@ -1279,7 +1196,7 @@ export function StrategyValidationStudio() {
             <FlaskConical className="h-8 w-8" style={{ color: "var(--primary)" }} />
           </div>
           <p className="mt-4 text-base font-semibold" style={{ color: "var(--text-primary)" }}>Dựng chiến thuật ở trên, rồi bấm &quot;Chạy kiểm định&quot;</p>
-          <p className="mt-1 max-w-md text-sm leading-6" style={{ color: "var(--text-muted)" }}>Báo cáo — đường vốn, phân phối lãi/lỗ, danh sách lệnh và nhận định của ADN Coach — sẽ hiện ngay tại đây.</p>
+          <p className="mt-1 max-w-md text-sm leading-6" style={{ color: "var(--text-muted)" }}>Báo cáo — đường vốn, phân phối lãi/lỗ và danh sách lệnh — sẽ hiện ngay tại đây.</p>
         </div>
       )}
 
