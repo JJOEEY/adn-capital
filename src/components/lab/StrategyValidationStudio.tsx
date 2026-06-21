@@ -412,7 +412,7 @@ function ConditionGrid({
           <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
             {group}
           </h4>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             {items.map((item) => {
               const checked = selected.includes(item.id);
               const fields = CONDITION_PARAMS[item.id];
@@ -764,8 +764,9 @@ export function StrategyValidationStudio() {
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)_360px]">
-        <aside className="space-y-4">
+      <div className="grid gap-6 xl:grid-cols-2">
+        {/* ===================== CỘT TRÁI — MỌI CÔNG CỤ ===================== */}
+        <div className="space-y-5">
           <div className="rounded-[1.5rem] border p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
             <div className="flex items-center gap-2">
               <SlidersHorizontal className="h-4 w-4" style={{ color: "var(--primary)" }} />
@@ -784,7 +785,7 @@ export function StrategyValidationStudio() {
               />
             </label>
 
-            <div className="mt-5 grid gap-3">
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
               {scopeOptions.map((item) => (
                 <button
                   key={item.value}
@@ -844,70 +845,7 @@ export function StrategyValidationStudio() {
             )}
           </div>
 
-          <div className="rounded-[1.5rem] border p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-            <div className="flex items-center gap-2">
-              <Target className="h-4 w-4" style={{ color: "var(--primary)" }} />
-              <h2 className="font-semibold" style={{ color: "var(--text-primary)" }}>Giả định kiểm định</h2>
-            </div>
-            <div className="mt-5 grid gap-4">
-              <NumberInput label="Vốn giả lập" value={assumptions.capital} suffix="đ" onChange={(value) => updateAssumption("capital", value)} />
-              <NumberInput label="Phí giao dịch" value={assumptions.fee} suffix="%" onChange={(value) => updateAssumption("fee", value)} />
-              <NumberInput label="Trượt giá" value={assumptions.slippage} suffix="%" onChange={(value) => updateAssumption("slippage", value)} />
-              <NumberInput label="Thanh khoản tối thiểu" value={assumptions.minLiquidity} suffix="tỷ/ngày" onChange={(value) => updateAssumption("minLiquidity", value)} />
-              <NumberInput label="Số mã tối đa" value={assumptions.maxPositions} onChange={(value) => updateAssumption("maxPositions", value)} />
-              <NumberInput label="Tỷ trọng mỗi lệnh" value={assumptions.weightPercent} suffix="%" onChange={(value) => updateAssumption("weightPercent", value)} />
-              <NumberInput label="Drawdown từng vị thế" value={assumptions.positionDrawdown} suffix="%" onChange={(value) => updateAssumption("positionDrawdown", value)} />
-              <NumberInput label="Drawdown toàn chiến thuật" value={assumptions.strategyDrawdown} suffix="%" onChange={(value) => updateAssumption("strategyDrawdown", value)} />
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block">
-                  <span className="mb-2 block text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Từ ngày</span>
-                  <input
-                    type="date"
-                    value={assumptions.startDate}
-                    onChange={(event) => updateAssumption("startDate", event.target.value)}
-                    className="w-full rounded-xl border bg-transparent px-3 py-3 text-sm font-bold outline-none"
-                    style={{ color: "var(--text-primary)", borderColor: "var(--border)" }}
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-2 block text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Đến ngày</span>
-                  <input
-                    type="date"
-                    value={assumptions.endDate}
-                    onChange={(event) => updateAssumption("endDate", event.target.value)}
-                    className="w-full rounded-xl border bg-transparent px-3 py-3 text-sm font-bold outline-none"
-                    style={{ color: "var(--text-primary)", borderColor: "var(--border)" }}
-                  />
-                </label>
-              </div>
-              <label className="block">
-                <span className="mb-2 block text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Benchmark</span>
-                <select
-                  value={assumptions.benchmark}
-                  onChange={(event) => updateAssumption("benchmark", event.target.value)}
-                  className="w-full rounded-xl border bg-transparent px-3 py-3 text-sm font-semibold outline-none"
-                  style={{ color: "var(--text-primary)", borderColor: "var(--border)" }}
-                >
-                  {benchmarkOptions.map((item) => <option key={item} value={item}>{item}</option>)}
-                </select>
-              </label>
-            </div>
-          </div>
-        </aside>
-
-        <div className="space-y-5">
-          <div className="rounded-[1.5rem] border p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-            <div className="flex flex-wrap items-center gap-2 text-xs font-bold" style={{ color: "var(--text-secondary)" }}>
-              <span>{selection}</span>
-              <span>· Daily</span>
-              <span>· {assumptions.startDate} đến {assumptions.endDate}</span>
-              <span>· Phí {assumptions.fee}%</span>
-              <span>· Trượt giá {assumptions.slippage}%</span>
-              <span>· Tối đa {assumptions.maxPositions} mã</span>
-              <span>· Benchmark {assumptions.benchmark}</span>
-            </div>
-          </div>
-
+          {/* Tinh chỉnh điều kiện mua */}
           <div className="rounded-[1.5rem] border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
             <button
               type="button"
@@ -931,6 +869,7 @@ export function StrategyValidationStudio() {
             ) : null}
           </div>
 
+          {/* Tinh chỉnh điều kiện bán */}
           <div className="rounded-[1.5rem] border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
             <button
               type="button"
@@ -952,6 +891,55 @@ export function StrategyValidationStudio() {
                 <ConditionGrid options={sellConditions} selected={sellSelected} onToggle={(id) => toggleCondition(id, "sell")} params={conditionParams} onParam={setConditionParam} />
               </div>
             ) : null}
+          </div>
+
+          {/* NAV + giả định kiểm chứng */}
+          <div className="rounded-[1.5rem] border p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+            <div className="flex items-center gap-2">
+              <Target className="h-4 w-4" style={{ color: "var(--primary)" }} />
+              <h2 className="font-semibold" style={{ color: "var(--text-primary)" }}>NAV &amp; giả định kiểm chứng</h2>
+            </div>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <NumberInput label="NAV (vốn giả lập)" value={assumptions.capital} suffix="đ" onChange={(value) => updateAssumption("capital", value)} />
+              <NumberInput label="Phí giao dịch" value={assumptions.fee} suffix="%" onChange={(value) => updateAssumption("fee", value)} />
+              <NumberInput label="Trượt giá" value={assumptions.slippage} suffix="%" onChange={(value) => updateAssumption("slippage", value)} />
+              <NumberInput label="Thanh khoản tối thiểu" value={assumptions.minLiquidity} suffix="tỷ/ngày" onChange={(value) => updateAssumption("minLiquidity", value)} />
+              <NumberInput label="Số mã tối đa" value={assumptions.maxPositions} onChange={(value) => updateAssumption("maxPositions", value)} />
+              <NumberInput label="Tỷ trọng mỗi lệnh" value={assumptions.weightPercent} suffix="%" onChange={(value) => updateAssumption("weightPercent", value)} />
+              <NumberInput label="Drawdown từng vị thế" value={assumptions.positionDrawdown} suffix="%" onChange={(value) => updateAssumption("positionDrawdown", value)} />
+              <NumberInput label="Drawdown toàn chiến thuật" value={assumptions.strategyDrawdown} suffix="%" onChange={(value) => updateAssumption("strategyDrawdown", value)} />
+              <label className="block">
+                <span className="mb-2 block text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Từ ngày</span>
+                <input
+                  type="date"
+                  value={assumptions.startDate}
+                  onChange={(event) => updateAssumption("startDate", event.target.value)}
+                  className="w-full rounded-xl border bg-transparent px-3 py-3 text-sm font-bold outline-none"
+                  style={{ color: "var(--text-primary)", borderColor: "var(--border)" }}
+                />
+              </label>
+              <label className="block">
+                <span className="mb-2 block text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Đến ngày</span>
+                <input
+                  type="date"
+                  value={assumptions.endDate}
+                  onChange={(event) => updateAssumption("endDate", event.target.value)}
+                  className="w-full rounded-xl border bg-transparent px-3 py-3 text-sm font-bold outline-none"
+                  style={{ color: "var(--text-primary)", borderColor: "var(--border)" }}
+                />
+              </label>
+              <label className="block sm:col-span-2">
+                <span className="mb-2 block text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Benchmark</span>
+                <select
+                  value={assumptions.benchmark}
+                  onChange={(event) => updateAssumption("benchmark", event.target.value)}
+                  className="w-full rounded-xl border bg-transparent px-3 py-3 text-sm font-semibold outline-none"
+                  style={{ color: "var(--text-primary)", borderColor: "var(--border)" }}
+                >
+                  {benchmarkOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+              </label>
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-3">
@@ -977,6 +965,12 @@ export function StrategyValidationStudio() {
               {saving ? "Đang lưu..." : "Lưu chiến thuật"}
             </button>
           </div>
+
+          {error ? (
+            <div className="rounded-2xl border p-4 text-sm" style={{ borderColor: "rgba(245,158,11,0.35)", color: "#f59e0b", background: "rgba(245,158,11,0.08)" }}>
+              {error}
+            </div>
+          ) : null}
 
           {saved.length > 0 ? (
             <div className="rounded-[1.5rem] border p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
@@ -1052,13 +1046,68 @@ export function StrategyValidationStudio() {
               ) : null}
             </div>
           ) : null}
+        </div>
 
-          {error ? (
-            <div className="rounded-2xl border p-4 text-sm" style={{ borderColor: "rgba(245,158,11,0.35)", color: "#f59e0b", background: "rgba(245,158,11,0.08)" }}>
-              {error}
+        {/* ===================== CỘT PHẢI — NƠI TRẢ KẾT QUẢ ===================== */}
+        <div className="space-y-5">
+          <div className="rounded-[1.5rem] border p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+            <div className="flex flex-wrap items-center gap-2 text-xs font-bold" style={{ color: "var(--text-secondary)" }}>
+              <span>{selection}</span>
+              <span>· Daily</span>
+              <span>· {assumptions.startDate} đến {assumptions.endDate}</span>
+              <span>· Phí {assumptions.fee}%</span>
+              <span>· Trượt giá {assumptions.slippage}%</span>
+              <span>· Tối đa {assumptions.maxPositions} mã</span>
+              <span>· Benchmark {assumptions.benchmark}</span>
             </div>
-          ) : null}
+          </div>
 
+          {/* Bento trên — Equity curve so với benchmark */}
+          <div className="rounded-[1.5rem] border p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+            <div className="flex items-center gap-2">
+              <LineChart className="h-4 w-4" style={{ color: "var(--primary)" }} />
+              <h2 className="font-semibold" style={{ color: "var(--text-primary)" }}>Equity curve so với {assumptions.benchmark}</h2>
+            </div>
+            {equityCurve.length > 1 ? (
+              <div className="mt-4 h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={equityCurve} margin={{ top: 6, right: 8, left: 8, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="eqFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.25} />
+                        <stop offset="100%" stopColor="var(--primary)" stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" strokeOpacity={0.4} vertical={false} />
+                    <XAxis
+                      dataKey="date"
+                      tick={{ fontSize: 10, fill: "var(--text-muted)" }}
+                      interval="preserveStartEnd"
+                      minTickGap={44}
+                      tickFormatter={(d) => String(d).slice(5)}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis hide domain={["auto", "auto"]} />
+                    <Tooltip
+                      contentStyle={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 10, fontSize: 12 }}
+                      labelStyle={{ color: "var(--text-muted)" }}
+                      formatter={(v) => `${fmtEq(Number(v) || 0)}₫`}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <Area type="monotone" dataKey="value" name="Chiến thuật" stroke="var(--primary)" strokeWidth={2} fill="url(#eqFill)" />
+                    <Line type="monotone" dataKey="benchmark" name={assumptions.benchmark} stroke="var(--text-muted)" strokeWidth={1.5} dot={false} strokeDasharray="4 3" connectNulls />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="mt-4 flex h-64 items-center justify-center rounded-xl border border-dashed" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
+                {result ? "Kết quả chưa đủ điểm để vẽ đường vốn." : "Chưa chạy kiểm định."}
+              </div>
+            )}
+          </div>
+
+          {/* Bento dưới — Trade Explorer + ADN Strategy Report */}
           <div className="rounded-[1.5rem] border p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
             <div className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" style={{ color: "var(--primary)" }} />
@@ -1074,7 +1123,7 @@ export function StrategyValidationStudio() {
                 ))}
               </div>
             ) : null}
-            <div className="mt-5 grid gap-3 md:grid-cols-3">
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
               {metricCards.map((item) => (
                 <div key={item.label} className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
                   <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>{item.label}</p>
@@ -1083,58 +1132,14 @@ export function StrategyValidationStudio() {
               ))}
             </div>
 
-            <div className="mt-5 rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
-              <div className="flex items-center gap-2">
-                <LineChart className="h-4 w-4" style={{ color: "var(--primary)" }} />
-                <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Equity curve so với {assumptions.benchmark}</p>
-              </div>
-              {equityCurve.length > 1 ? (
-                <div className="mt-4 h-56">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={equityCurve} margin={{ top: 6, right: 8, left: 8, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="eqFill" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.25} />
-                          <stop offset="100%" stopColor="var(--primary)" stopOpacity={0.02} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" strokeOpacity={0.4} vertical={false} />
-                      <XAxis
-                        dataKey="date"
-                        tick={{ fontSize: 10, fill: "var(--text-muted)" }}
-                        interval="preserveStartEnd"
-                        minTickGap={44}
-                        tickFormatter={(d) => String(d).slice(5)}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <YAxis hide domain={["auto", "auto"]} />
-                      <Tooltip
-                        contentStyle={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 10, fontSize: 12 }}
-                        labelStyle={{ color: "var(--text-muted)" }}
-                        formatter={(v) => `${fmtEq(Number(v) || 0)}₫`}
-                      />
-                      <Legend wrapperStyle={{ fontSize: 11 }} />
-                      <Area type="monotone" dataKey="value" name="Chiến thuật" stroke="var(--primary)" strokeWidth={2} fill="url(#eqFill)" />
-                      <Line type="monotone" dataKey="benchmark" name={assumptions.benchmark} stroke="var(--text-muted)" strokeWidth={1.5} dot={false} strokeDasharray="4 3" connectNulls />
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <div className="mt-4 flex h-56 items-center justify-center rounded-xl border border-dashed" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
-                  {result ? "Kết quả chưa đủ điểm để vẽ đường vốn." : "Chưa chạy kiểm định."}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="rounded-[1.5rem] border p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-            <div className="flex items-center gap-2">
+            <div className="mt-6 flex items-center gap-2">
               <BarChart3 className="h-4 w-4" style={{ color: "var(--primary)" }} />
-              <h2 className="font-semibold" style={{ color: "var(--text-primary)" }}>Trade Explorer</h2>
+              <h3 className="font-semibold" style={{ color: "var(--text-primary)" }}>Trade Explorer</h3>
+              <span className="rounded-md px-2 py-0.5 text-[11px] font-bold" style={{ background: "rgba(22,163,74,0.12)", color: "#16a34a" }}>lãi</span>
+              <span className="rounded-md px-2 py-0.5 text-[11px] font-bold" style={{ background: "rgba(220,38,38,0.12)", color: "#dc2626" }}>lỗ</span>
             </div>
-            <div className="mt-4 overflow-x-auto">
-              <table className="w-full min-w-[720px] text-sm">
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full min-w-[680px] text-sm">
                 <thead style={{ color: "var(--text-muted)" }}>
                   <tr className="border-b text-left" style={{ borderColor: "var(--border)" }}>
                     <th className="py-3">Ngày mua</th>
@@ -1148,21 +1153,32 @@ export function StrategyValidationStudio() {
                 </thead>
                 <tbody>
                   {trades.length ? (
-                    trades.map((trade, index) => (
-                      <tr key={`${safeText(trade.ticker, "TRADE")}-${index}`} className="border-b" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
-                        <td className="py-3">{safeText(trade.entryDate ?? trade.dateIn ?? trade.date)}</td>
-                        <td className="font-semibold" style={{ color: "var(--text-primary)" }}>{safeText(trade.ticker)}</td>
-                        <td>{safeText(trade.entry ?? trade.entryPrice)}</td>
-                        <td>{safeText(trade.exit ?? trade.exitPrice)}</td>
-                        <td>{safeText(trade.holdingDays ?? trade.holding)}</td>
-                        <td>{safeText(trade.pnl ?? trade.return)}</td>
-                        <td>{safeText(trade.reason ?? trade.exitReason, "Theo điều kiện chiến thuật")}</td>
-                      </tr>
-                    ))
+                    trades.map((trade, index) => {
+                      const pnlRaw = trade.pnl ?? trade.return;
+                      const pnlNum = typeof pnlRaw === "number" ? pnlRaw : Number(pnlRaw);
+                      const finite = Number.isFinite(pnlNum);
+                      const isWin = finite && pnlNum >= 0;
+                      const pnlColor = !finite ? "var(--text-secondary)" : isWin ? "#16a34a" : "#dc2626";
+                      const pnlBg = !finite ? "transparent" : isWin ? "rgba(22,163,74,0.12)" : "rgba(220,38,38,0.12)";
+                      const pnlText = finite ? `${pnlNum >= 0 ? "+" : ""}${pnlNum}%` : safeText(pnlRaw);
+                      return (
+                        <tr key={`${safeText(trade.ticker, "TRADE")}-${index}`} className="border-b" style={{ borderColor: "var(--border)", color: "var(--text-secondary)", borderLeft: `3px solid ${finite ? pnlColor : "transparent"}` }}>
+                          <td className="py-3 pl-3">{safeText(trade.entryDate ?? trade.dateIn ?? trade.date)}</td>
+                          <td className="font-semibold" style={{ color: "var(--text-primary)" }}>{safeText(trade.ticker)}</td>
+                          <td>{safeText(trade.entry ?? trade.entryPrice)}</td>
+                          <td>{safeText(trade.exit ?? trade.exitPrice)}</td>
+                          <td>{safeText(trade.holdingDays ?? trade.holding)}</td>
+                          <td className="py-3">
+                            <span className="inline-block rounded-md px-2 py-0.5 text-xs font-bold" style={{ color: pnlColor, background: pnlBg }}>{pnlText}</span>
+                          </td>
+                          <td>{safeText(trade.reason ?? trade.exitReason, "Theo điều kiện chiến thuật")}</td>
+                        </tr>
+                      );
+                    })
                   ) : (
                     <tr>
                       <td className="py-5 text-center" colSpan={7} style={{ color: "var(--text-muted)" }}>
-                        Chưa có danh sách lệnh. Hãy chạy kiểm định hoặc xem demo ADN hiện tại bên dưới.
+                        Chưa có danh sách lệnh. Hãy chạy kiểm định để xem chi tiết từng lệnh.
                       </td>
                     </tr>
                   )}
@@ -1172,36 +1188,17 @@ export function StrategyValidationStudio() {
           </div>
         </div>
 
-        <aside className="space-y-4">
-          <div className="rounded-[1.5rem] border p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-            <div className="flex items-center gap-2">
-              <ShieldAlert className="h-4 w-4" style={{ color: "#f59e0b" }} />
-              <h2 className="font-semibold" style={{ color: "var(--text-primary)" }}>Strategy DNA</h2>
-            </div>
-            <div className="mt-5 space-y-4 text-sm">
-              {[
-                ["Loại", "No-code strategy"],
-                ["Phạm vi", selection],
-                ["Timeframe", "Daily"],
-                ["Điều kiện mua", shortList(buyLabels)],
-                ["Điều kiện bán", shortList(sellLabels)],
-                ["Quản trị vốn", `${formatMoney(assumptions.capital)}đ · ${assumptions.weightPercent}%/lệnh`],
-                ["Benchmark", assumptions.benchmark],
-              ].map(([label, value]) => (
-                <div key={label} className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
-                  <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>{label}</p>
-                  <p className="mt-1 font-bold" style={{ color: "var(--text-primary)" }}>{value}</p>
-                </div>
-              ))}
-            </div>
-          </div>
+      </div>
 
-          <div className="rounded-[1.5rem] border p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-            <div className="flex items-center gap-2">
-              <Bot className="h-4 w-4" style={{ color: "var(--primary)" }} />
-              <h2 className="font-semibold" style={{ color: "var(--text-primary)" }}>ADN Coach</h2>
-            </div>
-            <p className="mt-4 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
+      {/* ===================== DƯỚI CÙNG — ADN COACH (AI nhận định, full-width) ===================== */}
+      <div className="rounded-[1.5rem] border p-5 md:p-6" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+        <div className="flex items-center gap-2">
+          <Bot className="h-4 w-4" style={{ color: "var(--primary)" }} />
+          <h2 className="font-semibold" style={{ color: "var(--text-primary)" }}>ADN Coach — Nhận định</h2>
+        </div>
+        <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+          <div>
+            <p className="text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
               {buildCoachDiagnosis(metrics, result)}
             </p>
             {result ? (
@@ -1221,31 +1218,57 @@ export function StrategyValidationStudio() {
                 {coachAi}
               </p>
             ) : null}
-            <div className="mt-5 space-y-3">
-              {["Thêm bộ lọc xu hướng thị trường", "Kiểm tra lại với trượt giá cao hơn", "Xem các lệnh thua lớn nhất"].map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  className="w-full rounded-xl border px-3 py-2 text-left text-xs font-bold"
-                  style={{ borderColor: "var(--border)", color: "var(--text-primary)", background: "var(--surface-2)" }}
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
           </div>
+          <div className="space-y-3">
+            {["Thêm bộ lọc xu hướng thị trường", "Kiểm tra lại với trượt giá cao hơn", "Xem các lệnh thua lớn nhất"].map((item) => (
+              <button
+                key={item}
+                type="button"
+                className="w-full rounded-xl border px-3 py-2 text-left text-xs font-bold"
+                style={{ borderColor: "var(--border)", color: "var(--text-primary)", background: "var(--surface-2)" }}
+              >
+                {item}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
 
-          <div className="rounded-[1.5rem] border p-5" style={{ background: "rgba(245,158,11,0.08)", borderColor: "rgba(245,158,11,0.35)" }}>
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4" style={{ color: "#f59e0b" }} />
-              <h2 className="font-semibold" style={{ color: "#f59e0b" }}>Cảnh báo rủi ro</h2>
-            </div>
-            <p className="mt-3 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
-              Backtest chỉ cho biết chiến thuật từng hoạt động ra sao trong quá khứ. Kết quả tốt vẫn cần kiểm tra
-              forward test, phí, trượt giá, thanh khoản và giai đoạn thị trường xấu.
-            </p>
+      {/* Strategy DNA + Cảnh báo rủi ro */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="rounded-[1.5rem] border p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+          <div className="flex items-center gap-2">
+            <ShieldAlert className="h-4 w-4" style={{ color: "#f59e0b" }} />
+            <h2 className="font-semibold" style={{ color: "var(--text-primary)" }}>Strategy DNA</h2>
           </div>
-        </aside>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            {[
+              ["Loại", "No-code strategy"],
+              ["Phạm vi", selection],
+              ["Timeframe", "Daily"],
+              ["Điều kiện mua", shortList(buyLabels)],
+              ["Điều kiện bán", shortList(sellLabels)],
+              ["Quản trị vốn", `${formatMoney(assumptions.capital)}đ · ${assumptions.weightPercent}%/lệnh`],
+              ["Benchmark", assumptions.benchmark],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+                <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>{label}</p>
+                <p className="mt-1 font-bold" style={{ color: "var(--text-primary)" }}>{value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-[1.5rem] border p-5" style={{ background: "rgba(245,158,11,0.08)", borderColor: "rgba(245,158,11,0.35)" }}>
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4" style={{ color: "#f59e0b" }} />
+            <h2 className="font-semibold" style={{ color: "#f59e0b" }}>Cảnh báo rủi ro</h2>
+          </div>
+          <p className="mt-3 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
+            Backtest chỉ cho biết chiến thuật từng hoạt động ra sao trong quá khứ. Kết quả tốt vẫn cần kiểm tra
+            forward test, phí, trượt giá, thanh khoản và giai đoạn thị trường xấu.
+          </p>
+        </div>
       </div>
     </section>
   );
