@@ -2,23 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import {
-  Bot,
-  Briefcase,
-  CheckCircle2,
-  CircleOff,
-  ListOrdered,
-  LogIn,
-  RefreshCw,
-  TrendingUp,
-  Wallet,
-} from "lucide-react";
+import { CheckCircle2, LogIn, RefreshCw } from "lucide-react";
 import { DirectOrderPanel, AutoRadarConfigPanel } from "@/components/broker/DirectOrderPanel";
 import { DnseAccountSelector } from "@/components/broker/DnseAccountSelector";
 import { DnseLoginModal } from "@/components/broker/DnseLoginModal";
-import { DnseAccountInfo } from "@/components/broker/DnseAccountInfo";
 import { useTopics } from "@/hooks/useTopics";
-import { PRODUCT_NAMES } from "@/lib/brand/productNames";
+import s from "./adnx.module.css";
 
 type BrokerPosition = {
   ticker: string;
@@ -258,22 +247,6 @@ function fmtPrice(value: number | null | undefined) {
   return value.toLocaleString("vi-VN");
 }
 
-function pnlTone(value: number | null | undefined) {
-  const num = Number(value ?? 0);
-  if (num >= 0) {
-    return {
-      color: "#16a34a",
-      bg: "rgba(22,163,74,0.10)",
-      border: "rgba(22,163,74,0.25)",
-    };
-  }
-  return {
-    color: "var(--danger)",
-    bg: "rgba(192,57,43,0.10)",
-    border: "rgba(192,57,43,0.25)",
-  };
-}
-
 function fmtDateTime(value: string | null | undefined) {
   if (!value) return "--";
   const date = new Date(value);
@@ -420,105 +393,26 @@ function toDirectLoanPackagesTopic(
   };
 }
 
-function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
-  return (
-    <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
-      <p className="text-[11px] uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>{label}</p>
-      <p className="mt-1 text-lg font-black" style={{ color: accent ? "var(--primary)" : "var(--text-primary)" }}>{value}</p>
-    </div>
-  );
-}
-
-function NavCard({
-  isConnected,
-  totalNav,
-  buyingPower,
-  allocatedPct,
-  remainingPct,
-  maxActiveNavPct,
-  queryNavPct,
-  suggestedNotional,
-  hint,
-}: {
-  isConnected: boolean;
-  totalNav: number | null;
-  buyingPower: number | null;
-  allocatedPct: number;
-  remainingPct: number;
-  maxActiveNavPct: number;
-  queryNavPct: number | null;
-  suggestedNotional: number | null;
-  hint: string | null;
-}) {
-  return (
-    <section className="rounded-2xl border p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-      <div className="mb-3 flex items-center gap-2">
-        <Wallet className="h-4 w-4" style={{ color: "var(--primary)" }} />
-        <h2 className="text-sm font-black uppercase tracking-wide" style={{ color: "var(--text-primary)" }}>Tổng tài sản &amp; sức mua</h2>
-      </div>
-      {isConnected ? (
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <Stat label="Tổng tài sản ròng" value={totalNav != null ? `${Math.round(totalNav).toLocaleString("vi-VN")} đ` : "--"} />
-            <Stat label="Sức mua khả dụng" value={buyingPower != null ? `${Math.round(buyingPower).toLocaleString("vi-VN")} đ` : "--"} accent />
-          </div>
-          <div>
-            <div className="flex items-center justify-between text-xs" style={{ color: "var(--text-secondary)" }}>
-              <span>Tỷ trọng đã dùng {allocatedPct.toFixed(1)}%</span>
-              <span>Còn lại {remainingPct.toFixed(1)}% · trần {maxActiveNavPct.toFixed(0)}%</span>
-            </div>
-            <div className="mt-1 h-2 w-full overflow-hidden rounded-full" style={{ background: "var(--surface-2)" }}>
-              <div className="h-full rounded-full" style={{ width: `${Math.min(100, allocatedPct)}%`, background: "var(--primary)" }} />
-            </div>
-          </div>
-          {queryNavPct ? (
-            <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
-              <p className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>Tỷ trọng đề xuất từ ADN Radar: {queryNavPct.toFixed(1)}%</p>
-              <p className="mt-1 text-xs font-bold" style={{ color: "var(--primary)" }}>
-                {suggestedNotional ? `Giá trị lệnh gợi ý: ${Math.round(suggestedNotional).toLocaleString("vi-VN")} đ` : "Chưa tính được giá trị lệnh do thiếu tổng tài sản ròng."}
-              </p>
-            </div>
-          ) : null}
-        </div>
-      ) : (
-        <div className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
-          <CircleOff className="h-3.5 w-3.5" /> Liên kết tài khoản DNSE để xem tổng tài sản và sức mua.
-        </div>
-      )}
-      {hint ? <p className="mt-2 text-xs" style={{ color: "var(--danger)" }}>{hint}</p> : null}
-    </section>
-  );
-}
-
 function HoldingsTable({ holdings, hint, limit }: { holdings: BrokerPosition[]; hint: string | null; limit?: number }) {
   const rows = limit ? holdings.slice(0, limit) : holdings;
   return (
-    <section className="rounded-2xl border p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-      <div className="mb-3 flex items-center gap-2">
-        <Briefcase className="h-4 w-4" style={{ color: "var(--primary)" }} />
-        <h2 className="text-sm font-black uppercase tracking-wide" style={{ color: "var(--text-primary)" }}>Danh mục nắm giữ</h2>
-      </div>
+    <section className={s.card}>
+      <div className={s.secH}><div><div className={s.eyebrow}>Danh mục</div><div className={s.secTitle}>Vị thế nắm giữ</div></div></div>
       {rows.length > 0 ? (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[520px] text-sm">
-            <thead>
-              <tr className="border-b" style={{ borderColor: "var(--border)" }}>
-                {["Mã", "KL", "Giá vốn", "Giá hiện tại", "Lãi/Lỗ", "Tỷ trọng"].map((h, i) => (
-                  <th key={h} className={`px-2 py-2 text-xs uppercase ${i === 0 ? "text-left" : "text-right"}`} style={{ color: "var(--text-muted)" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
+        <div style={{ overflowX: "auto" }}>
+          <table className={s.table}>
+            <thead><tr>{["Mã", "KL", "Giá vốn", "Giá hiện", "Lời/Lỗ", "Tỷ trọng"].map((h) => <th key={h}>{h}</th>)}</tr></thead>
             <tbody>
               {rows.map((row) => {
-                const tone = pnlTone(row.pnlPercent);
+                const up = Number(row.pnlPercent ?? 0) >= 0;
                 return (
-                  <tr key={row.ticker} className="border-b" style={{ borderColor: "var(--border)" }}>
-                    <td className="px-2 py-2 font-mono font-black" style={{ color: "var(--text-primary)" }}>{row.ticker}</td>
-                    <td className="px-2 py-2 text-right" style={{ color: "var(--text-secondary)" }}>{fmtPrice(row.quantity)}</td>
-                    <td className="px-2 py-2 text-right" style={{ color: "var(--text-secondary)" }}>{fmtPrice(row.entryPrice)}</td>
-                    <td className="px-2 py-2 text-right font-semibold" style={{ color: "var(--text-primary)" }}>{fmtPrice(row.currentPrice)}</td>
-                    <td className="px-2 py-2 text-right font-bold" style={{ color: tone.color }}>{row.pnlPercent != null ? `${row.pnlPercent >= 0 ? "+" : ""}${row.pnlPercent.toFixed(2)}%` : "--"}</td>
-                    <td className="px-2 py-2 text-right" style={{ color: "var(--text-secondary)" }}>{row.navAllocation != null ? `${row.navAllocation.toFixed(1)}%` : "--"}</td>
+                  <tr key={row.ticker}>
+                    <td><span className={s.serif} style={{ fontWeight: 600, fontSize: 14 }}>{row.ticker}</span></td>
+                    <td className={s.tnum}>{fmtPrice(row.quantity)}</td>
+                    <td className={s.tnum}>{fmtPrice(row.entryPrice)}</td>
+                    <td className={s.tnum}>{fmtPrice(row.currentPrice)}</td>
+                    <td className={s.tnum} style={{ color: up ? "var(--accent-fa)" : "var(--danger)" }}>{row.pnlPercent != null ? `${up ? "+" : ""}${row.pnlPercent.toFixed(2)}%` : "--"}</td>
+                    <td className={s.tnum}>{row.navAllocation != null ? `${row.navAllocation.toFixed(1)}%` : "--"}</td>
                   </tr>
                 );
               })}
@@ -526,7 +420,7 @@ function HoldingsTable({ holdings, hint, limit }: { holdings: BrokerPosition[]; 
           </table>
         </div>
       ) : (
-        <p className="text-sm" style={{ color: "var(--text-muted)" }}>{hint ?? "Chưa có vị thế nắm giữ."}</p>
+        <p style={{ fontSize: 13, color: "var(--text-muted)" }}>{hint ?? "Chưa có vị thế nắm giữ."}</p>
       )}
     </section>
   );
@@ -545,32 +439,24 @@ function OrdersTable({
 }) {
   const rows = limit ? orders.slice(0, limit) : orders;
   return (
-    <section className="rounded-2xl border p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-      <div className="mb-3 flex items-center gap-2">
-        <ListOrdered className="h-4 w-4" style={{ color: "var(--primary)" }} />
-        <h2 className="text-sm font-black uppercase tracking-wide" style={{ color: "var(--text-primary)" }}>{title}</h2>
-      </div>
+    <section className={s.card}>
+      <div className={s.secH}><div><div className={s.eyebrow}>Sổ lệnh</div><div className={s.secTitle}>{title}</div></div></div>
       {rows.length > 0 ? (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[480px] text-sm">
-            <thead>
-              <tr className="border-b" style={{ borderColor: "var(--border)" }}>
-                {["Mã", "Chiều", "KL", "Giá", "Trạng thái", "Thời gian"].map((h, i) => (
-                  <th key={h} className={`px-2 py-2 text-xs uppercase ${i === 0 ? "text-left" : "text-right"}`} style={{ color: "var(--text-muted)" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
+        <div style={{ overflowX: "auto" }}>
+          <table className={s.table}>
+            <thead><tr>{["Mã", "Chiều", "KL", "Giá", "Trạng thái", "Thời gian"].map((h) => <th key={h}>{h}</th>)}</tr></thead>
             <tbody>
               {rows.map((row, index) => {
-                const isBuy = String(row.side ?? "").toUpperCase().includes("B") || String(row.side ?? "").toUpperCase() === "NB" || String(row.side ?? "").toUpperCase() === "BUY";
+                const sv = String(row.side ?? "").toUpperCase();
+                const isBuy = sv.includes("B") || sv === "NB";
                 return (
-                  <tr key={row.brokerOrderId ?? `${row.ticker}-${index}`} className="border-b" style={{ borderColor: "var(--border)" }}>
-                    <td className="px-2 py-2 font-mono font-black" style={{ color: "var(--text-primary)" }}>{row.ticker ?? "--"}</td>
-                    <td className="px-2 py-2 text-right font-bold" style={{ color: isBuy ? "#16a34a" : "var(--danger)" }}>{isBuy ? "Mua" : "Bán"}</td>
-                    <td className="px-2 py-2 text-right" style={{ color: "var(--text-secondary)" }}>{fmtPrice(row.quantity)}</td>
-                    <td className="px-2 py-2 text-right" style={{ color: "var(--text-secondary)" }}>{fmtPrice(row.price)}</td>
-                    <td className="px-2 py-2 text-right" style={{ color: "var(--text-secondary)" }}>{row.status ?? "--"}</td>
-                    <td className="px-2 py-2 text-right text-xs" style={{ color: "var(--text-muted)" }}>{fmtDateTime(row.submittedAt)}</td>
+                  <tr key={row.brokerOrderId ?? `${row.ticker}-${index}`}>
+                    <td><span className={s.serif} style={{ fontWeight: 600, fontSize: 14 }}>{row.ticker ?? "--"}</span></td>
+                    <td style={{ textAlign: "right", fontWeight: 600, color: isBuy ? "var(--accent-fa)" : "var(--danger)" }}>{isBuy ? "Mua" : "Bán"}</td>
+                    <td className={s.tnum}>{fmtPrice(row.quantity)}</td>
+                    <td className={s.tnum}>{fmtPrice(row.price)}</td>
+                    <td style={{ textAlign: "right", color: "var(--text-secondary)" }}>{row.status ?? "--"}</td>
+                    <td style={{ textAlign: "right", fontSize: 11, color: "var(--text-muted)" }}>{fmtDateTime(row.submittedAt)}</td>
                   </tr>
                 );
               })}
@@ -578,7 +464,7 @@ function OrdersTable({
           </table>
         </div>
       ) : (
-        <p className="text-sm" style={{ color: "var(--text-muted)" }}>{hint ?? "Chưa có lệnh nào."}</p>
+        <p style={{ fontSize: 13, color: "var(--text-muted)" }}>{hint ?? "Chưa có lệnh nào."}</p>
       )}
     </section>
   );
@@ -1059,310 +945,140 @@ export function DnseTradingClient() {
     : "Đăng nhập DNSE thành công. Hãy bấm Liên kết tài khoản DNSE.";
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-4 p-4 md:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-black" style={{ color: "var(--text-primary)" }}>
-            {PRODUCT_NAMES.brokerConnect}
-          </h1>
-          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-            Đặt lệnh trực tiếp trên nền tảng ADN qua tài khoản DNSE đã liên kết.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {!isLinkedAccount ? (
+    <div className={s.root}>
+      <div className={s.shell}>
+        <header className={s.header}>
+          <div className={s.wordmark}>ADN <b>×</b> DNSE</div>
+          <div className={s.headMid}>
+            <div className={s.kvInline}><span className={s.l}>Tài sản ròng</span><span className={s.v}>{totalNavValue != null ? `${Math.round(totalNavValue).toLocaleString("vi-VN")} đ` : "--"}</span></div>
+            <div className={s.kvInline}><span className={s.l}>Sức mua khả dụng</span><span className={s.v}>{buyingPowerValue != null ? `${Math.round(buyingPowerValue).toLocaleString("vi-VN")} đ` : "--"}</span></div>
+          </div>
+          <div className={s.headActions}>
+            {!isLinkedAccount ? (
+              <>
+                <button type="button" onClick={() => setShowLoginModal(true)} className={s.pill} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><LogIn className="h-3.5 w-3.5" /> Đăng nhập DNSE</button>
+                <button type="button" onClick={() => setShowAccountSelector(true)} className={s.pill} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--primary-light)", color: "var(--primary)" }}><CheckCircle2 className="h-3.5 w-3.5" /> Liên kết</button>
+              </>
+            ) : null}
+            {needsRelogin ? (
+              <button type="button" onClick={() => setShowLoginModal(true)} className={s.pill} style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--danger)" }}><LogIn className="h-3.5 w-3.5" /> Đăng nhập lại</button>
+            ) : null}
+            <button type="button" onClick={() => refreshDnseViews(true)} className={s.pill} aria-label="Làm mới dữ liệu"><RefreshCw className={`h-3.5 w-3.5 ${brokerTopics.isValidating || directDnse.loading ? "animate-spin" : ""}`} /></button>
+          </div>
+        </header>
+
+        <nav className={s.rail}>
+          {[
+            { key: "order" as const, label: "Đặt lệnh", icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 17l5-5 4 4 8-8M21 8v5M21 8h-5" /></svg>) },
+            { key: "portfolio" as const, label: "Danh mục", icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="4" width="18" height="6" rx="1.5" /><rect x="3" y="14" width="11" height="6" rx="1.5" /></svg>) },
+            { key: "orders" as const, label: "Sổ lệnh", icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M5 4h14M5 9h14M5 14h9M5 19h9" /></svg>) },
+            { key: "auto" as const, label: "Tự động hóa", icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="3" /><path d="M12 4v2M12 18v2M4 12h2M18 12h2M6 6l1.5 1.5M16.5 16.5L18 18" /></svg>) },
+          ].map((t) => (
+            <button key={t.key} type="button" title={t.label} aria-label={t.label} onClick={() => setActiveTab(t.key)} className={`${s.rtab} ${activeTab === t.key ? s.rtabOn : ""}`}>{t.icon}</button>
+          ))}
+        </nav>
+
+        <main className={s.work}>
+          {activeTab === "order" ? (
             <>
-              <button
-                onClick={() => setShowLoginModal(true)}
-                className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold"
-                style={{
-                  borderColor: "rgba(37,99,235,0.25)",
-                  color: "#1d4ed8",
-                  background: "rgba(37,99,235,0.10)",
-                }}
-              >
-                <LogIn className="h-3.5 w-3.5" />
-                Đăng nhập DNSE
-              </button>
-              <button
-                onClick={() => setShowAccountSelector(true)}
-                className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold"
-                style={{
-                  borderColor: "rgba(22,163,74,0.25)",
-                  color: "#15803d",
-                  background: "rgba(22,163,74,0.10)",
-                }}
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                Liên kết tài khoản DNSE
-              </button>
+              <div className={s.watch}>
+                {holdings.slice(0, 14).map((h) => (
+                  <button key={h.ticker} type="button" className={`${s.wchip} ${h.ticker === ticker ? s.wchipSel : ""}`} onClick={() => setTicker(h.ticker)}>
+                    <span className={s.t}>{h.ticker}</span>
+                    <span className={s.num} style={{ fontSize: 12, color: Number(h.pnlPercent ?? 0) >= 0 ? "var(--accent-fa)" : "var(--danger)" }}>{fmtPrice(h.currentPrice)}</span>
+                  </button>
+                ))}
+                {holdings.length === 0 ? <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Nhập mã ở phiếu lệnh để bắt đầu.</span> : null}
+              </div>
+              <div style={{ padding: "16px 18px" }}>
+                <div className={s.eyebrow} style={{ marginBottom: 4 }}>Phiếu lệnh</div>
+                <DirectOrderPanel
+                  ticker={(ticker || "HPG").trim().toUpperCase()}
+                  defaultPrice={queryEntryPrice ?? undefined}
+                  defaultAccountId={selectedAccountId ?? undefined}
+                  defaultSide={querySide}
+                  source={querySource}
+                  signalId={querySignalId}
+                  navPct={queryNavPct ?? undefined}
+                  initialTotalAsset={totalNavValue}
+                  initialBuyingPower={buyingPowerValue}
+                  initialLoanPackages={directOrderLoanPackages}
+                  canTrade={canTrade}
+                  onTickerChange={setTicker}
+                  renderAuto={false}
+                  onOrderSettled={() => refreshDnseViews(true)}
+                />
+              </div>
             </>
           ) : null}
 
-          {needsRelogin ? (
-            <button
-              onClick={() => setShowLoginModal(true)}
-              className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold"
-              style={{
-                borderColor: "rgba(245,158,11,0.25)",
-                color: "#b45309",
-                background: "rgba(245,158,11,0.10)",
-              }}
-            >
-              <LogIn className="h-3.5 w-3.5" />
-              Đăng nhập lại DNSE
-            </button>
-          ) : null}
+          {activeTab === "portfolio" ? <div style={{ padding: "16px 18px" }}><HoldingsTable holdings={holdings} hint={holdingsDisplayHint} /></div> : null}
 
-          <button
-            onClick={() => {
-              refreshDnseViews(true);
-            }}
-            className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold"
-            style={{
-              borderColor: "var(--border)",
-              color: "var(--text-secondary)",
-              background: "var(--surface)",
-            }}
-          >
-            <RefreshCw
-              className={`h-3.5 w-3.5 ${
-                brokerTopics.isValidating || directDnse.loading ? "animate-spin" : ""
-              }`}
-            />
-            Làm mới dữ liệu
-          </button>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap gap-1 rounded-2xl border p-1" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-        {([
-          ["order", "Đặt lệnh", Wallet],
-          ["portfolio", "Danh mục", Briefcase],
-          ["orders", "Sổ lệnh & lịch sử", ListOrdered],
-          ["auto", "Tự động hóa", Bot],
-        ] as const).map(([key, label, Icon]) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setActiveTab(key)}
-            className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-bold transition-colors"
-            style={
-              activeTab === key
-                ? { background: "var(--primary)", color: "var(--on-primary)" }
-                : { background: "transparent", color: "var(--text-secondary)" }
-            }
-          >
-            <Icon className="h-4 w-4" />
-            <span className="hidden sm:inline">{label}</span>
-          </button>
-        ))}
-      </div>
-
-      {activeTab === "order" ? (
-      <>
-      <div className="grid gap-3 md:grid-cols-3">
-        <div className="space-y-3 md:col-span-2">
-          <DnseAccountInfo
-            loading={statusLoading}
-            linked={isLinkedAccount}
-            hasActiveSession={hasActiveDnseSession}
-            needsRelogin={needsRelogin}
-            accountId={selectedAccountId}
-            accountName={connectionStatus?.connection?.accountName ?? null}
-            subAccountId={connectionStatus?.connection?.subAccountId ?? null}
-            sessionExpiresAt={connectionStatus?.auth?.sessionExpiresAt ?? null}
-            accessTokenExpiresAt={connectionStatus?.connection?.accessTokenExpiresAt ?? null}
-            lastSyncedAt={connectionStatus?.connection?.lastSyncedAt ?? null}
-            lastError={connectionStatus?.connection?.lastError ?? null}
-            hasApiKeyConfigured={hasApiKeyConfigured}
-            accounts={brokerAccounts}
-            onOpenLogin={() => setShowLoginModal(true)}
-            onOpenLinkSelector={() => setShowAccountSelector(true)}
-            onChangedAccount={() => {
-              setSubmitError(null);
-              setSubmitMessage("Đã đổi tài khoản. Vui lòng chọn tài khoản DNSE mới để liên kết lại.");
-              setStatusReloadKey((prev) => prev + 1);
-              refreshDnseViews(true);
-              setShowAccountSelector(true);
-            }}
-          />
-
-          {submitMessage ? (
-            <div
-              className="rounded-xl border px-3 py-2 text-xs"
-              style={{
-                borderColor: "rgba(22,163,74,0.25)",
-                color: "#16a34a",
-                background: "rgba(22,163,74,0.10)",
-              }}
-            >
-              {submitMessage}
+          {activeTab === "orders" ? (
+            <div style={{ padding: "16px 18px", display: "grid", gap: 16 }}>
+              <OrdersTable title="Lệnh trong ngày" orders={latestOrders} hint={ordersDisplayHint} />
+              <OrdersTable title="Lịch sử lệnh" orders={orderHistory} hint={null} />
             </div>
           ) : null}
-          {submitError ? (
-            <div
-              className="rounded-xl border px-3 py-2 text-xs"
-              style={{
-                borderColor: "rgba(192,57,43,0.25)",
-                color: "var(--danger)",
-                background: "rgba(192,57,43,0.10)",
-              }}
-            >
-              {submitError}
-            </div>
-          ) : null}
-        </div>
 
-        <div
-          className="rounded-2xl border p-4"
-          style={{ background: "var(--surface)", borderColor: "var(--border)" }}
-        >
-          <div className="mb-2 flex items-center gap-2">
-            <TrendingUp className="h-4 w-4" style={{ color: "var(--primary)" }} />
-            <h2
-              className="text-sm font-black uppercase tracking-wide"
-              style={{ color: "var(--text-primary)" }}
-            >
-              Tổng tài sản và sức mua
-            </h2>
+          {activeTab === "auto" ? <div style={{ padding: "16px 18px" }}><AutoRadarConfigPanel loanPackages={directOrderLoanPackages} /></div> : null}
+        </main>
+
+        <aside className={s.ctx}>
+          <div className={s.cblock}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              <div className={s.eyebrow}>Tài khoản DNSE</div>
+              <button type="button" onClick={() => setShowAccountSelector(true)} style={{ border: 0, background: "transparent", color: "var(--text-muted)", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Đổi tài khoản</button>
+            </div>
+            <div style={{ marginTop: 6, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              <span className={s.num} style={{ fontWeight: 700, fontSize: 15 }}>{selectedAccountId ?? "Chưa liên kết"}</span>
+              <span className={s.chip} style={{ background: isConnected ? "var(--primary-light)" : "var(--surface-3)", color: isConnected ? "var(--primary)" : "var(--text-muted)" }}>{isConnected ? "Đã liên kết" : needsRelogin ? "Hết phiên" : "Chưa liên kết"}</span>
+            </div>
+            {connectionStatus?.connection?.accountName ? <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 4 }}>{connectionStatus.connection.accountName}</div> : null}
+            {needsRelogin ? <button type="button" onClick={() => setShowLoginModal(true)} className={s.pill} style={{ marginTop: 10, color: "var(--danger)" }}>Đăng nhập lại DNSE</button> : null}
+            {!isLinkedAccount && !statusLoading ? <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 8, lineHeight: 1.5 }}>Đăng nhập DNSE rồi liên kết tiểu khoản để đồng bộ tài sản và đặt lệnh.</p> : null}
           </div>
-          {isConnected ? (
-            <div className="space-y-2 text-sm">
-              <p style={{ color: "var(--text-secondary)" }}>
-                Tổng tài sản ròng:{" "}
-                <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
-                  {totalNavValue
-                    ? `${Math.round(totalNavValue).toLocaleString("vi-VN")} VND`
-                    : "--"}
-                </span>
-              </p>
-              <p style={{ color: "var(--text-secondary)" }}>
-                Sức mua khả dụng:{" "}
-                <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
-                  {effectiveBalanceTopic?.buyingPower != null
-                    ? `${Math.round(effectiveBalanceTopic.buyingPower).toLocaleString("vi-VN")} VND`
-                    : "--"}
-                </span>
-              </p>
-              <p style={{ color: "var(--text-secondary)" }}>
-                Tỷ trọng đã dùng:{" "}
-                <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
-                  {Number(effectiveBalanceTopic?.navAllocatedPct ?? 0).toFixed(2)}%
-                </span>
-              </p>
-              <p style={{ color: "var(--text-secondary)" }}>
-                Tỷ trọng còn lại:{" "}
-                <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
-                  {Number(effectiveBalanceTopic?.navRemainingPct ?? 0).toFixed(2)}%
-                </span>
-              </p>
-              <p style={{ color: "var(--text-secondary)" }}>
-                Giới hạn tỷ trọng đang áp dụng:{" "}
-                <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
-                  {Number(effectiveBalanceTopic?.maxActiveNavPct ?? 90).toFixed(0)}%
-                </span>
-              </p>
-              {effectiveBalanceTopic?.reason ? (
-                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                  Ghi chú: {effectiveBalanceTopic.reason}
-                </p>
-              ) : null}
-            </div>
-          ) : (
-            <div
-              className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold"
-              style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
-            >
-              <CircleOff className="h-3.5 w-3.5" /> Chưa có dữ liệu tổng tài sản ròng do tài khoản DNSE chưa liên kết hoặc chưa đồng bộ.
-            </div>
-          )}
 
-          {(!hasNavData || !hasBuyingPowerData) && balanceDisplayHint ? (
-            <p className="mt-2 text-xs" style={{ color: "var(--danger)" }}>
-              {balanceDisplayHint}
-            </p>
-          ) : null}
-
-          {queryNavPct ? (
-            <div
-              className="mt-3 rounded-xl border p-3"
-              style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
-            >
-              <p className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
-                Tỷ trọng từ thẻ ADN Radar: {queryNavPct.toFixed(2)}%
-              </p>
-              {suggestedNotional ? (
-                <p className="mt-2 text-xs font-semibold" style={{ color: "var(--primary)" }}>
-                  Giá trị lệnh gợi ý: {Math.round(suggestedNotional).toLocaleString("vi-VN")} VND
-                </p>
-              ) : (
-                <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
-                  Chưa tính được giá trị lệnh vì chưa có tổng tài sản ròng mới nhất từ DNSE.
-                </p>
-              )}
+          <div className={s.cblock}>
+            <div className={s.eyebrow}>Sức mua khả dụng</div>
+            <div className={s.bpNum}>{buyingPowerValue != null ? `${Math.round(buyingPowerValue).toLocaleString("vi-VN")} ` : "-- "}<span style={{ fontSize: 13, fontWeight: 500, color: "var(--text-muted)" }}>đ</span></div>
+            <div className={s.meter}><div className={s.meterFill} style={{ width: `${Math.min(100, Number(effectiveBalanceTopic?.navAllocatedPct ?? 0))}%` }} /><div className={s.meterNeedle} style={{ left: `${Math.min(100, Number(effectiveBalanceTopic?.navAllocatedPct ?? 0))}%` }} /></div>
+            <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Đã dùng <b style={{ color: "var(--primary)" }}>{Number(effectiveBalanceTopic?.navAllocatedPct ?? 0).toFixed(1)}%</b> tỷ trọng · trần {Number(effectiveBalanceTopic?.maxActiveNavPct ?? 90).toFixed(0)}%</div>
+            <div style={{ marginTop: 10 }}>
+              <div className={s.kv}><span className={s.l}>Tài sản ròng</span><span className={s.v}>{totalNavValue != null ? Math.round(totalNavValue).toLocaleString("vi-VN") : "--"}</span></div>
+              <div className={s.kv}><span className={s.l}>Tiền mặt</span><span className={s.v}>{effectiveBalanceTopic?.cash != null ? Math.round(Number(effectiveBalanceTopic.cash)).toLocaleString("vi-VN") : "--"}</span></div>
+              <div className={s.kv}><span className={s.l}>Tỷ trọng còn lại</span><span className={s.v}>{Number(effectiveBalanceTopic?.navRemainingPct ?? 0).toFixed(1)}%</span></div>
             </div>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        {!canTrade ? (
-          <div
-            className="rounded-xl border px-3 py-2 text-sm"
-            style={{ borderColor: "var(--border-strong)", background: "var(--surface-2)", color: "var(--text-secondary)" }}
-          >
-            Bạn cần liên kết tài khoản DNSE hợp lệ trước khi đặt lệnh.
-            {needsRelogin ? " Phiên DNSE đã hết hạn — vui lòng đăng nhập lại." : ""}
+            {(!totalNavValue || !buyingPowerValue) && balanceDisplayHint ? <p style={{ fontSize: 11, color: "var(--danger)", marginTop: 8, lineHeight: 1.5 }}>{balanceDisplayHint}</p> : null}
           </div>
-        ) : null}
 
-        <DirectOrderPanel
-          ticker={(ticker || "HPG").trim().toUpperCase()}
-          defaultPrice={queryEntryPrice ?? undefined}
-          defaultAccountId={selectedAccountId ?? undefined}
-          defaultSide={querySide}
-          source={querySource}
-          signalId={querySignalId}
-          navPct={queryNavPct ?? undefined}
-          initialTotalAsset={totalNavValue}
-          initialBuyingPower={buyingPowerValue}
-          initialLoanPackages={directOrderLoanPackages}
-          canTrade={canTrade}
-          onTickerChange={setTicker}
-          renderAuto={false}
-          onOrderSettled={() => refreshDnseViews(true)}
-        />
+          <div className={s.cblock}>
+            <div className={s.eyebrow}>Phân bổ danh mục</div>
+            {holdings.length ? (
+              <>
+                <div className={s.alloc}>
+                  {holdings.slice(0, 6).map((h, idx) => (
+                    <div key={h.ticker} style={{ width: `${Math.max(2, Number(h.navAllocation ?? 0))}%`, background: idx === 0 ? "var(--primary)" : idx === 1 ? "var(--accent-fa)" : "color-mix(in srgb,var(--accent-fa) 50%,var(--surface-3))" }} />
+                  ))}
+                </div>
+                <div style={{ marginTop: 8 }}>
+                  {holdings.slice(0, 5).map((h) => (
+                    <div key={h.ticker} className={s.kv}><span className={s.l}>{h.ticker}</span><span className={s.v}>{h.navAllocation != null ? `${h.navAllocation.toFixed(1)}%` : "--"}</span></div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6 }}>Chưa có dữ liệu danh mục.</p>
+            )}
+          </div>
+        </aside>
       </div>
-      </>
-      ) : null}
 
-      {activeTab === "portfolio" ? (
-        <div className="space-y-4">
-          <NavCard
-            isConnected={isConnected}
-            totalNav={totalNavValue}
-            buyingPower={buyingPowerValue}
-            allocatedPct={Number(effectiveBalanceTopic?.navAllocatedPct ?? 0)}
-            remainingPct={Number(effectiveBalanceTopic?.navRemainingPct ?? 0)}
-            maxActiveNavPct={Number(effectiveBalanceTopic?.maxActiveNavPct ?? 90)}
-            queryNavPct={queryNavPct}
-            suggestedNotional={suggestedNotional}
-            hint={balanceDisplayHint}
-          />
-          <HoldingsTable holdings={holdings} hint={holdingsDisplayHint} />
+      {submitMessage || submitError ? (
+        <div style={{ position: "fixed", left: 70, bottom: 16, zIndex: 60, maxWidth: 360 }}>
+          {submitMessage ? <div className={s.card} style={{ padding: "10px 14px", fontSize: 12, color: "var(--primary)" }}>{submitMessage}</div> : null}
+          {submitError ? <div className={s.card} style={{ padding: "10px 14px", fontSize: 12, color: "var(--danger)", marginTop: 6 }}>{submitError}</div> : null}
         </div>
-      ) : null}
-
-      {activeTab === "orders" ? (
-        <div className="space-y-4">
-          <OrdersTable title="Lệnh trong ngày" orders={latestOrders} hint={ordersDisplayHint} />
-          <OrdersTable title="Lịch sử lệnh" orders={orderHistory} hint={null} />
-        </div>
-      ) : null}
-
-      {activeTab === "auto" ? (
-        <AutoRadarConfigPanel loanPackages={directOrderLoanPackages} />
       ) : null}
 
       <DnseAccountSelector

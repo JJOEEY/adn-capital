@@ -37,6 +37,18 @@ const orbitron = localFont({
   display: "swap",
 });
 
+const fraunces = localFont({
+  src: [
+    {
+      path: "../fonts/Fraunces-Variable.ttf",
+      weight: "400 600",
+      style: "normal",
+    },
+  ],
+  variable: "--font-fraunces",
+  display: "swap",
+});
+
 const defaultTitle = "ADN Capital | Hệ sinh thái AI đầu tư cho chứng khoán Việt Nam";
 const googleSiteVerification = process.env.GOOGLE_SITE_VERIFICATION;
 
@@ -219,7 +231,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body
-        className={`${manrope.variable} ${orbitron.variable} antialiased min-h-screen text-base leading-relaxed`}
+        className={`${manrope.variable} ${orbitron.variable} ${fraunces.variable} antialiased min-h-screen text-base leading-relaxed`}
         suppressHydrationWarning
       >
         <AuthProvider>

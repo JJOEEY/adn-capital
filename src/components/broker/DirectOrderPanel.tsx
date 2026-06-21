@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, RefreshCw, ShieldCheck } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
+import s from "./adnx.module.css";
 import type {
   DnseExecutionResult,
   OrderExecutionPreview,
@@ -821,326 +822,145 @@ export function DirectOrderPanel({
   const maxSell = displaySellMaxQuantity;
 
   return (
-    <div className="space-y-4">
-      <section className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-black uppercase tracking-wide" style={{ color: "var(--text-primary)" }}>
-              Bảng đặt lệnh
-            </h3>
-            <p className="mt-1 text-xs" style={{ color: "var(--text-secondary)" }}>
-              Tự điền từ {sourceLabel(source)} theo tài khoản liên kết và điều kiện giao dịch.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => void loadSizing()}
-            className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold"
-            style={{ borderColor: "var(--border)", color: "var(--text-secondary)", background: "var(--surface-2)" }}
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${loadingSizing ? "animate-spin" : ""}`} />
-            Tính lại
-          </button>
-        </div>
-
+    <div className={s.root}>
+      <div className={s.ticket}>
         {!canTrade ? (
-          <DirectStatus tone="warn">Bạn cần liên kết tài khoản DNSE và đăng nhập lại trước khi đặt lệnh.</DirectStatus>
+          <div style={{ marginBottom: 12 }}>
+            <DirectStatus tone="warn">Liên kết &amp; đăng nhập lại tài khoản DNSE trước khi đặt lệnh.</DirectStatus>
+          </div>
         ) : null}
 
-        <div className="grid gap-3 lg:grid-cols-[1fr,1fr]">
-          <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
-            Mã cổ phiếu
-            <input
-              value={ticker}
-              readOnly={!onTickerChange}
-              onChange={onTickerChange ? (event) => onTickerChange(event.target.value.toUpperCase()) : undefined}
-              placeholder="Nhập mã, ví dụ HPG"
-              className="mt-1 w-full rounded-xl border px-3 py-2 text-lg font-black uppercase"
-              style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-primary)" }}
-            />
-          </label>
-
-          <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
-            Gói giao dịch
-            <select
-              value={loanPackageId}
-              onChange={(event) => {
-                setLoanPackageId(event.target.value);
-                setPreview(null);
-                setPreviewOnly(false);
-              }}
-              className="mt-1 w-full rounded-xl border px-3 py-2 text-sm font-bold"
-              style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-primary)" }}
-            >
-              {loanPackageOptions.map((item) => (
-                <option key={item.loanPackageId} value={item.loanPackageId}>
-                  {item.loanPackageName}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        <div className="mt-3 grid gap-3 md:grid-cols-3">
-          <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
-            <p className="text-xs" style={{ color: "var(--text-muted)" }}>Tổng tài sản ròng</p>
-            <p className="mt-1 text-lg font-black" style={{ color: "var(--text-primary)" }}>{fmtMoney(displayTotalAsset)}</p>
-          </div>
-          <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
-            <p className="text-xs" style={{ color: "var(--text-muted)" }}>Sức mua</p>
-            <p className="mt-1 text-lg font-black" style={{ color: "#16a34a" }}>{fmtMoney(displayBuyingPower)}</p>
-          </div>
-          <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
-            <p className="text-xs" style={{ color: "var(--text-muted)" }}>Giá trị lệnh</p>
-            <p className="mt-1 text-lg font-black" style={{ color: "var(--text-primary)" }}>{fmtMoney(orderValue)}</p>
-          </div>
-        </div>
-
-        {selectedLoanPackage && !selectedLoanPackage.isCash ? (
-          <p className="mt-2 text-xs" style={{ color: "var(--text-secondary)" }}>
-            Gói đang chọn: {selectedLoanPackage.loanPackageName}
-            {selectedLoanPackage.maxLoanRatio != null ? ` · tỷ lệ vay tối đa ${selectedLoanPackage.maxLoanRatio}%` : ""}
-            {selectedLoanPackage.interestRate != null ? ` · lãi suất ${selectedLoanPackage.interestRate}%` : ""}
-          </p>
-        ) : null}
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          {ORDER_TYPES.map((type) => (
-            <button
-              key={type}
-              type="button"
-              onClick={() => {
-                setOrderType(type);
-                setPreview(null);
-                setPreviewOnly(false);
-              }}
-              className="rounded-xl border px-4 py-2 text-sm font-black"
-              style={{
-                borderColor: orderType === type ? "var(--primary)" : "var(--border)",
-                color: orderType === type ? "var(--on-primary)" : "var(--text-primary)",
-                background: orderType === type ? "var(--primary)" : "var(--surface-2)",
-              }}
-            >
-              {type}
-            </button>
-          ))}
-        </div>
-
-        <div className="mt-4 grid gap-3 md:grid-cols-2">
-          <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
-            Giá đặt
-            <div className="mt-1 flex rounded-xl border" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
-              <input
-                value={priceInput}
-                onChange={(event) => {
-                  setPriceInput(event.target.value);
-                  setPreview(null);
-                  setPreviewOnly(false);
-                }}
-                disabled={orderType !== "LO"}
-                className="min-w-0 flex-1 rounded-l-xl bg-transparent px-3 py-2 text-lg font-black outline-none disabled:opacity-50"
-                style={{ color: "var(--text-primary)" }}
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  setPriceInput(toDisplayPrice((orderPrice ?? 0) - 100));
-                  setPreview(null);
-                  setPreviewOnly(false);
-                }}
-                className="border-l px-3 font-black"
-                style={{ borderColor: "var(--border)", color: "var(--danger)" }}
-              >
-                −
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setPriceInput(toDisplayPrice((orderPrice ?? 0) + 100));
-                  setPreview(null);
-                  setPreviewOnly(false);
-                }}
-                className="border-l px-3 font-black"
-                style={{ borderColor: "var(--border)", color: "#16a34a" }}
-              >
-                +
-              </button>
+        <div className={s.fld}>
+          <div className={s.tk}>
+            <div style={{ minWidth: 0 }}>
+              {onTickerChange ? (
+                <input className={s.tkInput} value={ticker} onChange={(e) => onTickerChange(e.target.value.toUpperCase())} placeholder="Nhập mã" />
+              ) : (
+                <div className={s.tkSym}>{ticker}</div>
+              )}
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>HOSE · tự điền từ {sourceLabel(source)}</div>
             </div>
-          </label>
-
-          <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
-            Khối lượng đặt
-            <div className="mt-1 flex rounded-xl border" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
-              <input
-                value={quantityInput}
-                inputMode="numeric"
-                pattern="[0-9]*"
-                placeholder="Nhập khối lượng, ví dụ 55 hoặc 5000"
-                onChange={(event) => {
-                  const raw = event.target.value.replace(/[^\d]/g, "");
-                  setQuantityTouched(true);
-                  setQuantityInput(raw);
-                  setQuantity(parseQuantityInput(raw));
-                  setPreview(null);
-                  setPreviewOnly(false);
-                }}
-                onBlur={() => {
-                  if (!quantity) return;
-                  const rounded = floorToQuantity(quantity);
-                  setQuantity(rounded);
-                  setQuantityInput(rounded > 0 ? String(rounded) : "");
-                }}
-                className="min-w-0 flex-1 rounded-l-xl bg-transparent px-3 py-2 text-lg font-black outline-none"
-                style={{ color: "var(--text-primary)" }}
-              />
-              <button type="button" onClick={() => changeQuantity(-QUANTITY_STEP)} className="border-l px-3 font-black" style={{ borderColor: "var(--border)", color: "var(--danger)" }}>−</button>
-              <button type="button" onClick={() => changeQuantity(QUANTITY_STEP)} className="border-l px-3 font-black" style={{ borderColor: "var(--border)", color: "#16a34a" }}>+</button>
+            <div style={{ textAlign: "right" }}>
+              <div className={s.num} style={{ fontSize: 18, fontWeight: 600 }}>{sizing?.displayPrice ?? (toDisplayPrice(orderPrice) || "--")}</div>
             </div>
-          </label>
-        </div>
-
-        <div className="mt-3 grid gap-2 sm:grid-cols-3">
-          <div className="rounded-xl border px-3 py-2 text-sm" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
-            Mua tối đa: <strong style={{ color: "var(--text-primary)" }}>{fmtNumber(maxBuy)}</strong>
-          </div>
-          <div className="rounded-xl border px-3 py-2 text-sm" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
-            Bán tối đa: <strong style={{ color: "var(--text-primary)" }}>{fmtNumber(maxSell)}</strong>
-          </div>
-          <div className="rounded-xl border px-3 py-2 text-sm" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
-            Gợi ý: <strong style={{ color: "var(--text-primary)" }}>{fmtNumber(displayRecommendedQuantity)}</strong>
           </div>
         </div>
 
-        <div className="mt-2 flex flex-wrap gap-2">
-          {[25, 50, 75, 100].map((pct) => {
-            const base = side === "BUY" ? maxBuy : maxSell;
-            return (
-              <button
-                key={pct}
-                type="button"
-                disabled={base <= 0}
-                onClick={() => setQuantityValue(floorToQuantity((base * pct) / 100))}
-                className="rounded-lg border px-3 py-1.5 text-xs font-bold disabled:opacity-40"
-                style={{ borderColor: "var(--border)", color: "var(--text-secondary)", background: "var(--surface-2)" }}
-              >
-                {pct === 100 ? (side === "BUY" ? "Mua tối đa" : "Bán tối đa") : `${pct}%`}
-              </button>
-            );
-          })}
-          {displayRecommendedQuantity > 0 ? (
-            <button
-              type="button"
-              onClick={() => setQuantityValue(displayRecommendedQuantity)}
-              className="rounded-lg border px-3 py-1.5 text-xs font-bold"
-              style={{ borderColor: "var(--border-strong)", color: "var(--primary)", background: "var(--primary-light)" }}
-            >
-              Dùng gợi ý ({fmtNumber(displayRecommendedQuantity)})
-            </button>
-          ) : null}
+        <div className={s.fld}>
+          <div className={s.seg}>
+            <button type="button" className={`${s.segBtn} ${side === "BUY" ? s.segBuyOn : ""}`} onClick={() => setSideAndClear("BUY")}>MUA</button>
+            <button type="button" className={`${s.segBtn} ${side === "SELL" ? s.segSellOn : ""}`} onClick={() => setSideAndClear("SELL")}>BÁN</button>
+          </div>
         </div>
 
-        {(sizing?.target || sizing?.stoploss) ? (
-          <div className="mt-3 rounded-xl border px-3 py-2 text-sm" style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-secondary)" }}>
-            Vùng tham chiếu: chốt lời {fmtMoney(sizing.target)} · cắt lỗ {fmtMoney(sizing.stoploss)}
-          </div>
-        ) : null}
-
-        {sizing?.warnings?.length ? (
-          <div className="mt-3 space-y-1">
-            {sizing.warnings.slice(0, 3).map((item) => (
-              <DirectStatus key={item} tone="warn">{item}</DirectStatus>
+        <div className={s.fld}>
+          <div className={s.flab}>Loại lệnh</div>
+          <div className={s.pills}>
+            {ORDER_TYPES.map((type) => (
+              <button key={type} type="button" className={`${s.pill} ${orderType === type ? s.pillOn : ""}`} onClick={() => { setOrderType(type); setPreview(null); setPreviewOnly(false); }}>{type}</button>
             ))}
           </div>
-        ) : null}
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <button
-            type="button"
-            onClick={() => {
-              setSideAndClear("BUY");
-              void checkOrder("BUY");
-            }}
-            disabled={checking || sending || !canTrade}
-            className="rounded-xl px-4 py-3 text-lg font-black disabled:opacity-50"
-            style={{ background: "#16a34a", color: "white" }}
-          >
-            {checking && side === "BUY" ? "Đang kiểm tra..." : "MUA"}
-            <span className="block text-xs font-semibold">Giá trị: {fmtMoney(side === "BUY" ? orderValue : 0)}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setSideAndClear("SELL");
-              void checkOrder("SELL");
-            }}
-            disabled={checking || sending || !canTrade}
-            className="rounded-xl px-4 py-3 text-lg font-black disabled:opacity-50"
-            style={{ background: "var(--danger)", color: "white" }}
-          >
-            {checking && side === "SELL" ? "Đang kiểm tra..." : "BÁN"}
-            <span className="block text-xs font-semibold">Giá trị: {fmtMoney(side === "SELL" ? orderValue : 0)}</span>
-          </button>
         </div>
 
-        {previewOnly && preview ? (
-          <div className="mt-3"><DirectStatus tone="warn">Lệnh đã được kiểm tra hợp lệ, nhưng phiên này chưa mở gửi lệnh thật.</DirectStatus></div>
-        ) : null}
-        {message ? <div className="mt-3"><DirectStatus tone={result?.status === "accepted" ? "good" : "warn"}>{message}</DirectStatus></div> : null}
-        {error ? <div className="mt-3"><DirectStatus tone="bad">{error}</DirectStatus></div> : null}
-        {result?.warnings?.length ? (
-          <div className="mt-3 flex items-start gap-2 rounded-xl border px-3 py-2 text-xs" style={{ borderColor: "var(--border-strong)", background: "var(--surface-2)", color: "var(--text-secondary)" }}>
-            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            <span>{friendlyResult(result) ?? "Cần hoàn tất thêm điều kiện giao dịch trước khi gửi lệnh thật."}</span>
+        <div className={s.fld}>
+          <div className={s.flab}>Giá đặt (×1.000đ)</div>
+          <div className={s.stepper}>
+            <button type="button" onClick={() => { setPriceInput(toDisplayPrice((orderPrice ?? 0) - 100)); setPreview(null); setPreviewOnly(false); }}>−</button>
+            <input value={priceInput} disabled={orderType !== "LO"} onChange={(e) => { setPriceInput(e.target.value); setPreview(null); setPreviewOnly(false); }} />
+            <button type="button" onClick={() => { setPriceInput(toDisplayPrice((orderPrice ?? 0) + 100)); setPreview(null); setPreviewOnly(false); }}>+</button>
           </div>
-        ) : null}
-      </section>
+        </div>
 
-      {showConfirm && preview && !previewOnly ? (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
-          <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.55)" }} onClick={() => setShowConfirm(false)} />
-          <div className="relative w-full max-w-sm rounded-2xl border p-5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5" style={{ color: side === "BUY" ? "#16a34a" : "var(--danger)" }} />
-              <h4 className="text-base font-black" style={{ color: "var(--text-primary)" }}>
-                Xác nhận lệnh <span style={{ color: side === "BUY" ? "#16a34a" : "var(--danger)" }}>{sideLabel(side)} {ticker}</span>
-              </h4>
-            </div>
-            <div className="mt-3 space-y-2 rounded-xl border p-3 text-sm" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
-              {[
-                ["Loại lệnh", orderType],
-                ["Giá đặt", orderType === "LO" ? fmtMoney(orderPrice) : "Theo thị trường"],
-                ["Khối lượng", fmtNumber(quantity)],
-                ["Giá trị lệnh", fmtMoney(orderValue)],
-                ["Gói giao dịch", selectedLoanPackage?.loanPackageName ?? "Giao dịch tiền mặt"],
-              ].map(([label, value]) => (
-                <div key={label} className="flex items-center justify-between gap-3">
-                  <span style={{ color: "var(--text-muted)" }}>{label}</span>
-                  <span className="font-bold" style={{ color: "var(--text-primary)" }}>{value}</span>
-                </div>
+        <div className={s.fld}>
+          <div className={s.flab}>Khối lượng</div>
+          <div className={s.stepper}>
+            <button type="button" onClick={() => changeQuantity(-QUANTITY_STEP)}>−</button>
+            <input value={quantityInput} inputMode="numeric" placeholder="0" onChange={(e) => { const raw = e.target.value.replace(/[^\d]/g, ""); setQuantityTouched(true); setQuantityInput(raw); setQuantity(parseQuantityInput(raw)); setPreview(null); setPreviewOnly(false); }} onBlur={() => { if (!quantity) return; const r = floorToQuantity(quantity); setQuantity(r); setQuantityInput(r > 0 ? String(r) : ""); }} />
+            <button type="button" onClick={() => changeQuantity(QUANTITY_STEP)}>+</button>
+          </div>
+          <div className={s.qchips}>
+            {[25, 50, 75, 100].map((pct) => {
+              const base = side === "BUY" ? maxBuy : maxSell;
+              return (
+                <button key={pct} type="button" disabled={base <= 0} className={s.pill} onClick={() => setQuantityValue(floorToQuantity((base * pct) / 100))}>
+                  {pct === 100 ? "Tối đa" : `${pct}%`}
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 7 }}>
+            {side === "BUY" ? "Mua" : "Bán"} tối đa <b className={s.num} style={{ color: "var(--text-secondary)" }}>{fmtNumber(side === "BUY" ? maxBuy : maxSell)}</b> cổ
+            {displayRecommendedQuantity > 0 ? (
+              <> · <button type="button" onClick={() => setQuantityValue(displayRecommendedQuantity)} style={{ color: "var(--primary)", fontWeight: 600 }}>gợi ý {fmtNumber(displayRecommendedQuantity)}</button></>
+            ) : null}
+          </div>
+        </div>
+
+        {loanPackageOptions.length > 1 ? (
+          <div className={s.fld}>
+            <div className={s.flab}>Gói giao dịch</div>
+            <div className={s.pills}>
+              {loanPackageOptions.map((item) => (
+                <button key={item.loanPackageId} type="button" className={`${s.pill} ${loanPackageId === item.loanPackageId ? s.pillOn : ""}`} onClick={() => { setLoanPackageId(item.loanPackageId); setPreview(null); setPreviewOnly(false); }}>{item.loanPackageName}</button>
               ))}
             </div>
-            <p className="mt-3 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-              Vui lòng kiểm tra kỹ thông tin. Khi xác nhận, lệnh sẽ được gửi đi để khớp.
-            </p>
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setShowConfirm(false)}
-                disabled={sending}
-                className="rounded-xl border px-4 py-2.5 text-sm font-bold disabled:opacity-50"
-                style={{ borderColor: "var(--border)", color: "var(--text-primary)", background: "var(--surface-2)" }}
-              >
-                Huỷ
-              </button>
-              <button
-                type="button"
-                onClick={() => void submitOrder()}
-                disabled={sending}
-                className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black text-white disabled:opacity-50"
-                style={{ background: side === "BUY" ? "#16a34a" : "var(--danger)" }}
-              >
-                <CheckCircle2 className="h-4 w-4" />
-                {sending ? "Đang gửi..." : "Xác nhận gửi lệnh"}
+          </div>
+        ) : null}
+
+        <div className={s.fld}>
+          <div className={s.flab}>Giá trị lệnh</div>
+          <div className={s.value}>
+            <div className={s.valueN}>{fmtMoney(orderValue)}</div>
+            {sizing?.target || sizing?.stoploss ? (
+              <div style={{ fontSize: 11, color: "var(--text-muted)" }}>TP {fmtMoney(sizing?.target)} · SL {fmtMoney(sizing?.stoploss)}</div>
+            ) : null}
+          </div>
+        </div>
+
+        {sizing?.warnings?.length ? (
+          <div className={s.fld} style={{ display: "grid", gap: 6 }}>
+            {sizing.warnings.slice(0, 2).map((item) => <DirectStatus key={item} tone="warn">{item}</DirectStatus>)}
+          </div>
+        ) : null}
+
+        <div className={s.statusbar}>
+          <span>Còn lại sau lệnh</span>
+          <b className={s.num}>{displayBuyingPower != null ? fmtMoney(Math.max(0, displayBuyingPower - (side === "BUY" ? orderValue : 0))) : "--"}</b>
+        </div>
+
+        <button type="button" className={s.place} style={{ background: side === "BUY" ? "var(--primary)" : "var(--danger)" }} disabled={checking || sending || !canTrade} onClick={() => { void checkOrder(side); }}>
+          {checking ? "Đang kiểm tra..." : `Đặt lệnh ${sideLabel(side)} · ${ticker}`}
+        </button>
+
+        {previewOnly && preview ? <div style={{ marginTop: 12 }}><DirectStatus tone="warn">Lệnh hợp lệ, nhưng phiên này chưa mở gửi lệnh thật.</DirectStatus></div> : null}
+        {message ? <div style={{ marginTop: 12 }}><DirectStatus tone={result?.status === "accepted" ? "good" : "warn"}>{message}</DirectStatus></div> : null}
+        {error ? <div style={{ marginTop: 12 }}><DirectStatus tone="bad">{error}</DirectStatus></div> : null}
+        {result?.warnings?.length ? (
+          <div style={{ marginTop: 12 }}>
+            <DirectStatus tone="warn">{friendlyResult(result) ?? "Cần hoàn tất thêm điều kiện giao dịch trước khi gửi lệnh thật."}</DirectStatus>
+          </div>
+        ) : null}
+      </div>
+
+      {showConfirm && preview && !previewOnly ? (
+        <div className={s.overlay}>
+          <div style={{ position: "absolute", inset: 0 }} onClick={() => setShowConfirm(false)} />
+          <div className={s.modal} style={{ position: "relative" }}>
+            <div className={s.eyebrow}>Xác nhận lệnh</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6 }}>
+              <span className={s.chip} style={{ background: side === "BUY" ? "var(--primary-light)" : "color-mix(in srgb,var(--danger) 14%,transparent)", color: side === "BUY" ? "var(--primary)" : "var(--danger)" }}>{sideLabel(side)}</span>
+              <span className={s.num} style={{ fontWeight: 700, fontSize: 16 }}>{fmtNumber(quantity)} {ticker} @ {orderType === "LO" ? (priceInput || "--") : orderType}</span>
+            </div>
+            <div style={{ marginTop: 12, borderTop: "1px solid var(--border)" }}>
+              {([["Loại lệnh", orderType], ["Giá đặt", orderType === "LO" ? fmtMoney(orderPrice) : "Theo thị trường"], ["Khối lượng", fmtNumber(quantity)], ["Giá trị lệnh", fmtMoney(orderValue)], ["Gói giao dịch", selectedLoanPackage?.loanPackageName ?? "Tiền mặt"]] as Array<[string, string]>).map(([l, v]) => (
+                <div key={l} className={s.kv}><span className={s.l}>{l}</span><span className={s.v}>{v}</span></div>
+              ))}
+            </div>
+            <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 10, lineHeight: 1.5 }}>Kiểm tra kỹ trước khi gửi. Khi xác nhận, lệnh sẽ được gửi đi để khớp.</p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr", gap: 8, marginTop: 14 }}>
+              <button type="button" onClick={() => setShowConfirm(false)} disabled={sending} style={{ borderRadius: 11, border: "1px solid var(--border)", padding: 11, background: "var(--surface-2)", color: "var(--text-primary)", fontWeight: 600, cursor: "pointer" }}>Huỷ</button>
+              <button type="button" onClick={() => void submitOrder()} disabled={sending} style={{ borderRadius: 11, border: 0, padding: 11, background: side === "BUY" ? "var(--primary)" : "var(--danger)", color: "#fff", fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, cursor: "pointer" }}>
+                <CheckCircle2 className="h-4 w-4" />{sending ? "Đang gửi..." : "Xác nhận gửi lệnh"}
               </button>
             </div>
           </div>
