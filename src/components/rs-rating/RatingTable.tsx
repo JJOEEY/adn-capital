@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { CalendarDays, Download, Search, TrendingDown, TrendingUp, X } from "lucide-react";
 import { Card } from "@/components/ui/Card";
@@ -31,6 +31,11 @@ export function RatingTable({
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "superstar" | "star" | "watch" | "farmer">("all");
   const [sectorFilter, setSectorFilter] = useState("all");
+  const [visibleCount, setVisibleCount] = useState(40);
+
+  useEffect(() => {
+    setVisibleCount(40);
+  }, [search, filter, sectorFilter, selectedDate]);
 
   const sectors = useMemo(
     () =>
@@ -196,12 +201,12 @@ export function RatingTable({
               </tr>
             </thead>
             <tbody>
-              {filtered.map((stock, i) => (
+              {filtered.slice(0, visibleCount).map((stock, i) => (
                 <motion.tr
                   key={stock.symbol}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  transition={{ delay: i * 0.03 }}
+                  transition={{ delay: Math.min(i, 12) * 0.03 }}
                   className="border-b border-[var(--border)] transition-colors"
                 >
                   <td className="px-4 py-3 text-xs font-mono" style={{ color: "var(--text-muted)" }}>{i + 1}</td>
@@ -278,6 +283,18 @@ export function RatingTable({
             </div>
           )}
         </div>
+
+        {filtered.length > visibleCount && (
+          <div className="border-t border-[var(--border)] p-3 text-center">
+            <button
+              onClick={() => setVisibleCount((c) => c + 40)}
+              className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-5 py-2 text-sm font-bold transition hover:text-[var(--text-primary)]"
+              style={{ color: "var(--text-muted)" }}
+            >
+              Xem thêm ({filtered.length - visibleCount} mã)
+            </button>
+          </div>
+        )}
       </Card>
     </div>
   );
