@@ -150,6 +150,8 @@ type AidenRecommendation = {
   entryPrice?: number | null;
   target?: number | null;
   stoploss?: number | null;
+  pe?: number | null;
+  pb?: number | null;
 };
 
 type AidenResponse = {
@@ -273,11 +275,17 @@ function StockOverviewPanel({ workbench, priceSnapshot, realtimePrice, realtimeC
         avgVolume20: snapshot.volumeMa20 ?? ta?.avgVolume20,
       }
     : ta;
-  const reference = aidenRecommendation ?? {
-    entryPrice: signal?.entryPrice,
-    target: signal?.target,
-    stoploss: signal?.stoploss,
-  };
+  // Chỉ dùng tín hiệu ADN làm nền nếu entry còn sát giá hiện tại (±15%) — tránh hiện
+  // tín hiệu RADAR cũ (vd VRE entry 36.6 từ tháng 5 trong khi giá đã về 29.x).
+  const currentPriceVnd = realtimePrice ?? ta?.currentPrice ?? snapshot?.price ?? null;
+  const signalUsable =
+    signal?.entryPrice != null &&
+    currentPriceVnd != null &&
+    currentPriceVnd > 0 &&
+    Math.abs(signal.entryPrice - currentPriceVnd) / currentPriceVnd <= 0.15;
+  const reference: AidenRecommendation = aidenRecommendation ?? (signalUsable
+    ? { entryPrice: signal?.entryPrice, target: signal?.target, stoploss: signal?.stoploss }
+    : { entryPrice: null, target: null, stoploss: null });
   return (
     <section className="rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -291,8 +299,8 @@ function StockOverviewPanel({ workbench, priceSnapshot, realtimePrice, realtimeC
         <InfoItem label="Giá mục tiêu" value={fmtPrice(reference.target)} />
         <InfoItem label="Giá cắt lỗ" value={fmtPrice(reference.stoploss)} />
         <InfoItem label="Volume MA20" value={fmtValue(ta?.avgVolume20)} />
-        <InfoItem label="P/E" value={fmtMultiple(fa?.pe)} />
-        <InfoItem label="P/B" value={fmtMultiple(fa?.pb)} />
+        <InfoItem label="P/E" value={fmtMultiple(aidenRecommendation?.pe ?? fa?.pe)} />
+        <InfoItem label="P/B" value={fmtMultiple(aidenRecommendation?.pb ?? fa?.pb)} />
       </div>
     </section>
   );
@@ -795,8 +803,17 @@ export default function StockDetailPage() {
       entryPrice: Number.isFinite(Number(recommendation.entryPrice)) ? Number(recommendation.entryPrice) : null,
       target: Number.isFinite(Number(recommendation.target)) ? Number(recommendation.target) : null,
       stoploss: Number.isFinite(Number(recommendation.stoploss)) ? Number(recommendation.stoploss) : null,
+      pe: Number.isFinite(Number(recommendation.pe)) ? Number(recommendation.pe) : null,
+      pb: Number.isFinite(Number(recommendation.pb)) ? Number(recommendation.pb) : null,
     };
-    if (cleaned.entryPrice == null && cleaned.target == null && cleaned.stoploss == null) return;
+    if (
+      cleaned.entryPrice == null &&
+      cleaned.target == null &&
+      cleaned.stoploss == null &&
+      cleaned.pe == null &&
+      cleaned.pb == null
+    )
+      return;
     setAidenRecommendations((prev) => ({ ...prev, [tickerKey]: cleaned }));
   };
 

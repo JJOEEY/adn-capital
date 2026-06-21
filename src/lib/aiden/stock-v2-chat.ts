@@ -14,11 +14,20 @@ type AidenStockV2Input = {
   };
 };
 
+export type AidenStockRecommendation = {
+  ticker: string;
+  entryPrice: number | null;
+  target: number | null;
+  stoploss: number | null;
+  pe: number | null;
+  pb: number | null;
+};
+
 export type AidenStockV2Result = {
   message: string;
   ticker: string | null;
   tickers: string[];
-  recommendation: null;
+  recommendation: AidenStockRecommendation | null;
   model: "database-v2-stock-template";
 };
 
@@ -247,7 +256,7 @@ function renderSingleTicker(ctx: DatabaseAidenTickerContext) {
     `**${ctx.ticker}**`,
     "",
     "**Phân tích cấu trúc (Biểu đồ cổ phiếu)**",
-    `- Giá hiện tại ${formatNumber(price, 0) ?? "chưa có"}${changePct != null ? `, biến động ${formatPct(changePct)}` : ""}${limitTag}.${maParts ? ` ${maParts}.` : ""}${candle ? ` ${candle}.` : ""}${rsi ? ` RSI ${rsi}.` : ""}${macd ? ` MACD histogram ${macd}.` : ""}`,
+    `- Giá hiện tại ${formatNumber(price, 2) ?? "chưa có"}${changePct != null ? `, biến động ${formatPct(changePct)}` : ""}${limitTag}.${maParts ? ` ${maParts}.` : ""}${candle ? ` ${candle}.` : ""}${rsi ? ` RSI ${rsi}.` : ""}${macd ? ` MACD histogram ${macd}.` : ""}`,
     positiveStructure
       ? "Cấu trúc kỹ thuật đang tích cực khi giá nằm trên các đường trung bình quan trọng."
       : "Cấu trúc kỹ thuật cần thêm xác nhận, ưu tiên quan sát phản ứng giá tại các vùng quan trọng.",
@@ -364,6 +373,47 @@ function renderSingleIndex(ctx: DatabaseAidenTickerContext): string {
     .join("\n");
 }
 
+// ctx giá theo NGHÌN-đồng (radar.tick/market.eod nghìn); Tổng quan + chart hiển thị VND → quy ×1000.
+// Guard độ lớn: nếu đã ở thang VND (>=1000) thì giữ nguyên, tránh nhân đôi thang.
+function toVnd(value: number | null | undefined): number | null {
+  if (value == null || !Number.isFinite(value)) return null;
+  return Math.abs(value) < 1000 ? Math.round(value * 1000) : Math.round(value);
+}
+
+// Dựng kế hoạch giao dịch từ vùng giá kỹ thuật, NHẤT QUÁN với phần text AIDEN vừa phân tích:
+// - entry = vùng mua quanh hỗ trợ, KHÔNG mua đuổi trên giá hiện tại
+// - target = kháng cự; stoploss = dưới hỗ trợ. Luôn đảm bảo stoploss < entry < target.
+// Trả null nếu thiếu mốc kỹ thuật đáng tin (để Tổng quan không hiện số rác).
+function buildStockRecommendation(ctx: DatabaseAidenTickerContext): AidenStockRecommendation | null {
+  if (isIndexTicker(ctx.ticker)) return null;
+  const price = ctx.market.price ?? ctx.dailyOhlcv?.close ?? null;
+  if (price == null || !Number.isFinite(price) || price <= 0) return null;
+
+  // Mốc phải nằm trong dải hợp lý quanh giá (lọc số sai thang / rác).
+  const sane = (v: number | null | undefined): number | null =>
+    v != null && Number.isFinite(v) && v > price * 0.5 && v < price * 1.5 ? v : null;
+  const support = sane(ctx.technical?.support) ?? sane(ctx.dailyOhlcv?.low);
+  const resistance = sane(ctx.technical?.resistance) ?? sane(ctx.dailyOhlcv?.high);
+  if (support == null && resistance == null) return null;
+
+  const rawEntry = support != null ? Math.min(support, price) : price;
+  let target = resistance != null && resistance > rawEntry ? resistance : rawEntry * 1.08;
+  if (target <= rawEntry) target = rawEntry * 1.08;
+  const slBase = support ?? rawEntry;
+  let stoploss = slBase * 0.95;
+  if (stoploss >= rawEntry) stoploss = rawEntry * 0.94;
+
+  const valuation = ctx.fundamental.valuation;
+  return {
+    ticker: ctx.ticker,
+    entryPrice: toVnd(rawEntry),
+    target: toVnd(target),
+    stoploss: toVnd(stoploss),
+    pe: valuation?.pe?.value ?? null,
+    pb: valuation?.pb?.value ?? null,
+  };
+}
+
 export async function runAidenStockChatV2Only(input: AidenStockV2Input): Promise<AidenStockV2Result> {
   const tickers = await resolveTickerCandidates(input.message, input.currentTicker);
   if (!tickers.length) {
@@ -388,11 +438,14 @@ export async function runAidenStockChatV2Only(input: AidenStockV2Input): Promise
     "Phân tích tham khảo, không phải khuyến nghị đầu tư. — ADN Capital",
   ].join("\n\n");
 
+  const primaryCtx = contexts[0] ?? null;
+  const recommendation = primaryCtx ? buildStockRecommendation(primaryCtx) : null;
+
   return {
     message,
-    ticker: contexts[0]?.ticker ?? tickers[0] ?? null,
+    ticker: primaryCtx?.ticker ?? tickers[0] ?? null,
     tickers,
-    recommendation: null,
+    recommendation,
     model: "database-v2-stock-template",
   };
 }
