@@ -482,8 +482,10 @@ function OrderBook({ depth, ticker }: { depth: DepthPayload | null; ticker: stri
   const hasData = asks.length > 0 || bids.length > 0;
   return (
     <section className={s.card} style={{ padding: "14px 16px" }}>
-      <div className={s.secH}><div><div className={s.eyebrow}>Bảng giá · {ticker}</div><div className={s.secTitle}>Độ sâu thị trường</div></div></div>
-      {hasData ? (
+      <div className={s.secH}><div><div className={s.eyebrow}>{ticker ? `Bảng giá · ${ticker}` : "Bảng giá"}</div><div className={s.secTitle}>Độ sâu thị trường</div></div></div>
+      {!ticker ? (
+        <p style={{ fontSize: 13, color: "var(--text-muted)" }}>Nhập mã cổ phiếu ở phiếu lệnh để xem bảng giá.</p>
+      ) : hasData ? (
         <div>
           {[...asks].reverse().map((l, i) => (
             <div key={`a${i}`} className={`${s.drow} ${s.drowAsk}`}>
@@ -564,6 +566,8 @@ export function DnseTradingClient() {
   }, [queryTicker]);
 
   const normalizedTicker = (ticker || queryTicker || "HPG").trim().toUpperCase();
+  // Mã thô đang gõ (cho phép TRỐNG) — dùng cho ô nhập + bảng giá; KHÔNG ép về HPG để xoá hết không bị nhảy lại.
+  const rawTicker = (ticker || "").trim().toUpperCase();
   const topicKeys = useMemo(
     () => [
       "broker:dnse:current-user:accounts",
@@ -585,8 +589,8 @@ export function DnseTradingClient() {
     dedupingInterval: 10_000,
   });
 
-  const depthTopic = useTopic<DepthPayload>(`vn:depth:${normalizedTicker}`, {
-    enabled: Boolean(normalizedTicker),
+  const depthTopic = useTopic<DepthPayload>(`vn:depth:${rawTicker || "NONE"}`, {
+    enabled: Boolean(rawTicker),
     refreshInterval: 15_000,
     revalidateOnFocus: false,
     dedupingInterval: 10_000,
@@ -1034,7 +1038,7 @@ export function DnseTradingClient() {
                 <div>
                   <div className={s.eyebrow} style={{ marginBottom: 4 }}>Phiếu lệnh</div>
                   <DirectOrderPanel
-                    ticker={(ticker || "HPG").trim().toUpperCase()}
+                    ticker={rawTicker}
                     defaultPrice={queryEntryPrice ?? undefined}
                     defaultAccountId={selectedAccountId ?? undefined}
                     defaultSide={querySide}
@@ -1051,7 +1055,7 @@ export function DnseTradingClient() {
                   />
                 </div>
                 <div className={s.activityCol}>
-                  <OrderBook depth={depthTopic.data ?? null} ticker={(ticker || "HPG").trim().toUpperCase()} />
+                  <OrderBook depth={depthTopic.data ?? null} ticker={rawTicker} />
                 </div>
               </div>
             </>

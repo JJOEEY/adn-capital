@@ -629,7 +629,7 @@ export function DirectOrderPanel({
     : fallbackRecommendedQuantity;
 
   const loadSizing = async () => {
-    if (!canTrade) return;
+    if (!canTrade || !ticker.trim()) return;
     setLoadingSizing(true);
     setError(null);
     try {
@@ -928,8 +928,8 @@ export function DirectOrderPanel({
           <b className={s.num}>{displayBuyingPower != null ? fmtMoney(Math.max(0, displayBuyingPower - (side === "BUY" ? orderValue : 0))) : "--"}</b>
         </div>
 
-        <button type="button" className={s.place} style={{ background: side === "BUY" ? "var(--primary)" : "var(--danger)" }} disabled={checking || sending || !canTrade} onClick={() => { void checkOrder(side); }}>
-          {checking ? "Đang kiểm tra..." : `Đặt lệnh ${sideLabel(side)} · ${ticker}`}
+        <button type="button" className={s.place} style={{ background: side === "BUY" ? "var(--primary)" : "var(--danger)" }} disabled={checking || sending || !canTrade || !ticker.trim()} onClick={() => { void checkOrder(side); }}>
+          {checking ? "Đang kiểm tra..." : !ticker.trim() ? "Nhập mã cổ phiếu" : `Đặt lệnh ${sideLabel(side)} · ${ticker}`}
         </button>
 
         {previewOnly && preview ? <div style={{ marginTop: 12 }}><DirectStatus tone="warn">Lệnh hợp lệ, nhưng phiên này chưa mở gửi lệnh thật.</DirectStatus></div> : null}
