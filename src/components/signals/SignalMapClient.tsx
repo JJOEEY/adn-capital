@@ -538,6 +538,11 @@ export function SignalMapClient({
   const [buyTier, setBuyTier] = useState("NGAN_HAN");
   const [isTradingSession, setIsTradingSession] = useState(false);
   const [watchlistTicker, setWatchlistTicker] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState(18);
+
+  useEffect(() => {
+    setVisibleCount(18);
+  }, [tab, tierFilter]);
 
   useEffect(() => {
     const updateTradingSession = () => setIsTradingSession(isWithinVnTradingSession());
@@ -975,17 +980,29 @@ export function SignalMapClient({
           </Link>
         </Card>
       ) : filtered.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {filtered.map((signal, index) => (
-            <SignalCard
-              key={signal.id}
-              signal={signal}
-              index={index}
-              onWatchlist={handleWatchlist}
-              watchlistLoading={watchlistTicker === signal.ticker}
-            />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {filtered.slice(0, visibleCount).map((signal, index) => (
+              <SignalCard
+                key={signal.id}
+                signal={signal}
+                index={index}
+                onWatchlist={handleWatchlist}
+                watchlistLoading={watchlistTicker === signal.ticker}
+              />
+            ))}
+          </div>
+          {filtered.length > visibleCount && (
+            <button
+              type="button"
+              onClick={() => setVisibleCount((c) => c + 18)}
+              className="mt-4 w-full rounded-xl border py-3 text-sm font-bold transition-colors"
+              style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--primary)" }}
+            >
+              Xem thêm ({filtered.length - visibleCount} tín hiệu)
+            </button>
+          )}
+        </>
       ) : (
         <Card className="p-12 text-center">
           <Crosshair className="w-10 h-10 mx-auto mb-3 opacity-30" style={{ color: "var(--text-muted)" }} />
