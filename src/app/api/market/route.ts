@@ -5,7 +5,7 @@ export const revalidate = 0;
 
 // In-memory cache 5 phút → tránh gọi VNDirect liên tục
 let cachedMarket: { data: any; timestamp: number } | null = null;
-const CACHE_TTL = 300_000; // 5 phút
+const CACHE_TTL = 60_000; // 60s → số VN-Index "realtime" hơn (chart/breadth nặng vẫn rẻ nhờ snapshot cache 90s)
 
 const DCHART_HEADERS: HeadersInit = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
@@ -89,23 +89,64 @@ function findSnapshotIndex(
   };
 }
 
+/** Giá index LIVE: nến intraday 1' cuối = giá hiện tại (live trong phiên, = giá đóng sau 15h);
+ *  tham chiếu = close của nến daily gần nhất KHÔNG phải hôm nay → change/% đúng cả trong & ngoài phiên. */
+async function fetchIndexLive(symbol: string): Promise<PublicIndexData | null> {
+  try {
+    const now = Math.floor(Date.now() / 1000);
+    const vnDate = (sec: number) =>
+      new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date(sec * 1000));
+    const pull = async (resolution: string, days: number) => {
+      const url = `https://dchart-api.vndirect.com.vn/dchart/history?resolution=${resolution}&symbol=${symbol}&from=${now - days * 86400}&to=${now}`;
+      const res = await fetch(url, { headers: DCHART_HEADERS, cache: "no-store", signal: AbortSignal.timeout(5000) });
+      if (!res.ok) return null;
+      const j = (await res.json()) as { s?: string; c?: number[]; v?: number[]; t?: number[] };
+      return j?.s === "ok" && Array.isArray(j.c) && j.c.length > 0 && Array.isArray(j.t) ? j : null;
+    };
+    const [intra, daily] = await Promise.all([pull("1", 5), pull("D", 12)]);
+    if (!daily?.c?.length || !daily.t?.length) return null;
+    const dLen = daily.c.length;
+    const value = intra?.c?.length ? intra.c[intra.c.length - 1] : daily.c[dLen - 1];
+    if (!Number.isFinite(value) || value <= 0) return null;
+    const todayVN = vnDate(now);
+    const lastDailyIsToday = vnDate(daily.t[dLen - 1]) === todayVN;
+    const refClose = lastDailyIsToday ? (dLen >= 2 ? daily.c[dLen - 2] : daily.c[dLen - 1]) : daily.c[dLen - 1];
+    const change = +(value - refClose).toFixed(2);
+    const changePercent = refClose > 0 ? +((change / refClose) * 100).toFixed(2) : 0;
+    let volume = 0;
+    if (intra?.t?.length && intra?.v?.length) {
+      for (let i = 0; i < intra.t.length; i++) if (vnDate(intra.t[i]) === todayVN) volume += intra.v[i] ?? 0;
+    }
+    if (volume <= 0 && daily.v?.length) volume = lastDailyIsToday ? daily.v[dLen - 1] : 0;
+    return { value: +value.toFixed(2), change, changePercent, volume };
+  } catch {
+    return null;
+  }
+}
+
 async function getMarketStatus() {
   const hour = new Date().getHours();
   const isAfter3pm = hour >= 15;
   const today = new Date().toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
 
-  // Fetch VN-Index + HNX + VN30 + chart song song
-  const [vnidxData, hnxData, vn30Data, chartData, snapshot] = await Promise.all([
+  // Fetch VN-Index + HNX + VN30 (live intraday + daily fallback) + chart song song.
+  // Snapshot (FiinQuant, hay timeout) bị giới hạn 8s để KHÔNG kéo trễ — số index đã có từ dchart live.
+  const snapshotPromise = getMarketSnapshot().catch(() => null);
+  const [vnLive, hnxLive, vn30Live, vnidxData, hnxData, vn30Data, chartData, snapshot] = await Promise.all([
+    fetchIndexLive("VNINDEX"),
+    fetchIndexLive("HNX"),
+    fetchIndexLive("VN30"),
     fetchIndexData("VNINDEX"),
     fetchIndexData("HNX"),
     fetchIndexData("VN30"),
     fetchChartData("VNINDEX"),
-    getMarketSnapshot().catch(() => null),
+    Promise.race([snapshotPromise, new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000))]),
   ]);
 
-  const vnindex = findSnapshotIndex(snapshot, ["VNINDEX"]) ?? vnidxData ?? { value: 1287.45, change: 12.3, changePercent: 0.96, volume: 0 };
-  const hnx = findSnapshotIndex(snapshot, ["HNXINDEX", "HNX"]) ?? hnxData ?? { value: 236.82, change: 1.8, changePercent: 0.77, volume: 0 };
-  const vn30 = findSnapshotIndex(snapshot, ["VN30"]) ?? vn30Data ?? { value: 1350.20, change: 8.5, changePercent: 0.63, volume: 0 };
+  // Ưu tiên giá LIVE từ dchart (khớp chart, live trong phiên) → snapshot → daily → fallback cứng.
+  const vnindex = vnLive ?? findSnapshotIndex(snapshot, ["VNINDEX"]) ?? vnidxData ?? { value: 1287.45, change: 12.3, changePercent: 0.96, volume: 0 };
+  const hnx = hnxLive ?? findSnapshotIndex(snapshot, ["HNXINDEX", "HNX"]) ?? hnxData ?? { value: 236.82, change: 1.8, changePercent: 0.77, volume: 0 };
+  const vn30 = vn30Live ?? findSnapshotIndex(snapshot, ["VN30"]) ?? vn30Data ?? { value: 1350.20, change: 8.5, changePercent: 0.63, volume: 0 };
 
   // Chấm điểm thị trường
   const indicators = {

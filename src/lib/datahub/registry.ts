@@ -354,10 +354,11 @@ async function loadMarketBoardForTickers(rawTickers: string) {
     }),
   );
   const tickers = Array.from(new Set(resolved.filter((ticker): ticker is string => Boolean(ticker))));
-  const [dnseBoard, bridgeBoard] = await Promise.all([
-    fetchDnseMarketBoard(tickers).catch(() => null),
-    fetchMarketBoard(tickers).catch(() => null),
-  ]);
+  // DNSE realtime trước. Chỉ gọi FiinQuant (batch-price, timeout 30s, hay treo) khi DNSE THIẾU mã —
+  // tránh Promise.all chờ FiinQuant timeout 30s dù DNSE đã xong → đây là gốc trễ ~30s của giá ADN Stock.
+  const dnseBoard = await fetchDnseMarketBoard(tickers).catch(() => null);
+  const dnseHasAll = tickers.length > 0 && tickers.every((ticker) => dnseBoard?.prices?.[ticker]);
+  const bridgeBoard = dnseHasAll ? null : await fetchMarketBoard(tickers).catch(() => null);
   const priceEntries: Array<[string, JsonRecord]> = [];
   for (const ticker of tickers) {
     const dnseRow = dnseBoard?.prices?.[ticker] as JsonRecord | undefined;
