@@ -854,7 +854,9 @@ async function loadVNIndexChart30d() {
     .filter((row): row is { date: string; close: number } => Boolean(row))
     .slice(-30);
 
-  const withLivePoint = mergeLiveVNIndexChartPoint(data, snapshot);
+  // Điểm live của chart ưu tiên giá DNSE-primary từ /api/market (marketOverview.vnindex) → snapshot.
+  const overviewLive = readPositiveNumber((marketOverview as { vnindex?: { value?: number } } | null)?.vnindex?.value);
+  const withLivePoint = mergeLiveVNIndexChartPoint(data, snapshot, overviewLive ?? null);
 
   if (withLivePoint.length === 0) {
     throw new Error("VNINDEX chart 30d unavailable");
@@ -878,9 +880,10 @@ function normalizeChartDateKey(value: string) {
 function mergeLiveVNIndexChartPoint(
   data: Array<{ date: string; close: number }>,
   snapshot: Awaited<ReturnType<typeof getMarketSnapshot>> | null,
+  overrideClose: number | null = null,
 ) {
   const liveIndex = snapshot?.indices?.find((item) => item.ticker === "VNINDEX");
-  const liveClose = readPositiveNumber(liveIndex?.value);
+  const liveClose = readPositiveNumber(overrideClose) ?? readPositiveNumber(liveIndex?.value);
   const liveDate = snapshot?.requestDateVN;
   if (liveClose == null || !liveDate) return data;
 

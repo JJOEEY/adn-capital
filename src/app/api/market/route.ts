@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getMarketSnapshot } from "@/lib/marketDataFetcher";
+import { fetchDnseRealtimeOhlc } from "@/lib/providers/dnse/market-data";
 
 export const revalidate = 0;
 
@@ -91,7 +92,7 @@ function findSnapshotIndex(
 
 /** Giá index LIVE: nến intraday 1' cuối = giá hiện tại (live trong phiên, = giá đóng sau 15h);
  *  tham chiếu = close của nến daily gần nhất KHÔNG phải hôm nay → change/% đúng cả trong & ngoài phiên. */
-async function fetchIndexLive(symbol: string): Promise<PublicIndexData | null> {
+async function fetchIndexLive(symbol: string, dnseValue: number | null = null): Promise<PublicIndexData | null> {
   try {
     const now = Math.floor(Date.now() / 1000);
     const vnDate = (sec: number) =>
@@ -106,11 +107,16 @@ async function fetchIndexLive(symbol: string): Promise<PublicIndexData | null> {
     const [intra, daily] = await Promise.all([pull("1", 5), pull("D", 12)]);
     if (!daily?.c?.length || !daily.t?.length) return null;
     const dLen = daily.c.length;
-    const value = intra?.c?.length ? intra.c[intra.c.length - 1] : daily.c[dLen - 1];
+    let value = intra?.c?.length ? intra.c[intra.c.length - 1] : daily.c[dLen - 1];
     if (!Number.isFinite(value) || value <= 0) return null;
     const todayVN = vnDate(now);
     const lastDailyIsToday = vnDate(daily.t[dLen - 1]) === todayVN;
     const refClose = lastDailyIsToday ? (dLen >= 2 ? daily.c[dLen - 2] : daily.c[dLen - 1]) : daily.c[dLen - 1];
+    // NGUỒN CHÍNH realtime = DNSE-WS (ohlc.1m chỉ số, chỉ chạy trong phiên). Ưu tiên khi hợp lệ
+    // (lệch ≤5% so dchart → chống sai thang/parse). Ngoài phiên DNSE rỗng (dnseValue=null) → giữ dchart.
+    if (dnseValue != null && value > 0 && Math.abs(dnseValue - value) / value <= 0.05) {
+      value = dnseValue;
+    }
     const change = +(value - refClose).toFixed(2);
     const changePercent = refClose > 0 ? +((change / refClose) * 100).toFixed(2) : 0;
     let volume = 0;
@@ -129,13 +135,23 @@ async function getMarketStatus() {
   const isAfter3pm = hour >= 15;
   const today = new Date().toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
 
-  // Fetch VN-Index + HNX + VN30 (live intraday + daily fallback) + chart song song.
-  // Snapshot (FiinQuant, hay timeout) bị giới hạn 8s để KHÔNG kéo trễ — số index đã có từ dchart live.
+  // NGUỒN CHÍNH realtime chỉ số = DNSE-WS ohlc.1m (1 kết nối cho cả 3; chỉ chạy trong phiên,
+  // lỗi/ngoài giờ → {} → dchart lo). DNSE dùng "HNXINDEX" (khác dchart "HNX").
+  const dnseIndexMap = await fetchDnseRealtimeOhlc(["VNINDEX", "HNXINDEX", "VN30"], {
+    timeframe: "1m",
+    timeoutMs: 4000,
+  }).catch(() => ({}) as Awaited<ReturnType<typeof fetchDnseRealtimeOhlc>>);
+  const dnseClose = (sym: string) => {
+    const bars = dnseIndexMap[sym]?.data;
+    return Array.isArray(bars) && bars.length > 0 ? bars[bars.length - 1].close : null;
+  };
+  // Fetch VN-Index + HNX + VN30 (DNSE-primary → dchart live → daily) + chart song song.
+  // Snapshot (FiinQuant, hay timeout) bị giới hạn 8s để KHÔNG kéo trễ /api/market.
   const snapshotPromise = getMarketSnapshot().catch(() => null);
   const [vnLive, hnxLive, vn30Live, vnidxData, hnxData, vn30Data, chartData, snapshot] = await Promise.all([
-    fetchIndexLive("VNINDEX"),
-    fetchIndexLive("HNX"),
-    fetchIndexLive("VN30"),
+    fetchIndexLive("VNINDEX", dnseClose("VNINDEX")),
+    fetchIndexLive("HNX", dnseClose("HNXINDEX")),
+    fetchIndexLive("VN30", dnseClose("VN30")),
     fetchIndexData("VNINDEX"),
     fetchIndexData("HNX"),
     fetchIndexData("VN30"),
