@@ -371,22 +371,26 @@ async function buyPaperPosition(params: {
 export async function ensureRadarPaperAccountSeeded() {
   const account = await getOrCreateAccount();
   const existingPositions = await activePositions(account.id);
+  // Mã KHÓA GIỮ (can thiệp tay) là bất khả xâm phạm: KHÔNG xét vào "danh mục hỏng" và KHÔNG bị reseed wipe.
+  const lockedPositions = existingPositions.filter((row) => row.locked);
+  const unlockedPositions = existingPositions.filter((row) => !row.locked);
+  const lockedCost = round2(lockedPositions.reduce((sum, row) => sum + row.costBasis, 0));
   if (
     account.seededAt &&
-    !needsPaperAccountReseed(existingPositions, account.cash) &&
+    !needsPaperAccountReseed(unlockedPositions, account.cash) &&
     !(await hasRestorableReseededMidTerm(account.id, existingPositions, account.cash))
   ) {
     return account;
   }
-  if (existingPositions.length > 0) {
+  if (unlockedPositions.length > 0) {
     await prisma.$transaction([
       prisma.radarPaperPosition.updateMany({
-        where: { accountId: account.id, status: { in: ["ACTIVE", "HOLD_TO_DIE", "PENDING_EXIT"] } },
+        where: { accountId: account.id, status: { in: ["ACTIVE", "HOLD_TO_DIE", "PENDING_EXIT"] }, locked: false },
         data: { status: "RESEEDED", holdingAction: "RESEEDED_BY_POLICY" },
       }),
       prisma.radarPaperAccount.update({
         where: { id: account.id },
-        data: { cash: RADAR_PAPER_INITIAL_NAV, realizedPnl: 0, seededAt: null },
+        data: { cash: round2(RADAR_PAPER_INITIAL_NAV - lockedCost), realizedPnl: 0, seededAt: null },
       }),
     ]);
   }
@@ -417,11 +421,22 @@ export async function ensureRadarPaperAccountSeeded() {
     ...uniqueCandidates.filter((row) => isSwingTier(row.tier)).sort(sortByNav),
   ];
 
-  let cash = existingPositions.length > 0 ? RADAR_PAPER_INITIAL_NAV : account.cash;
-  const seeded: OpenPosition[] = [];
+  // Giữ nguyên mã khóa: chúng chiếm slot + tỷ trọng cap, và đã trừ tiền vào ngân sách seed (lockedCost).
+  let cash = unlockedPositions.length > 0 ? round2(RADAR_PAPER_INITIAL_NAV - lockedCost) : account.cash;
+  const heldTickers = new Set(lockedPositions.map((row) => row.ticker.toUpperCase().trim()));
+  const seeded: OpenPosition[] = lockedPositions.map((row) => ({
+    id: row.id,
+    ticker: row.ticker,
+    tier: row.tier,
+    status: row.status,
+    quantity: row.quantity,
+    costBasis: row.costBasis,
+    marketValue: row.marketValue,
+  }));
   for (const row of sorted) {
     const signal = row as SignalLike;
     if (seeded.length >= MAX_UNIQUE_POSITIONS) break;
+    if (heldTickers.has(signal.ticker.toUpperCase().trim())) continue;
     const navPct = recommendedNavPct(signal);
     const price = signal.restoredOpenedAt
       ? normalizeSignalPrice(signal.entryPrice)
@@ -1025,7 +1040,9 @@ export async function manualBuyPaperPosition(params: { ticker: string; navPct: n
   const navPct = Number(params.navPct);
   if (!Number.isFinite(navPct) || navPct <= 0 || navPct > 100) return { ok: false as const, reason: "invalid_nav" };
 
-  const account = await ensureRadarPaperAccountSeeded();
+  // Mua tay KHÔNG được kích hoạt reseed (ensureRadarPaperAccountSeeded có thể wipe sạch danh mục để seed lại)
+  // — chỉ cần lấy/tạo account. Đây là gốc bug "mua tay 1 mã thì các mã còn lại bị đóng".
+  const account = await getOrCreateAccount();
   const open = await activePositions(account.id);
   if (open.some((row) => row.ticker.toUpperCase() === ticker)) return { ok: false as const, reason: "duplicate_ticker" };
   if (open.length >= MAX_UNIQUE_POSITIONS) return { ok: false as const, reason: "max_10_positions" };
