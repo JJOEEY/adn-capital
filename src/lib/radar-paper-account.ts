@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { getBatchPrices } from "@/lib/PriceCache";
+import { getBatchPrices, getBatchExitScan } from "@/lib/PriceCache";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
 import { getVnDateISO, getVnNow, isVnTradingDay, toVnTime } from "@/lib/time";
 import { pushNotification } from "@/lib/cronHelpers";
@@ -700,6 +700,9 @@ export async function syncRadarPaperAccountPrices(options: { slot?: "11:30" | "1
   const prices = await getBatchPrices([...new Set(openRows.map((row) => row.ticker))]);
   const holdTickers = openRows.filter((row) => row.status === "HOLD_TO_DIE").map((row) => row.ticker);
   const art = await fetchARTBatch([...new Set(holdTickers)]);
+  // Tín hiệu thoát KỸ THUẬT (giáo án): phân phối đỉnh, mất xu hướng, bearish div, chạy nước rút, 2 đỉnh.
+  // Chỉ quét mã đang giữ & KHÔNG khóa. batch-exit-scan có cache 300s ở bridge.
+  const exitScan = await getBatchExitScan([...new Set(openRows.filter((row) => !row.locked).map((row) => row.ticker))]);
   let closed = 0;
   let pendingExits = 0;
   let holdToDie = 0;
@@ -763,6 +766,14 @@ export async function syncRadarPaperAccountPrices(options: { slot?: "11:30" | "1
         } else if (heldDays >= 15 && maxPnl < 10) {
           exitReason = `Tien chet: ${heldDays} phien chua dat +10% (dinh +${maxPnl}%), xoay von`;
         }
+      }
+    }
+
+    // Fallback: tín hiệu thoát kỹ thuật theo giáo án (chỉ khi chưa có lý do exit khác).
+    if (!exitReason) {
+      const tech = exitScan[position.ticker];
+      if (tech?.shouldExit && tech.reason) {
+        exitReason = `Thoát kỹ thuật: ${tech.reason}`;
       }
     }
 
