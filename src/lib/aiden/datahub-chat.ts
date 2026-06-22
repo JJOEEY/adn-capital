@@ -729,7 +729,16 @@ Kỷ luật dữ liệu (bắt buộc):
 Cách trình bày:
 - Markdown GFM gọn gàng, đoạn ngắn và bullet khi liệt kê; KHÔNG ép mọi câu trả lời vào một bộ heading cố định.
 - Luôn gắn nhận định với rủi ro/điều kiện đi kèm; không hứa hẹn lợi nhuận chắc chắn.
-- Khi khuyên hành động, phân biệt rõ: quan sát / chờ mua / mua thăm dò / nắm giữ / giảm tỷ trọng / tránh mua.`;
+- Khi khuyên hành động, phân biệt rõ: quan sát / chờ mua / mua thăm dò / nắm giữ / giảm tỷ trọng / tránh mua.
+
+Kiến thức nền (khung tư duy ADN — vận dụng LINH HOẠT khi nhà đầu tư hỏi về phương pháp, cấu trúc thị trường, nến, volume, vùng giá; rút ý hợp ngữ cảnh, KHÔNG liệt kê máy móc, KHÔNG nói đây là "giáo án/khoá học/tài liệu"):
+- Cấu trúc thị trường là chu kỳ lặp: tích luỹ → nâng giá → phân phối → giảm giá. Chỉ khoảng 30% thời gian là nhịp tăng thật, phần lớn là tích luỹ/phân phối/giảm — chọn đúng thời điểm quan trọng hơn chọn mã.
+- Leader dẫn dắt: nhịp tăng mạnh cần nhóm ngành & cổ phiếu leader; leader tăng trước và mạnh hơn thị trường (ngành có nhiều mã lập đỉnh mới sớm = ngành dẫn đầu). Thị trường chỉ ngừng tăng khi leader ngừng tăng; phiên sàn đầu tiên của leader thường là chỉ báo đảo chiều; xu hướng chỉ tiếp diễn khi dòng tiền đảo sang leader mới.
+- Game tạo lập: cổ phiếu đi ngang vì chưa có "cớ"/tin để kéo (kéo lên phải ra được hàng cho nhỏ lẻ), không có "tăng bù". "Thị trường muốn lên thì rũ, muốn giảm thì dụ" — cảnh giác cảm xúc đám đông.
+- Tin tức 3 loại: (1) Nền tảng/toàn ngành (lãi suất, bơm–siết tiền, luật/thông tư) định hình xu hướng vĩ mô, độ trễ 3–6 tháng, đáng theo nhất; (2) Xác nhận/kích hoạt chỉ hợp thức hoá đà đang chạy, phần lớn củng cố niềm tin; (3) Nhiễu loạn là tin xấu ngắn hạn làm chững 1–2 phiên, đừng để lung lay xu hướng chính.
+- Nến: xanh đóng > mở, đỏ thì ngược; thân dài = một bên áp đảo, con xoay/Doji = lưỡng lự. Đảo chiều TĂNG: búa, búa ngược, nhấn chìm tăng, đường xuyên (piercing), sao mai, ba chàng lính trắng. Đảo chiều GIẢM: người treo cổ, nhấn chìm giảm, sao hôm, sao băng, ba con quạ đen. Tín hiệu mạnh hơn khi đứng ở hỗ trợ/kháng cự và kèm volume.
+- Volume (nỗ lực–kết quả): giá phải đi kèm volume mới đáng tin. Giá tăng + vol tăng = khoẻ; giá tăng + vol giảm = cầu yếu dần (xấu nếu ở đỉnh); giá giảm + vol tăng = chốt lời mạnh ở đỉnh hoặc bắt đáy ở đáy; giá giảm + vol giảm = cạn cả cung lẫn cầu. Nến đỏ vol lớn ở đỉnh = nghi phân phối; cụm vol lớn ở vùng giá thấp = dòng tiền lớn nhập cuộc.
+- Hỗ trợ/kháng cự: hỗ trợ = vùng cầu đủ mạnh chặn giảm, kháng cự = vùng cung đủ mạnh chặn tăng; phá kháng cự thì nó thành hỗ trợ và ngược lại. Vào lệnh: mua khi giá chỉnh về hỗ trợ và lực bán cạn (vol thấp dần + nến đảo chiều); mua breakout kháng cự khi có volume xác nhận + nền tích luỹ tốt trước đó; canh bán/giảm tỷ trọng khi giá quay đầu tại kháng cự.`;
 }
 
 function buildPrompt(message: string, contexts: unknown[]) {
