@@ -6,6 +6,7 @@ import { pushNotification } from "@/lib/cronHelpers";
 import { normalizeSignalPrice } from "@/lib/signals/price-units";
 import { invalidateTopics } from "@/lib/datahub/core";
 import { sendPaperBuyToTelegram, sendPaperSellToTelegram } from "@/lib/signals/telegram-notify";
+import { fetchMarketOverview } from "@/lib/fiinquantClient";
 
 export const RADAR_PAPER_INITIAL_NAV = 1_000_000_000;
 const ACCOUNT_SLUG = "adn-radar";
@@ -613,29 +614,28 @@ async function markPendingExit(position: Awaited<ReturnType<typeof activePositio
 }
 
 // Xoay vốn: lấp slot trống bằng tín hiệu ACTIVE/HOLD tỉ trọng mạnh nhất chưa nắm giữ
-// Chế độ thị trường (VNINDEX vs MA50) → lọc rổ khi mua: uptrend mua cả 3 rổ, sideway/down chỉ đầu cơ.
-let _regimeCache: { value: "up" | "side"; at: number } | null = null;
-async function getMarketRegime(): Promise<"up" | "side"> {
+// Chế độ thị trường theo ADNCore (bridge FiinQuant: TA tháng/tuần + định giá). Dùng TỶ LỆ score/max_score
+// nên không phụ thuộc thang điểm /10 hay /14. Ngưỡng khớp classifyADNCore (tin-tuc): ≥72% Thuận lợi ·
+// 40–72% Thăm dò · <40% Phòng thủ.
+type MarketRegime = "thuan_loi" | "tham_do" | "phong_thu";
+let _regimeCache: { value: MarketRegime; ratio: number; at: number } | null = null;
+async function getMarketRegime(): Promise<MarketRegime> {
   const nowMs = Date.now();
   if (_regimeCache && nowMs - _regimeCache.at < 2 * 60 * 60 * 1000) return _regimeCache.value;
   try {
-    const to = Math.floor(nowMs / 1000);
-    const from = to - 130 * 24 * 3600;
-    const url = `https://dchart-api.vndirect.com.vn/dchart/history?resolution=D&symbol=VNINDEX&from=${from}&to=${to}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-    const data = await res.json();
-    const closes: number[] = Array.isArray(data?.c) ? data.c.map(Number).filter((x: number) => Number.isFinite(x) && x > 0) : [];
-    if (closes.length >= 50) {
-      const last = closes[closes.length - 1];
-      const ma50 = closes.slice(-50).reduce((a, b) => a + b, 0) / 50;
-      const value: "up" | "side" = last > ma50 ? "up" : "side";
-      _regimeCache = { value, at: nowMs };
+    const overview = await fetchMarketOverview({ timeout: 8000 });
+    const score = Number(overview?.score);
+    const maxScore = Number(overview?.max_score);
+    if (Number.isFinite(score) && Number.isFinite(maxScore) && maxScore > 0) {
+      const ratio = score / maxScore;
+      const value: MarketRegime = ratio >= 0.72 ? "thuan_loi" : ratio >= 0.4 ? "tham_do" : "phong_thu";
+      _regimeCache = { value, ratio, at: nowMs };
       return value;
     }
   } catch {
-    /* lỗi fetch → giữ giá trị cũ / fail-open "up" (không tê liệt việc mua) */
+    /* lỗi bridge → giữ giá trị cũ / fail-open "tham_do" (thận trọng: cho trung hạn + đầu cơ, không full) */
   }
-  return _regimeCache?.value ?? "up";
+  return _regimeCache?.value ?? "tham_do";
 }
 
 async function refillRadarPaperAccount(accountId: string, now: Date): Promise<number> {
@@ -664,9 +664,15 @@ async function refillRadarPaperAccount(accountId: string, now: Date): Promise<nu
     // Ưu tiên LEADER > TRUNG_HAN > ngắn hạn (rồi nav gợi ý) — KHÔNG lọc theo nav-min nữa.
     .sort((a, b) => tierRank(a.tier) - tierRank(b.tier) || recommendedNavPct(b) - recommendedNavPct(a));
 
-  // Lọc theo chế độ thị trường: uptrend mua cả 3 rổ; sideway/down CHỈ đầu cơ (swing).
+  // Lọc theo ADNCore (Option 1): Thuận lợi → cả 3 rổ; Thăm dò → trung hạn + đầu cơ (bỏ siêu cổ/LEADER);
+  // Phòng thủ → CHỈ đầu cơ (swing).
   const regime = await getMarketRegime();
-  const pickList = regime === "up" ? eligible : eligible.filter((row) => isSwingTier(row.tier));
+  const pickList =
+    regime === "thuan_loi"
+      ? eligible
+      : regime === "tham_do"
+        ? eligible.filter((row) => isSwingTier(row.tier) || row.tier === "TRUNG_HAN")
+        : eligible.filter((row) => isSwingTier(row.tier));
 
   const snapshot: OpenPosition[] = open.map((row) => ({
     id: row.id,
