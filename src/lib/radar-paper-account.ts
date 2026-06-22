@@ -318,8 +318,9 @@ async function buyPaperPosition(params: {
       quantity,
       costBasis: grossValue,
       navAllocation: round2((grossValue / totalNav) * 100),
-      target: normalizeSignalPrice(params.signal.target),
-      stoploss: normalizeSignalPrice(params.signal.stoploss),
+      // SL/TP theo rổ: đầu cơ TP +10% / SL −15%; mid-leader không TP cố định (để trailing) / SL −12%.
+      target: isSwingTier(params.signal.tier) ? round2(params.price * 1.1) : null,
+      stoploss: round2(params.price * (isSwingTier(params.signal.tier) ? 0.85 : 0.88)),
       currentPrice,
       marketValue,
       currentPnl,
@@ -612,6 +613,31 @@ async function markPendingExit(position: Awaited<ReturnType<typeof activePositio
 }
 
 // Xoay vốn: lấp slot trống bằng tín hiệu ACTIVE/HOLD tỉ trọng mạnh nhất chưa nắm giữ
+// Chế độ thị trường (VNINDEX vs MA50) → lọc rổ khi mua: uptrend mua cả 3 rổ, sideway/down chỉ đầu cơ.
+let _regimeCache: { value: "up" | "side"; at: number } | null = null;
+async function getMarketRegime(): Promise<"up" | "side"> {
+  const nowMs = Date.now();
+  if (_regimeCache && nowMs - _regimeCache.at < 2 * 60 * 60 * 1000) return _regimeCache.value;
+  try {
+    const to = Math.floor(nowMs / 1000);
+    const from = to - 130 * 24 * 3600;
+    const url = `https://dchart-api.vndirect.com.vn/dchart/history?resolution=D&symbol=VNINDEX&from=${from}&to=${to}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    const data = await res.json();
+    const closes: number[] = Array.isArray(data?.c) ? data.c.map(Number).filter((x: number) => Number.isFinite(x) && x > 0) : [];
+    if (closes.length >= 50) {
+      const last = closes[closes.length - 1];
+      const ma50 = closes.slice(-50).reduce((a, b) => a + b, 0) / 50;
+      const value: "up" | "side" = last > ma50 ? "up" : "side";
+      _regimeCache = { value, at: nowMs };
+      return value;
+    }
+  } catch {
+    /* lỗi fetch → giữ giá trị cũ / fail-open "up" (không tê liệt việc mua) */
+  }
+  return _regimeCache?.value ?? "up";
+}
+
 async function refillRadarPaperAccount(accountId: string, now: Date): Promise<number> {
   const account = await prisma.radarPaperAccount.findUnique({ where: { id: accountId } });
   if (!account) return 0;
@@ -638,6 +664,10 @@ async function refillRadarPaperAccount(accountId: string, now: Date): Promise<nu
     // Ưu tiên LEADER > TRUNG_HAN > ngắn hạn (rồi nav gợi ý) — KHÔNG lọc theo nav-min nữa.
     .sort((a, b) => tierRank(a.tier) - tierRank(b.tier) || recommendedNavPct(b) - recommendedNavPct(a));
 
+  // Lọc theo chế độ thị trường: uptrend mua cả 3 rổ; sideway/down CHỈ đầu cơ (swing).
+  const regime = await getMarketRegime();
+  const pickList = regime === "up" ? eligible : eligible.filter((row) => isSwingTier(row.tier));
+
   const snapshot: OpenPosition[] = open.map((row) => ({
     id: row.id,
     ticker: row.ticker,
@@ -648,7 +678,7 @@ async function refillRadarPaperAccount(accountId: string, now: Date): Promise<nu
     marketValue: row.marketValue,
   }));
   let filled = 0;
-  for (const row of eligible) {
+  for (const row of pickList) {
     if (snapshot.length >= MAX_UNIQUE_POSITIONS) break;
     const acct = await prisma.radarPaperAccount.findUnique({ where: { id: accountId } });
     if (!acct) break;
@@ -698,8 +728,6 @@ export async function syncRadarPaperAccountPrices(options: { slot?: "11:30" | "1
   }
 
   const prices = await getBatchPrices([...new Set(openRows.map((row) => row.ticker))]);
-  const holdTickers = openRows.filter((row) => row.status === "HOLD_TO_DIE").map((row) => row.ticker);
-  const art = await fetchARTBatch([...new Set(holdTickers)]);
   // Tín hiệu thoát KỸ THUẬT (giáo án): phân phối đỉnh, mất xu hướng, bearish div, chạy nước rút, 2 đỉnh.
   // Chỉ quét mã đang giữ & KHÔNG khóa. batch-exit-scan có cache 300s ở bridge.
   const exitScan = await getBatchExitScan([...new Set(openRows.filter((row) => !row.locked).map((row) => row.ticker))]);
@@ -731,42 +759,21 @@ export async function syncRadarPaperAccountPrices(options: { slot?: "11:30" | "1
       continue;
     }
 
-    let nextStatus = position.status;
-    let nextStoploss = position.stoploss;
+    const nextStatus = position.status;
+    const nextStoploss = position.stoploss;
     let exitReason: string | null = null;
 
     if (position.pendingExitReason) {
       exitReason = position.pendingExitReason;
-    } else if (isMidTermTier(position.tier) && position.status === "ACTIVE" && pnl >= HOLD_TO_DIE_THRESHOLD) {
-      const stopPct = trailingStopPct(maxPnl);
-      nextStatus = "HOLD_TO_DIE";
-      nextStoploss = round2(position.entryPrice * (1 + stopPct / 100));
-      holdToDie++;
-    } else if (position.status === "HOLD_TO_DIE") {
-      const stopPct = trailingStopPct(maxPnl);
-      const trailingStop = round2(position.entryPrice * (1 + stopPct / 100));
-      nextStoploss = Math.max(position.stoploss ?? 0, trailingStop);
-      if (price <= nextStoploss) exitReason = `Trailing stop ${nextStoploss.toLocaleString("vi-VN")}`;
-      const artScore = Number(art[position.ticker]?.tei ?? 0);
-      if (!exitReason && artScore >= ART_EXIT_THRESHOLD) exitReason = `ART ${artScore.toFixed(1)} >= ${ART_EXIT_THRESHOLD}`;
+    } else if (isSwingTier(position.tier)) {
+      // ĐẦU CƠ: bắt nhịp hồi — chốt lời +10%, cắt lỗ −15%, KHÔNG cắt theo thời gian.
+      if (pnl <= -15) exitReason = `Cat lo dau co -15% (${price.toLocaleString("vi-VN")})`;
+      else if (pnl >= 10) exitReason = `Chot loi dau co +10% (${price.toLocaleString("vi-VN")})`;
     } else {
-      const stoploss = normalizeSignalPrice(position.stoploss);
-      const target = normalizeSignalPrice(position.target);
-      if (isValidPrice(stoploss) && price <= stoploss) exitReason = `Stoploss kich hoat ${stoploss.toLocaleString("vi-VN")}`;
-      if (!exitReason && !isMidTermTier(position.tier) && isValidPrice(target) && price >= target) {
-        exitReason = `Take Profit kich hoat ${target.toLocaleString("vi-VN")}`;
-      }
-      // ── Chốt chủ động (chỉ khi chưa đạt +20% và KHÔNG phải LEADER) ──
-      // LEADER = cổ phiếu phát động tăng trưởng → giữ, không cắt sớm (chỉ stoploss/trailing).
-      if (!exitReason && pnl < HOLD_TO_DIE_THRESHOLD && position.tier !== "LEADER") {
-        if (maxPnl >= 8 && pnl <= 5) {
-          exitReason = `Chot bao toan: lai dinh +${maxPnl}% lui ve +${pnl}%`;
-        } else if (heldDays >= 10 && pnl < 0) {
-          exitReason = `T+${heldDays} van lo (${pnl}%), thoat hang`;
-        } else if (heldDays >= 15 && maxPnl < 10) {
-          exitReason = `Tien chet: ${heldDays} phien chua dat +10% (dinh +${maxPnl}%), xoay von`;
-        }
-      }
+      // MID/LEADER: để lời chạy theo sóng — SL −12%, trailing sau đỉnh +30% (lùi 15%), tối đa 120 phiên.
+      if (pnl <= -12) exitReason = `Cat lo -12% (${price.toLocaleString("vi-VN")})`;
+      else if (maxPnl >= 30 && pnl <= maxPnl - 15) exitReason = `Trailing: dinh +${maxPnl.toFixed(0)}% lui ve +${pnl.toFixed(0)}%`;
+      else if (heldDays >= 120) exitReason = `Qua 120 phien (dinh +${maxPnl.toFixed(0)}%), xoay von`;
     }
 
     // Fallback: tín hiệu thoát kỹ thuật theo giáo án (chỉ khi chưa có lý do exit khác).
