@@ -8,6 +8,38 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "/margin",
   },
+  openGraph: {
+    type: "article",
+    title: "Margin Chứng Khoán — Vay Ký Quỹ Lãi Suất 5.99% | ADN Capital",
+    description:
+      "Cẩm nang margin chứng khoán: cách hoạt động, margin call, rủi ro và lãi suất vay ký quỹ từ 5.99%/năm tại ADN Capital.",
+    url: "/margin",
+    siteName: "ADN Capital",
+    locale: "vi_VN",
+  },
+};
+
+const articleJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Article",
+  headline: "Margin chứng khoán: hiểu cho đúng trước khi vay",
+  description:
+    "Cẩm nang margin chứng khoán: cách vay ký quỹ hoạt động, cách tính margin call, rủi ro đòn bẩy và so sánh lãi suất thị trường với mức từ 5.99%/năm tại ADN Capital.",
+  inLanguage: "vi-VN",
+  author: { "@type": "Organization", name: "ADN Capital" },
+  publisher: { "@type": "Organization", name: "ADN Capital", url: "https://adncapital.com.vn" },
+  datePublished: "2026-01-01",
+  dateModified: "2026-06-22",
+  mainEntityOfPage: { "@type": "WebPage", "@id": "https://adncapital.com.vn/margin" },
+};
+
+const breadcrumbJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  itemListElement: [
+    { "@type": "ListItem", position: 1, name: "Trang chủ", item: "https://adncapital.com.vn/" },
+    { "@type": "ListItem", position: 2, name: "Margin chứng khoán", item: "https://adncapital.com.vn/margin" },
+  ],
 };
 
 const faqJsonLd = {
@@ -68,10 +100,9 @@ const faqJsonLd = {
 export default function MarginPage() {
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
-      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       <MarginPageClient />
     </>
   );

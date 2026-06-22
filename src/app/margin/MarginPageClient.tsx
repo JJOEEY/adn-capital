@@ -1,24 +1,14 @@
 "use client";
 
 import { useState, type FormEvent, type ReactNode } from "react";
-import { MainLayout } from "@/components/layout/MainLayout";
 import {
   AlertTriangle,
   ArrowRight,
-  BadgePercent,
-  Calculator,
-  CheckCircle2,
+  Check,
   ChevronDown,
-  HelpCircle,
-  Layers,
   Loader2,
-  Mail,
-  Percent,
-  Phone,
-  Shield,
-  TrendingUp,
-  Users,
 } from "lucide-react";
+import { Shell, Reveal } from "@/components/marketing/theme";
 
 const MARGIN_RATIOS = [
   "2:8 (Vay 80%)",
@@ -36,11 +26,14 @@ const LOAN_RANGES = [
   "Trên 10 tỷ",
 ];
 
-const TRUST_BADGES = [
-  { label: "Lãi suất", value: "5.99%/năm", icon: Percent },
-  { label: "Phí giao dịch", value: "0.1%", icon: BadgePercent },
-  { label: "Tỉ lệ ký quỹ", value: "25%", icon: Shield },
-  { label: "Kinh nghiệm", value: "10+ năm", icon: Users },
+const TOC = [
+  { id: "la-gi", label: "Margin chứng khoán là gì" },
+  { id: "cach-hoat-dong", label: "Cách vay ký quỹ hoạt động" },
+  { id: "margin-call", label: "Margin call tính ở giá nào" },
+  { id: "may-tinh", label: "Máy tính margin" },
+  { id: "rui-ro", label: "Rủi ro đòn bẩy & cách kiểm soát" },
+  { id: "lai-suat", label: "Lãi suất margin: thị trường vs ADN" },
+  { id: "faq", label: "Câu hỏi thường gặp" },
 ];
 
 const FAQ_ITEMS = [
@@ -50,16 +43,15 @@ const FAQ_ITEMS = [
   },
   {
     question: "Tỉ lệ ký quỹ tối thiểu theo quy định là bao nhiêu?",
-    answer: "Tỉ lệ cho vay tối đa không vượt 50% giá trị chứng khoán được phép margin. Mỗi CTCK có thể áp dụng khác nhau.",
+    answer: "Tỉ lệ cho vay tối đa không vượt 50% giá trị chứng khoán được phép margin. Mỗi công ty chứng khoán có thể áp dụng khác nhau.",
   },
   {
     question: "Lãi suất margin tính như thế nào?",
-    answer: "Lãi ngày = Dư nợ × (Lãi suất/năm ÷ 365). Tích lũy hàng ngày, thu theo định kỳ tùy CTCK.",
+    answer: "Lãi ngày = Dư nợ × (Lãi suất/năm ÷ 365). Tích lũy hàng ngày, thu theo định kỳ tùy công ty chứng khoán.",
   },
   {
     question: "Margin call xảy ra khi nào?",
-    answer:
-      "Khi giá trị tài sản ròng (danh mục − dư nợ) giảm dưới ngưỡng ký quỹ duy trì tối thiểu. Không xử lý kịp, công ty chứng khoán có thể bán giải chấp.",
+    answer: "Khi giá trị tài sản ròng (danh mục − dư nợ) giảm dưới ngưỡng ký quỹ duy trì tối thiểu. Không xử lý kịp, công ty chứng khoán có thể bán giải chấp.",
   },
   {
     question: "Có nên dùng margin cho nhà đầu tư mới không?",
@@ -67,12 +59,25 @@ const FAQ_ITEMS = [
   },
   {
     question: "ADN Capital hỗ trợ những cổ phiếu nào được margin?",
-    answer:
-      "Cổ phiếu HOSE và HNX đủ điều kiện thanh khoản và vốn hóa theo quy định UBCKNN. Liên hệ ADN Capital để nhận danh sách hiện hành.",
+    answer: "Cổ phiếu HOSE và HNX đủ điều kiện thanh khoản và vốn hóa theo quy định UBCKNN. Liên hệ ADN Capital để nhận danh sách hiện hành.",
   },
 ];
 
 type Product = "ky-quy" | "mua-nhanh-ban-nhanh";
+
+const VON_PRESETS = [50_000_000, 100_000_000, 300_000_000, 500_000_000, 1_000_000_000];
+const LOAN_PCTS = [50, 60, 70, 80];
+const RATE_PRESETS = [5.99, 9, 12, 14];
+const MAINTENANCE = 0.35;
+
+function fmtVnd(n: number) {
+  if (!Number.isFinite(n)) return "--";
+  return `${Math.round(n).toLocaleString("vi-VN")} đ`;
+}
+function fmtShort(n: number) {
+  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toLocaleString("vi-VN", { maximumFractionDigits: 1 })} tỷ`;
+  return `${Math.round(n / 1_000_000)} triệu`;
+}
 
 export default function MarginPageClient() {
   const [form, setForm] = useState({
@@ -87,6 +92,16 @@ export default function MarginPageClient() {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
 
+  // Máy tính margin
+  const [von, setVon] = useState(100_000_000);
+  const [loanPct, setLoanPct] = useState(50);
+  const [rate, setRate] = useState(5.99);
+  const buyingPower = von / (1 - loanPct / 100);
+  const debt = buyingPower - von;
+  const interestDay = (debt * rate) / 100 / 365;
+  const interestYear = (debt * rate) / 100;
+  const callDropPct = buyingPower > 0 ? ((debt / (1 - MAINTENANCE) - buyingPower) / buyingPower) * 100 : 0;
+
   const isKyQuy = form.product === "ky-quy";
 
   const validate = () => {
@@ -95,9 +110,7 @@ export default function MarginPageClient() {
     if (!form.phone.trim()) nextErrors.phone = "Vui lòng nhập số điện thoại.";
     if (isKyQuy && !form.marginRatio) nextErrors.marginRatio = "Vui lòng chọn tỉ lệ ký quỹ.";
     if (!form.loanAmount) {
-      nextErrors.loanAmount = isKyQuy
-        ? "Vui lòng chọn hạn mức vay."
-        : "Vui lòng nhập cổ phiếu muốn giao dịch.";
+      nextErrors.loanAmount = isKyQuy ? "Vui lòng chọn hạn mức vay." : "Vui lòng nhập cổ phiếu muốn giao dịch.";
     }
     return nextErrors;
   };
@@ -109,17 +122,13 @@ export default function MarginPageClient() {
       setErrors(nextErrors);
       return;
     }
-
     setErrors({});
     setSubmitting(true);
     try {
       const res = await fetch("/api/margin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...form,
-          marginRatio: isKyQuy ? form.marginRatio : undefined,
-        }),
+        body: JSON.stringify({ ...form, marginRatio: isKyQuy ? form.marginRatio : undefined }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Không thể gửi yêu cầu tư vấn.");
@@ -131,550 +140,480 @@ export default function MarginPageClient() {
     }
   };
 
-  const setField = (field: string, value: string) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
-  };
-
+  const setField = (field: string, value: string) => setForm((prev) => ({ ...prev, [field]: value }));
   const setProduct = (product: Product) => {
     setForm((prev) => ({ ...prev, product, marginRatio: "" }));
     setErrors((prev) => {
-      const nextErrors = { ...prev };
-      delete nextErrors.marginRatio;
-      return nextErrors;
+      const next = { ...prev };
+      delete next.marginRatio;
+      return next;
     });
   };
 
-  const inputBase = "w-full px-3 py-2.5 rounded-xl text-sm outline-none transition-colors";
-  const inputStyle = (hasError: boolean) => ({
-    background: "var(--surface-2)",
-    border: `1px solid ${hasError ? "rgba(192,57,43,0.50)" : "var(--border)"}`,
-    color: "var(--text-primary)",
+  const goToForm = () => {
+    const ratioLabel = MARGIN_RATIOS.find((r) => r.includes(`Vay ${loanPct}%`));
+    setForm((prev) => ({ ...prev, product: "ky-quy", marginRatio: ratioLabel ?? prev.marginRatio }));
+    document.getElementById("tu-van")?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const fieldCls = "w-full rounded-xl px-3.5 py-2.5 text-sm outline-none transition-colors";
+  const fieldStyle = (err?: boolean) => ({
+    background: "var(--canvas)",
+    border: `1px solid ${err ? "var(--down)" : "var(--hairline)"}`,
+    color: "var(--ink)",
   });
 
   return (
-    <MainLayout>
-      <article className="mx-auto max-w-7xl space-y-8 p-4 sm:p-6">
-        <section
-          className="overflow-hidden rounded-3xl p-6 sm:p-8 lg:p-10"
-          style={{ border: "1px solid var(--border)", background: "var(--surface)" }}
-        >
-          <div className="max-w-4xl">
-            <span
-              className="mb-4 inline-flex rounded-full px-3 py-1 text-[12px] font-bold uppercase tracking-[0.3em]"
-              style={{ background: "var(--primary-light)", color: "var(--primary)", border: "1px solid var(--border)" }}
-            >
-              Giải pháp Margin
-            </span>
-            <h1 className="text-3xl font-black tracking-tight sm:text-5xl" style={{ color: "var(--text-primary)" }}>
-              Margin Chứng Khoán — Hướng Dẫn Toàn Diện & Giải Pháp Vay Ký Quỹ Lãi Suất Thấp
-            </h1>
-            <p className="mt-4 max-w-3xl text-sm leading-7 sm:text-base" style={{ color: "var(--text-secondary)" }}>
-              Hiểu đúng cơ chế, tính toán rủi ro và tối ưu chi phí vốn với dịch vụ margin chuyên nghiệp từ ADN Capital.
+    <Shell>
+      <main className="mx-auto max-w-[1180px] px-5 sm:px-8">
+        {/* HERO */}
+        <section className="grid items-start gap-10 border-b border-[var(--hairline)] py-14 sm:py-16 lg:grid-cols-12">
+          <Reveal className="lg:col-span-7">
+            <p className="dp-mono text-[12px] font-semibold uppercase tracking-[0.16em] text-[var(--gold)]">
+              Cẩm nang · Cập nhật 2026
             </p>
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-              <a
-                href="#tu-van"
-                className="inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-black transition-all active:scale-[0.98]"
-                style={{ background: "var(--primary)", color: "#EBE2CF" }}
-              >
-                Đăng ký tư vấn miễn phí <ArrowRight className="h-4 w-4" />
+            <h1 className="dp-display mt-4 text-[clamp(2.4rem,5vw,4rem)] font-bold leading-[1.05] tracking-tight">
+              Margin chứng khoán: hiểu cho đúng trước khi vay
+            </h1>
+            <p className="mt-5 max-w-[56ch] text-[18px] font-light leading-[1.65] text-[var(--ink-muted)]">
+              Vay ký quỹ là dùng tiền công ty chứng khoán để mua thêm cổ phiếu. Đòn bẩy nhân lời, nhưng cũng nhân lỗ — bài này nói thẳng cả hai mặt, rồi mới tới lãi suất.
+            </p>
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+              <a href="#tu-van" className="dp-btn dp-btn-solid dp-btn-lg">
+                Nhận tư vấn lãi suất <ArrowRight className="h-4 w-4" />
               </a>
-              <a
-                href="#faq"
-                className="inline-flex items-center justify-center gap-2 rounded-xl border px-5 py-3 text-sm font-bold transition-all"
-                style={{ borderColor: "var(--border)", color: "var(--text-primary)", background: "var(--surface-2)" }}
-              >
-                Xem câu hỏi thường gặp
-              </a>
+              <a href="#la-gi" className="dp-btn dp-btn-ghost dp-btn-lg">Đọc cẩm nang</a>
             </div>
-          </div>
+            <p className="dp-mono mt-5 text-[13px] text-[var(--ink-muted)]">
+              Lãi từ <b className="text-[var(--moss)]">5,99%/năm</b> · phí <b className="text-[var(--moss)]">0,1%</b> · tuân Thông tư 121/2020
+            </p>
+          </Reveal>
+          <Reveal delay={0.08} className="lg:col-span-5">
+            <div className="dp-panel p-5 sm:p-6">
+              <p className="dp-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--ink-faint)]">Trong bài này</p>
+              <nav className="mt-3">
+                {TOC.map((item, i) => (
+                  <a
+                    key={item.id}
+                    href={`#${item.id}`}
+                    className="flex items-center justify-between border-b border-[var(--hairline)] py-2.5 text-[14.5px] text-[var(--ink-muted)] transition-colors last:border-0 hover:text-[var(--moss)]"
+                  >
+                    <span>{item.label}</span>
+                    <span className="dp-mono text-[12px] text-[var(--ink-faint)]">{String(i + 1).padStart(2, "0")}</span>
+                  </a>
+                ))}
+              </nav>
+            </div>
+          </Reveal>
         </section>
 
-        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Thông tin nổi bật">
-          {TRUST_BADGES.map((badge) => {
-            const Icon = badge.icon;
-            return (
-              <div
-                key={badge.label}
-                className="rounded-2xl p-4"
-                style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
-              >
-                <Icon className="h-5 w-5" style={{ color: "var(--primary)" }} />
-                <p className="mt-3 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-                  {badge.label}
-                </p>
-                <p className="mt-1 text-xl font-black" style={{ color: "var(--text-primary)" }}>
-                  {badge.value}
-                </p>
-              </div>
-            );
-          })}
-        </section>
-
-        <ContentSection title="Margin chứng khoán là gì?">
+        {/* LÀ GÌ */}
+        <Section id="la-gi" title="Margin chứng khoán là gì?">
           <p>
-            Margin chứng khoán là hình thức vay ký quỹ tại công ty chứng khoán để tăng sức mua cổ phiếu.
-            Nhà đầu tư dùng một phần vốn tự có, phần còn lại là khoản vay được bảo đảm bằng chính danh mục chứng khoán.
+            Margin là vay tiền công ty chứng khoán để mua thêm cổ phiếu, lấy chính danh mục làm tài sản đảm bảo.
+            Có 100 triệu, vay thêm 100 triệu, sức mua thành 200 triệu.
           </p>
-          <HighlightBox icon={<Calculator className="h-5 w-5" />} title="Ví dụ dễ hiểu">
-            Vốn tự có 100 triệu + vay 100 triệu = sức mua 200 triệu. Nếu cổ phiếu tăng 10%, lợi nhuận tương đương
-            khoảng 20% trên vốn tự có. Ngược lại, nếu cổ phiếu giảm 10%, mức lỗ cũng bị khuếch đại lên khoảng 20%.
-          </HighlightBox>
-        </ContentSection>
+          <Highlight label="Ví dụ hai chiều">
+            Cổ phiếu lên 10% thì lời gấp đôi trên vốn. Nhưng xuống 10% thì lỗ cũng gấp đôi — và lãi vay vẫn chạy mỗi ngày dù tài khoản đang âm.
+          </Highlight>
+        </Section>
 
-        <ContentSection title="Cách hoạt động của margin trong thực tế">
+        {/* CÁCH HOẠT ĐỘNG */}
+        <Section id="cach-hoat-dong" title="Cách vay ký quỹ hoạt động">
           <div className="grid gap-3 sm:grid-cols-4">
-            {["Mở tài khoản", "Đặt lệnh", "Tính lãi", "Thanh toán"].map((step, index) => (
-              <div
-                key={step}
-                className="rounded-2xl p-4"
-                style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}
-              >
-                <span className="text-xs font-black" style={{ color: "var(--primary)" }}>
-                  Bước {index + 1}
-                </span>
-                <p className="mt-2 text-sm font-bold" style={{ color: "var(--text-primary)" }}>
-                  {step}
-                </p>
+            {["Mở tài khoản ký quỹ", "Đặt lệnh dùng sức mua", "Lãi tính theo ngày", "Trả lãi & gốc"].map((step, i) => (
+              <div key={step} className="rounded-2xl border border-[var(--hairline)] bg-[var(--surface)] p-4">
+                <span className="dp-mono text-[12px] font-semibold text-[var(--gold)]">Bước {i + 1}</span>
+                <p className="mt-2 text-[15px] font-medium text-[var(--ink)]">{step}</p>
               </div>
             ))}
           </div>
-          <FormulaBox label="Công thức tính lãi ngày">
-            Lãi ngày = Dư nợ × (Lãi suất/năm ÷ 365)
-          </FormulaBox>
+          <Formula label="Công thức tính lãi ngày">Lãi ngày = Dư nợ × (Lãi suất/năm ÷ 365)</Formula>
           <p>
-            Tỉ lệ ký quỹ ban đầu thường nằm quanh 50-75% tùy cổ phiếu và chính sách từng công ty chứng khoán.
-            Tỉ lệ duy trì thường quanh 30-40%; nếu tài sản giảm dưới ngưỡng này, tài khoản có thể bị cảnh báo.
+            Tỉ lệ ký quỹ ban đầu thường quanh 50–75% tùy cổ phiếu và chính sách từng công ty chứng khoán.
+            Tỉ lệ duy trì thường quanh 30–40%; nếu tài sản giảm dưới ngưỡng này, tài khoản có thể bị cảnh báo.
           </p>
-        </ContentSection>
+        </Section>
 
-        <ContentSection title="Cách tính margin call và mức giá cảnh báo">
-          <FormulaBox label="Công thức cảnh báo">
-            V &lt; D ÷ (1 − m)
-          </FormulaBox>
-          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-            Trong đó: V là giá trị danh mục, D là dư nợ, m là tỉ lệ duy trì.
+        {/* MARGIN CALL */}
+        <Section id="margin-call" title="Margin call là gì và tính ở giá nào">
+          <p>
+            Margin call là lúc tài khoản tụt dưới ngưỡng an toàn, công ty chứng khoán gọi bạn nộp thêm tiền.
+            Không kịp thì họ bán giải chấp — bán bằng mọi giá để thu nợ về.
           </p>
-          <HighlightBox icon={<AlertTriangle className="h-5 w-5" />} title="Ví dụ margin call">
-            Mua danh mục 200 triệu gồm vốn 100 triệu và vay 100 triệu. Nếu tỉ lệ duy trì là 35%,
-            tài khoản có thể bị margin call khi danh mục giảm dưới khoảng 153,8 triệu. Nếu không bổ sung tiền
-            hoặc giảm dư nợ kịp thời, công ty chứng khoán có thể bán giải chấp.
-          </HighlightBox>
-        </ContentSection>
+          <Formula label="Ngưỡng cảnh báo">V &lt; D ÷ (1 − m)　·　V: giá trị danh mục, D: dư nợ, m: tỉ lệ duy trì</Formula>
+          <Highlight label="Ví dụ margin call" tone="warn">
+            Danh mục 200 triệu gồm vốn 100 triệu và vay 100 triệu, tỉ lệ duy trì 35%. Tài khoản có thể bị margin call khi danh mục giảm xuống quanh 153,8 triệu (tức cổ phiếu giảm ~23%). Không bổ sung tiền kịp, công ty chứng khoán bán giải chấp.
+          </Highlight>
+        </Section>
 
-        <ContentSection title="Rủi ro khi sử dụng margin và cách kiểm soát">
+        {/* MÁY TÍNH */}
+        <section id="may-tinh" className="border-t border-[var(--hairline)] py-14 sm:py-16">
+          <div className="max-w-[640px]">
+            <p className="dp-mono text-[12px] font-semibold uppercase tracking-[0.16em] text-[var(--gold)]">Công cụ · Miễn phí</p>
+            <h2 className="dp-display mt-3 text-[clamp(1.6rem,3vw,2.3rem)] font-bold leading-tight">Máy tính margin</h2>
+            <p className="mt-3 text-[16px] font-light leading-[1.6] text-[var(--ink-muted)]">
+              Nhập vốn và tỉ lệ vay — xem ngay sức mua, lãi phải trả mỗi ngày và giá cổ phiếu rơi tới đâu thì bị margin call.
+            </p>
+          </div>
+          <div className="dp-panel mt-7 p-5 sm:p-7">
+            <div className="grid gap-7 lg:grid-cols-2">
+              <div className="space-y-5">
+                <CalcField label="Vốn tự có">
+                  <div className="flex flex-wrap gap-2">
+                    {VON_PRESETS.map((v) => (
+                      <button
+                        key={v}
+                        type="button"
+                        onClick={() => setVon(v)}
+                        className="dp-num rounded-xl px-3 py-2 text-[13px] font-semibold transition-colors"
+                        style={
+                          von === v
+                            ? { background: "var(--moss)", color: "#fff" }
+                            : { background: "var(--canvas)", border: "1px solid var(--hairline)", color: "var(--ink-muted)" }
+                        }
+                      >
+                        {fmtShort(v)}
+                      </button>
+                    ))}
+                  </div>
+                </CalcField>
+                <CalcField label="Tỉ lệ cho vay (trên giá trị danh mục)">
+                  <div className="flex flex-wrap gap-2">
+                    {LOAN_PCTS.map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setLoanPct(p)}
+                        className="dp-num rounded-xl px-3.5 py-2 text-[13px] font-semibold transition-colors"
+                        style={
+                          loanPct === p
+                            ? { background: "var(--moss)", color: "#fff" }
+                            : { background: "var(--canvas)", border: "1px solid var(--hairline)", color: "var(--ink-muted)" }
+                        }
+                      >
+                        {p}%
+                      </button>
+                    ))}
+                  </div>
+                </CalcField>
+                <CalcField label="Lãi suất / năm">
+                  <div className="flex flex-wrap gap-2">
+                    {RATE_PRESETS.map((r) => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => setRate(r)}
+                        className="dp-num rounded-xl px-3.5 py-2 text-[13px] font-semibold transition-colors"
+                        style={
+                          rate === r
+                            ? { background: "var(--moss)", color: "#fff" }
+                            : { background: "var(--canvas)", border: "1px solid var(--hairline)", color: "var(--ink-muted)" }
+                        }
+                      >
+                        {r.toLocaleString("vi-VN")}%{r === 5.99 ? " · ADN" : ""}
+                      </button>
+                    ))}
+                  </div>
+                </CalcField>
+              </div>
+
+              <div className="flex flex-col gap-3.5 rounded-2xl p-6" style={{ background: "var(--moss)", color: "#fff" }}>
+                <CalcOut label="Sức mua tối đa" value={fmtVnd(buyingPower)} big />
+                <CalcOut label="Dư nợ vay" value={fmtVnd(debt)} />
+                <CalcOut label="Lãi vay mỗi ngày" value={fmtVnd(interestDay)} />
+                <CalcOut label="Lãi vay mỗi năm" value={fmtVnd(interestYear)} />
+                <CalcOut label={`Margin call khi danh mục giảm (duy trì ${Math.round(MAINTENANCE * 100)}%)`} value={`${callDropPct.toLocaleString("vi-VN", { maximumFractionDigits: 1 })}%`} last />
+                <button type="button" onClick={goToForm} className="dp-btn dp-btn-on-dark mt-1 justify-center">
+                  Nhận tư vấn với mức lãi này <ArrowRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            <Formula label="Công thức">Lãi ngày = Dư nợ × (Lãi suất/năm ÷ 365)　·　Margin call khi V &lt; D ÷ (1 − m)</Formula>
+          </div>
+        </section>
+
+        {/* RỦI RO */}
+        <Section id="rui-ro" title="Rủi ro đòn bẩy và cách kiểm soát">
           <div className="grid gap-4 md:grid-cols-2">
-            <RiskCard title="Khuếch đại thua lỗ" text="Đòn bẩy làm lợi nhuận tăng nhanh hơn, nhưng cũng khiến thua lỗ tăng nhanh hơn khi thị trường đi ngược kỳ vọng." />
-            <RiskCard title="Lãi suất tích lũy" text="Lãi margin được tính theo ngày. Mức phổ biến trên thị trường thường quanh 8-14%/năm, vì vậy chi phí vốn cần được kiểm soát." />
+            <RiskCard title="Khuếch đại thua lỗ">
+              Đòn bẩy làm lời tăng nhanh hơn, nhưng cũng khiến lỗ tăng nhanh hơn khi thị trường đi ngược kỳ vọng.
+            </RiskCard>
+            <RiskCard title="Lãi suất tích lũy mỗi ngày">
+              Lãi margin tính theo ngày. Mức phổ biến trên thị trường quanh 8–14%/năm, nên chi phí vốn phải được kiểm soát.
+            </RiskCard>
           </div>
           <ul className="grid gap-3 sm:grid-cols-2">
             {[
-              "Không dùng toàn bộ sức mua cho một cổ phiếu.",
+              "Không dồn toàn bộ sức mua vào một cổ phiếu.",
               "Đặt ngưỡng cắt lỗ trước khi mở vị thế.",
-              "Không dùng full margin khi thị trường biến động mạnh.",
-              "Theo dõi danh mục và dư nợ hàng ngày.",
+              "Không full margin khi thị trường biến động mạnh.",
+              "Theo dõi danh mục và dư nợ mỗi ngày.",
             ].map((item) => (
-              <li key={item} className="flex gap-3 text-sm" style={{ color: "var(--text-secondary)" }}>
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "#16a34a" }} />
+              <li key={item} className="flex gap-3 text-[15px] text-[var(--ink-muted)]">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-[var(--up)]" />
                 <span>{item}</span>
               </li>
             ))}
           </ul>
-        </ContentSection>
+        </Section>
 
-        <ContentSection title="Lãi suất margin — so sánh thị trường">
-          <div className="grid gap-4 md:grid-cols-3">
-            <CompareCard title="Thị trường chung" value="8-14%/năm" text="Mức tham khảo phổ biến tùy công ty chứng khoán, cổ phiếu và chương trình vay." />
-            <CompareCard title="ADN Capital" value="Từ 5.99%/năm" text="Giải pháp tối ưu chi phí vốn cho khách hàng cần tư vấn margin chuyên nghiệp." highlight />
-            <CompareCard title="Phí giao dịch ADN" value="Từ 0.1%" text="Tối ưu tổng chi phí giao dịch khi sử dụng vốn vay ký quỹ." />
+        {/* LÃI SUẤT */}
+        <section id="lai-suat" className="border-t border-[var(--hairline)] py-14 sm:py-16">
+          <div className="max-w-[640px]">
+            <p className="dp-mono text-[12px] font-semibold uppercase tracking-[0.16em] text-[var(--gold)]">So sánh</p>
+            <h2 className="dp-display mt-3 text-[clamp(1.6rem,3vw,2.3rem)] font-bold leading-tight">Lãi suất margin: thị trường vs ADN</h2>
           </div>
-        </ContentSection>
+          <div className="mt-7 grid gap-4 md:grid-cols-3">
+            <CompareCard title="Thị trường chung" value="8–14%/năm" text="Mức phổ biến tùy công ty chứng khoán và cổ phiếu." />
+            <CompareCard title="ADN Capital" value="từ 5,99%/năm" text="Chênh lãi này ăn thẳng vào lời của bạn khi ôm hàng dài." highlight cta={<a href="#tu-van" className="dp-btn dp-btn-solid mt-4" style={{ padding: ".5rem 1rem", fontSize: 13 }}>Khoá mức 5,99% <ArrowRight className="h-3.5 w-3.5" /></a>} />
+            <CompareCard title="Phí giao dịch" value="0,1%" text="Tối ưu tổng chi phí khi dùng vốn vay ký quỹ." />
+          </div>
+        </section>
 
-        <ContentSection title="Tại sao chọn ADN Capital?">
-          <div className="grid gap-4 md:grid-cols-5">
+        {/* VÌ SAO ADN */}
+        <Section id="vi-sao-adn" title="Vì sao chọn ADN Capital">
+          <ul className="divide-y divide-[var(--hairline)]">
             {[
-              { icon: Shield, title: "Kỷ luật rủi ro", text: "Tư vấn theo khả năng chịu rủi ro." },
-              { icon: Percent, title: "Chi phí thấp", text: "Lãi suất và phí cạnh tranh." },
-              { icon: Layers, title: "Gói linh hoạt", text: "Nhiều lựa chọn theo nhu cầu vốn." },
-              { icon: TrendingUp, title: "Dữ liệu hỗ trợ", text: "Theo dõi thị trường và danh mục." },
-              { icon: Users, title: "Đồng hành", text: "Đội ngũ tư vấn sát nhu cầu." },
-            ].map((item) => {
-              const Icon = item.icon;
-              return (
-                <div
-                  key={item.title}
-                  className="rounded-2xl p-4"
-                  style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}
-                >
-                  <Icon className="h-5 w-5" style={{ color: "var(--primary)" }} />
-                  <h3 className="mt-3 text-sm font-black" style={{ color: "var(--text-primary)" }}>
-                    {item.title}
-                  </h3>
-                  <p className="mt-2 text-xs leading-5" style={{ color: "var(--text-secondary)" }}>
-                    {item.text}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        </ContentSection>
+              ["Lãi suất thấp, phí cạnh tranh", "Từ 5,99%/năm và phí 0,1% — giữ lại nhiều lợi nhuận hơn cho danh mục dài hạn."],
+              ["Tư vấn theo khẩu vị rủi ro", "Đội ngũ tư vấn hạn mức và tỉ lệ vay phù hợp năng lực chịu rủi ro, không khuyến khích full margin."],
+              ["Dữ liệu hỗ trợ ra quyết định", "Theo dõi thị trường, danh mục và dư nợ để chủ động trước margin call."],
+              ["Tuân thủ quy định", "Hoạt động theo Thông tư 121/2020/TT-BTC, dưới giám sát của UBCKNN."],
+            ].map(([t, d]) => (
+              <li key={t} className="flex flex-col gap-1 py-4 sm:flex-row sm:gap-6">
+                <h3 className="dp-display shrink-0 text-[18px] font-semibold sm:w-[260px]">{t}</h3>
+                <p className="text-[15px] leading-[1.6] text-[var(--ink-muted)]">{d}</p>
+              </li>
+            ))}
+          </ul>
+        </Section>
 
-        <section
-          id="faq"
-          className="rounded-3xl p-5 sm:p-6"
-          style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
-        >
-          <div className="mb-5 flex items-center gap-3">
-            <HelpCircle className="h-5 w-5" style={{ color: "var(--primary)" }} />
-            <h2 className="text-xl font-black sm:text-2xl" style={{ color: "var(--text-primary)" }}>
-              Câu hỏi thường gặp về margin chứng khoán
-            </h2>
+        {/* FAQ */}
+        <section id="faq" className="border-t border-[var(--hairline)] py-14 sm:py-16">
+          <div className="max-w-[640px]">
+            <p className="dp-mono text-[12px] font-semibold uppercase tracking-[0.16em] text-[var(--gold)]">Hỏi đáp</p>
+            <h2 className="dp-display mt-3 text-[clamp(1.6rem,3vw,2.3rem)] font-bold leading-tight">Câu hỏi thường gặp về margin</h2>
           </div>
-          <div className="space-y-3">
+          <div className="mt-7 space-y-3">
             {FAQ_ITEMS.map((item) => (
-              <details
-                key={item.question}
-                className="group rounded-2xl p-4"
-                style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}
-              >
-                <summary className="cursor-pointer list-none text-sm font-bold" style={{ color: "var(--text-primary)" }}>
+              <details key={item.question} className="dp-faq rounded-2xl border border-[var(--hairline)] bg-[var(--surface)] p-4 sm:p-5">
+                <summary className="flex cursor-pointer items-center justify-between gap-4 text-[15.5px] font-semibold text-[var(--ink)]">
                   {item.question}
+                  <ChevronDown className="dp-faq-icon h-4 w-4 shrink-0 text-[var(--ink-faint)]" />
                 </summary>
-                <p className="mt-3 text-sm leading-7" style={{ color: "var(--text-secondary)" }}>
-                  {item.answer}
-                </p>
+                <p className="mt-3 text-[15px] leading-[1.7] text-[var(--ink-muted)]">{item.answer}</p>
               </details>
             ))}
           </div>
         </section>
 
-        <section id="tu-van" className="grid grid-cols-1 items-start gap-8 lg:grid-cols-2">
-          <div className="space-y-6">
-            <div>
-              <h2 className="mb-2 text-2xl font-black" style={{ color: "var(--text-primary)" }}>
-                Tư Vấn Theo Nhu Cầu
-              </h2>
-              <p className="text-sm leading-7" style={{ color: "var(--text-secondary)" }}>
-                Điền thông tin để đội ngũ chuyên gia ADN Capital liên hệ tư vấn sản phẩm phù hợp nhất với chiến lược đầu tư của bạn.
-              </p>
-            </div>
-            <div className="space-y-3">
-              {[
-                "Tư vấn hoàn toàn miễn phí.",
-                "Thông tin được bảo mật.",
-                "Phản hồi trong vòng 2 giờ làm việc.",
-                "Tối ưu chi phí vốn theo nhu cầu.",
-              ].map((text) => (
-                <div key={text} className="flex items-center gap-3">
-                  <CheckCircle2 className="h-4 w-4 shrink-0" style={{ color: "#16a34a" }} />
-                  <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
-                    {text}
-                  </span>
+        {/* FORM */}
+        <section id="tu-van" className="py-14 sm:py-16">
+          <div className="dp-cta overflow-hidden rounded-[24px] p-6 sm:p-10" style={{ color: "#fff" }}>
+            <div className="grid items-center gap-10 lg:grid-cols-2">
+              <div>
+                <p className="dp-mono text-[12px] font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--gold)" }}>Tư vấn theo nhu cầu</p>
+                <h2 className="dp-display mt-3 text-[clamp(1.7rem,3vw,2.4rem)] font-bold leading-tight" style={{ color: "#fff" }}>
+                  Để lại số, ADN gọi lại trong 2 giờ làm việc
+                </h2>
+                <div className="mt-6 space-y-3">
+                  {["Tư vấn hoàn toàn miễn phí.", "Tối ưu lãi suất theo hạn mức và danh mục.", "Thông tin được bảo mật."].map((t) => (
+                    <div key={t} className="flex items-center gap-3 text-[15px]" style={{ color: "rgba(255,255,255,0.86)" }}>
+                      <Check className="h-4 w-4 shrink-0" style={{ color: "#aed3b7" }} />
+                      <span>{t}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-            <p className="border-t pt-5 text-xs leading-6" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
-              Thông tin của quý nhà đầu tư được sử dụng cho mục đích tư vấn sản phẩm và chăm sóc khách hàng.
-            </p>
-          </div>
-
-          <div
-            className="rounded-3xl p-5 sm:p-6"
-            style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
-          >
-            {success ? (
-              <div className="flex flex-col items-center justify-center space-y-4 py-10 text-center">
-                <div
-                  className="flex h-14 w-14 items-center justify-center rounded-full"
-                  style={{ background: "rgba(22,163,74,0.10)", border: "1px solid rgba(22,163,74,0.20)" }}
-                >
-                  <CheckCircle2 className="h-7 w-7" style={{ color: "#16a34a" }} />
-                </div>
-                <h3 className="text-lg font-black" style={{ color: "var(--text-primary)" }}>
-                  Đăng ký thành công!
-                </h3>
-                <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-                  Đội ngũ ADN Capital sẽ liên hệ với bạn sớm nhất có thể.
+                <p className="mt-6 text-[13px] leading-[1.6]" style={{ color: "rgba(255,255,255,0.6)" }}>
+                  Thông tin của quý nhà đầu tư được dùng cho mục đích tư vấn sản phẩm. Hoạt động theo Thông tư 121/2020/TT-BTC.
                 </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSuccess(false);
-                    setForm({ name: "", email: "", phone: "", product: "ky-quy", marginRatio: "", loanAmount: "" });
-                  }}
-                  className="mt-2 cursor-pointer text-xs hover:underline"
-                  style={{ color: "#16a34a" }}
-                >
-                  Gửi thêm yêu cầu
-                </button>
               </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <FormField label="Họ và Tên" required icon={<Users className="h-4 w-4" />} error={errors.name}>
-                    <input
-                      type="text"
-                      value={form.name}
-                      onChange={(event) => setField("name", event.target.value)}
-                      placeholder="Nguyễn Văn A"
-                      className={inputBase}
-                      style={inputStyle(!!errors.name)}
-                    />
-                  </FormField>
-                  <FormField label="Số điện thoại" required icon={<Phone className="h-4 w-4" />} error={errors.phone}>
-                    <input
-                      type="tel"
-                      value={form.phone}
-                      onChange={(event) => setField("phone", event.target.value)}
-                      placeholder="0912 345 678"
-                      className={inputBase}
-                      style={inputStyle(!!errors.phone)}
-                    />
-                  </FormField>
-                </div>
 
-                <FormField label="Email" icon={<Mail className="h-4 w-4" />}>
-                  <input
-                    type="email"
-                    value={form.email}
-                    onChange={(event) => setField("email", event.target.value)}
-                    placeholder="email@example.com"
-                    className={inputBase}
-                    style={inputStyle(false)}
-                  />
-                </FormField>
-
-                <div>
-                  <label className="mb-2 block text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
-                    Sản phẩm cần tư vấn <span style={{ color: "var(--danger)" }}>*</span>
-                  </label>
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    {[
-                      { value: "ky-quy" as Product, label: "Ký quỹ Margin" },
-                      { value: "mua-nhanh-ban-nhanh" as Product, label: "Mua nhanh - Bán nhanh" },
-                    ].map((item) => {
-                      const selected = form.product === item.value;
-                      return (
-                        <button
-                          key={item.value}
-                          type="button"
-                          onClick={() => setProduct(item.value)}
-                          className="flex cursor-pointer items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-all"
-                          style={
-                            selected
-                              ? { background: "var(--primary-light)", border: "1px solid var(--border)", color: "var(--primary)" }
-                              : { background: "var(--bg-hover)", border: "1px solid var(--border)", color: "var(--text-secondary)" }
-                          }
-                        >
-                          <span
-                            className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full"
-                            style={{ border: `2px solid ${selected ? "var(--primary)" : "var(--text-muted)"}` }}
-                          >
-                            {selected && <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--primary)" }} />}
-                          </span>
-                          {item.label}
-                        </button>
-                      );
-                    })}
+              <div className="rounded-[18px] p-5 sm:p-6" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.16)" }}>
+                {success ? (
+                  <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
+                    <div className="grid h-14 w-14 place-items-center rounded-full" style={{ background: "rgba(174,211,183,0.18)" }}>
+                      <Check className="h-7 w-7" style={{ color: "#aed3b7" }} />
+                    </div>
+                    <h3 className="dp-display text-[20px] font-bold" style={{ color: "#fff" }}>Đã nhận yêu cầu!</h3>
+                    <p className="text-[14px]" style={{ color: "rgba(255,255,255,0.8)" }}>ADN Capital sẽ liên hệ với bạn sớm nhất.</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSuccess(false);
+                        setForm({ name: "", email: "", phone: "", product: "ky-quy", marginRatio: "", loanAmount: "" });
+                      }}
+                      className="mt-1 text-[13px] underline"
+                      style={{ color: "#aed3b7" }}
+                    >
+                      Gửi thêm yêu cầu
+                    </button>
                   </div>
-                </div>
-
-                {isKyQuy && (
-                  <FormField label="Tỉ lệ cho vay" required icon={<ChevronDown className="h-4 w-4" />} error={errors.marginRatio}>
-                    <select
-                      value={form.marginRatio}
-                      onChange={(event) => setField("marginRatio", event.target.value)}
-                      className={`${inputBase} cursor-pointer appearance-none`}
-                      style={inputStyle(!!errors.marginRatio)}
-                    >
-                      <option value="">Chọn tỉ lệ ký quỹ...</option>
-                      {MARGIN_RATIOS.map((ratio) => (
-                        <option key={ratio} value={ratio}>
-                          {ratio}
-                        </option>
-                      ))}
-                    </select>
-                  </FormField>
-                )}
-
-                {isKyQuy ? (
-                  <FormField label="Hạn mức vay mong muốn" required error={errors.loanAmount}>
-                    <select
-                      value={form.loanAmount}
-                      onChange={(event) => setField("loanAmount", event.target.value)}
-                      className={`${inputBase} cursor-pointer appearance-none`}
-                      style={inputStyle(!!errors.loanAmount)}
-                    >
-                      <option value="">Chọn hạn mức...</option>
-                      {LOAN_RANGES.map((range) => (
-                        <option key={range} value={range}>
-                          {range}
-                        </option>
-                      ))}
-                    </select>
-                  </FormField>
                 ) : (
-                  <FormField label="Cổ phiếu muốn giao dịch T0" required error={errors.loanAmount}>
-                    <input
-                      type="text"
-                      value={form.loanAmount}
-                      onChange={(event) => setField("loanAmount", event.target.value)}
-                      placeholder="VD: VNM, FPT, HPG..."
-                      className={inputBase}
-                      style={inputStyle(!!errors.loanAmount)}
-                    />
-                  </FormField>
+                  <form onSubmit={handleSubmit} className="space-y-3.5" noValidate>
+                    <div className="grid gap-3.5 sm:grid-cols-2">
+                      <FormField label="Họ và tên" required error={errors.name}>
+                        <input type="text" value={form.name} onChange={(e) => setField("name", e.target.value)} placeholder="Nguyễn Văn A" className={fieldCls} style={fieldStyle(!!errors.name)} />
+                      </FormField>
+                      <FormField label="Số điện thoại" required error={errors.phone}>
+                        <input type="tel" value={form.phone} onChange={(e) => setField("phone", e.target.value)} placeholder="0912 345 678" className={fieldCls} style={fieldStyle(!!errors.phone)} />
+                      </FormField>
+                    </div>
+                    <FormField label="Email">
+                      <input type="email" value={form.email} onChange={(e) => setField("email", e.target.value)} placeholder="email@example.com (không bắt buộc)" className={fieldCls} style={fieldStyle(false)} />
+                    </FormField>
+                    <FormField label="Sản phẩm cần tư vấn" required>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { value: "ky-quy" as Product, label: "Ký quỹ Margin" },
+                          { value: "mua-nhanh-ban-nhanh" as Product, label: "Mua nhanh - Bán nhanh" },
+                        ].map((item) => {
+                          const selected = form.product === item.value;
+                          return (
+                            <button
+                              key={item.value}
+                              type="button"
+                              onClick={() => setProduct(item.value)}
+                              className="rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-colors"
+                              style={
+                                selected
+                                  ? { background: "rgba(174,211,183,0.16)", border: "1px solid #aed3b7", color: "#fff" }
+                                  : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.16)", color: "rgba(255,255,255,0.7)" }
+                              }
+                            >
+                              {item.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </FormField>
+                    {isKyQuy && (
+                      <FormField label="Tỉ lệ cho vay" required error={errors.marginRatio}>
+                        <select value={form.marginRatio} onChange={(e) => setField("marginRatio", e.target.value)} className={`${fieldCls} appearance-none`} style={fieldStyle(!!errors.marginRatio)}>
+                          <option value="">Chọn tỉ lệ ký quỹ...</option>
+                          {MARGIN_RATIOS.map((r) => <option key={r} value={r}>{r}</option>)}
+                        </select>
+                      </FormField>
+                    )}
+                    {isKyQuy ? (
+                      <FormField label="Hạn mức vay mong muốn" required error={errors.loanAmount}>
+                        <select value={form.loanAmount} onChange={(e) => setField("loanAmount", e.target.value)} className={`${fieldCls} appearance-none`} style={fieldStyle(!!errors.loanAmount)}>
+                          <option value="">Chọn hạn mức...</option>
+                          {LOAN_RANGES.map((r) => <option key={r} value={r}>{r}</option>)}
+                        </select>
+                      </FormField>
+                    ) : (
+                      <FormField label="Cổ phiếu muốn giao dịch T0" required error={errors.loanAmount}>
+                        <input type="text" value={form.loanAmount} onChange={(e) => setField("loanAmount", e.target.value)} placeholder="VD: VNM, FPT, HPG..." className={fieldCls} style={fieldStyle(!!errors.loanAmount)} />
+                      </FormField>
+                    )}
+                    {errors.submit && <p className="text-[13px]" style={{ color: "#f4b9ad" }}>{errors.submit}</p>}
+                    <button type="submit" disabled={submitting} className="dp-btn dp-btn-on-dark w-full justify-center disabled:opacity-60" style={{ padding: ".8rem" }}>
+                      {submitting ? (<><Loader2 className="h-4 w-4 animate-spin" /> Đang gửi...</>) : "Gửi yêu cầu tư vấn"}
+                    </button>
+                  </form>
                 )}
-
-                {errors.submit && (
-                  <p className="text-xs" style={{ color: "var(--danger)" }}>
-                    {errors.submit}
-                  </p>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl py-3 text-sm font-black transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-                  style={{ background: "var(--primary)", color: "#EBE2CF" }}
-                >
-                  {submitting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Đang gửi...
-                    </>
-                  ) : (
-                    "Đăng ký tư vấn ngay"
-                  )}
-                </button>
-              </form>
-            )}
+              </div>
+            </div>
           </div>
-        </section>
 
-        <p className="text-center text-xs italic leading-6" style={{ color: "var(--text-muted)" }}>
-          Thông tin trong bài mang tính tham khảo, không phải khuyến nghị đầu tư. Nhà đầu tư cần tự đánh giá khả năng chịu rủi ro
-          trước khi quyết định sử dụng đòn bẩy tài chính.
-        </p>
-      </article>
-    </MainLayout>
+          <p className="mt-8 flex items-start gap-2 text-center text-[13px] italic leading-[1.6] text-[var(--ink-faint)]">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>Thông tin trong bài mang tính tham khảo, không phải khuyến nghị đầu tư. Margin là đòn bẩy — nhà đầu tư cần tự đánh giá khả năng chịu rủi ro trước khi sử dụng.</span>
+          </p>
+        </section>
+      </main>
+
+      {/* Sticky CTA mobile */}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--hairline)] p-3 lg:hidden" style={{ background: "color-mix(in srgb, var(--canvas) 92%, transparent)", backdropFilter: "blur(10px)" }}>
+        <a href="#tu-van" className="dp-btn dp-btn-solid w-full justify-center">Nhận tư vấn lãi suất từ 5,99% <ArrowRight className="h-4 w-4" /></a>
+      </div>
+    </Shell>
   );
 }
 
-function ContentSection({ title, children }: { title: string; children: ReactNode }) {
+function Section({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   return (
-    <section
-      className="space-y-5 rounded-3xl p-5 sm:p-6"
-      style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
-    >
-      <h2 className="text-xl font-black sm:text-2xl" style={{ color: "var(--text-primary)" }}>
-        {title}
-      </h2>
-      <div className="space-y-5 text-sm leading-7" style={{ color: "var(--text-secondary)" }}>
-        {children}
-      </div>
+    <section id={id} className="border-t border-[var(--hairline)] py-14 sm:py-16">
+      <h2 className="dp-display max-w-[760px] text-[clamp(1.6rem,3vw,2.3rem)] font-bold leading-tight">{title}</h2>
+      <div className="mt-6 max-w-[760px] space-y-5 text-[16px] leading-[1.7] text-[var(--ink-muted)]">{children}</div>
     </section>
   );
 }
 
-function HighlightBox({ icon, title, children }: { icon: ReactNode; title: string; children: ReactNode }) {
+function Highlight({ label, tone = "moss", children }: { label: string; tone?: "moss" | "warn"; children: ReactNode }) {
+  const accent = tone === "warn" ? "var(--down)" : "var(--moss)";
+  return (
+    <div className="rounded-[14px] border border-[var(--hairline)] p-5" style={{ background: "linear-gradient(160deg,#fcfbf6,#eef0e9)", borderLeft: `3px solid ${accent}` }}>
+      <p className="dp-mono text-[12px] font-semibold uppercase tracking-[0.08em]" style={{ color: accent }}>{label}</p>
+      <p className="mt-2 text-[15px] leading-[1.65] text-[var(--ink-muted)]">{children}</p>
+    </div>
+  );
+}
+
+function Formula({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="rounded-[12px] border border-[var(--hairline)] p-4" style={{ background: "var(--surface-2)" }}>
+      <p className="dp-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--ink-faint)]">{label}</p>
+      <p className="dp-mono mt-2 text-[15px] font-semibold text-[var(--ink)]">{children}</p>
+    </div>
+  );
+}
+
+function RiskCard({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="rounded-2xl border border-[var(--hairline)] bg-[var(--surface)] p-5">
+      <AlertTriangle className="h-5 w-5" style={{ color: "var(--down)" }} />
+      <h3 className="dp-display mt-3 text-[17px] font-semibold text-[var(--ink)]">{title}</h3>
+      <p className="mt-2 text-[15px] leading-[1.6] text-[var(--ink-muted)]">{children}</p>
+    </div>
+  );
+}
+
+function CompareCard({ title, value, text, highlight, cta }: { title: string; value: string; text: string; highlight?: boolean; cta?: ReactNode }) {
   return (
     <div
-      className="rounded-2xl p-4"
-      style={{ background: "var(--primary-light)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+      className="flex flex-col rounded-2xl p-6"
+      style={
+        highlight
+          ? { background: "linear-gradient(160deg,#fcfbf6,#eef0e9)", border: "2px solid var(--moss)" }
+          : { background: "var(--surface)", border: "1px solid var(--hairline)" }
+      }
     >
-      <div className="mb-2 flex items-center gap-2 font-black" style={{ color: "var(--primary)" }}>
-        {icon}
-        <span>{title}</span>
-      </div>
-      <p className="text-sm leading-7" style={{ color: "var(--text-secondary)" }}>
-        {children}
-      </p>
+      <p className="dp-mono text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: highlight ? "var(--gold)" : "var(--ink-faint)" }}>{title}</p>
+      <p className="dp-display dp-num mt-2 text-[30px] font-bold" style={{ color: highlight ? "var(--moss)" : "var(--ink)" }}>{value}</p>
+      <p className="mt-3 text-[14px] leading-[1.55] text-[var(--ink-muted)]">{text}</p>
+      {cta}
     </div>
   );
 }
 
-function FormulaBox({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div
-      className="rounded-2xl p-4 font-mono text-sm"
-      style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
-    >
-      <p className="mb-2 font-sans text-xs font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-        {label}
-      </p>
-      <p className="font-black">{children}</p>
-    </div>
-  );
-}
-
-function RiskCard({ title, text }: { title: string; text: string }) {
-  return (
-    <div className="rounded-2xl p-4" style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}>
-      <AlertTriangle className="h-5 w-5" style={{ color: "#f59e0b" }} />
-      <h3 className="mt-3 text-sm font-black" style={{ color: "var(--text-primary)" }}>
-        {title}
-      </h3>
-      <p className="mt-2 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
-        {text}
-      </p>
-    </div>
-  );
-}
-
-function CompareCard({ title, value, text, highlight }: { title: string; value: string; text: string; highlight?: boolean }) {
-  return (
-    <div
-      className="rounded-2xl p-5"
-      style={{
-        background: highlight ? "var(--primary-light)" : "var(--surface-2)",
-        border: `1px solid ${highlight ? "rgba(46,77,61,0.35)" : "var(--border)"}`,
-      }}
-    >
-      <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-        {title}
-      </p>
-      <p className="mt-2 text-2xl font-black" style={{ color: highlight ? "var(--primary)" : "var(--text-primary)" }}>
-        {value}
-      </p>
-      <p className="mt-3 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
-        {text}
-      </p>
-    </div>
-  );
-}
-
-function FormField({
-  label,
-  required,
-  icon,
-  error,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  icon?: ReactNode;
-  error?: string;
-  children: ReactNode;
-}) {
+function CalcField({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
-      <label className="mb-1.5 block text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
-        {label} {required && <span style={{ color: "var(--danger)" }}>*</span>}
+      <p className="dp-mono mb-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--ink-faint)]">{label}</p>
+      {children}
+    </div>
+  );
+}
+
+function CalcOut({ label, value, big, last }: { label: string; value: string; big?: boolean; last?: boolean }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3" style={last ? {} : { borderBottom: "1px solid rgba(255,255,255,0.14)", paddingBottom: 12 }}>
+      <span className="text-[13.5px]" style={{ color: "rgba(255,255,255,0.82)" }}>{label}</span>
+      <span className={`dp-num ${big ? "dp-display text-[28px] font-bold" : "text-[17px] font-semibold"}`}>{value}</span>
+    </div>
+  );
+}
+
+function FormField({ label, required, error, children }: { label: string; required?: boolean; error?: string; children: ReactNode }) {
+  return (
+    <div>
+      <label className="dp-mono mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.06em]" style={{ color: "rgba(255,255,255,0.66)" }}>
+        {label} {required && <span style={{ color: "#f4b9ad" }}>*</span>}
       </label>
-      <div className="relative">
-        {icon && (
-          <span className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }}>
-            {icon}
-          </span>
-        )}
-        <div className={icon ? "pl-9" : ""}>{children}</div>
-      </div>
-      {error && (
-        <p className="mt-1 text-[12px]" style={{ color: "var(--danger)" }}>
-          {error}
-        </p>
-      )}
+      {children}
+      {error && <p className="mt-1 text-[12px]" style={{ color: "#f4b9ad" }}>{error}</p>}
     </div>
   );
 }
