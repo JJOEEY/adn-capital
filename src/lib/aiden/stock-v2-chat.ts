@@ -2,6 +2,7 @@ import { getDatabaseAidenTickerContext, assertAidenStockDatasetAllowed } from "@
 import type { DatabaseAidenTickerContext } from "@/lib/database/aiden/types";
 import { prisma } from "@/lib/prisma";
 import { isIndexTicker } from "@/lib/vn-reference-indices";
+import { fetchIncomeStatement, incomeYoY, type IncomeStatement } from "@/lib/research/income-statement";
 
 type AidenStockV2Input = {
   message: string;
@@ -224,7 +225,22 @@ function renderFundamental(ctx: DatabaseAidenTickerContext) {
   return "Hệ thống hiện chưa có số liệu FA đủ dùng cho mã này.";
 }
 
-function renderSingleTicker(ctx: DatabaseAidenTickerContext) {
+// ADN Stock: 1 dòng gọn "Kết quả kinh doanh" — doanh thu · LNTT · LNST + tăng trưởng YoY (kỳ gần nhất).
+function incomeStatementLine(income: IncomeStatement | null): string | null {
+  if (!income || income.periods.length === 0) return null;
+  const p = income.periods[0];
+  const parts = [
+    p.netRevenueBn != null ? `Doanh thu ${formatNumber(p.netRevenueBn, 0)} tỷ` : null,
+    p.profitBeforeTaxBn != null ? `LN trước thuế ${formatNumber(p.profitBeforeTaxBn, 0)} tỷ` : null,
+    p.profitAfterTaxBn != null ? `LN sau thuế ${formatNumber(p.profitAfterTaxBn, 0)} tỷ` : null,
+  ].filter((x): x is string => x != null);
+  if (parts.length === 0) return null;
+  const yoy = incomeYoY(income.periods, "profitAfterTaxBn");
+  const yoyText = yoy != null ? ` — LNST ${yoy >= 0 ? "+" : ""}${yoy}% so với cùng kỳ năm trước` : "";
+  return `Kết quả kinh doanh ${p.period}: ${parts.join(" · ")}${yoyText}.`;
+}
+
+function renderSingleTicker(ctx: DatabaseAidenTickerContext, income: IncomeStatement | null = null) {
   const price = ctx.market.price ?? ctx.dailyOhlcv?.close ?? null;
   const changePct = ctx.market.changePct;
   const limitTag =
@@ -276,6 +292,7 @@ function renderSingleTicker(ctx: DatabaseAidenTickerContext) {
     "",
     "**Phân tích cơ bản**",
     renderFundamental(ctx),
+    incomeStatementLine(income),
     "",
     "**Kịch bản rủi ro**",
     `- Rủi ro tăng nếu giá mất vùng hỗ trợ ${supportText ?? "gần nhất"}.${macd ? ` MACD histogram ${macd} cho thấy xung lực cần thêm xác nhận.` : ""}`,
@@ -426,11 +443,24 @@ export async function runAidenStockChatV2Only(input: AidenStockV2Input): Promise
     };
   }
 
-  const results = await Promise.all(tickers.map((ticker) => getDatabaseAidenTickerContext({ ticker })));
+  // Kết quả kinh doanh (LNTT/LNST) fetch SONG SONG; chỉ cho cổ phiếu (bỏ chỉ số).
+  const [results, incomes] = await Promise.all([
+    Promise.all(tickers.map((ticker) => getDatabaseAidenTickerContext({ ticker }))),
+    Promise.all(
+      tickers.map((ticker) =>
+        isIndexTicker(ticker) ? Promise.resolve(null) : fetchIncomeStatement(ticker).catch(() => null),
+      ),
+    ),
+  ]);
+  const incomeByTicker = new Map(tickers.map((t, i) => [t.toUpperCase(), incomes[i]]));
   const contexts = results.map((result) => result.data).filter((item): item is DatabaseAidenTickerContext => Boolean(item));
 
   const rendered = contexts.length
-    ? contexts.map((ctx) => (isIndexTicker(ctx.ticker) ? renderSingleIndex(ctx) : renderSingleTicker(ctx)))
+    ? contexts.map((ctx) =>
+        isIndexTicker(ctx.ticker)
+          ? renderSingleIndex(ctx)
+          : renderSingleTicker(ctx, incomeByTicker.get(ctx.ticker.toUpperCase()) ?? null),
+      )
     : [`Hệ thống hiện chưa có dữ liệu đủ dùng cho ${tickers.join(", ")}. Anh/chị thử làm mới lại sau ít phút.`];
 
   const message = [
