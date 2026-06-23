@@ -37,7 +37,7 @@ export async function renderBriefImageBuffer(kind: BriefImageKind, value: unknow
 
 export const BRIEF_IMAGE_WIDTH = 1080;
 export const BRIEF_IMAGE_HEIGHT = 1350;
-export const BRIEF_IMAGE_HEIGHT_MORNING = 1900; // morning có nhiều bullet → cao hơn EOD, tránh tràn/cắt
+export const BRIEF_IMAGE_HEIGHT_MORNING = 2000; // morning có nhiều bullet → cao hơn EOD, tránh tràn/cắt
 
 type NormalizedIndex = {
   name: string;
@@ -513,9 +513,9 @@ function MorningImage({ data }: { data: NormalizedMorningBrief }) {
           <Bullets items={data.macro} max={2} limit={330} />
         </div>
 
-        <div style={{ ...card, padding: 26 }}>
+        <div style={{ ...card, padding: 26, marginBottom: 20 }}>
           <div style={heading("", "", "#b4541f")}>⚠️ RỦI RO / CƠ HỘI</div>
-          <Bullets items={data.riskOpportunity} max={4} limit={200} />
+          <Bullets items={data.riskOpportunity} max={4} limit={185} />
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, marginTop: "auto", paddingTop: 24 }}>
