@@ -29,7 +29,7 @@ export async function renderBriefImageBuffer(kind: BriefImageKind, value: unknow
   const fonts = loadBriefFonts();
   const response = new ImageResponse(renderBriefImage(kind, value), {
     width: BRIEF_IMAGE_WIDTH,
-    height: BRIEF_IMAGE_HEIGHT,
+    height: kind === "morning" ? BRIEF_IMAGE_HEIGHT_MORNING : BRIEF_IMAGE_HEIGHT,
     ...(fonts.length ? { fonts } : {}),
   });
   return response.arrayBuffer();
@@ -37,6 +37,7 @@ export async function renderBriefImageBuffer(kind: BriefImageKind, value: unknow
 
 export const BRIEF_IMAGE_WIDTH = 1080;
 export const BRIEF_IMAGE_HEIGHT = 1350;
+export const BRIEF_IMAGE_HEIGHT_MORNING = 1820; // morning có nhiều bullet → cao hơn EOD, tránh tràn/cắt
 
 type NormalizedIndex = {
   name: string;
@@ -418,7 +419,7 @@ function MorningImage({ data }: { data: NormalizedMorningBrief }) {
 
   const page: CSSProperties = {
     width: BRIEF_IMAGE_WIDTH,
-    height: BRIEF_IMAGE_HEIGHT,
+    height: BRIEF_IMAGE_HEIGHT_MORNING,
     display: "flex",
     backgroundColor: "#e7e9e2",
     padding: 26,
@@ -488,7 +489,7 @@ function MorningImage({ data }: { data: NormalizedMorningBrief }) {
             const hasVal = item.value != null;
             const positive = (item.changePct ?? 0) >= 0;
             return (
-              <div key={item.name} style={{ ...card, flex: 1, padding: 16, gap: 7 }}>
+              <div key={item.name} style={{ ...card, flex: 1, padding: 18, gap: 8 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div style={{ display: "flex", color: ink, fontSize: 16, fontWeight: 900 }}>{item.name}</div>
                   <div style={{ display: "flex", color: muted, fontSize: 16, fontWeight: 800 }}>{indexCode(item.name)}</div>
@@ -504,17 +505,17 @@ function MorningImage({ data }: { data: NormalizedMorningBrief }) {
 
         <div style={{ ...card, padding: 26, marginBottom: 18 }}>
           <div style={heading("", "")}>📊 ĐIỂM TIN VIỆT NAM NỔI BẬT</div>
-          <Bullets items={data.market} max={5} limit={150} />
+          <Bullets items={data.market} max={5} limit={270} />
         </div>
 
         <div style={{ ...card, padding: 26, marginBottom: 18 }}>
           <div style={heading("", "")}>🌐 VĨ MÔ TRONG NƯỚC &amp; QUỐC TẾ</div>
-          <Bullets items={data.macro} max={2} limit={220} />
+          <Bullets items={data.macro} max={2} limit={330} />
         </div>
 
         <div style={{ ...card, padding: 26 }}>
           <div style={heading("", "", "#b4541f")}>⚠️ RỦI RO / CƠ HỘI</div>
-          <Bullets items={data.riskOpportunity} max={4} limit={170} />
+          <Bullets items={data.riskOpportunity} max={4} limit={200} />
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, marginTop: "auto", paddingTop: 24 }}>
