@@ -1,6 +1,39 @@
 import type { CSSProperties, ReactNode } from "react";
+import { ImageResponse } from "next/og";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 export type BriefImageKind = "morning" | "eod";
+
+type LoadedFont = { name: string; data: Buffer; weight: 400 | 700 | 800; style: "normal" };
+let _fontCache: LoadedFont[] | null = null;
+// Manrope tĩnh (instance từ variable) ở public/fonts — có tiếng Việt. Lỗi đọc → [] (Satori dùng font mặc định).
+function loadBriefFonts(): LoadedFont[] {
+  if (_fontCache) return _fontCache;
+  try {
+    const dir = join(process.cwd(), "public", "fonts");
+    _fontCache = ([400, 700, 800] as const).map((weight) => ({
+      name: "Manrope",
+      data: readFileSync(join(dir, `Manrope-${weight}.ttf`)),
+      weight,
+      style: "normal" as const,
+    }));
+  } catch {
+    _fontCache = [];
+  }
+  return _fontCache;
+}
+
+/** Render bản tin thành PNG (dùng chung cho route brief-image + workflow gửi Telegram). */
+export async function renderBriefImageBuffer(kind: BriefImageKind, value: unknown): Promise<ArrayBuffer> {
+  const fonts = loadBriefFonts();
+  const response = new ImageResponse(renderBriefImage(kind, value), {
+    width: BRIEF_IMAGE_WIDTH,
+    height: BRIEF_IMAGE_HEIGHT,
+    ...(fonts.length ? { fonts } : {}),
+  });
+  return response.arrayBuffer();
+}
 
 export const BRIEF_IMAGE_WIDTH = 1080;
 export const BRIEF_IMAGE_HEIGHT = 1350;
@@ -390,7 +423,7 @@ function MorningImage({ data }: { data: NormalizedMorningBrief }) {
     backgroundColor: "#e7e9e2",
     padding: 26,
     boxSizing: "border-box",
-    fontFamily: "Arial, Helvetica, sans-serif",
+    fontFamily: "Manrope, Arial, sans-serif",
   };
   const inner: CSSProperties = {
     display: "flex",

@@ -1,11 +1,8 @@
-import { ImageResponse } from "next/og";
 import { NextRequest, NextResponse } from "next/server";
 import {
-  BRIEF_IMAGE_HEIGHT,
-  BRIEF_IMAGE_WIDTH,
   briefImageCaption,
   type BriefImageKind,
-  renderBriefImage,
+  renderBriefImageBuffer,
 } from "@/lib/n8n/brief-image-render";
 import {
   badRequestResponse,
@@ -51,11 +48,7 @@ async function createBriefPng(kind: BriefImageKind) {
     return { ok: false as const, status: 503, error: "BRIEF_NOT_READY" };
   }
 
-  const response = new ImageResponse(renderBriefImage(kind, envelope.value), {
-    width: BRIEF_IMAGE_WIDTH,
-    height: BRIEF_IMAGE_HEIGHT,
-  });
-  const buffer = new Uint8Array(await response.arrayBuffer());
+  const buffer = await renderBriefImageBuffer(kind, envelope.value);
   return {
     ok: true as const,
     topic,
@@ -113,7 +106,7 @@ export async function POST(req: NextRequest) {
 
   let telegram: Awaited<ReturnType<typeof sendAdminTelegramPhoto>> | null = null;
   if (sendTelegram) {
-    telegram = await sendAdminTelegramPhoto(image.buffer, image.caption, {
+    telegram = await sendAdminTelegramPhoto(new Uint8Array(image.buffer), image.caption, {
       chatId: chatId || undefined,
       dryRun,
       filename: `adn-${kind}-brief.png`,

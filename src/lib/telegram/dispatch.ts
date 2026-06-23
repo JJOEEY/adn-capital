@@ -223,3 +223,70 @@ export async function sendTelegramOnce(
     return { ok: false, sent: false, error: message, eventKey };
   }
 }
+
+export type SendTelegramPhotoOnceParams = {
+  eventType: TelegramDispatchEventType;
+  eventKey: string;
+  photo: ArrayBuffer;
+  caption?: string;
+  filename?: string;
+  token: string | null | undefined;
+  chatId: string | null | undefined;
+  tradingDate?: string | null;
+  slot?: string | null;
+};
+
+/** Gửi ẢNH 1 lần (dedupe qua telegramDispatchLog như sendTelegramOnce). */
+export async function sendTelegramPhotoOnce(
+  params: SendTelegramPhotoOnceParams,
+): Promise<SendTelegramOnceResult> {
+  const eventKey = params.eventKey.trim();
+  const token = params.token?.trim();
+  const chatId = params.chatId?.trim();
+
+  if (!eventKey) return { ok: false, sent: false, error: "missing_event_key", eventKey };
+  if (!params.photo?.byteLength) {
+    return { ok: true, sent: false, skipped: true, reason: "empty_photo", eventKey };
+  }
+  if (!token || !chatId) {
+    return { ok: true, sent: false, skipped: true, reason: "telegram_not_configured", eventKey };
+  }
+
+  const payloadHash = telegramHash(`photo:${params.photo.byteLength}:${params.caption ?? ""}`);
+  const targetChatIdHash = telegramHash(chatId).slice(0, 24);
+  const decision = await createOrMarkSending({
+    eventType: params.eventType,
+    eventKey,
+    payloadHash,
+    targetChatIdHash,
+    tradingDate: params.tradingDate,
+    slot: params.slot,
+  });
+
+  if (decision === "duplicate") return { ok: true, sent: false, skipped: true, reason: "duplicate_skipped", eventKey };
+  if (decision === "in_progress") return { ok: true, sent: false, skipped: true, reason: "send_in_progress", eventKey };
+
+  try {
+    const form = new FormData();
+    form.set("chat_id", chatId);
+    if (params.caption) form.set("caption", params.caption.slice(0, 1024));
+    form.set("photo", new Blob([params.photo], { type: "image/png" }), params.filename ?? "brief.png");
+    const response = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, { method: "POST", body: form });
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "");
+      throw new Error(`Telegram HTTP ${response.status}: ${errorText.slice(0, 240)}`);
+    }
+    await prisma.telegramDispatchLog.update({
+      where: { eventKey },
+      data: { status: "sent", payloadHash, targetChatIdHash, sentAt: new Date(), error: null },
+    });
+    return { ok: true, sent: true, eventKey };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await prisma.telegramDispatchLog.update({
+      where: { eventKey },
+      data: { status: "error", error: message.slice(0, 1000) },
+    });
+    return { ok: false, sent: false, error: message, eventKey };
+  }
+}

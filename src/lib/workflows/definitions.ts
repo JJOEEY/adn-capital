@@ -66,7 +66,7 @@ export const WORKFLOW_DEFINITIONS: WorkflowDefinition[] = [
         type: "send_telegram",
         continueOnError: true,
         params: {
-          text: "{{payload.title}}\n\n{{payload.content}}",
+          briefImageKind: "morning",
           dedupeWindowMinutes: 1440,
         },
         deterministic: false,

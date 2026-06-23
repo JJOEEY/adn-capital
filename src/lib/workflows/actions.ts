@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { getTopicEnvelope, invalidateTopics } from "@/lib/datahub/core";
 import { pushNotification, saveMarketReport } from "@/lib/cronHelpers";
-import { sendTelegramOnce, telegramHash } from "@/lib/telegram/dispatch";
+import { sendTelegramOnce, sendTelegramPhotoOnce, telegramHash } from "@/lib/telegram/dispatch";
+import { renderBriefImageBuffer, briefImageCaption, type BriefImageKind } from "@/lib/n8n/brief-image-render";
 import { resolveTemplateString } from "./helpers";
 import { WorkflowActionDefinition, WorkflowActionType, WorkflowContext } from "./types";
 
@@ -291,6 +292,41 @@ const sendTelegramAction: ActionHandler = async (action, context) => {
       warning: "support_telegram_not_configured",
       data: null,
     };
+  }
+
+  // Nếu step yêu cầu gửi ẢNH bản tin (briefImageKind) → render PNG + sendPhoto vào CÙNG chat, thay text.
+  const briefImageKind: BriefImageKind | null =
+    action.params?.briefImageKind === "morning" || action.params?.briefImageKind === "eod"
+      ? (action.params.briefImageKind as BriefImageKind)
+      : null;
+  if (briefImageKind) {
+    const topic = briefImageKind === "morning" ? "brief:morning:latest" : "brief:eod:latest";
+    const envelope = await getTopicEnvelope(topic);
+    const value = envelope?.value ?? null;
+    if (!value || typeof value !== "object") {
+      return { status: "skipped", retryable: true, deterministic: false, warning: "brief_topic_empty", data: { topic } };
+    }
+    const imgEventType = resolveTelegramEventType(context);
+    const imgEventKey = resolveTelegramEventKey(action, context, `image:${briefImageKind}`);
+    const photo = await renderBriefImageBuffer(briefImageKind, value);
+    const photoResult = await sendTelegramPhotoOnce({
+      eventType: imgEventType,
+      eventKey: imgEventKey,
+      photo,
+      caption: briefImageCaption(briefImageKind, value),
+      filename: `adn-${briefImageKind}-brief.png`,
+      token,
+      chatId,
+      tradingDate: resolveTelegramTradingDate(context),
+      slot: resolveTelegramSlot(context),
+    });
+    if (photoResult.ok && "skipped" in photoResult && photoResult.skipped) {
+      return { status: "skipped", retryable: false, deterministic: true, warning: photoResult.reason, data: { eventKey: imgEventKey, eventType: imgEventType } };
+    }
+    if (!photoResult.ok) {
+      return { status: "error", retryable: true, deterministic: false, error: photoResult.error, data: { eventKey: imgEventKey, eventType: imgEventType } };
+    }
+    return { status: "success", retryable: false, deterministic: false, data: { eventKey: imgEventKey, eventType: imgEventType, mode: "photo" } };
   }
 
   const rawText =
