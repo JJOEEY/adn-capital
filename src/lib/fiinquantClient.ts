@@ -445,9 +445,9 @@ function repairMojibakeDeep<T>(value: T): T {
 //  API Endpoints
 // ═══════════════════════════════════════════════
 
-/** Market Overview (VNINDEX health score) */
+/** Market Overview (VNINDEX health score) — endpoint nặng (tính lại 500 phiên + cafef + worldtimeapi), nới timeout 60s */
 export async function fetchMarketOverview(options?: { timeout?: number }): Promise<FiinMarketOverview | null> {
-  return fiinFetch<FiinMarketOverview>("/api/v1/market-overview", options);
+  return fiinFetch<FiinMarketOverview>("/api/v1/market-overview", { timeout: options?.timeout ?? 60_000 });
 }
 
 /** P/E, P/B chuẩn cho chỉ số thị trường */

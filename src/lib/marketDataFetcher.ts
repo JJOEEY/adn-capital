@@ -1811,6 +1811,16 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
       freshnessAgeMs <= 120_000 ? "fresh" : "stale";
     if (!publish) freshness = "degraded";
 
+    // Live thành công → tự ghi market_cache.json (self-healing, không chờ cron). File ephemeral
+    // bị xoá mỗi lần deploy/recreate container; ghi ở đây để fallback luôn có bản mới nhất.
+    if (overview && typeof overview === "object") {
+      try {
+        fs.writeFileSync(MARKET_OVERVIEW_CACHE_FILE, JSON.stringify(overview), "utf-8");
+      } catch {
+        /* noop */
+      }
+    }
+
     const snapshot: MarketSnapshot = {
       timestamp: getVnNow().toISOString(),
       requestDateVN,
