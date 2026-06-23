@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { isAdmin } from "@/lib/admin-check";
-import { getGuideSectionBySlugs, guideExcerpt } from "@/lib/guide";
+import { getGuideSectionBySlugs, guideExcerpt, stripLeadingTitle } from "@/lib/guide";
 import GuideMarkdown from "../../GuideMarkdown";
 import DocsToc from "../../DocsToc";
 import AdminSectionTools from "../../AdminSectionTools";
@@ -89,7 +89,7 @@ export default async function GuideSectionPage({ params }: { params: Promise<Par
           {!sec.published && " · NHÁP"}
         </p>
 
-        <GuideMarkdown content={sec.content} />
+        <GuideMarkdown content={stripLeadingTitle(sec.content, sec.title)} />
 
         <AdminSectionTools
           isAdmin={admin}

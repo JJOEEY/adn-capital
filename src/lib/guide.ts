@@ -266,6 +266,30 @@ export async function getFirstSectionHref(includeUnpublished = false): Promise<s
   return null;
 }
 
+/** Bỏ heading đầu nếu nó lặp lại đúng tiêu đề mục (tránh hiện title 2 lần). */
+export function stripLeadingTitle(content: string, title: string): string {
+  const norm = (str: string) =>
+    str
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/đ/g, "d")
+      .replace(/\s+/g, " ")
+      .trim();
+  const lines = content.split("\n");
+  let i = 0;
+  while (i < lines.length && lines[i].trim() === "") i += 1;
+  if (i < lines.length) {
+    const m = lines[i].match(/^#{1,6}\s+(.*)$/);
+    if (m && norm(m[1]) === norm(title)) {
+      const rest = lines.slice(i + 1);
+      while (rest.length && rest[0].trim() === "") rest.shift();
+      return rest.join("\n");
+    }
+  }
+  return content;
+}
+
 /** Trích đoạn sạch markdown cho meta description / preview. */
 export function guideExcerpt(content: string, max = 155): string {
   const text = content
