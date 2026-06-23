@@ -51,6 +51,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     take: 1000,
   });
 
+  // Trang hướng dẫn (GitBook) — mỗi mục published là 1 URL riêng để index.
+  const guideSections = await prisma.guideSection.findMany({
+    where: { published: true },
+    select: { slug: true, updatedAt: true, category: { select: { slug: true } } },
+  });
+
   return [
     ...staticRoutes.map((route) => ({
       url: absoluteUrl(route.path),
@@ -59,6 +65,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: route.priority,
     })),
     ...publicProducts,
+    ...guideSections.map((section) => ({
+      url: absoluteUrl(`/hdsd/${section.category.slug}/${section.slug}`),
+      lastModified: section.updatedAt ?? now,
+      changeFrequency: "monthly" as const,
+      priority: 0.6,
+    })),
     ...publishedArticles.map((article) => ({
       url: absoluteUrl(`/khac/tin-tuc/${article.slug}`),
       lastModified: article.updatedAt ?? article.publishedAt ?? now,
