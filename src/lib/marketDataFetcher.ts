@@ -1402,22 +1402,24 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
       dnseSnapshot,
       tcbsSnapshot,
     ] = await Promise.all([
-      fetchMarketOverview(),
-      fetchIntradaySnapshot(),
+      // Mỗi nguồn bọc .catch(()=>null): 1 fetch throw KHÔNG được làm sập cả snapshot
+      // (trước đây Promise.all all-or-nothing → 1 nguồn lỗi là adnCore/liquidity/vnindex rỗng hết).
+      fetchMarketOverview().catch(() => null),
+      fetchIntradaySnapshot().catch(() => null),
       fetchInvestorTrading({
         fromDate: requestDateVN,
         toDate: requestDateVN,
-      }),
-      fetchMarketBreadth("VNINDEX,VN30,HNXINDEX,UPCOMINDEX"),
-      fetchRealtimeTradingData("VNINDEX", "5m"),
-      fetchIndexFromDchart("VNINDEX", providerDiagnostics, requestDateVN),
-      fetchIndexFromDchart("HNXINDEX", providerDiagnostics, requestDateVN),
-      fetchIndexFromDchart("UPCOMINDEX", providerDiagnostics, requestDateVN),
-      fetchIndexFromDchart("VN30", providerDiagnostics, requestDateVN),
-      fetchTopMovers(providerDiagnostics, requestDateVN),
-      fetchVnstockMarketSnapshot(requestDateVN),
-      fetchDnseMarketSnapshot(requestDateVN),
-      fetchTcbsMarketSnapshot(requestDateVN),
+      }).catch(() => null),
+      fetchMarketBreadth("VNINDEX,VN30,HNXINDEX,UPCOMINDEX").catch(() => null),
+      fetchRealtimeTradingData("VNINDEX", "5m").catch(() => null),
+      fetchIndexFromDchart("VNINDEX", providerDiagnostics, requestDateVN).catch(() => null),
+      fetchIndexFromDchart("HNXINDEX", providerDiagnostics, requestDateVN).catch(() => null),
+      fetchIndexFromDchart("UPCOMINDEX", providerDiagnostics, requestDateVN).catch(() => null),
+      fetchIndexFromDchart("VN30", providerDiagnostics, requestDateVN).catch(() => null),
+      fetchTopMovers(providerDiagnostics, requestDateVN).catch(() => null),
+      fetchVnstockMarketSnapshot(requestDateVN).catch(() => null),
+      fetchDnseMarketSnapshot(requestDateVN).catch(() => null),
+      fetchTcbsMarketSnapshot(requestDateVN).catch(() => null),
     ]);
 
     if (!overview) {
@@ -1838,8 +1840,8 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
       },
       investorTrading: parsedInvestor.investorTrading,
       marketOverview: overview ?? readMarketOverviewFallback(),
-      topGainers: movers.gainers,
-      topLosers: movers.losers,
+      topGainers: movers?.gainers ?? [],
+      topLosers: movers?.losers ?? [],
       source,
       freshness,
       publish,
