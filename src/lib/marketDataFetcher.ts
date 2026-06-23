@@ -5,6 +5,8 @@
  * Dùng cho tất cả cron jobs: Morning Brief, EOD Brief, Intraday, Signal Scan.
  */
 
+import fs from "fs";
+import path from "path";
 import { fetchTAData, type TAData } from "./stockData";
 import {
   fetchMarketOverview,
@@ -1352,6 +1354,20 @@ function shouldPreferInferredLiquidity(
 }
 
 /** Snapshot thị trường (dùng cho intraday notifications + briefs) */
+// market_cache.json do cron market_stats_type2 ghi (= output bridge market-overview, luôn có sẵn).
+// Khi live fetchMarketOverview timeout/lỗi (endpoint nặng, 30s, hay rỗng sau restart bridge) → đọc
+// cache này làm fallback để adnCore KHÔNG rỗng (giống UI vẫn đọc cache qua /api/market-status).
+const MARKET_OVERVIEW_CACHE_FILE = path.join(process.cwd(), "market_cache.json");
+function readMarketOverviewFallback(): FiinMarketOverview | null {
+  try {
+    if (!fs.existsSync(MARKET_OVERVIEW_CACHE_FILE)) return null;
+    const parsed = JSON.parse(fs.readFileSync(MARKET_OVERVIEW_CACHE_FILE, "utf-8"));
+    return parsed && typeof parsed === "object" && parsed.score != null ? (parsed as FiinMarketOverview) : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getMarketSnapshot(): Promise<MarketSnapshot> {
   const requestDateVN = getLatestTradingDateISO();
   const nowMs = Date.now();
@@ -1811,7 +1827,7 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
         total: totalLiquidity,
       },
       investorTrading: parsedInvestor.investorTrading,
-      marketOverview: overview,
+      marketOverview: overview ?? readMarketOverviewFallback(),
       topGainers: movers.gainers,
       topLosers: movers.losers,
       source,
