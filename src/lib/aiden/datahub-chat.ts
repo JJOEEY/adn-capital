@@ -635,6 +635,42 @@ function compactSignalList(value: unknown) {
   });
 }
 
+// ADN Composite Score: nguồn thô là thang /14 + nhãn level cũ (BULL/ACCUMULATION/BEAR).
+// UI đã chuẩn hoá về /10 (vd 9.5/14 → 6.8/10) + dùng badge "THĂM DÒ". Nhưng /api/market truyền
+// composite THÔ cho AIDEN → AIDEN trích "9.5/14 (ACCUMULATION)" lệch UI. Chuẩn hoá ngay tại đây.
+function normalizeCompositeScore(score: unknown, maxScore: unknown): number | null {
+  const s = Number(score);
+  const m = Number(maxScore);
+  if (!Number.isFinite(s)) return null;
+  if (Number.isFinite(m) && m > 0 && m !== 10) return Math.round((s / m) * 100) / 10;
+  return Math.round(s * 10) / 10;
+}
+
+function sanitizeMarketComposite(market: unknown): unknown {
+  if (!market || typeof market !== "object") return market;
+  const m = { ...(market as Record<string, unknown>) };
+  if (m.adnCore && typeof m.adnCore === "object") {
+    const core = { ...(m.adnCore as Record<string, unknown>) };
+    const norm = normalizeCompositeScore(core.score, core.max_score);
+    if (norm != null) {
+      core.score = norm;
+      core.max_score = 10;
+    }
+    delete core.level; // bỏ nhãn level cũ (2 → "ACCUMULATION"); dùng status_badge "THĂM DÒ"
+    delete core.level_label;
+    delete core.levelLabel;
+    m.adnCore = core;
+  }
+  if (typeof m.aiSummary === "string") {
+    m.aiSummary = m.aiSummary
+      .replace(/Score\s+[\d.,]+\s*\/\s*1[04]\s*(?:→|->)\s*(?:BULL MARKET|ACCUMULATION|BEAR MARKET)\.?/gi, "")
+      .replace(/\b(?:BULL MARKET|ACCUMULATION|BEAR MARKET)\b/g, "")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+  }
+  return m;
+}
+
 async function buildGeneralMarketContext(context: TopicContext) {
   const topics = [
     "vn:index:overview",
@@ -650,7 +686,7 @@ async function buildGeneralMarketContext(context: TopicContext) {
     topics,
     envelopes,
     context: stripInternalFields({
-      market: byTopic.get("vn:index:overview"),
+      market: sanitizeMarketComposite(byTopic.get("vn:index:overview")),
       radarSignals: compactSignalList(byTopic.get("signal:market:radar")),
       activeSignals: compactSignalList(byTopic.get("signal:market:active")),
       morningBrief: byTopic.get("brief:morning:latest"),
