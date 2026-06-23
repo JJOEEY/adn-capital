@@ -37,7 +37,7 @@ export async function renderBriefImageBuffer(kind: BriefImageKind, value: unknow
 
 export const BRIEF_IMAGE_WIDTH = 1080;
 export const BRIEF_IMAGE_HEIGHT = 1350;
-export const BRIEF_IMAGE_HEIGHT_MORNING = 1820; // morning có nhiều bullet → cao hơn EOD, tránh tràn/cắt
+export const BRIEF_IMAGE_HEIGHT_MORNING = 1900; // morning có nhiều bullet → cao hơn EOD, tránh tràn/cắt
 
 type NormalizedIndex = {
   name: string;
