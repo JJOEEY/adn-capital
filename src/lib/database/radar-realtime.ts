@@ -131,6 +131,77 @@ function tickFromMessage(message: JsonRecord): DatabaseRadarTick | null {
   };
 }
 
+const DNSE_DAILY_CHANNEL = "ohlc_closed.1D.json";
+
+type DnseDailyBar = {
+  ticker: string;
+  tradingDate: string;
+  candle: { time: number; open: number; high: number; low: number; close: number; volume: number };
+};
+
+// DNSE bar message có marker T:"b" (giống fetchDnseRealtimeOhlc). tick_extra KHÔNG có → tách 2 luồng,
+// tránh ohlc_closed bị parse nhầm thành tick làm bẩn radar.realtime.tick (AIDEN phụ thuộc).
+function isOhlcBarMessage(message: JsonRecord): boolean {
+  const marker = String(message.T ?? message.type ?? "").toLowerCase() === "b";
+  const hasOpen = message.open != null || message.o != null; // bar OHLC có open; tick_extra KHÔNG → chặn lọt
+  return marker && hasOpen;
+}
+
+// DNSE giá cổ phiếu theo NGHÌN (<1000) → ×1000 VND khớp kho chart; chỉ số (>1000) giữ nguyên.
+function scaleDnseToVnd(value: number | null): number | null {
+  if (value == null || !Number.isFinite(value) || value <= 0) return null;
+  return value < 1000 ? Math.round((value * 1000) / 10) * 10 : value;
+}
+
+function dailyBarFromMessage(message: JsonRecord): DnseDailyBar | null {
+  const ticker = symbolFromMessage(message);
+  if (!ticker) return null;
+  const open = scaleDnseToVnd(readNumber(message, ["open", "o"]));
+  const high = scaleDnseToVnd(readNumber(message, ["high", "h"]));
+  const low = scaleDnseToVnd(readNumber(message, ["low", "l"]));
+  const close = scaleDnseToVnd(readNumber(message, ["close", "c"]));
+  const rawTs = readNumber(message, ["time", "timestamp", "t"]);
+  const volume = readNumber(message, ["volume", "v"]) ?? 0;
+  if (open == null || high == null || low == null || close == null || rawTs == null || rawTs <= 0) return null;
+  const time = rawTs > 10_000_000_000 ? Math.floor(rawTs / 1000) : Math.floor(rawTs);
+  const tradingDate = dateKeyInVietnam(new Date(time * 1000));
+  return { ticker, tradingDate, candle: { time, open, high, low, close, volume } };
+}
+
+// Ghi nến ngày DNSE vào kho chart (DatabaseMarketLatest, channel ohlc_closed.1D.json — chart đã đọc sẵn,
+// sourcePriority dnse>fiinquant nên tự ưu tiên). Nuốt lỗi để TUYỆT ĐỐI không ảnh hưởng luồng tick.
+async function persistDnseDailyBars(bars: DnseDailyBar[]) {
+  if (bars.length === 0) return;
+  await Promise.all(
+    bars.map((bar) => {
+      const payload = { ...bar.candle, date: bar.tradingDate, isFinal: true } as unknown as Prisma.InputJsonValue;
+      const providerTime = new Date(bar.candle.time * 1000);
+      return prisma.databaseMarketLatest
+        .upsert({
+          where: {
+            source_channel_symbol_tradingDate: {
+              source: "dnse",
+              channel: DNSE_DAILY_CHANNEL,
+              symbol: bar.ticker,
+              tradingDate: bar.tradingDate,
+            },
+          },
+          create: {
+            source: "dnse",
+            dataset: "market.ohlcv",
+            channel: DNSE_DAILY_CHANNEL,
+            symbol: bar.ticker,
+            tradingDate: bar.tradingDate,
+            providerTime,
+            payload,
+          },
+          update: { dataset: "market.ohlcv", providerTime, payload },
+        })
+        .catch(() => null);
+    }),
+  );
+}
+
 async function loadRadarHotlist(limit: number) {
   const rows = await prisma.signal.findMany({
     where: { status: { in: ["RADAR", "ACTIVE", "HOLD_TO_DIE"] } },
@@ -243,8 +314,16 @@ export async function ingestDatabaseRadarWsMessages(input: {
   const startedAt = Date.now();
   const tradingDate = dateKeyInVietnam();
   const latestByTicker = new Map<string, DatabaseRadarTick>();
+  const dailyBars = new Map<string, DnseDailyBar>();
   for (const raw of Array.isArray(input.messages) ? input.messages : []) {
-    const tick = tickFromMessage(asRecord(raw));
+    const msg = asRecord(raw);
+    // Nến ngày DNSE (ohlc_closed.1D) đi đường RIÊNG → kho chart; KHÔNG cho vào tick path.
+    if (isOhlcBarMessage(msg)) {
+      const bar = dailyBarFromMessage(msg);
+      if (bar) dailyBars.set(`${bar.ticker}:${bar.tradingDate}`, bar);
+      continue;
+    }
+    const tick = tickFromMessage(msg);
     if (!tick) continue;
     latestByTicker.set(tick.ticker, tick);
   }
@@ -272,6 +351,9 @@ export async function ingestDatabaseRadarWsMessages(input: {
   cacheRadarState(state);
   if (latest.length > 0 || input.lastError) {
     await persistRadarState(state);
+  }
+  if (dailyBars.size > 0) {
+    await persistDnseDailyBars(Array.from(dailyBars.values())).catch(() => null);
   }
   const missingFields = [
     latest.length === 0 ? "radar.realtime.ticks" : null,
