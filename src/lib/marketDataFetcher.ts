@@ -1358,7 +1358,7 @@ function shouldPreferInferredLiquidity(
 // Khi live fetchMarketOverview timeout/lỗi (endpoint nặng, 30s, hay rỗng sau restart bridge) → đọc
 // cache này làm fallback để adnCore KHÔNG rỗng (giống UI vẫn đọc cache qua /api/market-status).
 const MARKET_OVERVIEW_CACHE_FILE = path.join(process.cwd(), "market_cache.json");
-function readMarketOverviewFallback(): FiinMarketOverview | null {
+export function readMarketOverviewFallback(): FiinMarketOverview | null {
   try {
     if (!fs.existsSync(MARKET_OVERVIEW_CACHE_FILE)) return null;
     const parsed = JSON.parse(fs.readFileSync(MARKET_OVERVIEW_CACHE_FILE, "utf-8"));
@@ -1431,6 +1431,14 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
         error: "No data",
         fallbackUsed: true,
       });
+    } else if (typeof overview === "object") {
+      // Live OK → ghi market_cache.json NGAY (trước phần xử lý phía dưới có thể throw) để
+      // fallback (readMarketOverviewFallback) luôn có bản mới nhất kể cả khi snapshot lỗi sau đó.
+      try {
+        fs.writeFileSync(MARKET_OVERVIEW_CACHE_FILE, JSON.stringify(overview), "utf-8");
+      } catch {
+        /* noop */
+      }
     }
     if (!breadthFeed) {
       providerDiagnostics.push({
@@ -1812,16 +1820,6 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
     let freshness: "fresh" | "stale" | "degraded" =
       freshnessAgeMs <= 120_000 ? "fresh" : "stale";
     if (!publish) freshness = "degraded";
-
-    // Live thành công → tự ghi market_cache.json (self-healing, không chờ cron). File ephemeral
-    // bị xoá mỗi lần deploy/recreate container; ghi ở đây để fallback luôn có bản mới nhất.
-    if (overview && typeof overview === "object") {
-      try {
-        fs.writeFileSync(MARKET_OVERVIEW_CACHE_FILE, JSON.stringify(overview), "utf-8");
-      } catch {
-        /* noop */
-      }
-    }
 
     const snapshot: MarketSnapshot = {
       timestamp: getVnNow().toISOString(),

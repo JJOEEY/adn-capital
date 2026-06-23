@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getMarketSnapshot } from "@/lib/marketDataFetcher";
+import { getMarketSnapshot, readMarketOverviewFallback } from "@/lib/marketDataFetcher";
 import { fetchDnseRealtimeOhlc } from "@/lib/providers/dnse/market-data";
 
 export const revalidate = 0;
@@ -275,7 +275,9 @@ async function getMarketStatus() {
     opportunityBullets,
     chartData,
     snapshotLiquidity: snapshot?.liquidity ?? null,
-    adnCore: snapshot?.marketOverview ?? null,
+    // Fallback cuối: nếu cả snapshot lỗi → đọc market_cache.json (self-heal/cron ghi, đã /10)
+    // để adnCore KHÔNG bao giờ rỗng khi đã có dữ liệu tính sẵn.
+    adnCore: snapshot?.marketOverview ?? readMarketOverviewFallback(),
   };
 }
 
