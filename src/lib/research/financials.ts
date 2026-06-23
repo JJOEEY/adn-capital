@@ -5,7 +5,8 @@
 
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
 
-const TTL_MS = 6 * 60 * 60 * 1000;
+const TTL_MS = 6 * 60 * 60 * 1000; // cache kết quả tốt 6h
+const TTL_EMPTY_MS = 10 * 60 * 1000; // cache rỗng/lỗi ngắn (tránh kẹt khi bridge chậm 1 lần)
 const MAX_PERIODS = 5;
 
 export type FinancialPeriod = {
@@ -98,7 +99,7 @@ export async function fetchFinancialHistory(ticker: string): Promise<FinancialHi
   try {
     const res = await fetch(`${getPythonBridgeUrl()}/api/v1/fundamental/${code}`, {
       cache: "no-store",
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(15000), // endpoint nặng (~7.5s); nới rộng để không rớt dưới tải đồng thời
       headers: { "Content-Type": "application/json", "x-api-key": process.env.FIINQUANT_API_KEY ?? "" },
     });
     if (res.ok) {
@@ -115,6 +116,6 @@ export async function fetchFinancialHistory(ticker: string): Promise<FinancialHi
     result = null;
   }
 
-  cache.set(code, { data: result, expires: Date.now() + TTL_MS });
+  cache.set(code, { data: result, expires: Date.now() + (result ? TTL_MS : TTL_EMPTY_MS) });
   return result;
 }
