@@ -355,56 +355,134 @@ function FlowRow({
   );
 }
 
+const INDEX_CODE: Record<string, string> = {
+  "VN-INDEX": "VN", VNINDEX: "VN", "VN INDEX": "VN",
+  "HNX-INDEX": "HNX", HNXINDEX: "HNX", HNX: "HNX",
+  "UPCOM-INDEX": "UP", UPCOM: "UP", "UPCOM INDEX": "UP", UPCOMINDEX: "UP",
+  VN30: "30", "VN30-INDEX": "30",
+  "DOW JONES": "US", DOWJONES: "US", DOW: "US",
+};
+function indexCode(name: string) {
+  const key = name.toUpperCase().trim();
+  return INDEX_CODE[key] ?? key.replace(/[^A-Z0-9]/g, "").slice(0, 3);
+}
+
+// Card sáng — bản tin sáng (re-skin theo design ADN). EOD vẫn dùng theme tối phía trên.
 function MorningImage({ data }: { data: NormalizedMorningBrief }) {
-  const firstIndex = data.indices[0];
-  const changeTone = (firstIndex?.changePct ?? 0) >= 0 ? "green" : "red";
-  return (
-    <div style={pageStyle}>
-      <Header title="Bản Tin Sáng" subtitle="Morning Brief - cập nhật thị trường" date={data.date} />
+  const moss = "#2f5d44";
+  const mossSoft = "#3f7257";
+  const ink = "#2c302b";
+  const muted = "#8a8f86";
+  const cardBg = "#efeee7";
+  const cardBorder = "#dcdcd2";
+  const pos = "#16a34a";
+  const neg = "#dc2626";
 
-      <div style={{ display: "flex", gap: 16, height: 138, marginBottom: 20 }}>
-        {data.indices.slice(0, 5).map((item) => {
-          const positive = (item.changePct ?? 0) >= 0;
-          return (
-            <div key={item.name} style={{ ...cardStyle, flex: 1, height: 138, padding: 18, gap: 8 }}>
-              <div style={{ display: "flex", color: "#aeb4ae", fontSize: 17, fontWeight: 800 }}>{item.name}</div>
-              <div style={{ display: "flex", color: "#f6f1e8", fontSize: 28, fontWeight: 900 }}>{formatNumber(item.value, 2)}</div>
-              <div style={{ display: "flex", color: positive ? "#39d98a" : "#ff907f", fontSize: 19, fontWeight: 900 }}>
-                {positive ? "+" : ""}
-                {formatNumber(item.changePct, 2)}%
-              </div>
-            </div>
-          );
-        })}
+  const page: CSSProperties = {
+    width: BRIEF_IMAGE_WIDTH,
+    height: BRIEF_IMAGE_HEIGHT,
+    display: "flex",
+    backgroundColor: "#e7e9e2",
+    padding: 26,
+    boxSizing: "border-box",
+    fontFamily: "Arial, Helvetica, sans-serif",
+  };
+  const inner: CSSProperties = {
+    display: "flex",
+    flexDirection: "column",
+    flex: 1,
+    backgroundColor: "#f7f6f1",
+    borderRadius: 30,
+    border: `1px solid ${cardBorder}`,
+    padding: 40,
+    boxSizing: "border-box",
+  };
+  const card: CSSProperties = {
+    display: "flex",
+    flexDirection: "column",
+    backgroundColor: cardBg,
+    borderRadius: 18,
+    border: `1px solid ${cardBorder}`,
+  };
+  const heading = (icon: string, title: string, color = moss): CSSProperties => ({
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    color,
+    fontSize: 23,
+    fontWeight: 900,
+    marginBottom: 14,
+  });
+  const Bullets = ({ items, max, limit }: { items: string[]; max: number; limit: number }) =>
+    items.length === 0 ? (
+      <div style={{ display: "flex", color: muted, fontSize: 21 }}>Đang chờ cập nhật nội dung.</div>
+    ) : (
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {items.slice(0, max).map((it, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+            <div style={{ display: "flex", width: 7, height: 7, borderRadius: 7, backgroundColor: mossSoft, marginTop: 11, flexShrink: 0 }} />
+            <div style={{ display: "flex", color: ink, fontSize: 22, lineHeight: 1.35, flex: 1 }}>{limitText(it, limit)}</div>
+          </div>
+        ))}
       </div>
+    );
 
-      <div style={{ ...cardStyle, height: 118, padding: 24, marginBottom: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ display: "flex", color: "#8b94ff", fontSize: 20, fontWeight: 900, letterSpacing: 1.4 }}>ADN CAPITAL FLASHNOTE</div>
-          <div style={{ display: "flex", color: "#eee8dd", fontSize: 28, fontWeight: 900 }}>
-            {firstIndex?.name || "VNINDEX"} {formatNumber(firstIndex?.value ?? null, 2)}
+  return (
+    <div style={page}>
+      <div style={inner}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 26 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 58, height: 58, borderRadius: 15, backgroundColor: "#e4e6df", fontSize: 30 }}>⚡</div>
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <div style={{ display: "flex", color: moss, fontSize: 38, fontWeight: 900, lineHeight: 1.05 }}>BẢN TIN SÁNG ADN CAPITAL</div>
+              <div style={{ display: "flex", color: muted, fontSize: 18, fontWeight: 800, letterSpacing: 3, marginTop: 6 }}>AI SUMMARY HIGHLIGHTS</div>
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 12 }}>
+            <div style={{ display: "flex", color: muted, fontSize: 22, fontWeight: 700 }}>{formatDate(data.date)}</div>
+            <div style={{ display: "flex", padding: "7px 16px", borderRadius: 999, backgroundColor: "rgba(22,163,74,0.12)", color: pos, fontSize: 17, fontWeight: 900, letterSpacing: 1 }}>FRESH</div>
           </div>
         </div>
-        <Badge tone={changeTone}>{formatNumber(firstIndex?.changePct ?? null, 2)}%</Badge>
-      </div>
 
-      <div style={{ display: "flex", gap: 20, height: 335, marginBottom: 20 }}>
-        <Section title="Thị trường Việt Nam">
-          <BulletList items={data.market} color="#39d98a" max={3} limit={118} />
-        </Section>
-        <Section title="Vĩ mô">
-          <BulletList items={data.macro} color="#f0bd61" max={3} limit={118} />
-        </Section>
-      </div>
+        <div style={heading("", "CHỈ SỐ THAM CHIẾU (SO PHIÊN TRƯỚC)")}>📊 CHỈ SỐ THAM CHIẾU (SO PHIÊN TRƯỚC)</div>
+        <div style={{ display: "flex", gap: 14, marginBottom: 26 }}>
+          {data.indices.slice(0, 5).map((item) => {
+            const hasVal = item.value != null;
+            const positive = (item.changePct ?? 0) >= 0;
+            return (
+              <div key={item.name} style={{ ...card, flex: 1, padding: 16, gap: 7 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ display: "flex", color: ink, fontSize: 16, fontWeight: 900 }}>{item.name}</div>
+                  <div style={{ display: "flex", color: muted, fontSize: 16, fontWeight: 800 }}>{indexCode(item.name)}</div>
+                </div>
+                <div style={{ display: "flex", color: ink, fontSize: 27, fontWeight: 900 }}>{hasVal ? formatNumber(item.value, 2) : "--"}</div>
+                <div style={{ display: "flex", color: !hasVal ? muted : positive ? pos : neg, fontSize: 18, fontWeight: 900 }}>
+                  {!hasVal ? "--" : `${positive ? "+" : ""}${formatNumber(item.changePct, 2)}% ${positive ? "↗" : "↘"}`}
+                </div>
+              </div>
+            );
+          })}
+        </div>
 
-      <div style={{ display: "flex", height: 305 }}>
-        <Section title="Rủi ro / Cơ hội">
-          <BulletList items={data.riskOpportunity} color="#8b94ff" max={3} limit={152} />
-        </Section>
-      </div>
+        <div style={{ ...card, padding: 26, marginBottom: 18 }}>
+          <div style={heading("", "")}>📊 ĐIỂM TIN VIỆT NAM NỔI BẬT</div>
+          <Bullets items={data.market} max={5} limit={150} />
+        </div>
 
-      <div style={{ display: "flex", justifyContent: "center", color: "#aeb4ae", fontSize: 20, fontWeight: 800, marginTop: 22 }}>
-        ADNCAPITAL.COM.VN
+        <div style={{ ...card, padding: 26, marginBottom: 18 }}>
+          <div style={heading("", "")}>🌐 VĨ MÔ TRONG NƯỚC &amp; QUỐC TẾ</div>
+          <Bullets items={data.macro} max={2} limit={220} />
+        </div>
+
+        <div style={{ ...card, padding: 26 }}>
+          <div style={heading("", "", "#b4541f")}>⚠️ RỦI RO / CƠ HỘI</div>
+          <Bullets items={data.riskOpportunity} max={4} limit={170} />
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, marginTop: "auto", paddingTop: 24 }}>
+          <div style={{ display: "flex", color: muted, fontSize: 18, fontWeight: 700 }}>Powered by ADN Capital</div>
+          <div style={{ display: "flex", color: moss, fontSize: 20, fontWeight: 900, letterSpacing: 1 }}>ADNCAPITAL.COM.VN</div>
+        </div>
       </div>
     </div>
   );
