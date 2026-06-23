@@ -366,6 +366,11 @@ function indexCode(name: string) {
   const key = name.toUpperCase().trim();
   return INDEX_CODE[key] ?? key.replace(/[^A-Z0-9]/g, "").slice(0, 3);
 }
+const CODE_ORDER = ["VN", "HNX", "UP", "30", "US"];
+function indexPriority(name: string) {
+  const i = CODE_ORDER.indexOf(indexCode(name));
+  return i < 0 ? 99 : i;
+}
 
 // Card sáng — bản tin sáng (re-skin theo design ADN). EOD vẫn dùng theme tối phía trên.
 function MorningImage({ data }: { data: NormalizedMorningBrief }) {
@@ -446,7 +451,7 @@ function MorningImage({ data }: { data: NormalizedMorningBrief }) {
 
         <div style={heading("", "CHỈ SỐ THAM CHIẾU (SO PHIÊN TRƯỚC)")}>📊 CHỈ SỐ THAM CHIẾU (SO PHIÊN TRƯỚC)</div>
         <div style={{ display: "flex", gap: 14, marginBottom: 26 }}>
-          {data.indices.slice(0, 5).map((item) => {
+          {[...data.indices].sort((a, b) => indexPriority(a.name) - indexPriority(b.name)).slice(0, 5).map((item) => {
             const hasVal = item.value != null;
             const positive = (item.changePct ?? 0) >= 0;
             return (
