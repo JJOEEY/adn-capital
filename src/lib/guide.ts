@@ -186,3 +186,95 @@ export async function ensureGuideSeeded(): Promise<void> {
     }
   });
 }
+
+/* ────────────────────────────────────────────────────────────────────────
+ * Server loaders cho trang docs (GitBook). Đọc trực tiếp DB để SSR + metadata.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+export type GuideNavSection = { id: string; title: string; slug: string; published: boolean; sortOrder: number };
+export type GuideNavCategory = { id: string; title: string; slug: string; sections: GuideNavSection[] };
+
+/** Cây điều hướng: category + section (mặc định chỉ published; admin xem cả draft). */
+export async function getGuideTree(includeUnpublished = false): Promise<GuideNavCategory[]> {
+  await ensureGuideSeeded();
+  const categories = await prisma.guideCategory.findMany({
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    include: {
+      sections: {
+        where: includeUnpublished ? undefined : { published: true },
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        select: { id: true, title: true, slug: true, published: true, sortOrder: true },
+      },
+    },
+  });
+  return categories.map((c) => ({ id: c.id, title: c.title, slug: c.slug, sections: c.sections }));
+}
+
+export type GuideSectionView = {
+  id: string;
+  title: string;
+  slug: string;
+  content: string;
+  published: boolean;
+  updatedAt: string;
+  category: { id: string; title: string; slug: string };
+};
+export type GuideSiblingLink = { title: string; href: string } | null;
+
+/** Một mục theo (category slug, section slug) + prev/next theo thứ tự đọc. */
+export async function getGuideSectionBySlugs(
+  categorySlug: string,
+  sectionSlug: string,
+  includeUnpublished = false
+): Promise<{ section: GuideSectionView; prev: GuideSiblingLink; next: GuideSiblingLink } | null> {
+  await ensureGuideSeeded();
+  const category = await prisma.guideCategory.findUnique({ where: { slug: categorySlug } });
+  if (!category) return null;
+  const section = await prisma.guideSection.findUnique({
+    where: { categoryId_slug: { categoryId: category.id, slug: sectionSlug } },
+  });
+  if (!section) return null;
+  if (!section.published && !includeUnpublished) return null;
+
+  const tree = await getGuideTree(includeUnpublished);
+  const flat: { title: string; href: string }[] = [];
+  for (const c of tree) for (const s of c.sections) flat.push({ title: s.title, href: `/hdsd/${c.slug}/${s.slug}` });
+  const here = `/hdsd/${categorySlug}/${sectionSlug}`;
+  const idx = flat.findIndex((f) => f.href === here);
+  const prev = idx > 0 ? flat[idx - 1] : null;
+  const next = idx >= 0 && idx < flat.length - 1 ? flat[idx + 1] : null;
+
+  return {
+    section: {
+      id: section.id,
+      title: section.title,
+      slug: section.slug,
+      content: section.content,
+      published: section.published,
+      updatedAt: section.updatedAt.toISOString(),
+      category: { id: category.id, title: category.title, slug: category.slug },
+    },
+    prev,
+    next,
+  };
+}
+
+/** Href của mục đọc đầu tiên (cho nút "Bắt đầu"). */
+export async function getFirstSectionHref(includeUnpublished = false): Promise<string | null> {
+  const tree = await getGuideTree(includeUnpublished);
+  for (const c of tree) for (const s of c.sections) return `/hdsd/${c.slug}/${s.slug}`;
+  return null;
+}
+
+/** Trích đoạn sạch markdown cho meta description / preview. */
+export function guideExcerpt(content: string, max = 155): string {
+  const text = content
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/[#>*_`~|]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
+}
