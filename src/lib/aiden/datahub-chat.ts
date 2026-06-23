@@ -18,6 +18,7 @@ import { resolveMarketTicker } from "@/lib/ticker-resolver";
 import { isIndexTicker, canonicalIndexTicker } from "@/lib/vn-reference-indices";
 import { getDatabaseAidenTickerContext } from "@/lib/database/aiden/context";
 import type { DatabaseAidenTickerContext } from "@/lib/database/aiden/types";
+import { fetchVndirectRecommendations, type BrokerConsensus } from "@/lib/research/vndirect";
 
 type JsonRecord = Record<string, unknown>;
 function readPositiveIntegerEnv(name: string, fallback: number): number {
@@ -822,6 +823,7 @@ OUTPUT_CONTRACT:
 - VĂN PHONG HỘI THOẠI, KHÔNG phải bản báo cáo: mở bằng 1 câu chốt thẳng cho câu hỏi, rồi dẫn giải bằng đoạn văn liền mạch, đan số liệu vào câu chữ; chỉ in đậm vài cụm/ngưỡng then chốt. TUYỆT ĐỐI KHÔNG tách câu trả lời thành các mục/heading máy móc kiểu "Xu hướng:/Động lượng:/Thanh khoản:/Khối ngoại:/Nhận định:". Chỉ dùng cấu trúc nhiều mục khi khách CHỦ ĐỘNG xin báo cáo chi tiết một mã.
 - Nếu khách hỏi "hôm nay mua mã gì", "top mã đáng chú ý", "lọc cổ phiếu", ưu tiên 3-5 mã có bối cảnh tốt nhất trong INTERNAL_CONTEXT, nêu điều kiện theo dõi và rủi ro. Không bịa mã ngoài ngữ cảnh.
 - Nếu khách hỏi một hoặc nhiều mã cụ thể, trả lời như chuyên gia nhìn TỔNG THỂ — KHÔNG chỉ kỹ thuật. Đan TỰ NHIÊN vào mạch văn cả góc CƠ BẢN khi ngữ cảnh có (định giá P/E·P/B, sức khoẻ doanh nghiệp qua EPS·ROE·ROA, tăng trưởng, ghi "theo kỳ báo cáo gần nhất") bên cạnh bức tranh kỹ thuật/dòng tiền/tin tức. Mạch ý liền mạch: nhận định nhanh → vài điểm đáng chú ý (gồm góc cơ bản nếu có) → rủi ro → hành động phù hợp. Dùng số liệu thực trong INTERNAL_CONTEXT (cả tickers[].fa/valuation lẫn analysisMetrics, news) khi có; tuyệt đối không bịa con số/target/tin.
+- Nếu ticker có "brokerConsensus" (khuyến nghị các CTCK): nêu góc nhìn đồng thuận của giới phân tích — số CTCK Mua/Giữ/Bán gần đây, GIÁ MỤC TIÊU TRUNG BÌNH (avgTargetPrice, đơn vị nghìn đồng) và mức upside so với giá hiện tại, dẫn 1-2 CTCK gần nhất kèm giá mục tiêu + ngày (latest[].firm/type/targetPrice/reportDate). Trình bày RÕ đây là tham khảo từ giới phân tích bên ngoài, KHÔNG phải khuyến nghị của ADN; chỉ dùng số trong brokerConsensus, không bịa thêm CTCK/target. Khi khách hỏi thẳng "có báo cáo/khuyến nghị nào không" thì đây là phần chính của câu trả lời.
 - Trạng thái kịch biên: nếu mã có "priceLimit.status" hoặc "market.limitStatus" = "ceiling" thì PHẢI khẳng định mã đó **tăng trần (kịch trần)** hôm nay; = "floor" thì **giảm sàn (kịch sàn)**. TUYỆT ĐỐI không phủ nhận. Lấy "changePct" làm mức biến động chính thức (vd +7% là kịch trần HOSE); không tự suy ra % khác từ giá rồi nói "chưa phải trần".${hasIndex ? `
 - Nếu khách hỏi về CHỈ SỐ trong "indices" (VNINDEX/VN30/VN30F1M...): viết thành nhận định LIỀN MẠCH như đang trò chuyện — chốt xu hướng trước (giá so với MA20/MA50/MA200), rồi đan động lượng (RSI/MACD), thanh khoản và độ rộng thị trường (lấy từ "market") VÀO MẠCH VĂN, KHÔNG liệt kê thành từng mục. Vùng quan trọng CHỈ lấy từ các đường trung bình và đỉnh/đáy 52 tuần trong "indices.keyLevels". TUYỆT ĐỐI không nêu P/E, EPS, BVPS, ROE hay định giá doanh nghiệp cho chỉ số, và KHÔNG bịa mốc hỗ trợ/kháng cự ngoài dữ liệu đã cho. Chỉ số không có "điểm mua/cắt lỗ" như cổ phiếu — nói về trạng thái và kịch bản thị trường.` : ""}
 - Nếu khách cần biểu đồ chi tiết, gợi ý mở ADN Stock để xem chart, vùng giá và AIDEN nhận định theo mã đó.
@@ -1791,14 +1793,26 @@ export async function prepareAidenDatahubTurn(input: {
     const general = await buildGeneralMarketContext(context);
     // HƯỚNG B: webchat lấy ticker context từ getDatabaseAidenTickerContext (DB-v2-first + fallback
     // ta-summary) — CÙNG nguồn với ADN Stock, giá đúng/đã điều chỉnh, không dính bridge /historical.
+    // Khuyến nghị broker (VNDirect) chạy SONG SONG với load context (cache RAM 6h, timeout 4s).
+    const recoPromise: Promise<(BrokerConsensus | null)[]> =
+      stockTickers.length > 0
+        ? Promise.all(stockTickers.map((t) => fetchVndirectRecommendations(t).catch(() => null)))
+        : Promise.resolve([]);
     const stockResults =
       stockTickers.length > 0
         ? await Promise.all(stockTickers.map((t) => getDatabaseAidenTickerContext({ ticker: t }).catch(() => null)))
         : [];
+    const recoResults = await recoPromise;
+    const recoByTicker = new Map(stockTickers.map((t, i) => [t.toUpperCase(), recoResults[i] ?? null]));
     const stockDbContexts = stockResults
       .map((r) => r?.data ?? null)
       .filter((c): c is DatabaseAidenTickerContext => Boolean(c));
-    const tickerContexts = stockDbContexts.map(dbContextToWebchatTicker);
+    const tickerContexts = stockDbContexts.map((dbCtx) => {
+      const tc = dbContextToWebchatTicker(dbCtx);
+      const consensus = recoByTicker.get(String(dbCtx.ticker).toUpperCase());
+      if (consensus) (tc as Record<string, unknown>).brokerConsensus = consensus;
+      return tc;
+    });
     const perIndex = indexTickers.length > 0 ? await loadIndexContexts(indexTickers, context) : [];
     const indexContexts = perIndex.map((item) => item.context);
     // Webchat AIDEN: luôn để LLM tự viết câu trả lời tự nhiên dựa trên số liệu đã chuẩn hóa.
