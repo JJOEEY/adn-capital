@@ -255,17 +255,80 @@ interface MarketOverviewData {
   price: number;
 }
 
-async function fetchMarketOverview(): Promise<MarketOverviewData | null> {
+// Chỉ số + độ rộng + thanh khoản CHUẨN từ DNSE 'mi' (market.eod, nguồn sàn, đúng PHIÊN MỚI NHẤT). Dùng SỬA
+// facts cho market-overview vì composite/bridge trả T-1 (1869 thay vì 1878) + độ rộng rổ con (29/76). Cache 60s.
+type CanonicalMarketIndices = {
+  vnindex: { value: number; changePct: number } | null;
+  breadth: { up: number; down: number; steady: number };
+  liquidityBn: number;
+  indices: Array<{ name: string; value: number; changePct: number }>;
+};
+let canonicalMarketCache: { at: number; data: CanonicalMarketIndices | null } | null = null;
+async function loadCanonicalMarketIndices(): Promise<CanonicalMarketIndices | null> {
+  if (canonicalMarketCache && Date.now() - canonicalMarketCache.at < 60_000) return canonicalMarketCache.data;
   try {
-    const res = await fetch(`${FIINQUANT_BRIDGE}/api/v1/market-overview`, {
-      signal: AbortSignal.timeout(CHAT_BRIDGE_CONTEXT_TIMEOUT_MS),
-      cache: "no-store",
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as MarketOverviewData;
+    const rows = await prisma.$queryRaw<Array<{ idx: string; val: unknown; chg: unknown; up: unknown; down: unknown; steady: unknown; gross: unknown }>>`
+      WITH latest AS (
+        SELECT max("tradingDate") d FROM "DatabaseMarketLatest" WHERE dataset = 'market.eod' AND "payload"->>'T' = 'mi'
+      )
+      SELECT "payload"->>'indexName' AS idx,
+        ("payload"->>'valueIndexes')::numeric AS val,
+        ("payload"->>'changedRatio')::numeric AS chg,
+        ("payload"->>'fluctuationUpIssueCount')::numeric AS up,
+        ("payload"->>'fluctuationDownIssueCount')::numeric AS down,
+        ("payload"->>'fluctuationSteadinessIssueCount')::numeric AS steady,
+        ("payload"->>'grossTradeAmount')::numeric AS gross
+      FROM "DatabaseMarketLatest"
+      WHERE dataset = 'market.eod' AND "payload"->>'T' = 'mi' AND "tradingDate" = (SELECT d FROM latest)`;
+    if (rows.length === 0) { canonicalMarketCache = { at: Date.now(), data: null }; return null; }
+    const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+    // Full-market = HSX + HNX + UPCOM (KHÔNG cộng VN30 vì là rổ con của HSX).
+    const marketRows = rows.filter((r) => ["VNINDEX", "HNX", "UPCOM"].includes(String(r.idx).toUpperCase()));
+    const vnRow = rows.find((r) => String(r.idx).toUpperCase() === "VNINDEX") ?? null;
+    const breadth = marketRows.reduce((acc, r) => ({ up: acc.up + num(r.up), down: acc.down + num(r.down), steady: acc.steady + num(r.steady) }), { up: 0, down: 0, steady: 0 });
+    const liquidityBn = Number(marketRows.reduce((sum, r) => sum + num(r.gross), 0).toFixed(1));
+    const data: CanonicalMarketIndices = {
+      vnindex: vnRow ? { value: num(vnRow.val), changePct: num(vnRow.chg) } : null,
+      breadth,
+      liquidityBn,
+      indices: marketRows.map((r) => ({ name: String(r.idx).toUpperCase(), value: num(r.val), changePct: num(r.chg) })),
+    };
+    canonicalMarketCache = { at: Date.now(), data };
+    return data;
   } catch {
-    return null;
+    return canonicalMarketCache?.data ?? null;
   }
+}
+
+async function fetchMarketOverview(): Promise<MarketOverviewData | null> {
+  const [bridge, canonical] = await Promise.all([
+    (async () => {
+      try {
+        const res = await fetch(`${FIINQUANT_BRIDGE}/api/v1/market-overview`, {
+          signal: AbortSignal.timeout(CHAT_BRIDGE_CONTEXT_TIMEOUT_MS),
+          cache: "no-store",
+        });
+        return res.ok ? ((await res.json()) as MarketOverviewData) : null;
+      } catch {
+        return null;
+      }
+    })(),
+    loadCanonicalMarketIndices().catch(() => null),
+  ]);
+  if (!bridge && !canonical) return null;
+  // Giữ ĐÁNH GIÁ proprietary (score/level/reasons/technical) từ composite; SỬA FACTS (giá/độ rộng/thanh khoản)
+  // bằng số sàn đúng phiên từ DNSE 'mi' để webchat luôn nhất quán + đúng ngày (không còn 1869/29-76 stale).
+  const overview: MarketOverviewData = bridge ?? ({
+    ticker: "VNINDEX", score: 0, max_score: 10, level: 1, status_badge: "", market_breadth: "",
+    technical_highlights: { ema: "", vsa: "", divergence: "" }, reasons: [], action_message: "",
+    disclaimer: "", liquidity: 0, price: 0,
+  } as MarketOverviewData);
+  if (canonical?.vnindex) overview.price = canonical.vnindex.value;
+  if (canonical && (canonical.breadth.up || canonical.breadth.down)) {
+    overview.market_breadth = `Tăng: ${canonical.breadth.up} | Giảm: ${canonical.breadth.down} | Không đổi: ${canonical.breadth.steady}`;
+  }
+  if (canonical && canonical.liquidityBn > 0) overview.liquidity = canonical.liquidityBn;
+  return overview;
 }
 
 // ─── Detect stock tickers trong tin nhắn tự do ────────────────────
