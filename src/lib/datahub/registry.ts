@@ -483,7 +483,17 @@ async function loadDatabaseV2PulseTopic(force = false) {
 }
 
 async function loadDatabaseV2RankTopic(force = false) {
-  const cached = !force ? await loadDatabaseV2ToolPayload("rank", "rank.rs", 24 * 60 * 60_000) : null;
+  // ADN Rank hiện ĐẦY ĐỦ universe (~500 mã): ưu tiên list từ route /api/rs-rating (route tự cache 15').
+  // Cache database_v2 trước đây bị thu hẹp còn ~157 mã (cổng thanh khoản) → ẩn nhiều mã hợp lệ
+  // (AGR, EVS, DRC, LHG, nhiều mã CK...). Giờ cache chỉ là FALLBACK khi route lỗi.
+  try {
+    const full = await loadRsRatingList(force);
+    const stocks = (full as { stocks?: unknown[] } | null)?.stocks;
+    if (Array.isArray(stocks) && stocks.length > 0) return full;
+  } catch {
+    // route lỗi → fallback cache bên dưới
+  }
+  const cached = await loadDatabaseV2ToolPayload("rank", "rank.rs", 24 * 60 * 60_000).catch(() => null);
   return cached ?? loadRsRatingTopic(force);
 }
 
