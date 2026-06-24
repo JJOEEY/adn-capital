@@ -413,7 +413,7 @@ export function AidenWebChat() {
 
   return (
     <MainLayout disableSwipe>
-      <div className="flex h-[calc(100dvh-160px)] min-h-0 flex-col bg-[var(--page-background)] lg:h-full">
+      <div className="flex h-[calc(100dvh-160px)] min-h-0 flex-col lg:h-full">
         <div className="shrink-0 flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface)] px-4 py-3 md:px-6">
           <div className="flex items-center gap-3">
             <BotAvatar />
