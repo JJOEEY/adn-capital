@@ -70,7 +70,8 @@ type IndicatorId =
   | "bb"
   | "macd"
   | "rsi"
-  | "stoch";
+  | "stoch"
+  | "stochrsi";
 
 type IndicatorMeta = {
   id: IndicatorId;
@@ -86,8 +87,10 @@ type ChartSeriesRefs = {
   macd?: { histogram: any; macd: any; signal: any };
   rsi?: { line: any; upper: any; lower: any };
   stoch?: { k: any; d: any; upper: any; lower: any };
+  stochrsi?: { k: any; d: any; upper: any; lower: any };
   macdMarkers?: any;
   stochMarkers?: any;
+  stochrsiMarkers?: any;
 };
 
 const CHART_HEIGHT_MOBILE = 520;
@@ -110,6 +113,7 @@ const INDICATORS: IndicatorMeta[] = [
   { id: "macd", label: "MACD", group: "Panel dưới" },
   { id: "rsi", label: "RSI(14)", group: "Panel dưới" },
   { id: "stoch", label: "Stoch", group: "Panel dưới" },
+  { id: "stochrsi", label: "Stoch RSI", group: "Panel dưới" },
 ];
 
 const INDICATOR_COLORS: Record<string, string> = {
@@ -298,6 +302,28 @@ function calcStoch(data: Candle[], period = 14, smooth = 3) {
     k.push({ time: data[index].time, value });
   }
   const d = calcSMA(k.map((item) => ({ time: item.time, close: item.value })), smooth);
+  return { k, d };
+}
+
+// StochRSI = Stochastic áp lên chuỗi RSI (mặc định 14,14,3,3). Trả %K + %D (0–100).
+function calcStochRSI(
+  data: Array<{ time: number; close: number }>,
+  rsiPeriod = 14,
+  stochPeriod = 14,
+  smoothK = 3,
+  smoothD = 3,
+) {
+  const rsi = calcRSI(data, rsiPeriod);
+  const raw: LinePoint[] = [];
+  for (let index = stochPeriod - 1; index < rsi.length; index += 1) {
+    const window = rsi.slice(index - stochPeriod + 1, index + 1).map((point) => point.value);
+    const highest = Math.max(...window);
+    const lowest = Math.min(...window);
+    const value = highest === lowest ? 0 : ((rsi[index].value - lowest) / (highest - lowest)) * 100;
+    raw.push({ time: rsi[index].time, value });
+  }
+  const k = calcSMA(raw.map((point) => ({ time: point.time, close: point.value })), smoothK);
+  const d = calcSMA(k.map((point) => ({ time: point.time, close: point.value })), smoothD);
   return { k, d };
 }
 
@@ -520,6 +546,14 @@ export function StockChart({
       updateLastPoint(refs.stoch.lower, constantLine(stoch.k, 20));
       refs.stochMarkers?.setMarkers(computeCrossMarkers(stoch.k, stoch.d) as any);
     }
+    if (refs.stochrsi) {
+      const sr = calcStochRSI(closeData);
+      updateLastPoint(refs.stochrsi.k, sr.k);
+      updateLastPoint(refs.stochrsi.d, sr.d);
+      updateLastPoint(refs.stochrsi.upper, constantLine(sr.k, 80));
+      updateLastPoint(refs.stochrsi.lower, constantLine(sr.k, 20));
+      refs.stochrsiMarkers?.setMarkers(computeCrossMarkers(sr.k, sr.d) as any);
+    }
   };
 
   useEffect(() => {
@@ -708,6 +742,15 @@ export function StockChart({
           const lower = chart.addSeries(LineSeries, { color: "rgba(148,163,184,0.45)", lineWidth: 1, title: "Stoch 20", lastValueVisible: false }, paneIndex);
           nextSeries.stoch = { k, d, upper, lower };
           nextSeries.stochMarkers = createSeriesMarkers(k, []);
+          paneIndex += 1;
+        }
+        if (enabledIndicators.includes("stochrsi")) {
+          const k = chart.addSeries(LineSeries, { color: "#22d3ee", lineWidth: 1, title: "StochRSI %K" }, paneIndex);
+          const d = chart.addSeries(LineSeries, { color: "#fb923c", lineWidth: 1, title: "%D" }, paneIndex);
+          const upper = chart.addSeries(LineSeries, { color: "rgba(148,163,184,0.45)", lineWidth: 1, title: "StochRSI 80", lastValueVisible: false }, paneIndex);
+          const lower = chart.addSeries(LineSeries, { color: "rgba(148,163,184,0.45)", lineWidth: 1, title: "StochRSI 20", lastValueVisible: false }, paneIndex);
+          nextSeries.stochrsi = { k, d, upper, lower };
+          nextSeries.stochrsiMarkers = createSeriesMarkers(k, []);
         }
 
         requestAnimationFrame(() => {
@@ -867,6 +910,15 @@ export function StockChart({
           seriesRef.current.stoch.upper.setData(constantLine(stoch.k, 80) as any);
           seriesRef.current.stoch.lower.setData(constantLine(stoch.k, 20) as any);
           seriesRef.current.stochMarkers?.setMarkers(computeCrossMarkers(stoch.k, stoch.d) as any);
+        }
+
+        if (seriesRef.current.stochrsi) {
+          const sr = calcStochRSI(closeData);
+          seriesRef.current.stochrsi.k.setData(sr.k as any);
+          seriesRef.current.stochrsi.d.setData(sr.d as any);
+          seriesRef.current.stochrsi.upper.setData(constantLine(sr.k, 80) as any);
+          seriesRef.current.stochrsi.lower.setData(constantLine(sr.k, 20) as any);
+          seriesRef.current.stochrsiMarkers?.setMarkers(computeCrossMarkers(sr.k, sr.d) as any);
         }
 
         if (!didFitRef.current) {
