@@ -169,12 +169,18 @@ export function AidenWebChat() {
     };
   }, []);
 
-  // Tự cuộn xuống đáy — INSTANT + chỉ khi user đang ở gần đáy (không giật khi cuộn lên đọc lại). Rẻ hơn smooth-per-token.
-  useEffect(() => {
+  // Ghim đáy (pinned): tự cuộn xuống tin MỚI NHẤT, trừ khi user chủ động cuộn lên đọc lại. Khởi tạo pinned=true
+  // để khi MỞ chat (load lịch sử) hiện ngay tin gần nhất, KHÔNG kẹt ở đầu trang.
+  const pinnedRef = useRef(true);
+  const handleScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 140;
-    if (nearBottom) el.scrollTop = el.scrollHeight;
+    pinnedRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 140;
+  }, []);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !pinnedRef.current) return;
+    el.scrollTop = el.scrollHeight;
   }, [messages, isStreaming]);
 
   useEffect(() => {
@@ -299,6 +305,7 @@ export function AidenWebChat() {
       ]);
       setInput("");
       setIsStreaming(true);
+      pinnedRef.current = true; // gửi tin mới → luôn ghim xuống đáy để thấy câu trả lời
 
       // Chốt stream: đặt text cuối + cho vòng nhả chữ chạy nốt rồi mới tắt cursor (hoặc finalize ngay nếu chưa có chữ nào).
       const finalizeStream = (finalText: string, isError: boolean) => {
@@ -438,7 +445,7 @@ export function AidenWebChat() {
           </div>
         </div>
 
-        <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-6 md:px-6">
+        <div ref={scrollRef} onScroll={handleScroll} className="min-h-0 flex-1 overflow-y-auto px-4 py-6 md:px-6">
           <div className="mx-auto flex w-full max-w-4xl flex-col gap-5">
             {messages.length === 0 ? (
               <div className="flex min-h-[45vh] flex-col items-center justify-center text-center">
