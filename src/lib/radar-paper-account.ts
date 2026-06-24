@@ -1103,6 +1103,15 @@ export async function manualBuyPaperPosition(params: { ticker: string; navPct: n
       },
     }),
   ]);
+  // Mua tay cũng bắn Telegram như buyPaperPosition (trước đây tạo vị thế trực tiếp nên bị sót → VRE im).
+  await sendPaperBuyToTelegram({
+    ticker,
+    signalType,
+    entryPrice: price,
+    navAllocation: created.navAllocation,
+    reason: "Mua tay",
+    tradingDate: getVnDateISO(now),
+  }).catch(() => {});
   await invalidateTopics({ topics: ["signal:map:latest"], tags: ["signal"] });
   return { ok: true as const, positionId: created.id, quantity, price };
 }
