@@ -3256,8 +3256,70 @@ function periodPctFromHistory(hist: Array<{ date: string; close: number }> | und
   return ((latest - past) / past) * 100;
 }
 
+type DnseTeBoardRow = { price: number; changePct1D: number | null; volume: number; valueBillion: number };
+let dnseTeBoardCache: { at: number; data: Map<string, DnseTeBoardRow> } | null = null;
+// Bảng giá NGÀY MỚI NHẤT từ market.eod 'te' (DNSE cron thu, đúng từng ngày). Dùng SỬA giá + %1D cho top-movers:
+// fetchDnseMarketBoard (realtime 5m/close endpoint) trả T-1 lẫn lộn sau phiên (vd LPB 52.6 ngày 23/6 thay vì 55.1 ngày 24/6).
+// price = matchPrice×1000 (VND); %1D = (close mới − close phiên trước)/phiên trước; KLGD/GTGD từ phiên mới nhất.
+async function loadDnseTeBoardLatest(): Promise<Map<string, DnseTeBoardRow>> {
+  if (dnseTeBoardCache && Date.now() - dnseTeBoardCache.at < 5 * 60_000) return dnseTeBoardCache.data;
+  const map = new Map<string, DnseTeBoardRow>();
+  try {
+    const rows = await prisma.$queryRaw<Array<{ symbol: string; tradingDate: string; matchprice: unknown; vol: unknown }>>`
+      WITH recent AS (
+        SELECT DISTINCT "tradingDate" FROM "DatabaseMarketLatest"
+        WHERE dataset = 'market.eod' AND "payload"->>'T' = 'te'
+        ORDER BY "tradingDate" DESC LIMIT 2
+      )
+      SELECT "symbol" AS symbol, "tradingDate" AS "tradingDate",
+        ("payload"->>'matchPrice')::numeric AS matchprice,
+        ("payload"->>'totalVolumeTraded')::numeric AS vol
+      FROM "DatabaseMarketLatest"
+      WHERE dataset = 'market.eod' AND "payload"->>'T' = 'te'
+        AND ("payload"->>'matchPrice') IS NOT NULL
+        AND "tradingDate" IN (SELECT "tradingDate" FROM recent)
+      ORDER BY "symbol", "tradingDate" ASC`;
+    const bySym = new Map<string, Array<{ date: string; price: number; vol: number }>>();
+    for (const row of rows) {
+      const sym = String(row.symbol).toUpperCase();
+      const price = Number(row.matchprice);
+      if (!Number.isFinite(price) || price <= 0) continue;
+      const list = bySym.get(sym) ?? [];
+      list.push({ date: row.tradingDate, price, vol: row.vol == null ? 0 : Number(row.vol) });
+      bySym.set(sym, list);
+    }
+    for (const [sym, list] of bySym) {
+      list.sort((a, b) => (a.date < b.date ? -1 : 1));
+      const latest = list[list.length - 1];
+      const prev = list.length >= 2 ? list[list.length - 2] : null;
+      const priceVnd = Number((latest.price * 1000).toFixed(2));
+      const changePct1D = prev && prev.price > 0 ? Number((((latest.price - prev.price) / prev.price) * 100).toFixed(2)) : null;
+      const volume = Math.max(0, Math.round(latest.vol));
+      map.set(sym, { price: priceVnd, changePct1D, volume, valueBillion: Number(((priceVnd * volume) / 1e9).toFixed(2)) });
+    }
+  } catch {
+    return dnseTeBoardCache?.data ?? map;
+  }
+  dnseTeBoardCache = { at: Date.now(), data: map };
+  return map;
+}
+
 async function loadPulseTopMovers(force = false) {
   const stocks = await loadPulseRankStocks(force, 500);
+  // SỬA giá + %1D + KLGD/GTGD từ market.eod 'te' (đúng từng ngày) — fetchDnseMarketBoard realtime trả T-1 lẫn lộn sau phiên.
+  const teBoard = await loadDnseTeBoardLatest().catch(() => new Map<string, DnseTeBoardRow>());
+  if (teBoard.size > 0) {
+    for (const stock of stocks) {
+      const te = teBoard.get(stock.ticker);
+      if (!te) continue;
+      stock.price = te.price;
+      if (te.changePct1D != null) stock.changePct = te.changePct1D;
+      if (te.volume > 0) {
+        stock.volume = te.volume;
+        stock.valueBillion = te.valueBillion;
+      }
+    }
+  }
   const history = await loadDailyTickCloseHistory(stocks.map((stock) => stock.ticker)).catch(() => new Map());
   const minCoverage = Math.max(20, Math.floor(stocks.length * 0.3));
 
@@ -3265,7 +3327,12 @@ async function loadPulseTopMovers(force = false) {
   for (const timeframe of PULSE_TOP_MOVER_TIMEFRAMES) {
     const label = formatPulseTopMoverTimeframe(timeframe);
     if (timeframe === "1D") {
-      const rows = stocks.map((stock) => topMoverRowFromStock(stock, stock.changePct));
+      // Chỉ mã có 'te' hôm nay (giá + %1D đáng tin, CÙNG NGÀY) → tránh mã giá T-1 (realtime stale) lọt top.
+      // 'te' rỗng (lỗi DB) → fallback toàn bộ như cũ.
+      const teRows = stocks
+        .filter((stock) => teBoard.get(stock.ticker)?.changePct1D != null)
+        .map((stock) => topMoverRowFromStock(stock, stock.changePct));
+      const rows = teRows.length > 0 ? teRows : stocks.map((stock) => topMoverRowFromStock(stock, stock.changePct));
       frames[timeframe] = { enabled: rows.length > 0, label, rows, missingReason: rows.length > 0 ? null : "Chưa có dữ liệu hôm nay." };
       continue;
     }
