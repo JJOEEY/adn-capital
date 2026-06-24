@@ -2942,47 +2942,52 @@ async function loadPulseSmartflow() {
     "6M": sixMonthFlow,
     "1Y": oneYearFlow,
   });
-  // === FOREIGN (NĐT NN) → DNSE-PRIMARY (market.eod 'f' = kênh foreign.G1.json, nguồn SÀN thật). ===
-  // sparkline + top mua/bán ròng + net ngắn đều từ DNSE; vnstock chỉ còn lo NET khung DÀI hơn lịch sử
-  // DNSE (market.eod giữ ~13 phiên). FiinQuant không còn cần cho foreign.
+  // === FOREIGN (NĐT NN) → VNSTOCK-PRIMARY cho NET + TOP mua/bán ròng (TỔNG CHÍNH THỨC = khớp lệnh + THỎA
+  // THUẬN, khớp FireAnt/CafeF/sàn). DNSE foreign.G1 CHỈ có khớp lệnh — thiếu thỏa thuận, lệch 40-90 tỷ/mã
+  // (vd VPB DNSE -2.7 vs sàn -89). vnstock có 1D/1W; khung dài hơn (1M+) vnstock rỗng → fallback DNSE windowed.
+  // DNSE vẫn lo: (a) đường sparkline nhiều phiên (vnstock chỉ có điểm tổng theo khung). ===
   const foreignDailySeries = await loadMarketForeignDailySeries();
   const seriesDays: Record<string, number> = { "1D": 10, "1W": 8, "1M": 22, "3M": 66, "6M": 132, "1Y": 260 };
   const foreignNetDays: Record<string, number> = { "1D": 1, "1W": 5, "1M": 22, "3M": 66, "6M": 132, "1Y": 260 };
   const dnseDays = foreignDailySeries.length;
+  const vnstockFlow = await fetchVnstockInvestorFlow({ top: 10 }).catch(() => null);
   for (const [tf, bucket] of Object.entries(investorFlow.foreign)) {
     if (!bucket) continue;
+    // (a) sparkline nhiều phiên từ DNSE
     const slicedSeries = foreignDailySeries.slice(-(seriesDays[tf] ?? 10));
     if (slicedSeries.length >= 2) (bucket as { series?: SmartflowInvestorFlowPoint[] }).series = slicedSeries;
-    const win = foreignNetDays[tf] ?? 1;
-    // CHỈ dùng DNSE (net + top-names) khi DNSE phủ ĐỦ cửa sổ — market.eod 'f' giữ ~13 phiên. Như vậy net &
-    // top-names cùng MỘT nguồn/cửa sổ (đồng nhất, sum khớp). Khung dài hơn (1M+) DNSE lịch sử ngắn → để
-    // FiinQuant/vnstock lo CẢ net LẪN top-names (tránh net dài-khung lệch với top-names ~13 ngày).
-    if (win <= dnseDays && foreignDailySeries.length > 0) {
-      const dnse = await loadDnseForeignByWindow(win);
-      if (dnse.topBuy.length > 0 || dnse.topSell.length > 0) {
-        bucket.topBuy = dnse.topBuy.slice(0, 10);
-        bucket.topSell = dnse.topSell.slice(0, 10);
+    // (b) net + top: ưu tiên vnstock (tổng chuẩn) khi khung đó có data; vnstock rỗng (1M+) → DNSE windowed.
+    const vn = vnstockFlow?.foreign?.[tf];
+    const vnHasData = !!vn && ((vn.topBuy?.length ?? 0) > 0 || (vn.topSell?.length ?? 0) > 0 || (vn.net != null && vn.net !== 0));
+    if (vnHasData && vn) {
+      if (vn.net != null && Number.isFinite(vn.net)) bucket.netValue = vn.net;
+      if ((vn.topBuy?.length ?? 0) > 0) bucket.topBuy = vn.topBuy.slice(0, 10).map((row) => ({ ticker: row.ticker, exchange: "", netBuyValue: row.netValue, netBuyVolume: null }));
+      if ((vn.topSell?.length ?? 0) > 0) bucket.topSell = vn.topSell.slice(0, 10).map((row) => ({ ticker: row.ticker, exchange: "", netBuyValue: row.netValue, netBuyVolume: null }));
+    } else {
+      const win = foreignNetDays[tf] ?? 1;
+      if (win <= dnseDays && foreignDailySeries.length > 0) {
+        const dnse = await loadDnseForeignByWindow(win);
+        if (dnse.topBuy.length > 0 || dnse.topSell.length > 0) {
+          bucket.topBuy = dnse.topBuy.slice(0, 10);
+          bucket.topSell = dnse.topSell.slice(0, 10);
+        }
+        const window = foreignDailySeries.slice(-win);
+        bucket.netValue = Number(window.reduce((sum, point) => sum + (Number.isFinite(point.netValue) ? point.netValue : 0), 0).toFixed(2));
       }
-      const window = foreignDailySeries.slice(-win);
-      bucket.netValue = Number(window.reduce((sum, point) => sum + (Number.isFinite(point.netValue) ? point.netValue : 0), 0).toFixed(2));
     }
   }
-  // vnstock FlowInsights = FALLBACK: foreign NET khung dài (DNSE lịch sử ngắn) + TỰ DOANH (DNSE không có
-  // prop) net + top-names. KHÔNG đè top-names foreign DNSE đã set (chỉ lấp khi rỗng).
-  const vnstockFlow = await fetchVnstockInvestorFlow({ top: 10 }).catch(() => null);
+  // TỰ DOANH (prop): DNSE không có kênh prop → lấy thẳng vnstock (net + top names) khi bucket còn rỗng.
   if (vnstockFlow) {
-    for (const type of ["foreign", "proprietary"] as const) {
-      for (const [tf, bucket] of Object.entries(investorFlow[type])) {
-        const vn = vnstockFlow[type]?.[tf];
-        if (!bucket || !vn) continue;
-        const empty = bucket.topBuy.length === 0 && bucket.topSell.length === 0;
-        if (empty && (vn.topBuy.length > 0 || vn.topSell.length > 0)) {
-          bucket.topBuy = vn.topBuy.slice(0, 10).map((row) => ({ ticker: row.ticker, exchange: "", netBuyValue: row.netValue, netBuyVolume: null }));
-          bucket.topSell = vn.topSell.slice(0, 10).map((row) => ({ ticker: row.ticker, exchange: "", netBuyValue: row.netValue, netBuyVolume: null }));
-        }
-        if ((bucket.netValue == null || bucket.netValue === 0) && vn.net != null && Number.isFinite(vn.net)) {
-          bucket.netValue = vn.net;
-        }
+    for (const [tf, bucket] of Object.entries(investorFlow.proprietary)) {
+      const vn = vnstockFlow.proprietary?.[tf];
+      if (!bucket || !vn) continue;
+      const empty = bucket.topBuy.length === 0 && bucket.topSell.length === 0;
+      if (empty && (vn.topBuy.length > 0 || vn.topSell.length > 0)) {
+        bucket.topBuy = vn.topBuy.slice(0, 10).map((row) => ({ ticker: row.ticker, exchange: "", netBuyValue: row.netValue, netBuyVolume: null }));
+        bucket.topSell = vn.topSell.slice(0, 10).map((row) => ({ ticker: row.ticker, exchange: "", netBuyValue: row.netValue, netBuyVolume: null }));
+      }
+      if ((bucket.netValue == null || bucket.netValue === 0) && vn.net != null && Number.isFinite(vn.net)) {
+        bucket.netValue = vn.net;
       }
     }
   }
