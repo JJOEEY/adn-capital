@@ -52,7 +52,7 @@ export interface VnstockInvestorFlowResponse {
 }
 
 // Bridge vnstock CHUYÊN BIỆT (adn-vnstock:8010, VNSTOCK_BRIDGE_URL) — khác bridge news ở trên.
-function getVnstockDataBridgeUrl() {
+export function getVnstockDataBridgeUrl() {
   return (
     process.env.VNSTOCK_BRIDGE_URL ||
     (process.env.NODE_ENV === "production" ? "http://vnstock:8010" : "http://127.0.0.1:8010")
