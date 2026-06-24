@@ -21,6 +21,7 @@ import type { DatabaseAidenTickerContext } from "@/lib/database/aiden/types";
 import { fetchVndirectRecommendations, type BrokerConsensus } from "@/lib/research/vndirect";
 import { fetchFinancialHistory, type FinancialHistory } from "@/lib/research/financials";
 import { loadCanonicalMarketFacts, mergeCanonicalMarketFacts, prependMarketOverview } from "@/lib/aiden/market-facts";
+import { executeAidenGeminiRequest } from "@/lib/gemini";
 
 type JsonRecord = Record<string, unknown>;
 function readPositiveIntegerEnv(name: string, fallback: number): number {
@@ -37,6 +38,7 @@ const GENERAL_TOPIC_TIMEOUT_MS = 3_500;
 const TICKER_TOPIC_TIMEOUT_MS = 15_000;
 const AIDEN_MODEL = AIDEN_FREEMODEL_MODEL;
 const AIDEN_MODEL_TIMEOUT_MS = AIDEN_FREEMODEL_TIMEOUT_MS;
+const AIDEN_GEMINI_TIMEOUT_MS = readPositiveIntegerEnv("AIDEN_GEMINI_TIMEOUT_MS", 15_000);
 const AIDEN_ALLOW_LEGACY_MARKET_CONTEXT = process.env.AIDEN_ALLOW_LEGACY_MARKET_CONTEXT === "true";
 type AidenSurface = "aiden" | "stock";
 
@@ -1936,19 +1938,34 @@ export async function prepareAidenDatahubTurn(input: {
   };
 }
 
+// AIDEN non-stream LLM: Gemini 3 Flash primary (fast TTFT) -> FreeModel fallback. If both fail,
+// completeAidenPreparedTurn falls back to the deterministic fallbackMessage (market overview + picks).
+async function executeAidenChatLlm(prompt: string, systemInstruction: string, surface: AidenSurface): Promise<string> {
+  try {
+    return await withTimeout(
+      executeAidenGeminiRequest(prompt, systemInstruction),
+      AIDEN_GEMINI_TIMEOUT_MS,
+      `${surface}-gemini`,
+    );
+  } catch (geminiError) {
+    console.warn("[AIDEN] Gemini primary failed, fallback FreeModel:", String(geminiError).slice(0, 160));
+    return await withTimeout(
+      executeAidenFreeModelRequest(prompt, systemInstruction),
+      AIDEN_FREEMODEL_TIMEOUT_MS,
+      `${surface}-freemodel`,
+    );
+  }
+}
+
 async function completeAidenPreparedTurn(turn: AidenDatahubPreparedTurn, surface: AidenSurface): Promise<AidenDatahubChatResult> {
   let answer: string;
   if (turn.staticMessage) {
     answer = turn.staticMessage;
   } else if (turn.prompt) {
     try {
-      answer = await withTimeout(
-        executeAidenFreeModelRequest(turn.prompt, turn.systemInstruction),
-        AIDEN_MODEL_TIMEOUT_MS,
-        `${surface}-aiden`,
-      );
+      answer = await executeAidenChatLlm(turn.prompt, turn.systemInstruction, surface);
     } catch (error) {
-      console.warn("[AIDEN] FreeModel generation failed:", error);
+      console.warn("[AIDEN] LLM generation failed (gemini+freemodel):", error);
       emitAidenFallback(`${surface}_fallback`, error, {
         surface,
         tickerCount: turn.tickerContexts.length,

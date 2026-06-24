@@ -863,6 +863,41 @@ export async function streamAidenChat(
   return streamFlashOnlyAIRequest(prompt, systemInstruction, onDelta, options);
 }
 
+// Non-stream Gemini cho AIDEN non-stream path (runAidenDatahubChat → completeAidenPreparedTurn).
+// Direct Gemini Flash, tôn trọng AIDEN_ALLOW_DIRECT_GEMINI + AIDEN_GEMINI_MODEL (mặc định gemini-3-flash-preview
+// → gemini-2.5-flash fallback). Dùng làm PRIMARY, freemodel là fallback (xem datahub-chat.ts).
+export async function executeAidenGeminiRequest(prompt: string, systemInstruction?: string): Promise<string> {
+  if (!isAidenDirectGeminiAllowed()) {
+    throw new Error("AIDEN direct Gemini bị chặn (đặt AIDEN_ALLOW_DIRECT_GEMINI=true).");
+  }
+  const sysInstr = systemInstruction ?? SYSTEM_INSTRUCTIONS.GENERAL;
+  let lastErr: unknown;
+  for (const model of getAidenGeminiModels()) {
+    try {
+      const response = await getGenAIClient(true).models.generateContent({
+        model,
+        contents: prompt,
+        config: {
+          systemInstruction: withCustomerOutputRules(sysInstr),
+          thinkingConfig: /gemini-3/i.test(model)
+            ? { thinkingLevel: ThinkingLevel.MINIMAL }
+            : { thinkingBudget: 0 },
+        },
+      });
+      const out = sanitizeModelOutput(response.text ?? "");
+      if (out) {
+        console.log(`[AIDEN chat] provider=gemini model=${model}`);
+        return out;
+      }
+      throw new Error("Gemini trả về rỗng");
+    } catch (err) {
+      lastErr = err;
+      console.warn(`[AIDEN gemini] model=${model} err=${String(err).slice(0, 160)}`);
+    }
+  }
+  throw lastErr ?? new Error("AIDEN Gemini: tất cả model lỗi");
+}
+
 export function getGeminiModel(_modelName?: string) {
   return {
     generateContent: async (prompt: string) => {
