@@ -174,7 +174,9 @@ export function PulseTopMoversCard({ data }: { data: PulseTopMoversPayload | nul
           Không có mã phù hợp với bộ lọc hiện tại.
         </div>
       ) : (
-        <div className="flex-1 min-h-0 overflow-auto">
+        <div className="relative flex-1 min-h-0">
+          {/* List tuyệt đối: không tính vào chiều cao hàng grid → card cao bằng 2 ô kia, dài hơn thì cuộn. */}
+          <div className="absolute inset-0 overflow-auto">
           {usingFallback ? (
             <div className="mb-2 rounded-lg border px-3 py-2 text-[11px] font-bold" style={{ borderColor: "rgba(245,158,11,0.22)", background: "rgba(245,158,11,0.08)", color: "#f59e0b" }}>
               Đang dùng dữ liệu gần nhất: {resolvedLabel}
@@ -215,6 +217,7 @@ export function PulseTopMoversCard({ data }: { data: PulseTopMoversPayload | nul
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
