@@ -8,6 +8,7 @@ import {
   Camera,
   ChevronDown,
   Crosshair,
+  Equal,
   Expand,
   Eye,
   EyeOff,
@@ -16,6 +17,7 @@ import {
   LockOpen,
   Minus,
   MousePointer2,
+  MoveUpRight,
   RectangleHorizontal,
   Rows3,
   Ruler,
@@ -27,6 +29,9 @@ import {
   Undo2,
 } from "lucide-react";
 import { useTheme } from "@/components/providers/ThemeProvider";
+import type { Coordinate } from "lightweight-charts";
+import { DrawingsPrimitive } from "./drawing-primitives";
+import type { DrawAnchor, DrawObject, DrawTool } from "./drawing-primitives";
 
 export type ChartTimeframe = "1m" | "5m" | "15m" | "30m" | "1h" | "4h" | "1D" | "1W" | "1M";
 
@@ -49,13 +54,14 @@ export interface Candle {
   volume: number;
 }
 
-type DrawingTool = "cursor" | "trend" | "hline" | "vline" | "zone" | "fib" | "text" | "measure";
-type Drawing = {
-  id: string;
-  tool: Exclude<DrawingTool, "cursor">;
-  points: Array<{ x: number; y: number }>;
-  text?: string;
-};
+type DrawingTool = "cursor" | "trend" | "ray" | "hline" | "vline" | "zone" | "fib" | "channel" | "text" | "measure";
+type Drawing = DrawObject;
+
+function isAnchoredDrawing(value: unknown): value is Drawing {
+  if (!value || typeof value !== "object") return false;
+  const anchors = (value as { anchors?: unknown }).anchors;
+  return Array.isArray(anchors) && anchors.every((a) => a && typeof (a as DrawAnchor).time === "number" && typeof (a as DrawAnchor).price === "number");
+}
 
 type IndicatorId =
   | "volume"
@@ -91,6 +97,7 @@ type ChartSeriesRefs = {
   macdMarkers?: any;
   stochMarkers?: any;
   stochrsiMarkers?: any;
+  drawingsPrimitive?: DrawingsPrimitive;
 };
 
 const CHART_HEIGHT_MOBILE = 520;
@@ -431,23 +438,6 @@ function updateLastPoint(series: any, points: LinePoint[]) {
   if (point) series.update(point as any);
 }
 
-function pointFromEvent(event: PointerEvent<SVGSVGElement>) {
-  const rect = event.currentTarget.getBoundingClientRect();
-  return {
-    x: Math.max(0, Math.min(100, ((event.clientX - rect.left) / rect.width) * 100)),
-    y: Math.max(0, Math.min(100, ((event.clientY - rect.top) / rect.height) * 100)),
-  };
-}
-
-function drawingPath(drawing: Drawing) {
-  const [a, b] = drawing.points;
-  if (!a) return null;
-  if (drawing.tool === "hline") return { x1: 0, y1: a.y, x2: 100, y2: a.y };
-  if (drawing.tool === "vline") return { x1: a.x, y1: 0, x2: a.x, y2: 100 };
-  if (!b) return null;
-  return { x1: a.x, y1: a.y, x2: b.x, y2: b.y };
-}
-
 function ToolButton({
   active,
   label,
@@ -495,12 +485,12 @@ export function StockChart({
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
   const seriesRef = useRef<ChartSeriesRefs>({ overlays: [] });
-  const pendingPointRef = useRef<{ x: number; y: number } | null>(null);
+  const pendingAnchorsRef = useRef<DrawAnchor[]>([]);
   const didFitRef = useRef(false);
   const chartCandlesRef = useRef<Candle[]>([]);
   const requestTokenRef = useRef(0);
   const skipNextFullRenderRef = useRef(false);
-  const [pendingPoint, setPendingPoint] = useState<{ x: number; y: number } | null>(null);
+  const skipNextDrawingSaveRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTool, setActiveTool] = useState<DrawingTool>("cursor");
@@ -622,12 +612,16 @@ export function StockChart({
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(drawingStorageKey);
-      setDrawings(raw ? JSON.parse(raw) : []);
+      const parsed = raw ? JSON.parse(raw) : [];
+      // chỉ nhận nét vẽ neo theo {time,price}; bỏ định dạng %-cũ (đã hỏng khi pan/zoom).
+      setDrawings(Array.isArray(parsed) ? parsed.filter((d: unknown) => isAnchoredDrawing(d)) : []);
     } catch {
       setDrawings([]);
     }
-    pendingPointRef.current = null;
-    setPendingPoint(null);
+    // Đừng để effect lưu (chạy cùng lúc lúc mount với drawings=[]) ghi đè dữ liệu vừa load.
+    skipNextDrawingSaveRef.current = true;
+    pendingAnchorsRef.current = [];
+    seriesRef.current.drawingsPrimitive?.setPreview(null);
   }, [drawingStorageKey]);
 
   useEffect(() => {
@@ -643,12 +637,21 @@ export function StockChart({
   }, [indicatorStorageKey]);
 
   useEffect(() => {
+    if (skipNextDrawingSaveRef.current) {
+      skipNextDrawingSaveRef.current = false;
+      return;
+    }
     try {
       window.localStorage.setItem(drawingStorageKey, JSON.stringify(drawings));
     } catch {
       // Local persistence is best-effort only.
     }
   }, [drawings, drawingStorageKey]);
+
+  // Đẩy nét vẽ vào primitive (primitive tự repaint theo render-loop của chart → dính nến).
+  useEffect(() => {
+    seriesRef.current.drawingsPrimitive?.setDrawings(drawingsHidden ? [] : drawings);
+  }, [drawings, drawingsHidden, chartReadyVersion]);
 
   useEffect(() => {
     try {
@@ -677,8 +680,8 @@ export function StockChart({
   }, [settingsKey, settingsStorageKey]);
 
   useEffect(() => {
-    pendingPointRef.current = null;
-    setPendingPoint(null);
+    pendingAnchorsRef.current = [];
+    seriesRef.current.drawingsPrimitive?.setPreview(null);
   }, [activeTool]);
 
   const toggleIndicator = (indicator: IndicatorId) => {
@@ -771,6 +774,13 @@ export function StockChart({
         });
 
         const nextSeries: ChartSeriesRefs = { candle, overlays: [] };
+
+        const drawingsPrimitive = new DrawingsPrimitive({
+          getCandles: () => chartCandlesRef.current,
+          isDark,
+        });
+        candle.attachPrimitive(drawingsPrimitive);
+        nextSeries.drawingsPrimitive = drawingsPrimitive;
 
         if (enabledIndicators.includes("volume")) {
           const volume = chart.addSeries(HistogramSeries, {
@@ -1062,25 +1072,57 @@ export function StockChart({
     };
   }, [symbol, timeframe, chartReadyVersion, chartCandles.length, enabledKey, settingsKey]);
 
-  function addDrawing(point: { x: number; y: number }) {
-    if (activeTool === "cursor" || drawingsLocked) return;
-    const oneClick = activeTool === "hline" || activeTool === "vline" || activeTool === "text";
-    if (oneClick) {
-      const text = activeTool === "text" ? window.prompt("Nội dung ghi chú", "Ghi chú")?.trim() : undefined;
-      if (activeTool === "text" && !text) return;
-      setDrawings((prev) => [...prev, { id: crypto.randomUUID(), tool: activeTool, points: [point], text } as Drawing]);
-      return;
-    }
+  function anchorFromEvent(event: PointerEvent<HTMLDivElement>): DrawAnchor | null {
+    const chart = chartRef.current;
+    const series = seriesRef.current.candle;
+    const container = chartContainerRef.current;
+    if (!chart || !series || !container) return null;
+    const rect = container.getBoundingClientRect();
+    const x = (event.clientX - rect.left) as Coordinate;
+    const y = (event.clientY - rect.top) as Coordinate;
+    const time = chart.timeScale().coordinateToTime(x);
+    const price = series.coordinateToPrice(y);
+    if (time == null || price == null) return null;
+    return { time: Number(time), price: Number(price) };
+  }
 
-    const pending = pendingPointRef.current;
-    if (!pending) {
-      pendingPointRef.current = point;
-      setPendingPoint(point);
+  function pointsNeeded(tool: DrawTool): number {
+    if (tool === "hline" || tool === "vline" || tool === "text") return 1;
+    if (tool === "channel") return 3;
+    return 2;
+  }
+
+  function addDrawing(anchor: DrawAnchor) {
+    if (activeTool === "cursor" || drawingsLocked) return;
+    const tool = activeTool as DrawTool;
+    if (tool === "text") {
+      const text = window.prompt("Nội dung ghi chú", "Ghi chú")?.trim();
+      if (!text) return;
+      setDrawings((prev) => [...prev, { id: crypto.randomUUID(), tool, anchors: [anchor], text }]);
       return;
     }
-    setDrawings((prev) => [...prev, { id: crypto.randomUUID(), tool: activeTool, points: [pending, point] } as Drawing]);
-    pendingPointRef.current = null;
-    setPendingPoint(null);
+    const next = [...pendingAnchorsRef.current, anchor];
+    if (next.length >= pointsNeeded(tool)) {
+      setDrawings((prev) => [...prev, { id: crypto.randomUUID(), tool, anchors: next }]);
+      pendingAnchorsRef.current = [];
+      seriesRef.current.drawingsPrimitive?.setPreview(null);
+    } else {
+      pendingAnchorsRef.current = next;
+      seriesRef.current.drawingsPrimitive?.setPreview({ id: "preview", tool, anchors: next });
+    }
+  }
+
+  function previewMove(anchor: DrawAnchor) {
+    const tool = activeTool as DrawTool;
+    if (activeTool === "cursor" || drawingsLocked || tool === "text") return;
+    const pending = pendingAnchorsRef.current;
+    if (pending.length === 0) return;
+    seriesRef.current.drawingsPrimitive?.setPreview({ id: "preview", tool, anchors: [...pending, anchor] });
+  }
+
+  function cancelPending() {
+    pendingAnchorsRef.current = [];
+    seriesRef.current.drawingsPrimitive?.setPreview(null);
   }
 
   const drawingToolbar = (vertical = false) => (
@@ -1088,10 +1130,12 @@ export function StockChart({
       <ToolButton label="Con trỏ" active={activeTool === "cursor"} onClick={() => setActiveTool("cursor")}><MousePointer2 className="h-4 w-4" /></ToolButton>
       <ToolButton label="Crosshair" active={activeTool === "measure"} onClick={() => setActiveTool("measure")}><Crosshair className="h-4 w-4" /></ToolButton>
       <ToolButton label="Trendline" active={activeTool === "trend"} onClick={() => setActiveTool("trend")}><Slash className="h-4 w-4" /></ToolButton>
+      <ToolButton label="Tia (ray)" active={activeTool === "ray"} onClick={() => setActiveTool("ray")}><MoveUpRight className="h-4 w-4" /></ToolButton>
       <ToolButton label="Đường ngang" active={activeTool === "hline"} onClick={() => setActiveTool("hline")}><Minus className="h-4 w-4" /></ToolButton>
       <ToolButton label="Đường dọc" active={activeTool === "vline"} onClick={() => setActiveTool("vline")}><Rows3 className="h-4 w-4 rotate-90" /></ToolButton>
       <ToolButton label="Vùng giá" active={activeTool === "zone"} onClick={() => setActiveTool("zone")}><RectangleHorizontal className="h-4 w-4" /></ToolButton>
       <ToolButton label="Fibonacci" active={activeTool === "fib"} onClick={() => setActiveTool("fib")}><GitGraph className="h-4 w-4" /></ToolButton>
+      <ToolButton label="Kênh song song" active={activeTool === "channel"} onClick={() => setActiveTool("channel")}><Equal className="h-4 w-4" /></ToolButton>
       <ToolButton label="Ghi chú" active={activeTool === "text"} onClick={() => setActiveTool("text")}><Type className="h-4 w-4" /></ToolButton>
       {vertical ? <div className="my-1 h-px w-8 bg-[var(--border)]" /> : <div className="mx-1 h-6 w-px bg-[var(--border)]" />}
       <ToolButton label="Hoàn tác nét vẽ" onClick={() => setDrawings((prev) => prev.slice(0, -1))}><Undo2 className="h-4 w-4" /></ToolButton>
@@ -1290,86 +1334,30 @@ export function StockChart({
               </div>
             ) : null}
           </div>
-          {!drawingsHidden && !error ? (
-            <svg
-              className="absolute inset-0 h-full w-full"
+          {!error ? (
+            <div
+              className="absolute inset-0"
               style={{
-                pointerEvents: activeTool === "cursor" || drawingsLocked ? "none" : "auto",
+                pointerEvents: activeTool === "cursor" || drawingsLocked || drawingsHidden ? "none" : "auto",
                 cursor: activeTool === "cursor" || drawingsLocked ? "default" : "crosshair",
                 zIndex: 2,
               }}
               onPointerDown={(event) => {
+                if (activeTool === "cursor" || drawingsLocked) return;
                 event.preventDefault();
-                event.stopPropagation();
-                addDrawing(pointFromEvent(event));
+                const anchor = anchorFromEvent(event);
+                if (anchor) addDrawing(anchor);
               }}
-            >
-              {pendingPoint ? (
-                <g>
-                  <circle cx={`${pendingPoint.x}%`} cy={`${pendingPoint.y}%`} r="5" fill="#22c55e" stroke="#ffffff" strokeWidth="2" />
-                  <line x1={`${pendingPoint.x}%`} y1="0" x2={`${pendingPoint.x}%`} y2="100%" stroke="rgba(34,197,94,0.35)" strokeDasharray="4 4" />
-                  <line x1="0" y1={`${pendingPoint.y}%`} x2="100%" y2={`${pendingPoint.y}%`} stroke="rgba(34,197,94,0.35)" strokeDasharray="4 4" />
-                </g>
-              ) : null}
-              {drawings.map((drawing) => {
-                if (drawing.tool === "zone" && drawing.points[1]) {
-                  const [a, b] = drawing.points;
-                  const x = Math.min(a.x, b.x);
-                  const y = Math.min(a.y, b.y);
-                  const width = Math.abs(a.x - b.x);
-                  const height = Math.abs(a.y - b.y);
-                  return <rect key={drawing.id} x={`${x}%`} y={`${y}%`} width={`${width}%`} height={`${height}%`} fill="rgba(245,158,11,0.12)" stroke="#f59e0b" strokeWidth="1.5" />;
-                }
-                if (drawing.tool === "fib" && drawing.points[1]) {
-                  const [a, b] = drawing.points;
-                  const levels = [0, 23.6, 38.2, 50, 61.8, 100];
-                  return (
-                    <g key={drawing.id}>
-                      {levels.map((level) => {
-                        const y = a.y + ((b.y - a.y) * level) / 100;
-                        return (
-                          <g key={level}>
-                            <line x1={`${a.x}%`} y1={`${y}%`} x2={`${b.x}%`} y2={`${y}%`} stroke="#22c55e" strokeWidth="1" strokeDasharray="4 4" />
-                            <text x={`${Math.min(a.x, b.x)}%`} y={`${y}%`} fill="#22c55e" fontSize="11">{level}%</text>
-                          </g>
-                        );
-                      })}
-                    </g>
-                  );
-                }
-                if (drawing.tool === "text") {
-                  const [a] = drawing.points;
-                  return <text key={drawing.id} x={`${a.x}%`} y={`${a.y}%`} fill="#f59e0b" fontSize="13" fontWeight="700">{drawing.text}</text>;
-                }
-                if (drawing.tool === "measure" && drawing.points[1]) {
-                  const [a, b] = drawing.points;
-                  const path = drawingPath(drawing);
-                  if (!path) return null;
-                  const dx = Math.abs(a.x - b.x).toFixed(1);
-                  const dy = Math.abs(a.y - b.y).toFixed(1);
-                  return (
-                    <g key={drawing.id}>
-                      <line x1={`${path.x1}%`} y1={`${path.y1}%`} x2={`${path.x2}%`} y2={`${path.y2}%`} stroke="#38bdf8" strokeWidth="2" strokeDasharray="4 4" />
-                      <text x={`${(a.x + b.x) / 2}%`} y={`${(a.y + b.y) / 2}%`} fill="#38bdf8" fontSize="11">dx {dx}% / dy {dy}%</text>
-                    </g>
-                  );
-                }
-                const path = drawingPath(drawing);
-                if (!path) return null;
-                return (
-                  <line
-                    key={drawing.id}
-                    x1={`${path.x1}%`}
-                    y1={`${path.y1}%`}
-                    x2={`${path.x2}%`}
-                    y2={`${path.y2}%`}
-                    stroke={drawing.tool === "trend" ? "#38bdf8" : "#f59e0b"}
-                    strokeWidth="2"
-                    strokeDasharray={drawing.tool === "vline" || drawing.tool === "hline" ? "5 5" : undefined}
-                  />
-                );
-              })}
-            </svg>
+              onPointerMove={(event) => {
+                if (activeTool === "cursor" || drawingsLocked) return;
+                const anchor = anchorFromEvent(event);
+                if (anchor) previewMove(anchor);
+              }}
+              onDoubleClick={(event) => {
+                event.preventDefault();
+                cancelPending();
+              }}
+            />
           ) : null}
         </div>
       </div>
