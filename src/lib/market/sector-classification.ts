@@ -1,3 +1,5 @@
+import { VNSTOCK_INDUSTRY_BY_TICKER } from "./vnstock-industry-map";
+
 const SECTOR_BY_TICKER: Record<string, string> = {};
 
 function registerSector(sector: string, tickers: string[]) {
@@ -354,6 +356,25 @@ const SECTOR_ALIASES: Record<string, string> = {
   "da nganh": "Đa ngành",
   "dau tu": "Đa ngành",
   "tai chinh": "Đa ngành",
+  // Tên ngành ICB từ vnstock Listing().symbols_by_industries() (key đã bỏ dấu)
+  "ban buon": "Bán lẻ và tiêu dùng",
+  "cham soc suc khoe": "Y tế và dược phẩm",
+  "che bien thuy san": "Thủy sản và thực phẩm",
+  "cong nghe va thong tin": "Công nghệ và viễn thông",
+  "dich vu luu tru an uong giai tri": "Hàng không và du lịch",
+  "dich vu tu van ho tro": "Đa ngành",
+  "khai khoang": "Khai khoáng",
+  "nong lam ngu": "Cao su và nông nghiệp",
+  "sx hang gia dung": "Bán lẻ và tiêu dùng",
+  "sx nhua hoa chat": "Hóa chất và phân bón",
+  "sx phu tro": "Sản xuất và công nghiệp",
+  "sx thiet bi may moc": "Sản xuất và công nghiệp",
+  "san pham cao su": "Cao su và nông nghiệp",
+  "thiet bi dien": "Điện và năng lượng",
+  "thuc pham do uong": "Thủy sản và thực phẩm",
+  "tien ich": "Điện và năng lượng",
+  "tai chinh khac": "Đa ngành",
+  "van tai kho bai": "Cảng biển và vận tải",
 };
 
 // Bỏ dấu + lowercase + gộp ký tự lạ thành khoảng trắng → key ổn định cho SECTOR_ALIASES.
@@ -391,6 +412,14 @@ export function classifyTickerSector(symbol: string, rawSector?: string | null) 
   const curated = SECTOR_BY_TICKER[ticker];
   if (curated) return curated;
 
+  // (2) ICB vnstock — nguồn phân ngành CHUẨN, phủ ~696 mã (FiinQuant hay trả "Khác").
+  const vnIndustry = VNSTOCK_INDUSTRY_BY_TICKER[ticker];
+  if (vnIndustry) {
+    const canonical = SECTOR_ALIASES[sectorKey(vnIndustry)];
+    if (canonical) return canonical;
+  }
+
+  // (3) Sector thô bridge FiinQuant → chuẩn hoá.
   const cleaned = typeof rawSector === "string" ? rawSector.trim() : "";
   if (cleaned && !isUnknownSector(cleaned)) {
     return SECTOR_ALIASES[sectorKey(cleaned)] ?? cleaned;
