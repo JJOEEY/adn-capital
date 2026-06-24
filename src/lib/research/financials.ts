@@ -4,6 +4,7 @@
 // Collector cũ chỉ giữ tóm tắt 1 kỳ → util này lộ TREND đa kỳ cho AIDEN. On-demand, cache RAM 6h.
 
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
+import { fetchIncomeStatement, incomeYoY } from "./income-statement";
 
 const TTL_MS = 6 * 60 * 60 * 1000; // cache kết quả tốt 6h
 const TTL_EMPTY_MS = 10 * 60 * 1000; // cache rỗng/lỗi ngắn (tránh kẹt khi bridge chậm 1 lần)
@@ -114,6 +115,31 @@ export async function fetchFinancialHistory(ticker: string): Promise<FinancialHi
     }
   } catch {
     result = null;
+  }
+
+  // FALLBACK khi FiinQuant ratios rỗng (hết hạn 27/6) → dựng trend từ income-statement (đã có
+  // vnstock fallback). Chỉ có doanh thu/LN/tăng trưởng; biên/ROE/D-E để null (thiếu nguồn).
+  if (!result) {
+    const inc = await fetchIncomeStatement(code).catch(() => null);
+    if (inc && inc.periods.length > 0) {
+      const periods: FinancialPeriod[] = inc.periods.slice(0, MAX_PERIODS).map((p) => ({
+        period: p.period,
+        revenueBn: p.netRevenueBn,
+        netProfitBn: p.profitAfterTaxBn,
+        ebitMarginPct: null,
+        roePct: null,
+        roaPct: null,
+        revenueGrowthYoYPct: null,
+        profitGrowthYoYPct: null,
+        eps: null,
+        deRatio: null,
+      }));
+      if (periods[0]) {
+        periods[0].revenueGrowthYoYPct = incomeYoY(inc.periods, "netRevenueBn");
+        periods[0].profitGrowthYoYPct = incomeYoY(inc.periods, "profitAfterTaxBn");
+      }
+      result = { ticker: code, periods };
+    }
   }
 
   cache.set(code, { data: result, expires: Date.now() + (result ? TTL_MS : TTL_EMPTY_MS) });
