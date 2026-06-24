@@ -135,7 +135,7 @@ export function AidenWebChat() {
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const revealRef = useRef<RevealState | null>(null);
   const chatCountRef = useRef(chatCount);
@@ -169,18 +169,11 @@ export function AidenWebChat() {
     };
   }, []);
 
-  // Ghim đáy (pinned): tự cuộn xuống tin MỚI NHẤT, trừ khi user chủ động cuộn lên đọc lại. Khởi tạo pinned=true
-  // để khi MỞ chat (load lịch sử) hiện ngay tin gần nhất, KHÔNG kẹt ở đầu trang.
-  const pinnedRef = useRef(true);
-  const handleScroll = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    pinnedRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 140;
-  }, []);
+  // Cuộn xuống tin MỚI NHẤT bằng scrollIntoView trên sentinel ở cuối — chạy ĐÚNG dù phần cuộn là container
+  // (mobile, h bị bound) HAY cả trang (desktop lg:h-full → container nở hết, trang tự cuộn). Instant, không smooth
+  // → khỏi giật theo từng token khi nhả chữ. (container.scrollTop KHÔNG dùng được vì desktop container không cuộn.)
   useEffect(() => {
-    const el = scrollRef.current;
-    if (!el || !pinnedRef.current) return;
-    el.scrollTop = el.scrollHeight;
+    bottomRef.current?.scrollIntoView({ block: "end" });
   }, [messages, isStreaming]);
 
   useEffect(() => {
@@ -305,7 +298,6 @@ export function AidenWebChat() {
       ]);
       setInput("");
       setIsStreaming(true);
-      pinnedRef.current = true; // gửi tin mới → luôn ghim xuống đáy để thấy câu trả lời
 
       // Chốt stream: đặt text cuối + cho vòng nhả chữ chạy nốt rồi mới tắt cursor (hoặc finalize ngay nếu chưa có chữ nào).
       const finalizeStream = (finalText: string, isError: boolean) => {
@@ -445,7 +437,7 @@ export function AidenWebChat() {
           </div>
         </div>
 
-        <div ref={scrollRef} onScroll={handleScroll} className="min-h-0 flex-1 overflow-y-auto px-4 py-6 md:px-6">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 md:px-6">
           <div className="mx-auto flex w-full max-w-4xl flex-col gap-5">
             {messages.length === 0 ? (
               <div className="flex min-h-[45vh] flex-col items-center justify-center text-center">
@@ -478,6 +470,7 @@ export function AidenWebChat() {
                 ),
               )
             )}
+            <div ref={bottomRef} />
           </div>
         </div>
 
