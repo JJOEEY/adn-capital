@@ -20,6 +20,7 @@ import { getDatabaseAidenTickerContext } from "@/lib/database/aiden/context";
 import type { DatabaseAidenTickerContext } from "@/lib/database/aiden/types";
 import { fetchVndirectRecommendations, type BrokerConsensus } from "@/lib/research/vndirect";
 import { fetchFinancialHistory, type FinancialHistory } from "@/lib/research/financials";
+import { loadCanonicalMarketFacts, mergeCanonicalMarketFacts } from "@/lib/aiden/market-facts";
 
 type JsonRecord = Record<string, unknown>;
 function readPositiveIntegerEnv(name: string, fallback: number): number {
@@ -681,12 +682,13 @@ async function buildGeneralMarketContext(context: TopicContext) {
   ];
   const envelopes = await Promise.all(topics.map((topic) => readTopicSoft(topic, context, GENERAL_TOPIC_TIMEOUT_MS)));
   const byTopic = new Map(envelopes.map((item) => [item.topic, item.envelope.value]));
+  const canonicalFacts = await loadCanonicalMarketFacts().catch(() => null);
 
   return {
     topics,
     envelopes,
     context: stripInternalFields({
-      market: sanitizeMarketComposite(byTopic.get("vn:index:overview")),
+      market: mergeCanonicalMarketFacts(sanitizeMarketComposite(byTopic.get("vn:index:overview")), canonicalFacts),
       radarSignals: compactSignalList(byTopic.get("signal:market:radar")),
       activeSignals: compactSignalList(byTopic.get("signal:market:active")),
       morningBrief: byTopic.get("brief:morning:latest"),
