@@ -39,20 +39,18 @@ const INDEX_ICONS: Record<string, string> = {
   "DẦU WTI": "🛢️",
 };
 
-const DISPLAY_INDEX_ORDER = ["VN-INDEX", "HNX-INDEX", "UPCOM-INDEX", "VN30", "DOW JONES"];
+const DISPLAY_INDEX_ORDER = ["VN-INDEX", "HNX-INDEX", "UPCOM-INDEX", "VN30"];
 const DISPLAY_INDEX_ICONS: Record<string, string> = {
   "VN-INDEX": "VN",
   "HNX-INDEX": "HNX",
   "UPCOM-INDEX": "UP",
   VN30: "30",
-  "DOW JONES": "US",
 };
 const DISPLAY_INDEX_ALIASES: Record<string, string[]> = {
   "VN-INDEX": ["VNINDEX", "VN-INDEX"],
   "HNX-INDEX": ["HNX", "HNXINDEX", "HNX-INDEX"],
   "UPCOM-INDEX": ["UPCOM", "UPCOMINDEX", "UPCOM-INDEX"],
   VN30: ["VN30"],
-  "DOW JONES": ["DOW", "DOWJONES", "DOW JONES"],
 };
 
 function normalizeDisplayIndexKey(name: string): string {
@@ -184,7 +182,7 @@ export function MorningNews() {
             <BarChart3 className="w-3.5 h-3.5" />
             Chỉ số Tham chiếu (so phiên trước)
           </p>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {indices.map((idx) => {
               const up = typeof idx.change_pct === "number" && idx.change_pct > 0;
               const down = typeof idx.change_pct === "number" && idx.change_pct < 0;
