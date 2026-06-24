@@ -77,6 +77,14 @@ const HELP_PATTERNS = [
   /\baiden\s+.*\b(?:lam|giup)\b/,
 ];
 
+// Chào hỏi / xã giao → trả help tĩnh (rẻ, không gọi LLM). Mọi câu hỏi thực chất KHÁC sẽ về general_market (LLM).
+// (normalized đã bỏ dấu + lowercase.)
+const GREETING_PATTERNS = [
+  /^(?:chao|hi|hello|hey|alo|yo|xin chao)\b/,
+  /\b(?:cam on|thank you|thanks|tks)\b/,
+  /^(?:ok|oke|okay|uh|um|vang|da|bye|tam biet)\b/,
+];
+
 function unique(items: string[]) {
   return Array.from(new Set(items));
 }
@@ -160,9 +168,14 @@ export function classifyAidenIntent(message: string): AidenIntentResult {
     return { intent: "smalltalk", candidates: [] };
   }
 
+  if (GREETING_PATTERNS.some((pattern) => pattern.test(normalized))) {
+    return { intent: "smalltalk", candidates: [] };
+  }
+
+  // Có từ khoá thị trường HOẶC bất kỳ câu hỏi thực chất nào → general_market: để LLM TRẢ LỜI (system prompt có
+  // kiến thức nền PTKT) thay vì đổ help tĩnh. Trước đây default smalltalk khiến "pocket pivot là gì" bị trả help.
   if (MARKET_WORDS.some((word) => normalized.includes(word))) {
     return { intent: "general_market", candidates: [] };
   }
-
-  return { intent: "smalltalk", candidates: [] };
+  return { intent: "general_market", candidates: [] };
 }
