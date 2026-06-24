@@ -82,8 +82,10 @@ export function buildMarketOverviewFromContext(context: unknown): string {
   const sign = (n: number) => (n >= 0 ? "+" : "");
   const label = (name: string) =>
     name === "VNINDEX" ? "VN-Index" : name === "HNX" ? "HNX-Index" : name === "UPCOM" ? "UPCOM-Index" : name;
-  const idxLines = indices
+  const order: Record<string, number> = { VNINDEX: 0, HNX: 1, UPCOM: 2 };
+  const idxLines = [...indices]
     .filter((i) => typeof i.value === "number")
+    .sort((a, b) => (order[a.name] ?? 9) - (order[b.name] ?? 9))
     .map((i) => `**${label(i.name)} ${fmtVn(i.value)}** (${sign(i.changePct)}${fmtVn(i.changePct)}%)`);
   const head =
     idxLines.length > 0
