@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, KeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
+import { FormEvent, KeyboardEvent, memo, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Bot, Plus, Send, Square } from "lucide-react";
@@ -53,45 +53,60 @@ function BotAvatar() {
   );
 }
 
-function AssistantMessage({ message }: { message: ChatMessage }) {
+const MARKDOWN_COMPONENTS = {
+  p: ({ children }: { children?: ReactNode }) => <p className="mb-3 last:mb-0">{children}</p>,
+  ul: ({ children }: { children?: ReactNode }) => (
+    <ul className="mb-4 list-disc space-y-1 pl-5 last:mb-0">{children}</ul>
+  ),
+  li: ({ children }: { children?: ReactNode }) => <li className="pl-1">{children}</li>,
+  strong: ({ children }: { children?: ReactNode }) => (
+    <strong className="font-semibold text-[var(--text-primary)]">{children}</strong>
+  ),
+};
+
+// Memo: chỉ message nào ĐỔI mới re-render. Diệt lag khi (a) gõ input — các bubble cũ giữ nguyên props nên skip;
+// (b) stream — chỉ bubble đang nhả chữ re-render, không phải toàn bộ lịch sử.
+const AssistantMessage = memo(function AssistantMessage({ message }: { message: ChatMessage }) {
+  const streaming = Boolean(message.streaming);
   return (
     <div className="flex items-start gap-3">
       <BotAvatar />
       <div className="min-w-0 max-w-[820px] flex-1">
         <div
           className={`prose prose-sm max-w-none rounded-2xl rounded-tl-sm border px-4 py-3 leading-relaxed ${
-            message.error ? "border-red-300 bg-red-50 text-red-700" : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)]"
+            message.error
+              ? "border-red-300 bg-red-50 text-red-700"
+              : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)]"
           }`}
         >
           {message.text ? (
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={{
-                p: ({ children }) => <p className="mb-3 last:mb-0">{children}</p>,
-                ul: ({ children }) => <ul className="mb-4 list-disc space-y-1 pl-5 last:mb-0">{children}</ul>,
-                li: ({ children }) => <li className="pl-1">{children}</li>,
-                strong: ({ children }) => <strong className="font-semibold text-[var(--text-primary)]">{children}</strong>,
-              }}
-            >
-              {message.text}
-            </ReactMarkdown>
-          ) : (
+            // Lúc đang nhả chữ: render PLAIN TEXT (rẻ, mượt char-by-char) + con trỏ. Xong stream mới render Markdown.
+            streaming ? (
+              <p className="m-0 whitespace-pre-wrap break-words">
+                {message.text}
+                <span className="ml-0.5 inline-block h-4 w-[3px] translate-y-[2px] animate-pulse rounded-sm bg-current align-text-bottom" />
+              </p>
+            ) : (
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
+                {message.text}
+              </ReactMarkdown>
+            )
+          ) : streaming ? (
             <div className="flex gap-1.5 py-1">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--text-muted)]" />
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--text-muted)] [animation-delay:120ms]" />
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--text-muted)] [animation-delay:240ms]" />
             </div>
+          ) : (
+            <p className="m-0">AIDEN chưa hoàn tất câu trả lời. Vui lòng thử lại.</p>
           )}
-          {message.streaming && message.text ? (
-            <span className="ml-0.5 inline-block h-4 w-1 animate-pulse rounded-sm bg-current align-text-bottom" />
-          ) : null}
         </div>
       </div>
     </div>
   );
-}
+});
 
-function UserMessage({ text }: { text: string }) {
+const UserMessage = memo(function UserMessage({ text }: { text: string }) {
   return (
     <div className="flex justify-end">
       <div className="max-w-[780px] rounded-2xl rounded-tr-sm bg-[var(--primary)] px-4 py-3 text-sm leading-relaxed text-[var(--on-primary)]">
@@ -99,7 +114,17 @@ function UserMessage({ text }: { text: string }) {
       </div>
     </div>
   );
-}
+});
+
+type RevealState = {
+  id: string;
+  full: string; // toàn bộ text đã nhận từ stream
+  shown: number; // số ký tự đã nhả ra
+  netDone: boolean; // stream mạng đã kết thúc
+  error?: boolean;
+  finalText?: string; // text chốt (data.message) khi done
+  raf: number | null;
+};
 
 export function AidenWebChat() {
   const { isAuthenticated } = useCurrentDbUser();
@@ -110,8 +135,14 @@ export function AidenWebChat() {
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const revealRef = useRef<RevealState | null>(null);
+  const chatCountRef = useRef(chatCount);
+
+  useEffect(() => {
+    chatCountRef.current = chatCount;
+  }, [chatCount]);
 
   useEffect(() => {
     let active = true;
@@ -138,8 +169,12 @@ export function AidenWebChat() {
     };
   }, []);
 
+  // Tự cuộn xuống đáy — INSTANT + chỉ khi user đang ở gần đáy (không giật khi cuộn lên đọc lại). Rẻ hơn smooth-per-token.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    const el = scrollRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 140;
+    if (nearBottom) el.scrollTop = el.scrollHeight;
   }, [messages, isStreaming]);
 
   useEffect(() => {
@@ -149,20 +184,85 @@ export function AidenWebChat() {
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
   }, [input]);
 
+  // Cleanup khi unmount: huỷ rAF + abort stream.
+  useEffect(
+    () => () => {
+      if (revealRef.current?.raf != null) cancelAnimationFrame(revealRef.current.raf);
+      abortRef.current?.abort();
+    },
+    [],
+  );
+
   const updateAssistant = useCallback((id: string, updater: (message: ChatMessage) => ChatMessage) => {
     setMessages((prev) => prev.map((message) => (message.id === id ? updater(message) : message)));
   }, []);
 
+  // Vòng nhả chữ: mỗi frame nhả thêm vài ký tự (bắt kịp nếu LLM chạy nhanh), CHỈ bubble đang stream re-render.
+  const pumpReveal = useCallback(() => {
+    const r = revealRef.current;
+    if (!r) return;
+    r.raf = null;
+    if (r.shown < r.full.length) {
+      const remaining = r.full.length - r.shown;
+      const step = Math.max(2, Math.ceil(remaining / 16));
+      r.shown = Math.min(r.full.length, r.shown + step);
+      const slice = r.full.slice(0, r.shown);
+      updateAssistant(r.id, (m) => ({ ...m, text: slice }));
+    }
+    const caughtUp = r.shown >= r.full.length;
+    if (caughtUp && r.netDone) {
+      const finalText = r.finalText ?? r.full;
+      updateAssistant(r.id, (m) => ({
+        ...m,
+        text: finalText,
+        streaming: false,
+        error: Boolean(r.error) || finalText.length === 0,
+      }));
+      revealRef.current = null;
+      setIsStreaming(false);
+      return;
+    }
+    // Còn chữ để nhả → chạy tiếp. Bắt kịp nhưng chưa done → dừng (delta/finalize mới sẽ khởi động lại) để khỏi spin CPU.
+    if (!caughtUp) r.raf = requestAnimationFrame(pumpReveal);
+  }, [updateAssistant]);
+
+  const ensurePump = useCallback(() => {
+    const r = revealRef.current;
+    if (r && r.raf == null) r.raf = requestAnimationFrame(pumpReveal);
+  }, [pumpReveal]);
+
+  // Chốt reveal NGAY (đồng bộ) khi đã netDone — không phụ thuộc rAF (rAF bị pause ở tab nền sẽ treo input).
+  const flushRevealFinal = useCallback(() => {
+    const r = revealRef.current;
+    if (!r || !r.netDone) return;
+    if (r.raf != null) cancelAnimationFrame(r.raf);
+    const final = r.finalText ?? r.full;
+    updateAssistant(r.id, (m) => ({ ...m, text: final, streaming: false, error: Boolean(r.error) || final.length === 0 }));
+    revealRef.current = null;
+    setIsStreaming(false);
+  }, [updateAssistant]);
+
+  // Tab chuyển sang ẩn khi đang chờ chốt (netDone nhưng rAF chưa kịp finalize) → flush đồng bộ, tránh treo input.
+  useEffect(() => {
+    const onVis = () => {
+      if (typeof document !== "undefined" && document.hidden) flushRevealFinal();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [flushRevealFinal]);
+
   const handleStop = useCallback(() => {
     abortRef.current?.abort();
+    if (revealRef.current?.raf != null) cancelAnimationFrame(revealRef.current.raf);
+    revealRef.current = null;
     setIsStreaming(false);
-    setMessages((prev) =>
-      prev.map((message) => (message.streaming ? { ...message, streaming: false } : message)),
-    );
+    setMessages((prev) => prev.map((message) => (message.streaming ? { ...message, streaming: false } : message)));
   }, []);
 
   const handleNewChat = useCallback(() => {
     abortRef.current?.abort();
+    if (revealRef.current?.raf != null) cancelAnimationFrame(revealRef.current.raf);
+    revealRef.current = null;
     setMessages([]);
     setInput("");
     setIsStreaming(false);
@@ -197,6 +297,31 @@ export function AidenWebChat() {
       ]);
       setInput("");
       setIsStreaming(true);
+
+      // Chốt stream: đặt text cuối + cho vòng nhả chữ chạy nốt rồi mới tắt cursor (hoặc finalize ngay nếu chưa có chữ nào).
+      const finalizeStream = (finalText: string, isError: boolean) => {
+        const r = revealRef.current;
+        if (r && r.id === assistantId) {
+          if (finalText) r.full = finalText;
+          r.finalText = finalText || r.full;
+          r.error = isError;
+          r.netDone = true;
+          // Đã nhả hết chữ HOẶC tab đang ẩn (rAF pause) → chốt đồng bộ; còn chữ + tab hiện → để rAF nhả nốt.
+          if (r.shown >= r.full.length || (typeof document !== "undefined" && document.hidden)) {
+            flushRevealFinal();
+          } else {
+            ensurePump();
+          }
+        } else {
+          updateAssistant(assistantId, (m) => ({
+            ...m,
+            text: finalText || m.text,
+            streaming: false,
+            error: isError || (finalText || m.text).length === 0,
+          }));
+          setIsStreaming(false);
+        }
+      };
 
       const controller = new AbortController();
       abortRef.current = controller;
@@ -236,60 +361,43 @@ export function AidenWebChat() {
             };
 
             if (parsed.event === "delta" && data.text) {
-              updateAssistant(assistantId, (message) => ({
-                ...message,
-                text: `${message.text}${data.text}`,
-              }));
+              if (!revealRef.current || revealRef.current.id !== assistantId) {
+                revealRef.current = { id: assistantId, full: "", shown: 0, netDone: false, raf: null };
+              }
+              revealRef.current.full += data.text;
+              ensurePump();
             }
 
             if (parsed.event === "done") {
               finished = true;
-              updateAssistant(assistantId, (message) => ({
-                ...message,
-                text: data.message ?? message.text,
-                streaming: false,
-              }));
               if (typeof data.usage?.used === "number") {
                 setChatCount(data.usage.used);
               } else if (!isAuthenticated) {
-                setChatCount(chatCount + 1);
+                setChatCount(chatCountRef.current + 1);
               }
+              finalizeStream(data.message ?? revealRef.current?.full ?? "", false);
             }
 
             if (parsed.event === "error") {
-              updateAssistant(assistantId, (message) => ({
-                ...message,
-                text: data.message ?? "AIDEN đang gặp lỗi. Vui lòng thử lại sau.",
-                streaming: false,
-                error: true,
-              }));
+              finished = true;
+              finalizeStream(data.message ?? "AIDEN đang gặp lỗi. Vui lòng thử lại sau.", true);
             }
           }
         }
 
         if (!finished && !controller.signal.aborted) {
-          updateAssistant(assistantId, (message) => ({
-            ...message,
-            streaming: false,
-            error: message.text.length === 0,
-            text: message.text || "AIDEN chưa hoàn tất câu trả lời. Vui lòng thử lại.",
-          }));
+          const current = revealRef.current?.full ?? "";
+          finalizeStream(current || "AIDEN chưa hoàn tất câu trả lời. Vui lòng thử lại.", current.length === 0);
         }
       } catch (error) {
         if (!controller.signal.aborted) {
-          updateAssistant(assistantId, (message) => ({
-            ...message,
-            text: error instanceof Error ? error.message : "Mất kết nối. Vui lòng thử lại.",
-            streaming: false,
-            error: true,
-          }));
+          finalizeStream(error instanceof Error ? error.message : "Mất kết nối. Vui lòng thử lại.", true);
         }
       } finally {
         if (abortRef.current === controller) abortRef.current = null;
-        setIsStreaming(false);
       }
     },
-    [canShowClientLimit, chatCount, input, isAuthenticated, isLimitReached, isStreaming, setChatCount, updateAssistant],
+    [canShowClientLimit, ensurePump, flushRevealFinal, input, isAuthenticated, isLimitReached, isStreaming, setChatCount, updateAssistant],
   );
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -328,7 +436,7 @@ export function AidenWebChat() {
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 md:px-6">
+        <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-6 md:px-6">
           <div className="mx-auto flex w-full max-w-4xl flex-col gap-5">
             {messages.length === 0 ? (
               <div className="flex min-h-[45vh] flex-col items-center justify-center text-center">
@@ -361,7 +469,6 @@ export function AidenWebChat() {
                 ),
               )
             )}
-            <div ref={bottomRef} />
           </div>
         </div>
 
