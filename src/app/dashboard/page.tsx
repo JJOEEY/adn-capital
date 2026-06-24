@@ -427,7 +427,8 @@ export default function DashboardPage() {
     refreshInterval: 60_000,
     revalidateOnFocus: false,
     dedupingInterval: 30_000,
-    timeoutMs: 20_000,
+    // Cold-compute ~30s (rank 500 mã + lịch sử tick); 20s cũ làm fetch lạnh bị abort → card rỗng. (Khớp index-impact 45s.)
+    timeoutMs: 45_000,
   });
 
   const data = marketOverviewTopic.data;
