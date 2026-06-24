@@ -302,10 +302,12 @@ export default function TEIPage() {
     setRefreshing(false);
   }, [mutate]);
 
+  // KHÔNG bump animationNonce ở đây: ticker đổi ngay nhưng data (keepPreviousData) còn là mã cũ,
+  // bump nonce sẽ khiến gauge sweep tới giá trị mã CŨ trước rồi mới chạy lại tới mã mới (chạy 2 lần).
+  // resetKey bám theo rawData.ticker → animation restart đúng 1 lần khi data mã mới về.
   const handleTickerSelect = useCallback((t: string) => {
     setTicker(t.toUpperCase().trim());
     setInputTicker("");
-    setAnimationNonce((value) => value + 1);
   }, []);
 
   const handleCustomTicker = useCallback(() => {
@@ -313,7 +315,6 @@ export default function TEIPage() {
     if (t.length >= 2 && t.length <= 10) {
       setTicker(t);
       setInputTicker("");
-      setAnimationNonce((value) => value + 1);
     }
   }, [inputTicker]);
 
@@ -351,7 +352,13 @@ export default function TEIPage() {
 
   const currentTEI = latest?.rpi ?? 0;
   const currentMA7 = latest?.ma7 ?? 0;
-  const displayTEI = useAnimatedTEIValue(currentTEI, 1050, `${ticker}:${latest?.date ?? ""}:${animationNonce}`);
+  // Bám theo rawData.ticker (mã ĐÃ load) — KHÔNG phải ticker input (đổi trước khi data về) — để
+  // animation chỉ restart 1 lần khi data đúng mã đã sẵn sàng. animationNonce chỉ đổi khi bấm Refresh.
+  const displayTEI = useAnimatedTEIValue(
+    currentTEI,
+    1050,
+    `${rawData?.ticker ?? ""}:${latest?.date ?? ""}:${animationNonce}`,
+  );
   const classification = classifyTEI(currentTEI);
 
   const dateRange = useMemo(() => {
