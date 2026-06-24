@@ -8,6 +8,7 @@
 import fs from "fs";
 import path from "path";
 import { fetchTAData, type TAData } from "./stockData";
+import { fetchVnstockInvestorFlow } from "@/lib/vnstockClient";
 import {
   fetchMarketOverview,
   fetchRSRatingList,
@@ -1468,6 +1469,22 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
         fromDate: requestDateVN,
         toDate: requestDateVN,
       });
+    }
+
+    // Fallback vnstock khi FiinQuant hết hạn: net khối ngoại + tự doanh (1D) từ adn-vnstock FlowInsights.
+    if (!isInvestorPayloadUsable(investorRaw)) {
+      const vnFlow = await fetchVnstockInvestorFlow({ timeout: 20_000 }).catch(() => null);
+      const fNet = vnFlow?.foreign?.["1D"]?.net ?? null;
+      const pNet = vnFlow?.proprietary?.["1D"]?.net ?? null;
+      if (fNet != null || pNet != null) {
+        investorRaw = {
+          source: "vnstock",
+          summary: {
+            foreign: { total_net_bn: fNet },
+            proprietary: { total_net_bn: pNet },
+          },
+        } as unknown as FiinInvestorTradingResponse;
+      }
     }
 
     if (!isInvestorPayloadUsable(investorRaw)) {
