@@ -71,7 +71,7 @@ export function RatingTable({
           ? ""
           : "bg-[var(--surface)]"
       }`}
-      style={filter === val ? { background: "rgba(22,163,74,0.15)", color: "#16a34a", borderColor: "rgba(22,163,74,0.30)" } : { borderColor: "var(--border)" }}
+      style={filter === val ? { background: "var(--primary-light)", color: "var(--primary)", borderColor: "var(--primary)" } : { borderColor: "var(--border)" }}
     >
       {label}
       <span className="ml-1.5 text-[12px] opacity-70">({count})</span>
@@ -223,10 +223,8 @@ export function RatingTable({
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div
-                      className={`flex items-center justify-end gap-1 text-sm font-semibold ${
-                        stock.changePercent >= 0 ? "" : ""
-                      }`}
-                      style={{ color: stock.changePercent >= 0 ? "#16a34a" : "var(--danger)" }}
+                      className="flex items-center justify-end gap-1 text-sm font-semibold"
+                      style={{ color: stock.changePercent >= 0 ? "var(--primary)" : "var(--danger)" }}
                     >
                       {stock.changePercent >= 0 ? (
                         <TrendingUp className="w-3 h-3" />

@@ -171,7 +171,7 @@ registerSector("Hóa chất và phân bón", [
   "DGC",
   "DPM",
   "DPR",
-  "DRI",
+  "APH",
   "LAS",
   "NFC",
   "PHR",
@@ -184,6 +184,7 @@ registerSector("Cao su và nông nghiệp", [
   "BAF",
   "DBC",
   "DPR",
+  "DRI",
   "GVR",
   "HAG",
   "HNG",
@@ -218,6 +219,7 @@ registerSector("Thủy sản và thực phẩm", [
 registerSector("Bán lẻ và tiêu dùng", [
   "DGW",
   "FRT",
+  "GDT",
   "MWG",
   "PNJ",
   "SAB",
@@ -285,7 +287,10 @@ registerSector("Xây dựng và hạ tầng", [
   "VCG",
 ]);
 
-const FRIENDLY_SECTOR_ALIASES: Record<string, string> = {
+// Chuẩn hoá tên ngành thô (bridge trả tiếng Việt ngắn / English ICB) về nhóm canonical.
+// Key đã BỎ DẤU + lowercase (xem sectorKey) nên "Hoá chất" = "Hóa chất", "Thuỷ sản" = "Thủy sản".
+const SECTOR_ALIASES: Record<string, string> = {
+  // English (caller cũ truyền ICB tiếng Anh)
   banking: "Ngân hàng",
   bank: "Ngân hàng",
   securities: "Chứng khoán",
@@ -303,34 +308,93 @@ const FRIENDLY_SECTOR_ALIASES: Record<string, string> = {
   retail: "Bán lẻ và tiêu dùng",
   technology: "Công nghệ và viễn thông",
   telecom: "Công nghệ và viễn thông",
-  logistics: "Cảng biển và vận tải",
-  transportation: "Cảng biển và vận tải",
   healthcare: "Y tế và dược phẩm",
   insurance: "Bảo hiểm",
+  // Tiếng Việt bridge trả (key bỏ dấu) → gộp các tên lẻ tẻ về 1 nhóm
+  "ngan hang": "Ngân hàng",
+  "chung khoan": "Chứng khoán",
+  "bao hiem": "Bảo hiểm",
+  "bat dong san": "Bất động sản",
+  kcn: "Khu công nghiệp",
+  "khu cong nghiep": "Khu công nghiệp",
+  "xay dung": "Xây dựng và hạ tầng",
+  "ha tang": "Xây dựng và hạ tầng",
+  thep: "Thép và vật liệu xây dựng",
+  "vat lieu xd": "Thép và vật liệu xây dựng",
+  "vat lieu xay dung": "Thép và vật liệu xây dựng",
+  "hoa chat": "Hóa chất và phân bón",
+  "phan bon": "Hóa chất và phân bón",
+  nhua: "Hóa chất và phân bón",
+  "bao bi": "Hóa chất và phân bón",
+  "cao su": "Cao su và nông nghiệp",
+  "nong nghiep": "Cao su và nông nghiệp",
+  "chan nuoi": "Cao su và nông nghiệp",
+  duong: "Cao su và nông nghiệp",
+  go: "Cao su và nông nghiệp",
+  dien: "Điện và năng lượng",
+  "nang luong": "Dầu khí",
+  "dau khi": "Dầu khí",
+  "ban le": "Bán lẻ và tiêu dùng",
+  "tieu dung": "Bán lẻ và tiêu dùng",
+  "phan phoi": "Bán lẻ và tiêu dùng",
+  "do uong": "Bán lẻ và tiêu dùng",
+  "thuy san": "Thủy sản và thực phẩm",
+  "thuc pham": "Thủy sản và thực phẩm",
+  "cong nghe": "Công nghệ và viễn thông",
+  "vien thong": "Công nghệ và viễn thông",
+  logistics: "Cảng biển và vận tải",
+  "cang bien": "Cảng biển và vận tải",
+  "van tai bien": "Cảng biển và vận tải",
+  "van tai": "Cảng biển và vận tải",
+  "hang khong": "Hàng không và du lịch",
+  "du lich": "Hàng không và du lịch",
+  "duoc pham": "Y tế và dược phẩm",
+  "y te": "Y tế và dược phẩm",
+  "det may": "Dệt may",
+  "da nganh": "Đa ngành",
+  "dau tu": "Đa ngành",
+  "tai chinh": "Đa ngành",
 };
 
+// Bỏ dấu + lowercase + gộp ký tự lạ thành khoảng trắng → key ổn định cho SECTOR_ALIASES.
+function sectorKey(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
 function isUnknownSector(value: string) {
-  const normalized = value.trim().toLowerCase();
+  const normalized = sectorKey(value);
   return (
     !normalized ||
-    normalized === "-" ||
-    normalized === "n/a" ||
-    normalized === "na" ||
     normalized === "khac" ||
-    normalized === "khác" ||
+    normalized === "na" ||
+    normalized === "n a" ||
     normalized === "other" ||
     normalized === "others" ||
-    normalized === "misc"
+    normalized === "misc" ||
+    normalized === "chua phan loai"
   );
 }
 
+// Nhóm ngành hiển thị cho 1 mã.
+// Ưu tiên: (1) bảng thủ công đã kiểm SECTOR_BY_TICKER — vì sector bridge HAY SAI/đặt tên lẻ tẻ
+// (CSV→"Cao su", DGC→"Hoá chất", GDT→"Du lịch", APH→"Dược phẩm"...); (2) sector bridge chuẩn hoá
+// về nhóm canonical qua SECTOR_ALIASES; (3) "Chưa phân loại".
 export function classifyTickerSector(symbol: string, rawSector?: string | null) {
   const ticker = symbol.toUpperCase().replace(/[^A-Z0-9]/g, "");
-  const cleanedSector = typeof rawSector === "string" ? rawSector.trim() : "";
 
-  if (cleanedSector && !isUnknownSector(cleanedSector)) {
-    return FRIENDLY_SECTOR_ALIASES[cleanedSector.toLowerCase()] ?? cleanedSector;
+  const curated = SECTOR_BY_TICKER[ticker];
+  if (curated) return curated;
+
+  const cleaned = typeof rawSector === "string" ? rawSector.trim() : "";
+  if (cleaned && !isUnknownSector(cleaned)) {
+    return SECTOR_ALIASES[sectorKey(cleaned)] ?? cleaned;
   }
 
-  return SECTOR_BY_TICKER[ticker] ?? "Chưa phân loại";
+  return "Chưa phân loại";
 }
