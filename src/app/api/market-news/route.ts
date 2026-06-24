@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getMarketSnapshot, getInvestorTradingText } from "@/lib/marketDataFetcher";
 import { fetchAllCafefNews } from "@/lib/cafefScraper";
 import { fetchEodNews, fetchMorningNews, type FiinEodNews, type FiinMorningNews } from "@/lib/fiinquantClient";
+import { fetchVnstockIndexImpact } from "@/lib/vnstockClient";
 
 export const dynamic = "force-dynamic";
 
@@ -2523,5 +2524,36 @@ export async function GET(request: NextRequest) {
   if (!hasPublishableSelectedEodPayload(selected, selectedCandidate)) {
     return NextResponse.json({ error: "EOD Brief chưa đủ dữ liệu hợp lệ để publish." }, { status: 503 });
   }
+
+  // "Nhóm ảnh hưởng chỉ số": data sector của EOD không đáng tin — bản V2 (database_v2) không có
+  // sector nên backfill từ report cũ (FiinQuant sai dấu Vingroup: VIC/VHM tăng nhưng báo giảm).
+  // Ráp lại số từ vnstock index-impact (contributionPoints, khớp /api/v1/index-contribution):
+  // đúng dấu, sống sau khi FiinQuant hết hạn 27/6. GIỮ NGUYÊN format "TICKER (±X.XX điểm)" nên
+  // web EveningNews + ảnh EOD không đổi UI. Lỗi/rỗng → giữ nguyên data cũ, không làm vỡ bản tin.
+  try {
+    const vnImpact = await fetchVnstockIndexImpact({ timeout: 8000 }).catch(() => null);
+    const rows = (vnImpact?.contribution ?? []).filter(
+      (r) => r.ticker && Number.isFinite(r.contributionPoints) && r.contributionPoints !== 0,
+    );
+    if (rows.length > 0) {
+      const fmt = (r: { ticker: string; contributionPoints: number }) =>
+        `${r.ticker} (${r.contributionPoints >= 0 ? "+" : ""}${r.contributionPoints.toFixed(2)} điểm)`;
+      const gainers = rows
+        .filter((r) => r.contributionPoints > 0)
+        .sort((a, b) => b.contributionPoints - a.contributionPoints)
+        .slice(0, 8)
+        .map(fmt);
+      const losers = rows
+        .filter((r) => r.contributionPoints < 0)
+        .sort((a, b) => a.contributionPoints - b.contributionPoints)
+        .slice(0, 8)
+        .map(fmt);
+      if (gainers.length > 0) selected.sector_gainers = gainers;
+      if (losers.length > 0) selected.sector_losers = losers;
+    }
+  } catch {
+    // vnstock lỗi → giữ nguyên sector_gainers/losers cũ
+  }
+
   return NextResponse.json(selected);
 }

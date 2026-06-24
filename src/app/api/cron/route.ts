@@ -34,7 +34,6 @@ import {
   getPropTradingData,
 } from "@/lib/marketDataFetcher";
 import { fetchEodMarketData, type FiinEodNews } from "@/lib/fiinquantClient";
-import { fetchVnstockIndexImpact } from "@/lib/vnstockClient";
 import { fetchAllCafefNews, buildCafefContext } from "@/lib/cafefScraper";
 import { getVnDateLabel, getVnNow } from "@/lib/time";
 import { getTopicEnvelope, invalidateTopics } from "@/lib/datahub/core";
@@ -2178,37 +2177,6 @@ async function handlePropTrading(
           rawData: JSON.stringify(propData),
         },
       });
-    }
-
-    // "Nhóm ảnh hưởng chỉ số": FiinQuant eod-market-data trả contribution SAI dấu cho nhóm
-    // Vingroup (VIC/VHM tăng nhưng báo giảm điểm) và sắp hết hạn 27/6 → ráp lại số từ vnstock
-    // index-impact (đúng, khớp /api/v1/index-contribution). GIỮ NGUYÊN format "TICKER (±X.XX điểm)"
-    // để không đổi UI; chỉ thay con số. Lỗi/rỗng → giữ nguyên dữ liệu cũ, không làm vỡ bản tin.
-    if (eodDetail) {
-      try {
-        const vnImpact = await fetchVnstockIndexImpact().catch(() => null);
-        const rows = (vnImpact?.contribution ?? []).filter(
-          (r) => r.ticker && Number.isFinite(r.contributionPoints) && r.contributionPoints !== 0,
-        );
-        if (rows.length > 0) {
-          const fmt = (r: { ticker: string; contributionPoints: number }) =>
-            `${r.ticker} (${r.contributionPoints >= 0 ? "+" : ""}${r.contributionPoints.toFixed(2)} điểm)`;
-          const gainers = rows
-            .filter((r) => r.contributionPoints > 0)
-            .sort((a, b) => b.contributionPoints - a.contributionPoints)
-            .slice(0, 8)
-            .map(fmt);
-          const losers = rows
-            .filter((r) => r.contributionPoints < 0)
-            .sort((a, b) => a.contributionPoints - b.contributionPoints)
-            .slice(0, 8)
-            .map(fmt);
-          if (gainers.length > 0) eodDetail.sector_gainers = gainers;
-          if (losers.length > 0) eodDetail.sector_losers = losers;
-        }
-      } catch {
-        // vnstock lỗi → giữ nguyên sector_gainers/losers cũ
-      }
     }
 
     const safeReport = buildFull19PublicReport(today, snapshot, eodDetail);
