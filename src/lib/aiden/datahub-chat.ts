@@ -1887,7 +1887,9 @@ export async function prepareAidenDatahubTurn(input: {
       prompt: buildAidenConversationPrompt(message, general.context, tickerContexts, indexContexts),
       fallbackMessage:
         deterministicTickerBrief ??
-        buildAidenConversationFallbackMessage(message, general.context, tickerContexts, indexContexts),
+        (intent === "general_market"
+          ? prependMarketOverview(general.context, buildAidenConversationFallbackMessage(message, general.context, tickerContexts, indexContexts))
+          : buildAidenConversationFallbackMessage(message, general.context, tickerContexts, indexContexts)),
       systemInstruction,
       tickerContexts,
     };
