@@ -127,6 +127,66 @@ const INDICATOR_COLORS: Record<string, string> = {
   sma200: "#c084fc",
 };
 
+type IndicatorSettings = {
+  rsi: { period: number };
+  macd: { fast: number; slow: number; signal: number };
+  stoch: { period: number; smooth: number };
+  stochrsi: { rsiPeriod: number; stochPeriod: number; smoothK: number; smoothD: number };
+  bb: { period: number; mult: number };
+};
+
+const DEFAULT_SETTINGS: IndicatorSettings = {
+  rsi: { period: 14 },
+  macd: { fast: 12, slow: 26, signal: 9 },
+  stoch: { period: 14, smooth: 3 },
+  stochrsi: { rsiPeriod: 14, stochPeriod: 14, smoothK: 3, smoothD: 3 },
+  bb: { period: 20, mult: 2 },
+};
+
+// Schema để tự sinh ô chỉnh input (kiểu hộp Settings của TradingView).
+const SETTINGS_SCHEMA: Array<{
+  id: keyof IndicatorSettings;
+  label: string;
+  fields: Array<{ key: string; label: string; min: number; max: number }>;
+}> = [
+  { id: "rsi", label: "RSI", fields: [{ key: "period", label: "Chu kỳ", min: 2, max: 100 }] },
+  {
+    id: "macd",
+    label: "MACD",
+    fields: [
+      { key: "fast", label: "Nhanh", min: 1, max: 100 },
+      { key: "slow", label: "Chậm", min: 2, max: 200 },
+      { key: "signal", label: "Signal", min: 1, max: 100 },
+    ],
+  },
+  {
+    id: "stoch",
+    label: "Stoch",
+    fields: [
+      { key: "period", label: "Chu kỳ", min: 2, max: 100 },
+      { key: "smooth", label: "Mượt", min: 1, max: 50 },
+    ],
+  },
+  {
+    id: "stochrsi",
+    label: "StochRSI",
+    fields: [
+      { key: "rsiPeriod", label: "RSI", min: 2, max: 100 },
+      { key: "stochPeriod", label: "Stoch", min: 2, max: 100 },
+      { key: "smoothK", label: "%K", min: 1, max: 50 },
+      { key: "smoothD", label: "%D", min: 1, max: 50 },
+    ],
+  },
+  {
+    id: "bb",
+    label: "Bollinger",
+    fields: [
+      { key: "period", label: "Chu kỳ", min: 2, max: 100 },
+      { key: "mult", label: "Hệ số", min: 1, max: 5 },
+    ],
+  },
+];
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
@@ -270,18 +330,18 @@ function calcRSI(data: Array<{ time: number; close: number }>, period = 14): Lin
   return result;
 }
 
-function calcMACD(data: Array<{ time: number; close: number }>) {
+function calcMACD(data: Array<{ time: number; close: number }>, fastPeriod = 12, slowPeriod = 26, signalPeriod = 9) {
   const closes = data.map((item) => item.close);
-  const ema12 = calcEMAValues(closes, 12);
-  const ema26 = calcEMAValues(closes, 26);
+  const emaFast = calcEMAValues(closes, fastPeriod);
+  const emaSlow = calcEMAValues(closes, slowPeriod);
   const macdPoints = data
     .map((item, index) => {
-      const fast = ema12[index];
-      const slow = ema26[index];
+      const fast = emaFast[index];
+      const slow = emaSlow[index];
       return fast == null || slow == null ? null : { time: item.time, value: fast - slow };
     })
     .filter((item): item is LinePoint => item !== null);
-  const signalPoints = calcEMA(macdPoints.map((item) => ({ time: item.time, close: item.value })), 9);
+  const signalPoints = calcEMA(macdPoints.map((item) => ({ time: item.time, close: item.value })), signalPeriod);
   const signalByTime = new Map(signalPoints.map((item) => [item.time, item.value]));
   const histogram = macdPoints
     .map((item) => {
@@ -450,6 +510,7 @@ export function StockChart({
   const [indicatorPanelOpen, setIndicatorPanelOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [enabledIndicators, setEnabledIndicators] = useState<IndicatorId[]>(DEFAULT_INDICATORS);
+  const [indicatorSettings, setIndicatorSettings] = useState<IndicatorSettings>(DEFAULT_SETTINGS);
   const [symbolSearch, setSymbolSearch] = useState(symbol);
   const [loadedCandles, setLoadedCandles] = useState<Candle[]>([]);
   const [chartReadyVersion, setChartReadyVersion] = useState(0);
@@ -463,7 +524,9 @@ export function StockChart({
   const isIntraday = INTRADAY_TIMEFRAMES.has(timeframe);
   const drawingStorageKey = `adn-chart-drawings:${symbol}:${timeframe}`;
   const indicatorStorageKey = `adn-chart-indicators:${symbol}:${timeframe}`;
+  const settingsStorageKey = `adn-chart-settings:${symbol}:${timeframe}`;
   const enabledKey = enabledIndicators.join(",");
+  const settingsKey = JSON.stringify(indicatorSettings);
 
   useEffect(() => {
     chartCandlesRef.current = chartCandles;
@@ -510,7 +573,7 @@ export function StockChart({
     }
 
     if (enabledIndicators.includes("bb")) {
-      const bb = calcBollinger(closeData);
+      const bb = calcBollinger(closeData, indicatorSettings.bb.period, indicatorSettings.bb.mult);
       const upper = refs.overlays.find((item) => item.id === "bb-upper")?.series;
       const middle = refs.overlays.find((item) => item.id === "bb-middle")?.series;
       const lower = refs.overlays.find((item) => item.id === "bb-lower")?.series;
@@ -519,7 +582,7 @@ export function StockChart({
       if (lower) updateLastPoint(lower, bb.lower);
     }
     if (refs.macd) {
-      const macd = calcMACD(closeData);
+      const macd = calcMACD(closeData, indicatorSettings.macd.fast, indicatorSettings.macd.slow, indicatorSettings.macd.signal);
       const hist = lastPoint(macd.histogram);
       updateLastPoint(refs.macd.macd, macd.macd);
       updateLastPoint(refs.macd.signal, macd.signal);
@@ -533,13 +596,13 @@ export function StockChart({
       refs.macdMarkers?.setMarkers(computeCrossMarkers(macd.macd, macd.signal) as any);
     }
     if (refs.rsi) {
-      const rsi = calcRSI(closeData);
+      const rsi = calcRSI(closeData, indicatorSettings.rsi.period);
       updateLastPoint(refs.rsi.line, rsi);
       updateLastPoint(refs.rsi.upper, constantLine(rsi, 70));
       updateLastPoint(refs.rsi.lower, constantLine(rsi, 30));
     }
     if (refs.stoch) {
-      const stoch = calcStoch(nextCandles);
+      const stoch = calcStoch(nextCandles, indicatorSettings.stoch.period, indicatorSettings.stoch.smooth);
       updateLastPoint(refs.stoch.k, stoch.k);
       updateLastPoint(refs.stoch.d, stoch.d);
       updateLastPoint(refs.stoch.upper, constantLine(stoch.k, 80));
@@ -547,7 +610,7 @@ export function StockChart({
       refs.stochMarkers?.setMarkers(computeCrossMarkers(stoch.k, stoch.d) as any);
     }
     if (refs.stochrsi) {
-      const sr = calcStochRSI(closeData);
+      const sr = calcStochRSI(closeData, indicatorSettings.stochrsi.rsiPeriod, indicatorSettings.stochrsi.stochPeriod, indicatorSettings.stochrsi.smoothK, indicatorSettings.stochrsi.smoothD);
       updateLastPoint(refs.stochrsi.k, sr.k);
       updateLastPoint(refs.stochrsi.d, sr.d);
       updateLastPoint(refs.stochrsi.upper, constantLine(sr.k, 80));
@@ -596,6 +659,24 @@ export function StockChart({
   }, [enabledIndicators, indicatorStorageKey]);
 
   useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(settingsStorageKey);
+      const saved = raw ? (JSON.parse(raw) as Partial<IndicatorSettings>) : null;
+      setIndicatorSettings(saved ? { ...DEFAULT_SETTINGS, ...saved } : DEFAULT_SETTINGS);
+    } catch {
+      setIndicatorSettings(DEFAULT_SETTINGS);
+    }
+  }, [settingsStorageKey]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(settingsStorageKey, settingsKey);
+    } catch {
+      // Local persistence is best-effort only.
+    }
+  }, [settingsKey, settingsStorageKey]);
+
+  useEffect(() => {
     pendingPointRef.current = null;
     setPendingPoint(null);
   }, [activeTool]);
@@ -605,6 +686,10 @@ export function StockChart({
       if (prev.includes(indicator)) return prev.filter((item) => item !== indicator);
       return [...prev, indicator];
     });
+  };
+
+  const updateSetting = (id: keyof IndicatorSettings, key: string, value: number) => {
+    setIndicatorSettings((prev) => ({ ...prev, [id]: { ...prev[id], [key]: value } }));
   };
 
   const resetPreset = () => {
@@ -878,14 +963,14 @@ export function StockChart({
         }
 
         if (enabledIndicators.includes("bb")) {
-          const bb = calcBollinger(closeData);
+          const bb = calcBollinger(closeData, indicatorSettings.bb.period, indicatorSettings.bb.mult);
           seriesRef.current.overlays.find((item) => item.id === "bb-upper")?.series.setData(bb.upper as any);
           seriesRef.current.overlays.find((item) => item.id === "bb-middle")?.series.setData(bb.middle as any);
           seriesRef.current.overlays.find((item) => item.id === "bb-lower")?.series.setData(bb.lower as any);
         }
 
         if (seriesRef.current.macd) {
-          const macd = calcMACD(closeData);
+          const macd = calcMACD(closeData, indicatorSettings.macd.fast, indicatorSettings.macd.slow, indicatorSettings.macd.signal);
           seriesRef.current.macd.macd.setData(macd.macd as any);
           seriesRef.current.macd.signal.setData(macd.signal as any);
           seriesRef.current.macd.histogram.setData(macd.histogram.map((item) => ({
@@ -897,14 +982,14 @@ export function StockChart({
         }
 
         if (seriesRef.current.rsi) {
-          const rsi = calcRSI(closeData);
+          const rsi = calcRSI(closeData, indicatorSettings.rsi.period);
           seriesRef.current.rsi.line.setData(rsi as any);
           seriesRef.current.rsi.upper.setData(constantLine(rsi, 70) as any);
           seriesRef.current.rsi.lower.setData(constantLine(rsi, 30) as any);
         }
 
         if (seriesRef.current.stoch) {
-          const stoch = calcStoch(nextCandles);
+          const stoch = calcStoch(nextCandles, indicatorSettings.stoch.period, indicatorSettings.stoch.smooth);
           seriesRef.current.stoch.k.setData(stoch.k as any);
           seriesRef.current.stoch.d.setData(stoch.d as any);
           seriesRef.current.stoch.upper.setData(constantLine(stoch.k, 80) as any);
@@ -913,7 +998,7 @@ export function StockChart({
         }
 
         if (seriesRef.current.stochrsi) {
-          const sr = calcStochRSI(closeData);
+          const sr = calcStochRSI(closeData, indicatorSettings.stochrsi.rsiPeriod, indicatorSettings.stochrsi.stochPeriod, indicatorSettings.stochrsi.smoothK, indicatorSettings.stochrsi.smoothD);
           seriesRef.current.stochrsi.k.setData(sr.k as any);
           seriesRef.current.stochrsi.d.setData(sr.d as any);
           seriesRef.current.stochrsi.upper.setData(constantLine(sr.k, 80) as any);
@@ -939,7 +1024,7 @@ export function StockChart({
     return () => {
       disposed = true;
     };
-  }, [chartCandles, symbol, timeframe, enabledIndicators, chartReadyVersion]);
+  }, [chartCandles, symbol, timeframe, enabledIndicators, chartReadyVersion, settingsKey]);
 
   useEffect(() => {
     if (!chartReadyVersion || !chartCandles.length) return;
@@ -975,7 +1060,7 @@ export function StockChart({
       disposed = true;
       window.clearInterval(interval);
     };
-  }, [symbol, timeframe, chartReadyVersion, chartCandles.length, enabledKey]);
+  }, [symbol, timeframe, chartReadyVersion, chartCandles.length, enabledKey, settingsKey]);
 
   function addDrawing(point: { x: number; y: number }) {
     if (activeTool === "cursor" || drawingsLocked) return;
@@ -1147,6 +1232,39 @@ export function StockChart({
               <Ruler className="h-3.5 w-3.5" /> HGL-EMA mặc định
             </button>
           </div>
+
+          {SETTINGS_SCHEMA.some((schema) => enabledIndicators.includes(schema.id as IndicatorId)) ? (
+            <div className="sm:col-span-2 border-t pt-3" style={{ borderColor: "var(--border)" }}>
+              <div className="mb-2 text-[11px] font-black uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Thông số chỉ báo</div>
+              <div className="flex flex-col gap-2">
+                {SETTINGS_SCHEMA.filter((schema) => enabledIndicators.includes(schema.id as IndicatorId)).map((schema) => (
+                  <div key={schema.id} className="flex flex-wrap items-center gap-2">
+                    <span className="w-20 text-xs font-bold" style={{ color: "var(--text-primary)" }}>{schema.label}</span>
+                    {schema.fields.map((field) => (
+                      <label key={field.key} className="flex items-center gap-1 text-xs" style={{ color: "var(--text-muted)" }}>
+                        {field.label}
+                        <input
+                          type="number"
+                          min={field.min}
+                          max={field.max}
+                          value={(indicatorSettings[schema.id] as Record<string, number>)[field.key]}
+                          onChange={(event) =>
+                            updateSetting(
+                              schema.id,
+                              field.key,
+                              Math.max(field.min, Math.min(field.max, Number(event.target.value) || field.min)),
+                            )
+                          }
+                          className="w-14 rounded-md border px-1.5 py-1 text-center font-bold"
+                          style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--text-primary)" }}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
