@@ -77,7 +77,7 @@ const SIGNAL_SCAN_TIMEOUT_MS = 600_000;
 const MARKET_OVERVIEW_CACHE_FILE = path.join(process.cwd(), "market_cache.json");
 const EOD_FULL_MINUTE_VN = 19 * 60;
 const ADN_RANK_REFRESH_MINUTE_VN = 15 * 60;
-const ART_DAILY_REFRESH_MINUTE_VN = 19 * 60 + 5;
+const ART_DAILY_REFRESH_MINUTE_VN = 11 * 60; // sớm nhất 11:00 — cron ADN ART chạy 11:00 & 15:00 VN (T2–T6)
 const ADN_RANK_TOPIC_KEYS = ["research:rs-rating:list", "market:rs:latest", "scan:rs-rating:list"] as const;
 const SMARTFLOW_TOPIC_KEY = "pulse:smartflow";
 // 2 topic Smartflow NẶNG (compute lạnh ~27-30s): top-movers (rank 500 mã + lịch sử tick) + index-impact.
@@ -1033,14 +1033,14 @@ async function handleArtDaily1905(forceRun = false): Promise<NextResponse> {
 
   if (!forceRun && minuteOfDay < ART_DAILY_REFRESH_MINUTE_VN) {
     const duration = Date.now() - startTime;
-    await logCron("art_daily_1905", "skipped", "ADN ART refresh skipped before 19:05 VN", duration, {
-      nextSlot: "19:05",
+    await logCron("art_daily_1905", "skipped", "ADN ART refresh skipped before 11:00 VN", duration, {
+      nextSlot: "11:00",
     });
     return NextResponse.json({
       type: "art_daily_1905",
       skipped: true,
       reason: "before_scheduled_slot",
-      nextSlot: "19:05",
+      nextSlot: "11:00",
     });
   }
 

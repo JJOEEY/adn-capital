@@ -56,8 +56,8 @@ ${CRON_SMARTFLOW_1910_SCHEDULE:-10 19 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?
 ${CRON_EOD_19H_SCHEDULE:-0,5,10,15,20,30,45 19 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_EOD_19H:-eod_full_19h}" >> ${LOG_DIR}/eod_full_19h.log 2>&1
 ${CRON_EOD_20H_SCHEDULE:-0,15,30,45 20,21 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_EOD_19H:-eod_full_19h}" >> ${LOG_DIR}/eod_full_19h.log 2>&1
 
-# ADN ART - daily refresh 19:05 VN, Mon-Fri
-${CRON_ART_1905_SCHEDULE:-5 19 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_ART_1905:-art_daily_1905}" >> ${LOG_DIR}/art_daily_1905.log 2>&1
+# ADN ART - refresh 11:00 & 15:00 VN, Mon-Fri (sớm hơn 19:05 để có kế hoạch nhanh)
+${CRON_ART_1905_SCHEDULE:-0 11,15 * * 1-5} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_ART_1905:-art_daily_1905}" >> ${LOG_DIR}/art_daily_1905.log 2>&1
 
 # News crawler (07:00-22:30 VN, every 30 minutes)
 ${CRON_NEWS_CRAWLER_SCHEDULE:-*/30 7-22 * * *} ${CURL_CMD} "${APP_URL}/api/cron?type=${CRON_NEWS_CRAWLER:-news_crawler}" >> ${LOG_DIR}/news_crawler.log 2>&1

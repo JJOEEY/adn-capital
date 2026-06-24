@@ -370,6 +370,36 @@ export default function TEIPage() {
 
   const currentTimelineLabel = TIMELINE_OPTIONS.find((o) => o.value === timelineSessions)?.label ?? "2 Tháng";
 
+  // ── Nhãn trục thời gian: hiện THƯA cho đỡ rối (nhất là mobile). Chỉ hiện khi:
+  //   (a) điểm VÀO vùng CỰC ĐỘ (ART < 1 hoảng loạn / >= 4.8 hưng phấn) → tô đỏ + đậm;
+  //   (b) mốc ~1 tuần/lần (giãn theo độ dài timeline, tối đa ~9 nhãn);
+  //   (c) điểm mới nhất. Ngày rút gọn DD.MM (bỏ năm) để hẹp, dễ đọc.
+  const xLabelStep = Math.max(5, Math.ceil(chartData.length / 9));
+  const isExtremeRpi = (r: number | null | undefined) => r != null && (r < 1.0 || r >= 4.8);
+  const renderXAxisTick = (tickProps: { x?: string | number; y?: string | number; payload?: { index?: number } }) => {
+    const px = Number(tickProps.x ?? 0);
+    const py = Number(tickProps.y ?? 0);
+    const idx = tickProps.payload?.index ?? 0;
+    const point = chartData[idx];
+    if (!point) return <g />;
+    const extremeEntry = isExtremeRpi(point.rpi) && !isExtremeRpi(chartData[idx - 1]?.rpi);
+    const show = extremeEntry || idx === chartData.length - 1 || idx % xLabelStep === 0;
+    if (!show) return <g />;
+    return (
+      <text
+        x={px}
+        y={py + 10}
+        textAnchor="end"
+        transform={`rotate(-40 ${px} ${py + 10})`}
+        fontSize={10}
+        fontWeight={extremeEntry ? 700 : 500}
+        fill={extremeEntry ? "#EF4444" : CHART_THEME.axisText}
+      >
+        {point.displayDate.slice(0, 5)}
+      </text>
+    );
+  };
+
   /* ── Loading skeleton ────────────────────────────────────────────────── */
   if (isLoading && !rawData) {
     return (
@@ -613,12 +643,10 @@ export default function TEIPage() {
 
                       <XAxis
                         dataKey="displayDate"
-                        tick={{ fontSize: 10, fill: CHART_THEME.axisText }}
-                        angle={-45}
-                        textAnchor="end"
-                        height={60}
+                        tick={renderXAxisTick}
+                        height={54}
                         interval={0}
-                        tickLine={{ stroke: CHART_THEME.axis }}
+                        tickLine={false}
                         axisLine={{ stroke: CHART_THEME.axis }}
                       />
 
