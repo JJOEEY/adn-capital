@@ -204,7 +204,9 @@ export function AidenWebChat() {
     r.raf = null;
     if (r.shown < r.full.length) {
       const remaining = r.full.length - r.shown;
-      const step = Math.max(2, Math.ceil(remaining / 16));
+      // Cap ~10 ký tự/frame (~600/giây @60fps): typewriter NHÌN THẤY được, vẫn bắt kịp khi LLM bắn cục lớn;
+      // chậm dần về ~1 ký tự lúc gần hết cho cảm giác gõ thật.
+      const step = Math.min(10, Math.max(1, Math.ceil(remaining / 45)));
       r.shown = Math.min(r.full.length, r.shown + step);
       const slice = r.full.slice(0, r.shown);
       updateAssistant(r.id, (m) => ({ ...m, text: slice }));

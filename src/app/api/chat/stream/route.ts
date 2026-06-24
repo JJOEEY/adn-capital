@@ -28,6 +28,8 @@ function streamHeaders() {
     "Content-Type": "text/event-stream; charset=utf-8",
     "Cache-Control": "no-cache, no-transform",
     Connection: "keep-alive",
+    // Tắt buffering ở nginx/proxy để SSE chảy DẦN tới client (không bị gom 1 cục cuối) → typewriter real-time.
+    "X-Accel-Buffering": "no",
   };
 }
 
