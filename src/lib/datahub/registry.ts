@@ -3691,9 +3691,9 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     id: "pulse:index-impact",
     ttlMs: 300_000,
     minIntervalMs: 60_000,
-    // SWR rộng (15') để giữa các nhịp warm cron (5') user luôn được trả ngay bản stale + revalidate nền,
-    // không bao giờ block trên compute lạnh ~27s. (Task A — ADN Smartflow load lâu.)
-    staleWhileRevalidateMs: 900_000,
+    // SWR 24h: value LUÔN stale-servable (serve ngay ~40ms + revalidate nền), kể cả sau phiên/qua đêm khi
+    // không có warm cron → user KHÔNG BAO GIỜ block trên compute lạnh ~27s, KHÔNG rỗng. (Task A.)
+    staleWhileRevalidateMs: 86_400_000,
     source: "datahub:fiinquant-index-contribution",
     version: "v1",
     tags: ["dashboard", "pulse", "index-impact"],
@@ -3704,9 +3704,9 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
     id: "pulse:top-movers",
     ttlMs: 60_000,
     minIntervalMs: 30_000,
-    // SWR rộng (15') — compute lạnh ~30s (rank 500 mã + lịch sử tick). Warm cron 5' luôn nằm trong cửa sổ này
-    // nên user chỉ ăn 1 lần compute lạnh sau deploy/cache-wipe, sau đó luôn nhận bản stale tức thì. (Task A.)
-    staleWhileRevalidateMs: 900_000,
+    // SWR 24h — compute lạnh ~26-30s (rank 500 mã + lịch sử tick). Value luôn stale-servable nên mọi load
+    // (kể cả sau phiên/qua đêm, lúc cron warm không chạy) trả ngay bản gần nhất + revalidate nền, không rỗng. (Task A.)
+    staleWhileRevalidateMs: 86_400_000,
     source: "datahub:rank-board-movers",
     version: "v1",
     tags: ["dashboard", "pulse", "top-movers"],
