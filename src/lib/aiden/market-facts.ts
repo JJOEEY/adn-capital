@@ -59,6 +59,54 @@ export async function loadCanonicalMarketFacts(): Promise<CanonicalMarketFacts |
   }
 }
 
+function fmtVn(n: number, maxFractionDigits = 2) {
+  return n.toLocaleString("vi-VN", { maximumFractionDigits: maxFractionDigits });
+}
+
+// Dựng đoạn TỔNG QUAN THỊ TRƯỜNG (chỉ số + độ rộng + thanh khoản) từ ô market đã merge facts canonical.
+// Dùng cho FALLBACK general_market (khi LLM freemodel timeout) để AIDEN luôn trả số THỊ TRƯỜNG đúng + nhất
+// quán thay vì rơi vào danh sách mã radar. Trả "" nếu không có facts.
+export function buildMarketOverviewFromContext(context: unknown): string {
+  const ctx = context && typeof context === "object" ? (context as Record<string, unknown>) : {};
+  const market = ctx.market && typeof ctx.market === "object" ? (ctx.market as Record<string, unknown>) : {};
+  const vn =
+    market.vnIndex && typeof market.vnIndex === "object"
+      ? (market.vnIndex as { value?: number; changePct?: number })
+      : null;
+  const breadth = typeof market.breadth === "string" ? market.breadth : null;
+  const liq = typeof market.totalLiquidityBillion === "number" ? market.totalLiquidityBillion : null;
+  const indices = Array.isArray(market.indices)
+    ? (market.indices as Array<{ name: string; value: number; changePct: number }>)
+    : [];
+  if (!vn && !breadth) return "";
+  const sign = (n: number) => (n >= 0 ? "+" : "");
+  const label = (name: string) =>
+    name === "VNINDEX" ? "VN-Index" : name === "HNX" ? "HNX-Index" : name === "UPCOM" ? "UPCOM-Index" : name;
+  const idxLines = indices
+    .filter((i) => typeof i.value === "number")
+    .map((i) => `**${label(i.name)} ${fmtVn(i.value)}** (${sign(i.changePct)}${fmtVn(i.changePct)}%)`);
+  const head =
+    idxLines.length > 0
+      ? idxLines.join(" · ")
+      : vn && typeof vn.value === "number"
+        ? `**VN-Index ${fmtVn(vn.value)}** (${sign(vn.changePct ?? 0)}${fmtVn(vn.changePct ?? 0)}%)`
+        : "";
+  const parts: string[] = [];
+  if (head) parts.push(head);
+  if (breadth) parts.push(`Độ rộng toàn thị trường: ${breadth}`);
+  if (liq != null) parts.push(`Tổng GTGD: ${fmtVn(liq, 0)} tỷ đồng`);
+  if (parts.length === 0) return "";
+  return `📊 **Dữ liệu thị trường hôm nay**\n\n${parts.map((p) => `- ${p}`).join("\n")}`;
+}
+
+// Ghép market overview canonical lên ĐẦU fallback (nếu chưa có), giữ phần còn lại (mã đáng chú ý) phía sau.
+export function prependMarketOverview(context: unknown, fallback: string): string {
+  const overview = buildMarketOverviewFromContext(context);
+  if (!overview) return fallback;
+  if (typeof fallback === "string" && /VN-Index/i.test(fallback)) return fallback;
+  return fallback && fallback.trim() ? `${overview}\n\n${fallback}` : overview;
+}
+
 // Gắn facts CHUẨN vào object market của general_market context để AIDEN trích số đúng + nhất quán.
 export function mergeCanonicalMarketFacts(market: unknown, facts: CanonicalMarketFacts | null): unknown {
   if (!facts) return market;

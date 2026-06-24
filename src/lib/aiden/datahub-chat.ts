@@ -20,7 +20,7 @@ import { getDatabaseAidenTickerContext } from "@/lib/database/aiden/context";
 import type { DatabaseAidenTickerContext } from "@/lib/database/aiden/types";
 import { fetchVndirectRecommendations, type BrokerConsensus } from "@/lib/research/vndirect";
 import { fetchFinancialHistory, type FinancialHistory } from "@/lib/research/financials";
-import { loadCanonicalMarketFacts, mergeCanonicalMarketFacts } from "@/lib/aiden/market-facts";
+import { loadCanonicalMarketFacts, mergeCanonicalMarketFacts, prependMarketOverview } from "@/lib/aiden/market-facts";
 
 type JsonRecord = Record<string, unknown>;
 function readPositiveIntegerEnv(name: string, fallback: number): number {
@@ -1908,7 +1908,7 @@ export async function prepareAidenDatahubTurn(input: {
       model: AIDEN_MODEL,
       dataFreshness,
       prompt: buildGeneralPrompt(message, general.context),
-      fallbackMessage: buildGeneralFallbackMessage(message, general.context),
+      fallbackMessage: prependMarketOverview(general.context, buildGeneralFallbackMessage(message, general.context)),
       systemInstruction,
       tickerContexts: [],
     };
