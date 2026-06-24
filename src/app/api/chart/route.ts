@@ -594,6 +594,31 @@ async function loadLatestChartCandle(symbol: string, timeframe: string): Promise
   return latest ? { symbol, timeframe, candles: [latest], source: "database_v2", realtime: true } : null;
 }
 
+// DEV-ONLY: khi local không nối được DB/bridge, trả nến mẫu (random-walk tất định theo mã)
+// để xem/preview chart trong lúc phát triển. Prod (NODE_ENV=production) KHÔNG bao giờ chạm nhánh này.
+function devSampleCandles(symbol: string, timeframe: string): Candle[] {
+  const count = isIntradayTimeframe(timeframe) ? 300 : 400;
+  const stepSec = isIntradayTimeframe(timeframe) ? (TIMEFRAME_MINUTES[timeframe] ?? 1) * 60 : 86_400;
+  let seed = 7;
+  for (const ch of symbol) seed = (seed * 31 + ch.charCodeAt(0)) & 0x7fffffff;
+  const rand = () => {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    return seed / 0x7fffffff;
+  };
+  const candles: Candle[] = [];
+  let price = 18_000 + rand() * 42_000;
+  const start = Math.floor(Date.now() / 1000) - count * stepSec;
+  for (let i = 0; i < count; i += 1) {
+    const open = price;
+    const close = Math.max(1_000, open + (rand() - 0.48) * open * 0.03);
+    const high = Math.max(open, close) * (1 + rand() * 0.012);
+    const low = Math.min(open, close) * (1 - rand() * 0.012);
+    candles.push({ time: start + i * stepSec, open, high, low, close, volume: Math.floor(80_000 + rand() * 900_000) });
+    price = close;
+  }
+  return candles;
+}
+
 export async function GET(req: NextRequest) {
   const symbol = req.nextUrl.searchParams.get("symbol")?.toUpperCase();
   if (!symbol || !/^[A-Z0-9]{2,10}$/.test(symbol)) {
@@ -634,6 +659,10 @@ export async function GET(req: NextRequest) {
     const payload = await requestPromise;
     return NextResponse.json(payload);
   } catch {
+    if (process.env.NODE_ENV !== "production") {
+      // Local dev không có DB/bridge → trả nến mẫu để preview chart (prod KHÔNG đụng).
+      return NextResponse.json({ symbol, timeframe, candles: devSampleCandles(symbol, timeframe), source: "database_v2" });
+    }
     return NextResponse.json(
       { error: "Hệ thống dữ liệu đang bảo trì, vui lòng thử lại sau." },
       { status: 503 }

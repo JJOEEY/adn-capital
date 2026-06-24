@@ -86,6 +86,8 @@ type ChartSeriesRefs = {
   macd?: { histogram: any; macd: any; signal: any };
   rsi?: { line: any; upper: any; lower: any };
   stoch?: { k: any; d: any; upper: any; lower: any };
+  macdMarkers?: any;
+  stochMarkers?: any;
 };
 
 const CHART_HEIGHT_MOBILE = 520;
@@ -303,6 +305,30 @@ function constantLine(data: Array<{ time: number }>, value: number): LinePoint[]
   return data.map((item) => ({ time: item.time, value }));
 }
 
+// Điểm giao cắt giữa 2 đường (fast cắt slow): cắt LÊN → chấm xanh dưới, cắt XUỐNG → chấm đỏ trên.
+function computeCrossMarkers(fast: LinePoint[], slow: LinePoint[]) {
+  const slowByTime = new Map(slow.map((point) => [point.time, point.value]));
+  const markers: Array<{ time: number; position: "aboveBar" | "belowBar"; color: string; shape: "circle"; size: number }> = [];
+  let prevDiff: number | null = null;
+  for (const point of fast) {
+    const slowValue = slowByTime.get(point.time);
+    if (slowValue == null) {
+      prevDiff = null;
+      continue;
+    }
+    const diff = point.value - slowValue;
+    if (prevDiff != null) {
+      if (prevDiff <= 0 && diff > 0) {
+        markers.push({ time: point.time, position: "belowBar", color: "#22c55e", shape: "circle", size: 1 });
+      } else if (prevDiff >= 0 && diff < 0) {
+        markers.push({ time: point.time, position: "aboveBar", color: "#ef4444", shape: "circle", size: 1 });
+      }
+    }
+    prevDiff = diff;
+  }
+  return markers;
+}
+
 function mergeLatestCandle(candles: Candle[], latest: Candle) {
   const sanitizedLatest = sanitizeCandles([latest])[0];
   if (!sanitizedLatest) return candles;
@@ -478,6 +504,7 @@ export function StockChart({
           color: hist.value >= 0 ? "rgba(34,197,94,0.85)" : "rgba(239,68,68,0.85)",
         } as any);
       }
+      refs.macdMarkers?.setMarkers(computeCrossMarkers(macd.macd, macd.signal) as any);
     }
     if (refs.rsi) {
       const rsi = calcRSI(closeData);
@@ -491,6 +518,7 @@ export function StockChart({
       updateLastPoint(refs.stoch.d, stoch.d);
       updateLastPoint(refs.stoch.upper, constantLine(stoch.k, 80));
       updateLastPoint(refs.stoch.lower, constantLine(stoch.k, 20));
+      refs.stochMarkers?.setMarkers(computeCrossMarkers(stoch.k, stoch.d) as any);
     }
   };
 
@@ -575,6 +603,7 @@ export function StockChart({
           LineSeries,
           ColorType,
           CrosshairMode,
+          createSeriesMarkers,
         } = await import("lightweight-charts");
 
         if (disposed || !chartContainerRef.current) return undefined;
@@ -662,6 +691,7 @@ export function StockChart({
           const macd = chart.addSeries(LineSeries, { color: "#14b8a6", lineWidth: 1, title: "MACD" }, paneIndex);
           const signal = chart.addSeries(LineSeries, { color: "#ef4444", lineWidth: 1, title: "Signal" }, paneIndex);
           nextSeries.macd = { histogram, macd, signal };
+          nextSeries.macdMarkers = createSeriesMarkers(macd, []);
           paneIndex += 1;
         }
         if (enabledIndicators.includes("rsi")) {
@@ -677,6 +707,7 @@ export function StockChart({
           const upper = chart.addSeries(LineSeries, { color: "rgba(148,163,184,0.45)", lineWidth: 1, title: "Stoch 80", lastValueVisible: false }, paneIndex);
           const lower = chart.addSeries(LineSeries, { color: "rgba(148,163,184,0.45)", lineWidth: 1, title: "Stoch 20", lastValueVisible: false }, paneIndex);
           nextSeries.stoch = { k, d, upper, lower };
+          nextSeries.stochMarkers = createSeriesMarkers(k, []);
         }
 
         requestAnimationFrame(() => {
@@ -819,6 +850,7 @@ export function StockChart({
             value: item.value,
             color: item.value >= 0 ? "rgba(34,197,94,0.85)" : "rgba(239,68,68,0.85)",
           })) as any);
+          seriesRef.current.macdMarkers?.setMarkers(computeCrossMarkers(macd.macd, macd.signal) as any);
         }
 
         if (seriesRef.current.rsi) {
@@ -834,6 +866,7 @@ export function StockChart({
           seriesRef.current.stoch.d.setData(stoch.d as any);
           seriesRef.current.stoch.upper.setData(constantLine(stoch.k, 80) as any);
           seriesRef.current.stoch.lower.setData(constantLine(stoch.k, 20) as any);
+          seriesRef.current.stochMarkers?.setMarkers(computeCrossMarkers(stoch.k, stoch.d) as any);
         }
 
         if (!didFitRef.current) {
