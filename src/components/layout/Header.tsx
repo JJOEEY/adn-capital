@@ -132,6 +132,10 @@ function SidebarContent() {
 
   const userName = dbUser?.name || session?.user?.name || "User";
   const userImage = dbUser?.image || session?.user?.image || null;
+  const [avatarError, setAvatarError] = useState(false);
+  useEffect(() => {
+    setAvatarError(false);
+  }, [userImage]);
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
@@ -164,9 +168,19 @@ function SidebarContent() {
       {isAuthenticated && !compact && (
         <div className="mx-2 mb-4 rounded-[10px] p-3" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
           <div className="flex items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-2">
-              {userImage ? (
-                <img src={userImage} alt="" className="w-8 h-8 rounded-full shrink-0" style={{ border: "1px solid var(--border)" }} />
+            <Link
+              href="/profile"
+              className="flex min-w-0 items-center gap-2 -m-1 rounded-lg p-1 transition hover:bg-[var(--surface-2)]"
+              title="Xem thông tin cá nhân & gói dịch vụ"
+            >
+              {userImage && !avatarError ? (
+                <img
+                  src={userImage}
+                  alt=""
+                  onError={() => setAvatarError(true)}
+                  className="w-8 h-8 rounded-full object-cover shrink-0"
+                  style={{ border: "1px solid var(--border)" }}
+                />
               ) : (
                 <div
                   className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
@@ -183,7 +197,7 @@ function SidebarContent() {
                   {role === "VIP" ? (vipTier === "PREMIUM" ? "Premium" : "VIP") : "Thành viên"}
                 </p>
               </div>
-            </div>
+            </Link>
             <button
               onClick={toggleTheme}
               className="w-8 h-8 rounded-full flex items-center justify-center transition-all shrink-0"

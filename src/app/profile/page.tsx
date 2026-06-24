@@ -45,6 +45,7 @@ export default function ProfilePage() {
   const [enableAIReview, setEnableAIReview] = useState(true);
   const [aiReviewLoading, setAiReviewLoading] = useState(false);
   const [gender, setGender] = useState<"" | "male" | "female">("");
+  const [avatarBroken, setAvatarBroken] = useState(false);
 
   // Sync enableAIReview from dbUser
   useEffect(() => {
@@ -83,6 +84,7 @@ export default function ProfilePage() {
       setNameValue(dbUser.name ?? "");
       setAvatarUrl(dbUser.image ?? "");
       setGender(dbUser.gender === "male" || dbUser.gender === "female" ? dbUser.gender : "");
+      setAvatarBroken(false);
     }
   }, [dbUser]);
 
@@ -263,10 +265,11 @@ export default function ProfilePage() {
           <div className="flex flex-col sm:flex-row items-center gap-5">
             {/* Avatar */}
             <div className="relative group">
-              {dbUser.image ? (
+              {dbUser.image && !avatarBroken ? (
                 <img
                   src={dbUser.image}
                   alt="Avatar"
+                  onError={() => setAvatarBroken(true)}
                   className="w-20 h-20 rounded-2xl border-2 object-cover" style={{ borderColor: "var(--border)" }}
                 />
               ) : (
