@@ -485,7 +485,7 @@ function MorningImage({ data }: { data: NormalizedMorningBrief }) {
 
         <div style={heading("", "CHỈ SỐ THAM CHIẾU (SO PHIÊN TRƯỚC)")}>📊 CHỈ SỐ THAM CHIẾU (SO PHIÊN TRƯỚC)</div>
         <div style={{ display: "flex", gap: 14, marginBottom: 26 }}>
-          {[...data.indices].sort((a, b) => indexPriority(a.name) - indexPriority(b.name)).slice(0, 5).map((item) => {
+          {[...data.indices].filter((item) => indexCode(item.name) !== "US").sort((a, b) => indexPriority(a.name) - indexPriority(b.name)).slice(0, 4).map((item) => {
             const hasVal = item.value != null;
             const positive = (item.changePct ?? 0) >= 0;
             return (

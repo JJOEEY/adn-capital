@@ -1050,7 +1050,7 @@ function SmartflowInvestorFlowCard({ investorFlow }: { investorFlow?: SmartflowP
   const hasContent = topBuy.length > 0 || topSell.length > 0 || (data?.series?.length ?? 0) >= 2;
 
   return (
-    <div className="rounded-xl border p-3" style={{ borderColor: "rgba(168,85,247,0.28)", background: "rgba(168,85,247,0.06)" }}>
+    <div className="rounded-xl border p-3 h-full" style={{ borderColor: "rgba(168,85,247,0.28)", background: "rgba(168,85,247,0.06)" }}>
       <div className="mb-3 flex items-center gap-2">
         <BarChart3 className="h-3.5 w-3.5" style={{ color: "#a855f7" }} />
         <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Dòng tiền NĐT</span>

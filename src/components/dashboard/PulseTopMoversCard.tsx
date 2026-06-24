@@ -117,7 +117,7 @@ export function PulseTopMoversCard({ data }: { data: PulseTopMoversPayload | nul
   }, [currentFrame?.rows, exchange, liquidity, marketCap, side]);
 
   return (
-    <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+    <div className="rounded-xl border p-3 h-full flex flex-col" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
       <div className="mb-3 flex items-start justify-between gap-2">
         <div>
           <div className="text-[11px] font-black uppercase tracking-wider" style={{ color: "var(--text-primary)" }}>
@@ -174,7 +174,7 @@ export function PulseTopMoversCard({ data }: { data: PulseTopMoversPayload | nul
           Không có mã phù hợp với bộ lọc hiện tại.
         </div>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="flex-1 min-h-0 overflow-auto">
           {usingFallback ? (
             <div className="mb-2 rounded-lg border px-3 py-2 text-[11px] font-bold" style={{ borderColor: "rgba(245,158,11,0.22)", background: "rgba(245,158,11,0.08)", color: "#f59e0b" }}>
               Đang dùng dữ liệu gần nhất: {resolvedLabel}

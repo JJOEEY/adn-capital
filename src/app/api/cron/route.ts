@@ -80,7 +80,21 @@ const ADN_RANK_REFRESH_MINUTE_VN = 15 * 60;
 const ART_DAILY_REFRESH_MINUTE_VN = 19 * 60 + 5;
 const ADN_RANK_TOPIC_KEYS = ["research:rs-rating:list", "market:rs:latest", "scan:rs-rating:list"] as const;
 const SMARTFLOW_TOPIC_KEY = "pulse:smartflow";
+// 2 topic Smartflow NẶNG (compute lạnh ~27-30s): top-movers (rank 500 mã + lịch sử tick) + index-impact.
+// Warm chủ động theo nhịp cron để user không bao giờ chạm compute lạnh khi mở ADN Pulse. (Task A.)
+const PULSE_HEAVY_TOPIC_KEYS = ["pulse:top-movers", "pulse:index-impact"] as const;
 const ART_DAILY_TOPIC_KEY = "vn:historical:VN30:1d";
+
+// Best-effort: làm ấm 2 topic Smartflow nặng song song; lỗi 1 topic không làm hỏng cron gọi nó.
+async function warmPulseHeavyTopics() {
+  const results = await Promise.allSettled(
+    PULSE_HEAVY_TOPIC_KEYS.map((key) => getTopicEnvelope(key, { force: true })),
+  );
+  return PULSE_HEAVY_TOPIC_KEYS.map((key, i) => ({
+    topic: key,
+    ok: results[i].status === "fulfilled" && (results[i] as PromiseFulfilledResult<{ freshness?: string }>).value?.freshness !== "error",
+  }));
+}
 const DATABASE_RADAR_TOPIC_KEYS = ["signal:market:radar", "radar:watchlist:active", "radar:prefilter:latest"] as const;
 const DATABASE_ADNCORE_TOPIC_KEYS = ["market:canonical:latest", "vn:index:overview", "vn:index:snapshot", SMARTFLOW_TOPIC_KEY] as const;
 const DATABASE_V2_REPLACES_V1 = process.env.DATABASE_V2_REPLACE_V1 !== "false";
@@ -679,15 +693,17 @@ async function handleDatabaseV2Cron(type: CanonicalCronType, forceRun = false): 
         timeoutMs: forceRun ? 30_000 : 15_000,
         maxMessages: forceRun ? 600 : 420,
       });
+      // Tận dụng nhịp 5' intraday để giữ ấm 2 topic Smartflow nặng → user mở ADN Pulse luôn nhận bản cache.
+      const heavyWarm = await warmPulseHeavyTopics();
       const duration = Date.now() - startTime;
       await logCron(
         type,
         result.ok ? "success" : "error",
         result.ok ? `Database v2 DNSE market stored ${result.updatedLatest} latest rows` : "Database v2 DNSE market collect failed",
         duration,
-        summarizeDatabasePayload(result),
+        { ...(summarizeDatabasePayload(result) as Record<string, unknown>), heavyWarm },
       );
-      return NextResponse.json({ type, ...result }, { status: result.ok ? 200 : 502 });
+      return NextResponse.json({ type, ...result, heavyWarm }, { status: result.ok ? 200 : 502 });
     }
 
     if (type === "database_research_collect") {
@@ -1196,6 +1212,8 @@ async function handlePulseSmartflowPrecompute(forceRun = false): Promise<NextRes
   try {
     const invalidated = invalidateTopics({ topics: [SMARTFLOW_TOPIC_KEY], tags: ["smartflow", "dashboard", "market"] });
     const envelope = await getTopicEnvelope(SMARTFLOW_TOPIC_KEY, { force: true });
+    // Warm luôn top-movers + index-impact để 3 ô trong ADN Smartflow đều ấm sau precompute.
+    const heavyWarm = await warmPulseHeavyTopics();
     const payload = envelope.value as {
       indexImpact?: { positive?: unknown[]; negative?: unknown[] };
       investorFlow?: {
@@ -1246,6 +1264,7 @@ async function handlePulseSmartflowPrecompute(forceRun = false): Promise<NextRes
       payloadUpdatedAt: payload.updatedAt ?? null,
       count,
       invalidated,
+      heavyWarm,
     });
     return NextResponse.json({
       type: "pulse_smartflow_precompute",
@@ -1254,6 +1273,7 @@ async function handlePulseSmartflowPrecompute(forceRun = false): Promise<NextRes
       topicUpdatedAt: envelope.updatedAt,
       payloadUpdatedAt: payload.updatedAt ?? null,
       invalidated,
+      heavyWarm,
     });
   } catch (error) {
     const duration = Date.now() - startTime;

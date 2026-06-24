@@ -118,7 +118,7 @@ export function PulseIndexImpactChart({ data }: { data: PulseIndexImpactPayload 
   const summaryGradient = `linear-gradient(90deg, #15803d 0%, #22c55e ${Math.max(0, posShare - 10).toFixed(1)}%, #8a9a3c ${posShare.toFixed(1)}%, #ef4444 ${Math.min(100, posShare + 6).toFixed(1)}%, #dc2626 100%)`;
 
   return (
-    <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+    <div className="rounded-xl border p-3 h-full" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
       <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
         <div className="flex items-center gap-2">
           <BarChart3 className="h-4 w-4" style={{ color: "#6366f1" }} />
