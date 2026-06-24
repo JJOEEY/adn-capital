@@ -33,7 +33,7 @@ import {
   listDatabaseToolLatest,
 } from "@/lib/database";
 import { upsertDatabaseToolLatest } from "@/lib/database/tool-latest";
-import { classifyTickerSector } from "@/lib/market/sector-classification";
+import { classifyTickerSector, classifyTickerSectors } from "@/lib/market/sector-classification";
 import {
   applyMarketPriceScale,
   chooseMarketDisplayPrice,
@@ -3459,6 +3459,7 @@ function normalizeRankHistoryRow(row: JsonRecord) {
     ticker,
     name: String(row.name ?? row.companyName ?? ticker),
     sector: classifyTickerSector(ticker, String(row.sector ?? row.industry ?? "")),
+    sectors: classifyTickerSectors(ticker, String(row.sector ?? row.industry ?? "")),
     score: Number(score.toFixed(2)),
     price,
     volume,
@@ -3540,9 +3541,12 @@ async function loadRankSectorsHistory() {
     for (const item of rankRowsFromPayload(snapshot.payload)) {
       const row = normalizeRankHistoryRow(item);
       if (!row) continue;
-      const current = groups.get(row.sector) ?? [];
-      current.push(row);
-      groups.set(row.sector, current);
+      // Gom vào TẤT CẢ nhóm của mã (chính + phụ) → mã đa nhóm như GVR hiện ở cả Cao su lẫn KCN.
+      for (const sector of row.sectors?.length ? row.sectors : [row.sector]) {
+        const current = groups.get(sector) ?? [];
+        current.push(row);
+        groups.set(sector, current);
+      }
     }
     for (const [sector, rows] of groups.entries()) {
       const score = median(rows.map((row) => row?.score ?? 0).filter((value) => Number.isFinite(value)));

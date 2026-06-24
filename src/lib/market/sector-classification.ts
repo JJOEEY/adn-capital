@@ -38,8 +38,12 @@ registerSector("Ngân hàng", [
 ]);
 
 registerSector("Chứng khoán", [
+  "AAS",
   "AGR",
   "APG",
+  "BMS",
+  "PHS",
+  "SBS",
   "APS",
   "BSI",
   "BVS",
@@ -426,4 +430,16 @@ export function classifyTickerSector(symbol: string, rawSector?: string | null) 
   }
 
   return "Chưa phân loại";
+}
+
+// Mã thuộc NHIỀU nhóm — hiện ở cả nhóm chính lẫn nhóm phụ (vd GVR vừa Cao su vừa ông lớn KCN).
+const SECONDARY_SECTORS: Record<string, string[]> = {
+  GVR: ["Khu công nghiệp"],
+};
+
+// Trả về TẤT CẢ nhóm của 1 mã (chính + phụ) — dùng khi gom nhóm ở heatmap "Nhóm ngành".
+export function classifyTickerSectors(symbol: string, rawSector?: string | null): string[] {
+  const primary = classifyTickerSector(symbol, rawSector);
+  const ticker = symbol.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return Array.from(new Set([primary, ...(SECONDARY_SECTORS[ticker] ?? [])]));
 }
