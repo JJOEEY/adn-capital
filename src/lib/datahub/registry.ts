@@ -3690,9 +3690,10 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
   {
     id: "pulse:index-impact",
     ttlMs: 300_000,
-    minIntervalMs: 60_000,
-    // SWR 24h: value LUÔN stale-servable (serve ngay ~40ms + revalidate nền), kể cả sau phiên/qua đêm khi
-    // không có warm cron → user KHÔNG BAO GIỜ block trên compute lạnh ~27s, KHÔNG rỗng. (Task A.)
+    // minIntervalMs LỚN (24h) = lever chống block thật của core: quá TTL nhưng còn trong minInterval thì
+    // core trả bản cache NGAY (không recompute on-demand ~27s). Chỉ cron force=1 (mỗi 5' trong phiên) recompute.
+    // → user KHÔNG bao giờ chờ/rỗng sau phiên/qua đêm. (Task A.)
+    minIntervalMs: 86_400_000,
     staleWhileRevalidateMs: 86_400_000,
     source: "datahub:fiinquant-index-contribution",
     version: "v1",
@@ -3703,9 +3704,10 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
   {
     id: "pulse:top-movers",
     ttlMs: 60_000,
-    minIntervalMs: 30_000,
-    // SWR 24h — compute lạnh ~26-30s (rank 500 mã + lịch sử tick). Value luôn stale-servable nên mọi load
-    // (kể cả sau phiên/qua đêm, lúc cron warm không chạy) trả ngay bản gần nhất + revalidate nền, không rỗng. (Task A.)
+    // minIntervalMs LỚN (24h): compute lạnh ~26-30s (rank 500 mã + lịch sử tick) là thủ phạm card rỗng/chờ.
+    // Với minInterval lớn, core trả bản cache NGAY khi quá TTL (không recompute on-demand). Cron force=1 (5'/phiên)
+    // mới recompute → mọi load nhanh, kể cả sau phiên/qua đêm. (Task A.)
+    minIntervalMs: 86_400_000,
     staleWhileRevalidateMs: 86_400_000,
     source: "datahub:rank-board-movers",
     version: "v1",
