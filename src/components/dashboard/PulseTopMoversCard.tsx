@@ -85,7 +85,7 @@ export function PulseTopMoversCard({ data }: { data: PulseTopMoversPayload | nul
   const [filterOpen, setFilterOpen] = useState(false);
   const [exchange, setExchange] = useState("ALL");
   const [marketCap, setMarketCap] = useState("all");
-  const [liquidity, setLiquidity] = useState("10b");
+  const [liquidity, setLiquidity] = useState("all");
 
   const resolvedTimeframe = useMemo<MoverTimeframe>(() => {
     const selectedFrame = data?.timeframes?.[timeframe];
