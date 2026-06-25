@@ -597,6 +597,11 @@ export function renderBriefImage(kind: BriefImageKind, value: unknown) {
   return kind === "morning" ? <MorningImage data={normalizeMorningBrief(value)} /> : <EodImage data={normalizeEodBrief(value)} />;
 }
 
+/** Data bản tin đã normalize (dùng cho bản TEXT — Discord embed). */
+export function briefData(kind: BriefImageKind, value: unknown): NormalizedMorningBrief | NormalizedEodBrief {
+  return kind === "morning" ? normalizeMorningBrief(value) : normalizeEodBrief(value);
+}
+
 export function briefImageCaption(kind: BriefImageKind, value: unknown) {
   const date = kind === "morning" ? normalizeMorningBrief(value).date : normalizeEodBrief(value).date;
   const title = kind === "morning" ? "Bản tin sáng ADN Capital" : "Bản tin tổng hợp ADN Capital";

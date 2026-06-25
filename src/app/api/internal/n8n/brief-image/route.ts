@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  briefData,
   briefImageCaption,
   type BriefImageKind,
   renderBriefImageBuffer,
@@ -63,6 +64,15 @@ export async function GET(req: NextRequest) {
 
   const kind = normalizeKind(req.nextUrl.searchParams.get("type") ?? "morning");
   if (!kind) return badRequestResponse("Invalid brief image type");
+
+  // Bản TEXT (Discord): trả data đã normalize thay vì ảnh PNG.
+  if ((req.nextUrl.searchParams.get("format") ?? "").toLowerCase() === "json") {
+    const envelope = await readDataHubTopic(topicForKind(kind));
+    if (!topicHasUsableValue(envelope)) {
+      return NextResponse.json({ ok: false, error: { code: "BRIEF_NOT_READY" } }, { status: 503 });
+    }
+    return NextResponse.json({ ok: true, type: kind, data: briefData(kind, envelope.value) });
+  }
 
   const image = await createBriefPng(kind);
   if (!image.ok) {

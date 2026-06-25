@@ -68,4 +68,15 @@ export const api = {
     if (!res.ok) throw new Error(`brief-image ${kind} → HTTP ${res.status}`);
     return Buffer.from(await res.arrayBuffer());
   },
+
+  // Bản tin dạng DATA (đã normalize) để dựng text/embed thay ảnh.
+  async briefData(kind /* "morning" | "eod" */) {
+    const res = await fetch(`${config.apiBase}/api/internal/n8n/brief-image?type=${kind}&format=json`, {
+      headers: config.internalKey ? { "x-internal-key": config.internalKey } : {},
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!res.ok) throw new Error(`brief-data ${kind} → HTTP ${res.status}`);
+    const j = await res.json();
+    return j?.data ?? null;
+  },
 };

@@ -151,6 +151,60 @@ export function welcomeEmbed(member) {
   return e;
 }
 
+// ── Bản tin sáng / kết phiên (TEXT — thay ảnh) ──
+function briefDate(d) {
+  if (!d) return "";
+  const dt = new Date(d);
+  return Number.isNaN(dt.getTime()) ? String(d) : dt.toLocaleDateString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
+}
+const tyB = (v) => (v == null ? "—" : `${num(v)} tỷ`);
+const joinB = (a) => (Array.isArray(a) && a.length ? a.join(" · ") : "");
+const cut = (s) => String(s).slice(0, 1024);
+
+export function eodBriefEmbed(d = {}) {
+  const b = d.breadth || {};
+  const e = new EmbedBuilder()
+    .setColor(dirColor(d.changePct))
+    .setTitle(`🌙 Bản tin kết phiên — ${briefDate(d.date)}`)
+    .setFooter({ text: BRAND.footer });
+  if (d.summary) e.setDescription(cut(d.summary));
+  const fields = [
+    { name: "VN-INDEX", value: `${num(d.vnindex)} (${pct(d.changePct)})`, inline: true },
+    { name: "Thanh khoản", value: tyB(d.totalLiquidity), inline: true },
+    { name: "Độ rộng", value: `🟢 ${b.up ?? "—"} / 🔴 ${b.down ?? "—"} / ⚪ ${b.unchanged ?? "—"}`, inline: true },
+  ];
+  const push = (name, parts) => {
+    const v = parts.filter(Boolean).join("\n");
+    if (v) fields.push({ name, value: cut(v), inline: false });
+  };
+  push("Khối ngoại", [d.foreignFlow, joinB(d.foreignTopBuy) && `Mua: ${joinB(d.foreignTopBuy)}`, joinB(d.foreignTopSell) && `Bán: ${joinB(d.foreignTopSell)}`]);
+  push("Tự doanh", [joinB(d.propTopBuy) && `Mua: ${joinB(d.propTopBuy)}`, joinB(d.propTopSell) && `Bán: ${joinB(d.propTopSell)}`]);
+  push("Cá nhân", [joinB(d.individualTopBuy) && `Mua: ${joinB(d.individualTopBuy)}`, joinB(d.individualTopSell) && `Bán: ${joinB(d.individualTopSell)}`]);
+  push("Ngành", [joinB(d.sectorGainers) && `Tăng: ${joinB(d.sectorGainers)}`, joinB(d.sectorLosers) && `Giảm: ${joinB(d.sectorLosers)}`]);
+  push("Tín hiệu chủ động", [joinB(d.buySignals) && `Mua: ${joinB(d.buySignals)}`, joinB(d.sellSignals) && `Bán: ${joinB(d.sellSignals)}`]);
+  push("Đột phá / Vượt đỉnh", [joinB([...(d.topBreakout || []), ...(d.topNewHigh || [])])]);
+  if (d.outlook) fields.push({ name: "📌 Nhận định phiên tới", value: cut(d.outlook), inline: false });
+  e.addFields(fields);
+  return e;
+}
+
+export function morningBriefEmbed(d = {}) {
+  const e = new EmbedBuilder()
+    .setColor(BRAND.color)
+    .setTitle(`🌅 Bản tin sáng — ${briefDate(d.date)}`)
+    .setFooter({ text: BRAND.footer });
+  const fields = [];
+  const bullets = (a) => cut(a.map((x) => `• ${x}`).join("\n"));
+  if (Array.isArray(d.indices) && d.indices.length)
+    fields.push({ name: "Chỉ số tham chiếu", value: cut(d.indices.map((i) => `${i.name}: ${num(i.value)} (${pct(i.changePct)})`).join("\n")), inline: false });
+  if (Array.isArray(d.market) && d.market.length) fields.push({ name: "Thị trường", value: bullets(d.market), inline: false });
+  if (Array.isArray(d.macro) && d.macro.length) fields.push({ name: "Vĩ mô", value: bullets(d.macro), inline: false });
+  if (Array.isArray(d.riskOpportunity) && d.riskOpportunity.length) fields.push({ name: "Rủi ro / Cơ hội", value: bullets(d.riskOpportunity), inline: false });
+  if (fields.length) e.addFields(fields);
+  else e.setDescription("Chưa có dữ liệu bản tin sáng.");
+  return e;
+}
+
 export function artEmbed(ticker, value, label) {
   return new EmbedBuilder()
     .setColor(BRAND.color)
