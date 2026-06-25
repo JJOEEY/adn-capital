@@ -11,8 +11,10 @@ import * as aiden from "./commands/aiden.js";
 const commands = new Collection();
 for (const c of [stock, rank, art, aiden]) commands.set(c.data.name, c);
 
+// KHÔNG xin MessageContent (privileged): tin nhắn @mention bot vẫn có content (Discord exception)
+// → slash command + @mention AIDEN đều chạy mà không cần bật intent trong portal.
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
 });
 
 client.once(Events.ClientReady, (c) => {
