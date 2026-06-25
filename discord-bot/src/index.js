@@ -1,4 +1,8 @@
-import { Client, GatewayIntentBits, Events, Collection } from "discord.js";
+import {
+  Client, GatewayIntentBits, Events, Collection,
+  EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle,
+  ActionRowBuilder, ButtonBuilder, ButtonStyle,
+} from "discord.js";
 import { config } from "./config.js";
 import { api } from "./api.js";
 import { startSignalPoller } from "./jobs/signals.js";
@@ -82,6 +86,65 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
   } catch (e) {
     await interaction.reply({ content: `Lỗi: ${String(e.message || e).slice(0, 120)}`, ephemeral: true }).catch(() => {});
+  }
+});
+
+// Luồng đăng ký role DNSE: nút Đăng ký → modal → request vào kênh duyệt → admin Duyệt/Từ chối
+client.on(Events.InteractionCreate, async (interaction) => {
+  // 1) Bấm "Đăng ký DNSE" → mở modal nhập số TK
+  if (interaction.isButton() && interaction.customId === "dnse_register") {
+    const modal = new ModalBuilder().setCustomId("dnse_register_modal").setTitle("Đăng ký DNSE careby");
+    const acc = new TextInputBuilder().setCustomId("dnse_acc").setLabel("Số tài khoản DNSE của bạn")
+      .setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(40);
+    const note = new TextInputBuilder().setCustomId("dnse_note").setLabel("Họ tên / ghi chú (không bắt buộc)")
+      .setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(120);
+    modal.addComponents(new ActionRowBuilder().addComponents(acc), new ActionRowBuilder().addComponents(note));
+    return interaction.showModal(modal).catch(() => {});
+  }
+
+  // 2) Submit modal → gửi thẻ yêu cầu vào kênh duyệt
+  if (interaction.isModalSubmit() && interaction.customId === "dnse_register_modal") {
+    const acc = interaction.fields.getTextInputValue("dnse_acc").trim();
+    const note = (interaction.fields.getTextInputValue("dnse_note") || "").trim() || "—";
+    const reviewId = config.dnseReviewChannel;
+    if (!reviewId) return interaction.reply({ content: "Hệ thống chưa cấu hình kênh duyệt. Liên hệ admin.", ephemeral: true });
+    const ch = await interaction.guild?.channels.fetch(reviewId).catch(() => null);
+    if (!ch?.isTextBased?.()) return interaction.reply({ content: "Không gửi được yêu cầu. Liên hệ admin.", ephemeral: true });
+    const embed = new EmbedBuilder().setColor(0xe8833a).setTitle("📝 Yêu cầu role DNSE")
+      .setDescription(`Từ ${interaction.user} (\`${interaction.user.id}\`)`)
+      .addFields({ name: "Số TK DNSE", value: acc, inline: true }, { name: "Ghi chú", value: note, inline: true })
+      .setTimestamp();
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`dnse_approve:${interaction.user.id}`).setLabel("✅ Duyệt").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`dnse_reject:${interaction.user.id}`).setLabel("❌ Từ chối").setStyle(ButtonStyle.Danger),
+    );
+    await ch.send({ embeds: [embed], components: [row] }).catch(() => {});
+    return interaction.reply({ content: "✅ Đã gửi yêu cầu. ADN sẽ kiểm tra & cấp quyền sớm nhất.", ephemeral: true });
+  }
+
+  // 3) Admin bấm Duyệt / Từ chối
+  if (interaction.isButton() && (interaction.customId.startsWith("dnse_approve:") || interaction.customId.startsWith("dnse_reject:"))) {
+    if (!interaction.member?.permissions?.has?.("Administrator"))
+      return interaction.reply({ content: "Chỉ admin được duyệt yêu cầu này.", ephemeral: true });
+    const [action, userId] = interaction.customId.split(":");
+    const approve = action === "dnse_approve";
+    try {
+      if (approve) {
+        const roleId = config.roles.dnse;
+        if (!roleId) return interaction.reply({ content: "Chưa cấu hình ROLE_DNSE.", ephemeral: true });
+        const member = await interaction.guild.members.fetch(userId).catch(() => null);
+        if (!member) return interaction.reply({ content: "Không tìm thấy thành viên (có thể đã rời server).", ephemeral: true });
+        await member.roles.add(roleId);
+        await member.send("✅ Bạn đã được cấp quyền **DNSE careby** tại ADN Capital. Vào kênh #dnse để xem nội dung đồng hành riêng nhé.").catch(() => {});
+      }
+      const base = interaction.message.embeds[0] ? EmbedBuilder.from(interaction.message.embeds[0]) : new EmbedBuilder();
+      base.setColor(approve ? 0x2e7d4f : 0xc0392b)
+        .addFields({ name: approve ? "✅ Đã duyệt" : "❌ Từ chối", value: `bởi ${interaction.user}` });
+      await interaction.update({ embeds: [base], components: [] });
+    } catch (e) {
+      await interaction.reply({ content: `Lỗi: ${String(e.message || e).slice(0, 120)}`, ephemeral: true }).catch(() => {});
+    }
+    return;
   }
 });
 
