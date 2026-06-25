@@ -19,6 +19,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { AidenMessageRenderer } from "@/components/chat/AidenMessageRenderer";
 import { StockChart, type ChartTimeframe } from "@/components/chat/StockChart";
 import { useTopic } from "@/hooks/useTopic";
+import { useTickStream } from "@/hooks/useTickStream";
 import { extractExplicitTickerCandidate, sanitizeTicker } from "@/lib/ticker-text";
 
 type JsonRecord = Record<string, unknown>;
@@ -646,6 +647,10 @@ export default function StockDetailPage() {
     revalidateOnFocus: false,
     dedupingInterval: 10_000,
   });
+  // Tick LIVE qua SSE (PLAN B) — chỉ khi đang phiên; server gate bằng SSE_TICK_STREAM_ENABLED.
+  // Fail-safe: hook tự bỏ cuộc nếu server OFF; realtimePrice fallback priceSnapshot poll.
+  const liveTicks = useTickStream([resolvedTicker], isTickerValid && isMarketLive);
+  const liveTick = liveTicks[resolvedTicker] ?? null;
 
   useEffect(() => {
     setSearch(resolvedTicker);
@@ -750,8 +755,8 @@ export default function StockDetailPage() {
 
   const workbench = workbenchTopic.data;
   const priceSnapshot = priceSnapshotTopic.data ?? workbench?.priceSnapshot ?? null;
-  const realtimePrice = priceSnapshot?.price ?? workbench?.ta?.currentPrice ?? null;
-  const realtimeChangePct = priceSnapshot?.changePct ?? workbench?.ta?.changePct ?? null;
+  const realtimePrice = liveTick?.price ?? priceSnapshot?.price ?? workbench?.ta?.currentPrice ?? null;
+  const realtimeChangePct = liveTick?.changePct ?? priceSnapshot?.changePct ?? workbench?.ta?.changePct ?? null;
   const activeAidenRecommendation = aidenRecommendations[resolvedTicker] ?? null;
 
   const refreshAll = () => {

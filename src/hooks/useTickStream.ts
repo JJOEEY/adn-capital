@@ -3,11 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 
 export type RealtimeTick = {
+  ticker?: string;
   price: number | null;
+  reference: number | null;
+  change: number | null;
+  changePct: number | null;
   volume: number | null;
   high: number | null;
   low: number | null;
-  reference: number | null;
   updatedAt: string;
 };
 
@@ -26,7 +29,9 @@ export function useTickStream(symbols: string[], enabled = false) {
     if (!enabled || !key) return;
     const es = new EventSource(`/api/stream/ticks?symbols=${encodeURIComponent(key)}`);
     esRef.current = es;
+    let errCount = 0;
     es.addEventListener("tick", (e) => {
+      errCount = 0;
       try {
         const payload = JSON.parse((e as MessageEvent).data) as { ticks?: Record<string, RealtimeTick> };
         if (payload.ticks) setTicks((prev) => ({ ...prev, ...payload.ticks }));
@@ -34,6 +39,14 @@ export function useTickStream(symbols: string[], enabled = false) {
         /* bỏ qua message lỗi */
       }
     });
+    // Server OFF (503) / lỗi liên tục → bỏ cuộc sau 3 lần để tránh EventSource retry-storm.
+    es.onerror = () => {
+      errCount += 1;
+      if (errCount >= 3) {
+        es.close();
+        esRef.current = null;
+      }
+    };
     return () => {
       es.close();
       esRef.current = null;

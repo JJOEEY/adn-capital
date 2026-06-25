@@ -105,7 +105,7 @@ function symbolFromMessage(message: JsonRecord) {
   return normalizeDnseSymbol(readString(message, ["symbol", "Symbol", "s", "ticker", "code"]));
 }
 
-function tickFromMessage(message: JsonRecord): DatabaseRadarTick | null {
+export function tickFromMessage(message: JsonRecord): DatabaseRadarTick | null {
   const ticker = symbolFromMessage(message);
   if (!ticker) return null;
   const price = readNumber(message, ["matchPrice", "lastPrice", "price", "close", "c"]);
@@ -141,7 +141,7 @@ type DnseDailyBar = {
 
 // DNSE bar message có marker T:"b" (giống fetchDnseRealtimeOhlc). tick_extra KHÔNG có → tách 2 luồng,
 // tránh ohlc_closed bị parse nhầm thành tick làm bẩn radar.realtime.tick (AIDEN phụ thuộc).
-function isOhlcBarMessage(message: JsonRecord): boolean {
+export function isOhlcBarMessage(message: JsonRecord): boolean {
   const marker = String(message.T ?? message.type ?? "").toLowerCase() === "b";
   const hasOpen = message.open != null || message.o != null; // bar OHLC có open; tick_extra KHÔNG → chặn lọt
   return marker && hasOpen;
