@@ -66,7 +66,8 @@ export const WORKFLOW_DEFINITIONS: WorkflowDefinition[] = [
         type: "send_telegram",
         continueOnError: true,
         params: {
-          briefImageKind: "morning",
+          // Gửi TEXT bản tin sáng (content đã có tiêu đề riêng) — KHÔNG nối payload.title để tránh lặp.
+          text: "{{payload.content}}",
           dedupeWindowMinutes: 1440,
         },
         deterministic: false,
@@ -112,7 +113,8 @@ export const WORKFLOW_DEFINITIONS: WorkflowDefinition[] = [
         type: "send_telegram",
         continueOnError: true,
         params: {
-          text: "{{payload.title}}\n\n{{payload.content}}",
+          // content đã có tiêu đề "🌙 BẢN TIN TỔNG HỢP 19:00 — ..." sẵn → KHÔNG nối payload.title (tránh lặp tiêu đề).
+          text: "{{payload.content}}",
           dedupeWindowMinutes: 1440,
         },
         deterministic: false,
