@@ -8,15 +8,20 @@ import * as stock from "./commands/stock.js";
 import * as rank from "./commands/rank.js";
 import * as art from "./commands/art.js";
 import * as aiden from "./commands/aiden.js";
+import * as ptkt from "./commands/ptkt.js";
+import * as ptcb from "./commands/ptcb.js";
+import * as tintuc from "./commands/tintuc.js";
+import * as atc from "./commands/atc.js";
 
 const commands = new Collection();
-for (const c of [stock, rank, art, aiden]) commands.set(c.data.name, c);
+for (const c of [stock, rank, art, aiden, ptkt, ptcb, tintuc, atc]) commands.set(c.data.name, c);
 
-// KHÔNG xin MessageContent (privileged): tin nhắn @mention bot vẫn có content (Discord exception)
-// → slash command + @mention AIDEN đều chạy mà không cần bật intent trong portal.
-const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
-});
+// @mention bot vẫn có content kể cả khi KHÔNG có MessageContent (Discord exception).
+// MessageContent (privileged) chỉ cần khi muốn AIDEN đọc MỌI tin ở kênh aiden-chat (không tag).
+// → chỉ xin intent này khi AIDEN_LISTEN=1; nếu bật mà portal chưa enable thì bot crash, nên gate kỹ.
+const intents = [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages];
+if (config.aidenListen) intents.push(GatewayIntentBits.MessageContent);
+const client = new Client({ intents });
 
 client.once(Events.ClientReady, (c) => {
   console.log(`✅ ADN bot online: ${c.user.tag}`);
@@ -39,16 +44,34 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
-// @mention AIDEN (chat tự nhiên)
+// AIDEN chat tự nhiên trong kênh aiden-chat.
+// - Luôn trả lời khi @mention bot (ở đúng kênh AIDEN).
+// - Nếu AIDEN_LISTEN=1: trả lời MỌI tin trong kênh aiden-chat, không cần tag.
+const aidenCooldown = new Map(); // userId → timestamp, chống spam khi listen
 client.on(Events.MessageCreate, async (message) => {
-  if (message.author.bot || !message.mentions.has(client.user)) return;
-  if (!aidenChannelOk(message.channelId)) return; // chỉ trả lời @mention ở kênh AIDEN
+  if (message.author.bot) return;
+  if (!aidenChannelOk(message.channelId)) return; // AIDEN chỉ sống ở kênh aiden-chat
+  const mentioned = message.mentions.has(client.user);
+  const listening =
+    config.aidenListen &&
+    !!config.commandChannels.aiden &&
+    message.channelId === config.commandChannels.aiden;
+  if (!mentioned && !listening) return;
   const q = message.content.replace(/<@!?\d+>/g, "").trim();
-  if (!q) return;
+  if (!q || q.length < 2) return;
+  // listen mode: cooldown 4s/người để tránh dội API khi chat nhanh
+  if (listening && !mentioned) {
+    const now = Date.now();
+    const last = aidenCooldown.get(message.author.id) || 0;
+    if (now - last < 4000) return;
+    aidenCooldown.set(message.author.id, now);
+  }
   await message.channel.sendTyping().catch(() => {});
   try {
     const reply = await api.aiden(q);
-    for (const part of aiden.chunk(reply)) await message.reply(part);
+    const parts = aiden.chunk(reply);
+    await message.reply(parts[0]);
+    for (const p of parts.slice(1)) await message.channel.send(p);
   } catch (e) {
     await message.reply(`AIDEN gặp lỗi: ${String(e.message || e).slice(0, 150)}`).catch(() => {});
   }

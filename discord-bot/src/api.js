@@ -33,6 +33,10 @@ export const api = {
   signals: () => get("/api/signals", { timeout: 45000 }),
   art: (ticker) => get(`/api/rpi?ticker=${encodeURIComponent(ticker.toUpperCase())}`).catch(() => null),
 
+  // Dashboard 1 mã: technical (TA + insight) · fundamental (FA + insight) · news[] · behavior (ART).
+  // Cache miss → backend gọi Gemini (PTCB dùng Pro) nên có thể chậm → timeout dài.
+  widget: (ticker) => get(`/api/widget/${encodeURIComponent(ticker.toUpperCase())}`, { timeout: 45000 }),
+
   async artImage(ticker) {
     const res = await fetch(`${config.apiBase}/api/og/art?ticker=${encodeURIComponent(ticker.toUpperCase())}`, {
       signal: AbortSignal.timeout(40000),
@@ -44,6 +48,14 @@ export const api = {
 
   async aiden(message) {
     const j = await postJson("/api/chat", { message }, { timeout: 90000 });
+    const txt = String(pickReply(j) || "").trim();
+    return txt || "Xin lỗi, AIDEN chưa trả lời được lúc này.";
+  },
+
+  // Hỏi AIDEN dạng chat tự do. surface mặc định 'aiden' + KHÔNG set ticker để LLM trả
+  // đúng câu hỏi (tránh interceptor ép về template tĩnh database-v2-stock-template).
+  async aidenAsk(message, { surface = "aiden" } = {}) {
+    const j = await postJson("/api/chat", { message, surface }, { timeout: 90000 });
     const txt = String(pickReply(j) || "").trim();
     return txt || "Xin lỗi, AIDEN chưa trả lời được lúc này.";
   },

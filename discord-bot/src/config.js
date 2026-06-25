@@ -25,12 +25,20 @@ export const config = {
     vip: opt("ROLE_VIP"),
   },
   // Kênh chỉ định cho từng lệnh (gate "mỗi nơi 1 công cụ"). Trống = cho dùng mọi nơi.
+  // Mọi lệnh tra cứu kiểu ADN Stock cùng nằm ở kênh stock-chat (CH_STOCK).
   commandChannels: {
     aiden: opt("CH_AIDEN"),
     stock: opt("CH_STOCK"),
-    rank: opt("CH_RANK"),
-    art: opt("CH_ART"),
+    rank: opt("CH_RANK") || opt("CH_STOCK"),
+    art: opt("CH_ART") || opt("CH_STOCK"),
+    ptkt: opt("CH_STOCK"),
+    ptcb: opt("CH_STOCK"),
+    tintuc: opt("CH_STOCK"),
+    atc: opt("CH_STOCK"),
   },
+  // Bật AIDEN trả lời MỌI tin ở kênh aiden-chat (không cần @tag).
+  // CHỈ bật khi đã enable "Message Content Intent" trong Developer Portal, nếu không bot crash.
+  aidenListen: opt("AIDEN_LISTEN") === "1",
 };
 
 export const BRAND = {

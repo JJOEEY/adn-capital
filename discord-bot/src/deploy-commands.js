@@ -4,8 +4,12 @@ import * as stock from "./commands/stock.js";
 import * as rank from "./commands/rank.js";
 import * as art from "./commands/art.js";
 import * as aiden from "./commands/aiden.js";
+import * as ptkt from "./commands/ptkt.js";
+import * as ptcb from "./commands/ptcb.js";
+import * as tintuc from "./commands/tintuc.js";
+import * as atc from "./commands/atc.js";
 
-const body = [stock, rank, art, aiden].map((c) => c.data.toJSON());
+const body = [stock, rank, art, aiden, ptkt, ptcb, tintuc, atc].map((c) => c.data.toJSON());
 const rest = new REST({ version: "10" }).setToken(config.token);
 
 try {
