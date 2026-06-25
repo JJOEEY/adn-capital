@@ -180,9 +180,9 @@ export function eodBriefEmbed(d = {}) {
   push("Khối ngoại", [d.foreignFlow, joinB(d.foreignTopBuy) && `Mua: ${joinB(d.foreignTopBuy)}`, joinB(d.foreignTopSell) && `Bán: ${joinB(d.foreignTopSell)}`]);
   push("Tự doanh", [joinB(d.propTopBuy) && `Mua: ${joinB(d.propTopBuy)}`, joinB(d.propTopSell) && `Bán: ${joinB(d.propTopSell)}`]);
   push("Cá nhân", [joinB(d.individualTopBuy) && `Mua: ${joinB(d.individualTopBuy)}`, joinB(d.individualTopSell) && `Bán: ${joinB(d.individualTopSell)}`]);
-  push("Ngành", [joinB(d.sectorGainers) && `Tăng: ${joinB(d.sectorGainers)}`, joinB(d.sectorLosers) && `Giảm: ${joinB(d.sectorLosers)}`]);
+  push("Ảnh hưởng chỉ số", [joinB(d.sectorGainers) && `Kéo: ${joinB(d.sectorGainers)}`, joinB(d.sectorLosers) && `Dìm: ${joinB(d.sectorLosers)}`]);
   push("Tín hiệu chủ động", [joinB(d.buySignals) && `Mua: ${joinB(d.buySignals)}`, joinB(d.sellSignals) && `Bán: ${joinB(d.sellSignals)}`]);
-  push("Đột phá / Vượt đỉnh", [joinB([...(d.topBreakout || []), ...(d.topNewHigh || [])])]);
+  push("Đột phá / Vượt đỉnh", [joinB([...new Set([...(d.topBreakout || []), ...(d.topNewHigh || [])])])]);
   if (d.outlook) fields.push({ name: "📌 Nhận định phiên tới", value: cut(d.outlook), inline: false });
   e.addFields(fields);
   return e;
