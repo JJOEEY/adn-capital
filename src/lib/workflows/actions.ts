@@ -1,8 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { getTopicEnvelope, invalidateTopics } from "@/lib/datahub/core";
 import { pushNotification, saveMarketReport } from "@/lib/cronHelpers";
-import { sendTelegramOnce, sendTelegramPhotoOnce, telegramHash } from "@/lib/telegram/dispatch";
-import { renderBriefImageBuffer, briefImageCaption, type BriefImageKind } from "@/lib/n8n/brief-image-render";
+import { sendTelegramOnce, telegramHash } from "@/lib/telegram/dispatch";
+import { renderBriefTelegramText, type BriefImageKind } from "@/lib/n8n/brief-image-render";
 import { resolveTemplateString } from "./helpers";
 import { WorkflowActionDefinition, WorkflowActionType, WorkflowContext } from "./types";
 
@@ -294,7 +294,7 @@ const sendTelegramAction: ActionHandler = async (action, context) => {
     };
   }
 
-  // Nếu step yêu cầu gửi ẢNH bản tin (briefImageKind) → render PNG + sendPhoto vào CÙNG chat, thay text.
+  // Nếu step là bản tin (briefImageKind) → gửi TEXT (đã đổi từ ẢNH sang text theo yêu cầu).
   const briefImageKind: BriefImageKind | null =
     action.params?.briefImageKind === "morning" || action.params?.briefImageKind === "eod"
       ? (action.params.briefImageKind as BriefImageKind)
@@ -306,27 +306,25 @@ const sendTelegramAction: ActionHandler = async (action, context) => {
     if (!value || typeof value !== "object") {
       return { status: "skipped", retryable: true, deterministic: false, warning: "brief_topic_empty", data: { topic } };
     }
-    const imgEventType = resolveTelegramEventType(context);
-    const imgEventKey = resolveTelegramEventKey(action, context, `image:${briefImageKind}`);
-    const photo = await renderBriefImageBuffer(briefImageKind, value);
-    const photoResult = await sendTelegramPhotoOnce({
-      eventType: imgEventType,
-      eventKey: imgEventKey,
-      photo,
-      caption: briefImageCaption(briefImageKind, value),
-      filename: `adn-${briefImageKind}-brief.png`,
+    const txtEventType = resolveTelegramEventType(context);
+    const txtEventKey = resolveTelegramEventKey(action, context, `text:${briefImageKind}`);
+    const briefText = toTelegramPlainText(renderBriefTelegramText(briefImageKind, value));
+    const txtResult = await sendTelegramOnce({
+      eventType: txtEventType,
+      eventKey: txtEventKey,
+      text: briefText,
       token,
       chatId,
       tradingDate: resolveTelegramTradingDate(context),
       slot: resolveTelegramSlot(context),
     });
-    if (photoResult.ok && "skipped" in photoResult && photoResult.skipped) {
-      return { status: "skipped", retryable: false, deterministic: true, warning: photoResult.reason, data: { eventKey: imgEventKey, eventType: imgEventType } };
+    if (txtResult.ok && "skipped" in txtResult && txtResult.skipped) {
+      return { status: "skipped", retryable: false, deterministic: true, warning: txtResult.reason, data: { eventKey: txtEventKey, eventType: txtEventType } };
     }
-    if (!photoResult.ok) {
-      return { status: "error", retryable: true, deterministic: false, error: photoResult.error, data: { eventKey: imgEventKey, eventType: imgEventType } };
+    if (!txtResult.ok) {
+      return { status: "error", retryable: true, deterministic: false, error: txtResult.error, data: { eventKey: txtEventKey, eventType: txtEventType } };
     }
-    return { status: "success", retryable: false, deterministic: false, data: { eventKey: imgEventKey, eventType: imgEventType, mode: "photo" } };
+    return { status: "success", retryable: false, deterministic: false, data: { eventKey: txtEventKey, eventType: txtEventType, mode: "text" } };
   }
 
   const rawText =

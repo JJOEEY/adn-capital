@@ -602,6 +602,65 @@ export function briefData(kind: BriefImageKind, value: unknown): NormalizedMorni
   return kind === "morning" ? normalizeMorningBrief(value) : normalizeEodBrief(value);
 }
 
+// ─── Bản tin dạng TEXT cho Telegram (plain text + emoji, giữ xuống dòng) ───
+function pctStr(v: number | null) {
+  return v == null ? "-" : `${v >= 0 ? "+" : ""}${formatNumber(v, 2)}`;
+}
+function joinDot(a: string[]) {
+  return a.length ? a.join(" · ") : "";
+}
+
+export function renderBriefTelegramText(kind: BriefImageKind, value: unknown): string {
+  return kind === "morning" ? morningTelegramText(normalizeMorningBrief(value)) : eodTelegramText(normalizeEodBrief(value));
+}
+
+function eodTelegramText(d: NormalizedEodBrief): string {
+  const L: string[] = [`🌙 BẢN TIN KẾT PHIÊN${d.date ? ` — ${formatDate(d.date)}` : ""}`, ""];
+  L.push(`📊 VN-INDEX ${formatNumber(d.vnindex, 2)} (${pctStr(d.changePct)}%)`);
+  L.push(`💧 Thanh khoản: ${formatBillion(d.totalLiquidity)}`);
+  L.push(`📈 Độ rộng: ${d.breadth.up ?? "-"} tăng / ${d.breadth.down ?? "-"} giảm / ${d.breadth.unchanged ?? "-"} đứng`);
+  if (d.summary) L.push("", d.summary);
+
+  const block: string[] = [];
+  if (d.foreignFlow || d.foreignTopBuy.length || d.foreignTopSell.length) {
+    block.push(`🌐 Khối ngoại: ${d.foreignFlow}`.trim());
+    if (d.foreignTopBuy.length) block.push(`   Mua: ${joinDot(d.foreignTopBuy)}`);
+    if (d.foreignTopSell.length) block.push(`   Bán: ${joinDot(d.foreignTopSell)}`);
+  }
+  const line = (emoji: string, label: string, buy: string[], sell: string[], bw = "Mua", sw = "Bán") => {
+    const b = joinDot(buy);
+    const s = joinDot(sell);
+    if (b || s) block.push(`${emoji} ${label} — ${[b && `${bw}: ${b}`, s && `${sw}: ${s}`].filter(Boolean).join(" | ")}`);
+  };
+  line("🏦", "Tự doanh", d.propTopBuy, d.propTopSell);
+  line("👤", "Cá nhân", d.individualTopBuy, d.individualTopSell);
+  line("⚖️", "Ảnh hưởng chỉ số", d.sectorGainers, d.sectorLosers, "Kéo", "Dìm");
+  line("⚡", "Tín hiệu", d.buySignals, d.sellSignals);
+  const brk = joinDot([...new Set([...d.topBreakout, ...d.topNewHigh])]);
+  if (brk) block.push(`🚀 Đột phá/Vượt đỉnh: ${brk}`);
+  if (block.length) L.push("", ...block);
+
+  if (d.outlook) L.push("", `📌 Nhận định phiên tới: ${d.outlook}`);
+  return L.join("\n");
+}
+
+function morningTelegramText(d: NormalizedMorningBrief): string {
+  const L: string[] = [`🌅 BẢN TIN SÁNG${d.date ? ` — ${formatDate(d.date)}` : ""}`];
+  if (d.indices.length) {
+    L.push("", "🌐 Chỉ số tham chiếu:");
+    for (const i of d.indices) L.push(`   ${i.name}: ${formatNumber(i.value, 2)} (${pctStr(i.changePct)}%)`);
+  }
+  const bullets = (emoji: string, label: string, arr: string[]) => {
+    if (!arr.length) return;
+    L.push("", `${emoji} ${label}:`);
+    for (const x of arr) L.push(`   • ${x}`);
+  };
+  bullets("📰", "Thị trường", d.market);
+  bullets("🏛️", "Vĩ mô", d.macro);
+  bullets("⚠️", "Rủi ro / Cơ hội", d.riskOpportunity);
+  return L.join("\n");
+}
+
 export function briefImageCaption(kind: BriefImageKind, value: unknown) {
   const date = kind === "morning" ? normalizeMorningBrief(value).date : normalizeEodBrief(value).date;
   const title = kind === "morning" ? "Bản tin sáng ADN Capital" : "Bản tin tổng hợp ADN Capital";
