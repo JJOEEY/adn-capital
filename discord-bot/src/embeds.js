@@ -133,18 +133,14 @@ export function newsEmbed(ticker, news = []) {
 }
 
 // ── Chào mừng thành viên mới ──
-export function welcomeEmbed(member, ch = {}) {
+export function welcomeEmbed(member) {
   const name = member.displayName || member.user?.username || "nhà đầu tư";
   const lines = [
-    `Chào **${name}**, rất vui có anh/chị ở đây 🤝`,
+    `Chào **${name}** 🤝`,
     "",
-    ch.rules ? `📜 Đọc **nội quy** ở <#${ch.rules}> rồi bấm **Đồng ý** để mở dùng công cụ phân tích.` : null,
-    ch.stock ? `📈 Tra cứu cổ phiếu ở <#${ch.stock}> — gõ \`/ta VIC\`, \`/fa FPT\`, \`/tin HPG\`, \`/top\`…` : null,
-    ch.aiden ? `🤖 Hỏi **AIDEN** ở <#${ch.aiden}> — gõ thẳng câu hỏi, không cần tag.` : null,
-    ch.signals ? `🔔 Vào <#${ch.signals}> bấm nút để bật nhắc khi có **tín hiệu mới**.` : null,
-    "",
-    "Chúc anh/chị giao dịch kỷ luật, giữ được tiền 📈",
-  ].filter((l) => l != null);
+    "Để vào cộng đồng: đọc **nội quy** ở kênh này, rồi bấm **✅ Tôi đồng ý nội quy** bên dưới.",
+    "Sau khi đồng ý, bạn sẽ **mở khóa toàn bộ kênh** và dùng được **công cụ phân tích** (3 lượt/ngày).",
+  ];
   const e = new EmbedBuilder()
     .setColor(BRAND.color)
     .setTitle("👋 Chào mừng tới ADN Capital!")

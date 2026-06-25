@@ -56,17 +56,7 @@ client.on(Events.GuildMemberAdd, async (member) => {
   const ch = await member.guild.channels.fetch(config.welcomeChannel).catch(() => null);
   if (!ch?.isTextBased?.()) return;
   await ch
-    .send({
-      content: `${member}`,
-      embeds: [
-        welcomeEmbed(member, {
-          rules: config.rulesChannel,
-          stock: config.commandChannels.ma,
-          aiden: config.commandChannels.ai,
-          signals: config.channels.signals,
-        }),
-      ],
-    })
+    .send({ content: `${member}`, embeds: [welcomeEmbed(member)] })
     .catch((e) => console.warn("[welcome]", String(e.message || e).slice(0, 100)));
 });
 
