@@ -23,6 +23,7 @@ export const config = {
   roles: {
     premium: opt("ROLE_PREMIUM"),
     vip: opt("ROLE_VIP"),
+    signal: opt("ROLE_SIGNAL"), // role opt-in được @ping khi có tín hiệu mới
   },
   // Kênh chỉ định cho từng lệnh (gate "mỗi nơi 1 công cụ"). Trống = cho dùng mọi nơi.
   // Key = tên slash (đã rút gọn). Mọi lệnh tra cứu kiểu ADN Stock cùng nằm ở stock-chat (CH_STOCK).

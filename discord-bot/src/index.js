@@ -44,6 +44,25 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
+// Nút bấm tự nhận/bỏ role (panel thông báo tín hiệu)
+client.on(Events.InteractionCreate, async (interaction) => {
+  if (!interaction.isButton() || interaction.customId !== "toggle_signal_role") return;
+  const roleId = config.roles.signal;
+  if (!roleId) return interaction.reply({ content: "Chưa cấu hình role tín hiệu.", ephemeral: true });
+  try {
+    const member = interaction.member;
+    if (member.roles.cache?.has(roleId)) {
+      await member.roles.remove(roleId);
+      await interaction.reply({ content: "🔕 Đã TẮT nhắc tín hiệu. Bấm lại để bật.", ephemeral: true });
+    } else {
+      await member.roles.add(roleId);
+      await interaction.reply({ content: "🔔 Đã BẬT — bạn sẽ được nhắc khi có tín hiệu mới.", ephemeral: true });
+    }
+  } catch (e) {
+    await interaction.reply({ content: `Lỗi: ${String(e.message || e).slice(0, 120)}`, ephemeral: true }).catch(() => {});
+  }
+});
+
 // AIDEN chat tự nhiên trong kênh aiden-chat.
 // - Luôn trả lời khi @mention bot (ở đúng kênh AIDEN).
 // - Nếu AIDEN_LISTEN=1: trả lời MỌI tin trong kênh aiden-chat, không cần tag.

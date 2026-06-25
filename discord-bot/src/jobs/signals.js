@@ -36,9 +36,14 @@ async function poll(client) {
     // Bỏ qua TẦM NGẮM (chỉ theo dõi, không phải tín hiệu mua/bán)
     const kind = String(s.type || s.tier || "").toUpperCase();
     if (kind.includes("TAM_NGAM") || kind.includes("TAM NGAM")) continue;
-    await channel.send({ embeds: [signalEmbed(s)] }).catch((e) =>
-      console.warn("[signals] gửi lỗi:", String(e.message || e).slice(0, 100)),
-    );
+    const roleId = config.roles.signal;
+    await channel
+      .send({
+        content: roleId ? `<@&${roleId}>` : undefined,
+        embeds: [signalEmbed(s)],
+        allowedMentions: { roles: roleId ? [roleId] : [] },
+      })
+      .catch((e) => console.warn("[signals] gửi lỗi:", String(e.message || e).slice(0, 100)));
   }
 }
 

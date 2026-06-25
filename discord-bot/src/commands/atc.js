@@ -1,6 +1,7 @@
 import { SlashCommandBuilder } from "discord.js";
 import { api } from "../api.js";
 import { chunk } from "./aiden.js";
+import { hasTier, tierDenyMessage } from "../lib/roles.js";
 import { wrongChannel } from "../lib/channels.js";
 
 export const data = new SlashCommandBuilder()
@@ -8,9 +9,12 @@ export const data = new SlashCommandBuilder()
   .setDescription("Phân tích phiên ATC của một mã (đợt khớp lệnh định kỳ đóng cửa)")
   .addStringOption((o) => o.setName("ma").setDescription("Mã cổ phiếu (vd SSI)").setRequired(true));
 
+export const tier = "premium";
+
 export async function execute(interaction) {
   const deny = wrongChannel(interaction.channelId, "atc");
   if (deny) return interaction.reply(deny);
+  if (!hasTier(interaction.member, tier)) return interaction.reply(tierDenyMessage(tier));
   const ticker = interaction.options.getString("ma").toUpperCase().trim();
   await interaction.deferReply();
   // Ticker viết thường + surface 'aiden' để LLM trả lời đúng câu ATC (né template tĩnh).

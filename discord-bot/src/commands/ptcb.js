@@ -1,6 +1,7 @@
 import { SlashCommandBuilder } from "discord.js";
 import { api } from "../api.js";
 import { ptcbEmbed } from "../embeds.js";
+import { hasTier, tierDenyMessage } from "../lib/roles.js";
 import { wrongChannel } from "../lib/channels.js";
 
 export const data = new SlashCommandBuilder()
@@ -8,9 +9,12 @@ export const data = new SlashCommandBuilder()
   .setDescription("Phân tích cơ bản một mã (P/E, P/B, EPS, ROE/ROA, KQKD + nhận định)")
   .addStringOption((o) => o.setName("ma").setDescription("Mã cổ phiếu (vd FPT)").setRequired(true));
 
+export const tier = "premium";
+
 export async function execute(interaction) {
   const deny = wrongChannel(interaction.channelId, "fa");
   if (deny) return interaction.reply(deny);
+  if (!hasTier(interaction.member, tier)) return interaction.reply(tierDenyMessage(tier));
   const ticker = interaction.options.getString("ma").toUpperCase().trim();
   await interaction.deferReply();
   try {
