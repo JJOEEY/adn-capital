@@ -1,6 +1,7 @@
 import { SlashCommandBuilder } from "discord.js";
 import { api } from "../api.js";
 import { stockEmbed } from "../embeds.js";
+import { wrongChannel } from "../lib/channels.js";
 
 export const data = new SlashCommandBuilder()
   .setName("stock")
@@ -8,6 +9,8 @@ export const data = new SlashCommandBuilder()
   .addStringOption((o) => o.setName("ma").setDescription("Mã cổ phiếu (vd VIC)").setRequired(true));
 
 export async function execute(interaction) {
+  const deny = wrongChannel(interaction.channelId, "stock");
+  if (deny) return interaction.reply(deny);
   const ticker = interaction.options.getString("ma").toUpperCase().trim();
   await interaction.deferReply();
   try {

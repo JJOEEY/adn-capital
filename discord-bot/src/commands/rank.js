@@ -2,6 +2,7 @@ import { SlashCommandBuilder } from "discord.js";
 import { api } from "../api.js";
 import { rankEmbed } from "../embeds.js";
 import { hasTier, tierDenyMessage } from "../lib/roles.js";
+import { wrongChannel } from "../lib/channels.js";
 
 export const data = new SlashCommandBuilder()
   .setName("rank")
@@ -11,6 +12,8 @@ export const data = new SlashCommandBuilder()
 export const tier = "premium";
 
 export async function execute(interaction) {
+  const deny = wrongChannel(interaction.channelId, "rank");
+  if (deny) return interaction.reply(deny);
   if (!hasTier(interaction.member, tier)) return interaction.reply(tierDenyMessage(tier));
   const sector = interaction.options.getString("nganh")?.trim() || null;
   await interaction.deferReply();

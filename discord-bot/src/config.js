@@ -24,6 +24,13 @@ export const config = {
     premium: opt("ROLE_PREMIUM"),
     vip: opt("ROLE_VIP"),
   },
+  // Kênh chỉ định cho từng lệnh (gate "mỗi nơi 1 công cụ"). Trống = cho dùng mọi nơi.
+  commandChannels: {
+    aiden: opt("CH_AIDEN"),
+    stock: opt("CH_STOCK"),
+    rank: opt("CH_RANK"),
+    art: opt("CH_ART"),
+  },
 };
 
 export const BRAND = {

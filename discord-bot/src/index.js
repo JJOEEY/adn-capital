@@ -3,6 +3,7 @@ import { config } from "./config.js";
 import { api } from "./api.js";
 import { startSignalPoller } from "./jobs/signals.js";
 import { startBriefScheduler } from "./jobs/brief.js";
+import { aidenChannelOk } from "./lib/channels.js";
 import * as stock from "./commands/stock.js";
 import * as rank from "./commands/rank.js";
 import * as art from "./commands/art.js";
@@ -41,6 +42,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 // @mention AIDEN (chat tự nhiên)
 client.on(Events.MessageCreate, async (message) => {
   if (message.author.bot || !message.mentions.has(client.user)) return;
+  if (!aidenChannelOk(message.channelId)) return; // chỉ trả lời @mention ở kênh AIDEN
   const q = message.content.replace(/<@!?\d+>/g, "").trim();
   if (!q) return;
   await message.channel.sendTyping().catch(() => {});
