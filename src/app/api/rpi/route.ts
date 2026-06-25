@@ -41,8 +41,10 @@ function toOhlcvRows(value: unknown): OHLCVData[] {
 
 export async function GET(req: NextRequest) {
   const force = req.nextUrl.searchParams.get("force") === "1";
+  // ?ticker=<mã> để tính RPI/ART cho mã bất kỳ (mặc định VN30 — giữ tương thích cũ + Discord /art).
+  const ticker = (req.nextUrl.searchParams.get("ticker") || "VN30").toUpperCase().replace(/[^A-Z0-9]/g, "") || "VN30";
   const context = await buildTopicContext({ force });
-  const envelope = await getTopicEnvelope("vn:historical:VN30:1d", context);
+  const envelope = await getTopicEnvelope(`vn:historical:${ticker}:1d`, context);
   const rows = toOhlcvRows(envelope.value);
   const history = calculateRPI(rows);
   const latest = getLatestRPI(history);
