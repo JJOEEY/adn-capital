@@ -20,6 +20,8 @@ export const config = {
     signals: opt("CHANNEL_SIGNALS"),
     brief: opt("CHANNEL_BRIEF"),
   },
+  welcomeChannel: opt("CH_WELCOME"), // kênh chào người mới (GuildMemberAdd)
+  rulesChannel: opt("CH_RULES"),     // kênh nội quy (để link trong lời chào)
   roles: {
     premium: opt("ROLE_PREMIUM"),
     vip: opt("ROLE_VIP"),

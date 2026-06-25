@@ -12,6 +12,7 @@ import * as ptkt from "./commands/ptkt.js";
 import * as ptcb from "./commands/ptcb.js";
 import * as tintuc from "./commands/tintuc.js";
 import * as atc from "./commands/atc.js";
+import { welcomeEmbed } from "./embeds.js";
 
 const commands = new Collection();
 for (const c of [stock, rank, art, aiden, ptkt, ptcb, tintuc, atc]) commands.set(c.data.name, c);
@@ -19,7 +20,8 @@ for (const c of [stock, rank, art, aiden, ptkt, ptcb, tintuc, atc]) commands.set
 // @mention bot vẫn có content kể cả khi KHÔNG có MessageContent (Discord exception).
 // MessageContent (privileged) chỉ cần khi muốn AIDEN đọc MỌI tin ở kênh aiden-chat (không tag).
 // → chỉ xin intent này khi AIDEN_LISTEN=1; nếu bật mà portal chưa enable thì bot crash, nên gate kỹ.
-const intents = [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages];
+// GuildMembers (privileged) cần cho lời chào người mới — đã bật "Server Members Intent" trong Portal.
+const intents = [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMembers];
 if (config.aidenListen) intents.push(GatewayIntentBits.MessageContent);
 const client = new Client({ intents });
 
@@ -42,6 +44,26 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.deferred || interaction.replied) interaction.editReply(msg).catch(() => {});
     else interaction.reply({ content: msg, ephemeral: true }).catch(() => {});
   }
+});
+
+// Chào mừng thành viên mới
+client.on(Events.GuildMemberAdd, async (member) => {
+  if (member.user?.bot || !config.welcomeChannel) return;
+  const ch = await member.guild.channels.fetch(config.welcomeChannel).catch(() => null);
+  if (!ch?.isTextBased?.()) return;
+  await ch
+    .send({
+      content: `${member}`,
+      embeds: [
+        welcomeEmbed(member, {
+          rules: config.rulesChannel,
+          stock: config.commandChannels.ma,
+          aiden: config.commandChannels.ai,
+          signals: config.channels.signals,
+        }),
+      ],
+    })
+    .catch((e) => console.warn("[welcome]", String(e.message || e).slice(0, 100)));
 });
 
 // Nút bấm tự nhận/bỏ role (panel thông báo tín hiệu)

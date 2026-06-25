@@ -132,6 +132,29 @@ export function newsEmbed(ticker, news = []) {
     .setFooter({ text: BRAND.footer });
 }
 
+// ── Chào mừng thành viên mới ──
+export function welcomeEmbed(member, ch = {}) {
+  const name = member.displayName || member.user?.username || "nhà đầu tư";
+  const lines = [
+    `Chào **${name}**, rất vui có anh/chị ở đây 🤝`,
+    "",
+    ch.rules ? `📜 Đọc **nội quy** ở <#${ch.rules}> trước cho nắm luật chơi.` : null,
+    ch.stock ? `📈 Tra cứu cổ phiếu ở <#${ch.stock}> — gõ \`/ta VIC\`, \`/fa FPT\`, \`/tin HPG\`, \`/top\`…` : null,
+    ch.aiden ? `🤖 Hỏi **AIDEN** ở <#${ch.aiden}> — gõ thẳng câu hỏi, không cần tag.` : null,
+    ch.signals ? `🔔 Vào <#${ch.signals}> bấm nút để bật nhắc khi có **tín hiệu mới**.` : null,
+    "",
+    "Chúc anh/chị giao dịch kỷ luật, giữ được tiền 📈",
+  ].filter((l) => l != null);
+  const e = new EmbedBuilder()
+    .setColor(BRAND.color)
+    .setTitle("👋 Chào mừng tới ADN Capital!")
+    .setDescription(lines.join("\n"))
+    .setFooter({ text: BRAND.footer });
+  const avatar = typeof member.displayAvatarURL === "function" ? member.displayAvatarURL() : null;
+  if (avatar) e.setThumbnail(avatar);
+  return e;
+}
+
 export function artEmbed(ticker, value, label) {
   return new EmbedBuilder()
     .setColor(BRAND.color)
