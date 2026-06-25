@@ -32,6 +32,14 @@ export const api = {
   marketOverview: () => get("/api/market-overview"),
   signals: () => get("/api/signals", { timeout: 45000 }),
   art: (ticker) => get(`/api/rpi?ticker=${encodeURIComponent(ticker.toUpperCase())}`).catch(() => null),
+
+  async artImage(ticker) {
+    const res = await fetch(`${config.apiBase}/api/og/art?ticker=${encodeURIComponent(ticker.toUpperCase())}`, {
+      signal: AbortSignal.timeout(40000),
+    });
+    if (!res.ok) throw new Error(`og/art ${ticker} → HTTP ${res.status}`);
+    return Buffer.from(await res.arrayBuffer());
+  },
   leaderRadar: () => get("/api/leader-radar").catch(() => null),
 
   async aiden(message) {

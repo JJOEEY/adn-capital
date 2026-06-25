@@ -8,7 +8,7 @@ export type BriefImageKind = "morning" | "eod";
 type LoadedFont = { name: string; data: Buffer; weight: 400 | 700 | 800; style: "normal" };
 let _fontCache: LoadedFont[] | null = null;
 // Manrope tĩnh (instance từ variable) ở public/fonts — có tiếng Việt. Lỗi đọc → [] (Satori dùng font mặc định).
-function loadBriefFonts(): LoadedFont[] {
+export function loadBriefFonts(): LoadedFont[] {
   if (_fontCache) return _fontCache;
   try {
     const dir = join(process.cwd(), "public", "fonts");

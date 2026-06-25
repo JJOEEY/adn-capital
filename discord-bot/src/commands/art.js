@@ -1,4 +1,4 @@
-import { SlashCommandBuilder } from "discord.js";
+import { SlashCommandBuilder, AttachmentBuilder } from "discord.js";
 import { api } from "../api.js";
 import { artEmbed } from "../embeds.js";
 import { hasTier, tierDenyMessage } from "../lib/roles.js";
@@ -27,10 +27,16 @@ export async function execute(interaction) {
   const ticker = interaction.options.getString("ma").toUpperCase().trim();
   await interaction.deferReply();
   try {
-    const j = await api.art(ticker);
-    const { value, label } = extractValue(j);
-    await interaction.editReply({ embeds: [artEmbed(ticker, value, label)] });
-  } catch (e) {
-    await interaction.editReply(`Lỗi tải ADN ART ${ticker}: ${String(e.message || e).slice(0, 150)}`);
+    // Ưu tiên ẢNH gauge (đẹp như web). Lỗi → fallback embed text.
+    const png = await api.artImage(ticker);
+    await interaction.editReply({ files: [new AttachmentBuilder(png, { name: `art-${ticker}.png` })] });
+  } catch {
+    try {
+      const j = await api.art(ticker);
+      const { value, label } = extractValue(j);
+      await interaction.editReply({ embeds: [artEmbed(ticker, value, label)] });
+    } catch (e) {
+      await interaction.editReply(`Lỗi tải ADN ART ${ticker}: ${String(e.message || e).slice(0, 150)}`);
+    }
   }
 }
