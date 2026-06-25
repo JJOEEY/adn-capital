@@ -4350,8 +4350,9 @@ const TOPIC_DEFINITIONS: TopicDefinition[] = [
   },
   {
     id: "signal:leader-radar",
-    ttlMs: 300_000,
-    minIntervalMs: 60_000,
+    // Hạ từ 5p→1p (re-resolve nhanh hơn, bớt phục vụ Radar data cũ). minInterval guard 20s tránh hammer bridge.
+    ttlMs: 60_000,
+    minIntervalMs: 20_000,
     source: "fiinquant",
     version: "v1",
     tags: ["signal", "dashboard", "leader-radar"],
