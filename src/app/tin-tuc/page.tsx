@@ -440,7 +440,7 @@ function ARTGaugeCard() {
 
 function ADNCoreGaugeCard({ overview }: { overview: MarketOverview | null }) {
   const score = overview?.score ?? 0;
-  const maxScore = overview?.max_score ?? 14;
+  const maxScore = overview?.max_score ?? 10;
   const classification = classifyADNCore(score, maxScore);
 
   return (

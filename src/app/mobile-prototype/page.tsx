@@ -260,7 +260,7 @@ function PulseScreen() {
     <ScreenShell title="ADN Pulse" subtitle="Tổng quan thị trường">
       <div className="grid grid-cols-2 gap-3">
         <MetricCard label="VN-INDEX" value="1,874.8" delta="+1.12%" positive />
-        <MetricCard label="ADNCore" value="8/14" delta="Thăm dò" gold />
+        <MetricCard label="ADNCore" value="6.8/10" delta="Thăm dò" gold />
       </div>
 
       <div className="rounded-[24px] border border-white/10 bg-white/[0.04] p-4">

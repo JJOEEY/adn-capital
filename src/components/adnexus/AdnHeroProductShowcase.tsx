@@ -516,7 +516,7 @@ function PulseContent({ hotspot }: { hotspot?: string }) {
                 <div className="absolute inset-x-5 top-5 h-20 rounded-t-full" style={{ background: "var(--bg-surface)" }} />
                 <div className="absolute bottom-3 left-1/2 h-14 w-1 origin-bottom -translate-x-1/2 rotate-[18deg] rounded-full bg-[var(--secondary)]" />
                 <p className="absolute bottom-0 left-0 right-0 text-center text-3xl font-black text-[var(--secondary)]">
-                  8 <span className="text-sm text-[var(--text-muted)]">/14</span>
+                  6.8 <span className="text-sm text-[var(--text-muted)]">/10</span>
                 </p>
               </div>
             </div>
