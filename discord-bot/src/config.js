@@ -29,6 +29,7 @@ export const config = {
     dnse: opt("ROLE_DNSE"),     // khách mở TK DNSE careby ADN (cấp qua duyệt)
   },
   dnseReviewChannel: opt("CH_DNSE_REVIEW"), // kênh admin nhận & duyệt yêu cầu DNSE
+  dnseDailyLimit: Number(opt("DNSE_DAILY_LIMIT", "5")) || 5, // số lượt dùng công cụ/ngày của role DNSE
   // Kênh chỉ định cho từng lệnh (gate "mỗi nơi 1 công cụ"). Trống = cho dùng mọi nơi.
   // Key = tên slash (đã rút gọn). Mọi lệnh tra cứu kiểu ADN Stock cùng nằm ở stock-chat (CH_STOCK).
   commandChannels: {

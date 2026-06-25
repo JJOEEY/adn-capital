@@ -1,15 +1,13 @@
 import { SlashCommandBuilder, AttachmentBuilder } from "discord.js";
 import { api } from "../api.js";
 import { artEmbed } from "../embeds.js";
-import { hasTier, tierDenyMessage } from "../lib/roles.js";
+import { gateTool } from "../lib/gate.js";
 import { wrongChannel } from "../lib/channels.js";
 
 export const data = new SlashCommandBuilder()
   .setName("art")
   .setDescription("ADN ART — chỉ số đảo chiều xu hướng của một mã")
   .addStringOption((o) => o.setName("ma").setDescription("Mã cổ phiếu (vd VN30, VIC)").setRequired(true));
-
-export const tier = "premium";
 
 function extractValue(j) {
   if (!j) return { value: null, label: null };
@@ -23,7 +21,8 @@ function extractValue(j) {
 export async function execute(interaction) {
   const deny = wrongChannel(interaction.channelId, "art");
   if (deny) return interaction.reply(deny);
-  if (!hasTier(interaction.member, tier)) return interaction.reply(tierDenyMessage(tier));
+  const denyTool = gateTool(interaction);
+  if (denyTool) return interaction.reply(denyTool);
   const ticker = interaction.options.getString("ma").toUpperCase().trim();
   await interaction.deferReply();
   try {

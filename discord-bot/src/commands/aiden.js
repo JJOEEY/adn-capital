@@ -1,14 +1,12 @@
 import { SlashCommandBuilder } from "discord.js";
 import { api } from "../api.js";
-import { hasTier, tierDenyMessage } from "../lib/roles.js";
+import { gateTool } from "../lib/gate.js";
 import { wrongChannel } from "../lib/channels.js";
 
 export const data = new SlashCommandBuilder()
   .setName("ai")
   .setDescription("Hỏi AIDEN — trợ lý AI về cổ phiếu & thị trường")
   .addStringOption((o) => o.setName("cau_hoi").setDescription("Câu hỏi của bạn").setRequired(true));
-
-export const tier = "premium";
 
 // Cắt câu trả lời dài thành các đoạn <= 2000 ký tự (giới hạn Discord).
 export function chunk(text, size = 1900) {
@@ -39,6 +37,7 @@ export async function answer(interaction, question) {
 export async function execute(interaction) {
   const deny = wrongChannel(interaction.channelId, "ai");
   if (deny) return interaction.reply(deny);
-  if (!hasTier(interaction.member, tier)) return interaction.reply(tierDenyMessage(tier));
+  const denyTool = gateTool(interaction);
+  if (denyTool) return interaction.reply(denyTool);
   await answer(interaction, interaction.options.getString("cau_hoi"));
 }

@@ -135,7 +135,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         const member = await interaction.guild.members.fetch(userId).catch(() => null);
         if (!member) return interaction.reply({ content: "Không tìm thấy thành viên (có thể đã rời server).", ephemeral: true });
         await member.roles.add(roleId);
-        await member.send("✅ Bạn đã được cấp quyền **DNSE careby** tại ADN Capital. Vào kênh **#thân-tín** để nhận khuyến nghị & trao đổi cùng đội ADN nhé.").catch(() => {});
+        await member.send(`✅ Bạn đã được cấp quyền **DNSE careby** tại ADN Capital.\n• Vào **#thân-tín** để nhận khuyến nghị riêng trực tiếp từ đội ADN.\n• Dùng công cụ phân tích ở **#stock-chat** (/ta, /fa, /atc, /top...) — **${config.dnseDailyLimit} lượt/ngày**.`).catch(() => {});
       }
       const base = interaction.message.embeds[0] ? EmbedBuilder.from(interaction.message.embeds[0]) : new EmbedBuilder();
       base.setColor(approve ? 0x2e7d4f : 0xc0392b)

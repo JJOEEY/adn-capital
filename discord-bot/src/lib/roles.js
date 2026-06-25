@@ -18,3 +18,18 @@ export function tierDenyMessage(tier) {
     ephemeral: true,
   };
 }
+
+/**
+ * Mức truy cập công cụ của 1 member:
+ * - "unlimited": admin / Premium / VIP (dùng thả ga)
+ * - "limited":   DNSE careby (giới hạn lượt/ngày)
+ * - "none":      không có quyền
+ */
+export function toolAccess(member) {
+  try { if (member?.permissions?.has?.("Administrator")) return "unlimited"; } catch { /* noop */ }
+  const cache = member?.roles?.cache;
+  if (!cache) return "none";
+  if ((config.roles.vip && cache.has(config.roles.vip)) || (config.roles.premium && cache.has(config.roles.premium))) return "unlimited";
+  if (config.roles.dnse && cache.has(config.roles.dnse)) return "limited";
+  return "none";
+}
