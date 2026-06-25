@@ -4,6 +4,8 @@ import { config } from "../config.js";
 export function hasTier(member, tier) {
   const roleId = config.roles[tier];
   if (!roleId) return true; // chưa cấu hình role → mở (dev)
+  // Admin / chủ server luôn qua (staff không bị chặn tier)
+  try { if (member?.permissions?.has?.("Administrator")) return true; } catch { /* noop */ }
   if (!member?.roles?.cache) return false;
   // VIP bao hàm premium
   if (tier === "premium" && config.roles.vip && member.roles.cache.has(config.roles.vip)) return true;
