@@ -5,14 +5,14 @@ import { hasTier, tierDenyMessage } from "../lib/roles.js";
 import { wrongChannel } from "../lib/channels.js";
 
 export const data = new SlashCommandBuilder()
-  .setName("rank")
+  .setName("top")
   .setDescription("Top ADN Rank (RS Rating), có thể lọc theo ngành")
   .addStringOption((o) => o.setName("nganh").setDescription("Lọc theo nhóm ngành (vd Ngân hàng)").setRequired(false));
 
 export const tier = "premium";
 
 export async function execute(interaction) {
-  const deny = wrongChannel(interaction.channelId, "rank");
+  const deny = wrongChannel(interaction.channelId, "top");
   if (deny) return interaction.reply(deny);
   if (!hasTier(interaction.member, tier)) return interaction.reply(tierDenyMessage(tier));
   const sector = interaction.options.getString("nganh")?.trim() || null;

@@ -12,6 +12,6 @@ export function wrongChannel(channelId, cmdName) {
 
 /** Cho @mention AIDEN: true nếu kênh hợp lệ (hoặc chưa cấu hình). */
 export function aidenChannelOk(channelId) {
-  const target = config.commandChannels.aiden;
+  const target = config.commandChannels.ai;
   return !target || channelId === target;
 }

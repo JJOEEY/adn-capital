@@ -4,12 +4,12 @@ import { ptcbEmbed } from "../embeds.js";
 import { wrongChannel } from "../lib/channels.js";
 
 export const data = new SlashCommandBuilder()
-  .setName("ptcb")
+  .setName("fa")
   .setDescription("Phân tích cơ bản một mã (P/E, P/B, EPS, ROE/ROA, KQKD + nhận định)")
   .addStringOption((o) => o.setName("ma").setDescription("Mã cổ phiếu (vd FPT)").setRequired(true));
 
 export async function execute(interaction) {
-  const deny = wrongChannel(interaction.channelId, "ptcb");
+  const deny = wrongChannel(interaction.channelId, "fa");
   if (deny) return interaction.reply(deny);
   const ticker = interaction.options.getString("ma").toUpperCase().trim();
   await interaction.deferReply();

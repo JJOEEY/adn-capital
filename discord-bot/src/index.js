@@ -54,8 +54,8 @@ client.on(Events.MessageCreate, async (message) => {
   const mentioned = message.mentions.has(client.user);
   const listening =
     config.aidenListen &&
-    !!config.commandChannels.aiden &&
-    message.channelId === config.commandChannels.aiden;
+    !!config.commandChannels.ai &&
+    message.channelId === config.commandChannels.ai;
   if (!mentioned && !listening) return;
   const q = message.content.replace(/<@!?\d+>/g, "").trim();
   if (!q || q.length < 2) return;

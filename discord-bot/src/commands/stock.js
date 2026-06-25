@@ -4,12 +4,12 @@ import { stockEmbed } from "../embeds.js";
 import { wrongChannel } from "../lib/channels.js";
 
 export const data = new SlashCommandBuilder()
-  .setName("stock")
+  .setName("ma")
   .setDescription("Tra cứu giá, % thay đổi, ADN Rank, ngành của một mã")
   .addStringOption((o) => o.setName("ma").setDescription("Mã cổ phiếu (vd VIC)").setRequired(true));
 
 export async function execute(interaction) {
-  const deny = wrongChannel(interaction.channelId, "stock");
+  const deny = wrongChannel(interaction.channelId, "ma");
   if (deny) return interaction.reply(deny);
   const ticker = interaction.options.getString("ma").toUpperCase().trim();
   await interaction.deferReply();

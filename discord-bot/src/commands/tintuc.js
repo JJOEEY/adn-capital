@@ -4,12 +4,12 @@ import { newsEmbed } from "../embeds.js";
 import { wrongChannel } from "../lib/channels.js";
 
 export const data = new SlashCommandBuilder()
-  .setName("tintuc")
+  .setName("tin")
   .setDescription("Tin tức mới nhất về một mã (tối đa 5 tin, kèm link)")
   .addStringOption((o) => o.setName("ma").setDescription("Mã cổ phiếu (vd HPG)").setRequired(true));
 
 export async function execute(interaction) {
-  const deny = wrongChannel(interaction.channelId, "tintuc");
+  const deny = wrongChannel(interaction.channelId, "tin");
   if (deny) return interaction.reply(deny);
   const ticker = interaction.options.getString("ma").toUpperCase().trim();
   await interaction.deferReply();

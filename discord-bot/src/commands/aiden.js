@@ -4,7 +4,7 @@ import { hasTier, tierDenyMessage } from "../lib/roles.js";
 import { wrongChannel } from "../lib/channels.js";
 
 export const data = new SlashCommandBuilder()
-  .setName("aiden")
+  .setName("ai")
   .setDescription("Hỏi AIDEN — trợ lý AI về cổ phiếu & thị trường")
   .addStringOption((o) => o.setName("cau_hoi").setDescription("Câu hỏi của bạn").setRequired(true));
 
@@ -37,7 +37,7 @@ export async function answer(interaction, question) {
 }
 
 export async function execute(interaction) {
-  const deny = wrongChannel(interaction.channelId, "aiden");
+  const deny = wrongChannel(interaction.channelId, "ai");
   if (deny) return interaction.reply(deny);
   if (!hasTier(interaction.member, tier)) return interaction.reply(tierDenyMessage(tier));
   await answer(interaction, interaction.options.getString("cau_hoi"));

@@ -4,12 +4,12 @@ import { ptktEmbed } from "../embeds.js";
 import { wrongChannel } from "../lib/channels.js";
 
 export const data = new SlashCommandBuilder()
-  .setName("ptkt")
+  .setName("ta")
   .setDescription("Phân tích kỹ thuật một mã (xu hướng, EMA, RSI, MACD, ART + nhận định)")
   .addStringOption((o) => o.setName("ma").setDescription("Mã cổ phiếu (vd VIC)").setRequired(true));
 
 export async function execute(interaction) {
-  const deny = wrongChannel(interaction.channelId, "ptkt");
+  const deny = wrongChannel(interaction.channelId, "ta");
   if (deny) return interaction.reply(deny);
   const ticker = interaction.options.getString("ma").toUpperCase().trim();
   await interaction.deferReply();
