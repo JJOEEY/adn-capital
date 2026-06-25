@@ -11,17 +11,17 @@ import { consumeDaily } from "./usage.js";
  */
 export function gateTool(interaction) {
   const access = toolAccess(interaction.member);
-  if (access === "none") {
+  if (access.level === "none") {
     return {
-      content: "🔒 Công cụ này dành cho khách hàng ADN (Premium/VIP hoặc DNSE careby). Liên hệ admin để mở quyền.",
+      content: "🔒 Để dùng công cụ, hãy vào **#chào-mừng-và-nội-quy** bấm **Đồng ý nội quy** (3 lượt/ngày miễn phí), hoặc nâng cấp DNSE / Premium / VIP để dùng nhiều hơn.",
       ephemeral: true,
     };
   }
-  if (access === "limited") {
-    const { ok } = consumeDaily(interaction.user.id, config.dnseDailyLimit);
+  if (access.level === "limited") {
+    const { ok } = consumeDaily(interaction.user.id, access.limit);
     if (!ok) {
       return {
-        content: `⏳ Bạn đã dùng hết **${config.dnseDailyLimit} lượt/ngày** của gói DNSE. Reset vào ngày mai (giờ VN), hoặc nâng cấp Premium/VIP để dùng không giới hạn.`,
+        content: `⏳ Bạn đã dùng hết **${access.limit} lượt/ngày**. Reset vào ngày mai (giờ VN), hoặc nâng cấp gói cao hơn để dùng nhiều/không giới hạn.`,
         ephemeral: true,
       };
     }

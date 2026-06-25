@@ -89,6 +89,26 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
+// Guest cộng đồng: bấm "Đồng ý nội quy" → tự cấp role Cộng đồng (3 lượt công cụ/ngày)
+client.on(Events.InteractionCreate, async (interaction) => {
+  if (!interaction.isButton() || interaction.customId !== "community_agree") return;
+  const roleId = config.roles.community;
+  if (!roleId) return interaction.reply({ content: "Chưa cấu hình role cộng đồng.", ephemeral: true });
+  try {
+    const member = interaction.member;
+    if (member.roles.cache?.has(roleId)) {
+      return interaction.reply({ content: "✅ Bạn đã kích hoạt rồi — dùng công cụ ở #stock-chat nhé.", ephemeral: true });
+    }
+    await member.roles.add(roleId);
+    await interaction.reply({
+      content: `✅ Cảm ơn đã đồng ý nội quy! Bạn dùng được **${config.communityDailyLimit} lượt công cụ/ngày** ở **#stock-chat** (/ta, /fa, /atc, /top...). Muốn nhiều hơn: đăng ký DNSE careby hoặc nâng cấp Premium/VIP.`,
+      ephemeral: true,
+    });
+  } catch (e) {
+    await interaction.reply({ content: `Lỗi: ${String(e.message || e).slice(0, 120)}`, ephemeral: true }).catch(() => {});
+  }
+});
+
 // Luồng đăng ký role DNSE: nút Đăng ký → modal → request vào kênh duyệt → admin Duyệt/Từ chối
 client.on(Events.InteractionCreate, async (interaction) => {
   // 1) Bấm "Đăng ký DNSE" → mở modal nhập số TK

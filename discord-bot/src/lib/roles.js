@@ -20,16 +20,18 @@ export function tierDenyMessage(tier) {
 }
 
 /**
- * Mức truy cập công cụ của 1 member:
- * - "unlimited": admin / Premium / VIP (dùng thả ga)
- * - "limited":   DNSE careby (giới hạn lượt/ngày)
- * - "none":      không có quyền
+ * Mức truy cập công cụ của 1 member (chọn tầng CAO NHẤT họ có):
+ * - { level: "unlimited" }            → admin / Premium / VIP
+ * - { level: "limited", limit: N }    → DNSE careby (10/ngày) hoặc Cộng đồng (3/ngày)
+ * - { level: "none" }                 → chưa có quyền
  */
 export function toolAccess(member) {
-  try { if (member?.permissions?.has?.("Administrator")) return "unlimited"; } catch { /* noop */ }
+  try { if (member?.permissions?.has?.("Administrator")) return { level: "unlimited" }; } catch { /* noop */ }
   const cache = member?.roles?.cache;
-  if (!cache) return "none";
-  if ((config.roles.vip && cache.has(config.roles.vip)) || (config.roles.premium && cache.has(config.roles.premium))) return "unlimited";
-  if (config.roles.dnse && cache.has(config.roles.dnse)) return "limited";
-  return "none";
+  if (!cache) return { level: "none" };
+  const has = (id) => Boolean(id) && cache.has(id);
+  if (has(config.roles.vip) || has(config.roles.premium)) return { level: "unlimited" };
+  if (has(config.roles.dnse)) return { level: "limited", limit: config.dnseDailyLimit };
+  if (has(config.roles.community)) return { level: "limited", limit: config.communityDailyLimit };
+  return { level: "none" };
 }

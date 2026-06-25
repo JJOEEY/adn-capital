@@ -25,11 +25,13 @@ export const config = {
   roles: {
     premium: opt("ROLE_PREMIUM"),
     vip: opt("ROLE_VIP"),
-    signal: opt("ROLE_SIGNAL"), // role opt-in được @ping khi có tín hiệu mới
-    dnse: opt("ROLE_DNSE"),     // khách mở TK DNSE careby ADN (cấp qua duyệt)
+    signal: opt("ROLE_SIGNAL"),       // role opt-in được @ping khi có tín hiệu mới
+    dnse: opt("ROLE_DNSE"),           // khách mở TK DNSE careby ADN (cấp qua duyệt)
+    community: opt("ROLE_COMMUNITY"), // guest cộng đồng (tự bấm đồng ý nội quy → auto cấp)
   },
   dnseReviewChannel: opt("CH_DNSE_REVIEW"), // kênh admin nhận & duyệt yêu cầu DNSE
-  dnseDailyLimit: Number(opt("DNSE_DAILY_LIMIT", "5")) || 5, // số lượt dùng công cụ/ngày của role DNSE
+  dnseDailyLimit: Number(opt("DNSE_DAILY_LIMIT", "5")) || 5,          // lượt công cụ/ngày của DNSE
+  communityDailyLimit: Number(opt("COMMUNITY_DAILY_LIMIT", "3")) || 3, // lượt công cụ/ngày của guest cộng đồng
   // Kênh chỉ định cho từng lệnh (gate "mỗi nơi 1 công cụ"). Trống = cho dùng mọi nơi.
   // Key = tên slash (đã rút gọn). Mọi lệnh tra cứu kiểu ADN Stock cùng nằm ở stock-chat (CH_STOCK).
   commandChannels: {

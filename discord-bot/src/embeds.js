@@ -138,7 +138,7 @@ export function welcomeEmbed(member, ch = {}) {
   const lines = [
     `Chào **${name}**, rất vui có anh/chị ở đây 🤝`,
     "",
-    ch.rules ? `📜 Đọc **nội quy** ở <#${ch.rules}> trước cho nắm luật chơi.` : null,
+    ch.rules ? `📜 Đọc **nội quy** ở <#${ch.rules}> rồi bấm **Đồng ý** để mở dùng công cụ phân tích.` : null,
     ch.stock ? `📈 Tra cứu cổ phiếu ở <#${ch.stock}> — gõ \`/ta VIC\`, \`/fa FPT\`, \`/tin HPG\`, \`/top\`…` : null,
     ch.aiden ? `🤖 Hỏi **AIDEN** ở <#${ch.aiden}> — gõ thẳng câu hỏi, không cần tag.` : null,
     ch.signals ? `🔔 Vào <#${ch.signals}> bấm nút để bật nhắc khi có **tín hiệu mới**.` : null,
