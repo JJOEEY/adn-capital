@@ -1029,6 +1029,7 @@ export default function StockDetailPage() {
                   onTimeframeChange={setTimeframe}
                   onSymbolSubmit={(next) => selectTicker(next)}
                   isLive={isMarketLive}
+                  liveTick={liveTick}
                 />
                 <StockOverviewPanel
                   workbench={workbench ?? null}

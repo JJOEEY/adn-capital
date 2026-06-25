@@ -43,6 +43,8 @@ interface StockChartProps {
   onTimeframeChange?: (timeframe: ChartTimeframe) => void;
   onSymbolSubmit?: (symbol: string) => void;
   isLive?: boolean;
+  // Tick LIVE (giá đã scale VND) để nến cuối nhảy từng tick — additive trên poll 10s, fail-safe.
+  liveTick?: { price: number | null; volume?: number | null } | null;
 }
 
 export interface Candle {
@@ -481,6 +483,7 @@ export function StockChart({
   onTimeframeChange,
   onSymbolSubmit,
   isLive = false,
+  liveTick = null,
 }: StockChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
@@ -488,6 +491,8 @@ export function StockChart({
   const pendingAnchorsRef = useRef<DrawAnchor[]>([]);
   const didFitRef = useRef(false);
   const chartCandlesRef = useRef<Candle[]>([]);
+  const liveTickRef = useRef(liveTick);
+  liveTickRef.current = liveTick;
   const requestTokenRef = useRef(0);
   const skipNextFullRenderRef = useRef(false);
   const skipNextDrawingSaveRef = useRef(false);
@@ -1071,6 +1076,34 @@ export function StockChart({
       window.clearInterval(interval);
     };
   }, [symbol, timeframe, chartReadyVersion, chartCandles.length, enabledKey, settingsKey]);
+
+  // Tick LIVE → nến cuối nhảy theo giá (throttle 1s; chỉ imperative chart + ref, KHÔNG setState → mượt).
+  // Additive trên poll 10s (poll vẫn resync state). Chỉ chạy khi isLive + chart sẵn sàng.
+  useEffect(() => {
+    if (!isLive || !chartReadyVersion) return;
+    let lastApplied: number | null = null;
+    const apply = () => {
+      const price = liveTickRef.current?.price ?? null;
+      if (price == null || price <= 0 || price === lastApplied) return;
+      const candles = chartCandlesRef.current;
+      const last = candles[candles.length - 1];
+      if (!last) return;
+      lastApplied = price;
+      const updated: Candle = {
+        ...last,
+        high: Math.max(last.high, price),
+        low: Math.min(last.low, price),
+        close: price,
+        volume: liveTickRef.current?.volume ?? last.volume,
+      };
+      const nextCandles = mergeLatestCandle(candles, updated);
+      applyLatestCandlePatch(updated, nextCandles);
+      chartCandlesRef.current = nextCandles;
+    };
+    const interval = window.setInterval(apply, 1000);
+    return () => window.clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLive, chartReadyVersion, symbol, timeframe, enabledKey, settingsKey]);
 
   function anchorFromEvent(event: PointerEvent<HTMLDivElement>): DrawAnchor | null {
     const chart = chartRef.current;
