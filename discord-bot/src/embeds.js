@@ -92,7 +92,8 @@ export function ptktEmbed(ticker, technical = {}, behavior = {}) {
 export function ptcbEmbed(ticker, fundamental = {}) {
   const fa = fundamental.stats || {};
   const x = (v) => (v == null ? "—" : `${num(v)}x`);
-  const p = (v) => (v == null ? "—" : `${num(v)}%`);
+  // ROE/ROA từ bridge ở dạng thập phân (0.27 = 27%) → quy ra % khi |v| < 1.
+  const p = (v) => (v == null ? "—" : `${num(Math.abs(v) < 1 ? v * 100 : v)}%`);
   const kqkd =
     `DT ${num(fa.revenueLastQ)} tỷ (YoY ${pct(fa.revenueGrowthYoY)})` +
     ` · LN ${num(fa.profitLastQ)} tỷ (YoY ${pct(fa.profitGrowthYoY)})`;
