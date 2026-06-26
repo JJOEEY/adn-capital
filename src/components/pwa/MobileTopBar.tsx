@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import {
   Activity,
@@ -129,6 +130,7 @@ export function MobileTopBar() {
   const { theme, toggleTheme } = useTheme();
   const { data: session } = useSession();
   const { dbUser, isAuthenticated } = useCurrentDbUser();
+  const pathname = usePathname();
 
   const userName = dbUser?.name || session?.user?.name || "ADN";
   const initial = useMemo(() => userName.trim().charAt(0).toUpperCase() || "A", [userName]);
@@ -138,7 +140,7 @@ export function MobileTopBar() {
     if (sheet !== "notifications") return;
     let cancelled = false;
     setLoadingNotifications(true);
-    fetch("/api/notifications?limit=20&scope=updates", { cache: "no-store" })
+    fetch("/api/notifications?limit=60&scope=updates", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .then((payload) => {
         if (!cancelled) setNotifications(Array.isArray(payload?.notifications) ? payload.notifications : []);
@@ -155,6 +157,9 @@ export function MobileTopBar() {
   }, [sheet]);
 
   const closeSheet = () => setSheet(null);
+
+  // /aiden trên mobile chạy full-screen kiểu messenger → ẩn thanh top app (header thừa).
+  if (pathname?.startsWith("/aiden")) return null;
 
   return (
     <>
@@ -248,7 +253,7 @@ export function MobileTopBar() {
                       {formatTime(item.createdAt)}
                     </span>
                   </div>
-                  <p className="line-clamp-3 whitespace-pre-line text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                  <p className="whitespace-pre-line text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
                     {item.content}
                   </p>
                 </article>

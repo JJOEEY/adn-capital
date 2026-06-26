@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { Header } from "./Header";
 import { AppHeader } from "./AppHeader";
 import { Footer } from "./Footer";
@@ -18,6 +19,10 @@ interface MainLayoutProps {
 export function MainLayout({ children, disableSwipe = false }: MainLayoutProps) {
   const { collapsed } = useSidebarStore();
   void disableSwipe;
+
+  const pathname = usePathname();
+  // /aiden chạy full-screen kiểu messenger trên mobile (ẩn MobileTopBar) → bỏ chừa 64px header thừa.
+  const aidenFull = !!pathname && pathname.startsWith("/aiden");
 
   const [isMobile, setIsMobile] = useState(false);
   const [showSplash, setShowSplash] = useState(false);
@@ -56,7 +61,9 @@ export function MainLayout({ children, disableSwipe = false }: MainLayoutProps) 
         style={
           isMobile
             ? {
-                paddingTop: "calc(64px + env(safe-area-inset-top, 0px))",
+                paddingTop: aidenFull
+                  ? "env(safe-area-inset-top, 0px)"
+                  : "calc(64px + env(safe-area-inset-top, 0px))",
                 paddingBottom: "calc(96px + env(safe-area-inset-bottom, 0px))",
               }
             : undefined
