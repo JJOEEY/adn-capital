@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>ADN Capital</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #0d0d0f; color: #e8e6df;
+      font-family: -apple-system, "Roboto", system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
+    .wrap { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+      padding: 0 24px; text-align: center; box-sizing: border-box; }
+    .logo { width: 84px; height: 84px; border-radius: 22px; background: #2e4d3d;
+      display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 30px; color: #8fc9a0; }
+    .sp { width: 26px; height: 26px; border: 3px solid rgba(255,255,255,.14); border-top-color: #3f7d5b;
+      border-radius: 50%; animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .t { font-size: 14px; opacity: .7; }
+    .retry { margin-top: 8px; font-size: 13px; color: #8fc9a0; text-decoration: underline; background: none; border: 0; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="logo">AD</div>
+    <div class="sp"></div>
+    <div class="t">Đang kết nối ADN Capital…</div>
+    <button class="retry" onclick="location.href='https://adncapital.com.vn'">Thử lại</button>
+  </div>
+</body>
+</html>
