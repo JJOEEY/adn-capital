@@ -231,7 +231,9 @@ async function fetchVietstockItems(): Promise<RawNewsItem[]> {
 }
 
 async function fetchVnstockNewsItems(): Promise<RawNewsItem[]> {
-  const response = await fetchVnstockMorningNews({ limit: 42, timeout: 20_000 });
+  // Endpoint bridge scrape cafef LIVE ~19-23s/lần → 20s hay trượt timeout (brief sáng rỗng → skip).
+  // Nới 45s (khớp default fetchVnstockMorningNews) cho đủ biên buổi sáng.
+  const response = await fetchVnstockMorningNews({ limit: 42, timeout: 45_000 });
   if (!response?.articles?.length) return [];
   return response.articles.map((article) => ({
     source: "vnstock_news",
