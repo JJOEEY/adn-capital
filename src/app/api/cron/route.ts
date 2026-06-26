@@ -57,6 +57,8 @@ import { getDatabaseMorningReadiness } from "@/lib/database/morning-readiness";
 import { formatDatabaseEodPublicBriefText } from "@/lib/database/telegram-eod";
 import { getMarketPayloadRows, readMarketNumber } from "@/lib/market-price-normalization";
 import { CANONICAL_CRON_TYPES, normalizeCronType, LEGACY_CRON_ALIASES, type CanonicalCronType } from "@/lib/cron-contracts";
+import { buildIntradaySignalsReport } from "@/lib/reports/intraday-signals";
+import { sendTelegramOnce } from "@/lib/telegram/dispatch";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
 import { emitWorkflowTrigger } from "@/lib/workflows";
 import { emitObservabilityEvent } from "@/lib/observability";
@@ -1565,6 +1567,9 @@ export async function GET(req: NextRequest) {
     if (type === "market_stats_type2") {
       return runCronHandlerWithWorkflowHook(type, () => handleIntraday(forceRun), "cron-dispatch:sync");
     }
+    if (type === "intraday_signals") {
+      return runCronHandlerWithWorkflowHook(type, () => handleIntradaySignals(), "cron-dispatch:sync");
+    }
     if (type === "news_crawler") {
       return runCronHandlerWithWorkflowHook(type, () => handleNewsCrawler(), "cron-dispatch:sync");
     }
@@ -1603,6 +1608,8 @@ export async function GET(req: NextRequest) {
         await runCronHandlerWithWorkflowHook(type, () => handlePropTrading(forceRun, backfillDateISO), "cron-dispatch:async");
       } else if (type === "market_stats_type2") {
         await runCronHandlerWithWorkflowHook(type, () => handleIntraday(forceRun), "cron-dispatch:async");
+      } else if (type === "intraday_signals") {
+        await runCronHandlerWithWorkflowHook(type, () => handleIntradaySignals(), "cron-dispatch:async");
       } else if (type === "news_crawler") {
         await runCronHandlerWithWorkflowHook(type, () => handleNewsCrawler(), "cron-dispatch:async");
       } else if (type === "adn_rank_15h") {
@@ -2229,6 +2236,72 @@ async function handlePropTrading(
 //  2. INTRADAY — 10:00, 10:30, 14:00, 14:25
 //     Format Dashboard chuyên nghiệp
 // ═══════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════
+//  INTRADAY SIGNALS — report "📊 TÍN HIỆU" (10h/11h30/14h/15h)
+//  vượt đỉnh/phá đáy 1M-3M + đi nền + NN gom/xả → Telegram + Discord + push
+// ═══════════════════════════════════════════════════════════════
+async function handleIntradaySignals(): Promise<NextResponse> {
+  const startTime = Date.now();
+  try {
+    const vnNow = getVnNow();
+    const timeLabel = vnNow.format("HH:mm");
+    const slot = timeLabel;
+    const tradingDate = getVNDateString();
+    const { text, empty } = await buildIntradaySignalsReport(timeLabel);
+    if (empty) {
+      await logCron("intraday_signals", "skipped", "Không có tín hiệu / thiếu OHLCV cache", Date.now() - startTime);
+      return NextResponse.json({ type: "intraday_signals", published: false, reason: "empty" });
+    }
+
+    // Telegram
+    let tg = "no_creds";
+    const tgToken = (process.env.TELEGRAM_SUPPORT_BOT_TOKEN ?? process.env.TELEGRAM_SIGNAL_BOT_TOKEN ?? process.env.TELEGRAM_BOT_TOKEN ?? "").trim();
+    const tgChat = (process.env.TELEGRAM_SUPPORT_CHAT_ID ?? process.env.TELEGRAM_SIGNAL_CHAT_ID ?? process.env.TELEGRAM_CHAT_ID ?? "").trim();
+    if (tgToken && tgChat) {
+      const r = await sendTelegramOnce({
+        eventType: "INTRADAY_SIGNALS",
+        eventKey: `INTRADAY_SIGNALS:${tradingDate}:${slot}`,
+        text,
+        token: tgToken,
+        chatId: tgChat,
+        tradingDate,
+        slot,
+      });
+      tg = r.ok ? ("skipped" in r && r.skipped ? `skip:${r.reason}` : "sent") : `err:${r.error}`;
+    }
+
+    // Discord webhook (#tín-hiệu)
+    let dc = "no_webhook";
+    const hook = (process.env.INTRADAY_SIGNALS_DISCORD_WEBHOOK ?? "").trim();
+    if (hook) {
+      try {
+        const res = await fetch(hook, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: text.slice(0, 1990) }),
+          signal: AbortSignal.timeout(15_000),
+        });
+        dc = res.ok ? "sent" : `err:${res.status}`;
+      } catch (e) {
+        dc = `err:${String(e).slice(0, 40)}`;
+      }
+    }
+
+    // Web/PWA push (best-effort)
+    try {
+      await pushNotification("intraday_signals", `📊 Tín hiệu ${timeLabel}`, text);
+    } catch {
+      /* push không bắt buộc */
+    }
+
+    await logCron("intraday_signals", "success", `tg=${tg} dc=${dc}`, Date.now() - startTime);
+    return NextResponse.json({ type: "intraday_signals", published: true, telegram: tg, discord: dc });
+  } catch (error) {
+    await logCron("intraday_signals", "error", String(error), Date.now() - startTime);
+    return NextResponse.json({ error: "intraday_signals failed" }, { status: 500 });
+  }
+}
 
 async function handleIntraday(forceRun = false): Promise<NextResponse> {
   const startTime = Date.now();

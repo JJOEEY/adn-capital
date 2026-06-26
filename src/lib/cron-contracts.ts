@@ -3,6 +3,7 @@ export type CanonicalCronType =
   | "close_brief_15h"
   | "eod_full_19h"
   | "market_stats_type2"
+  | "intraday_signals"
   | "signal_scan_type1"
   | "news_crawler"
   | "adn_rank_15h"
@@ -32,6 +33,7 @@ export const CANONICAL_CRON_TYPES: readonly CanonicalCronType[] = [
   "close_brief_15h",
   "eod_full_19h",
   "market_stats_type2",
+  "intraday_signals",
   "signal_scan_type1",
   "news_crawler",
   "adn_rank_15h",
@@ -62,6 +64,7 @@ export const CRON_TYPE_ALIASES: Record<string, CanonicalCronType> = {
   close_brief_15h: "close_brief_15h",
   eod_full_19h: "eod_full_19h",
   market_stats_type2: "market_stats_type2",
+  intraday_signals: "intraday_signals",
   signal_scan_type1: "signal_scan_type1",
   news_crawler: "news_crawler",
   adn_rank_15h: "adn_rank_15h",

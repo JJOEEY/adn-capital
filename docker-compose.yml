@@ -87,6 +87,8 @@ services:
       - "8000:8000"
     networks:
       - adn-net
+    volumes:
+      - fiinquant_cache:/app/cache
 
   n8n:
     image: n8nio/n8n:1.92.2
@@ -143,3 +145,7 @@ services:
 networks:
   adn-net:
     driver: bridge
+
+volumes:
+  fiinquant_cache: # parquet OHLCV cache (scanner + intraday-signals report) — bền qua recreate
+
