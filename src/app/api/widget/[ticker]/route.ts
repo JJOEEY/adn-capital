@@ -58,6 +58,15 @@ function isCacheValid(updatedAt: Date, expiryMs: number): boolean {
   return Date.now() - updatedAt.getTime() < expiryMs;
 }
 
+// Insight AI có dùng được không — tránh CACHE (PTCB 90 ngày!) fallback quá tải
+// hoặc output cợt nhả/từ chối ("đại ca", "Khổng Minh", "em không thể"…).
+function isUsableInsight(text: string | null | undefined): boolean {
+  const t = String(text ?? "").trim();
+  if (t.length < 30) return false;
+  if (/quá tải|thử lại sau|đại ca|khổng minh|em không thể|em không phải|không có bất kỳ/i.test(t)) return false;
+  return true;
+}
+
 export async function GET(req: NextRequest, { params }: { params: Promise<{ ticker: string }> }) {
   const { ticker: rawTicker } = await params;
   const ticker = rawTicker.toUpperCase();
@@ -94,7 +103,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tick
       const c = cachedInsights.find(i => i.tabType === type);
       if (!c) return null;
       const expiry = type === "PTKT" ? CACHE_EXPIRY_PTKT_MS : CACHE_EXPIRY_PTCB_MS;
-      return isCacheValid(c.updatedAt, expiry) ? c.content : null;
+      return isCacheValid(c.updatedAt, expiry) && isUsableInsight(c.content) ? c.content : null;
     };
 
     let ptktInsight = getCache("PTKT");
@@ -116,11 +125,13 @@ Dữ liệu PTKT ${ticker} từ hệ thống Quant ADN Capital:
 Viết 3-4 câu nhận xét PTKT thực chiến (điểm mua lý tưởng, cảnh báo, kháng cự). Không giải thích khái niệm.`;
 
       ptktInsight = await executeAIRequest(prompt, INTENT.PTKT);
-      await prisma.aiInsightCache.upsert({
-        where: { ticker_tabType: { ticker, tabType: "PTKT" } },
-        update: { content: ptktInsight },
-        create: { ticker, tabType: "PTKT", content: ptktInsight },
-      });
+      if (isUsableInsight(ptktInsight)) {
+        await prisma.aiInsightCache.upsert({
+          where: { ticker_tabType: { ticker, tabType: "PTKT" } },
+          update: { content: ptktInsight },
+          create: { ticker, tabType: "PTKT", content: ptktInsight },
+        });
+      }
     }
 
     // ── 4. Generate PTCB AI Insight (Gemini Pro) if cache miss ───────────
@@ -135,11 +146,13 @@ Dữ liệu BCTC ${ticker} từ FiinQuant:
 Phân tích ngắn gọn sức khỏe tài chính. Cảnh báo nếu bơm thổi hoặc khen ngợi nếu nền tảng tốt. 3-4 câu.`;
 
       ptcbInsight = await executeAIRequest(prompt, INTENT.PTCB);
-      await prisma.aiInsightCache.upsert({
-        where: { ticker_tabType: { ticker, tabType: "PTCB" } },
-        update: { content: ptcbInsight },
-        create: { ticker, tabType: "PTCB", content: ptcbInsight },
-      });
+      if (isUsableInsight(ptcbInsight)) {
+        await prisma.aiInsightCache.upsert({
+          where: { ticker_tabType: { ticker, tabType: "PTCB" } },
+          update: { content: ptcbInsight },
+          create: { ticker, tabType: "PTCB", content: ptcbInsight },
+        });
+      }
     }
 
     // ── 5. Return widget data ─────────────────────────────────────────────

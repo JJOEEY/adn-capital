@@ -17,6 +17,15 @@ function signalKindLabel(type) {
   return "Tín hiệu ADN";
 }
 
+// Lọc insight AI hỏng (quá tải / cợt nhả / từ chối — hay bị cache) → ẩn, không hiện ra UI.
+const AI_BAD_RE = /quá tải|thử lại sau|đại ca|khổng minh|em không thể|em không phải|không có bất kỳ/i;
+function usableInsight(text) {
+  const t = String(text || "").trim();
+  if (t.length < 30) return "";
+  if (AI_BAD_RE.test(t)) return "";
+  return t;
+}
+
 function rsLabel(rs) {
   if (rs > 90) return "🟣 Super Star";
   if (rs >= 80) return "🟢 Star";
@@ -151,7 +160,7 @@ export function ptktEmbed(ticker, technical = {}, behavior = {}, signal = null) 
   if (Array.isArray(ta.patterns) && ta.patterns.length) {
     e.addFields({ name: "Mẫu hình", value: ta.patterns.join(", ").slice(0, 1024), inline: false });
   }
-  const insight = (technical.aiInsight || "").trim();
+  const insight = usableInsight(technical.aiInsight);
   if (insight) e.setDescription(insight.slice(0, 4096));
   return e;
 }
@@ -177,8 +186,10 @@ export function ptcbEmbed(ticker, fundamental = {}) {
       { name: "Kết quả kinh doanh", value: kqkd, inline: false },
     )
     .setFooter({ text: fa.reportDate ? `Kỳ BC: ${fa.reportDate} · ${BRAND.footer}` : BRAND.footer });
-  const insight = (fundamental.aiInsight || "").trim();
-  e.setDescription((insight || "Đang cập nhật nhận định cơ bản.").slice(0, 4096));
+  const insight = usableInsight(fundamental.aiInsight);
+  e.setDescription(
+    insight ? insight.slice(0, 4096) : "💬 Nhận định AI đang cập nhật — xem số liệu cơ bản phía trên.",
+  );
   return e;
 }
 
