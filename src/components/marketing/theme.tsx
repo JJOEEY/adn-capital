@@ -10,6 +10,7 @@
 import { Playfair_Display, Be_Vietnam_Pro, JetBrains_Mono } from "next/font/google";
 import { ThemeToggle } from "./ThemeToggle";
 import { AppDownloadModal } from "./AppDownloadModal";
+import { AppDownloadTrigger } from "./AppDownloadTrigger";
 
 const display = Playfair_Display({ subsets: ["latin", "vietnamese"], weight: ["500", "600", "700", "800"], style: ["normal", "italic"], variable: "--f-display", display: "swap" });
 const sans = Be_Vietnam_Pro({ subsets: ["latin", "vietnamese"], weight: ["300", "400", "500", "600", "700"], variable: "--f-sans", display: "swap" });
@@ -96,6 +97,7 @@ function Footer() {
               <span className="text-[16px] font-semibold tracking-tight">ADN Capital</span>
             </a>
             <p className="mt-4 text-[14px] font-light leading-[1.6] text-[var(--ink-muted)]">Đầu tư bằng dữ liệu, cho nhà đầu tư cá nhân Việt Nam.</p>
+            <AppDownloadTrigger />
           </div>
           {FOOTER_COLS.map((col) => (
             <div key={col.title}>

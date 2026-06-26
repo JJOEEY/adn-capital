@@ -21,18 +21,29 @@ export function AppDownloadModal() {
   const [platform, setPlatform] = useState<Platform>("desktop");
 
   useEffect(() => {
+    const ua = navigator.userAgent;
+    setPlatform(/Android/i.test(ua) ? "android" : /iPhone|iPad|iPod/i.test(ua) ? "ios" : "desktop");
+
+    // Mở lại popup khi bấm "Tải app" ở footer (bỏ qua cờ đã-xem).
+    const onOpen = () => setShow(true);
+    window.addEventListener("adn:open-app-download", onOpen);
+
+    // Tự hiện 1 lần/thiết bị — bỏ qua nếu đã xem hoặc đang chạy standalone (đã cài app/PWA).
+    let seen = false;
     try {
-      if (localStorage.getItem(SEEN_KEY) === "1") return;
+      seen = localStorage.getItem(SEEN_KEY) === "1";
     } catch {}
     const nav = window.navigator as Navigator & { standalone?: boolean };
     const standalone =
       window.matchMedia("(display-mode: standalone)").matches || nav.standalone === true;
-    if (standalone) return; // đang chạy trong app/PWA rồi
-
-    const ua = navigator.userAgent;
-    setPlatform(/Android/i.test(ua) ? "android" : /iPhone|iPad|iPod/i.test(ua) ? "ios" : "desktop");
-    const t = setTimeout(() => setShow(true), 1200);
-    return () => clearTimeout(t);
+    let t: ReturnType<typeof setTimeout> | undefined;
+    if (!seen && !standalone) {
+      t = setTimeout(() => setShow(true), 1200);
+    }
+    return () => {
+      window.removeEventListener("adn:open-app-download", onOpen);
+      if (t) clearTimeout(t);
+    };
   }, []);
 
   const close = () => {
