@@ -185,19 +185,40 @@ export async function sendTelegramOnce(
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(body),
+            signal: AbortSignal.timeout(15_000),
           },
         );
       };
 
-      let response = await sendChunk(params.parseMode);
-      if (!response.ok && response.status === 400 && params.parseMode) {
-        response = await sendChunk();
+      // Mạng VPS → api.telegram.org CHẬP CHỜN (VN hay nghẽn TLS: "fetch failed" lúc được lúc không;
+      // bản tin sáng dài nhiều chunk nên hay trượt). Thử lại tối đa 4 lần (backoff) cho lỗi
+      // mạng/timeout/429/5xx; 4xx khác = lỗi thật → dừng ngay.
+      let lastErr: unknown = null;
+      for (let attempt = 0; attempt < 4; attempt++) {
+        let resp: Response;
+        try {
+          resp = await sendChunk(params.parseMode);
+          if (!resp.ok && resp.status === 400 && params.parseMode) {
+            resp = await sendChunk();
+          }
+        } catch (err) {
+          lastErr = err;
+          await new Promise((r) => setTimeout(r, 700 * (attempt + 1)));
+          continue;
+        }
+        if (resp.ok) {
+          lastErr = null;
+          break;
+        }
+        const errorText = await resp.text().catch(() => "");
+        if (resp.status === 429 || resp.status >= 500) {
+          lastErr = new Error(`Telegram HTTP ${resp.status}: ${errorText.slice(0, 200)}`);
+          await new Promise((r) => setTimeout(r, 700 * (attempt + 1)));
+          continue;
+        }
+        throw new Error(`Telegram HTTP ${resp.status}: ${errorText.slice(0, 240)}`);
       }
-
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => "");
-        throw new Error(`Telegram HTTP ${response.status}: ${errorText.slice(0, 240)}`);
-      }
+      if (lastErr) throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
     }
 
     await prisma.telegramDispatchLog.update({
