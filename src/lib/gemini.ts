@@ -631,7 +631,9 @@ export async function executeAIRequest(
   const sysInstr = systemInstruction ?? SYSTEM_INSTRUCTIONS[intent];
   const routedOutput = await executeRouterChain(prompt, intent, sysInstr);
   if (routedOutput) return sanitizeModelOutput(routedOutput);
-  if (isDirectGeminiDisabled()) {
+  // Router (9Router đã gỡ + OpenRouter 404) chết → cho widget (PTKT/PTCB…) fallback Gemini
+  // TRỰC TIẾP nếu AIDEN_ALLOW_DIRECT_GEMINI bật (giống webchat), dù DISABLE_DIRECT_GEMINI=1.
+  if (!isAidenDirectGeminiAllowed()) {
     console.warn(`[Gemini] direct fallback disabled. intent=${intent}`);
     return OVERLOAD_MESSAGE;
   }
