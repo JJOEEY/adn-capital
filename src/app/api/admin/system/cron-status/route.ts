@@ -35,6 +35,11 @@ const CRON_JOB_POLICIES: Record<CanonicalCronType, CronJobPolicy> = {
     staleGraceMinutes: 45,
     tradingWindowOnly: true,
   },
+  intraday_signals: {
+    slotsMinutes: [10 * 60, 11 * 60 + 30, 14 * 60, 15 * 60],
+    staleGraceMinutes: 45,
+    tradingWindowOnly: true,
+  },
   morning_brief: {
     slotsMinutes: [8 * 60],
     staleGraceMinutes: 90,
