@@ -646,7 +646,8 @@ export async function executeAIRequest(
       const cfg: Record<string, unknown> = { systemInstruction: withCustomerOutputRules(sysInstr) };
       if (useSearch) cfg.tools = [{ googleSearch: {} }];
 
-      const response = await getGenAIClient().models.generateContent({
+      // allowOverride=true: đã qua cổng isAidenDirectGeminiAllowed() ở trên (AIDEN/widget được phép).
+      const response = await getGenAIClient(true).models.generateContent({
         model,
         contents: prompt,
         config: cfg,
@@ -666,7 +667,7 @@ export async function executeAIRequest(
       }
 
       try {
-        const repair = await getGenAIClient().models.generateContent({
+        const repair = await getGenAIClient(true).models.generateContent({
           model,
           contents: `Viết lại nguyên văn nội dung sau sang tiếng Việt có dấu, giữ nguyên ý, không đổi dữ kiện:\n${output}`,
           config: { systemInstruction: withCustomerOutputRules(sysInstr) },
