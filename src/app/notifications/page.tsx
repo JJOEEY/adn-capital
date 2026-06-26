@@ -391,7 +391,7 @@ function NotificationsContent() {
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const { data, isLoading } = useSWR<{ notifications: NotificationItem[] }>(
-    "/api/notifications?limit=50&scope=updates",
+    "/api/notifications?limit=150&scope=updates",
     fetcher,
     { refreshInterval: 60_000, revalidateOnFocus: true }
   );

@@ -522,6 +522,14 @@ export default function ProfilePage() {
                   })
                 : "N/A"}
             </p>
+            {!isAdmin && daysLeft !== null && (
+              <p
+                className="text-sm font-semibold mt-1"
+                style={{ color: daysLeft <= 0 ? "var(--danger)" : daysLeft <= 7 ? "var(--danger)" : daysLeft <= 30 ? "#f59e0b" : "#10b981" }}
+              >
+                {daysLeft > 0 ? `Còn ${daysLeft} ngày sử dụng` : "Đã hết hạn"}
+              </p>
+            )}
           </div>
 
           {/* Trạng thái */}

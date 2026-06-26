@@ -419,7 +419,10 @@ export function AidenWebChat() {
             <BotAvatar />
             <div>
               <h1 className="text-sm font-bold text-[var(--text-primary)]">AIDEN</h1>
-              <p className="text-xs text-[var(--text-muted)]">Webchat ADN Capital</p>
+              <p className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                Đang hoạt động
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">

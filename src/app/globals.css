@@ -209,6 +209,17 @@ input::placeholder, textarea::placeholder {
   font-size: inherit;
 }
 
+/* iOS Safari auto-zoom khi focus input có cỡ chữ < 16px. Base 16px ở trên bị các utility
+   Tailwind (text-sm / text-[15px]...) trên input cụ thể đè lên → vẫn zoom. Rule mobile này
+   ép >= 16px với !important để chặn zoom toàn app; chỉ áp <=640px nên desktop giữ cỡ chữ nhỏ. */
+@media (max-width: 640px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
 /* ══════════════════════════════════════════
    DARK THEME
 ══════════════════════════════════════════ */
