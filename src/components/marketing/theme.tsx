@@ -9,7 +9,7 @@
 
 import { Playfair_Display, Be_Vietnam_Pro, JetBrains_Mono } from "next/font/google";
 import { ThemeToggle } from "./ThemeToggle";
-import { InstallPrompt } from "./InstallPrompt";
+import { AppDownloadModal } from "./AppDownloadModal";
 
 const display = Playfair_Display({ subsets: ["latin", "vietnamese"], weight: ["500", "600", "700", "800"], style: ["normal", "italic"], variable: "--f-display", display: "swap" });
 const sans = Be_Vietnam_Pro({ subsets: ["latin", "vietnamese"], weight: ["300", "400", "500", "600", "700"], variable: "--f-sans", display: "swap" });
@@ -126,7 +126,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       <Nav />
       {children}
       <Footer />
-      <InstallPrompt />
+      <AppDownloadModal />
     </div>
   );
 }
