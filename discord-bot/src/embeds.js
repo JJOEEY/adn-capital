@@ -58,28 +58,84 @@ export function signalEmbed(sig) {
 }
 
 // ── /ptkt — phân tích kỹ thuật (data.technical + data.behavior từ /api/widget) ──
-export function ptktEmbed(ticker, technical = {}, behavior = {}) {
+export function ptktEmbed(ticker, technical = {}, behavior = {}, signal = null) {
   const ta = technical.stats || {};
   const p = ta.price || {};
   const ind = ta.indicators || {};
   const tr = ta.trend || {};
+  const lv = ta.levels || {};
   const ema = [ind.ema10, ind.ema50, ind.ema200]
     .map((v) => (v == null ? "—" : num(v)))
     .join(" / ");
+  const price = p.current ?? null;
+  const sup = lv.support ?? null;
+  const res = lv.resistance ?? null;
+  const atr = ind.atr14 ?? null;
+
   const e = new EmbedBuilder()
     .setColor(dirColor(p.changePct))
     .setTitle(`📊 PTKT · ${ticker}`)
     .addFields(
-      { name: "Giá", value: `${num(p.current)} (${pct(p.changePct)})`, inline: true },
+      { name: "Giá", value: `${num(price)} (${pct(p.changePct)})`, inline: true },
       { name: "Xu hướng", value: `${tr.direction || "—"}${tr.adx != null ? ` · ADX ${num(tr.adx)}` : ""}`, inline: true },
       { name: "RSI(14)", value: num(ind.rsi14), inline: true },
       { name: "MACD Hist", value: num(ind.macdHistogram), inline: true },
       { name: "MFI(14)", value: num(ind.mfi14), inline: true },
       { name: "ART (đảo chiều)", value: behavior.teiScore != null ? `${num(behavior.teiScore)} · ${behavior.status || "—"}` : "—", inline: true },
       { name: "EMA 10/50/200", value: ema, inline: false },
-      { name: "Tín hiệu", value: `${ta.signal || "—"}${ta.bullishScore != null ? ` (Bull ${ta.bullishScore}/Bear ${ta.bearishScore})` : ""}`, inline: false },
-    )
-    .setFooter({ text: BRAND.footer });
+    );
+
+  // ── Hỗ trợ / Kháng cự (levels từ bridge: support/resistance + Fib) ──
+  if (sup != null || res != null) {
+    const fibs = [lv.fib_382, lv.fib_500, lv.fib_618].filter((v) => v != null).map(num).join(" · ");
+    e.addFields({
+      name: "Hỗ trợ / Kháng cự",
+      value: `🟢 HT: **${num(sup)}**    🔴 KC: **${num(res)}**${fibs ? `\nFib 0.382/0.5/0.618: ${fibs}` : ""}`,
+      inline: false,
+    });
+  }
+
+  // ── Kế hoạch giao dịch TA thuần (từ levels + ATR), luôn có ──
+  if (price != null && sup != null && res != null) {
+    const entryHi = price > sup ? Math.min(price, sup * 1.03) : price;
+    const sl = atr != null ? sup - atr : sup * 0.97; // dưới hỗ trợ ~1×ATR
+    const tp1 = res;
+    const tp2 = lv.fib_0 != null && lv.fib_0 > res ? lv.fib_0 : res * 1.06;
+    const rr = entryHi > sl && tp1 > entryHi ? (tp1 - entryHi) / (entryHi - sl) : null;
+    e.addFields({
+      name: "Kế hoạch giao dịch (TA)",
+      value:
+        `🎯 Vùng mua (về hỗ trợ): **${num(sup)}–${num(entryHi)}**\n` +
+        `🛑 Cắt lỗ: **${num(sl)}**    🏁 Chốt: TP1 **${num(tp1)}** · TP2 **${num(tp2)}**` +
+        (rr != null ? `\n⚖️ Lời/Lỗ ≈ 1:${rr.toFixed(1)}` : ""),
+      inline: false,
+    });
+  }
+
+  e.addFields({
+    name: "Tín hiệu",
+    value: `${ta.signal || "—"}${ta.bullishScore != null ? ` (Bull ${ta.bullishScore}/Bear ${ta.bearishScore})` : ""}`,
+    inline: false,
+  });
+
+  // ── Overlay khuyến nghị ADN (chỉ khi tín hiệu còn mới: entry sát giá ±15%) ──
+  if (
+    signal &&
+    signal.entryPrice != null &&
+    price != null &&
+    price > 0 &&
+    Math.abs(signal.entryPrice - price) / price <= 0.15
+  ) {
+    e.addFields({
+      name: "📌 Khuyến nghị ADN",
+      value:
+        `Điểm mua **${num(signal.entryPrice)}** · Mục tiêu **${num(signal.target)}** · Cắt lỗ **${num(signal.stoploss)}**` +
+        (signal.type ? `\n_${String(signal.type)}_` : ""),
+      inline: false,
+    });
+  }
+
+  e.setFooter({ text: BRAND.footer });
   if (Array.isArray(ta.patterns) && ta.patterns.length) {
     e.addFields({ name: "Mẫu hình", value: ta.patterns.join(", ").slice(0, 1024), inline: false });
   }
