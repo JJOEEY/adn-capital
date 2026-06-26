@@ -841,7 +841,48 @@ async function loadHistoricalTickerWithMarketClose(ticker: string) {
     loadHistoricalTicker(ticker),
     loadMarketBoardForTickers(ticker).catch(() => null),
   ]);
-  return mergeMarketBoardCloseIntoHistorical(historical, board?.prices?.[ticker.toUpperCase()]);
+  const merged = mergeMarketBoardCloseIntoHistorical(historical, board?.prices?.[ticker.toUpperCase()]);
+  return appendIndexTodayCloseIfMissing(merged, ticker);
+}
+
+// CHỈ SỐ (VN30/VNINDEX/HNX) không nằm trong market board (board theo cổ phiếu) và DNSE/bridge
+// historical đều trễ 1 phiên → bar hôm nay bị thiếu (vd ADN ART kẹt ở phiên trước). Bù bằng giá
+// hôm nay từ market snapshot (cùng nguồn /api/market dùng), giống cách chart VNINDEX 30d thêm điểm live.
+// Cổ phiếu KHÔNG bị ảnh hưởng: board đã thêm bar hôm nay → lastDate === today → return sớm.
+async function appendIndexTodayCloseIfMissing(payload: unknown, ticker: string) {
+  const today = currentVnMarketBoardDateKey();
+  if (!today) return payload; // ngoài giờ giao dịch / cuối tuần — giữ nguyên
+  const rows = getMarketPayloadRows(payload);
+  if (rows.length === 0) return payload;
+  const last = rows[rows.length - 1] ?? {};
+  const lastDate = normalizeChartDateKey(String(last.date ?? last.timestamp ?? last.time ?? ""));
+  if (lastDate === today) return payload; // đã có bar hôm nay (cổ phiếu qua board)
+
+  const snapshot = await getMarketSnapshot().catch(() => null);
+  const upper = ticker.toUpperCase();
+  const aliases = upper === "HNX" || upper === "HNXINDEX" ? ["HNX", "HNXINDEX"] : [upper];
+  const idx = snapshot?.indices?.find((item) => aliases.includes(item.ticker));
+  const close = readPositiveNumber(idx?.value);
+  if (close == null) return payload; // không phải chỉ số / chưa có giá → giữ nguyên
+
+  const todayRow = {
+    ...last,
+    date: today,
+    timestamp: Math.floor(Date.parse(`${today}T07:00:00.000Z`) / 1000),
+    open: close,
+    high: close,
+    low: close,
+    close,
+    volume: 0,
+  };
+  const nextRows = [...rows, todayRow];
+  if (payload && typeof payload === "object") {
+    const record = payload as JsonRecord;
+    if (Array.isArray(record.data)) return { ...record, data: nextRows };
+    if (Array.isArray(record.candles)) return { ...record, candles: nextRows };
+    if (Array.isArray(record.items)) return { ...record, items: nextRows };
+  }
+  return nextRows;
 }
 
 async function loadVNIndexChart30d() {
