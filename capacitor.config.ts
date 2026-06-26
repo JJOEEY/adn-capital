@@ -11,7 +11,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
  * Hoặc mở thư mục android/ bằng Android Studio → Build > Build APK(s).
  */
 const config: CapacitorConfig = {
-  appId: "vn.com.adncapital.app",
+  appId: "vn.adncapital.app",
   appName: "ADN Capital",
   webDir: "capacitor-shell",
   server: {
