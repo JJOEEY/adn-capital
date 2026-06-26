@@ -17,6 +17,8 @@ import { fetchFAData } from "@/lib/stockData";
 import { isMockMode } from "@/lib/settings";
 import { MockFactory } from "@/lib/mock-factory";
 import { getPythonBridgeUrl } from "@/lib/runtime-config";
+import { fetchIncomeStatement, incomeYoY } from "@/lib/research/income-statement";
+import { fetchVndirectRecommendations } from "@/lib/research/vndirect";
 
 const FIINQUANT_BRIDGE = getPythonBridgeUrl();
 const CACHE_EXPIRY_PTKT_MS = 24 * 60 * 60 * 1000;        // 1 ngày
@@ -85,12 +87,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tick
     }
 
     // ── 1. Fetch real data from FiinQuant (parallel) ─────────────────────
-    const [ta, fa, tei, news, signal] = await Promise.all([
+    const [ta, fa, tei, news, signal, income, broker] = await Promise.all([
       fetchTASummary(ticker),
       fetchFAData(ticker),
       fetchTEI(ticker),
       fetchTickerNews(ticker),
       prisma.signal.findFirst({ where: { ticker }, orderBy: { createdAt: "desc" } }),
+      fetchIncomeStatement(ticker).catch(() => null),         // KQKD đa kỳ chuẩn (tỷ) + YoY
+      fetchVndirectRecommendations(ticker).catch(() => null), // đồng thuận CTCK (bên thứ 3)
     ]);
 
     if (!ta) {
@@ -136,14 +140,39 @@ Viết 3-4 câu nhận xét PTKT thực chiến (điểm mua lý tưởng, cản
 
     // ── 4. Generate PTCB AI Insight (Gemini Pro) if cache miss ───────────
     if (!ptcbInsight && fa) {
-      const prompt = `Bạn là AIDEN Analyst của ADNexus, vận hành bởi ADN Capital. Văn phong ngắn gọn, chuyên nghiệp, định hướng hành động.
+      // Gom đa nguồn: KQKD đa kỳ (tỷ) + YoY (income statement) + đồng thuận CTCK (VNDirect) → AIDEN nhận định.
+      const periods = income?.periods ?? [];
+      const last = periods[0] ?? null;
+      const revYoY = periods.length ? incomeYoY(periods, "netRevenueBn") : null;
+      const lnYoY = periods.length ? incomeYoY(periods, "profitAfterTaxBn") : null;
+      const pctFmt = (v: number | null | undefined) =>
+        v == null ? "—" : `${(Math.abs(v) < 1 ? v * 100 : v).toFixed(1)}%`;
+      const kqkdLine = last
+        ? `- KQKD ${last.period}: Doanh thu ${last.netRevenueBn ?? "—"} tỷ (YoY ${revYoY ?? "—"}%) · LNST ${last.profitAfterTaxBn ?? "—"} tỷ (YoY ${lnYoY ?? "—"}%)`
+        : "- KQKD: chưa có dữ liệu income statement";
+      const trendLine =
+        periods.length >= 3
+          ? `- Xu hướng LNST các kỳ (mới→cũ): ${periods.slice(0, 4).map((p) => p.profitAfterTaxBn ?? "—").join(" / ")} tỷ`
+          : "";
+      const brokerLine = broker
+        ? `- Đồng thuận CTCK (VNDirect, ${broker.recent} báo cáo ~18 tháng): ${broker.buy} Mua / ${broker.hold} Giữ / ${broker.sell} Bán${broker.avgTargetPrice ? ` · giá mục tiêu TB ${broker.avgTargetPrice} (nghìn đ)` : ""}`
+        : "- Đồng thuận CTCK: chưa có dữ liệu VNDirect";
 
-Dữ liệu BCTC ${ticker} từ FiinQuant:
-- P/E: ${fa.pe}x | P/B: ${fa.pb}x | EPS: ${fa.eps?.toLocaleString("vi-VN")} đ/cp
-- ROE: ${fa.roe}% | ROA: ${fa.roa}%
-- DT: ${fa.revenueLastQ} tỷ (YoY ${fa.revenueGrowthYoY}%) | LN: ${fa.profitLastQ} tỷ (YoY ${fa.profitGrowthYoY}%)
+      const prompt = `Bạn là AIDEN Analyst của ADN Capital — chuyên gia định giá & phân tích cơ bản. Tự xưng "Hệ thống", gọi người dùng "Nhà đầu tư". Văn phong chuyên nghiệp, sắc bén; TUYỆT ĐỐI không xưng hô thân mật/cợt nhả.
 
-Phân tích ngắn gọn sức khỏe tài chính. Cảnh báo nếu bơm thổi hoặc khen ngợi nếu nền tảng tốt. 3-4 câu.`;
+Dữ liệu ${ticker} (gom nhiều nguồn ADN Capital):
+- Định giá: P/E ${fa.pe ?? "—"}x · P/B ${fa.pb ?? "—"}x · EPS ${fa.eps != null ? fa.eps.toLocaleString("vi-VN") : "—"} đ/cp
+- Hiệu quả: ROE ${pctFmt(fa.roe)} · ROA ${pctFmt(fa.roa)}
+${kqkdLine}
+${trendLine}
+${brokerLine}
+
+Viết NHẬN ĐỊNH cơ bản thực chiến cho Nhà đầu tư (4-6 câu, có thể xuống dòng):
+1. Định giá đắt/rẻ (P/E, P/B) + chất lượng lợi nhuận (ROE/ROA, tăng trưởng LNST).
+2. Sức khoẻ & xu hướng KQKD (đang cải thiện hay suy giảm).
+3. Đồng thuận CTCK + dư địa so giá mục tiêu (nếu có dữ liệu).
+4. Kết luận: nền tảng tốt/trung bình/cảnh báo bơm thổi + hành động (tích luỹ/quan sát/tránh).
+Chỉ dùng số đã cấp, không bịa, không giải thích khái niệm.`;
 
       ptcbInsight = await executeAIRequest(prompt, INTENT.PTCB);
       if (isUsableInsight(ptcbInsight)) {
@@ -163,7 +192,7 @@ Phân tích ngắn gọn sức khỏe tài chính. Cảnh báo nếu bơm thổi
       ticker,
       data: {
         technical: { stats: ta, aiInsight: ptktInsight },
-        fundamental: { stats: fa, aiInsight: ptcbInsight ?? null },
+        fundamental: { stats: fa, income, broker, aiInsight: ptcbInsight ?? null },
         news,
         behavior: {
           teiScore,

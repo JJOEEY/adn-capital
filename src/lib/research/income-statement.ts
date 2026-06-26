@@ -61,9 +61,9 @@ export async function fetchIncomeStatement(ticker: string): Promise<IncomeStatem
   const hit = cache.get(code);
   if (hit && hit.expires > Date.now()) return hit.data;
 
-  // FiinQuant bridge trước; rỗng/lỗi (vd FiinQuant hết hạn) → fallback vnstock-bridge (adn-vnstock).
-  let periods = await fetchPeriodsFromBridge(getPythonBridgeUrl(), code);
-  if (!periods) periods = await fetchPeriodsFromBridge(getVnstockDataBridgeUrl(), code);
+  // vnstock-bridge TRƯỚC (FiinQuant hết hạn ~27/6 → fiinquant:8000 chậm/timeout); fiinquant chỉ fallback.
+  let periods = await fetchPeriodsFromBridge(getVnstockDataBridgeUrl(), code);
+  if (!periods) periods = await fetchPeriodsFromBridge(getPythonBridgeUrl(), code);
   const result: IncomeStatement | null = periods ? { ticker: code, periods } : null;
 
   cache.set(code, { data: result, expires: Date.now() + (result ? TTL_MS : TTL_EMPTY_MS) });

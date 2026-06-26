@@ -71,7 +71,7 @@ export type Intent = (typeof INTENT)[keyof typeof INTENT];
 
 const MODEL_CHAIN: Record<Intent, [string, string]> = {
   PTKT: [FLASH_PRIMARY, FLASH_FALLBACK],
-  PTCB: [PRO_PRIMARY, PRO_FALLBACK],
+  PTCB: [FLASH_PRIMARY, FLASH_FALLBACK],
   NEWS: [FLASH_PRIMARY, FLASH_FALLBACK],
   TAMLY: [FLASH_PRIMARY, FLASH_FALLBACK],
   GENERAL: [FLASH_PRIMARY, FLASH_FALLBACK],
@@ -139,7 +139,8 @@ function resolveNineRouterApiKey(): string | undefined {
 }
 
 function getRouterModel(intent: Intent, providerPrefix: "OPENROUTER" | "NINEROUTER"): string {
-  const isReasoningHeavy = intent === INTENT.PTCB || intent === INTENT.COMPARE;
+  // PTCB chuyển sang Flash (nhanh, không suy nghĩ sâu) theo yêu cầu — chỉ COMPARE còn dùng Pro.
+  const isReasoningHeavy = intent === INTENT.COMPARE;
   const proModel =
     providerPrefix === "OPENROUTER"
       ? process.env.OPENROUTER_PRO_MODEL

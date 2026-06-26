@@ -168,12 +168,30 @@ export function ptktEmbed(ticker, technical = {}, behavior = {}, signal = null) 
 // ── /ptcb — phân tích cơ bản (data.fundamental từ /api/widget) ──
 export function ptcbEmbed(ticker, fundamental = {}) {
   const fa = fundamental.stats || {};
+  const income = fundamental.income || null;
+  const broker = fundamental.broker || null;
   const x = (v) => (v == null ? "—" : `${num(v)}x`);
   // ROE/ROA từ bridge ở dạng thập phân (0.27 = 27%) → quy ra % khi |v| < 1.
   const p = (v) => (v == null ? "—" : `${num(Math.abs(v) < 1 ? v * 100 : v)}%`);
-  const kqkd =
-    `DT ${num(fa.revenueLastQ)} tỷ (YoY ${pct(fa.revenueGrowthYoY)})` +
-    ` · LN ${num(fa.profitLastQ)} tỷ (YoY ${pct(fa.profitGrowthYoY)})`;
+
+  // KQKD từ income statement (đã chuẩn tỷ) + YoY so cùng quý năm trước.
+  const periods = Array.isArray(income?.periods) ? income.periods : [];
+  const last = periods[0] || null;
+  const yoy = (key) => {
+    if (!last) return null;
+    const m = String(last.period).match(/(\d{4})Q(\d)/);
+    if (!m) return null;
+    const prior = periods.find((q) => q.period === `${Number(m[1]) - 1}Q${m[2]}`);
+    const cur = last[key];
+    const prev = prior ? prior[key] : null;
+    if (cur == null || prev == null || prev === 0) return null;
+    return Math.round(((cur - prev) / Math.abs(prev)) * 1000) / 10;
+  };
+  const kqkd = last
+    ? `DT **${num(last.netRevenueBn)}** tỷ (YoY ${pct(yoy("netRevenueBn"))}) · LNST **${num(last.profitAfterTaxBn)}** tỷ (YoY ${pct(yoy("profitAfterTaxBn"))})` +
+      (last.period ? `\n_Kỳ ${last.period}_` : "")
+    : "Chưa có dữ liệu KQKD.";
+
   const e = new EmbedBuilder()
     .setColor(BRAND.color)
     .setTitle(`🏛️ PTCB · ${ticker}`)
@@ -184,8 +202,21 @@ export function ptcbEmbed(ticker, fundamental = {}) {
       { name: "ROE", value: p(fa.roe), inline: true },
       { name: "ROA", value: p(fa.roa), inline: true },
       { name: "Kết quả kinh doanh", value: kqkd, inline: false },
-    )
-    .setFooter({ text: fa.reportDate ? `Kỳ BC: ${fa.reportDate} · ${BRAND.footer}` : BRAND.footer });
+    );
+
+  // Đồng thuận CTCK (VNDirect — bên thứ 3). avgTargetPrice đơn vị nghìn → ×1000 ra VND.
+  if (broker && broker.recent > 0) {
+    e.addFields({
+      name: "Đồng thuận CTCK (VNDirect)",
+      value:
+        `🟢 ${broker.buy} Mua · ⚪ ${broker.hold} Giữ · 🔴 ${broker.sell} Bán` +
+        (broker.avgTargetPrice ? ` · 🎯 mục tiêu TB **${num(broker.avgTargetPrice * 1000)}**` : "") +
+        `\n_${broker.recent} báo cáo ~18 tháng_`,
+      inline: false,
+    });
+  }
+
+  e.setFooter({ text: fa.reportDate ? `Kỳ BC: ${fa.reportDate} · ${BRAND.footer}` : BRAND.footer });
   const insight = usableInsight(fundamental.aiInsight);
   e.setDescription(
     insight ? insight.slice(0, 4096) : "💬 Nhận định AI đang cập nhật — xem số liệu cơ bản phía trên.",
