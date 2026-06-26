@@ -68,7 +68,7 @@ export function signalEmbed(sig) {
   return new EmbedBuilder()
     .setColor(BRAND.up)
     .setTitle(`${tag} · ${sig.ticker}`)
-    .setDescription(sig.reason || "")
+    .setDescription("Tín hiệu từ hệ thống ADN") // KHÔNG lộ kịch bản/phương pháp nội bộ ra signal công khai
     .addFields(
       { name: "Điểm mua", value: num(sig.entryPrice), inline: true },
       { name: "Mục tiêu", value: num(sig.target), inline: true },
