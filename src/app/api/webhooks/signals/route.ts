@@ -79,8 +79,8 @@ export async function POST(req: NextRequest) {
     if (notifiedSignals.length > 0) {
       const signalText = notifiedSignals
         .map((signal) => {
-          const reason = signal.reason ? ` - ${signal.reason}` : "";
-          return `- ${signal.ticker}: ${signal.entryPrice.toLocaleString("vi-VN")} VND${reason}`;
+          // KHÔNG đính reason (kịch bản nội bộ) vào thông báo công khai.
+          return `- ${signal.ticker}: ${signal.entryPrice.toLocaleString("vi-VN")} VND`;
         })
         .join("\n");
 

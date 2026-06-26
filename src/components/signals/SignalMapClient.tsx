@@ -254,7 +254,8 @@ function strategyLabelForTier(tier: PaperPosition["tier"]) {
 function PaperPositionInsight({ position }: { position: PaperPosition }) {
   const cfg = PAPER_TIER_CONFIG[position.tier] ?? PAPER_TIER_CONFIG.NGAN_HAN;
   const aiNote = cleanInsightText(position.aiReasoning);
-  const trigger = cleanInsightText(position.triggerSignal ?? position.reason);
+  // KHÔNG lộ kịch bản/phương pháp nội bộ ra UI — dùng dòng chung (giữ ô "AI nhận định" bên dưới).
+  const trigger = "Tín hiệu từ hệ thống ADN";
   if (!aiNote && !trigger) return null;
 
   const rr = position.rrRatio ?? null;
