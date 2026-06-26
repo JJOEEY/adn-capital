@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { X, Download, Apple, Smartphone, Check } from "lucide-react";
+import { X, Download, Apple, Smartphone, Crosshair, Bot, Activity } from "lucide-react";
 
 const SEEN_KEY = "adn-app-promo-v1";
 const APK_URL = "/downloads/adn-capital.apk";
@@ -122,23 +122,23 @@ export function AppDownloadModal() {
           />
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 17, fontWeight: 800, color: "var(--text-primary)", lineHeight: 1.2 }}>
-              ADN đã có app!
+              ADN trên điện thoại
             </div>
             <div style={{ fontSize: 12.5, color: "var(--text-secondary)", marginTop: 2 }}>
-              Toàn màn hình · mở nhanh · cảnh báo tín hiệu
+              Tín hiệu mua/bán · AIDEN soi mã · nhịp thị trường
             </div>
           </div>
         </div>
 
-        {/* Lợi ích */}
-        <div style={{ display: "grid", gap: 7, margin: "2px 0 16px", fontSize: 13 }}>
+        {/* Tính năng app */}
+        <div style={{ display: "grid", gap: 10, margin: "2px 0 16px", fontSize: 13 }}>
           {[
-            "Mở thẳng như app, không thanh trình duyệt",
-            "Nhận thông báo tín hiệu Radar theo thời gian thực",
-            "Tự cập nhật — không phải cài lại",
-          ].map((t) => (
-            <div key={t} style={{ display: "flex", gap: 8, alignItems: "flex-start", color: "var(--text-secondary)" }}>
-              <Check size={15} style={{ color: "var(--primary)", flex: "0 0 auto", marginTop: 1 }} />
+            { Icon: Crosshair, t: "Radar quét cả sàn, có mã vào điểm mua là báo ngay về máy" },
+            { Icon: Bot, t: "Hỏi AIDEN soi mã bất kỳ: kỹ thuật, cơ bản, định giá — nên mua hay không" },
+            { Icon: Activity, t: "ADNCore chấm điểm thị trường: hôm nay nên đánh hay đứng ngoài" },
+          ].map(({ Icon, t }) => (
+            <div key={t} style={{ display: "flex", gap: 9, alignItems: "flex-start", color: "var(--text-secondary)" }}>
+              <Icon size={16} style={{ color: "var(--primary)", flex: "0 0 auto", marginTop: 1 }} />
               <span>{t}</span>
             </div>
           ))}
