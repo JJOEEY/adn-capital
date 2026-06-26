@@ -5,6 +5,18 @@ const pct = (v) => (v == null ? "—" : `${v >= 0 ? "+" : ""}${Number(v).toFixed
 const num = (v) => (v == null ? "—" : Number(v).toLocaleString("vi-VN", { maximumFractionDigits: 2 }));
 const dirColor = (v) => (v == null ? BRAND.color : v >= 0 ? BRAND.up : BRAND.down);
 
+// Nhãn tiếng Việt cho loại tín hiệu (tránh lộ enum kiểu TRUNG_HAN ra UI).
+function signalKindLabel(type) {
+  const t = String(type || "").toUpperCase();
+  if (t.includes("SIEU")) return "Siêu cổ phiếu";
+  if (t.includes("LEADER")) return "Dẫn dắt";
+  if (t.includes("TRUNG")) return "Trung hạn";
+  if (t.includes("DAU")) return "Đầu cơ";
+  if (t.includes("NGAN")) return "Ngắn hạn";
+  if (t.includes("TAM")) return "Tầm ngắm";
+  return "Tín hiệu ADN";
+}
+
 function rsLabel(rs) {
   if (rs > 90) return "🟣 Super Star";
   if (rs >= 80) return "🟢 Star";
@@ -130,7 +142,7 @@ export function ptktEmbed(ticker, technical = {}, behavior = {}, signal = null) 
       name: "📌 Khuyến nghị ADN",
       value:
         `Điểm mua **${num(signal.entryPrice)}** · Mục tiêu **${num(signal.target)}** · Cắt lỗ **${num(signal.stoploss)}**` +
-        (signal.type ? `\n_${String(signal.type)}_` : ""),
+        (signal.type ? `\n⏱️ Khung: **${signalKindLabel(signal.type)}**` : ""),
       inline: false,
     });
   }
