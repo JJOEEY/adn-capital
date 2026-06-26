@@ -2248,7 +2248,7 @@ async function handleIntradaySignals(): Promise<NextResponse> {
     const timeLabel = vnNow.format("HH:mm");
     const slot = timeLabel;
     const tradingDate = getVNDateString();
-    const { text, empty } = await buildIntradaySignalsReport(timeLabel);
+    const { discord, telegram, plain, empty } = await buildIntradaySignalsReport(timeLabel);
     if (empty) {
       await logCron("intraday_signals", "skipped", "Không có tín hiệu / thiếu OHLCV cache", Date.now() - startTime);
       return NextResponse.json({ type: "intraday_signals", published: false, reason: "empty" });
@@ -2262,7 +2262,8 @@ async function handleIntradaySignals(): Promise<NextResponse> {
       const r = await sendTelegramOnce({
         eventType: "INTRADAY_SIGNALS",
         eventKey: `INTRADAY_SIGNALS:${tradingDate}:${slot}`,
-        text,
+        text: telegram,
+        parseMode: "Markdown",
         token: tgToken,
         chatId: tgChat,
         tradingDate,
@@ -2279,7 +2280,7 @@ async function handleIntradaySignals(): Promise<NextResponse> {
         const res = await fetch(hook, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content: text.slice(0, 1990) }),
+          body: JSON.stringify({ content: discord.slice(0, 1990) }),
           signal: AbortSignal.timeout(15_000),
         });
         dc = res.ok ? "sent" : `err:${res.status}`;
@@ -2290,7 +2291,7 @@ async function handleIntradaySignals(): Promise<NextResponse> {
 
     // Web/PWA push (best-effort)
     try {
-      await pushNotification("intraday_signals", `📊 Tín hiệu ${timeLabel}`, text);
+      await pushNotification("intraday_signals", `📊 Tín hiệu ${timeLabel}`, plain);
     } catch {
       /* push không bắt buộc */
     }
