@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BRAND } from "@/lib/brand/productNames";
 import { PUBLIC_PRODUCT_MODULES } from "@/lib/brand/nexsuite";
+import { AppDownloadTrigger } from "@/components/marketing/AppDownloadTrigger";
 
 export function PublicSiteFooter() {
   const primaryProducts = PUBLIC_PRODUCT_MODULES;
@@ -23,6 +24,7 @@ export function PublicSiteFooter() {
             ADN Capital xây dựng hệ sinh thái công cụ đầu tư cho nhà đầu tư Việt Nam: đọc thị trường,
             giữ kỷ luật, tra cứu cổ phiếu và ghi lại hành vi giao dịch trong cùng một trải nghiệm.
           </p>
+          <div className="mt-6"><AppDownloadTrigger /></div>
         </div>
 
         <div className="grid gap-8 sm:grid-cols-3">

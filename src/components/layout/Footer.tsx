@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { MapPin, Phone } from "lucide-react";
 import { useTheme } from "@/components/providers/ThemeProvider";
+import { AppDownloadTrigger } from "@/components/marketing/AppDownloadTrigger";
 
 export function Footer() {
   const { theme } = useTheme();
@@ -34,6 +35,7 @@ export function Footer() {
                 </a>
               </div>
             </div>
+            <AppDownloadTrigger />
             <div className="flex items-center justify-center gap-4">
               <span className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>Contact Us</span>
               <a href="https://zalo.me/0962977179" target="_blank" rel="noopener noreferrer" aria-label="Zalo"

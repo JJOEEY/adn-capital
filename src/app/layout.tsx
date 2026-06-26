@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { AuthProvider } from "@/components/providers/AuthProvider";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { JsonLd } from "@/components/seo/JsonLd";
+import { AppDownloadModal } from "@/components/marketing/AppDownloadModal";
 import {
   absoluteUrl,
   DEFAULT_DESCRIPTION,
@@ -235,7 +236,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         suppressHydrationWarning
       >
         <AuthProvider>
-          <ThemeProvider>{children}</ThemeProvider>
+          <ThemeProvider>
+            {children}
+            <AppDownloadModal />
+          </ThemeProvider>
         </AuthProvider>
       </body>
     </html>
