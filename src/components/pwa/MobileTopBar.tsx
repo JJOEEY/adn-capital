@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import {
@@ -174,12 +175,7 @@ export function MobileTopBar() {
       >
         <div className="flex h-16 items-center justify-between gap-3 px-4">
           <Link href="/dashboard" className="flex min-w-0 items-center gap-2">
-            <div
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-sm font-black"
-              style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--primary)" }}
-            >
-              AD
-            </div>
+            <Image src="/brand/logo-square.png" alt="ADN" width={36} height={36} className="h-9 w-9 shrink-0 rounded-xl" />
             <div className="min-w-0">
               <p className="truncate text-sm font-black" style={{ color: "var(--text-primary)" }}>
                 ADN Pulse

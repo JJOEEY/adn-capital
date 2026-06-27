@@ -8,6 +8,7 @@
  */
 
 import { Playfair_Display, Be_Vietnam_Pro, JetBrains_Mono } from "next/font/google";
+import Image from "next/image";
 import { ThemeToggle } from "./ThemeToggle";
 import { AppDownloadTrigger } from "./AppDownloadTrigger";
 
@@ -36,7 +37,7 @@ function Nav() {
     <header className="sticky top-0 z-50 border-b border-[var(--hairline)] bg-[color-mix(in_srgb,var(--canvas)_90%,transparent)] backdrop-blur-sm">
       <div className="mx-auto flex h-[66px] max-w-[1180px] items-center justify-between px-5 sm:px-8">
         <a href="/" className="flex items-center gap-2.5">
-          <span className="grid h-8 w-8 place-items-center rounded-[9px] bg-[var(--moss)] text-sm font-bold text-white">A</span>
+          <Image src="/brand/logo-square.png" alt="ADN Capital" width={32} height={32} className="h-8 w-8 rounded-[9px]" />
           <span className="text-[16px] font-semibold tracking-tight">ADN Capital</span>
         </a>
         <nav className="dp-mono hidden items-center gap-8 text-[12.5px] uppercase tracking-[0.12em] text-[var(--ink-muted)] md:flex">
@@ -92,7 +93,7 @@ function Footer() {
         <div className="grid gap-10 md:grid-cols-[1.5fr_1fr_1fr_1fr]">
           <div className="max-w-[34ch]">
             <a href="/" className="flex items-center gap-2.5">
-              <span className="grid h-8 w-8 place-items-center rounded-[9px] bg-[var(--moss)] text-sm font-bold text-white">A</span>
+              <Image src="/brand/logo-square.png" alt="ADN Capital" width={32} height={32} className="h-8 w-8 rounded-[9px]" />
               <span className="text-[16px] font-semibold tracking-tight">ADN Capital</span>
             </a>
             <p className="mt-4 text-[14px] font-light leading-[1.6] text-[var(--ink-muted)]">Đầu tư bằng dữ liệu, cho nhà đầu tư cá nhân Việt Nam.</p>

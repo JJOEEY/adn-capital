@@ -78,7 +78,7 @@ export function PublicSiteHeader() {
   const [toolsOpen, setToolsOpen] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isDark = theme === "dark";
-  const logoSrc = isDark ? "/adn-logo-dark.png" : "/adn-logo-light.png";
+  const logoSrc = "/brand/logo-square.png";
 
   const openToolsMenu = () => {
     if (closeTimer.current) clearTimeout(closeTimer.current);
