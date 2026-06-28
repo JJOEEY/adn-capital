@@ -1,12 +1,9 @@
-// GLSL ES 3.00 shaders for the WebGL2 render pipeline.
+// GLSL ES 3.00 shaders for the multi-pass WebGL2 pipeline:
+//   BASE      — global light (M1) + color grade (M3) → offscreen FBO
+//   LOCAL     — one local adjustment (mask + param deltas), chained per adjustment
+//   COMPOSITE — background matte composite (M4) → screen, with alpha
 //
-// The fragment shader applies the full Recipe in a single pass:
-//   M1 light/color adjustments  →  M3 color grade (curves, HSL, wheels, split)
-//   →  optional 3D .cube LUT.
-//
-// The M3 section mirrors the CPU reference in src/editor/color/* exactly (the
-// pipeline computes per-channel wheel coefficients and the curve LUT on the CPU and
-// uploads them, so GPU and CPU stay in lockstep — important for LUT export).
+// Split into passes so local adjustments (and, later, layers) stack arbitrarily.
 
 export const VERT_SRC = /* glsl */ `#version 300 es
 precision highp float;
@@ -18,7 +15,8 @@ void main() {
 }
 `;
 
-export const FRAG_SRC = /* glsl */ `#version 300 es
+// ---------------- BASE: global adjustments + color grade ----------------
+export const BASE_FRAG = /* glsl */ `#version 300 es
 precision highp float;
 precision highp sampler3D;
 
@@ -26,31 +24,22 @@ in vec2 v_uv;
 out vec4 fragColor;
 
 uniform sampler2D u_image;
-
-// --- M1 ---
 uniform float u_exposure, u_contrast, u_highlights, u_shadows, u_whites, u_blacks;
 uniform float u_temp, u_tint, u_saturation, u_vibrance;
 
-// --- M3 color grade ---
-uniform sampler2D u_curve;   // 256x1 RGB: per-channel combined (master∘channel) maps
+uniform sampler2D u_curve;
 uniform bool u_curveOn;
-uniform vec3 u_hsl[8];        // per band: (hueShift, sat, lum) in -1..1
+uniform vec3 u_hsl[8];
 uniform bool u_hslOn;
-uniform vec3 u_lift, u_gain, u_gammaExp, u_gmul; // wheel coefficients
+uniform vec3 u_lift, u_gain, u_gammaExp, u_gmul;
 uniform bool u_wheelsOn;
-uniform vec3 u_splitSh, u_splitHi; // hueSat->rgb tints
+uniform vec3 u_splitSh, u_splitHi;
 uniform float u_splitBalance;
 uniform bool u_splitOn;
 uniform sampler3D u_lut3d;
 uniform bool u_lut3dOn;
-uniform float u_lutSize;            // 3D LUT lattice size (for texel-center remap)
+uniform float u_lutSize;
 uniform vec3 u_lutDomainMin, u_lutDomainMax;
-
-// --- M4 background (AI matte) ---
-uniform sampler2D u_mask;
-uniform bool u_maskOn;
-uniform int u_bgMode;               // 0 none, 1 transparent, 2 color
-uniform vec3 u_bgColor;
 
 const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
 const float PI = 3.14159265359;
@@ -86,20 +75,16 @@ vec3 hsl2rgb(vec3 hsl) {
   float p = 2.0 * l - q;
   return vec3(hue2rgb(p, q, h + 1.0 / 3.0), hue2rgb(p, q, h), hue2rgb(p, q, h - 1.0 / 3.0));
 }
-
 vec3 applyHsl(vec3 c) {
   vec3 hsl = rgb2hsl(c);
-  if (hsl.y < 1e-6) return c; // grey pixel: no hue to weight (mirror hsl.ts S===0)
+  if (hsl.y < 1e-6) return c;
   float hues[8] = float[8](0.0, 30.0, 60.0, 120.0, 180.0, 240.0, 270.0, 300.0);
   float W = 0.0, hShift = 0.0, sAcc = 0.0, lAcc = 0.0;
   for (int i = 0; i < 8; i++) {
     float d = abs(hsl.x - hues[i]);
     d = min(d, 360.0 - d);
     float w = d < 60.0 ? 0.5 * (1.0 + cos(PI * d / 60.0)) : 0.0;
-    W += w;
-    hShift += w * u_hsl[i].x;
-    sAcc += w * u_hsl[i].y;
-    lAcc += w * u_hsl[i].z;
+    W += w; hShift += w * u_hsl[i].x; sAcc += w * u_hsl[i].y; lAcc += w * u_hsl[i].z;
   }
   if (W <= 0.0) return c;
   float newH = mod(hsl.x + (hShift / W) * 30.0, 360.0);
@@ -107,16 +92,11 @@ vec3 applyHsl(vec3 c) {
   float newL = clamp(hsl.z + (lAcc / W) * 0.5, 0.0, 1.0);
   return hsl2rgb(vec3(newH, newS, newL));
 }
-
 vec3 applyWheels(vec3 c) {
-  c = c * u_gmul;
-  c = c * u_gain;
-  c = c + u_lift;
-  c = clamp(c, 0.0, 1.0);
-  c = pow(c, u_gammaExp);
+  c = c * u_gmul; c = c * u_gain; c = c + u_lift;
+  c = clamp(c, 0.0, 1.0); c = pow(c, u_gammaExp);
   return clamp(c, 0.0, 1.0);
 }
-
 vec3 applySplit(vec3 c) {
   float l = luma(c);
   float pivot = 0.5 + u_splitBalance * 0.5;
@@ -129,39 +109,28 @@ void main() {
   vec2 uv = vec2(v_uv.x, 1.0 - v_uv.y);
   vec3 c = texture(u_image, uv).rgb;
 
-  // ---------------- M1 ----------------
   c *= exp2(u_exposure);
   c.r *= 1.0 + 0.4 * u_temp + 0.2 * u_tint;
   c.b *= 1.0 - 0.4 * u_temp + 0.2 * u_tint;
   c.g *= 1.0 - 0.2 * u_tint;
   {
     float l = luma(c);
-    float hiMask = smoothstep(0.5, 1.0, l);
-    float shMask = 1.0 - smoothstep(0.0, 0.5, l);
-    float whMask = smoothstep(0.7, 1.0, l);
-    float blMask = 1.0 - smoothstep(0.0, 0.3, l);
-    c += c * (u_highlights * 0.5 * hiMask);
-    c += c * (u_shadows * 0.5 * shMask);
-    c += vec3(u_whites * 0.3 * whMask);
-    c += vec3(u_blacks * 0.3 * blMask);
+    c += c * (u_highlights * 0.5 * smoothstep(0.5, 1.0, l));
+    c += c * (u_shadows * 0.5 * (1.0 - smoothstep(0.0, 0.5, l)));
+    c += vec3(u_whites * 0.3 * smoothstep(0.7, 1.0, l));
+    c += vec3(u_blacks * 0.3 * (1.0 - smoothstep(0.0, 0.3, l)));
   }
   c = (c - 0.5) * (1.0 + u_contrast) + 0.5;
   {
     float mx = max(c.r, max(c.g, c.b));
     float mn = min(c.r, min(c.g, c.b));
-    float sat = mx - mn;
     float g = luma(c);
-    c = mix(vec3(g), c, 1.0 + u_vibrance * (1.0 - sat));
+    c = mix(vec3(g), c, 1.0 + u_vibrance * (1.0 - (mx - mn)));
   }
-  {
-    float g = luma(c);
-    c = mix(vec3(g), c, 1.0 + u_saturation);
-  }
+  { float g = luma(c); c = mix(vec3(g), c, 1.0 + u_saturation); }
   c = clamp(c, 0.0, 1.0);
 
-  // ---------------- M3 color grade ----------------
   if (u_curveOn) {
-    // Sample at texel centers of the 256-wide curve LUT to match CPU evalCurve.
     c = vec3(
       texture(u_curve, vec2((c.r * 255.0 + 0.5) / 256.0, 0.5)).r,
       texture(u_curve, vec2((c.g * 255.0 + 0.5) / 256.0, 0.5)).g,
@@ -172,21 +141,97 @@ void main() {
   if (u_wheelsOn) c = applyWheels(c);
   if (u_splitOn) c = applySplit(c);
   if (u_lut3dOn) {
-    // Domain-normalize, then remap to texel centers so HW trilinear reproduces the
-    // CPU's node interpolation in lut.ts applyCube.
     vec3 t = (clamp(c, 0.0, 1.0) - u_lutDomainMin) / max(vec3(1e-6), u_lutDomainMax - u_lutDomainMin);
     t = clamp(t, 0.0, 1.0);
     vec3 q = (t * (u_lutSize - 1.0) + 0.5) / u_lutSize;
     c = clamp(texture(u_lut3d, q).rgb, 0.0, 1.0);
   }
+  fragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
+}
+`;
 
-  // ---------------- M4 background composite ----------------
-  c = clamp(c, 0.0, 1.0);
+// ---------------- LOCAL: one masked adjustment ----------------
+export const LOCAL_FRAG = /* glsl */ `#version 300 es
+precision highp float;
+in vec2 v_uv;
+out vec4 fragColor;
+
+uniform sampler2D u_src;     // previous pass result (upright)
+uniform sampler2D u_aiMask;  // AI matte (top-down)
+uniform int u_maskKind;      // 0 linear, 1 radial, 2 rangeLuma, 3 aiSubject
+uniform bool u_invert;
+uniform vec4 u_linear;       // x1,y1,x2,y2 (image space, y down)
+uniform vec4 u_radial;       // cx,cy,rx,ry
+uniform vec2 u_radial2;      // angle, feather
+uniform vec3 u_range;        // lo, hi, feather
+uniform float u_lExposure, u_lContrast, u_lTemp, u_lTint, u_lSat;
+
+const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
+float clamp01(float v) { return clamp(v, 0.0, 1.0); }
+
+float maskWeight(vec2 p, float lum) {
+  if (u_maskKind == 0) {
+    vec2 d = u_linear.zw - u_linear.xy;
+    float l2 = dot(d, d);
+    if (l2 < 1e-9) return 1.0;
+    return clamp01(dot(p - u_linear.xy, d) / l2);
+  } else if (u_maskKind == 1) {
+    float ca = cos(u_radial2.x), sa = sin(u_radial2.x);
+    vec2 o = p - u_radial.xy;
+    float lx = (o.x * ca + o.y * sa) / max(1e-6, u_radial.z);
+    float ly = (-o.x * sa + o.y * ca) / max(1e-6, u_radial.w);
+    float dd = length(vec2(lx, ly));
+    float f = clamp01(u_radial2.y);
+    return 1.0 - smoothstep(1.0 - f, 1.0, dd);
+  } else if (u_maskKind == 2) {
+    float f = max(1e-4, u_range.z);
+    float lower = smoothstep(u_range.x - f, u_range.x, lum);
+    float upper = 1.0 - smoothstep(u_range.y, u_range.y + f, lum);
+    return clamp01(min(lower, upper));
+  }
+  return texture(u_aiMask, p).r; // aiSubject: p is image-space (top-down)
+}
+
+void main() {
+  vec2 iuv = vec2(v_uv.x, 1.0 - v_uv.y);
+  vec3 c = texture(u_src, v_uv).rgb;
+  float lum = dot(c, LUMA);
+  float m = maskWeight(iuv, lum);
+  if (u_invert) m = 1.0 - m;
+
+  vec3 a = c;
+  a *= exp2(u_lExposure);
+  a.r *= 1.0 + 0.4 * u_lTemp + 0.2 * u_lTint;
+  a.b *= 1.0 - 0.4 * u_lTemp + 0.2 * u_lTint;
+  a.g *= 1.0 - 0.2 * u_lTint;
+  a = (a - 0.5) * (1.0 + u_lContrast) + 0.5;
+  { float g = dot(a, LUMA); a = mix(vec3(g), a, 1.0 + u_lSat); }
+  a = clamp(a, 0.0, 1.0);
+
+  fragColor = vec4(mix(c, a, m), 1.0);
+}
+`;
+
+// ---------------- COMPOSITE: background matte → screen ----------------
+export const COMPOSITE_FRAG = /* glsl */ `#version 300 es
+precision highp float;
+in vec2 v_uv;
+out vec4 fragColor;
+
+uniform sampler2D u_src;
+uniform sampler2D u_mask;
+uniform bool u_maskOn;
+uniform int u_bgMode;   // 0 none, 1 transparent, 2 color
+uniform vec3 u_bgColor;
+
+void main() {
+  vec2 iuv = vec2(v_uv.x, 1.0 - v_uv.y);
+  vec3 c = clamp(texture(u_src, v_uv).rgb, 0.0, 1.0);
   float outA = 1.0;
   if (u_maskOn && u_bgMode != 0) {
-    float fg = texture(u_mask, uv).r; // foreground coverage 0..1
-    if (u_bgMode == 2) c = mix(u_bgColor, c, fg); // replace background with a color
-    else outA = fg;                                // transparent background
+    float fg = texture(u_mask, iuv).r;
+    if (u_bgMode == 2) c = mix(u_bgColor, c, fg);
+    else outA = fg;
   }
   fragColor = vec4(c, outA);
 }

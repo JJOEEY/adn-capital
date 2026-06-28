@@ -418,3 +418,73 @@ input[type="color"] {
   padding: 5px 8px;
   font: inherit;
 }
+
+/* ---------- Pillar 1: masking ---------- */
+.mask-panel {
+  border-top: 6px solid #1414178a;
+  padding: 0 12px 16px;
+}
+.mask-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.mask-row.sel {
+  background: #2c2c33;
+  outline: 1px solid var(--accent);
+}
+.mask-eye {
+  background: none;
+  border: none;
+  color: var(--text);
+  padding: 0 2px;
+}
+.mask-name {
+  flex: 1;
+  font-size: 12px;
+}
+.mask-edit {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.mask-edit h5 {
+  margin: 10px 2px 2px;
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+.mask-invert {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  margin: 4px 2px 8px;
+}
+.mask-invert input {
+  accent-color: var(--accent);
+}
+.mask-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 50;
+}
+.mask-line {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.85);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 3;
+}
+.mask-handle {
+  fill: var(--accent);
+  stroke: #fff;
+  stroke-width: 1.5;
+  pointer-events: auto;
+  cursor: grab;
+}

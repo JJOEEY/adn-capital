@@ -5,6 +5,7 @@ import { create } from "zustand";
 import { BackgroundOp, cloneRecipe, DEFAULT_RECIPE, Recipe, recipesEqual } from "../editor/recipe";
 import { Look } from "../editor/color/look";
 import { CubeLut } from "../editor/color/lut";
+import { LocalAdjustment, MaskKind, newLocalAdjustment } from "../editor/masks";
 
 export interface LoadedImage {
   bitmap: ImageBitmap;
@@ -29,6 +30,7 @@ interface EditorState {
   past: Recipe[];
   future: Recipe[];
   showOriginal: boolean; // hold-to-compare (before/after)
+  selectedMaskId: string | null; // local adjustment being edited (for the panel + overlay)
 
   setImage: (img: LoadedImage) => void;
   setAdjust: (key: keyof Recipe, value: number) => void;
@@ -36,6 +38,10 @@ interface EditorState {
   setLut: (lut: CubeLut | null) => void; // import/clear 3D LUT (own history step)
   setMask: (mask: ImageMask | null) => void; // AI matte result
   setBg: (bg: BackgroundOp) => void; // background compositing mode (own history step)
+  addLocal: (kind: MaskKind) => void;
+  updateLocal: (id: string, mutate: (la: LocalAdjustment) => void) => void; // live; commit on release
+  removeLocal: (id: string) => void;
+  selectMask: (id: string | null) => void;
   commit: () => void; // push current recipe onto history (call on slider release)
   reset: () => void;
   applyRecipe: (r: Recipe) => void; // e.g. when applying a preset
@@ -53,6 +59,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   past: [],
   future: [],
   showOriginal: false,
+  selectedMaskId: null,
 
   setImage: (img) =>
     set({
@@ -61,6 +68,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       recipe: cloneRecipe(DEFAULT_RECIPE),
       past: [],
       future: [],
+      selectedMaskId: null,
     }),
 
   // Live update while dragging — does NOT touch history (avoids one entry per pixel).
@@ -85,6 +93,44 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((s) => ({ recipe: { ...s.recipe, bg } }));
     get().commit();
   },
+
+  addLocal: (kind) => {
+    get().commit();
+    const la = newLocalAdjustment(kind);
+    set((s) => ({
+      recipe: { ...s.recipe, localAdjustments: [...s.recipe.localAdjustments, la] },
+      selectedMaskId: la.id,
+    }));
+    get().commit();
+  },
+
+  // Live edit of a local adjustment (slider/handle drag) — commit on release.
+  updateLocal: (id, mutate) =>
+    set((s) => ({
+      recipe: {
+        ...s.recipe,
+        localAdjustments: s.recipe.localAdjustments.map((l) => {
+          if (l.id !== id) return l;
+          const next = structuredClone(l);
+          mutate(next);
+          return next;
+        }),
+      },
+    })),
+
+  removeLocal: (id) => {
+    get().commit();
+    set((s) => ({
+      recipe: {
+        ...s.recipe,
+        localAdjustments: s.recipe.localAdjustments.filter((l) => l.id !== id),
+      },
+      selectedMaskId: s.selectedMaskId === id ? null : s.selectedMaskId,
+    }));
+    get().commit();
+  },
+
+  selectMask: (id) => set({ selectedMaskId: id }),
 
   // Snapshot the recipe at the moment a gesture ends so undo steps are meaningful.
   commit: () =>

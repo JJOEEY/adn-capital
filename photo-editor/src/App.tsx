@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Canvas } from "./components/Canvas";
 import { AdjustPanel } from "./components/AdjustPanel";
 import { ColorGradePanel } from "./components/ColorGradePanel";
+import { MaskPanel } from "./components/MaskPanel";
 import { BgPanel } from "./components/BgPanel";
 import { ExportPanel } from "./components/ExportPanel";
 import { Library } from "./components/Library";
@@ -42,6 +43,7 @@ export default function App() {
           <Histogram />
           <AdjustPanel />
           <ColorGradePanel />
+          <MaskPanel />
           <BgPanel />
           <ExportPanel />
           <Presets />

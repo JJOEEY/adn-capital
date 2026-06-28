@@ -7,6 +7,7 @@
 
 import { Look, defaultLook, isDefaultLook } from "./color/look";
 import { CubeLut } from "./color/lut";
+import { LocalAdjustment } from "./masks";
 
 export interface Recipe {
   // Light
@@ -35,6 +36,9 @@ export interface Recipe {
   // M4 — background (AI matting). The mask itself lives in the editor store (it is
   // image-sized); the recipe only carries how to composite it.
   bg: BackgroundOp;
+
+  // Pillar 1 — local adjustments (masked param deltas), each rendered as an extra pass.
+  localAdjustments: LocalAdjustment[];
 }
 
 export type BgMode = "none" | "transparent" | "color";
@@ -58,6 +62,7 @@ export const DEFAULT_RECIPE: Recipe = {
   look: defaultLook(),
   lut: null,
   bg: { mode: "none", color: [1, 1, 1] },
+  localAdjustments: [],
 };
 
 // The scalar (number-valued) adjustment fields — the ones driven by sliders.
@@ -91,7 +96,13 @@ export const ADJUSTMENTS: AdjustSpec[] = [
 
 export function isDefault(r: Recipe): boolean {
   const scalarsDefault = ADJUSTMENTS.every((a) => r[a.key] === DEFAULT_RECIPE[a.key]);
-  return scalarsDefault && isDefaultLook(r.look) && r.lut === null && r.bg.mode === "none";
+  return (
+    scalarsDefault &&
+    isDefaultLook(r.look) &&
+    r.lut === null &&
+    r.bg.mode === "none" &&
+    r.localAdjustments.length === 0
+  );
 }
 
 // Repair a recipe deserialized from JSON: a CubeLut's Float32Array `data` becomes a
@@ -108,6 +119,7 @@ export function reviveRecipe(r: Recipe): Recipe {
     r.bg = { mode: "none", color: [1, 1, 1] };
   }
   if (r.lut === undefined) r.lut = null;
+  if (!Array.isArray(r.localAdjustments)) r.localAdjustments = [];
   return r;
 }
 
@@ -119,6 +131,7 @@ export function cloneRecipe(r: Recipe): Recipe {
     look: structuredClone(r.look),
     lut: r.lut ? structuredClone(r.lut) : null,
     bg: { mode: r.bg.mode, color: [...r.bg.color] },
+    localAdjustments: structuredClone(r.localAdjustments),
   };
 }
 
@@ -126,6 +139,7 @@ export function cloneRecipe(r: Recipe): Recipe {
 export function recipesEqual(a: Recipe, b: Recipe): boolean {
   if (!ADJUSTMENTS.every((s) => a[s.key] === b[s.key])) return false;
   if (a.bg.mode !== b.bg.mode || !a.bg.color.every((v, i) => v === b.bg.color[i])) return false;
+  if (JSON.stringify(a.localAdjustments) !== JSON.stringify(b.localAdjustments)) return false;
   return JSON.stringify(a.look) === JSON.stringify(b.look) && lutEqual(a.lut, b.lut);
 }
 

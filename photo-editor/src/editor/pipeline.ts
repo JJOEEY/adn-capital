@@ -1,39 +1,64 @@
-// WebGL2 render pipeline. Owns the GL context, shader program, source texture, and
-// the M3 lookup textures (1D tone-curve + 3D .cube LUT). `render(recipe)` re-applies
-// the whole non-destructive recipe each frame — a single fullscreen GPU pass.
+// WebGL2 multi-pass render pipeline.
+//   BASE → FBO            global light (M1) + color grade (M3)
+//   LOCAL → FBO (per adj) masked local adjustments, chained (ping-pong FBOs)
+//   COMPOSITE → screen    background matte composite (M4)
+//
+// render(recipe) re-applies the whole non-destructive recipe each frame.
 
 import { Recipe } from "./recipe";
+import { LocalAdjustment } from "./masks";
 import { ImageMask } from "../store/editorStore";
-import { FRAG_SRC, VERT_SRC } from "./shaders";
+import { BASE_FRAG, COMPOSITE_FRAG, LOCAL_FRAG, VERT_SRC } from "./shaders";
 import { evalCurve } from "./color/curve";
 import { wheelTint } from "./color/wheels";
 import { CubeLut } from "./color/lut";
-import { ChannelCurves, hueSatToRGB, Look } from "./color/look";
+import { ChannelCurves, hueSatToRGB } from "./color/look";
 
 const norm = (v: number) => v / 100;
 
-const UNIFORMS = [
-  "u_image",
-  "u_exposure", "u_contrast", "u_highlights", "u_shadows", "u_whites", "u_blacks",
-  "u_temp", "u_tint", "u_saturation", "u_vibrance",
-  "u_curve", "u_curveOn",
-  "u_hsl", "u_hslOn",
+const BASE_UNIFORMS = [
+  "u_image", "u_exposure", "u_contrast", "u_highlights", "u_shadows", "u_whites",
+  "u_blacks", "u_temp", "u_tint", "u_saturation", "u_vibrance",
+  "u_curve", "u_curveOn", "u_hsl", "u_hslOn",
   "u_lift", "u_gain", "u_gammaExp", "u_gmul", "u_wheelsOn",
   "u_splitSh", "u_splitHi", "u_splitBalance", "u_splitOn",
   "u_lut3d", "u_lut3dOn", "u_lutSize", "u_lutDomainMin", "u_lutDomainMax",
-  "u_mask", "u_maskOn", "u_bgMode", "u_bgColor",
-] as const;
+];
+const LOCAL_UNIFORMS = [
+  "u_src", "u_aiMask", "u_maskKind", "u_invert", "u_linear", "u_radial",
+  "u_radial2", "u_range", "u_lExposure", "u_lContrast", "u_lTemp", "u_lTint", "u_lSat",
+];
+const COMPOSITE_UNIFORMS = ["u_src", "u_mask", "u_maskOn", "u_bgMode", "u_bgColor"];
+
+const MASK_KIND_INDEX: Record<LocalAdjustment["mask"]["kind"], number> = {
+  linear: 0,
+  radial: 1,
+  rangeLuma: 2,
+  aiSubject: 3,
+};
+
+type UMap = Record<string, WebGLUniformLocation | null>;
 
 export class RenderPipeline {
   private gl: WebGL2RenderingContext;
-  private program: WebGLProgram;
+  private base: WebGLProgram;
+  private local: WebGLProgram;
+  private composite: WebGLProgram;
+  private baseU: UMap = {};
+  private localU: UMap = {};
+  private compU: UMap = {};
+
   private texture: WebGLTexture | null = null;
   private curveTex: WebGLTexture | null = null;
   private lut3dTex: WebGLTexture | null = null;
-  private dummy3d: WebGLTexture | null = null; // bound to unit 2 when no LUT is active
-  private maskTex: WebGLTexture | null = null; // AI foreground matte (M4)
-  private uniforms: Record<string, WebGLUniformLocation | null> = {};
-  // Caches so we only rebuild lookup textures when their source changes.
+  private dummy3d: WebGLTexture | null = null;
+  private maskTex: WebGLTexture | null = null;
+
+  private fbo: [WebGLFramebuffer | null, WebGLFramebuffer | null] = [null, null];
+  private fboTex: [WebGLTexture | null, WebGLTexture | null] = [null, null];
+  private fboW = 0;
+  private fboH = 0;
+
   private lastCurves: ChannelCurves | null = null;
   private lastLut: CubeLut | null = null;
   imageWidth = 0;
@@ -43,11 +68,12 @@ export class RenderPipeline {
     const gl = canvas.getContext("webgl2", { premultipliedAlpha: false });
     if (!gl) throw new Error("WebGL2 not supported on this device");
     this.gl = gl;
-    this.program = this.buildProgram();
-    gl.useProgram(this.program);
-    for (const name of UNIFORMS) {
-      this.uniforms[name] = gl.getUniformLocation(this.program, name);
-    }
+    this.base = this.program(BASE_FRAG);
+    this.local = this.program(LOCAL_FRAG);
+    this.composite = this.program(COMPOSITE_FRAG);
+    this.baseU = this.locs(this.base, BASE_UNIFORMS);
+    this.localU = this.locs(this.local, LOCAL_UNIFORMS);
+    this.compU = this.locs(this.composite, COMPOSITE_UNIFORMS);
   }
 
   private compile(type: number, src: string): WebGLShader {
@@ -63,10 +89,10 @@ export class RenderPipeline {
     return sh;
   }
 
-  private buildProgram(): WebGLProgram {
+  private program(frag: string): WebGLProgram {
     const gl = this.gl;
     const vs = this.compile(gl.VERTEX_SHADER, VERT_SRC);
-    const fs = this.compile(gl.FRAGMENT_SHADER, FRAG_SRC);
+    const fs = this.compile(gl.FRAGMENT_SHADER, frag);
     const prog = gl.createProgram()!;
     gl.attachShader(prog, vs);
     gl.attachShader(prog, fs);
@@ -77,6 +103,13 @@ export class RenderPipeline {
     gl.deleteShader(vs);
     gl.deleteShader(fs);
     return prog;
+  }
+
+  private locs(prog: WebGLProgram, names: string[]): UMap {
+    const gl = this.gl;
+    const m: UMap = {};
+    for (const n of names) m[n] = gl.getUniformLocation(prog, n);
+    return m;
   }
 
   setImage(source: TexImageSource, width: number, height: number) {
@@ -97,7 +130,6 @@ export class RenderPipeline {
     return this.texture !== null;
   }
 
-  // Upload (or clear) the AI foreground matte as a single-channel R8 texture.
   setMask(mask: ImageMask | null) {
     const gl = this.gl;
     if (this.maskTex) {
@@ -111,34 +143,43 @@ export class RenderPipeline {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1); // arbitrary widths
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, mask.width, mask.height, 0, gl.RED, gl.UNSIGNED_BYTE, mask.data);
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
   }
 
-  private setBgUniforms(recipe: Recipe) {
+  private ensureFbos(w: number, h: number) {
+    if (this.fboW === w && this.fboH === h && this.fbo[0]) return;
     const gl = this.gl;
-    const u = this.uniforms;
-    gl.activeTexture(gl.TEXTURE3);
-    gl.bindTexture(gl.TEXTURE_2D, this.maskTex);
-    gl.uniform1i(u.u_mask, 3);
-    const mode = recipe.bg.mode;
-    const on = this.maskTex !== null && mode !== "none";
-    gl.uniform1i(u.u_maskOn, on ? 1 : 0);
-    gl.uniform1i(u.u_bgMode, mode === "transparent" ? 1 : mode === "color" ? 2 : 0);
-    gl.uniform3f(u.u_bgColor, recipe.bg.color[0], recipe.bg.color[1], recipe.bg.color[2]);
+    for (let i = 0; i < 2; i++) {
+      if (this.fboTex[i]) gl.deleteTexture(this.fboTex[i]);
+      if (this.fbo[i]) gl.deleteFramebuffer(this.fbo[i]);
+      const tex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      const fb = gl.createFramebuffer();
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+      this.fboTex[i] = tex;
+      this.fbo[i] = fb;
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    this.fboW = w;
+    this.fboH = h;
   }
 
-  // --- M3 lookup-texture builders -------------------------------------------
+  // --- texture builders (curve LUT + 3D LUT + dummy) ---
 
-  // 256x1 RGBA texture: per-channel combined map (master curve then channel curve).
   private buildCurveTexture(curves: ChannelCurves) {
     const gl = this.gl;
     const N = 256;
     const data = new Uint8Array(N * 4);
     for (let i = 0; i < N; i++) {
-      const x = i / (N - 1);
-      const m = evalCurve(curves.rgb, x); // master first
+      const m = evalCurve(curves.rgb, i / (N - 1));
       data[i * 4 + 0] = Math.round(evalCurve(curves.r, m) * 255);
       data[i * 4 + 1] = Math.round(evalCurve(curves.g, m) * 255);
       data[i * 4 + 2] = Math.round(evalCurve(curves.b, m) * 255);
@@ -153,7 +194,6 @@ export class RenderPipeline {
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, N, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
   }
 
-  // size^3 RGBA 3D texture from a .cube LUT (data is r-fastest, then g, then b).
   private buildLut3DTexture(lut: CubeLut) {
     const gl = this.gl;
     const s = lut.size;
@@ -174,74 +214,6 @@ export class RenderPipeline {
     gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGBA, s, s, s, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
   }
 
-  // --- M3 enable flags / coefficient prep -----------------------------------
-
-  private curvesActive(curves: ChannelCurves): boolean {
-    return [curves.rgb, curves.r, curves.g, curves.b].some((p) => p.length >= 2);
-  }
-
-  private setLookUniforms(look: Look) {
-    const gl = this.gl;
-    const u = this.uniforms;
-
-    // Tone curves (rebuild texture only when the curve set changed).
-    const curvesOn = this.curvesActive(look.curves);
-    if (curvesOn && look.curves !== this.lastCurves) {
-      this.buildCurveTexture(look.curves);
-      this.lastCurves = look.curves;
-    }
-    gl.uniform1i(u.u_curveOn, curvesOn ? 1 : 0);
-    // Always point u_curve at unit 1 (same sampler type as u_image, so even an empty
-    // bind is harmless); the GLSL u_curveOn flag gates actual use.
-    gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, this.curveTex);
-    gl.uniform1i(u.u_curve, 1);
-
-    // HSL bands (8 × vec3).
-    const hslArr = new Float32Array(8 * 3);
-    let hslOn = false;
-    look.hsl.forEach((b, i) => {
-      hslArr[i * 3 + 0] = b.h;
-      hslArr[i * 3 + 1] = b.s;
-      hslArr[i * 3 + 2] = b.l;
-      if (b.h || b.s || b.l) hslOn = true;
-    });
-    gl.uniform3fv(u.u_hsl, hslArr);
-    gl.uniform1i(u.u_hslOn, hslOn ? 1 : 0);
-
-    // Color wheels → lift / gain / gammaExp / gmul (matches wheels.ts CPU math).
-    const w = look.wheels;
-    const tSh = wheelTint(w.shadows), tMid = wheelTint(w.midtones);
-    const tHi = wheelTint(w.highlights), tG = wheelTint(w.global);
-    const lift = [0, 1, 2].map((c) => w.shadows.l * 0.5 + tSh[c]);
-    const gain = [0, 1, 2].map((c) => 1 + w.highlights.l + tHi[c]);
-    const gammaExp = [0, 1, 2].map((c) => {
-      const g0 = 1 + w.midtones.l + tMid[c];
-      return 1 / Math.min(10, Math.max(0.1, g0));
-    });
-    const gmul = [0, 1, 2].map((c) => 1 + w.global.l + tG[c]);
-    const wheelsOn = [w.shadows, w.midtones, w.highlights, w.global].some(
-      (x) => x.h || x.s || x.l
-    );
-    gl.uniform3f(u.u_lift, lift[0], lift[1], lift[2]);
-    gl.uniform3f(u.u_gain, gain[0], gain[1], gain[2]);
-    gl.uniform3f(u.u_gammaExp, gammaExp[0], gammaExp[1], gammaExp[2]);
-    gl.uniform3f(u.u_gmul, gmul[0], gmul[1], gmul[2]);
-    gl.uniform1i(u.u_wheelsOn, wheelsOn ? 1 : 0);
-
-    // Split toning.
-    const s = look.split;
-    const sh = hueSatToRGB(s.shadowHue, s.shadowSat);
-    const hi = hueSatToRGB(s.highlightHue, s.highlightSat);
-    gl.uniform3f(u.u_splitSh, sh[0], sh[1], sh[2]);
-    gl.uniform3f(u.u_splitHi, hi[0], hi[1], hi[2]);
-    gl.uniform1f(u.u_splitBalance, s.balance);
-    gl.uniform1i(u.u_splitOn, s.shadowSat || s.highlightSat ? 1 : 0);
-  }
-
-  // A 1×1×1 black 3D texture so the sampler3D u_lut3d always has a valid 3D texture
-  // on its unit — otherwise it would default to unit 0 and collide (type mismatch)
-  // with the 2D image sampler, making draws a no-op on conformant drivers.
   private ensureDummy3D() {
     if (this.dummy3d) return;
     const gl = this.gl;
@@ -256,45 +228,15 @@ export class RenderPipeline {
       new Uint8Array([0, 0, 0, 255]));
   }
 
-  private setLutUniform(lut: CubeLut | null) {
-    const gl = this.gl;
-    const u = this.uniforms;
-    this.ensureDummy3D();
-    gl.activeTexture(gl.TEXTURE2);
-    if (lut) {
-      if (lut !== this.lastLut) {
-        this.buildLut3DTexture(lut);
-        this.lastLut = lut;
-      }
-      gl.bindTexture(gl.TEXTURE_3D, this.lut3dTex);
-      gl.uniform1f(u.u_lutSize, lut.size);
-      gl.uniform3f(u.u_lutDomainMin, lut.domainMin[0], lut.domainMin[1], lut.domainMin[2]);
-      gl.uniform3f(u.u_lutDomainMax, lut.domainMax[0], lut.domainMax[1], lut.domainMax[2]);
-      gl.uniform1i(u.u_lut3dOn, 1);
-    } else {
-      gl.bindTexture(gl.TEXTURE_3D, this.dummy3d);
-      gl.uniform1f(u.u_lutSize, 2);
-      gl.uniform3f(u.u_lutDomainMin, 0, 0, 0);
-      gl.uniform3f(u.u_lutDomainMax, 1, 1, 1);
-      gl.uniform1i(u.u_lut3dOn, 0);
-    }
-    gl.uniform1i(u.u_lut3d, 2); // u_lut3d always resolves to unit 2 (only 3D textures)
-  }
+  // --- per-program uniform setup ---
 
-  render(recipe: Recipe) {
+  private setBaseUniforms(recipe: Recipe) {
     const gl = this.gl;
-    if (!this.texture) return;
-    const canvas = gl.canvas as HTMLCanvasElement;
-    gl.viewport(0, 0, canvas.width, canvas.height);
-    gl.clearColor(0, 0, 0, 1);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-
-    gl.useProgram(this.program);
+    const u = this.baseU;
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
-    gl.uniform1i(this.uniforms.u_image, 0);
+    gl.uniform1i(u.u_image, 0);
 
-    const u = this.uniforms;
     gl.uniform1f(u.u_exposure, recipe.exposure);
     gl.uniform1f(u.u_contrast, norm(recipe.contrast));
     gl.uniform1f(u.u_highlights, norm(recipe.highlights));
@@ -306,10 +248,141 @@ export class RenderPipeline {
     gl.uniform1f(u.u_saturation, norm(recipe.saturation));
     gl.uniform1f(u.u_vibrance, norm(recipe.vibrance));
 
-    this.setLookUniforms(recipe.look);
-    this.setLutUniform(recipe.lut);
-    this.setBgUniforms(recipe);
+    const look = recipe.look;
+    const curvesOn = [look.curves.rgb, look.curves.r, look.curves.g, look.curves.b].some(
+      (p) => p.length >= 2
+    );
+    if (curvesOn && look.curves !== this.lastCurves) {
+      this.buildCurveTexture(look.curves);
+      this.lastCurves = look.curves;
+    }
+    gl.uniform1i(u.u_curveOn, curvesOn ? 1 : 0);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, this.curveTex);
+    gl.uniform1i(u.u_curve, 1);
 
+    const hslArr = new Float32Array(8 * 3);
+    let hslOn = false;
+    look.hsl.forEach((b, i) => {
+      hslArr[i * 3] = b.h;
+      hslArr[i * 3 + 1] = b.s;
+      hslArr[i * 3 + 2] = b.l;
+      if (b.h || b.s || b.l) hslOn = true;
+    });
+    gl.uniform3fv(u.u_hsl, hslArr);
+    gl.uniform1i(u.u_hslOn, hslOn ? 1 : 0);
+
+    const w = look.wheels;
+    const tSh = wheelTint(w.shadows), tMid = wheelTint(w.midtones);
+    const tHi = wheelTint(w.highlights), tG = wheelTint(w.global);
+    const lift = [0, 1, 2].map((c) => w.shadows.l * 0.5 + tSh[c]);
+    const gain = [0, 1, 2].map((c) => 1 + w.highlights.l + tHi[c]);
+    const gammaExp = [0, 1, 2].map((c) => 1 / Math.min(10, Math.max(0.1, 1 + w.midtones.l + tMid[c])));
+    const gmul = [0, 1, 2].map((c) => 1 + w.global.l + tG[c]);
+    gl.uniform3f(u.u_lift, lift[0], lift[1], lift[2]);
+    gl.uniform3f(u.u_gain, gain[0], gain[1], gain[2]);
+    gl.uniform3f(u.u_gammaExp, gammaExp[0], gammaExp[1], gammaExp[2]);
+    gl.uniform3f(u.u_gmul, gmul[0], gmul[1], gmul[2]);
+    gl.uniform1i(u.u_wheelsOn, [w.shadows, w.midtones, w.highlights, w.global].some((x) => x.h || x.s || x.l) ? 1 : 0);
+
+    const s = look.split;
+    const sh = hueSatToRGB(s.shadowHue, s.shadowSat);
+    const hi = hueSatToRGB(s.highlightHue, s.highlightSat);
+    gl.uniform3f(u.u_splitSh, sh[0], sh[1], sh[2]);
+    gl.uniform3f(u.u_splitHi, hi[0], hi[1], hi[2]);
+    gl.uniform1f(u.u_splitBalance, s.balance);
+    gl.uniform1i(u.u_splitOn, s.shadowSat || s.highlightSat ? 1 : 0);
+
+    this.ensureDummy3D();
+    gl.activeTexture(gl.TEXTURE2);
+    if (recipe.lut) {
+      if (recipe.lut !== this.lastLut) {
+        this.buildLut3DTexture(recipe.lut);
+        this.lastLut = recipe.lut;
+      }
+      gl.bindTexture(gl.TEXTURE_3D, this.lut3dTex);
+      gl.uniform1f(u.u_lutSize, recipe.lut.size);
+      gl.uniform3f(u.u_lutDomainMin, recipe.lut.domainMin[0], recipe.lut.domainMin[1], recipe.lut.domainMin[2]);
+      gl.uniform3f(u.u_lutDomainMax, recipe.lut.domainMax[0], recipe.lut.domainMax[1], recipe.lut.domainMax[2]);
+      gl.uniform1i(u.u_lut3dOn, 1);
+    } else {
+      gl.bindTexture(gl.TEXTURE_3D, this.dummy3d);
+      gl.uniform1f(u.u_lutSize, 2);
+      gl.uniform3f(u.u_lutDomainMin, 0, 0, 0);
+      gl.uniform3f(u.u_lutDomainMax, 1, 1, 1);
+      gl.uniform1i(u.u_lut3dOn, 0);
+    }
+    gl.uniform1i(u.u_lut3d, 2);
+  }
+
+  private setLocalUniforms(la: LocalAdjustment) {
+    const gl = this.gl;
+    const u = this.localU;
+    const m = la.mask;
+    gl.uniform1i(u.u_maskKind, MASK_KIND_INDEX[m.kind]);
+    gl.uniform1i(u.u_invert, m.invert ? 1 : 0);
+    gl.uniform4f(u.u_linear, m.linear.x1, m.linear.y1, m.linear.x2, m.linear.y2);
+    gl.uniform4f(u.u_radial, m.radial.cx, m.radial.cy, m.radial.rx, m.radial.ry);
+    gl.uniform2f(u.u_radial2, m.radial.angle, m.radial.feather);
+    gl.uniform3f(u.u_range, m.range.lo, m.range.hi, m.range.feather);
+    const p = la.params;
+    gl.uniform1f(u.u_lExposure, p.exposure / 100); // ±1 EV
+    gl.uniform1f(u.u_lContrast, norm(p.contrast));
+    gl.uniform1f(u.u_lTemp, norm(p.temp));
+    gl.uniform1f(u.u_lTint, norm(p.tint));
+    gl.uniform1f(u.u_lSat, norm(p.saturation));
+  }
+
+  render(recipe: Recipe) {
+    const gl = this.gl;
+    if (!this.texture) return;
+    const canvas = gl.canvas as HTMLCanvasElement;
+    const w = canvas.width;
+    const h = canvas.height;
+    this.ensureFbos(w, h);
+
+    // BASE → fbo[0]
+    gl.useProgram(this.base);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo[0]);
+    gl.viewport(0, 0, w, h);
+    this.setBaseUniforms(recipe);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    let cur = 0;
+
+    // LOCAL passes → ping-pong
+    const locals = (recipe.localAdjustments ?? []).filter((l) => l.visible);
+    if (locals.length) {
+      gl.useProgram(this.local);
+      for (const la of locals) {
+        const dst = 1 - cur;
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo[dst]);
+        gl.viewport(0, 0, w, h);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, this.fboTex[cur]);
+        gl.uniform1i(this.localU.u_src, 0);
+        gl.activeTexture(gl.TEXTURE3);
+        gl.bindTexture(gl.TEXTURE_2D, this.maskTex);
+        gl.uniform1i(this.localU.u_aiMask, 3);
+        this.setLocalUniforms(la);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+        cur = dst;
+      }
+    }
+
+    // COMPOSITE → screen
+    gl.useProgram(this.composite);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, w, h);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, this.fboTex[cur]);
+    gl.uniform1i(this.compU.u_src, 0);
+    gl.activeTexture(gl.TEXTURE3);
+    gl.bindTexture(gl.TEXTURE_2D, this.maskTex);
+    gl.uniform1i(this.compU.u_mask, 3);
+    const mode = recipe.bg.mode;
+    gl.uniform1i(this.compU.u_maskOn, this.maskTex !== null && mode !== "none" ? 1 : 0);
+    gl.uniform1i(this.compU.u_bgMode, mode === "transparent" ? 1 : mode === "color" ? 2 : 0);
+    gl.uniform3f(this.compU.u_bgColor, recipe.bg.color[0], recipe.bg.color[1], recipe.bg.color[2]);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 
@@ -330,9 +403,13 @@ export class RenderPipeline {
     if (this.lut3dTex) gl.deleteTexture(this.lut3dTex);
     if (this.dummy3d) gl.deleteTexture(this.dummy3d);
     if (this.maskTex) gl.deleteTexture(this.maskTex);
-    gl.deleteProgram(this.program);
-    // Free the GL context immediately so repeated exports don't exhaust the
-    // browser's context cap.
+    for (let i = 0; i < 2; i++) {
+      if (this.fboTex[i]) gl.deleteTexture(this.fboTex[i]);
+      if (this.fbo[i]) gl.deleteFramebuffer(this.fbo[i]);
+    }
+    gl.deleteProgram(this.base);
+    gl.deleteProgram(this.local);
+    gl.deleteProgram(this.composite);
     gl.getExtension("WEBGL_lose_context")?.loseContext();
   }
 }

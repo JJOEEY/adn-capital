@@ -6,6 +6,7 @@ import { useEffect, useRef } from "react";
 import { RenderPipeline } from "../editor/pipeline";
 import { DEFAULT_RECIPE } from "../editor/recipe";
 import { useEditorStore } from "../store/editorStore";
+import { MaskOverlay } from "./MaskOverlay";
 
 export function Canvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -66,6 +67,7 @@ export function Canvas() {
         </div>
       )}
       <canvas ref={canvasRef} className="preview" style={{ display: image ? "block" : "none" }} />
+      <MaskOverlay canvasRef={canvasRef} />
     </div>
   );
 }
