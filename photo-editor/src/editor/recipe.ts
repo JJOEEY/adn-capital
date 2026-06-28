@@ -99,13 +99,19 @@ export function recipesEqual(a: Recipe, b: Recipe): boolean {
   return JSON.stringify(a.look) === JSON.stringify(b.look) && lutEqual(a.lut, b.lut);
 }
 
+// Coerce LUT data to a real Float32Array (a JSON round-trip turns it into a plain
+// indexed object, which has no .length/.every).
+function asF32(d: Float32Array | ArrayLike<number>): Float32Array {
+  return d instanceof Float32Array ? d : Float32Array.from(Object.values(d as object) as number[]);
+}
+
 function lutEqual(a: CubeLut | null, b: CubeLut | null): boolean {
   if (a === b) return true;
   if (!a || !b) return false;
-  return (
-    a.dim === b.dim &&
-    a.size === b.size &&
-    a.data.length === b.data.length &&
-    a.data.every((v, i) => v === b.data[i])
-  );
+  if (a.dim !== b.dim || a.size !== b.size) return false;
+  const da = asF32(a.data);
+  const db = asF32(b.data);
+  if (da.length !== db.length) return false;
+  for (let i = 0; i < da.length; i++) if (da[i] !== db[i]) return false;
+  return true;
 }

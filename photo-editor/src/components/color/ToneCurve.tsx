@@ -21,11 +21,16 @@ const HIT = 0.04; // hit radius in normalized space
 export function ToneCurve() {
   const { look, update, commit } = useLook();
   const [chan, setChan] = useState<Channel>("rgb");
-  const dragIdx = useRef<number | null>(null);
+  // During a drag we hold a mutable working array and track the dragged point by
+  // OBJECT IDENTITY (not array index), so re-sorting when it crosses a neighbor
+  // never grabs the wrong point.
+  const work = useRef<CurvePt[] | null>(null);
+  const dragPt = useRef<CurvePt | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
   const raw = look.curves[chan];
-  const points: CurvePt[] = raw.length >= 2 ? raw : [{ x: 0, y: 0 }, { x: 1, y: 1 }];
+  const points: CurvePt[] =
+    work.current ?? (raw.length >= 2 ? raw : [{ x: 0, y: 0 }, { x: 1, y: 1 }]);
 
   const toXY = (e: React.PointerEvent) => {
     const rect = svgRef.current!.getBoundingClientRect();
@@ -34,38 +39,50 @@ export function ToneCurve() {
     return { x: Math.min(1, Math.max(0, x)), y: Math.min(1, Math.max(0, y)) };
   };
 
+  // Store deep copies so the committed/live state is decoupled from our work objects.
   const writePoints = (pts: CurvePt[]) =>
     update((l) => {
-      l.curves[chan] = pts.slice().sort((a, b) => a.x - b.x);
+      l.curves[chan] = pts
+        .slice()
+        .sort((a, b) => a.x - b.x)
+        .map((p) => ({ x: p.x, y: p.y }));
     });
 
   const onDown = (e: React.PointerEvent) => {
     svgRef.current!.setPointerCapture(e.pointerId);
     const p = toXY(e);
-    const idx = points.findIndex((pt) => Math.hypot(pt.x - p.x, pt.y - p.y) < HIT);
-    if (idx >= 0) {
-      dragIdx.current = idx;
-    } else {
-      const next = [...points, p].sort((a, b) => a.x - b.x);
-      dragIdx.current = next.findIndex((pt) => pt.x === p.x && pt.y === p.y);
-      writePoints(next);
+    const base: CurvePt[] = (raw.length >= 2 ? raw : [{ x: 0, y: 0 }, { x: 1, y: 1 }]).map(
+      (q) => ({ x: q.x, y: q.y })
+    );
+    let pt = base.find((q) => Math.hypot(q.x - p.x, q.y - p.y) < HIT);
+    if (!pt) {
+      pt = { ...p };
+      base.push(pt);
     }
+    base.sort((a, b) => a.x - b.x);
+    work.current = base;
+    dragPt.current = pt;
+    writePoints(base);
   };
 
   const onMove = (e: React.PointerEvent) => {
-    if (dragIdx.current == null) return;
+    const arr = work.current;
+    const pt = dragPt.current;
+    if (!arr || !pt) return;
     const p = toXY(e);
-    const i = dragIdx.current;
-    const next = points.map((pt, j) => (j === i ? p : pt));
-    // keep endpoints pinned to x=0 / x=1
-    if (i === 0) next[0] = { x: 0, y: p.y };
-    if (i === points.length - 1) next[i] = { x: 1, y: p.y };
-    writePoints(next);
+    // Endpoints stay pinned in x; interior points move freely.
+    const isFirst = arr[0] === pt;
+    const isLast = arr[arr.length - 1] === pt;
+    pt.x = isFirst ? 0 : isLast ? 1 : p.x;
+    pt.y = p.y;
+    arr.sort((a, b) => a.x - b.x);
+    writePoints(arr);
   };
 
   const onUp = () => {
-    if (dragIdx.current != null) commit();
-    dragIdx.current = null;
+    if (dragPt.current) commit();
+    work.current = null;
+    dragPt.current = null;
   };
 
   const removePoint = (i: number) => {

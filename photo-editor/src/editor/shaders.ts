@@ -43,6 +43,8 @@ uniform float u_splitBalance;
 uniform bool u_splitOn;
 uniform sampler3D u_lut3d;
 uniform bool u_lut3dOn;
+uniform float u_lutSize;            // 3D LUT lattice size (for texel-center remap)
+uniform vec3 u_lutDomainMin, u_lutDomainMax;
 
 const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
 const float PI = 3.14159265359;
@@ -81,6 +83,7 @@ vec3 hsl2rgb(vec3 hsl) {
 
 vec3 applyHsl(vec3 c) {
   vec3 hsl = rgb2hsl(c);
+  if (hsl.y < 1e-6) return c; // grey pixel: no hue to weight (mirror hsl.ts S===0)
   float hues[8] = float[8](0.0, 30.0, 60.0, 120.0, 180.0, 240.0, 270.0, 300.0);
   float W = 0.0, hShift = 0.0, sAcc = 0.0, lAcc = 0.0;
   for (int i = 0; i < 8; i++) {
@@ -152,16 +155,24 @@ void main() {
 
   // ---------------- M3 color grade ----------------
   if (u_curveOn) {
+    // Sample at texel centers of the 256-wide curve LUT to match CPU evalCurve.
     c = vec3(
-      texture(u_curve, vec2(c.r, 0.5)).r,
-      texture(u_curve, vec2(c.g, 0.5)).g,
-      texture(u_curve, vec2(c.b, 0.5)).b
+      texture(u_curve, vec2((c.r * 255.0 + 0.5) / 256.0, 0.5)).r,
+      texture(u_curve, vec2((c.g * 255.0 + 0.5) / 256.0, 0.5)).g,
+      texture(u_curve, vec2((c.b * 255.0 + 0.5) / 256.0, 0.5)).b
     );
   }
   if (u_hslOn) c = applyHsl(c);
   if (u_wheelsOn) c = applyWheels(c);
   if (u_splitOn) c = applySplit(c);
-  if (u_lut3dOn) c = clamp(texture(u_lut3d, clamp(c, 0.0, 1.0)).rgb, 0.0, 1.0);
+  if (u_lut3dOn) {
+    // Domain-normalize, then remap to texel centers so HW trilinear reproduces the
+    // CPU's node interpolation in lut.ts applyCube.
+    vec3 t = (clamp(c, 0.0, 1.0) - u_lutDomainMin) / max(vec3(1e-6), u_lutDomainMax - u_lutDomainMin);
+    t = clamp(t, 0.0, 1.0);
+    vec3 q = (t * (u_lutSize - 1.0) + 0.5) / u_lutSize;
+    c = clamp(texture(u_lut3d, q).rgb, 0.0, 1.0);
+  }
 
   fragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
 }

@@ -14,9 +14,21 @@ interface Preset {
 
 const KEY = "lumen.presets.v1";
 
+// JSON.parse turns a CubeLut's Float32Array `data` into a plain indexed object.
+// Restore it to a real typed array so the pipeline / equality / export all work.
+function reviveRecipe(r: Recipe): Recipe {
+  const lut = r.lut;
+  if (lut && !(lut.data instanceof Float32Array)) {
+    lut.data = Float32Array.from(Object.values(lut.data as object) as number[]);
+  }
+  return r;
+}
+
 function load(): Preset[] {
   try {
-    return JSON.parse(localStorage.getItem(KEY) ?? "[]");
+    const arr = JSON.parse(localStorage.getItem(KEY) ?? "[]") as Preset[];
+    arr.forEach((p) => reviveRecipe(p.recipe));
+    return arr;
   } catch {
     return [];
   }
@@ -56,6 +68,7 @@ export function Presets() {
     try {
       const p = JSON.parse(file.text) as Preset;
       if (!p.name || !p.recipe) throw new Error("not a Lumen preset");
+      reviveRecipe(p.recipe);
       const next = [...presets.filter((x) => x.name !== p.name), p];
       setPresets(next);
       persist(next);

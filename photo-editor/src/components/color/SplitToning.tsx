@@ -29,6 +29,7 @@ export function SplitToning() {
         value={props.value}
         onChange={(e) => update((l) => props.set(l, parseFloat(e.target.value)))}
         onPointerUp={commit}
+        onKeyUp={commit}
         onDoubleClick={() => {
           update((l) => props.set(l, 0));
           commit();

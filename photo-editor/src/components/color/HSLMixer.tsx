@@ -36,6 +36,7 @@ export function HSLMixer() {
                   update((l) => (l.hsl[i][sub.key] = parseFloat(e.target.value) / 100))
                 }
                 onPointerUp={commit}
+                onKeyUp={commit}
                 onDoubleClick={() => {
                   update((l) => (l.hsl[i][sub.key] = 0));
                   commit();

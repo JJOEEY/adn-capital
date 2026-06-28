@@ -19,7 +19,7 @@ const UNIFORMS = [
   "u_hsl", "u_hslOn",
   "u_lift", "u_gain", "u_gammaExp", "u_gmul", "u_wheelsOn",
   "u_splitSh", "u_splitHi", "u_splitBalance", "u_splitOn",
-  "u_lut3d", "u_lut3dOn",
+  "u_lut3d", "u_lut3dOn", "u_lutSize", "u_lutDomainMin", "u_lutDomainMax",
 ] as const;
 
 export class RenderPipeline {
@@ -28,6 +28,7 @@ export class RenderPipeline {
   private texture: WebGLTexture | null = null;
   private curveTex: WebGLTexture | null = null;
   private lut3dTex: WebGLTexture | null = null;
+  private dummy3d: WebGLTexture | null = null; // bound to unit 2 when no LUT is active
   private uniforms: Record<string, WebGLUniformLocation | null> = {};
   // Caches so we only rebuild lookup textures when their source changes.
   private lastCurves: ChannelCurves | null = null;
@@ -155,11 +156,11 @@ export class RenderPipeline {
       this.lastCurves = look.curves;
     }
     gl.uniform1i(u.u_curveOn, curvesOn ? 1 : 0);
-    if (curvesOn) {
-      gl.activeTexture(gl.TEXTURE1);
-      gl.bindTexture(gl.TEXTURE_2D, this.curveTex);
-      gl.uniform1i(u.u_curve, 1);
-    }
+    // Always point u_curve at unit 1 (same sampler type as u_image, so even an empty
+    // bind is harmless); the GLSL u_curveOn flag gates actual use.
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, this.curveTex);
+    gl.uniform1i(u.u_curve, 1);
 
     // HSL bands (8 × vec3).
     const hslArr = new Float32Array(8 * 3);
@@ -203,21 +204,46 @@ export class RenderPipeline {
     gl.uniform1i(u.u_splitOn, s.shadowSat || s.highlightSat ? 1 : 0);
   }
 
+  // A 1×1×1 black 3D texture so the sampler3D u_lut3d always has a valid 3D texture
+  // on its unit — otherwise it would default to unit 0 and collide (type mismatch)
+  // with the 2D image sampler, making draws a no-op on conformant drivers.
+  private ensureDummy3D() {
+    if (this.dummy3d) return;
+    const gl = this.gl;
+    this.dummy3d = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_3D, this.dummy3d);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGBA, 1, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE,
+      new Uint8Array([0, 0, 0, 255]));
+  }
+
   private setLutUniform(lut: CubeLut | null) {
     const gl = this.gl;
     const u = this.uniforms;
+    this.ensureDummy3D();
+    gl.activeTexture(gl.TEXTURE2);
     if (lut) {
       if (lut !== this.lastLut) {
         this.buildLut3DTexture(lut);
         this.lastLut = lut;
       }
-      gl.activeTexture(gl.TEXTURE2);
       gl.bindTexture(gl.TEXTURE_3D, this.lut3dTex);
-      gl.uniform1i(u.u_lut3d, 2);
+      gl.uniform1f(u.u_lutSize, lut.size);
+      gl.uniform3f(u.u_lutDomainMin, lut.domainMin[0], lut.domainMin[1], lut.domainMin[2]);
+      gl.uniform3f(u.u_lutDomainMax, lut.domainMax[0], lut.domainMax[1], lut.domainMax[2]);
       gl.uniform1i(u.u_lut3dOn, 1);
     } else {
+      gl.bindTexture(gl.TEXTURE_3D, this.dummy3d);
+      gl.uniform1f(u.u_lutSize, 2);
+      gl.uniform3f(u.u_lutDomainMin, 0, 0, 0);
+      gl.uniform3f(u.u_lutDomainMax, 1, 1, 1);
       gl.uniform1i(u.u_lut3dOn, 0);
     }
+    gl.uniform1i(u.u_lut3d, 2); // u_lut3d always resolves to unit 2 (only 3D textures)
   }
 
   render(recipe: Recipe) {
@@ -266,6 +292,7 @@ export class RenderPipeline {
     if (this.texture) gl.deleteTexture(this.texture);
     if (this.curveTex) gl.deleteTexture(this.curveTex);
     if (this.lut3dTex) gl.deleteTexture(this.lut3dTex);
+    if (this.dummy3d) gl.deleteTexture(this.dummy3d);
     gl.deleteProgram(this.program);
   }
 }

@@ -44,16 +44,18 @@ function WheelPad({
   const ref = useRef<SVGSVGElement>(null);
   const dragging = useRef(false);
 
-  // hue/sat -> dot position on the circle (radius 50, center 50,50).
+  // Display radius and the pointer→saturation scale must use the SAME radius (R) so
+  // the dot tracks the cursor exactly. R=48 keeps a full-saturation dot inside the ring.
+  const R = 48;
   const rad = (wheel.h * Math.PI) / 180;
-  const cx = 50 + Math.cos(rad) * wheel.s * 46;
-  const cy = 50 - Math.sin(rad) * wheel.s * 46;
+  const cx = 50 + Math.cos(rad) * wheel.s * R;
+  const cy = 50 - Math.sin(rad) * wheel.s * R;
 
   const fromEvent = (e: React.PointerEvent) => {
     const rect = ref.current!.getBoundingClientRect();
     const dx = (e.clientX - rect.left) / rect.width - 0.5;
     const dy = 0.5 - (e.clientY - rect.top) / rect.height;
-    const sat = Math.min(1, Math.hypot(dx, dy) * 2);
+    const sat = Math.min(1, (Math.hypot(dx, dy) * 100) / R); // viewBox radius / R
     let hue = (Math.atan2(dy, dx) * 180) / Math.PI;
     if (hue < 0) hue += 360;
     onChange({ ...wheel, h: hue, s: sat });
@@ -67,6 +69,7 @@ function WheelPad({
         className="wheel-pad"
         viewBox="0 0 100 100"
         onPointerDown={(e) => {
+          if (e.detail > 1) return; // ignore the pointerdown that begins a double-click (reset)
           ref.current!.setPointerCapture(e.pointerId);
           dragging.current = true;
           fromEvent(e);
@@ -99,6 +102,7 @@ function WheelPad({
         value={Math.round(wheel.l * 100)}
         onChange={(e) => onChange({ ...wheel, l: parseFloat(e.target.value) / 100 })}
         onPointerUp={onCommit}
+        onKeyUp={onCommit}
         onDoubleClick={() => {
           onChange({ ...wheel, l: 0 });
           onCommit();
