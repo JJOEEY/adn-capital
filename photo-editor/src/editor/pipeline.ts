@@ -9,7 +9,7 @@ import { Recipe } from "./recipe";
 import { LocalAdjustment } from "./masks";
 import { BLEND_INDEX } from "./layers";
 import { ImageMask, LayerImage } from "../store/editorStore";
-import { BASE_FRAG, COMPOSITE_FRAG, DETAIL_FRAG, LAYER_FRAG, LOCAL_FRAG, VERT_SRC } from "./shaders";
+import { BASE_FRAG, COMPOSITE_FRAG, DETAIL_FRAG, HEAL_FRAG, LAYER_FRAG, LOCAL_FRAG, VERT_SRC } from "./shaders";
 import { evalCurve } from "./color/curve";
 import { wheelTint } from "./color/wheels";
 import { CubeLut } from "./color/lut";
@@ -30,6 +30,7 @@ const LOCAL_UNIFORMS = [
   "u_radial2", "u_range", "u_lExposure", "u_lContrast", "u_lTemp", "u_lTint", "u_lSat",
 ];
 const DETAIL_UNIFORMS = ["u_src", "u_texel", "u_clarity", "u_sharpen", "u_nr"];
+const HEAL_UNIFORMS = ["u_src", "u_dst", "u_srcpos", "u_radius", "u_feather", "u_aspect", "u_mode"];
 const LAYER_UNIFORMS = ["u_src", "u_layer", "u_blend", "u_opacity"];
 const COMPOSITE_UNIFORMS = ["u_src", "u_mask", "u_maskOn", "u_bgMode", "u_bgColor"];
 
@@ -46,11 +47,13 @@ export class RenderPipeline {
   private gl: WebGL2RenderingContext;
   private base: WebGLProgram;
   private detail: WebGLProgram;
+  private heal: WebGLProgram;
   private local: WebGLProgram;
   private layer: WebGLProgram;
   private composite: WebGLProgram;
   private baseU: UMap = {};
   private detailU: UMap = {};
+  private healU: UMap = {};
   private localU: UMap = {};
   private layerU: UMap = {};
   private compU: UMap = {};
@@ -78,11 +81,13 @@ export class RenderPipeline {
     this.gl = gl;
     this.base = this.program(BASE_FRAG);
     this.detail = this.program(DETAIL_FRAG);
+    this.heal = this.program(HEAL_FRAG);
     this.local = this.program(LOCAL_FRAG);
     this.layer = this.program(LAYER_FRAG);
     this.composite = this.program(COMPOSITE_FRAG);
     this.baseU = this.locs(this.base, BASE_UNIFORMS);
     this.detailU = this.locs(this.detail, DETAIL_UNIFORMS);
+    this.healU = this.locs(this.heal, HEAL_UNIFORMS);
     this.localU = this.locs(this.local, LOCAL_UNIFORMS);
     this.layerU = this.locs(this.layer, LAYER_UNIFORMS);
     this.compU = this.locs(this.composite, COMPOSITE_UNIFORMS);
@@ -414,6 +419,29 @@ export class RenderPipeline {
       cur = dst;
     }
 
+    // HEAL passes → spot clone/heal (each samples the prior accumulator).
+    const spots = recipe.spots ?? [];
+    if (spots.length) {
+      gl.useProgram(this.heal);
+      const aspect = this.imageHeight ? this.imageWidth / this.imageHeight : 1;
+      for (const sp of spots) {
+        const dst = 1 - cur;
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo[dst]);
+        gl.viewport(0, 0, w, h);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, this.fboTex[cur]);
+        gl.uniform1i(this.healU.u_src, 0);
+        gl.uniform2f(this.healU.u_dst, sp.dx, sp.dy);
+        gl.uniform2f(this.healU.u_srcpos, sp.sx, sp.sy);
+        gl.uniform1f(this.healU.u_radius, sp.radius);
+        gl.uniform1f(this.healU.u_feather, sp.feather);
+        gl.uniform1f(this.healU.u_aspect, aspect);
+        gl.uniform1i(this.healU.u_mode, sp.mode === "clone" ? 1 : 0);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+        cur = dst;
+      }
+    }
+
     // LOCAL passes → ping-pong. Skip AI-subject masks with no matte loaded (an
     // inverted no-matte subject mask would otherwise select the whole image).
     const locals = (recipe.localAdjustments ?? []).filter(
@@ -502,6 +530,7 @@ export class RenderPipeline {
     this.layerTextures.clear();
     gl.deleteProgram(this.base);
     gl.deleteProgram(this.detail);
+    gl.deleteProgram(this.heal);
     gl.deleteProgram(this.local);
     gl.deleteProgram(this.layer);
     gl.deleteProgram(this.composite);

@@ -3,6 +3,7 @@ import { Canvas } from "./components/Canvas";
 import { AdjustPanel } from "./components/AdjustPanel";
 import { ColorGradePanel } from "./components/ColorGradePanel";
 import { MaskPanel } from "./components/MaskPanel";
+import { HealPanel } from "./components/HealPanel";
 import { LayersPanel } from "./components/LayersPanel";
 import { BgPanel } from "./components/BgPanel";
 import { ExportPanel } from "./components/ExportPanel";
@@ -82,6 +83,7 @@ export default function App() {
           <AdjustPanel />
           <ColorGradePanel />
           <MaskPanel />
+          <HealPanel />
           <LayersPanel />
           <BgPanel />
           <ExportPanel />

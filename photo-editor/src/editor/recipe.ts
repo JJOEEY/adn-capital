@@ -9,6 +9,7 @@ import { Look, defaultLook, isDefaultLook } from "./color/look";
 import { CubeLut } from "./color/lut";
 import { LocalAdjustment } from "./masks";
 import { LayerProps } from "./layers";
+import { HealSpot } from "./heal";
 
 export interface Recipe {
   // Light
@@ -45,6 +46,9 @@ export interface Recipe {
 
   // Pillar 2 — image layer stack (props only; pixels live in the editor store).
   layerStack: LayerProps[];
+
+  // Retouch — spot heal / clone (positions only; renders as extra passes).
+  spots: HealSpot[];
 }
 
 export type BgMode = "none" | "transparent" | "color";
@@ -72,6 +76,7 @@ export const DEFAULT_RECIPE: Recipe = {
   bg: { mode: "none", color: [1, 1, 1] },
   localAdjustments: [],
   layerStack: [],
+  spots: [],
 };
 
 // The scalar (number-valued) adjustment fields — the ones driven by sliders.
@@ -113,7 +118,8 @@ export function isDefault(r: Recipe): boolean {
     r.lut === null &&
     r.bg.mode === "none" &&
     r.localAdjustments.length === 0 &&
-    r.layerStack.length === 0
+    r.layerStack.length === 0 &&
+    r.spots.length === 0
   );
 }
 
@@ -138,6 +144,7 @@ export function reviveRecipe(r: Recipe): Recipe {
   if (r.lut === undefined) r.lut = null;
   if (!Array.isArray(r.localAdjustments)) r.localAdjustments = [];
   if (!Array.isArray(r.layerStack)) r.layerStack = [];
+  if (!Array.isArray(r.spots)) r.spots = [];
   return r;
 }
 
@@ -151,6 +158,7 @@ export function cloneRecipe(r: Recipe): Recipe {
     bg: { mode: r.bg.mode, color: [...r.bg.color] },
     localAdjustments: structuredClone(r.localAdjustments),
     layerStack: structuredClone(r.layerStack),
+    spots: structuredClone(r.spots),
   };
 }
 
@@ -160,6 +168,7 @@ export function recipesEqual(a: Recipe, b: Recipe): boolean {
   if (a.bg.mode !== b.bg.mode || !a.bg.color.every((v, i) => v === b.bg.color[i])) return false;
   if (JSON.stringify(a.localAdjustments) !== JSON.stringify(b.localAdjustments)) return false;
   if (JSON.stringify(a.layerStack) !== JSON.stringify(b.layerStack)) return false;
+  if (JSON.stringify(a.spots) !== JSON.stringify(b.spots)) return false;
   return JSON.stringify(a.look) === JSON.stringify(b.look) && lutEqual(a.lut, b.lut);
 }
 

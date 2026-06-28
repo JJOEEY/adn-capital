@@ -7,6 +7,7 @@ import { RenderPipeline } from "../editor/pipeline";
 import { DEFAULT_RECIPE } from "../editor/recipe";
 import { useEditorStore } from "../store/editorStore";
 import { MaskOverlay } from "./MaskOverlay";
+import { HealOverlay } from "./HealOverlay";
 
 export function Canvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -74,6 +75,7 @@ export function Canvas() {
       )}
       <canvas ref={canvasRef} className="preview" style={{ display: image ? "block" : "none" }} />
       <MaskOverlay canvasRef={canvasRef} />
+      <HealOverlay canvasRef={canvasRef} />
     </div>
   );
 }

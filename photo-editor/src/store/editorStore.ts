@@ -7,6 +7,7 @@ import { Look } from "../editor/color/look";
 import { CubeLut } from "../editor/color/lut";
 import { LocalAdjustment, MaskKind, newLocalAdjustment } from "../editor/masks";
 import { LayerProps, newLayerProps } from "../editor/layers";
+import { HealSpot, newHealSpot } from "../editor/heal";
 
 export interface LoadedImage {
   bitmap: ImageBitmap;
@@ -60,6 +61,11 @@ interface EditorState {
   updateLayer: (id: string, mutate: (p: LayerProps) => void) => void; // live; commit on release
   removeLayer: (id: string) => void;
   moveLayer: (id: string, dir: -1 | 1) => void;
+  selectedSpotId: string | null;
+  addSpot: () => void;
+  updateSpot: (id: string, mutate: (s: HealSpot) => void) => void; // live; commit on release
+  removeSpot: (id: string) => void;
+  selectSpot: (id: string | null) => void;
   commit: () => void; // push current recipe onto history (call on slider release)
   reset: () => void;
   applyRecipe: (r: Recipe, opts?: { keepLayers?: boolean }) => void; // presets/catalog restore
@@ -84,6 +90,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   future: [],
   showOriginal: false,
   selectedMaskId: null,
+  selectedSpotId: null,
 
   setImage: (img) =>
     set({
@@ -96,6 +103,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       past: [],
       future: [],
       selectedMaskId: null,
+      selectedSpotId: null,
     }),
 
   // Live update while dragging — does NOT touch history (avoids one entry per pixel).
@@ -158,6 +166,37 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   selectMask: (id) => set({ selectedMaskId: id }),
+
+  addSpot: () => {
+    get().commit();
+    const sp = newHealSpot();
+    set((s) => ({
+      recipe: { ...s.recipe, spots: [...s.recipe.spots, sp] },
+      selectedSpotId: sp.id,
+    }));
+    get().commit();
+  },
+  updateSpot: (id, mutate) =>
+    set((s) => ({
+      recipe: {
+        ...s.recipe,
+        spots: s.recipe.spots.map((sp) => {
+          if (sp.id !== id) return sp;
+          const next = { ...sp };
+          mutate(next);
+          return next;
+        }),
+      },
+    })),
+  removeSpot: (id) => {
+    get().commit();
+    set((s) => ({
+      recipe: { ...s.recipe, spots: s.recipe.spots.filter((sp) => sp.id !== id) },
+      selectedSpotId: s.selectedSpotId === id ? null : s.selectedSpotId,
+    }));
+    get().commit();
+  },
+  selectSpot: (id) => set({ selectedSpotId: id }),
 
   clipboardRecipe: null,
   copySettings: () => {

@@ -489,6 +489,23 @@ input[type="color"] {
   cursor: grab;
 }
 
+/* heal/clone spot rings */
+.heal-dst {
+  fill: none;
+  stroke: #4f8cff;
+  stroke-width: 1.5;
+}
+.heal-src {
+  fill: none;
+  stroke: #5fb85f;
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+}
+.heal-panel {
+  border-top: 6px solid #1414178a;
+  padding: 0 12px 16px;
+}
+
 /* ---------- Pillar 2: layers ---------- */
 .layers-panel {
   border-top: 6px solid #1414178a;
