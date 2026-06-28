@@ -12,6 +12,7 @@ export function ExportPanel() {
   const image = useEditorStore((s) => s.image);
   const recipe = useEditorStore((s) => s.recipe);
   const mask = useEditorStore((s) => s.mask);
+  const layers = useEditorStore((s) => s.layers);
   const entitled = useLicense((s) => s.entitled);
   const [format, setFormat] = useState<ExportFormat>("png");
   const [quality, setQuality] = useState(92);
@@ -23,7 +24,7 @@ export function ExportPanel() {
     if (!image) return;
     setBusy(true);
     try {
-      await exportImage(image, recipe, mask, format, quality / 100, !entitled);
+      await exportImage(image, recipe, mask, layers, format, quality / 100, !entitled);
     } catch (e) {
       alert("Export failed: " + (e as Error).message);
     } finally {

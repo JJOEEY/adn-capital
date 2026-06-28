@@ -7,8 +7,9 @@
 
 import { Recipe } from "./recipe";
 import { LocalAdjustment } from "./masks";
-import { ImageMask } from "../store/editorStore";
-import { BASE_FRAG, COMPOSITE_FRAG, LOCAL_FRAG, VERT_SRC } from "./shaders";
+import { BLEND_INDEX } from "./layers";
+import { ImageMask, LayerImage } from "../store/editorStore";
+import { BASE_FRAG, COMPOSITE_FRAG, LAYER_FRAG, LOCAL_FRAG, VERT_SRC } from "./shaders";
 import { evalCurve } from "./color/curve";
 import { wheelTint } from "./color/wheels";
 import { CubeLut } from "./color/lut";
@@ -28,6 +29,7 @@ const LOCAL_UNIFORMS = [
   "u_src", "u_aiMask", "u_maskKind", "u_invert", "u_linear", "u_radial",
   "u_radial2", "u_range", "u_lExposure", "u_lContrast", "u_lTemp", "u_lTint", "u_lSat",
 ];
+const LAYER_UNIFORMS = ["u_src", "u_layer", "u_blend", "u_opacity"];
 const COMPOSITE_UNIFORMS = ["u_src", "u_mask", "u_maskOn", "u_bgMode", "u_bgColor"];
 
 const MASK_KIND_INDEX: Record<LocalAdjustment["mask"]["kind"], number> = {
@@ -43,10 +45,13 @@ export class RenderPipeline {
   private gl: WebGL2RenderingContext;
   private base: WebGLProgram;
   private local: WebGLProgram;
+  private layer: WebGLProgram;
   private composite: WebGLProgram;
   private baseU: UMap = {};
   private localU: UMap = {};
+  private layerU: UMap = {};
   private compU: UMap = {};
+  private layerTextures = new Map<string, WebGLTexture>();
 
   private texture: WebGLTexture | null = null;
   private curveTex: WebGLTexture | null = null;
@@ -70,10 +75,36 @@ export class RenderPipeline {
     this.gl = gl;
     this.base = this.program(BASE_FRAG);
     this.local = this.program(LOCAL_FRAG);
+    this.layer = this.program(LAYER_FRAG);
     this.composite = this.program(COMPOSITE_FRAG);
     this.baseU = this.locs(this.base, BASE_UNIFORMS);
     this.localU = this.locs(this.local, LOCAL_UNIFORMS);
+    this.layerU = this.locs(this.layer, LAYER_UNIFORMS);
     this.compU = this.locs(this.composite, COMPOSITE_UNIFORMS);
+  }
+
+  // Upload/refresh layer image textures; drop textures for removed layers.
+  setLayers(layers: LayerImage[]) {
+    const gl = this.gl;
+    const keep = new Set(layers.map((l) => l.id));
+    for (const [id, tex] of this.layerTextures) {
+      if (!keep.has(id)) {
+        gl.deleteTexture(tex);
+        this.layerTextures.delete(id);
+      }
+    }
+    for (const l of layers) {
+      if (this.layerTextures.has(l.id)) continue;
+      gl.activeTexture(gl.TEXTURE7);
+      const tex = gl.createTexture()!;
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, l.bitmap);
+      this.layerTextures.set(l.id, tex);
+    }
   }
 
   private compile(type: number, src: string): WebGLShader {
@@ -380,6 +411,29 @@ export class RenderPipeline {
       }
     }
 
+    // LAYER passes → composite each image layer (bottom → top)
+    const stack = (recipe.layerStack ?? []).filter(
+      (p) => p.visible && this.layerTextures.has(p.id)
+    );
+    if (stack.length) {
+      gl.useProgram(this.layer);
+      for (const p of stack) {
+        const dst = 1 - cur;
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo[dst]);
+        gl.viewport(0, 0, w, h);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, this.fboTex[cur]);
+        gl.uniform1i(this.layerU.u_src, 0);
+        gl.activeTexture(gl.TEXTURE4);
+        gl.bindTexture(gl.TEXTURE_2D, this.layerTextures.get(p.id)!);
+        gl.uniform1i(this.layerU.u_layer, 4);
+        gl.uniform1i(this.layerU.u_blend, BLEND_INDEX[p.blend]);
+        gl.uniform1f(this.layerU.u_opacity, p.opacity);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+        cur = dst;
+      }
+    }
+
     // COMPOSITE → screen
     gl.useProgram(this.composite);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -418,8 +472,11 @@ export class RenderPipeline {
       if (this.fboTex[i]) gl.deleteTexture(this.fboTex[i]);
       if (this.fbo[i]) gl.deleteFramebuffer(this.fbo[i]);
     }
+    for (const tex of this.layerTextures.values()) gl.deleteTexture(tex);
+    this.layerTextures.clear();
     gl.deleteProgram(this.base);
     gl.deleteProgram(this.local);
+    gl.deleteProgram(this.layer);
     gl.deleteProgram(this.composite);
     gl.getExtension("WEBGL_lose_context")?.loseContext();
   }

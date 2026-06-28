@@ -488,3 +488,56 @@ input[type="color"] {
   pointer-events: auto;
   cursor: grab;
 }
+
+/* ---------- Pillar 2: layers ---------- */
+.layers-panel {
+  border-top: 6px solid #1414178a;
+  padding: 0 12px 16px;
+}
+.layer-row {
+  display: flex;
+  gap: 8px;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.layer-main {
+  flex: 1;
+  min-width: 0;
+}
+.layer-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.layer-move {
+  display: flex;
+  gap: 2px;
+}
+.layer-move button {
+  padding: 0 5px;
+  font-size: 10px;
+  background: none;
+  border: none;
+  color: var(--muted);
+}
+.layer-move button:hover:not(:disabled) {
+  color: var(--text);
+}
+.layer-controls {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 4px;
+}
+.layer-controls select {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font: inherit;
+  font-size: 11px;
+  padding: 2px 4px;
+}
+.layer-controls input[type="range"] {
+  flex: 1;
+}

@@ -15,6 +15,7 @@ export function Canvas() {
   const image = useEditorStore((s) => s.image);
   const recipe = useEditorStore((s) => s.recipe);
   const mask = useEditorStore((s) => s.mask);
+  const layers = useEditorStore((s) => s.layers);
   const showOriginal = useEditorStore((s) => s.showOriginal);
 
   // Init pipeline once.
@@ -51,12 +52,17 @@ export function Canvas() {
     pipelineRef.current?.setMask(mask);
   }, [mask]);
 
-  // Re-render on recipe / mask / before-after change.
+  // Upload layer textures when the layer set changes.
+  useEffect(() => {
+    pipelineRef.current?.setLayers(layers);
+  }, [layers]);
+
+  // Re-render on recipe / mask / layers / before-after change.
   useEffect(() => {
     const pipe = pipelineRef.current;
     if (!pipe || !pipe.hasImage()) return;
     pipe.render(showOriginal ? DEFAULT_RECIPE : recipe);
-  }, [recipe, showOriginal, mask]);
+  }, [recipe, showOriginal, mask, layers]);
 
   return (
     <div className="canvas-wrap">

@@ -4,7 +4,7 @@
 
 import { RenderPipeline } from "../editor/pipeline";
 import { Recipe } from "../editor/recipe";
-import { ImageMask, LoadedImage } from "../store/editorStore";
+import { ImageMask, LayerImage, LoadedImage } from "../store/editorStore";
 import { saveBinaryFile } from "./platform";
 
 export type ExportFormat = "png" | "jpeg" | "webp";
@@ -20,6 +20,7 @@ export async function renderToBlob(
   image: LoadedImage,
   recipe: Recipe,
   mask: ImageMask | null,
+  layers: LayerImage[],
   format: ExportFormat,
   quality = 0.92,
   watermark = false
@@ -35,6 +36,7 @@ export async function renderToBlob(
   try {
     pipe.setImage(image.bitmap, image.width, image.height);
     pipe.setMask(mask);
+    pipe.setLayers(layers);
     pipe.render(recipe);
 
     // JPEG/WebP have no alpha — a transparent matte would flatten to black, so
@@ -83,11 +85,12 @@ export async function exportImage(
   image: LoadedImage,
   recipe: Recipe,
   mask: ImageMask | null,
+  layers: LayerImage[],
   format: ExportFormat,
   quality = 0.92,
   watermark = false
 ): Promise<void> {
-  const blob = await renderToBlob(image, recipe, mask, format, quality, watermark);
+  const blob = await renderToBlob(image, recipe, mask, layers, format, quality, watermark);
   const bytes = new Uint8Array(await blob.arrayBuffer());
   const base = image.name.replace(/\.[^.]+$/, "");
   const ext = format === "jpeg" ? "jpg" : format;

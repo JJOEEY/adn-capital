@@ -212,6 +212,48 @@ void main() {
 }
 `;
 
+// ---------------- LAYER: composite one image layer with a blend mode ----------------
+export const LAYER_FRAG = /* glsl */ `#version 300 es
+precision highp float;
+in vec2 v_uv;
+out vec4 fragColor;
+
+uniform sampler2D u_src;    // accumulator (upright)
+uniform sampler2D u_layer;  // layer image (top-down)
+uniform int u_blend;        // 0 normal,1 mult,2 screen,3 overlay,4 softlight,5 darken,6 lighten,7 diff,8 add
+uniform float u_opacity;
+
+vec3 blend(int mode, vec3 d, vec3 s) {
+  if (mode == 1) return d * s;
+  if (mode == 2) return 1.0 - (1.0 - d) * (1.0 - s);
+  if (mode == 3) return mix(2.0 * d * s, 1.0 - 2.0 * (1.0 - d) * (1.0 - s), step(0.5, d));
+  if (mode == 4) {
+    vec3 r;
+    for (int i = 0; i < 3; i++) {
+      float dd = d[i], ss = s[i];
+      r[i] = ss < 0.5
+        ? dd - (1.0 - 2.0 * ss) * dd * (1.0 - dd)
+        : dd + (2.0 * ss - 1.0) * ((dd < 0.25 ? ((16.0 * dd - 12.0) * dd + 4.0) * dd : sqrt(dd)) - dd);
+    }
+    return r;
+  }
+  if (mode == 5) return min(d, s);
+  if (mode == 6) return max(d, s);
+  if (mode == 7) return abs(d - s);
+  if (mode == 8) return clamp(d + s, 0.0, 1.0);
+  return s;
+}
+
+void main() {
+  vec2 iuv = vec2(v_uv.x, 1.0 - v_uv.y);
+  vec3 d = texture(u_src, v_uv).rgb;
+  vec4 lp = texture(u_layer, iuv);
+  float a = u_opacity * lp.a; // respect the layer image's own alpha
+  vec3 b = clamp(blend(u_blend, d, lp.rgb), 0.0, 1.0);
+  fragColor = vec4(mix(d, b, a), 1.0);
+}
+`;
+
 // ---------------- COMPOSITE: background matte → screen ----------------
 export const COMPOSITE_FRAG = /* glsl */ `#version 300 es
 precision highp float;

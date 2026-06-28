@@ -6,6 +6,7 @@ import { BackgroundOp, cloneRecipe, DEFAULT_RECIPE, Recipe, recipesEqual } from 
 import { Look } from "../editor/color/look";
 import { CubeLut } from "../editor/color/lut";
 import { LocalAdjustment, MaskKind, newLocalAdjustment } from "../editor/masks";
+import { LayerProps, newLayerProps } from "../editor/layers";
 
 export interface LoadedImage {
   bitmap: ImageBitmap;
@@ -23,9 +24,20 @@ export interface ImageMask {
   height: number;
 }
 
+// A composited image layer's pixels (Pillar 2). Properties (opacity/blend/order)
+// live in recipe.layerStack, linked by id.
+export interface LayerImage {
+  id: string;
+  bitmap: ImageBitmap;
+  width: number;
+  height: number;
+  name: string;
+}
+
 interface EditorState {
   image: LoadedImage | null;
   mask: ImageMask | null; // AI foreground matte (M4)
+  layers: LayerImage[]; // composited layer pixels (Pillar 2)
   recipe: Recipe;
   baseline: Recipe; // last committed state (current edits live in `recipe`)
   past: Recipe[]; // states we can undo to
@@ -43,6 +55,10 @@ interface EditorState {
   updateLocal: (id: string, mutate: (la: LocalAdjustment) => void) => void; // live; commit on release
   removeLocal: (id: string) => void;
   selectMask: (id: string | null) => void;
+  addLayer: (layer: LayerImage) => void;
+  updateLayer: (id: string, mutate: (p: LayerProps) => void) => void; // live; commit on release
+  removeLayer: (id: string) => void;
+  moveLayer: (id: string, dir: -1 | 1) => void;
   commit: () => void; // push current recipe onto history (call on slider release)
   reset: () => void;
   applyRecipe: (r: Recipe) => void; // e.g. when applying a preset
@@ -56,6 +72,7 @@ const HISTORY_LIMIT = 100;
 export const useEditorStore = create<EditorState>((set, get) => ({
   image: null,
   mask: null,
+  layers: [],
   recipe: cloneRecipe(DEFAULT_RECIPE),
   baseline: cloneRecipe(DEFAULT_RECIPE),
   past: [],
@@ -67,6 +84,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({
       image: img,
       mask: null,
+      layers: [],
       recipe: cloneRecipe(DEFAULT_RECIPE),
       baseline: cloneRecipe(DEFAULT_RECIPE),
       past: [],
@@ -134,6 +152,55 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   selectMask: (id) => set({ selectedMaskId: id }),
+
+  addLayer: (layer) => {
+    get().commit();
+    set((s) => ({
+      layers: [...s.layers, layer],
+      recipe: {
+        ...s.recipe,
+        layerStack: [...s.recipe.layerStack, newLayerProps(layer.id, layer.name)],
+      },
+    }));
+    get().commit();
+  },
+
+  // Live edit of layer props (opacity drag) — commit on release. Discrete changes
+  // (blend/visibility) should call commit() right after.
+  updateLayer: (id, mutate) =>
+    set((s) => ({
+      recipe: {
+        ...s.recipe,
+        layerStack: s.recipe.layerStack.map((p) => {
+          if (p.id !== id) return p;
+          const next = { ...p };
+          mutate(next);
+          return next;
+        }),
+      },
+    })),
+
+  removeLayer: (id) => {
+    get().commit();
+    set((s) => ({
+      layers: s.layers.filter((l) => l.id !== id),
+      recipe: { ...s.recipe, layerStack: s.recipe.layerStack.filter((p) => p.id !== id) },
+    }));
+    get().commit();
+  },
+
+  moveLayer: (id, dir) => {
+    get().commit();
+    set((s) => {
+      const stack = [...s.recipe.layerStack];
+      const i = stack.findIndex((p) => p.id === id);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= stack.length) return {} as Partial<EditorState>;
+      [stack[i], stack[j]] = [stack[j], stack[i]];
+      return { recipe: { ...s.recipe, layerStack: stack } };
+    });
+    get().commit();
+  },
 
   // Commit the live recipe as a new history step. `baseline` holds the last
   // committed state; on commit the OLD baseline moves to `past` and becomes the
