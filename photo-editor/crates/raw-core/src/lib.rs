@@ -55,8 +55,8 @@ pub fn render_to_rgba(scene: &RawScene, meta: RawMeta) -> DecodedRaw {
         .iter()
         .map(|&v| color::normalize(v, scene.black, scene.white))
         .collect();
-    // 2. Demosaic to linear camera RGB.
-    let rgb = demosaic::demosaic_bilinear(&norm, scene.width, scene.height, scene.pattern);
+    // 2. Demosaic to linear camera RGB (Malvar — sharper than bilinear, same cost).
+    let rgb = demosaic::demosaic_malvar(&norm, scene.width, scene.height, scene.pattern);
     // 3. White balance + camera→sRGB matrix, then gamma encode.
     let wb = color::normalize_wb(scene.wb);
     let m = color::cam_to_srgb(&scene.xyz_to_cam);

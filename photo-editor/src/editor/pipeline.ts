@@ -9,7 +9,7 @@ import { Recipe } from "./recipe";
 import { LocalAdjustment } from "./masks";
 import { BLEND_INDEX } from "./layers";
 import { ImageMask, LayerImage } from "../store/editorStore";
-import { BASE_FRAG, COMPOSITE_FRAG, LAYER_FRAG, LOCAL_FRAG, VERT_SRC } from "./shaders";
+import { BASE_FRAG, COMPOSITE_FRAG, DETAIL_FRAG, LAYER_FRAG, LOCAL_FRAG, VERT_SRC } from "./shaders";
 import { evalCurve } from "./color/curve";
 import { wheelTint } from "./color/wheels";
 import { CubeLut } from "./color/lut";
@@ -29,6 +29,7 @@ const LOCAL_UNIFORMS = [
   "u_src", "u_aiMask", "u_maskKind", "u_invert", "u_linear", "u_radial",
   "u_radial2", "u_range", "u_lExposure", "u_lContrast", "u_lTemp", "u_lTint", "u_lSat",
 ];
+const DETAIL_UNIFORMS = ["u_src", "u_texel", "u_clarity", "u_sharpen", "u_nr"];
 const LAYER_UNIFORMS = ["u_src", "u_layer", "u_blend", "u_opacity"];
 const COMPOSITE_UNIFORMS = ["u_src", "u_mask", "u_maskOn", "u_bgMode", "u_bgColor"];
 
@@ -44,10 +45,12 @@ type UMap = Record<string, WebGLUniformLocation | null>;
 export class RenderPipeline {
   private gl: WebGL2RenderingContext;
   private base: WebGLProgram;
+  private detail: WebGLProgram;
   private local: WebGLProgram;
   private layer: WebGLProgram;
   private composite: WebGLProgram;
   private baseU: UMap = {};
+  private detailU: UMap = {};
   private localU: UMap = {};
   private layerU: UMap = {};
   private compU: UMap = {};
@@ -74,10 +77,12 @@ export class RenderPipeline {
     if (!gl) throw new Error("WebGL2 not supported on this device");
     this.gl = gl;
     this.base = this.program(BASE_FRAG);
+    this.detail = this.program(DETAIL_FRAG);
     this.local = this.program(LOCAL_FRAG);
     this.layer = this.program(LAYER_FRAG);
     this.composite = this.program(COMPOSITE_FRAG);
     this.baseU = this.locs(this.base, BASE_UNIFORMS);
+    this.detailU = this.locs(this.detail, DETAIL_UNIFORMS);
     this.localU = this.locs(this.local, LOCAL_UNIFORMS);
     this.layerU = this.locs(this.layer, LAYER_UNIFORMS);
     this.compU = this.locs(this.composite, COMPOSITE_UNIFORMS);
@@ -388,6 +393,23 @@ export class RenderPipeline {
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     let cur = 0;
 
+    // DETAIL pass (clarity + sharpening + noise reduction) — only if any are active.
+    if (recipe.clarity !== 0 || recipe.sharpening !== 0 || recipe.noiseReduction !== 0) {
+      const dst = 1 - cur;
+      gl.useProgram(this.detail);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo[dst]);
+      gl.viewport(0, 0, w, h);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, this.fboTex[cur]);
+      gl.uniform1i(this.detailU.u_src, 0);
+      gl.uniform2f(this.detailU.u_texel, 1 / w, 1 / h);
+      gl.uniform1f(this.detailU.u_clarity, (recipe.clarity / 100) * 0.5);
+      gl.uniform1f(this.detailU.u_sharpen, (recipe.sharpening / 100) * 1.5);
+      gl.uniform1f(this.detailU.u_nr, (recipe.noiseReduction / 100) * 0.9);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      cur = dst;
+    }
+
     // LOCAL passes → ping-pong. Skip AI-subject masks with no matte loaded (an
     // inverted no-matte subject mask would otherwise select the whole image).
     const locals = (recipe.localAdjustments ?? []).filter(
@@ -475,6 +497,7 @@ export class RenderPipeline {
     for (const tex of this.layerTextures.values()) gl.deleteTexture(tex);
     this.layerTextures.clear();
     gl.deleteProgram(this.base);
+    gl.deleteProgram(this.detail);
     gl.deleteProgram(this.local);
     gl.deleteProgram(this.layer);
     gl.deleteProgram(this.composite);

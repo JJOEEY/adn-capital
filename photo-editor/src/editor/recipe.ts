@@ -27,8 +27,10 @@ export interface Recipe {
   saturation: number; // -100 .. 100
   vibrance: number; // -100 .. 100
 
-  // Detail (display-space approximation for now)
-  clarity: number; // -100 .. 100
+  // Detail
+  clarity: number; // -100 .. 100 (local contrast)
+  sharpening: number; // 0 .. 100 (capture sharpening / unsharp)
+  noiseReduction: number; // 0 .. 100
 
   // M3 — color grading (non-scalar; edited via the color panels, not sliders)
   look: Look;
@@ -63,6 +65,8 @@ export const DEFAULT_RECIPE: Recipe = {
   saturation: 0,
   vibrance: 0,
   clarity: 0,
+  sharpening: 0,
+  noiseReduction: 0,
   look: defaultLook(),
   lut: null,
   bg: { mode: "none", color: [1, 1, 1] },
@@ -97,6 +101,8 @@ export const ADJUSTMENTS: AdjustSpec[] = [
   { key: "vibrance", label: "Vibrance", group: "Color", min: -100, max: 100, step: 1 },
   { key: "saturation", label: "Saturation", group: "Color", min: -100, max: 100, step: 1 },
   { key: "clarity", label: "Clarity", group: "Detail", min: -100, max: 100, step: 1 },
+  { key: "sharpening", label: "Sharpening", group: "Detail", min: 0, max: 100, step: 1 },
+  { key: "noiseReduction", label: "Noise Reduction", group: "Detail", min: 0, max: 100, step: 1 },
 ];
 
 export function isDefault(r: Recipe): boolean {

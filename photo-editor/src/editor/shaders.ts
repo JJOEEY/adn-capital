@@ -212,6 +212,44 @@ void main() {
 }
 `;
 
+// ---------------- DETAIL: clarity + sharpening + noise reduction ----------------
+export const DETAIL_FRAG = /* glsl */ `#version 300 es
+precision highp float;
+in vec2 v_uv;
+out vec4 fragColor;
+
+uniform sampler2D u_src;
+uniform vec2 u_texel;     // 1/width, 1/height
+uniform float u_clarity;  // -1 .. 1
+uniform float u_sharpen;  // 0 .. ~2
+uniform float u_nr;       // 0 .. 1
+
+const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
+
+void main() {
+  vec3 c = texture(u_src, v_uv).rgb;
+  // 3x3 box blur of the neighborhood.
+  vec3 blur = vec3(0.0);
+  for (int dy = -1; dy <= 1; dy++)
+    for (int dx = -1; dx <= 1; dx++)
+      blur += texture(u_src, v_uv + vec2(float(dx), float(dy)) * u_texel).rgb;
+  blur /= 9.0;
+
+  // Noise reduction: pull toward the blur but preserve luminance (chroma-ish smoothing).
+  if (u_nr > 0.0) {
+    float l0 = dot(c, LUMA);
+    vec3 sm = mix(c, blur, u_nr);
+    c = sm + (l0 - dot(sm, LUMA));
+  }
+  // Sharpening: unsharp mask.
+  c += u_sharpen * (c - blur);
+  // Clarity: mild local contrast on luminance.
+  c += vec3(u_clarity * (dot(c, LUMA) - dot(blur, LUMA)));
+
+  fragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
+}
+`;
+
 // ---------------- LAYER: composite one image layer with a blend mode ----------------
 export const LAYER_FRAG = /* glsl */ `#version 300 es
 precision highp float;
