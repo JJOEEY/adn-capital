@@ -9,9 +9,10 @@ export function isTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
-// Decode a File/Blob into a LoadedImage (ImageBitmap + dimensions).
+// Decode a File/Blob into a LoadedImage (ImageBitmap + dimensions). Straight
+// (non-premultiplied) alpha so the GPU blend math matches for layers with alpha.
 async function decodeBlob(blob: Blob, name: string): Promise<LoadedImage> {
-  const bitmap = await createImageBitmap(blob);
+  const bitmap = await createImageBitmap(blob, { premultiplyAlpha: "none" });
   return { bitmap, width: bitmap.width, height: bitmap.height, name };
 }
 
@@ -59,7 +60,9 @@ export async function openImageByPath(path: string): Promise<LoadedImage | null>
     { path }
   );
   const data = new Uint8ClampedArray(res.rgba);
-  const bitmap = await createImageBitmap(new ImageData(data, res.width, res.height));
+  const bitmap = await createImageBitmap(new ImageData(data, res.width, res.height), {
+    premultiplyAlpha: "none",
+  });
   return { bitmap, width: res.width, height: res.height, name, path };
 }
 

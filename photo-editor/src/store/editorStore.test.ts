@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { useEditorStore } from "./editorStore";
+import { useEditorStore, LayerImage } from "./editorStore";
 import { cloneRecipe, DEFAULT_RECIPE } from "../editor/recipe";
+import { newLayerProps } from "../editor/layers";
 
 const S = useEditorStore;
 
@@ -10,8 +11,18 @@ beforeEach(() => {
     baseline: cloneRecipe(DEFAULT_RECIPE),
     past: [],
     future: [],
+    layers: [],
+    layerCache: new Map(),
     selectedMaskId: null,
   });
+});
+
+const fakeLayer = (id: string): LayerImage => ({
+  id,
+  bitmap: {} as ImageBitmap,
+  width: 10,
+  height: 10,
+  name: id,
 });
 
 describe("undo / redo history", () => {
@@ -56,5 +67,23 @@ describe("undo / redo history", () => {
     expect(S.getState().recipe.localAdjustments).toHaveLength(1);
     S.getState().undo();
     expect(S.getState().recipe.localAdjustments).toHaveLength(0);
+  });
+
+  it("removing then undoing a layer resurrects its pixels (no ghost row)", () => {
+    S.getState().addLayer(fakeLayer("L1"));
+    expect(S.getState().layers).toHaveLength(1);
+    S.getState().removeLayer("L1");
+    expect(S.getState().layers).toHaveLength(0);
+    S.getState().undo();
+    expect(S.getState().recipe.layerStack).toHaveLength(1);
+    expect(S.getState().layers).toHaveLength(1); // pixels restored, not a ghost
+  });
+
+  it("applyRecipe drops layer props with no available pixels (catalog ghost)", () => {
+    const r = cloneRecipe(DEFAULT_RECIPE);
+    r.layerStack = [newLayerProps("ghost", "G")];
+    S.getState().applyRecipe(r);
+    expect(S.getState().recipe.layerStack).toHaveLength(0);
+    expect(S.getState().layers).toHaveLength(0);
   });
 });

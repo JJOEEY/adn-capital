@@ -37,7 +37,10 @@ export function Presets() {
   const save = () => {
     const name = prompt("Preset name?");
     if (!name) return;
-    const next = [...presets.filter((p) => p.name !== name), { name, recipe: cloneRecipe(recipe) }];
+    // A preset is a portable look — image layers (pixels) aren't part of it.
+    const rec = cloneRecipe(recipe);
+    rec.layerStack = [];
+    const next = [...presets.filter((p) => p.name !== name), { name, recipe: rec }];
     setPresets(next);
     persist(next);
   };
@@ -83,7 +86,8 @@ export function Presets() {
       {presets.length === 0 && <p className="hint">No presets yet — Save the current look.</p>}
       {presets.map((p) => (
         <div className="preset-row" key={p.name}>
-          <button className="preset-apply" onClick={() => applyRecipe(p.recipe)} title="Apply">
+          <button className="preset-apply" onClick={() => applyRecipe(p.recipe, { keepLayers: true })} title="Apply">
+
             {p.name}
           </button>
           <button className="link" onClick={() => exportPreset(p)} title="Export .json">

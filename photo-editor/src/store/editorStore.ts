@@ -37,7 +37,8 @@ export interface LayerImage {
 interface EditorState {
   image: LoadedImage | null;
   mask: ImageMask | null; // AI foreground matte (M4)
-  layers: LayerImage[]; // composited layer pixels (Pillar 2)
+  layers: LayerImage[]; // ACTIVE layer pixels (derived: layerStack ∩ layerCache, in order)
+  layerCache: Map<string, LayerImage>; // every layer added this session (retained for undo)
   recipe: Recipe;
   baseline: Recipe; // last committed state (current edits live in `recipe`)
   past: Recipe[]; // states we can undo to
@@ -61,7 +62,7 @@ interface EditorState {
   moveLayer: (id: string, dir: -1 | 1) => void;
   commit: () => void; // push current recipe onto history (call on slider release)
   reset: () => void;
-  applyRecipe: (r: Recipe) => void; // e.g. when applying a preset
+  applyRecipe: (r: Recipe, opts?: { keepLayers?: boolean }) => void; // presets/catalog restore
   undo: () => void;
   redo: () => void;
   setShowOriginal: (v: boolean) => void;
@@ -73,6 +74,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   image: null,
   mask: null,
   layers: [],
+  layerCache: new Map(),
   recipe: cloneRecipe(DEFAULT_RECIPE),
   baseline: cloneRecipe(DEFAULT_RECIPE),
   past: [],
@@ -85,6 +87,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       image: img,
       mask: null,
       layers: [],
+      layerCache: new Map(),
       recipe: cloneRecipe(DEFAULT_RECIPE),
       baseline: cloneRecipe(DEFAULT_RECIPE),
       past: [],
@@ -155,13 +158,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   addLayer: (layer) => {
     get().commit();
-    set((s) => ({
-      layers: [...s.layers, layer],
-      recipe: {
-        ...s.recipe,
-        layerStack: [...s.recipe.layerStack, newLayerProps(layer.id, layer.name)],
-      },
-    }));
+    set((s) => {
+      const layerCache = new Map(s.layerCache).set(layer.id, layer);
+      const layerStack = [...s.recipe.layerStack, newLayerProps(layer.id, layer.name)];
+      return {
+        layerCache,
+        recipe: { ...s.recipe, layerStack },
+        layers: deriveLayers(layerStack, layerCache),
+      };
+    });
     get().commit();
   },
 
@@ -180,12 +185,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       },
     })),
 
+  // Keep the pixels in layerCache so undo can resurrect a removed layer.
   removeLayer: (id) => {
     get().commit();
-    set((s) => ({
-      layers: s.layers.filter((l) => l.id !== id),
-      recipe: { ...s.recipe, layerStack: s.recipe.layerStack.filter((p) => p.id !== id) },
-    }));
+    set((s) => {
+      const layerStack = s.recipe.layerStack.filter((p) => p.id !== id);
+      return { recipe: { ...s.recipe, layerStack }, layers: deriveLayers(layerStack, s.layerCache) };
+    });
     get().commit();
   },
 
@@ -197,7 +203,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const j = i + dir;
       if (i < 0 || j < 0 || j >= stack.length) return {} as Partial<EditorState>;
       [stack[i], stack[j]] = [stack[j], stack[i]];
-      return { recipe: { ...s.recipe, layerStack: stack } };
+      return { recipe: { ...s.recipe, layerStack: stack }, layers: deriveLayers(stack, s.layerCache) };
     });
     get().commit();
   },
@@ -217,8 +223,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     get().commit();
   },
 
-  applyRecipe: (r) => {
-    set({ recipe: cloneRecipe(r) });
+  applyRecipe: (r, opts) => {
+    const s = get();
+    const cloned = cloneRecipe(r);
+    if (opts?.keepLayers) {
+      // Presets are looks, not compositions — keep the current image's layers.
+      cloned.layerStack = s.recipe.layerStack.map((p) => ({ ...p }));
+      set({ recipe: cloned });
+    } else {
+      // Catalog restore: keep only layer props whose pixels we still have (others
+      // would be un-renderable ghost rows from a previous session).
+      cloned.layerStack = cloned.layerStack.filter((p) => s.layerCache.has(p.id));
+      set({ recipe: cloned, layers: deriveLayers(cloned.layerStack, s.layerCache) });
+    }
     get().commit();
   },
 
@@ -232,6 +249,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         future: [s.baseline, ...s.future],
         baseline: prev,
         recipe: cloneRecipe(prev),
+        layers: deriveLayers(prev.layerStack, s.layerCache),
       };
     }),
 
@@ -244,8 +262,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         future: rest,
         baseline: next,
         recipe: cloneRecipe(next),
+        layers: deriveLayers(next.layerStack, s.layerCache),
       };
     }),
 
   setShowOriginal: (v) => set({ showOriginal: v }),
 }));
+
+// Active layer pixels = the layerStack ids that have cached pixels, in stack order.
+function deriveLayers(
+  stack: LayerProps[],
+  cache: Map<string, LayerImage>
+): LayerImage[] {
+  return stack.map((p) => cache.get(p.id)).filter((l): l is LayerImage => l !== undefined);
+}
