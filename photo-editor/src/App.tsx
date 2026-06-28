@@ -5,6 +5,7 @@ import { ColorGradePanel } from "./components/ColorGradePanel";
 import { BgPanel } from "./components/BgPanel";
 import { ExportPanel } from "./components/ExportPanel";
 import { Library } from "./components/Library";
+import { LicensePanel } from "./components/LicensePanel";
 import { Presets } from "./components/Presets";
 import { Histogram } from "./components/Histogram";
 import { Toolbar } from "./components/Toolbar";
@@ -45,6 +46,7 @@ export default function App() {
           <ExportPanel />
           <Presets />
           <Library />
+          <LicensePanel />
         </div>
       </div>
     </div>

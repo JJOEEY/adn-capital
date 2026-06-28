@@ -5,13 +5,12 @@ background removal**. Non-destructive editing, GPU-accelerated preview, RAW supp
 and a customizable color-grading system. Built to run on one codebase across desktop
 (Windows / macOS / Linux) and, later, mobile (iOS / Android) via **Tauri 2**.
 
-> Status: **M0 + M1 + M2 + M3.** The web frontend (WebGL2 editor) runs today; RAW
-> decode + color management lives in the pure-Rust `raw-core` crate (unit-tested
-> headless); and the full color-grading system (tone curves, HSL mixer, color
-> wheels, split toning, `.cube` LUT import/export, presets) is implemented with the
-> CPU color math unit-tested (35 tests) and mirrored in the GPU shader. AI
-> background removal (M4), catalog/export (M5), and commercial packaging (M6)
-> follow the milestones in the project plan.
+> Status: **M0–M6 (feature-complete MVP).** WebGL2 non-destructive editor · RAW
+> decode + color management (`raw-core`) · full color grading (tone curves, HSL,
+> color wheels, split toning, `.cube` LUT import/export, presets) · on-device AI
+> background removal (BiRefNet via `ort`, `ai-core`) · per-image catalog +
+> full-resolution PNG/JPEG/WebP export · auto-update + offline licensing + a release
+> pipeline. 42 frontend tests + Rust core tests pass; see `RELEASE.md` for shipping.
 
 ## Stack
 

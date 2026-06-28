@@ -21,7 +21,8 @@ export async function renderToBlob(
   recipe: Recipe,
   mask: ImageMask | null,
   format: ExportFormat,
-  quality = 0.92
+  quality = 0.92,
+  watermark = false
 ): Promise<Blob> {
   const canvas = document.createElement("canvas");
   canvas.width = image.width;
@@ -31,8 +32,31 @@ export async function renderToBlob(
     pipe.setImage(image.bitmap, image.width, image.height);
     pipe.setMask(mask);
     pipe.render(recipe);
+
+    // Free tier: composite a corner watermark via a 2D canvas (read the GPU canvas
+    // synchronously right after render).
+    let source: HTMLCanvasElement = canvas;
+    if (watermark) {
+      const c2 = document.createElement("canvas");
+      c2.width = canvas.width;
+      c2.height = canvas.height;
+      const ctx = c2.getContext("2d")!;
+      ctx.drawImage(canvas, 0, 0);
+      const fs = Math.max(18, Math.round(canvas.width * 0.025));
+      ctx.font = `600 ${fs}px sans-serif`;
+      ctx.textAlign = "right";
+      ctx.textBaseline = "bottom";
+      const x = canvas.width - fs * 0.6;
+      const y = canvas.height - fs * 0.6;
+      ctx.fillStyle = "rgba(0,0,0,0.45)";
+      ctx.fillText("Made with Lumen", x + 2, y + 2);
+      ctx.fillStyle = "rgba(255,255,255,0.85)";
+      ctx.fillText("Made with Lumen", x, y);
+      source = c2;
+    }
+
     return await new Promise<Blob>((resolve, reject) =>
-      canvas.toBlob(
+      source.toBlob(
         (b) => (b ? resolve(b) : reject(new Error("encoding failed"))),
         MIME[format],
         quality
@@ -49,9 +73,10 @@ export async function exportImage(
   recipe: Recipe,
   mask: ImageMask | null,
   format: ExportFormat,
-  quality = 0.92
+  quality = 0.92,
+  watermark = false
 ): Promise<void> {
-  const blob = await renderToBlob(image, recipe, mask, format, quality);
+  const blob = await renderToBlob(image, recipe, mask, format, quality, watermark);
   const bytes = new Uint8Array(await blob.arrayBuffer());
   const base = image.name.replace(/\.[^.]+$/, "");
   const ext = format === "jpeg" ? "jpg" : format;

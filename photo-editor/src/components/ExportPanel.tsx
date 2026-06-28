@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { exportImage, ExportFormat } from "../lib/export";
 import { useEditorStore } from "../store/editorStore";
+import { useLicense } from "../store/useLicense";
 
 const FORMATS: ExportFormat[] = ["png", "jpeg", "webp"];
 
@@ -11,6 +12,7 @@ export function ExportPanel() {
   const image = useEditorStore((s) => s.image);
   const recipe = useEditorStore((s) => s.recipe);
   const mask = useEditorStore((s) => s.mask);
+  const { isPro } = useLicense();
   const [format, setFormat] = useState<ExportFormat>("png");
   const [quality, setQuality] = useState(92);
   const [busy, setBusy] = useState(false);
@@ -21,7 +23,7 @@ export function ExportPanel() {
     if (!image) return;
     setBusy(true);
     try {
-      await exportImage(image, recipe, mask, format, quality / 100);
+      await exportImage(image, recipe, mask, format, quality / 100, !isPro);
     } catch (e) {
       alert("Export failed: " + (e as Error).message);
     } finally {
@@ -63,6 +65,9 @@ export function ExportPanel() {
       <button className="export-btn" disabled={busy} onClick={run}>
         {busy ? "Exporting…" : `Export ${image.width}×${image.height}`}
       </button>
+      {!isPro && (
+        <p className="hint">Free exports include a watermark — activate Lumen Pro to remove.</p>
+      )}
     </div>
   );
 }
