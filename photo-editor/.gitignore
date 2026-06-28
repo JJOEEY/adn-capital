@@ -1,0 +1,19 @@
+# deps / build
+node_modules
+dist
+dist-ssr
+*.local
+
+# tauri / rust
+src-tauri/target
+src-tauri/gen
+
+# AI model weights (downloaded separately, not committed — large binaries)
+src-tauri/resources/models/*.onnx
+
+# editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.log
