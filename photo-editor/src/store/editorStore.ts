@@ -135,6 +135,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((s) => ({
       recipe: { ...s.recipe, localAdjustments: [...s.recipe.localAdjustments, la] },
       selectedMaskId: la.id,
+      selectedSpotId: null,
     }));
     get().commit();
   },
@@ -165,7 +166,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     get().commit();
   },
 
-  selectMask: (id) => set({ selectedMaskId: id }),
+  // Mask and heal-spot selections are mutually exclusive so only one overlay's
+  // drag handles are ever live.
+  selectMask: (id) => set({ selectedMaskId: id, selectedSpotId: null }),
 
   addSpot: () => {
     get().commit();
@@ -173,6 +176,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((s) => ({
       recipe: { ...s.recipe, spots: [...s.recipe.spots, sp] },
       selectedSpotId: sp.id,
+      selectedMaskId: null,
     }));
     get().commit();
   },
@@ -196,7 +200,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }));
     get().commit();
   },
-  selectSpot: (id) => set({ selectedSpotId: id }),
+  selectSpot: (id) => set({ selectedSpotId: id, selectedMaskId: null }),
 
   clipboardRecipe: null,
   copySettings: () => {
