@@ -94,6 +94,17 @@ export function isDefault(r: Recipe): boolean {
   return scalarsDefault && isDefaultLook(r.look) && r.lut === null && r.bg.mode === "none";
 }
 
+// Repair a recipe deserialized from JSON: a CubeLut's Float32Array `data` becomes a
+// plain indexed object across JSON.stringify/parse, which breaks the LUT pipeline and
+// equality. Restore it. Used by presets and the catalog.
+export function reviveRecipe(r: Recipe): Recipe {
+  const lut = r.lut;
+  if (lut && !(lut.data instanceof Float32Array)) {
+    lut.data = Float32Array.from(Object.values(lut.data as object) as number[]);
+  }
+  return r;
+}
+
 export function cloneRecipe(r: Recipe): Recipe {
   // Deep-clone the nested color-grade state (look + LUT typed arrays + bg) so history
   // snapshots are independent.

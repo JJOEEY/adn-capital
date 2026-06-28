@@ -3,7 +3,7 @@
 // Stored in localStorage; works in both the desktop webview and the browser.
 
 import { useEffect, useState } from "react";
-import { cloneRecipe, Recipe } from "../editor/recipe";
+import { cloneRecipe, Recipe, reviveRecipe } from "../editor/recipe";
 import { openTextFile, saveTextFile } from "../lib/platform";
 import { useEditorStore } from "../store/editorStore";
 
@@ -13,16 +13,6 @@ interface Preset {
 }
 
 const KEY = "lumen.presets.v1";
-
-// JSON.parse turns a CubeLut's Float32Array `data` into a plain indexed object.
-// Restore it to a real typed array so the pipeline / equality / export all work.
-function reviveRecipe(r: Recipe): Recipe {
-  const lut = r.lut;
-  if (lut && !(lut.data instanceof Float32Array)) {
-    lut.data = Float32Array.from(Object.values(lut.data as object) as number[]);
-  }
-  return r;
-}
 
 function load(): Preset[] {
   try {

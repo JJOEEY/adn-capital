@@ -31,19 +31,7 @@ export async function openImage(): Promise<LoadedImage | null> {
       ],
     });
     if (!selected || Array.isArray(selected)) return null;
-    const path = selected as string;
-    const name = path.split(/[\\/]/).pop() ?? "image";
-    const { invoke } = await import("@tauri-apps/api/core");
-    // Rust returns raw RGBA bytes + dims (handles RAW decode in M2). Until then it
-    // also handles standard formats so the desktop path is uniform.
-    const res = await invoke<{ width: number; height: number; rgba: number[] }>(
-      "load_image",
-      { path }
-    );
-    const data = new Uint8ClampedArray(res.rgba);
-    const imageData = new ImageData(data, res.width, res.height);
-    const bitmap = await createImageBitmap(imageData);
-    return { bitmap, width: res.width, height: res.height, name, path };
+    return openImageByPath(selected as string);
   }
 
   // --- Web fallback ---
@@ -58,6 +46,21 @@ export async function openImage(): Promise<LoadedImage | null> {
     };
     input.click();
   });
+}
+
+// Decode an image at a known native path (desktop). Rust handles standard formats
+// and RAW (M2); used by Open and by reopening from the catalog.
+export async function openImageByPath(path: string): Promise<LoadedImage | null> {
+  if (!isTauri()) return null;
+  const name = path.split(/[\\/]/).pop() ?? "image";
+  const { invoke } = await import("@tauri-apps/api/core");
+  const res = await invoke<{ width: number; height: number; rgba: number[] }>(
+    "load_image",
+    { path }
+  );
+  const data = new Uint8ClampedArray(res.rgba);
+  const bitmap = await createImageBitmap(new ImageData(data, res.width, res.height));
+  return { bitmap, width: res.width, height: res.height, name, path };
 }
 
 // Run on-device AI background removal (desktop only — needs the native ONNX model).
@@ -96,6 +99,26 @@ export async function openTextFile(extensions: string[]): Promise<{ name: string
     };
     input.click();
   });
+}
+
+// Save binary data (e.g. an exported image) via the native save dialog (Tauri) or
+// a browser download.
+export async function saveBinaryFile(defaultName: string, bytes: Uint8Array): Promise<void> {
+  if (isTauri()) {
+    const { save } = await import("@tauri-apps/plugin-dialog");
+    const path = await save({ defaultPath: defaultName });
+    if (!path) return;
+    const { writeFile } = await import("@tauri-apps/plugin-fs");
+    await writeFile(path, bytes);
+    return;
+  }
+  const blob = new Blob([bytes as BlobPart]);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = defaultName;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // Save text to a file via the native save dialog (Tauri) or a browser download.
