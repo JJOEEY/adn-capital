@@ -168,11 +168,9 @@ pub fn demosaic_malvar(
                 rgb[1] = conv(r, c, &K_G_AT_RB);
                 rgb[opposite] = conv(r, c, &K_OPPOSITE_AT_RB);
             }
-            out[r * width + c] = [
-                rgb[0].clamp(0.0, 1.0),
-                rgb[1].clamp(0.0, 1.0),
-                rgb[2].clamp(0.0, 1.0),
-            ];
+            // No [0,1] clamp here: WB-balanced R/B can exceed 1, and the final
+            // sRGB encode clamps after the color matrix. Floor at 0 only.
+            out[r * width + c] = [rgb[0].max(0.0), rgb[1].max(0.0), rgb[2].max(0.0)];
         }
     }
     out

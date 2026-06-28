@@ -125,6 +125,11 @@ export function reviveRecipe(r: Recipe): Recipe {
   if (lut && !(lut.data instanceof Float32Array)) {
     lut.data = Float32Array.from(Object.values(lut.data as object) as number[]);
   }
+  // Backfill any scalar adjustment missing from an older serialization so the render
+  // pipeline never reads undefined (which would become NaN → black).
+  for (const a of ADJUSTMENTS) {
+    if (typeof r[a.key] !== "number") r[a.key] = DEFAULT_RECIPE[a.key];
+  }
   // Migrate recipes serialized before a field existed (e.g. `bg` added in M4) so the
   // render pipeline never reads undefined.
   if (!r.bg || typeof r.bg.mode !== "string" || !Array.isArray(r.bg.color) || r.bg.color.length !== 3) {

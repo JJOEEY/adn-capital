@@ -35,4 +35,15 @@ describe("recipe equality / cloning", () => {
     expect(() => cloneRecipe(revived)).not.toThrow();
     expect(() => recipesEqual(revived, DEFAULT_RECIPE)).not.toThrow();
   });
+
+  it("backfills detail scalars missing from a pre-Pillar-4 recipe", () => {
+    const legacy = { ...cloneRecipe(DEFAULT_RECIPE) } as Partial<Recipe>;
+    delete legacy.clarity;
+    delete legacy.sharpening;
+    delete legacy.noiseReduction;
+    const r = reviveRecipe(legacy as Recipe);
+    expect(r.clarity).toBe(0);
+    expect(r.sharpening).toBe(0);
+    expect(r.noiseReduction).toBe(0);
+  });
 });

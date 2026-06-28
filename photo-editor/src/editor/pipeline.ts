@@ -394,7 +394,11 @@ export class RenderPipeline {
     let cur = 0;
 
     // DETAIL pass (clarity + sharpening + noise reduction) — only if any are active.
-    if (recipe.clarity !== 0 || recipe.sharpening !== 0 || recipe.noiseReduction !== 0) {
+    // `|| 0` guards against a legacy recipe missing these fields (NaN → black).
+    const clarity = recipe.clarity || 0;
+    const sharpening = recipe.sharpening || 0;
+    const noiseReduction = recipe.noiseReduction || 0;
+    if (clarity !== 0 || sharpening !== 0 || noiseReduction !== 0) {
       const dst = 1 - cur;
       gl.useProgram(this.detail);
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo[dst]);
@@ -403,9 +407,9 @@ export class RenderPipeline {
       gl.bindTexture(gl.TEXTURE_2D, this.fboTex[cur]);
       gl.uniform1i(this.detailU.u_src, 0);
       gl.uniform2f(this.detailU.u_texel, 1 / w, 1 / h);
-      gl.uniform1f(this.detailU.u_clarity, (recipe.clarity / 100) * 0.5);
-      gl.uniform1f(this.detailU.u_sharpen, (recipe.sharpening / 100) * 1.5);
-      gl.uniform1f(this.detailU.u_nr, (recipe.noiseReduction / 100) * 0.9);
+      gl.uniform1f(this.detailU.u_clarity, (clarity / 100) * 0.5);
+      gl.uniform1f(this.detailU.u_sharpen, (sharpening / 100) * 1.5);
+      gl.uniform1f(this.detailU.u_nr, (noiseReduction / 100) * 0.9);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       cur = dst;
     }

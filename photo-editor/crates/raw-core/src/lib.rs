@@ -49,20 +49,25 @@ pub struct RawScene {
 /// Develop a mosaiced scene into an sRGB RGBA8 image. Pure — no I/O, fully tested.
 pub fn render_to_rgba(scene: &RawScene, meta: RawMeta) -> DecodedRaw {
     let n = scene.width * scene.height;
-    // 1. Normalize photosites to 0..1 using black/white levels.
-    let norm: Vec<f32> = scene
-        .cfa
-        .iter()
-        .map(|&v| color::normalize(v, scene.black, scene.white))
-        .collect();
-    // 2. Demosaic to linear camera RGB (Malvar — sharper than bilinear, same cost).
-    let rgb = demosaic::demosaic_malvar(&norm, scene.width, scene.height, scene.pattern);
-    // 3. White balance + camera→sRGB matrix, then gamma encode.
     let wb = color::normalize_wb(scene.wb);
+    // 1. Normalize photosites to 0..1, then WHITE-BALANCE THE MOSAIC before demosaic.
+    //    Malvar is gradient-corrected (cross-channel taps) and assumes channels share
+    //    a scale, so WB must precede demosaic or neutral edges get colored fringes.
+    let mut balanced = vec![0f32; n];
+    for r in 0..scene.height {
+        for c in 0..scene.width {
+            let i = r * scene.width + c;
+            let nv = color::normalize(scene.cfa[i], scene.black, scene.white);
+            balanced[i] = nv * wb[scene.pattern.color_at(r, c)];
+        }
+    }
+    // 2. Demosaic the balanced mosaic to linear camera RGB.
+    let rgb = demosaic::demosaic_malvar(&balanced, scene.width, scene.height, scene.pattern);
+    // 3. Camera→sRGB matrix (WB already applied), then gamma encode.
     let m = color::cam_to_srgb(&scene.xyz_to_cam);
     let mut rgba = Vec::with_capacity(n * 4);
     for px in rgb {
-        let s = color::apply_wb_and_matrix(px, wb, &m);
+        let s = color::mul3(&m, px);
         rgba.push(color::linear_to_srgb_u8(s[0]));
         rgba.push(color::linear_to_srgb_u8(s[1]));
         rgba.push(color::linear_to_srgb_u8(s[2]));
@@ -106,5 +111,36 @@ mod tests {
         assert_eq!(out.rgba[0], out.rgba[1]);
         assert_eq!(out.rgba[1], out.rgba[2]);
         assert_eq!(out.rgba[3], 255);
+    }
+
+    #[test]
+    fn render_neutral_subject_with_nonunit_wb() {
+        // A neutral subject on a sensor that records green ~2x red/blue: the as-shot
+        // WB neutralizes it. WB must be applied to the mosaic (before demosaic) for
+        // the output to come out neutral.
+        let (w, h) = (8, 8);
+        let pattern = BayerPattern::Rggb;
+        let mut cfa = vec![0f32; w * h];
+        for r in 0..h {
+            for c in 0..w {
+                // green photosites read twice the red/blue for the same neutral patch
+                cfa[r * w + c] = if pattern.color_at(r, c) == 1 { 0.4 } else { 0.2 } * 4095.0;
+            }
+        }
+        let scene = RawScene {
+            cfa,
+            width: w,
+            height: h,
+            pattern,
+            black: 0.0,
+            white: 4095.0,
+            wb: [2.0, 1.0, 2.0],
+            xyz_to_cam: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+        };
+        let out = render_to_rgba(&scene, RawMeta::default());
+        // Interior pixel should be neutral (no chroma fringe from the WB order).
+        let i = (4 * w + 4) * 4;
+        assert_eq!(out.rgba[i], out.rgba[i + 1]);
+        assert_eq!(out.rgba[i + 1], out.rgba[i + 2]);
     }
 }
