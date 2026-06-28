@@ -325,6 +325,7 @@ Trả về JSON với các key:
       prompt,
       INTENT.NEWS,
       "Bạn là biên tập viên tài chính chuyên nghiệp của ADN Capital. Tuân thủ yêu cầu trong prompt và CHỈ trả về JSON hợp lệ, không kèm giải thích hay markdown code block.",
+      false, // path NỀN (cron 64×/ngày, NEWS có Google Search grounding) — KHÔNG direct Gemini để tránh rò phí
     );
     // Extract JSON from response (handle potential markdown wrapping)
     const jsonMatch = text.match(/\{[\s\S]*\}/);

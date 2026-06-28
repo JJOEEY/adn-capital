@@ -625,16 +625,20 @@ export async function executeAIRequest(
   prompt: string,
   intent: Intent = INTENT.GENERAL,
   systemInstruction?: string,
+  allowDirect?: boolean,
 ): Promise<string> {
   const [primary, fallback] = MODEL_CHAIN[intent];
   const useSearch = INTENT_USE_SEARCH[intent];
   const sysInstr = systemInstruction ?? SYSTEM_INSTRUCTIONS[intent];
   const routedOutput = await executeRouterChain(prompt, intent, sysInstr);
   if (routedOutput) return sanitizeModelOutput(routedOutput);
-  // Router (9Router đã gỡ + OpenRouter 404) chết → cho widget (PTKT/PTCB…) fallback Gemini
-  // TRỰC TIẾP nếu AIDEN_ALLOW_DIRECT_GEMINI bật (giống webchat), dù DISABLE_DIRECT_GEMINI=1.
-  if (!isAidenDirectGeminiAllowed()) {
-    console.warn(`[Gemini] direct fallback disabled. intent=${intent}`);
+  // Router (9Router đã gỡ + OpenRouter 404) chết → fallback Gemini TRỰC TIẾP.
+  // allowDirect PER-CALL ưu tiên hơn cờ global: path NỀN tự động (vd news_crawler chạy 64×/ngày,
+  // NEWS dùng Google Search grounding ~$35/1k) truyền false để KHÔNG charge; path user-facing
+  // (widget/chat/AIDEN — user chủ động bấm) bỏ trống → theo AIDEN_ALLOW_DIRECT_GEMINI như cũ.
+  const canDirect = allowDirect ?? isAidenDirectGeminiAllowed();
+  if (!canDirect) {
+    console.warn(`[Gemini] direct fallback disabled. intent=${intent} allowDirect=${allowDirect}`);
     return OVERLOAD_MESSAGE;
   }
 
