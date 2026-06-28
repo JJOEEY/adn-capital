@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cloneRecipe, DEFAULT_RECIPE, recipesEqual } from "./recipe";
+import { cloneRecipe, DEFAULT_RECIPE, recipesEqual, reviveRecipe, Recipe } from "./recipe";
 import { identityCube } from "./color/lut";
 
 describe("recipe equality / cloning", () => {
@@ -23,5 +23,16 @@ describe("recipe equality / cloning", () => {
     expect(restored.lut.data instanceof Float32Array).toBe(false);
     expect(() => recipesEqual(withLut, restored)).not.toThrow();
     expect(recipesEqual(withLut, restored)).toBe(true);
+  });
+
+  // Regression: a recipe serialized before M4 has no `bg` field; reviveRecipe must
+  // backfill it so the render pipeline / clone / equality never read undefined.
+  it("backfills a missing bg field on legacy recipes", () => {
+    const legacy = { ...cloneRecipe(DEFAULT_RECIPE) } as Partial<Recipe>;
+    delete legacy.bg;
+    const revived = reviveRecipe(legacy as Recipe);
+    expect(revived.bg).toEqual({ mode: "none", color: [1, 1, 1] });
+    expect(() => cloneRecipe(revived)).not.toThrow();
+    expect(() => recipesEqual(revived, DEFAULT_RECIPE)).not.toThrow();
   });
 });

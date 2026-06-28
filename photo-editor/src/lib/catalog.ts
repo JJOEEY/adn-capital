@@ -37,11 +37,21 @@ function read(): Catalog {
 }
 
 function write(cat: Catalog) {
-  // Evict oldest beyond the cap to bound storage.
-  const entries = Object.values(cat).sort((a, b) => b.updatedAt - a.updatedAt);
-  const kept: Catalog = {};
-  for (const e of entries.slice(0, MAX_ENTRIES)) kept[e.key] = e;
-  localStorage.setItem(KEY, JSON.stringify(kept));
+  // Most-recent first, capped to bound storage.
+  let entries = Object.values(cat).sort((a, b) => b.updatedAt - a.updatedAt).slice(0, MAX_ENTRIES);
+  // Persist, shrinking on quota errors so one big save can't break the catalog.
+  for (let attempt = 0; attempt < 4 && entries.length > 0; attempt++) {
+    const kept: Catalog = {};
+    for (const e of entries) kept[e.key] = e;
+    try {
+      localStorage.setItem(KEY, JSON.stringify(kept));
+      return;
+    } catch {
+      // Drop thumbnails first (the bulk of the size), then the oldest entries.
+      if (attempt === 0) entries = entries.map((e) => ({ ...e, thumb: "" }));
+      else entries = entries.slice(0, Math.max(1, Math.floor(entries.length / 2)));
+    }
+  }
 }
 
 export function getEntry(key: string): CatalogEntry | undefined {

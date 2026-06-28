@@ -102,6 +102,12 @@ export function reviveRecipe(r: Recipe): Recipe {
   if (lut && !(lut.data instanceof Float32Array)) {
     lut.data = Float32Array.from(Object.values(lut.data as object) as number[]);
   }
+  // Migrate recipes serialized before a field existed (e.g. `bg` added in M4) so the
+  // render pipeline never reads undefined.
+  if (!r.bg || typeof r.bg.mode !== "string" || !Array.isArray(r.bg.color) || r.bg.color.length !== 3) {
+    r.bg = { mode: "none", color: [1, 1, 1] };
+  }
+  if (r.lut === undefined) r.lut = null;
   return r;
 }
 

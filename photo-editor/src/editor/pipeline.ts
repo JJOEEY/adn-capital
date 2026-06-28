@@ -331,5 +331,8 @@ export class RenderPipeline {
     if (this.dummy3d) gl.deleteTexture(this.dummy3d);
     if (this.maskTex) gl.deleteTexture(this.maskTex);
     gl.deleteProgram(this.program);
+    // Free the GL context immediately so repeated exports don't exhaust the
+    // browser's context cap.
+    gl.getExtension("WEBGL_lose_context")?.loseContext();
   }
 }

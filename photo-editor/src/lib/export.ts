@@ -33,25 +33,32 @@ export async function renderToBlob(
     pipe.setMask(mask);
     pipe.render(recipe);
 
-    // Free tier: composite a corner watermark via a 2D canvas (read the GPU canvas
-    // synchronously right after render).
+    // JPEG/WebP have no alpha — a transparent matte would flatten to black, so
+    // composite over white. The watermark also needs a 2D canvas.
+    const flatten = format !== "png";
     let source: HTMLCanvasElement = canvas;
-    if (watermark) {
+    if (watermark || flatten) {
       const c2 = document.createElement("canvas");
       c2.width = canvas.width;
       c2.height = canvas.height;
       const ctx = c2.getContext("2d")!;
+      if (flatten) {
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, c2.width, c2.height);
+      }
       ctx.drawImage(canvas, 0, 0);
-      const fs = Math.max(18, Math.round(canvas.width * 0.025));
-      ctx.font = `600 ${fs}px sans-serif`;
-      ctx.textAlign = "right";
-      ctx.textBaseline = "bottom";
-      const x = canvas.width - fs * 0.6;
-      const y = canvas.height - fs * 0.6;
-      ctx.fillStyle = "rgba(0,0,0,0.45)";
-      ctx.fillText("Made with Lumen", x + 2, y + 2);
-      ctx.fillStyle = "rgba(255,255,255,0.85)";
-      ctx.fillText("Made with Lumen", x, y);
+      if (watermark) {
+        const fs = Math.max(18, Math.round(canvas.width * 0.025));
+        ctx.font = `600 ${fs}px sans-serif`;
+        ctx.textAlign = "right";
+        ctx.textBaseline = "bottom";
+        const x = canvas.width - fs * 0.6;
+        const y = canvas.height - fs * 0.6;
+        ctx.fillStyle = "rgba(0,0,0,0.45)";
+        ctx.fillText("Made with Lumen", x + 2, y + 2);
+        ctx.fillStyle = "rgba(255,255,255,0.85)";
+        ctx.fillText("Made with Lumen", x, y);
+      }
       source = c2;
     }
 

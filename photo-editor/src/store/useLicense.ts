@@ -1,35 +1,43 @@
-// License state: stores the entered key, verifies it (offline) against the embedded
-// public key, and exposes whether Pro features are unlocked.
+// Global license state (Zustand) so every consumer (LicensePanel, ExportPanel)
+// shares one source of truth — activating a key in one place unlocks the others
+// immediately. Keys are verified offline against the embedded public key.
 
-import { useEffect, useState } from "react";
+import { create } from "zustand";
 import { License, verifyLicense } from "../lib/license";
 
 const KEY = "lumen.license.key";
 
-export function useLicense() {
-  const [key, setKeyState] = useState(() => localStorage.getItem(KEY) ?? "");
-  const [license, setLicense] = useState<License | null>(null);
+interface LicenseState {
+  key: string;
+  license: License | null;
+  isPro: boolean;
+  entitled: boolean; // any verified, unexpired license removes the watermark
+  setKey: (k: string) => Promise<void>;
+  clear: () => void;
+}
 
-  useEffect(() => {
-    let live = true;
-    verifyLicense(key).then((l) => live && setLicense(l));
-    return () => {
-      live = false;
-    };
-  }, [key]);
+function derive(license: License | null) {
+  return { license, isPro: license?.tier === "pro", entitled: !!license };
+}
 
-  return {
-    license,
-    isPro: license?.tier === "pro",
-    key,
-    setKey: (k: string) => {
-      localStorage.setItem(KEY, k);
-      setKeyState(k);
-    },
-    clear: () => {
-      localStorage.removeItem(KEY);
-      setKeyState("");
-      setLicense(null);
-    },
-  };
+export const useLicense = create<LicenseState>((set) => ({
+  key: localStorage.getItem(KEY) ?? "",
+  license: null,
+  isPro: false,
+  entitled: false,
+  setKey: async (k) => {
+    localStorage.setItem(KEY, k);
+    set({ key: k });
+    set(derive(await verifyLicense(k)));
+  },
+  clear: () => {
+    localStorage.removeItem(KEY);
+    set({ key: "", ...derive(null) });
+  },
+}));
+
+// Verify any persisted key once at startup.
+const persisted = localStorage.getItem(KEY) ?? "";
+if (persisted) {
+  verifyLicense(persisted).then((lic) => useLicense.setState(derive(lic)));
 }

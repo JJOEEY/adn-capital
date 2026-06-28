@@ -33,7 +33,7 @@ export function LicensePanel() {
           </button>
         </div>
       )}
-      {key && !isPro && <p className="hint">This key is not valid.</p>}
+      {key && !license && <p className="hint">This key is not valid.</p>}
     </div>
   );
 }
