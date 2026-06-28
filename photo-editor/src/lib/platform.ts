@@ -3,7 +3,7 @@
 // detect Tauri and use its native file dialog + filesystem; otherwise we fall back
 // to a browser <input type="file">.
 
-import { LoadedImage } from "../store/editorStore";
+import { ImageMask, LoadedImage } from "../store/editorStore";
 
 export function isTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -43,7 +43,7 @@ export async function openImage(): Promise<LoadedImage | null> {
     const data = new Uint8ClampedArray(res.rgba);
     const imageData = new ImageData(data, res.width, res.height);
     const bitmap = await createImageBitmap(imageData);
-    return { bitmap, width: res.width, height: res.height, name };
+    return { bitmap, width: res.width, height: res.height, name, path };
   }
 
   // --- Web fallback ---
@@ -58,6 +58,20 @@ export async function openImage(): Promise<LoadedImage | null> {
     };
     input.click();
   });
+}
+
+// Run on-device AI background removal (desktop only — needs the native ONNX model).
+// Returns a foreground alpha matte at the source resolution.
+export async function removeBackground(path: string): Promise<ImageMask> {
+  if (!isTauri()) {
+    throw new Error("AI background removal runs in the Lumen desktop app.");
+  }
+  const { invoke } = await import("@tauri-apps/api/core");
+  const res = await invoke<{ width: number; height: number; alpha: number[] }>(
+    "remove_background",
+    { path }
+  );
+  return { data: new Uint8Array(res.alpha), width: res.width, height: res.height };
 }
 
 // Open a text file (e.g. a .cube LUT or a preset .json), returning its contents.

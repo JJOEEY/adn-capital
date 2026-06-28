@@ -46,6 +46,12 @@ uniform bool u_lut3dOn;
 uniform float u_lutSize;            // 3D LUT lattice size (for texel-center remap)
 uniform vec3 u_lutDomainMin, u_lutDomainMax;
 
+// --- M4 background (AI matte) ---
+uniform sampler2D u_mask;
+uniform bool u_maskOn;
+uniform int u_bgMode;               // 0 none, 1 transparent, 2 color
+uniform vec3 u_bgColor;
+
 const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
 const float PI = 3.14159265359;
 float luma(vec3 c) { return dot(c, LUMA); }
@@ -174,6 +180,14 @@ void main() {
     c = clamp(texture(u_lut3d, q).rgb, 0.0, 1.0);
   }
 
-  fragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
+  // ---------------- M4 background composite ----------------
+  c = clamp(c, 0.0, 1.0);
+  float outA = 1.0;
+  if (u_maskOn && u_bgMode != 0) {
+    float fg = texture(u_mask, uv).r; // foreground coverage 0..1
+    if (u_bgMode == 2) c = mix(u_bgColor, c, fg); // replace background with a color
+    else outA = fg;                                // transparent background
+  }
+  fragColor = vec4(c, outA);
 }
 `;

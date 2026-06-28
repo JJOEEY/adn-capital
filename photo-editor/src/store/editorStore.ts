@@ -2,7 +2,7 @@
 // history of recipes. UI components subscribe to slices of this store.
 
 import { create } from "zustand";
-import { cloneRecipe, DEFAULT_RECIPE, Recipe, recipesEqual } from "../editor/recipe";
+import { BackgroundOp, cloneRecipe, DEFAULT_RECIPE, Recipe, recipesEqual } from "../editor/recipe";
 import { Look } from "../editor/color/look";
 import { CubeLut } from "../editor/color/lut";
 
@@ -11,10 +11,20 @@ export interface LoadedImage {
   width: number;
   height: number;
   name: string;
+  path?: string; // native filesystem path (desktop only) — used for AI matting
+}
+
+// A foreground alpha matte at the source resolution (M4). Kept out of the recipe
+// because it is image-sized; the recipe only stores how to composite it (recipe.bg).
+export interface ImageMask {
+  data: Uint8Array; // single-channel alpha, width*height
+  width: number;
+  height: number;
 }
 
 interface EditorState {
   image: LoadedImage | null;
+  mask: ImageMask | null; // AI foreground matte (M4)
   recipe: Recipe;
   past: Recipe[];
   future: Recipe[];
@@ -24,6 +34,8 @@ interface EditorState {
   setAdjust: (key: keyof Recipe, value: number) => void;
   setLook: (look: Look) => void; // live color-grade update (no history; commit on release)
   setLut: (lut: CubeLut | null) => void; // import/clear 3D LUT (own history step)
+  setMask: (mask: ImageMask | null) => void; // AI matte result
+  setBg: (bg: BackgroundOp) => void; // background compositing mode (own history step)
   commit: () => void; // push current recipe onto history (call on slider release)
   reset: () => void;
   applyRecipe: (r: Recipe) => void; // e.g. when applying a preset
@@ -36,6 +48,7 @@ const HISTORY_LIMIT = 100;
 
 export const useEditorStore = create<EditorState>((set, get) => ({
   image: null,
+  mask: null,
   recipe: cloneRecipe(DEFAULT_RECIPE),
   past: [],
   future: [],
@@ -44,6 +57,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setImage: (img) =>
     set({
       image: img,
+      mask: null,
       recipe: cloneRecipe(DEFAULT_RECIPE),
       past: [],
       future: [],
@@ -60,6 +74,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setLut: (lut) => {
     get().commit();
     set((s) => ({ recipe: { ...s.recipe, lut } }));
+    get().commit();
+  },
+
+  setMask: (mask) => set({ mask }),
+
+  // Background mode is a discrete action → its own history step.
+  setBg: (bg) => {
+    get().commit();
+    set((s) => ({ recipe: { ...s.recipe, bg } }));
     get().commit();
   },
 

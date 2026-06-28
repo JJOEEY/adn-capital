@@ -1,7 +1,8 @@
 // Top toolbar: open image, undo/redo, before/after compare, and a placeholder
 // "Remove background" action wired up in M4.
 
-import { openImage } from "../lib/platform";
+import { useState } from "react";
+import { openImage, removeBackground } from "../lib/platform";
 import { useEditorStore } from "../store/editorStore";
 
 export function Toolbar() {
@@ -11,11 +12,34 @@ export function Toolbar() {
   const canUndo = useEditorStore((s) => s.past.length > 0);
   const canRedo = useEditorStore((s) => s.future.length > 0);
   const setShowOriginal = useEditorStore((s) => s.setShowOriginal);
-  const hasImage = useEditorStore((s) => s.image !== null);
+  const image = useEditorStore((s) => s.image);
+  const setMask = useEditorStore((s) => s.setMask);
+  const setBg = useEditorStore((s) => s.setBg);
+  const recipe = useEditorStore((s) => s.recipe);
+  const hasImage = image !== null;
+  const [matting, setMatting] = useState(false);
 
   async function handleOpen() {
     const img = await openImage();
     if (img) setImage(img);
+  }
+
+  async function handleRemoveBg() {
+    if (!image?.path) {
+      alert("AI background removal runs in the Lumen desktop app.");
+      return;
+    }
+    setMatting(true);
+    try {
+      const mask = await removeBackground(image.path);
+      setMask(mask);
+      // Default to transparent so the cut-out is immediately visible.
+      if (recipe.bg.mode === "none") setBg({ mode: "transparent", color: recipe.bg.color });
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setMatting(false);
+    }
   }
 
   return (
@@ -39,11 +63,11 @@ export function Toolbar() {
           Before/After
         </button>
         <button
-          disabled={!hasImage}
-          title="On-device AI — arrives in M4"
-          onClick={() => alert("AI background removal lands in M4 (on-device BiRefNet).")}
+          disabled={!hasImage || matting}
+          title="On-device AI background removal (BiRefNet)"
+          onClick={handleRemoveBg}
         >
-          Remove BG
+          {matting ? "Removing…" : "Remove BG"}
         </button>
       </div>
     </header>

@@ -1,21 +1,17 @@
-// On-device AI background removal (M4). Will load a BiRefNet ONNX model (MIT
-// license — safe for commercial use) via `ort` (ONNX Runtime), running on the GPU
-// through CoreML (macOS) / DirectML (Windows) / CUDA, falling back to CPU.
-//
-// IMPORTANT (licensing): only ship MIT/Apache models here. Do NOT use BRIA RMBG
-// (non-commercial) in a commercial build.
-//
-// Stubbed until M4.
+// On-device background removal bridge. The matting math + ONNX session live in the
+// pure `ai-core` crate; the `ai` Cargo feature enables the inference path. Without
+// it the command returns a clear, actionable error so default builds stay light.
 
-#[allow(dead_code)]
-pub struct Matte {
-    pub width: u32,
-    pub height: u32,
-    /// Single-channel alpha matte, 0..255.
-    pub alpha: Vec<u8>,
+#[cfg(feature = "ai")]
+pub fn remove_background(rgba: &[u8], w: usize, h: usize, model_path: &str) -> Result<Vec<u8>, String> {
+    ai_core::remove_background(rgba, w, h, model_path)
 }
 
-#[allow(dead_code)]
-pub fn remove_background(_rgba: &[u8], _w: u32, _h: u32) -> Result<Matte, String> {
-    Err("AI background removal arrives in M4 (on-device BiRefNet).".into())
+#[cfg(not(feature = "ai"))]
+pub fn remove_background(_rgba: &[u8], _w: usize, _h: usize, _model: &str) -> Result<Vec<u8>, String> {
+    Err(
+        "AI background removal isn't built into this binary. Rebuild with \
+         `--features ai` and place a BiRefNet model at resources/models/birefnet.onnx."
+            .into(),
+    )
 }

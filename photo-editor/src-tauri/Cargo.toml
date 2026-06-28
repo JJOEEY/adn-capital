@@ -25,9 +25,12 @@ image = "0.25"
 thiserror = "2"
 # RAW decode + color management (pure-Rust workspace crate).
 raw-core = { path = "../crates/raw-core" }
+# AI matting pre/post-processing; the `ai` feature pulls in the ONNX runtime.
+ai-core = { path = "../crates/ai-core" }
 
 [features]
-# Enabled in M4 to pull in heavy native deps only when that module lands.
-ai = []    # dep:ort
+# Build with `--features ai` to enable on-device background removal (downloads the
+# ONNX runtime and requires the BiRefNet model in resources/models/).
+ai = ["ai-core/inference"]
 
 # Profile lives in the workspace root Cargo.toml.

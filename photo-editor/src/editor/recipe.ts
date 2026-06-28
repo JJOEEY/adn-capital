@@ -31,6 +31,16 @@ export interface Recipe {
   // M3 — color grading (non-scalar; edited via the color panels, not sliders)
   look: Look;
   lut: CubeLut | null; // imported 3D .cube LUT, applied last
+
+  // M4 — background (AI matting). The mask itself lives in the editor store (it is
+  // image-sized); the recipe only carries how to composite it.
+  bg: BackgroundOp;
+}
+
+export type BgMode = "none" | "transparent" | "color";
+export interface BackgroundOp {
+  mode: BgMode;
+  color: [number, number, number]; // 0..1, used when mode === "color"
 }
 
 export const DEFAULT_RECIPE: Recipe = {
@@ -47,6 +57,7 @@ export const DEFAULT_RECIPE: Recipe = {
   clarity: 0,
   look: defaultLook(),
   lut: null,
+  bg: { mode: "none", color: [1, 1, 1] },
 };
 
 // The scalar (number-valued) adjustment fields — the ones driven by sliders.
@@ -80,22 +91,24 @@ export const ADJUSTMENTS: AdjustSpec[] = [
 
 export function isDefault(r: Recipe): boolean {
   const scalarsDefault = ADJUSTMENTS.every((a) => r[a.key] === DEFAULT_RECIPE[a.key]);
-  return scalarsDefault && isDefaultLook(r.look) && r.lut === null;
+  return scalarsDefault && isDefaultLook(r.look) && r.lut === null && r.bg.mode === "none";
 }
 
 export function cloneRecipe(r: Recipe): Recipe {
-  // Deep-clone the nested color-grade state (look + LUT typed arrays) so history
+  // Deep-clone the nested color-grade state (look + LUT typed arrays + bg) so history
   // snapshots are independent.
   return {
     ...r,
     look: structuredClone(r.look),
     lut: r.lut ? structuredClone(r.lut) : null,
+    bg: { mode: r.bg.mode, color: [...r.bg.color] },
   };
 }
 
-// Value equality for history dedup (handles nested look + LUT typed arrays).
+// Value equality for history dedup (handles nested look + LUT typed arrays + bg).
 export function recipesEqual(a: Recipe, b: Recipe): boolean {
   if (!ADJUSTMENTS.every((s) => a[s.key] === b[s.key])) return false;
+  if (a.bg.mode !== b.bg.mode || !a.bg.color.every((v, i) => v === b.bg.color[i])) return false;
   return JSON.stringify(a.look) === JSON.stringify(b.look) && lutEqual(a.lut, b.lut);
 }
 

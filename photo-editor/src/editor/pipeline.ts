@@ -3,6 +3,7 @@
 // the whole non-destructive recipe each frame — a single fullscreen GPU pass.
 
 import { Recipe } from "./recipe";
+import { ImageMask } from "../store/editorStore";
 import { FRAG_SRC, VERT_SRC } from "./shaders";
 import { evalCurve } from "./color/curve";
 import { wheelTint } from "./color/wheels";
@@ -20,6 +21,7 @@ const UNIFORMS = [
   "u_lift", "u_gain", "u_gammaExp", "u_gmul", "u_wheelsOn",
   "u_splitSh", "u_splitHi", "u_splitBalance", "u_splitOn",
   "u_lut3d", "u_lut3dOn", "u_lutSize", "u_lutDomainMin", "u_lutDomainMax",
+  "u_mask", "u_maskOn", "u_bgMode", "u_bgColor",
 ] as const;
 
 export class RenderPipeline {
@@ -29,6 +31,7 @@ export class RenderPipeline {
   private curveTex: WebGLTexture | null = null;
   private lut3dTex: WebGLTexture | null = null;
   private dummy3d: WebGLTexture | null = null; // bound to unit 2 when no LUT is active
+  private maskTex: WebGLTexture | null = null; // AI foreground matte (M4)
   private uniforms: Record<string, WebGLUniformLocation | null> = {};
   // Caches so we only rebuild lookup textures when their source changes.
   private lastCurves: ChannelCurves | null = null;
@@ -92,6 +95,38 @@ export class RenderPipeline {
 
   hasImage(): boolean {
     return this.texture !== null;
+  }
+
+  // Upload (or clear) the AI foreground matte as a single-channel R8 texture.
+  setMask(mask: ImageMask | null) {
+    const gl = this.gl;
+    if (this.maskTex) {
+      gl.deleteTexture(this.maskTex);
+      this.maskTex = null;
+    }
+    if (!mask) return;
+    this.maskTex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.maskTex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1); // arbitrary widths
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, mask.width, mask.height, 0, gl.RED, gl.UNSIGNED_BYTE, mask.data);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+  }
+
+  private setBgUniforms(recipe: Recipe) {
+    const gl = this.gl;
+    const u = this.uniforms;
+    gl.activeTexture(gl.TEXTURE3);
+    gl.bindTexture(gl.TEXTURE_2D, this.maskTex);
+    gl.uniform1i(u.u_mask, 3);
+    const mode = recipe.bg.mode;
+    const on = this.maskTex !== null && mode !== "none";
+    gl.uniform1i(u.u_maskOn, on ? 1 : 0);
+    gl.uniform1i(u.u_bgMode, mode === "transparent" ? 1 : mode === "color" ? 2 : 0);
+    gl.uniform3f(u.u_bgColor, recipe.bg.color[0], recipe.bg.color[1], recipe.bg.color[2]);
   }
 
   // --- M3 lookup-texture builders -------------------------------------------
@@ -273,6 +308,7 @@ export class RenderPipeline {
 
     this.setLookUniforms(recipe.look);
     this.setLutUniform(recipe.lut);
+    this.setBgUniforms(recipe);
 
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
@@ -293,6 +329,7 @@ export class RenderPipeline {
     if (this.curveTex) gl.deleteTexture(this.curveTex);
     if (this.lut3dTex) gl.deleteTexture(this.lut3dTex);
     if (this.dummy3d) gl.deleteTexture(this.dummy3d);
+    if (this.maskTex) gl.deleteTexture(this.maskTex);
     gl.deleteProgram(this.program);
   }
 }

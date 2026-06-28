@@ -1,0 +1,15 @@
+[package]
+name = "ai-core"
+version = "0.1.0"
+edition = "2021"
+description = "Pure-Rust pre/post-processing for on-device background removal (BiRefNet)"
+license = "MIT"
+
+[dependencies]
+# Pure pre/post-processing has no deps so it builds & unit-tests headless. The ONNX
+# session is gated behind the `inference` feature so the default build stays light.
+ort = { version = "=2.0.0-rc.10", optional = true }
+
+[features]
+default = []
+inference = ["dep:ort"]

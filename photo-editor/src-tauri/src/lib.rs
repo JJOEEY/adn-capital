@@ -41,11 +41,9 @@ impl From<AppError> for AppErrorWire {
     }
 }
 
-/// Decode a standard image (JPEG/PNG/WebP/TIFF) to RGBA. RAW extensions are routed
-/// to `decode_raw` (M2); until that lands they return a clear error.
-#[tauri::command]
-fn load_image(path: String) -> Result<DecodedImage, AppErrorWire> {
-    let ext = std::path::Path::new(&path)
+/// Decode any supported image (standard formats + RAW) to RGBA8.
+fn decode_path(path: &str) -> Result<DecodedImage, AppError> {
+    let ext = std::path::Path::new(path)
         .extension()
         .and_then(|e| e.to_str())
         .unwrap_or("")
@@ -53,10 +51,10 @@ fn load_image(path: String) -> Result<DecodedImage, AppErrorWire> {
 
     const RAW_EXTS: &[&str] = &["nef", "cr3", "cr2", "arw", "dng", "raf", "rw2", "orf"];
     if RAW_EXTS.contains(&ext.as_str()) {
-        return raw::decode_raw(&path).map_err(Into::into);
+        return raw::decode_raw(path);
     }
 
-    let img = image::open(&path).map_err(AppError::from)?;
+    let img = image::open(path).map_err(AppError::from)?;
     let rgba = img.to_rgba8();
     Ok(DecodedImage {
         width: rgba.width(),
@@ -65,12 +63,49 @@ fn load_image(path: String) -> Result<DecodedImage, AppErrorWire> {
     })
 }
 
+#[tauri::command]
+fn load_image(path: String) -> Result<DecodedImage, AppErrorWire> {
+    decode_path(&path).map_err(Into::into)
+}
+
+/// A foreground alpha matte at the source image resolution (255 = foreground).
+#[derive(Serialize)]
+pub struct MaskResult {
+    pub width: u32,
+    pub height: u32,
+    pub alpha: Vec<u8>,
+}
+
+/// On-device background removal. Decodes the source, runs the matting model, and
+/// returns an alpha matte. Requires the `ai` feature + a model in resources/models/.
+#[tauri::command]
+fn remove_background(app: tauri::AppHandle, path: String) -> Result<MaskResult, AppErrorWire> {
+    use tauri::Manager;
+    let img = decode_path(&path)?;
+    let model = app
+        .path()
+        .resolve("resources/models/birefnet.onnx", tauri::path::BaseDirectory::Resource)
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    let alpha = ai::remove_background(
+        &img.rgba,
+        img.width as usize,
+        img.height as usize,
+        &model.to_string_lossy(),
+    )
+    .map_err(AppError::Other)?;
+    Ok(MaskResult {
+        width: img.width,
+        height: img.height,
+        alpha,
+    })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .invoke_handler(tauri::generate_handler![load_image])
+        .invoke_handler(tauri::generate_handler![load_image, remove_background])
         .run(tauri::generate_context!())
         .expect("error while running Lumen");
 }
