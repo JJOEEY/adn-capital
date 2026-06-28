@@ -19,17 +19,14 @@ tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-# Standard-format decoding now; RAW (rawler) and AI (ort) added in M2 / M4.
+# Standard-format decoding now; AI (ort) added in M4.
 image = "0.25"
 thiserror = "2"
+# RAW decode + color management (pure-Rust workspace crate).
+raw-core = { path = "../crates/raw-core" }
 
 [features]
-# Enabled in M2 / M4 to pull in heavy native deps only when those modules land.
-raw = []   # dep:rawler
+# Enabled in M4 to pull in heavy native deps only when that module lands.
 ai = []    # dep:ort
 
-[profile.release]
-opt-level = "s"
-lto = true
-codegen-units = 1
-strip = true
+# Profile lives in the workspace root Cargo.toml.

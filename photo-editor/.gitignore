@@ -5,6 +5,7 @@ dist-ssr
 *.local
 
 # tauri / rust
+/target
 src-tauri/target
 src-tauri/gen
 

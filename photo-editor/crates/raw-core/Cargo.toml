@@ -1,0 +1,16 @@
+[package]
+name = "raw-core"
+version = "0.1.0"
+edition = "2021"
+description = "Pure-Rust RAW decode, demosaic and color management for Lumen"
+license = "MIT"
+
+[dependencies]
+thiserror = "2"
+# RAW container/metadata decoding. Pure Rust, no system libs → builds headless.
+# Optional so the color/demosaic logic can be built & unit-tested without it.
+rawler = { version = "0.6", optional = true }
+
+[features]
+default = ["decode"]
+decode = ["dep:rawler"]

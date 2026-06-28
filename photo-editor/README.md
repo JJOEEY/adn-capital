@@ -5,9 +5,11 @@ background removal**. Non-destructive editing, GPU-accelerated preview, RAW supp
 and a customizable color-grading system. Built to run on one codebase across desktop
 (Windows / macOS / Linux) and, later, mobile (iOS / Android) via **Tauri 2**.
 
-> Status: **M0 + M1 foundation.** The web frontend (WebGL2 editor) runs today.
-> RAW (M2), color grading (M3), AI background removal (M4), catalog/export (M5),
-> and commercial packaging (M6) follow the milestones in the project plan.
+> Status: **M0 + M1 + M2.** The web frontend (WebGL2 editor) runs today, and RAW
+> decode + color management is implemented in the pure-Rust `raw-core` crate
+> (unit-tested headless; wired into the desktop build). Color grading (M3), AI
+> background removal (M4), catalog/export (M5), and commercial packaging (M6)
+> follow the milestones in the project plan.
 
 ## Stack
 
@@ -58,18 +60,33 @@ npm run tauri:build   # produces installers (.dmg / .msi / .AppImage …)
 Every edit is a field in a serializable **recipe** (`src/editor/recipe.ts`); the
 source pixels are never mutated.
 
+## RAW support (M2)
+
+Opening a `.NEF/.CR3/.CR2/.ARW/.DNG/.RAF/.RW2/.ORF` in the **desktop** build routes
+to `raw-core`, which decodes (via `rawler`), demosaics (bilinear Bayer), applies the
+camera white balance + camera→sRGB color matrix, and returns a color-managed sRGB
+image that flows through the same editor pipeline. The RAW pipeline is pure Rust and
+unit-tested headless:
+
+```bash
+cd photo-editor
+cargo test -p raw-core      # demosaic + color-management unit tests (no webview needed)
+```
+
 ## Project layout
 
 ```
 photo-editor/
+├─ Cargo.toml           # Rust workspace (src-tauri + crates/raw-core)
 ├─ src/                 # React frontend
 │  ├─ editor/           # recipe model + WebGL2 pipeline + shaders + color/ (M3)
 │  ├─ store/            # Zustand editor store (recipe, undo/redo)
 │  ├─ components/       # Canvas, AdjustPanel, Histogram, Toolbar
 │  └─ lib/platform.ts   # Tauri ↔ web file abstraction
-└─ src-tauri/           # Rust core
-   ├─ src/lib.rs        # Tauri commands (load_image; decode_raw/remove_bg stubs)
-   ├─ src/raw/          # RAW decode (M2)
+├─ crates/raw-core/     # ⭐ pure-Rust RAW decode + demosaic + color (unit-tested)
+└─ src-tauri/           # Rust core (Tauri app)
+   ├─ src/lib.rs        # Tauri commands (load_image routes RAW → raw-core)
+   ├─ src/raw/          # thin bridge to raw-core (M2)
    ├─ src/ai/           # BiRefNet background removal (M4)
    └─ resources/models/ # ONNX weights (downloaded, not committed)
 ```

@@ -22,6 +22,17 @@ jobs:
       - run: npm ci
       - run: npm run build # tsc --noEmit + vite build
 
+  raw-core:
+    # Pure-Rust RAW pipeline — no webview deps, runs anywhere.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: photo-editor
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test -p raw-core
+
   desktop:
     needs: frontend
     strategy:

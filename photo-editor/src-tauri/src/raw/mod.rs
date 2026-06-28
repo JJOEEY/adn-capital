@@ -1,13 +1,14 @@
-// RAW decode (M2). Will use `rawler` (pure Rust) to decode + demosaic camera RAW
-// files (NEF/CR3/ARW/DNG/RAF…), then apply the camera color matrix + white balance
-// to produce a color-managed linear image.
-//
-// Stubbed until M2 so the desktop build links and standard formats work today.
+// RAW decode bridge. The heavy lifting (decode + demosaic + color management) lives
+// in the pure-Rust `raw-core` workspace crate so it can be unit-tested headless;
+// this thin layer adapts its output into the Tauri-facing `DecodedImage`.
 
 use crate::{AppError, DecodedImage};
 
-pub fn decode_raw(_path: &str) -> Result<DecodedImage, AppError> {
-    Err(AppError::Other(
-        "RAW decoding arrives in M2 (rawler). For now, open a JPEG/PNG/TIFF.".into(),
-    ))
+pub fn decode_raw(path: &str) -> Result<DecodedImage, AppError> {
+    let decoded = raw_core::decode_raw(path).map_err(|e| AppError::Other(e.to_string()))?;
+    Ok(DecodedImage {
+        width: decoded.width,
+        height: decoded.height,
+        rgba: decoded.rgba,
+    })
 }
