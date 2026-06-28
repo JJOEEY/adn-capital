@@ -6,6 +6,8 @@
 import { reviveRecipe, Recipe } from "../editor/recipe";
 import { LoadedImage } from "../store/editorStore";
 
+export type Flag = "none" | "pick" | "reject";
+
 export interface CatalogEntry {
   key: string;
   name: string;
@@ -14,6 +16,8 @@ export interface CatalogEntry {
   height: number;
   thumb: string; // small data-URL preview
   recipe: Recipe;
+  rating: number; // 0..5 stars
+  flag: Flag;
   updatedAt: number;
 }
 
@@ -85,15 +89,29 @@ export function makeThumb(img: LoadedImage, size = 200): string {
 export function saveEntry(img: LoadedImage, recipe: Recipe, thumb?: string) {
   const cat = read();
   const key = makeKey(img);
+  const prev = cat[key];
   cat[key] = {
     key,
     name: img.name,
     path: img.path,
     width: img.width,
     height: img.height,
-    thumb: thumb ?? cat[key]?.thumb ?? "",
+    thumb: thumb ?? prev?.thumb ?? "",
     recipe,
+    rating: prev?.rating ?? 0, // preserve culling metadata across edits
+    flag: prev?.flag ?? "none",
     updatedAt: Date.now(),
   };
+  write(cat);
+}
+
+// Update just the culling metadata (rating / flag) for an entry.
+export function setMeta(key: string, patch: { rating?: number; flag?: Flag }) {
+  const cat = read();
+  const e = cat[key];
+  if (!e) return;
+  if (patch.rating !== undefined) e.rating = patch.rating;
+  if (patch.flag !== undefined) e.flag = patch.flag;
+  e.updatedAt = Date.now();
   write(cat);
 }

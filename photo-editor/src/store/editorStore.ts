@@ -63,6 +63,9 @@ interface EditorState {
   commit: () => void; // push current recipe onto history (call on slider release)
   reset: () => void;
   applyRecipe: (r: Recipe, opts?: { keepLayers?: boolean }) => void; // presets/catalog restore
+  clipboardRecipe: Recipe | null; // copied develop settings
+  copySettings: () => void; // copy current recipe (look + adjustments, not layers)
+  pasteSettings: () => void; // apply copied settings to the current image
   undo: () => void;
   redo: () => void;
   setShowOriginal: (v: boolean) => void;
@@ -155,6 +158,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   selectMask: (id) => set({ selectedMaskId: id }),
+
+  clipboardRecipe: null,
+  copySettings: () => {
+    const r = cloneRecipe(get().recipe);
+    r.layerStack = []; // settings are portable; image layers are not
+    set({ clipboardRecipe: r });
+  },
+  pasteSettings: () => {
+    const clip = get().clipboardRecipe;
+    if (clip) get().applyRecipe(clip, { keepLayers: true });
+  },
 
   addLayer: (layer) => {
     get().commit();

@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { openImage, removeBackground } from "../lib/platform";
 import { useEditorStore } from "../store/editorStore";
+import { RatingFlag } from "./RatingFlag";
 
 export function Toolbar() {
   const setImage = useEditorStore((s) => s.setImage);
@@ -70,6 +71,7 @@ export function Toolbar() {
           {matting ? "Removing…" : "Remove BG"}
         </button>
       </div>
+      <RatingFlag />
     </header>
   );
 }

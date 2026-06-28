@@ -124,6 +124,21 @@ export async function saveBinaryFile(defaultName: string, bytes: Uint8Array): Pr
   URL.revokeObjectURL(url);
 }
 
+// Pick an output directory (desktop only) for batch export.
+export async function pickDirectory(): Promise<string | null> {
+  if (!isTauri()) return null;
+  const { open } = await import("@tauri-apps/plugin-dialog");
+  const dir = await open({ directory: true });
+  return typeof dir === "string" ? dir : null;
+}
+
+// Write binary data straight to a known path (no dialog) — used for batch export.
+export async function writeBinaryToPath(path: string, bytes: Uint8Array): Promise<void> {
+  if (!isTauri()) return;
+  const { writeFile } = await import("@tauri-apps/plugin-fs");
+  await writeFile(path, bytes);
+}
+
 // Save text to a file via the native save dialog (Tauri) or a browser download.
 export async function saveTextFile(defaultName: string, text: string): Promise<void> {
   if (isTauri()) {
