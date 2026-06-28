@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { Canvas } from "./components/Canvas";
 import { AdjustPanel } from "./components/AdjustPanel";
+import { ColorGradePanel } from "./components/ColorGradePanel";
+import { Presets } from "./components/Presets";
 import { Histogram } from "./components/Histogram";
 import { Toolbar } from "./components/Toolbar";
 import { useEditorStore } from "./store/editorStore";
@@ -31,6 +33,8 @@ export default function App() {
         <div className="sidebar">
           <Histogram />
           <AdjustPanel />
+          <ColorGradePanel />
+          <Presets />
         </div>
       </div>
     </div>

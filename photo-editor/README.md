@@ -5,9 +5,11 @@ background removal**. Non-destructive editing, GPU-accelerated preview, RAW supp
 and a customizable color-grading system. Built to run on one codebase across desktop
 (Windows / macOS / Linux) and, later, mobile (iOS / Android) via **Tauri 2**.
 
-> Status: **M0 + M1 + M2.** The web frontend (WebGL2 editor) runs today, and RAW
-> decode + color management is implemented in the pure-Rust `raw-core` crate
-> (unit-tested headless; wired into the desktop build). Color grading (M3), AI
+> Status: **M0 + M1 + M2 + M3.** The web frontend (WebGL2 editor) runs today; RAW
+> decode + color management lives in the pure-Rust `raw-core` crate (unit-tested
+> headless); and the full color-grading system (tone curves, HSL mixer, color
+> wheels, split toning, `.cube` LUT import/export, presets) is implemented with the
+> CPU color math unit-tested (35 tests) and mirrored in the GPU shader. AI
 > background removal (M4), catalog/export (M5), and commercial packaging (M6)
 > follow the milestones in the project plan.
 
@@ -59,6 +61,25 @@ npm run tauri:build   # produces installers (.dmg / .msi / .AppImage …)
 
 Every edit is a field in a serializable **recipe** (`src/editor/recipe.ts`); the
 source pixels are never mutated.
+
+## Color grading (M3)
+
+A full, customer-customizable color system, all non-destructive and GPU-rendered:
+
+- **Tone curves** — master RGB + per-channel R/G/B (monotone cubic, drag to edit).
+- **HSL / color mixer** — hue / sat / lum across 8 hue bands.
+- **Color wheels** — shadows / midtones / highlights / global (lift–gamma–gain).
+- **Split toning** — independent shadow & highlight tints + balance.
+- **`.cube` LUT** — import external 3D LUTs; **export the current look as a `.cube`**
+  to share or reuse the "look" you built.
+- **Presets** — save / apply / export the whole recipe.
+
+The CPU color math (`src/editor/color/*`) is the single source of truth — it backs
+LUT export and is unit-tested; the WebGL shader mirrors it for the live preview.
+
+```bash
+npm test    # 35 color-math unit tests (curve, hsl, wheels, lut) — runs headless
+```
 
 ## RAW support (M2)
 

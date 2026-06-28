@@ -69,6 +69,7 @@ fn load_image(path: String) -> Result<DecodedImage, AppErrorWire> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .invoke_handler(tauri::generate_handler![load_image])
         .run(tauri::generate_context!())
         .expect("error while running Lumen");

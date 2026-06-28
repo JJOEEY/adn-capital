@@ -2,7 +2,9 @@
 // history of recipes. UI components subscribe to slices of this store.
 
 import { create } from "zustand";
-import { cloneRecipe, DEFAULT_RECIPE, Recipe } from "../editor/recipe";
+import { cloneRecipe, DEFAULT_RECIPE, Recipe, recipesEqual } from "../editor/recipe";
+import { Look } from "../editor/color/look";
+import { CubeLut } from "../editor/color/lut";
 
 export interface LoadedImage {
   bitmap: ImageBitmap;
@@ -20,6 +22,8 @@ interface EditorState {
 
   setImage: (img: LoadedImage) => void;
   setAdjust: (key: keyof Recipe, value: number) => void;
+  setLook: (look: Look) => void; // live color-grade update (no history; commit on release)
+  setLut: (lut: CubeLut | null) => void; // import/clear 3D LUT (own history step)
   commit: () => void; // push current recipe onto history (call on slider release)
   reset: () => void;
   applyRecipe: (r: Recipe) => void; // e.g. when applying a preset
@@ -49,11 +53,21 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setAdjust: (key, value) =>
     set((s) => ({ recipe: { ...s.recipe, [key]: value } })),
 
+  // Live color-grade update (curve drag, wheel drag, HSL slider). Commit on release.
+  setLook: (look) => set((s) => ({ recipe: { ...s.recipe, look } })),
+
+  // Importing/clearing a LUT is a discrete action → its own history step.
+  setLut: (lut) => {
+    get().commit();
+    set((s) => ({ recipe: { ...s.recipe, lut } }));
+    get().commit();
+  },
+
   // Snapshot the recipe at the moment a gesture ends so undo steps are meaningful.
   commit: () =>
     set((s) => {
       const last = s.past[s.past.length - 1];
-      if (last && shallowEqual(last, s.recipe)) return {} as Partial<EditorState>;
+      if (last && recipesEqual(last, s.recipe)) return {} as Partial<EditorState>;
       const past = [...s.past, cloneRecipe(s.recipe)].slice(-HISTORY_LIMIT);
       return { past, future: [] };
     }),
@@ -95,7 +109,3 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setShowOriginal: (v) => set({ showOriginal: v }),
 }));
-
-function shallowEqual(a: Recipe, b: Recipe): boolean {
-  return (Object.keys(a) as (keyof Recipe)[]).every((k) => a[k] === b[k]);
-}

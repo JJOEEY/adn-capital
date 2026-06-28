@@ -5,6 +5,9 @@
 // Keep this in sync with the GLSL uniforms in pipeline.ts. Adding a field here is
 // the canonical way to add a new global adjustment.
 
+import { Look, defaultLook, isDefaultLook } from "./color/look";
+import { CubeLut } from "./color/lut";
+
 export interface Recipe {
   // Light
   exposure: number; // EV, -5 .. +5
@@ -24,6 +27,10 @@ export interface Recipe {
 
   // Detail (display-space approximation for now)
   clarity: number; // -100 .. 100
+
+  // M3 — color grading (non-scalar; edited via the color panels, not sliders)
+  look: Look;
+  lut: CubeLut | null; // imported 3D .cube LUT, applied last
 }
 
 export const DEFAULT_RECIPE: Recipe = {
@@ -38,11 +45,18 @@ export const DEFAULT_RECIPE: Recipe = {
   saturation: 0,
   vibrance: 0,
   clarity: 0,
+  look: defaultLook(),
+  lut: null,
 };
+
+// The scalar (number-valued) adjustment fields — the ones driven by sliders.
+export type ScalarKey = {
+  [K in keyof Recipe]: Recipe[K] extends number ? K : never;
+}[keyof Recipe];
 
 // Slider metadata drives the adjustment panel UI and clamping. One source of truth.
 export interface AdjustSpec {
-  key: keyof Recipe;
+  key: ScalarKey;
   label: string;
   group: "Light" | "Color" | "Detail";
   min: number;
@@ -65,11 +79,33 @@ export const ADJUSTMENTS: AdjustSpec[] = [
 ];
 
 export function isDefault(r: Recipe): boolean {
-  return (Object.keys(DEFAULT_RECIPE) as (keyof Recipe)[]).every(
-    (k) => r[k] === DEFAULT_RECIPE[k]
-  );
+  const scalarsDefault = ADJUSTMENTS.every((a) => r[a.key] === DEFAULT_RECIPE[a.key]);
+  return scalarsDefault && isDefaultLook(r.look) && r.lut === null;
 }
 
 export function cloneRecipe(r: Recipe): Recipe {
-  return { ...r };
+  // Deep-clone the nested color-grade state (look + LUT typed arrays) so history
+  // snapshots are independent.
+  return {
+    ...r,
+    look: structuredClone(r.look),
+    lut: r.lut ? structuredClone(r.lut) : null,
+  };
+}
+
+// Value equality for history dedup (handles nested look + LUT typed arrays).
+export function recipesEqual(a: Recipe, b: Recipe): boolean {
+  if (!ADJUSTMENTS.every((s) => a[s.key] === b[s.key])) return false;
+  return JSON.stringify(a.look) === JSON.stringify(b.look) && lutEqual(a.lut, b.lut);
+}
+
+function lutEqual(a: CubeLut | null, b: CubeLut | null): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.dim === b.dim &&
+    a.size === b.size &&
+    a.data.length === b.data.length &&
+    a.data.every((v, i) => v === b.data[i])
+  );
 }

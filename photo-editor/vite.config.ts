@@ -7,6 +7,9 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig({
   plugins: [react()],
   clearScreen: false,
+  // This project lives in a subdirectory of another repo; stop Vite/Vitest from
+  // auto-discovering that parent's PostCSS/Tailwind config.
+  css: { postcss: { plugins: [] } },
   server: {
     port: 1420,
     strictPort: true,

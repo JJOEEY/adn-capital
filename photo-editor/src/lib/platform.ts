@@ -59,3 +59,46 @@ export async function openImage(): Promise<LoadedImage | null> {
     input.click();
   });
 }
+
+// Open a text file (e.g. a .cube LUT or a preset .json), returning its contents.
+export async function openTextFile(extensions: string[]): Promise<{ name: string; text: string } | null> {
+  if (isTauri()) {
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const selected = await open({ multiple: false, filters: [{ name: "File", extensions }] });
+    if (!selected || Array.isArray(selected)) return null;
+    const path = selected as string;
+    const { readTextFile } = await import("@tauri-apps/plugin-fs");
+    const text = await readTextFile(path);
+    return { name: path.split(/[\\/]/).pop() ?? "file", text };
+  }
+  return new Promise((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = extensions.map((e) => "." + e).join(",");
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return resolve(null);
+      resolve({ name: file.name, text: await file.text() });
+    };
+    input.click();
+  });
+}
+
+// Save text to a file via the native save dialog (Tauri) or a browser download.
+export async function saveTextFile(defaultName: string, text: string): Promise<void> {
+  if (isTauri()) {
+    const { save } = await import("@tauri-apps/plugin-dialog");
+    const path = await save({ defaultPath: defaultName });
+    if (!path) return;
+    const { writeTextFile } = await import("@tauri-apps/plugin-fs");
+    await writeTextFile(path, text);
+    return;
+  }
+  const blob = new Blob([text], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = defaultName;
+  a.click();
+  URL.revokeObjectURL(url);
+}

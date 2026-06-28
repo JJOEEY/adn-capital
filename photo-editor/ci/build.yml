@@ -20,6 +20,7 @@ jobs:
         with:
           node-version: 20
       - run: npm ci
+      - run: npm test # vitest — color-math unit tests
       - run: npm run build # tsc --noEmit + vite build
 
   raw-core:
