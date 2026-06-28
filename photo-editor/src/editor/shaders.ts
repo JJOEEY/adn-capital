@@ -181,7 +181,7 @@ float maskWeight(vec2 p, float lum) {
     float lx = (o.x * ca + o.y * sa) / max(1e-6, u_radial.z);
     float ly = (-o.x * sa + o.y * ca) / max(1e-6, u_radial.w);
     float dd = length(vec2(lx, ly));
-    float f = clamp01(u_radial2.y);
+    float f = max(1e-4, clamp01(u_radial2.y));
     return 1.0 - smoothstep(1.0 - f, 1.0, dd);
   } else if (u_maskKind == 2) {
     float f = max(1e-4, u_range.z);

@@ -27,8 +27,9 @@ interface EditorState {
   image: LoadedImage | null;
   mask: ImageMask | null; // AI foreground matte (M4)
   recipe: Recipe;
-  past: Recipe[];
-  future: Recipe[];
+  baseline: Recipe; // last committed state (current edits live in `recipe`)
+  past: Recipe[]; // states we can undo to
+  future: Recipe[]; // states we can redo to
   showOriginal: boolean; // hold-to-compare (before/after)
   selectedMaskId: string | null; // local adjustment being edited (for the panel + overlay)
 
@@ -56,6 +57,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   image: null,
   mask: null,
   recipe: cloneRecipe(DEFAULT_RECIPE),
+  baseline: cloneRecipe(DEFAULT_RECIPE),
   past: [],
   future: [],
   showOriginal: false,
@@ -66,6 +68,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       image: img,
       mask: null,
       recipe: cloneRecipe(DEFAULT_RECIPE),
+      baseline: cloneRecipe(DEFAULT_RECIPE),
       past: [],
       future: [],
       selectedMaskId: null,
@@ -132,23 +135,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   selectMask: (id) => set({ selectedMaskId: id }),
 
-  // Snapshot the recipe at the moment a gesture ends so undo steps are meaningful.
+  // Commit the live recipe as a new history step. `baseline` holds the last
+  // committed state; on commit the OLD baseline moves to `past` and becomes the
+  // point a single undo returns to (so the first undo always reverts the gesture).
   commit: () =>
     set((s) => {
-      const last = s.past[s.past.length - 1];
-      if (last && recipesEqual(last, s.recipe)) return {} as Partial<EditorState>;
-      const past = [...s.past, cloneRecipe(s.recipe)].slice(-HISTORY_LIMIT);
-      return { past, future: [] };
+      if (recipesEqual(s.recipe, s.baseline)) return {} as Partial<EditorState>;
+      const past = [...s.past, s.baseline].slice(-HISTORY_LIMIT);
+      return { past, baseline: cloneRecipe(s.recipe), future: [] };
     }),
 
   reset: () => {
-    get().commit();
     set({ recipe: cloneRecipe(DEFAULT_RECIPE) });
     get().commit();
   },
 
   applyRecipe: (r) => {
-    get().commit();
     set({ recipe: cloneRecipe(r) });
     get().commit();
   },
@@ -160,8 +162,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const prev = past.pop()!;
       return {
         past,
-        future: [cloneRecipe(s.recipe), ...s.future],
-        recipe: prev,
+        future: [s.baseline, ...s.future],
+        baseline: prev,
+        recipe: cloneRecipe(prev),
       };
     }),
 
@@ -170,9 +173,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (s.future.length === 0) return {} as Partial<EditorState>;
       const [next, ...rest] = s.future;
       return {
-        past: [...s.past, cloneRecipe(s.recipe)],
+        past: [...s.past, s.baseline],
         future: rest,
-        recipe: next,
+        baseline: next,
+        recipe: cloneRecipe(next),
       };
     }),
 

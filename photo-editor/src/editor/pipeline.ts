@@ -137,6 +137,7 @@ export class RenderPipeline {
       this.maskTex = null;
     }
     if (!mask) return;
+    gl.activeTexture(gl.TEXTURE7);
     this.maskTex = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, this.maskTex);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -164,6 +165,10 @@ export class RenderPipeline {
       const fb = gl.createFramebuffer();
       gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+      if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        throw new Error(`Render target ${w}×${h} incomplete (image too large for this GPU)`);
+      }
       this.fboTex[i] = tex;
       this.fbo[i] = fb;
     }
@@ -185,6 +190,7 @@ export class RenderPipeline {
       data[i * 4 + 2] = Math.round(evalCurve(curves.b, m) * 255);
       data[i * 4 + 3] = 255;
     }
+    gl.activeTexture(gl.TEXTURE7); // scratch upload unit — never aliases sampler units
     if (!this.curveTex) this.curveTex = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, this.curveTex);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -204,6 +210,7 @@ export class RenderPipeline {
       data[i * 4 + 2] = Math.round(Math.min(1, Math.max(0, lut.data[i * 3 + 2])) * 255);
       data[i * 4 + 3] = 255;
     }
+    gl.activeTexture(gl.TEXTURE7);
     if (!this.lut3dTex) this.lut3dTex = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_3D, this.lut3dTex);
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -217,6 +224,7 @@ export class RenderPipeline {
   private ensureDummy3D() {
     if (this.dummy3d) return;
     const gl = this.gl;
+    gl.activeTexture(gl.TEXTURE7);
     this.dummy3d = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_3D, this.dummy3d);
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -349,8 +357,11 @@ export class RenderPipeline {
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     let cur = 0;
 
-    // LOCAL passes → ping-pong
-    const locals = (recipe.localAdjustments ?? []).filter((l) => l.visible);
+    // LOCAL passes → ping-pong. Skip AI-subject masks with no matte loaded (an
+    // inverted no-matte subject mask would otherwise select the whole image).
+    const locals = (recipe.localAdjustments ?? []).filter(
+      (l) => l.visible && (l.mask.kind !== "aiSubject" || this.maskTex !== null)
+    );
     if (locals.length) {
       gl.useProgram(this.local);
       for (const la of locals) {

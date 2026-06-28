@@ -25,8 +25,12 @@ export async function renderToBlob(
   watermark = false
 ): Promise<Blob> {
   const canvas = document.createElement("canvas");
-  canvas.width = image.width;
-  canvas.height = image.height;
+  // Cap to a safe GPU texture size so huge images don't produce an incomplete FBO.
+  const MAX_DIM = 8192;
+  const s = Math.min(1, MAX_DIM / Math.max(image.width, image.height));
+  canvas.width = Math.max(1, Math.round(image.width * s));
+  canvas.height = Math.max(1, Math.round(image.height * s));
+  if (s < 1) console.warn(`Export downscaled to ${canvas.width}×${canvas.height} (GPU limit)`);
   const pipe = new RenderPipeline(canvas);
   try {
     pipe.setImage(image.bitmap, image.width, image.height);

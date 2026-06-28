@@ -128,7 +128,8 @@ export function radialWeight(px: number, py: number, m: RadialMask): number {
   const ly = (-ox * sa + oy * ca) / Math.max(1e-6, m.ry);
   const d = Math.sqrt(lx * lx + ly * ly); // 1 at the ellipse edge
   // center = 1, fading to 0 across the feather band ending at the edge
-  return 1 - smoothstep(1 - clamp01(m.feather), 1, d);
+  const f = Math.max(1e-4, clamp01(m.feather));
+  return 1 - smoothstep(1 - f, 1, d);
 }
 
 export function rangeLumaWeight(luma: number, m: RangeMask): number {
