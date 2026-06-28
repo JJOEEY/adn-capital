@@ -13,11 +13,13 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  ArrowLeft,
   CheckCircle2,
   ExternalLink,
   Hash,
   ImagePlus,
   Loader2,
+  Pencil,
   PenSquare,
   RefreshCw,
   Send,
@@ -131,11 +133,13 @@ function TopicCard({
 function ArticleCard({
   article,
   actionLoading,
+  onEdit,
   onStatusChange,
   onDelete,
 }: {
   article: Article;
   actionLoading: string | null;
+  onEdit: (article: Article) => void;
   onStatusChange: (id: string, status: string) => void;
   onDelete: (id: string, title: string) => void;
 }) {
@@ -182,11 +186,19 @@ function ArticleCard({
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2 lg:w-[360px] lg:justify-end">
+        <div className="flex flex-wrap gap-2 lg:w-[400px] lg:justify-end">
           {actionLoading === article.id ? (
             <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
           ) : (
             <>
+              <button
+                type="button"
+                onClick={() => onEdit(article)}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/20"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Sửa
+              </button>
               {article.status === "PENDING_APPROVAL" && (
                 <>
                   <button
@@ -254,13 +266,14 @@ export default function AdminArticlesPage() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [filterStatus, setFilterStatus] = useState("ALL");
   const [filterCategory, setFilterCategory] = useState("ALL");
-  const [crawling, setCrawling] = useState(false);
-  const [crawlResult, setCrawlResult] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  const [showComposer, setShowComposer] = useState(true);
+  // "list" = danh sách bài; "compose" = trang soạn bài full-focus
+  const [view, setView] = useState<"list" | "compose">("list");
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [writeTitle, setWriteTitle] = useState("");
   const [writeContent, setWriteContent] = useState("");
   const [writeCategoryId, setWriteCategoryId] = useState("");
@@ -324,6 +337,39 @@ export default function AdminArticlesPage() {
     setWriteTags([]);
     setTagInput("");
     setWriteError(null);
+  };
+
+  const openComposer = () => {
+    resetComposer();
+    setEditingId(null);
+    setWriteSuccess(null);
+    setView("compose");
+  };
+
+  const startEdit = (article: Article) => {
+    setEditingId(article.id);
+    setWriteTitle(article.title ?? "");
+    setWriteContent(article.content ?? "");
+    setWriteCategoryId(article.category?.id ?? "");
+    setWriteImageUrl(article.imageUrl ?? "");
+    setWriteTags(Array.isArray(article.tags) ? article.tags : []);
+    setTagInput("");
+    setWriteError(null);
+    setWriteSuccess(null);
+    setView("compose");
+    if (typeof window !== "undefined") window.scrollTo({ top: 0 });
+  };
+
+  const exitComposer = () => {
+    resetComposer();
+    setEditingId(null);
+    setView("list");
+  };
+
+  const refreshList = async () => {
+    setRefreshing(true);
+    await fetchArticles();
+    setRefreshing(false);
   };
 
   const addTag = (rawTag: string) => {
@@ -407,22 +453,6 @@ export default function AdminArticlesPage() {
     }
   };
 
-  const handleCrawl = async () => {
-    setCrawling(true);
-    setCrawlResult(null);
-    try {
-      const response = await fetch("/api/crawler/run", { method: "POST" });
-      const data = await response.json().catch(() => null);
-      setCrawlResult(data?.message ?? data?.error ?? "Đã chạy crawl tin");
-      await fetchArticles();
-    } catch (error) {
-      setCrawlResult("Không chạy được crawler lúc này");
-      console.error("[AdminArticlesPage] Crawl failed:", error);
-    } finally {
-      setCrawling(false);
-    }
-  };
-
   const handleWriteSubmit = async (status: "DRAFT" | "PENDING_APPROVAL" | "PUBLISHED") => {
     setWriteError(null);
     setWriteSuccess(null);
@@ -440,40 +470,52 @@ export default function AdminArticlesPage() {
       return;
     }
 
+    const wasEditing = Boolean(editingId);
     const finalStatus = status === "PUBLISHED" && !isAdmin ? "PENDING_APPROVAL" : status;
     setWriteSubmitting(finalStatus);
 
     try {
-      const response = await fetch("/api/articles", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: writeTitle.trim(),
-          content: writeContent.trim(),
-          categoryId: writeCategoryId,
-          imageUrl: writeImageUrl || null,
-          tags: writeTags,
-          status: finalStatus,
-        }),
-      });
+      const payload = {
+        title: writeTitle.trim(),
+        content: writeContent.trim(),
+        categoryId: writeCategoryId,
+        imageUrl: writeImageUrl || null,
+        tags: writeTags,
+        status: finalStatus,
+      };
+
+      const response = wasEditing
+        ? await fetch(`/api/articles/${editingId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          })
+        : await fetch("/api/articles", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
 
       const data = await response.json().catch(() => null);
       if (!response.ok) {
-        throw new Error(data?.error || "Không thể tạo bài viết. Vui lòng kiểm tra lại nội dung.");
+        throw new Error(data?.error || "Không thể lưu bài viết. Vui lòng kiểm tra lại nội dung.");
       }
 
       resetComposer();
-      setShowComposer(false);
+      setEditingId(null);
+      setView("list");
       setWriteSuccess(
-        finalStatus === "PUBLISHED"
-          ? "Bài viết đã được đăng."
-          : finalStatus === "DRAFT"
-            ? "Đã lưu nháp."
-            : "Bài viết đã được gửi duyệt.",
+        wasEditing
+          ? "Đã cập nhật bài viết."
+          : finalStatus === "PUBLISHED"
+            ? "Bài viết đã được đăng."
+            : finalStatus === "DRAFT"
+              ? "Đã lưu nháp."
+              : "Bài viết đã được gửi duyệt.",
       );
       await fetchArticles();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Không thể tạo bài viết do lỗi kết nối.";
+      const message = error instanceof Error ? error.message : "Không thể lưu bài viết do lỗi kết nối.";
       setWriteError(message);
     } finally {
       setWriteSubmitting(null);
@@ -488,9 +530,225 @@ export default function AdminArticlesPage() {
     );
   }
 
+  // ────────────────────────────────────────────────────────────
+  // TRANG SOẠN BÀI (forum-style, full-focus)
+  // ────────────────────────────────────────────────────────────
+  if (view === "compose") {
+    const draftBusy = writeSubmitting === "DRAFT";
+    const publishStatus: "PENDING_APPROVAL" | "PUBLISHED" = isAdmin ? "PUBLISHED" : "PENDING_APPROVAL";
+    const publishBusy = writeSubmitting === "PENDING_APPROVAL" || writeSubmitting === "PUBLISHED";
+
+    return (
+      <div className="min-h-screen bg-[#0d1117] text-slate-100" onPaste={handleComposerPaste}>
+        {/* Thanh hành động dính trên cùng */}
+        <div className="sticky top-0 z-30 border-b border-white/10 bg-[#0d1117]/95 backdrop-blur">
+          <div className="mx-auto flex w-full max-w-[1400px] items-center justify-between gap-3 px-4 py-3 sm:px-6">
+            <button
+              type="button"
+              onClick={exitComposer}
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Quay lại danh sách
+            </button>
+
+            <div className="hidden flex-1 truncate px-2 text-center text-sm font-bold text-slate-400 sm:block">
+              {editingId ? "Đang sửa bài viết" : "Soạn bài viết mới"}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void handleWriteSubmit("DRAFT")}
+                disabled={!canSubmit || !!writeSubmitting}
+                className="rounded-xl border border-white/10 bg-white/5 px-3.5 py-2 text-sm font-bold text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                {draftBusy ? "Đang lưu..." : "Lưu nháp"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleWriteSubmit(publishStatus)}
+                disabled={!canSubmit || !!writeSubmitting}
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-black text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                {isAdmin ? <CheckCircle2 className="h-4 w-4" /> : <Send className="h-4 w-4" />}
+                {publishBusy
+                  ? isAdmin
+                    ? "Đang đăng..."
+                    : "Đang gửi..."
+                  : isAdmin
+                    ? "Đăng bài"
+                    : "Gửi duyệt"}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6">
+          {writeError && (
+            <div className="mb-5 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+              {writeError}
+            </div>
+          )}
+
+          {/* Chọn chủ đề */}
+          <div className="mb-5">
+            <p className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-300">Chủ đề bài viết</p>
+            <div className="grid gap-3 md:grid-cols-3">
+              {primaryCategories.map((category) => (
+                <TopicCard
+                  key={category.id}
+                  category={category}
+                  active={writeCategoryId === category.id}
+                  onClick={() => setWriteCategoryId(category.id)}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+            {/* Khung viết bài kiểu forum */}
+            <div className="space-y-4">
+              <input
+                type="text"
+                placeholder="Tiêu đề bài viết"
+                value={writeTitle}
+                onChange={(event) => setWriteTitle(event.target.value)}
+                className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4 text-xl font-black text-white placeholder:text-slate-500 focus:border-emerald-400/50 focus:outline-none"
+              />
+
+              <RichTextEditor
+                content={writeContent}
+                onChange={setWriteContent}
+                uploadEndpoint="/api/articles/upload-image"
+                onImageUploaded={(url) => setWriteImageUrl((current) => current || url)}
+                placeholder="Viết nội dung bài viết. Có thể dán ảnh trực tiếp vào đây..."
+              />
+            </div>
+
+            {/* Rail thông tin bài */}
+            <aside className="space-y-4">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                <h3 className="text-sm font-black text-white">Ảnh bìa</h3>
+                <p className="mt-1 text-xs text-slate-400">Upload, kéo thả hoặc paste ảnh vào trang.</p>
+                <div
+                  className="relative mt-3 flex min-h-[190px] items-center justify-center overflow-hidden rounded-2xl border border-dashed border-white/15 bg-black/20"
+                  onDrop={handleCoverDrop}
+                  onDragOver={(event) => event.preventDefault()}
+                >
+                  {writeImageUrl ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={writeImageUrl} alt="Ảnh bìa bài viết" className="h-full min-h-[190px] w-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setWriteImageUrl("")}
+                        className="absolute right-3 top-3 rounded-full bg-black/70 p-2 text-white"
+                        aria-label="Xóa ảnh bìa"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => coverInputRef.current?.click()}
+                      disabled={coverUploading}
+                      className="flex flex-col items-center gap-2 px-4 py-6 text-center text-sm font-semibold text-slate-300 disabled:opacity-50"
+                    >
+                      {coverUploading ? <Loader2 className="h-6 w-6 animate-spin" /> : <ImagePlus className="h-6 w-6" />}
+                      Thêm ảnh bìa
+                    </button>
+                  )}
+                </div>
+                <input
+                  ref={coverInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    event.target.value = "";
+                    if (file) void uploadCoverImage(file);
+                  }}
+                />
+                <input
+                  type="url"
+                  value={writeImageUrl}
+                  onChange={(event) => setWriteImageUrl(event.target.value)}
+                  placeholder="Hoặc dán URL ảnh bìa"
+                  className="mt-3 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:border-emerald-400/50 focus:outline-none"
+                />
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                <h3 className="flex items-center gap-2 text-sm font-black text-white">
+                  <Hash className="h-4 w-4" />
+                  Hashtag
+                </h3>
+                <input
+                  type="text"
+                  value={tagInput}
+                  onChange={(event) => setTagInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === ",") {
+                      event.preventDefault();
+                      addTag(tagInput);
+                    }
+                  }}
+                  onBlur={() => addTag(tagInput)}
+                  placeholder="Nhập hashtag rồi Enter"
+                  className="mt-3 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:border-emerald-400/50 focus:outline-none"
+                />
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {writeTags.map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => setWriteTags((current) => current.filter((item) => item !== tag))}
+                      className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-200"
+                    >
+                      #{tag}
+                      <X className="h-3 w-3" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 text-sm text-slate-400">
+                <p>
+                  Chủ đề: <span className="font-semibold text-slate-200">{selectedCategory?.name ?? "Chưa chọn"}</span>
+                </p>
+                <p className="mt-2">
+                  Vai trò: <span className="font-semibold text-slate-200">{isAdmin ? "Admin" : "Writer"}</span>
+                </p>
+                {!isAdmin && (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Bài của Writer sẽ vào hàng chờ duyệt trước khi hiển thị công khai.
+                  </p>
+                )}
+              </div>
+            </aside>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // DANH SÁCH BÀI VIẾT
+  // ────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[#0d1117] px-4 py-5 text-slate-100 sm:px-6 lg:px-8">
-      <div className="mx-auto w-full max-w-[1800px]">
+      <div className="mx-auto w-full max-w-[1400px]">
+        <Link
+          href="/khac/tin-tuc"
+          className="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-slate-400 transition hover:text-emerald-300"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Về trang Tin tức
+        </Link>
+
         <header className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-300">ADN CMS</p>
@@ -507,222 +765,28 @@ export default function AdminArticlesPage() {
             )}
             <button
               type="button"
-              onClick={() => setShowComposer((current) => !current)}
+              onClick={refreshList}
+              disabled={refreshing}
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-slate-200 transition hover:bg-white/10 disabled:opacity-50"
+            >
+              <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+              Làm mới
+            </button>
+            <button
+              type="button"
+              onClick={openComposer}
               className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-bold text-slate-950 transition hover:bg-emerald-400"
             >
               <PenSquare className="h-4 w-4" />
               Viết bài mới
             </button>
-            <button
-              type="button"
-              onClick={handleCrawl}
-              disabled={crawling}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-slate-200 transition hover:bg-white/10 disabled:opacity-50"
-            >
-              {crawling ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              Crawl tin mới
-            </button>
           </div>
         </header>
 
-        {(crawlResult || writeSuccess) && (
+        {writeSuccess && (
           <div className="mb-5 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
-            {writeSuccess ?? crawlResult}
+            {writeSuccess}
           </div>
-        )}
-
-        {showComposer && (
-          <section
-            className="mb-6 rounded-3xl border border-white/10 bg-white/[0.035] p-4 shadow-[0_20px_80px_rgba(0,0,0,0.24)] sm:p-5"
-            onPaste={handleComposerPaste}
-          >
-            <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <h2 className="text-xl font-black text-white">Tạo bài viết</h2>
-                <p className="mt-1 text-sm text-slate-400">Chọn chủ đề trước, sau đó viết bài và đăng/gửi duyệt.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  resetComposer();
-                  setShowComposer(false);
-                }}
-                className="inline-flex w-fit items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-slate-300"
-              >
-                <X className="h-4 w-4" />
-                Đóng
-              </button>
-            </div>
-
-            <div className="mb-5 grid gap-3 md:grid-cols-3">
-              {primaryCategories.map((category) => (
-                <TopicCard
-                  key={category.id}
-                  category={category}
-                  active={writeCategoryId === category.id}
-                  onClick={() => setWriteCategoryId(category.id)}
-                />
-              ))}
-            </div>
-
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-              <div className="space-y-4">
-                <input
-                  type="text"
-                  placeholder="Tiêu đề bài viết"
-                  value={writeTitle}
-                  onChange={(event) => setWriteTitle(event.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4 text-xl font-black text-white placeholder:text-slate-500 focus:border-emerald-400/50 focus:outline-none"
-                />
-
-                <RichTextEditor
-                  content={writeContent}
-                  onChange={setWriteContent}
-                  uploadEndpoint="/api/articles/upload-image"
-                  onImageUploaded={(url) => setWriteImageUrl((current) => current || url)}
-                  placeholder="Viết nội dung bài viết. Có thể dán ảnh trực tiếp vào đây..."
-                />
-              </div>
-
-              <aside className="space-y-4">
-                <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
-                  <h3 className="text-sm font-black text-white">Ảnh bìa</h3>
-                  <p className="mt-1 text-xs text-slate-400">Upload, kéo thả hoặc paste ảnh vào khung viết.</p>
-                  <div
-                    className="relative mt-3 flex min-h-[190px] items-center justify-center overflow-hidden rounded-2xl border border-dashed border-white/15 bg-black/20"
-                    onDrop={handleCoverDrop}
-                    onDragOver={(event) => event.preventDefault()}
-                  >
-                    {writeImageUrl ? (
-                      <>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={writeImageUrl} alt="Ảnh bìa bài viết" className="h-full min-h-[190px] w-full object-cover" />
-                        <button
-                          type="button"
-                          onClick={() => setWriteImageUrl("")}
-                          className="absolute right-3 top-3 rounded-full bg-black/70 p-2 text-white"
-                          aria-label="Xóa ảnh bìa"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => coverInputRef.current?.click()}
-                        disabled={coverUploading}
-                        className="flex flex-col items-center gap-2 px-4 py-6 text-center text-sm font-semibold text-slate-300 disabled:opacity-50"
-                      >
-                        {coverUploading ? <Loader2 className="h-6 w-6 animate-spin" /> : <ImagePlus className="h-6 w-6" />}
-                        Thêm ảnh bìa
-                      </button>
-                    )}
-                  </div>
-                  <input
-                    ref={coverInputRef}
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp"
-                    className="hidden"
-                    onChange={(event) => {
-                      const file = event.target.files?.[0];
-                      event.target.value = "";
-                      if (file) void uploadCoverImage(file);
-                    }}
-                  />
-                  <input
-                    type="url"
-                    value={writeImageUrl}
-                    onChange={(event) => setWriteImageUrl(event.target.value)}
-                    placeholder="Hoặc dán URL ảnh bìa"
-                    className="mt-3 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:border-emerald-400/50 focus:outline-none"
-                  />
-                </div>
-
-                <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
-                  <h3 className="flex items-center gap-2 text-sm font-black text-white">
-                    <Hash className="h-4 w-4" />
-                    Hashtag
-                  </h3>
-                  <input
-                    type="text"
-                    value={tagInput}
-                    onChange={(event) => setTagInput(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === ",") {
-                        event.preventDefault();
-                        addTag(tagInput);
-                      }
-                    }}
-                    onBlur={() => addTag(tagInput)}
-                    placeholder="Nhập hashtag rồi Enter"
-                    className="mt-3 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:border-emerald-400/50 focus:outline-none"
-                  />
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {writeTags.map((tag) => (
-                      <button
-                        key={tag}
-                        type="button"
-                        onClick={() => setWriteTags((current) => current.filter((item) => item !== tag))}
-                        className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-200"
-                      >
-                        #{tag}
-                        <X className="h-3 w-3" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
-                  <h3 className="text-sm font-black text-white">Trạng thái</h3>
-                  <div className="mt-3 space-y-2 text-sm text-slate-400">
-                    <p>
-                      Chủ đề: <span className="font-semibold text-slate-200">{selectedCategory?.name ?? "Chưa chọn"}</span>
-                    </p>
-                    <p>
-                      Vai trò: <span className="font-semibold text-slate-200">{isAdmin ? "Admin" : "Writer"}</span>
-                    </p>
-                  </div>
-                  {writeError && (
-                    <div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-                      {writeError}
-                    </div>
-                  )}
-                  <div className="mt-4 grid gap-2">
-                    <button
-                      type="button"
-                      onClick={() => void handleWriteSubmit("DRAFT")}
-                      disabled={!canSubmit || !!writeSubmitting}
-                      className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-slate-200 disabled:cursor-not-allowed disabled:opacity-45"
-                    >
-                      {writeSubmitting === "DRAFT" ? "Đang lưu..." : "Lưu nháp"}
-                    </button>
-                    {!isAdmin && (
-                      <button
-                        type="button"
-                        onClick={() => void handleWriteSubmit("PENDING_APPROVAL")}
-                        disabled={!canSubmit || !!writeSubmitting}
-                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 text-sm font-black text-slate-950 disabled:cursor-not-allowed disabled:opacity-45"
-                      >
-                        <Send className="h-4 w-4" />
-                        {writeSubmitting === "PENDING_APPROVAL" ? "Đang gửi..." : "Gửi duyệt"}
-                      </button>
-                    )}
-                    {isAdmin && (
-                      <button
-                        type="button"
-                        onClick={() => void handleWriteSubmit("PUBLISHED")}
-                        disabled={!canSubmit || !!writeSubmitting}
-                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 text-sm font-black text-slate-950 disabled:cursor-not-allowed disabled:opacity-45"
-                      >
-                        <CheckCircle2 className="h-4 w-4" />
-                        {writeSubmitting === "PUBLISHED" ? "Đang đăng..." : "Đăng bài"}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </aside>
-            </div>
-          </section>
         )}
 
         <section className="rounded-3xl border border-white/10 bg-white/[0.025] p-4 sm:p-5">
@@ -764,7 +828,15 @@ export default function AdminArticlesPage() {
             </div>
           ) : filtered.length === 0 ? (
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] py-14 text-center text-slate-400">
-              Chưa có bài viết phù hợp.
+              <p>Chưa có bài viết phù hợp.</p>
+              <button
+                type="button"
+                onClick={openComposer}
+                className="mt-4 inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-bold text-slate-950 transition hover:bg-emerald-400"
+              >
+                <PenSquare className="h-4 w-4" />
+                Viết bài đầu tiên
+              </button>
             </div>
           ) : (
             <div className="grid gap-3">
@@ -773,6 +845,7 @@ export default function AdminArticlesPage() {
                   key={article.id}
                   article={article}
                   actionLoading={actionLoading}
+                  onEdit={startEdit}
                   onStatusChange={handleStatusChange}
                   onDelete={handleDelete}
                 />
