@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import useSWR from "swr";
 import { Activity } from "lucide-react";
 import {
@@ -11,13 +12,23 @@ import {
   Tooltip,
   ReferenceLine,
 } from "recharts";
+import { useLivePnL } from "@/hooks/useLivePnL";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 interface PnlResp {
   initialNAV: number;
+  realizedPnL: number;
   currentNAV: number;
   equityCurve?: { date: string; nav: number }[];
+  currentHoldings?: {
+    ticker: string;
+    qty: number;
+    avgPrice: number;
+    totalCost: number;
+    marketPrice: number;
+    marketValue: number;
+  }[];
 }
 
 const GREEN = "#16a34a";
@@ -37,12 +48,22 @@ export function EquityCurve() {
     dedupingInterval: 30_000,
   });
 
+  const liveInput = useMemo(
+    () =>
+      data
+        ? { initialNAV: data.initialNAV ?? 0, realizedPnL: data.realizedPnL ?? 0, holdings: data.currentHoldings ?? [] }
+        : null,
+    [data],
+  );
+  const live = useLivePnL(liveInput);
+
   if (isLoading || !data) {
     return <div className="h-[220px] rounded-2xl animate-pulse" style={{ background: "var(--surface)" }} />;
   }
 
   const initialNAV = data.initialNAV ?? 0;
-  const currentNAV = data.currentNAV ?? 0;
+  // Điểm cuối "Nay" chạy live theo phiên; ngoài phiên rơi về NAV server (khớp y hệt).
+  const currentNAV = live.currentNAV;
   const curve = data.equityCurve ?? [];
 
   // Chuỗi vẽ: [Vốn ban đầu] → các mốc lãi/lỗ đã chốt → [Nay = currentNAV gồm cả chưa chốt]
@@ -63,6 +84,15 @@ export function EquityCurve() {
         <div className="flex items-center gap-2">
           <Activity className="w-4 h-4" style={{ color: accent }} />
           <h3 className="text-sm font-black" style={{ color: "var(--text-primary)" }}>Đường tài sản (NAV)</h3>
+          {live.isLive && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider" style={{ color: GREEN }}>
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping" style={{ background: GREEN }} />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full" style={{ background: GREEN }} />
+              </span>
+              LIVE
+            </span>
+          )}
         </div>
         <span className="text-sm font-black font-mono" style={{ color: "var(--text-primary)" }}>
           {fmtVnd(currentNAV)}₫
