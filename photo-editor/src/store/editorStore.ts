@@ -257,7 +257,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     get().commit();
     set((s) => {
       const layerStack = s.recipe.layerStack.filter((p) => p.id !== id);
-      return { recipe: { ...s.recipe, layerStack }, layers: deriveLayers(layerStack, s.layerCache) };
+      return {
+        recipe: { ...s.recipe, layerStack },
+        layers: deriveLayers(layerStack, s.layerCache),
+        selectedLayerId: s.selectedLayerId === id ? null : s.selectedLayerId,
+      };
     });
     get().commit();
   },
