@@ -144,6 +144,9 @@ export function reviveRecipe(r: Recipe): Recipe {
   if (r.lut === undefined) r.lut = null;
   if (!Array.isArray(r.localAdjustments)) r.localAdjustments = [];
   if (!Array.isArray(r.layerStack)) r.layerStack = [];
+  r.layerStack.forEach((p) => {
+    if (p.mask === undefined) p.mask = null;
+  });
   if (!Array.isArray(r.spots)) r.spots = [];
   return r;
 }

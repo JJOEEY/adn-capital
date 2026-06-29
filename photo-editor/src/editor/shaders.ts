@@ -303,8 +303,41 @@ out vec4 fragColor;
 
 uniform sampler2D u_src;    // accumulator (upright)
 uniform sampler2D u_layer;  // layer image (top-down)
+uniform sampler2D u_aiMask; // AI matte (top-down), for layer masks of kind aiSubject
 uniform int u_blend;        // 0 normal,1 mult,2 screen,3 overlay,4 softlight,5 darken,6 lighten,7 diff,8 add
 uniform float u_opacity;
+// optional layer mask: u_maskKind -1=none, 0 linear,1 radial,2 rangeLuma,3 aiSubject
+uniform int u_maskKind;
+uniform bool u_maskInvert;
+uniform vec4 u_linear;      // x1,y1,x2,y2
+uniform vec4 u_radial;      // cx,cy,rx,ry
+uniform vec2 u_radial2;     // angle, feather
+uniform vec3 u_range;       // lo,hi,feather
+
+float clamp01v(float v) { return clamp(v, 0.0, 1.0); }
+
+float layerMaskWeight(vec2 p, float lum) {
+  if (u_maskKind < 0) return 1.0;
+  float m = 1.0;
+  if (u_maskKind == 0) {
+    vec2 d = u_linear.zw - u_linear.xy;
+    float l2 = dot(d, d);
+    m = l2 < 1e-9 ? 1.0 : clamp01v(dot(p - u_linear.xy, d) / l2);
+  } else if (u_maskKind == 1) {
+    float ca = cos(u_radial2.x), sa = sin(u_radial2.x);
+    vec2 o = p - u_radial.xy;
+    float lx = (o.x * ca + o.y * sa) / max(1e-6, u_radial.z);
+    float ly = (-o.x * sa + o.y * ca) / max(1e-6, u_radial.w);
+    float f = max(1e-4, clamp01v(u_radial2.y));
+    m = 1.0 - smoothstep(1.0 - f, 1.0, length(vec2(lx, ly)));
+  } else if (u_maskKind == 2) {
+    float f = max(1e-4, u_range.z);
+    m = clamp01v(min(smoothstep(u_range.x - f, u_range.x, lum), 1.0 - smoothstep(u_range.y, u_range.y + f, lum)));
+  } else {
+    m = texture(u_aiMask, p).r;
+  }
+  return u_maskInvert ? 1.0 - m : m;
+}
 
 vec3 blend(int mode, vec3 d, vec3 s) {
   if (mode == 1) return d * s;
@@ -331,7 +364,7 @@ void main() {
   vec2 iuv = vec2(v_uv.x, 1.0 - v_uv.y);
   vec3 d = texture(u_src, v_uv).rgb;
   vec4 lp = texture(u_layer, iuv);
-  float a = u_opacity * lp.a; // respect the layer image's own alpha
+  float a = u_opacity * lp.a * layerMaskWeight(iuv, dot(d, vec3(0.2126, 0.7152, 0.0722)));
   vec3 b = clamp(blend(u_blend, d, lp.rgb), 0.0, 1.0);
   fragColor = vec4(mix(d, b, a), 1.0);
 }

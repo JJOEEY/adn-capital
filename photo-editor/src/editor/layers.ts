@@ -42,16 +42,19 @@ export const BLEND_INDEX: Record<BlendMode, number> = {
   add: 8,
 };
 
+import { MaskDef } from "./masks";
+
 export interface LayerProps {
   id: string;
   name: string;
   visible: boolean;
   opacity: number; // 0..1
   blend: BlendMode;
+  mask: MaskDef | null; // optional layer mask (selective compositing); null = full
 }
 
 export function newLayerProps(id: string, name: string): LayerProps {
-  return { id, name, visible: true, opacity: 1, blend: "normal" };
+  return { id, name, visible: true, opacity: 1, blend: "normal", mask: null };
 }
 
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);

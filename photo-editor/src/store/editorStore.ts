@@ -61,6 +61,8 @@ interface EditorState {
   updateLayer: (id: string, mutate: (p: LayerProps) => void) => void; // live; commit on release
   removeLayer: (id: string) => void;
   moveLayer: (id: string, dir: -1 | 1) => void;
+  selectedLayerId: string | null;
+  selectLayer: (id: string | null) => void;
   selectedSpotId: string | null;
   addSpot: () => void;
   updateSpot: (id: string, mutate: (s: HealSpot) => void) => void; // live; commit on release
@@ -91,6 +93,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   showOriginal: false,
   selectedMaskId: null,
   selectedSpotId: null,
+  selectedLayerId: null,
 
   setImage: (img) =>
     set({
@@ -104,6 +107,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       future: [],
       selectedMaskId: null,
       selectedSpotId: null,
+      selectedLayerId: null,
     }),
 
   // Live update while dragging — does NOT touch history (avoids one entry per pixel).
@@ -136,6 +140,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       recipe: { ...s.recipe, localAdjustments: [...s.recipe.localAdjustments, la] },
       selectedMaskId: la.id,
       selectedSpotId: null,
+      selectedLayerId: null,
     }));
     get().commit();
   },
@@ -166,9 +171,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     get().commit();
   },
 
-  // Mask and heal-spot selections are mutually exclusive so only one overlay's
-  // drag handles are ever live.
-  selectMask: (id) => set({ selectedMaskId: id, selectedSpotId: null }),
+  // Mask / heal-spot / layer-mask selections are mutually exclusive so only one
+  // overlay's drag handles are ever live.
+  selectMask: (id) => set({ selectedMaskId: id, selectedSpotId: null, selectedLayerId: null }),
+  selectLayer: (id) => set({ selectedLayerId: id, selectedMaskId: null, selectedSpotId: null }),
 
   addSpot: () => {
     get().commit();
@@ -177,6 +183,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       recipe: { ...s.recipe, spots: [...s.recipe.spots, sp] },
       selectedSpotId: sp.id,
       selectedMaskId: null,
+      selectedLayerId: null,
     }));
     get().commit();
   },
@@ -200,7 +207,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }));
     get().commit();
   },
-  selectSpot: (id) => set({ selectedSpotId: id, selectedMaskId: null }),
+  selectSpot: (id) => set({ selectedSpotId: id, selectedMaskId: null, selectedLayerId: null }),
 
   clipboardRecipe: null,
   copySettings: () => {
@@ -222,6 +229,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         layerCache,
         recipe: { ...s.recipe, layerStack },
         layers: deriveLayers(layerStack, layerCache),
+        selectedLayerId: layer.id,
+        selectedMaskId: null,
+        selectedSpotId: null,
       };
     });
     get().commit();

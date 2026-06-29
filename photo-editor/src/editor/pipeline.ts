@@ -31,7 +31,10 @@ const LOCAL_UNIFORMS = [
 ];
 const DETAIL_UNIFORMS = ["u_src", "u_texel", "u_clarity", "u_sharpen", "u_nr"];
 const HEAL_UNIFORMS = ["u_src", "u_dst", "u_srcpos", "u_radius", "u_feather", "u_aspect", "u_mode"];
-const LAYER_UNIFORMS = ["u_src", "u_layer", "u_blend", "u_opacity"];
+const LAYER_UNIFORMS = [
+  "u_src", "u_layer", "u_blend", "u_opacity", "u_aiMask",
+  "u_maskKind", "u_maskInvert", "u_linear", "u_radial", "u_radial2", "u_range",
+];
 const COMPOSITE_UNIFORMS = ["u_src", "u_mask", "u_maskOn", "u_bgMode", "u_bgColor"];
 
 const MASK_KIND_INDEX: Record<LocalAdjustment["mask"]["kind"], number> = {
@@ -483,6 +486,23 @@ export class RenderPipeline {
         gl.uniform1i(this.layerU.u_layer, 4);
         gl.uniform1i(this.layerU.u_blend, BLEND_INDEX[p.blend]);
         gl.uniform1f(this.layerU.u_opacity, p.opacity);
+        // optional layer mask
+        gl.activeTexture(gl.TEXTURE5);
+        gl.bindTexture(gl.TEXTURE_2D, this.maskTex);
+        gl.uniform1i(this.layerU.u_aiMask, 5);
+        const lm = p.mask;
+        // An aiSubject layer mask with no matte loaded falls back to no mask (show
+        // the layer fully) rather than hiding it.
+        if (lm && !(lm.kind === "aiSubject" && this.maskTex === null)) {
+          gl.uniform1i(this.layerU.u_maskKind, MASK_KIND_INDEX[lm.kind]);
+          gl.uniform1i(this.layerU.u_maskInvert, lm.invert ? 1 : 0);
+          gl.uniform4f(this.layerU.u_linear, lm.linear.x1, lm.linear.y1, lm.linear.x2, lm.linear.y2);
+          gl.uniform4f(this.layerU.u_radial, lm.radial.cx, lm.radial.cy, lm.radial.rx, lm.radial.ry);
+          gl.uniform2f(this.layerU.u_radial2, lm.radial.angle, lm.radial.feather);
+          gl.uniform3f(this.layerU.u_range, lm.range.lo, lm.range.hi, lm.range.feather);
+        } else {
+          gl.uniform1i(this.layerU.u_maskKind, -1);
+        }
         gl.drawArrays(gl.TRIANGLES, 0, 3);
         cur = dst;
       }
