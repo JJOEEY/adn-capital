@@ -45,6 +45,7 @@ interface EditorState {
   past: Recipe[]; // states we can undo to
   future: Recipe[]; // states we can redo to
   showOriginal: boolean; // hold-to-compare (before/after)
+  view: ViewTransform; // canvas zoom/pan (1 = fit, x/y in screen px, origin top-left)
   selectedMaskId: string | null; // local adjustment being edited (for the panel + overlay)
 
   setImage: (img: LoadedImage) => void;
@@ -86,7 +87,18 @@ interface EditorState {
   undo: () => void;
   redo: () => void;
   setShowOriginal: (v: boolean) => void;
+  setView: (v: ViewTransform) => void;
+  resetView: () => void; // back to Fit (zoom 1, centered)
 }
+
+export interface ViewTransform {
+  zoom: number; // 1 = fit-to-viewport; up to ZOOM_MAX
+  x: number; // pan offset in screen px (translate before scale, origin top-left)
+  y: number;
+}
+
+export const ZOOM_MAX = 8;
+const FIT_VIEW: ViewTransform = { zoom: 1, x: 0, y: 0 };
 
 const HISTORY_LIMIT = 100;
 
@@ -100,6 +112,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   past: [],
   future: [],
   showOriginal: false,
+  view: { ...FIT_VIEW },
   selectedMaskId: null,
   selectedSpotId: null,
   selectedLayerId: null,
@@ -117,6 +130,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       baseline: cloneRecipe(DEFAULT_RECIPE),
       past: [],
       future: [],
+      view: { ...FIT_VIEW },
       selectedMaskId: null,
       selectedSpotId: null,
       selectedLayerId: null,
@@ -368,6 +382,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }),
 
   setShowOriginal: (v) => set({ showOriginal: v }),
+  setView: (v) => set({ view: v }),
+  resetView: () => set({ view: { ...FIT_VIEW } }),
 }));
 
 // Active layer pixels = the layerStack ids that have cached pixels, in stack order.

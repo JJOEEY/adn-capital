@@ -122,12 +122,52 @@ button:disabled {
 }
 .canvas-wrap {
   flex: 1;
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   background: radial-gradient(120% 120% at 50% 0%, #161619, var(--canvas-bg) 70%);
   overflow: hidden;
   padding: 28px;
+}
+
+/* Floating zoom control (Photoshop/Capture One status-bar style). */
+.zoom-bar {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  background: rgba(22, 22, 25, 0.82);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(8px);
+  opacity: 0.55;
+  transition: opacity 0.15s;
+}
+.canvas-wrap:hover .zoom-bar {
+  opacity: 1;
+}
+.zoom-bar button {
+  background: none;
+  border: none;
+  color: var(--text);
+  padding: 4px 9px;
+  border-radius: 6px;
+  font-size: 12px;
+  min-width: 30px;
+}
+.zoom-bar button:hover:not(:disabled) {
+  background: var(--hover);
+}
+.zoom-bar .zoom-pct {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  min-width: 52px;
 }
 .preview {
   max-width: 100%;
