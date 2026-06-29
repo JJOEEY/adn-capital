@@ -9,7 +9,8 @@ import { Recipe } from "./recipe";
 import { LocalAdjustment } from "./masks";
 import { BLEND_INDEX } from "./layers";
 import { ImageMask, LayerImage } from "../store/editorStore";
-import { BASE_FRAG, COMPOSITE_FRAG, DETAIL_FRAG, HEAL_FRAG, LAYER_FRAG, LOCAL_FRAG, VERT_SRC } from "./shaders";
+import { BASE_FRAG, COMPOSITE_FRAG, DETAIL_FRAG, HEAL_FRAG, HEAL_STROKE_FRAG, LAYER_FRAG, LOCAL_FRAG, VERT_SRC } from "./shaders";
+import { HealStroke } from "./heal";
 import { evalCurve } from "./color/curve";
 import { wheelTint } from "./color/wheels";
 import { CubeLut } from "./color/lut";
@@ -31,6 +32,7 @@ const LOCAL_UNIFORMS = [
 ];
 const DETAIL_UNIFORMS = ["u_src", "u_texel", "u_clarity", "u_sharpen", "u_nr"];
 const HEAL_UNIFORMS = ["u_src", "u_dst", "u_srcpos", "u_radius", "u_feather", "u_aspect", "u_mode"];
+const HEAL_STROKE_UNIFORMS = ["u_src", "u_strokeMask", "u_offset", "u_radius", "u_aspect", "u_mode"];
 const LAYER_UNIFORMS = [
   "u_src", "u_layer", "u_blend", "u_opacity", "u_aiMask",
   "u_maskKind", "u_maskInvert", "u_linear", "u_radial", "u_radial2", "u_range",
@@ -51,16 +53,19 @@ export class RenderPipeline {
   private base: WebGLProgram;
   private detail: WebGLProgram;
   private heal: WebGLProgram;
+  private healStroke: WebGLProgram;
   private local: WebGLProgram;
   private layer: WebGLProgram;
   private composite: WebGLProgram;
   private baseU: UMap = {};
   private detailU: UMap = {};
   private healU: UMap = {};
+  private healStrokeU: UMap = {};
   private localU: UMap = {};
   private layerU: UMap = {};
   private compU: UMap = {};
   private layerTextures = new Map<string, WebGLTexture>();
+  private strokeMasks = new Map<string, { tex: WebGLTexture; sig: string }>();
 
   private texture: WebGLTexture | null = null;
   private curveTex: WebGLTexture | null = null;
@@ -85,12 +90,14 @@ export class RenderPipeline {
     this.base = this.program(BASE_FRAG);
     this.detail = this.program(DETAIL_FRAG);
     this.heal = this.program(HEAL_FRAG);
+    this.healStroke = this.program(HEAL_STROKE_FRAG);
     this.local = this.program(LOCAL_FRAG);
     this.layer = this.program(LAYER_FRAG);
     this.composite = this.program(COMPOSITE_FRAG);
     this.baseU = this.locs(this.base, BASE_UNIFORMS);
     this.detailU = this.locs(this.detail, DETAIL_UNIFORMS);
     this.healU = this.locs(this.heal, HEAL_UNIFORMS);
+    this.healStrokeU = this.locs(this.healStroke, HEAL_STROKE_UNIFORMS);
     this.localU = this.locs(this.local, LOCAL_UNIFORMS);
     this.layerU = this.locs(this.layer, LAYER_UNIFORMS);
     this.compU = this.locs(this.composite, COMPOSITE_UNIFORMS);
@@ -191,6 +198,57 @@ export class RenderPipeline {
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, mask.width, mask.height, 0, gl.RED, gl.UNSIGNED_BYTE, mask.data);
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+  }
+
+  // Rasterize a freehand stroke into an R8 coverage texture (cached by id + signature).
+  private getStrokeMask(stroke: HealStroke, w: number, h: number): WebGLTexture {
+    const gl = this.gl;
+    const sig = `${w}x${h}:${stroke.radius}:${stroke.feather}:${stroke.points.length}`;
+    const cached = this.strokeMasks.get(stroke.id);
+    if (cached && cached.sig === sig) return cached.tex;
+
+    const cnv = document.createElement("canvas");
+    cnv.width = w;
+    cnv.height = h;
+    const ctx = cnv.getContext("2d")!;
+    ctx.fillStyle = "black";
+    ctx.fillRect(0, 0, w, h);
+    const lw = Math.max(1, stroke.radius * 2 * h);
+    ctx.strokeStyle = "white";
+    ctx.fillStyle = "white";
+    ctx.lineWidth = lw;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    if (stroke.feather > 0) ctx.filter = `blur(${stroke.feather * lw * 0.3}px)`;
+    const p = stroke.points;
+    if (p.length === 2) {
+      ctx.beginPath();
+      ctx.arc(p[0] * w, p[1] * h, lw / 2, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (p.length >= 4) {
+      ctx.beginPath();
+      ctx.moveTo(p[0] * w, p[1] * h);
+      for (let i = 2; i < p.length; i += 2) ctx.lineTo(p[i] * w, p[i + 1] * h);
+      ctx.stroke();
+    }
+    ctx.filter = "none";
+
+    const data = ctx.getImageData(0, 0, w, h).data;
+    const r8 = new Uint8Array(w * h);
+    for (let i = 0; i < w * h; i++) r8[i] = data[i * 4]; // red channel = coverage
+
+    const tex = cached?.tex ?? gl.createTexture()!;
+    gl.activeTexture(gl.TEXTURE7);
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, w, h, 0, gl.RED, gl.UNSIGNED_BYTE, r8);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+    this.strokeMasks.set(stroke.id, { tex, sig });
+    return tex;
   }
 
   private ensureFbos(w: number, h: number) {
@@ -445,6 +503,39 @@ export class RenderPipeline {
       }
     }
 
+    // HEAL-STROKE passes → freehand brush (rasterized stroke masks).
+    const strokes = recipe.healStrokes ?? [];
+    // Drop cached masks for strokes no longer present.
+    const liveStrokeIds = new Set(strokes.map((s) => s.id));
+    for (const [id, m] of this.strokeMasks) {
+      if (!liveStrokeIds.has(id)) {
+        gl.deleteTexture(m.tex);
+        this.strokeMasks.delete(id);
+      }
+    }
+    if (strokes.length) {
+      gl.useProgram(this.healStroke);
+      const aspect = this.imageHeight ? this.imageWidth / this.imageHeight : 1;
+      for (const st of strokes) {
+        const tex = this.getStrokeMask(st, w, h);
+        const dst = 1 - cur;
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo[dst]);
+        gl.viewport(0, 0, w, h);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, this.fboTex[cur]);
+        gl.uniform1i(this.healStrokeU.u_src, 0);
+        gl.activeTexture(gl.TEXTURE6);
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.uniform1i(this.healStrokeU.u_strokeMask, 6);
+        gl.uniform2f(this.healStrokeU.u_offset, st.offsetX, st.offsetY);
+        gl.uniform1f(this.healStrokeU.u_radius, st.radius);
+        gl.uniform1f(this.healStrokeU.u_aspect, aspect);
+        gl.uniform1i(this.healStrokeU.u_mode, st.mode === "clone" ? 1 : 0);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+        cur = dst;
+      }
+    }
+
     // LOCAL passes → ping-pong. Skip AI-subject masks with no matte loaded (an
     // inverted no-matte subject mask would otherwise select the whole image).
     const locals = (recipe.localAdjustments ?? []).filter(
@@ -548,9 +639,12 @@ export class RenderPipeline {
     }
     for (const tex of this.layerTextures.values()) gl.deleteTexture(tex);
     this.layerTextures.clear();
+    for (const m of this.strokeMasks.values()) gl.deleteTexture(m.tex);
+    this.strokeMasks.clear();
     gl.deleteProgram(this.base);
     gl.deleteProgram(this.detail);
     gl.deleteProgram(this.heal);
+    gl.deleteProgram(this.healStroke);
     gl.deleteProgram(this.local);
     gl.deleteProgram(this.layer);
     gl.deleteProgram(this.composite);

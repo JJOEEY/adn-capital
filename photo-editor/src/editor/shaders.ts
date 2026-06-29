@@ -295,6 +295,43 @@ void main() {
 }
 `;
 
+// ---------------- HEAL STROKE: freehand brush (rasterized stroke mask) ----------------
+export const HEAL_STROKE_FRAG = /* glsl */ `#version 300 es
+precision highp float;
+in vec2 v_uv;
+out vec4 fragColor;
+
+uniform sampler2D u_src;
+uniform sampler2D u_strokeMask; // R8 coverage (top-down, image orientation)
+uniform vec2 u_offset;          // source offset (image space)
+uniform float u_radius, u_aspect;
+uniform int u_mode;             // 0 heal, 1 clone
+
+void main() {
+  vec2 iuv = vec2(v_uv.x, 1.0 - v_uv.y);
+  vec3 c = texture(u_src, v_uv).rgb;
+  float w = texture(u_strokeMask, iuv).r;
+  if (w <= 0.0) {
+    fragColor = vec4(c, 1.0);
+    return;
+  }
+  vec2 srcImg = iuv + u_offset;
+  vec3 srcPix = texture(u_src, vec2(srcImg.x, 1.0 - srcImg.y)).rgb;
+  vec3 healed = srcPix;
+  if (u_mode == 0) {
+    vec3 dMean = vec3(0.0), sMean = vec3(0.0);
+    for (int i = 0; i < 4; i++) {
+      float a = float(i) * 1.5707963;
+      vec2 o = vec2(cos(a) * u_radius / u_aspect, sin(a) * u_radius);
+      dMean += texture(u_src, vec2(iuv.x + o.x, 1.0 - (iuv.y + o.y))).rgb;
+      sMean += texture(u_src, vec2(srcImg.x + o.x, 1.0 - (srcImg.y + o.y))).rgb;
+    }
+    healed = clamp(srcPix + (dMean - sMean) * 0.25, 0.0, 1.0);
+  }
+  fragColor = vec4(mix(c, healed, w), 1.0);
+}
+`;
+
 // ---------------- LAYER: composite one image layer with a blend mode ----------------
 export const LAYER_FRAG = /* glsl */ `#version 300 es
 precision highp float;

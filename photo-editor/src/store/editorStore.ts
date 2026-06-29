@@ -7,7 +7,7 @@ import { Look } from "../editor/color/look";
 import { CubeLut } from "../editor/color/lut";
 import { LocalAdjustment, MaskKind, newLocalAdjustment } from "../editor/masks";
 import { LayerProps, newLayerProps } from "../editor/layers";
-import { HealSpot, newHealSpot } from "../editor/heal";
+import { HealMode, HealSpot, newHealSpot, newHealStroke } from "../editor/heal";
 
 export interface LoadedImage {
   bitmap: ImageBitmap;
@@ -68,6 +68,15 @@ interface EditorState {
   updateSpot: (id: string, mutate: (s: HealSpot) => void) => void; // live; commit on release
   removeSpot: (id: string) => void;
   selectSpot: (id: string | null) => void;
+  // heal brush tool
+  tool: "none" | "healBrush";
+  brushSize: number; // radius 0..0.3
+  brushMode: HealMode;
+  setTool: (t: "none" | "healBrush") => void;
+  setBrushSize: (r: number) => void;
+  setBrushMode: (m: HealMode) => void;
+  addHealStroke: (points: number[]) => void;
+  removeHealStroke: (id: string) => void;
   commit: () => void; // push current recipe onto history (call on slider release)
   reset: () => void;
   applyRecipe: (r: Recipe, opts?: { keepLayers?: boolean }) => void; // presets/catalog restore
@@ -94,6 +103,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   selectedMaskId: null,
   selectedSpotId: null,
   selectedLayerId: null,
+  tool: "none",
+  brushSize: 0.04,
+  brushMode: "heal",
 
   setImage: (img) =>
     set({
@@ -108,6 +120,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       selectedMaskId: null,
       selectedSpotId: null,
       selectedLayerId: null,
+      tool: "none",
     }),
 
   // Live update while dragging — does NOT touch history (avoids one entry per pixel).
@@ -208,6 +221,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     get().commit();
   },
   selectSpot: (id) => set({ selectedSpotId: id, selectedMaskId: null, selectedLayerId: null }),
+
+  setTool: (t) => set({ tool: t }),
+  setBrushSize: (r) => set({ brushSize: r }),
+  setBrushMode: (m) => set({ brushMode: m }),
+  addHealStroke: (points) => {
+    get().commit();
+    const st = newHealStroke(points, get().brushSize, get().brushMode);
+    set((s) => ({ recipe: { ...s.recipe, healStrokes: [...s.recipe.healStrokes, st] } }));
+    get().commit();
+  },
+  removeHealStroke: (id) => {
+    get().commit();
+    set((s) => ({
+      recipe: { ...s.recipe, healStrokes: s.recipe.healStrokes.filter((x) => x.id !== id) },
+    }));
+    get().commit();
+  },
 
   clipboardRecipe: null,
   copySettings: () => {

@@ -29,6 +29,30 @@ export function newHealSpot(dx = 0.5, dy = 0.5, idSeed?: string): HealSpot {
   };
 }
 
+// A freehand heal/clone stroke: a painted polyline (points in 0..1 image space) that
+// is rasterized to a coverage mask; pixels under it heal/clone from a source offset.
+export interface HealStroke {
+  id: string;
+  points: number[]; // flattened x0,y0,x1,y1,… in 0..1 image space
+  radius: number; // brush radius, 0..0.3
+  feather: number; // 0..1
+  offsetX: number; // source offset from destination (image space)
+  offsetY: number;
+  mode: HealMode;
+}
+
+export function newHealStroke(points: number[], radius: number, mode: HealMode): HealStroke {
+  return {
+    id: globalThis.crypto?.randomUUID?.() ?? `stroke_${Date.now()}`,
+    points,
+    radius,
+    feather: 0.5,
+    offsetX: radius * 2.2, // sample from a couple of brush-widths to the side
+    offsetY: 0,
+    mode,
+  };
+}
+
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const smoothstep = (a: number, b: number, x: number) => {
   if (a === b) return x < a ? 0 : 1;

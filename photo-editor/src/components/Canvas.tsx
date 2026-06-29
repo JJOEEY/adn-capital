@@ -9,6 +9,7 @@ import { useEditorStore } from "../store/editorStore";
 import { MaskOverlay } from "./MaskOverlay";
 import { HealOverlay } from "./HealOverlay";
 import { LayerMaskOverlay } from "./LayerMaskOverlay";
+import { BrushLayer } from "./BrushLayer";
 
 export function Canvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -78,6 +79,7 @@ export function Canvas() {
       <MaskOverlay canvasRef={canvasRef} />
       <HealOverlay canvasRef={canvasRef} />
       <LayerMaskOverlay canvasRef={canvasRef} />
+      <BrushLayer canvasRef={canvasRef} />
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { newHealSpot, spotWeight } from "./heal";
+import { newHealSpot, newHealStroke, spotWeight } from "./heal";
 
 describe("heal spot weight", () => {
   it("is 1 at the destination center and 0 outside the radius", () => {
@@ -19,5 +19,22 @@ describe("heal spot weight", () => {
     const wide = spotWeight(0.5 + 0.06, 0.5, s, 2);
     const square = spotWeight(0.5 + 0.06, 0.5, s, 1);
     expect(wide).toBeLessThanOrEqual(square);
+  });
+});
+
+describe("heal stroke", () => {
+  it("carries its points and brush settings, with a sideways default source offset", () => {
+    const st = newHealStroke([0.1, 0.2, 0.3, 0.4], 0.05, "heal");
+    expect(st.points).toEqual([0.1, 0.2, 0.3, 0.4]);
+    expect(st.radius).toBe(0.05);
+    expect(st.mode).toBe("heal");
+    expect(st.offsetX).toBeGreaterThan(0); // samples from the side, not in place
+    expect(st.offsetY).toBe(0);
+    expect(st.id).toBeTruthy();
+  });
+  it("gives each stroke a distinct id", () => {
+    const a = newHealStroke([0, 0], 0.04, "clone");
+    const b = newHealStroke([0, 0], 0.04, "clone");
+    expect(a.id).not.toBe(b.id);
   });
 });

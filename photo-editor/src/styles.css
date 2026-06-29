@@ -506,6 +506,19 @@ input[type="color"] {
   padding: 0 12px 16px;
 }
 
+/* Freehand heal-brush capture layer (sits over the displayed image while active). */
+.brush-layer {
+  position: fixed;
+  cursor: crosshair;
+  touch-action: none;
+  z-index: 55;
+}
+.brush-layer svg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
 /* ---------- Pillar 2: layers ---------- */
 .layers-panel {
   border-top: 6px solid #1414178a;
