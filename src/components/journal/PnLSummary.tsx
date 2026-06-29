@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { useLivePnL } from "@/hooks/useLivePnL";
 
 /* ─── Types ─── */
 interface TxRecord {
@@ -322,6 +323,16 @@ export function PnLSummary() {
     }
   }, [data, fetchSparklines]);
 
+  // Phủ giá realtime lên holdings → NAV / lãi-lỗ chưa chốt nhảy theo phiên.
+  const liveInput = useMemo(
+    () =>
+      data
+        ? { initialNAV: data.initialNAV, realizedPnL: data.realizedPnL, holdings: data.currentHoldings }
+        : null,
+    [data],
+  );
+  const live = useLivePnL(liveInput);
+
   const handleGlobalFilter = () => {
     fetchPnL(globalFrom || undefined, globalTo || undefined);
   };
@@ -373,10 +384,13 @@ export function PnLSummary() {
 
   if (!data) return null;
 
+  // Số LIVE (trong phiên); ngoài phiên rơi về số server — khớp y hệt.
+  const unrealizedPnL = live.unrealizedPnL;
+  const currentNAV = live.currentNAV;
   const pnlColor = data.realizedPnL >= 0 ? "#16a34a" : "var(--danger)";
-  const unrealizedColor = data.unrealizedPnL >= 0 ? "#16a34a" : "var(--danger)";
+  const unrealizedColor = unrealizedPnL >= 0 ? "#16a34a" : "var(--danger)";
   const navChange = data.initialNAV > 0
-    ? ((data.currentNAV - data.initialNAV) / data.initialNAV * 100)
+    ? ((currentNAV - data.initialNAV) / data.initialNAV * 100)
     : 0;
 
   return (
@@ -437,6 +451,15 @@ export function PnLSummary() {
           <div className="flex items-center gap-2">
             <Wallet className="w-5 h-5" style={{ color: "#16a34a" }} />
             <h3 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>Tổng Quan NAV</h3>
+            {live.isLive && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider" style={{ color: "#16a34a" }}>
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping" style={{ background: "#16a34a" }} />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full" style={{ background: "#16a34a" }} />
+                </span>
+                LIVE
+              </span>
+            )}
           </div>
           <button
             onClick={() => setEditingNAV(!editingNAV)}
@@ -492,12 +515,12 @@ export function PnLSummary() {
           <div>
             <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>Lãi/Lỗ chưa chốt</p>
             <p className="text-sm font-bold font-mono" style={{ color: unrealizedColor }}>
-              {data.unrealizedPnL >= 0 ? "+" : ""}{fmt(data.unrealizedPnL)}
+              {unrealizedPnL >= 0 ? "+" : ""}{fmt(unrealizedPnL)}
             </p>
           </div>
           <div>
             <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>Current NAV</p>
-            <p className="text-lg font-black font-mono" style={{ color: "var(--text-primary)" }}>{fmt(data.currentNAV)}</p>
+            <p className="text-lg font-black font-mono" style={{ color: "var(--text-primary)" }}>{fmt(currentNAV)}</p>
             {data.initialNAV > 0 && (
               <p className="text-[12px] font-bold" style={{ color: navChange >= 0 ? "#16a34a" : "var(--danger)" }}>
                 {navChange >= 0 ? "+" : ""}{navChange.toFixed(1)}%
@@ -563,7 +586,7 @@ export function PnLSummary() {
                 </tr>
               </thead>
               <tbody>
-                {data.currentHoldings.map((h) => {
+                {live.holdings.map((h) => {
                   const isExpanded = expandedTicker === h.ticker;
                   const pnlVal = h.marketValue - (h.totalCost || h.qty * h.avgPrice);
                   const pnlPct = (h.totalCost || h.qty * h.avgPrice) > 0
@@ -601,7 +624,13 @@ export function PnLSummary() {
 
                         {/* Market Price */}
                         <td className="px-3 py-3 text-right hidden sm:table-cell">
-                          <span className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>
+                          <span className="inline-flex items-center gap-1 text-xs font-mono" style={{ color: h.isLive ? "#16a34a" : "var(--text-muted)" }}>
+                            {h.isLive && (
+                              <span className="relative flex h-1.5 w-1.5">
+                                <span className="absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping" style={{ background: "#16a34a" }} />
+                                <span className="relative inline-flex h-1.5 w-1.5 rounded-full" style={{ background: "#16a34a" }} />
+                              </span>
+                            )}
                             {fmt(marketPrice)}
                           </span>
                         </td>

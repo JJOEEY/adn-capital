@@ -1,8 +1,10 @@
 "use client";
 
+import { useMemo } from "react";
 import useSWR from "swr";
 import { motion } from "framer-motion";
 import { Wallet, TrendingUp, TrendingDown, Trophy } from "lucide-react";
+import { useLivePnL } from "@/hooks/useLivePnL";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -11,6 +13,14 @@ interface PnlSummary {
   realizedPnL: number;
   unrealizedPnL: number;
   currentNAV: number;
+  currentHoldings?: {
+    ticker: string;
+    qty: number;
+    avgPrice: number;
+    totalCost: number;
+    marketPrice: number;
+    marketValue: number;
+  }[];
   stats?: { winRate: number; winTrades: number; lossTrades: number };
 }
 
@@ -35,11 +45,23 @@ export function JournalHero() {
     dedupingInterval: 30_000,
   });
 
+  const liveInput = useMemo(
+    () =>
+      data
+        ? { initialNAV: data.initialNAV ?? 0, realizedPnL: data.realizedPnL ?? 0, holdings: data.currentHoldings ?? [] }
+        : null,
+    [data],
+  );
+  const live = useLivePnL(liveInput);
+
   if (isLoading || !data) {
     return <div className="h-[112px] rounded-2xl animate-pulse" style={{ background: "var(--surface)" }} />;
   }
 
-  const { initialNAV = 0, realizedPnL = 0, unrealizedPnL = 0, currentNAV = 0 } = data;
+  const { initialNAV = 0, realizedPnL = 0 } = data;
+  // Ưu tiên số LIVE; ngoài phiên rơi về số server (close ngày) — khớp y hệt.
+  const unrealizedPnL = live.unrealizedPnL;
+  const currentNAV = live.currentNAV;
   const totalPnL = realizedPnL + unrealizedPnL;
   const hasNav = initialNAV > 0;
   const totalPct = hasNav ? (totalPnL / initialNAV) * 100 : null;
@@ -68,6 +90,15 @@ export function JournalHero() {
           <div className="flex items-center gap-1.5 mb-1" style={{ color: "var(--text-muted)" }}>
             <Wallet className="w-3.5 h-3.5" />
             <span className="text-[12px] font-semibold">{hasNav ? "Tài sản ròng (NAV)" : "Tổng lãi/lỗ"}</span>
+            {live.isLive && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider" style={{ color: GREEN }}>
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping" style={{ background: GREEN }} />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full" style={{ background: GREEN }} />
+                </span>
+                LIVE
+              </span>
+            )}
           </div>
           <p className="text-2xl sm:text-3xl font-black font-mono tracking-tight" style={{ color: "var(--text-primary)" }}>
             {hasNav ? fmtVnd(currentNAV) : fmtSignedVnd(totalPnL)}
