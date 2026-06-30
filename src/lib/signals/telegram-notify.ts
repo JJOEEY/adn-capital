@@ -197,15 +197,14 @@ export async function sendClaimedSignalsToTelegram(params: {
   });
   const byTicker = new Map(rows.map((row) => [row.ticker.toUpperCase().trim(), row]));
 
-  const MIN_NAV_PCT = 7; // bỏ qua mã tỉ trọng < 7% (quá nhỏ, không đáng mở vị thế)
+  // Ràng buộc volume (vol >= Vol_MA20) đã áp ở SCANNER (bridge) cho MỌI tín hiệu trước khi vào DB.
+  // Telegram chỉ cần lọc TẦM NGẮM (đã làm ở trên) — KHÔNG lọc theo tỉ trọng NAV nữa, để đồng bộ
+  // với Discord (cả hai kênh báo cùng tập tín hiệu hành động đã qua vol-gate).
   const perSignal: Array<{ ticker: string; result: Awaited<ReturnType<typeof sendTelegramOnce>> }> = [];
   for (const signal of actionable) {
     const ticker = signal.ticker.toUpperCase().trim();
     const db = byTicker.get(ticker);
     const navAllocation = db?.navAllocation ?? signal.navAllocation ?? null;
-    if (typeof navAllocation !== "number" || navAllocation < MIN_NAV_PCT) {
-      continue;
-    }
     const text = formatSingleSignalText({
       ticker,
       type: signal.type,
