@@ -45,10 +45,6 @@ export async function GET(req: NextRequest) {
   const ticker = (req.nextUrl.searchParams.get("ticker") || "VN30").toUpperCase().replace(/[^A-Z0-9]/g, "") || "VN30";
   const context = await buildTopicContext({ force });
   const envelope = await getTopicEnvelope(`vn:historical:${ticker}:1d`, context);
-  if (req.nextUrl.searchParams.get("debug") === "raw") {
-    const raw = toOhlcvRows(envelope.value);
-    return NextResponse.json({ ticker, count: raw.length, tail: raw.slice(-8), freshness: envelope.freshness });
-  }
   const rows = snapshotArtRows(ticker, toOhlcvRows(envelope.value));
   const history = calculateRPI(rows);
   const latest = getLatestRPI(history);
