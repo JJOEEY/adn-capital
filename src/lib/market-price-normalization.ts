@@ -86,7 +86,11 @@ export function estimatePriceScaleFromRows(rows: JsonRecord[]): number {
 
 export function applyMarketPriceScale(value: number | null | undefined, scale: number): number | null {
   if (value == null || !Number.isFinite(value)) return null;
-  return Math.round((value * scale) / 10) * 10;
+  const scaled = value * scale;
+  // Round về bội-10 chỉ hợp lý ở thang VND (≥1000, tick 10đ, sai số bỏ qua). Với thang NGHÌN
+  // (giá nhỏ, vd 73.8) mà round /10*10 sẽ phá thành 70 → chart bậc-thang thô. Giữ 2 số lẻ cho
+  // giá nhỏ để không mất chính xác (bug /api/chart mã FPT/VCB/STB hiện 70/60/70).
+  return scaled >= 1000 ? Math.round(scaled / 10) * 10 : Math.round(scaled * 100) / 100;
 }
 
 export function chooseMarketDisplayPrice(
