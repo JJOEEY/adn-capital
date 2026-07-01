@@ -800,11 +800,25 @@ function dropPremarketCurrentDailyRow<T>(payload: T): T {
 
 function mergeMarketBoardCloseIntoHistorical(payload: unknown, boardRow: unknown) {
   const row = boardRow && typeof boardRow === "object" ? normalizeMarketBoardRow(boardRow as JsonRecord) : null;
-  const close = readPositiveNumber(row?.close);
-  if (close == null || !hasCandleRows(payload)) return payload;
+  const rawClose = readPositiveNumber(row?.close);
+  if (rawClose == null || !hasCandleRows(payload)) return payload;
 
   const rows = getMarketPayloadRows(payload);
   const last = rows[rows.length - 1] ?? {};
+
+  // ĐỒNG BỘ THANG GIÁ (gốc bug ART "CẠN KIỆT" ảo): historical bridge (adjusted=false) có thể ở
+  // NGHÌN (vd STB 73.8) còn close từ market board DNSE ở VND (73600) → nến hôm nay lệch 1000× →
+  // Stochastic %K(5)/RSI/ROC maxed cùng lúc. Scale board về đúng thang historical trước khi ghép.
+  const histLastClose = readPositiveNumber(last.close ?? last.c);
+  let boardScale = 1;
+  if (histLastClose && rawClose) {
+    const ratio = rawClose / histLastClose;
+    if (ratio >= 100) boardScale = 1 / 1000;
+    else if (ratio <= 0.01) boardScale = 1000;
+  }
+  const sc = (value: number | null | undefined) => (value == null ? null : value * boardScale);
+  const close = rawClose * boardScale;
+
   const lastDate = normalizeChartDateKey(String(last.date ?? last.timestamp ?? last.time ?? ""));
   const date = currentVnMarketBoardDateKey() ?? lastDate;
   if (!date) return payload;
@@ -812,9 +826,9 @@ function mergeMarketBoardCloseIntoHistorical(payload: unknown, boardRow: unknown
     ...last,
     date,
     timestamp: Math.floor(Date.parse(`${date}T07:00:00.000Z`) / 1000),
-    open: readPositiveNumber(row?.open) ?? readPositiveNumber(last.open ?? last.o) ?? close,
-    high: Math.max(readPositiveNumber(row?.high) ?? close, close),
-    low: Math.min(readPositiveNumber(row?.low) ?? close, close),
+    open: sc(readPositiveNumber(row?.open)) ?? readPositiveNumber(last.open ?? last.o) ?? close,
+    high: Math.max(sc(readPositiveNumber(row?.high)) ?? close, close),
+    low: Math.min(sc(readPositiveNumber(row?.low)) ?? close, close),
     close,
     volume: readPositiveNumber(row?.volume) ?? readPositiveNumber(last.volume ?? last.v) ?? 0,
   };
