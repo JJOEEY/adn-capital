@@ -256,26 +256,49 @@ export function getLatestRPI(results: RPIResult[]): RPIResult | null {
   return [...results].reverse().find((r) => r.rpi !== null) ?? null;
 }
 
-function vnDateAndMinutes(now: Date): { dateKey: string; minutes: number } {
+// Cache nến hôm nay đã "đóng băng" cho mốc GIỮA PHIÊN (11:00–15:00), theo (ticker, ngày VN).
+// Module-level → chia sẻ giữa /api/rpi và /api/og/art trong cùng tiến trình adn-web
+// (web ↔ Discord đọc CÙNG 1 snapshot). Reset khi redeploy / prune khi phình.
+const artMidBarSnapshot = new Map<string, OHLCVData>();
+
+function vnDateAndMinutes(now: Date): { dateKey: string; minutes: number; weekend: boolean } {
   const vn = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
   const dateKey = `${vn.getFullYear()}-${String(vn.getMonth() + 1).padStart(2, "0")}-${String(vn.getDate()).padStart(2, "0")}`;
-  return { dateKey, minutes: vn.getHours() * 60 + vn.getMinutes() };
+  const day = vn.getDay();
+  return { dateKey, minutes: vn.getHours() * 60 + vn.getMinutes(), weekend: day === 0 || day === 6 };
 }
 
 /**
- * ART chỉ dùng nến ĐÃ ĐÓNG — bỏ nến HÔM NAY khi phiên chưa đóng (trước 15:00 giờ VN).
+ * ART theo mốc SNAPSHOT 11:00 & 15:00 (giờ VN, T2–T6) — đứng yên giữa các mốc.
  *
- * Nến intraday hôm nay (ghép từ tick DNSE realtime vào topic historical) vừa CHƯA CHỐT vừa hay
- * bị LỖI scale/tick → Stochastic %K(5) (70%) + RSI(7) + ROC(5) dễ MAXED cùng lúc → "CẠN KIỆT
- * XU HƯỚNG TĂNG" ảo. Bằng chứng STB 01/07: bar intraday cho rsi=5/stoch=4.97/roc=5 → 4.98 dù giá
- * đi ngang ~73-74 (bridge historical SẠCH không có bar 01/07, nến đã đóng 30/06 = 2.49 TRUNG TÍNH).
- * Chỉ tính trên nến ĐÃ ĐÓNG → đúng + ổn định, cập nhật sau 15:00. Snapshot 11:00 giữa phiên KHÔNG
- * dùng được vì nến sáng cũng là bar rác. (Tham số ticker giữ để tương thích caller.)
+ * Bật lại được vì đã fix lỗi lệch thang 1000× của nến intraday (mergeMarketBoardCloseIntoHistorical
+ * ghép close board VND vào historical nghìn → maxed chỉ báo → "CẠN KIỆT" ảo). Nay nến hôm nay đúng
+ * thang → snapshot giữa phiên cho giá trị THẬT, không rác:
+ *  - Trước 11:00 / cuối tuần → nến hôm nay CHƯA vào mốc → dùng nến ĐÃ ĐÓNG (bỏ nến hôm nay).
+ *  - 11:00–15:00 → SNAPSHOT GIỮA PHIÊN: đóng băng nến hôm nay ở lần tính đầu sau 11:00, ĐỨNG YÊN tới 15:00.
+ *  - Sau 15:00 → phiên đã đóng, nến hôm nay đã cố định → dùng trực tiếp (bản chốt cuối).
+ * Cache theo (ticker, ngày) → web ↔ Discord ↔ VN30 cùng 1 giá trị trong mỗi mốc.
  */
-export function snapshotArtRows(_ticker: string, rows: OHLCVData[], now: Date = new Date()): OHLCVData[] {
+export function snapshotArtRows(ticker: string, rows: OHLCVData[], now: Date = new Date()): OHLCVData[] {
   if (rows.length === 0) return rows;
-  const { dateKey, minutes } = vnDateAndMinutes(now);
-  const lastIsToday = rows[rows.length - 1].date.slice(0, 10) === dateKey;
-  if (lastIsToday && minutes < 15 * 60) return rows.slice(0, -1);
-  return rows;
+  const { dateKey, minutes, weekend } = vnDateAndMinutes(now);
+  const last = rows[rows.length - 1];
+  const lastIsToday = last.date.slice(0, 10) === dateKey;
+
+  // Trước 11:00 hoặc cuối tuần → dùng nến đã đóng.
+  if (weekend || minutes < 11 * 60) {
+    return lastIsToday ? rows.slice(0, -1) : rows;
+  }
+  // Sau 15:00 → nến hôm nay đã chốt → dùng trực tiếp.
+  if (minutes >= 15 * 60) return rows;
+  // 11:00–15:00 → không có nến hôm nay thì thôi; có thì đóng băng (snapshot giữa phiên).
+  if (!lastIsToday) return rows;
+  const key = `${ticker.toUpperCase()}:${dateKey}`;
+  let frozen = artMidBarSnapshot.get(key);
+  if (!frozen) {
+    if (artMidBarSnapshot.size > 3000) artMidBarSnapshot.clear();
+    frozen = { ...last };
+    artMidBarSnapshot.set(key, frozen);
+  }
+  return [...rows.slice(0, -1), frozen];
 }
