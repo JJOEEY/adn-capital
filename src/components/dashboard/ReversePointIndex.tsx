@@ -13,7 +13,7 @@ import {
   ReferenceLine,
   ReferenceArea,
 } from "recharts";
-import { calculateRPI, getLatestRPI, dropUnclosedIntradayBar, type OHLCVData } from "@/lib/rpi/calculator";
+import { calculateRPI, getLatestRPI, snapshotArtRows, type OHLCVData } from "@/lib/rpi/calculator";
 import { useTopic } from "@/hooks/useTopic";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -253,7 +253,7 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
   const rawData = historicalTopic.data;
   const isLoading = historicalTopic.isLoading;
 
-  // Smart Scheduler: 9:30, 14:00, 15:00 T2-T6
+  // Smart Scheduler: 9:30 (mở cửa), 11:00 & 15:00 (mốc snapshot ART) T2-T6
   useEffect(() => {
     const timer = setInterval(() => {
       const now = new Date();
@@ -262,9 +262,9 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
       const min = now.getMinutes();
       if (day >= 1 && day <= 5) {
         const is930 = hour === 9 && min === 30;
-        const is1400 = hour === 14 && min === 0;
+        const is1100 = hour === 11 && min === 0;
         const is1500 = hour === 15 && min === 0;
-        if (is930 || is1400 || is1500) void historicalTopic.refresh(true);
+        if (is930 || is1100 || is1500) void historicalTopic.refresh(true);
       }
     }, 60000);
     return () => clearInterval(timer);
@@ -284,7 +284,7 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
 
   const rpiResults = useMemo(() => {
     if (ohlcvData.length < 30) return [];
-    return calculateRPI(dropUnclosedIntradayBar(ohlcvData));
+    return calculateRPI(snapshotArtRows("VN30", ohlcvData));
   }, [ohlcvData]);
 
   const latest = useMemo(() => getLatestRPI(rpiResults), [rpiResults]);

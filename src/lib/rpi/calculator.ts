@@ -256,23 +256,49 @@ export function getLatestRPI(results: RPIResult[]): RPIResult | null {
   return [...results].reverse().find((r) => r.rpi !== null) ?? null;
 }
 
-/**
- * Bỏ nến phiên HÔM NAY nếu chưa đóng cửa (trước 15:00 giờ VN).
- *
- * ART/RPI là chỉ báo THEO NGÀY. Nếu tính trên nến intraday CHƯA CHỐT, Stochastic %K(5)
- * (trọng số 70%) nhảy loạn theo từng tick → cho ra "CẠN KIỆT XU HƯỚNG TĂNG" ảo giữa phiên
- * (vd STB 01/07: 2.49 → 5.0 → 2.21 dù giá đi ngang) rồi về lại khi đóng cửa. Loại nến chưa
- * chốt để ART chỉ đổi 1 lần/ngày sau 15:00, ổn định và nhất quán web ↔ Discord.
- */
-export function dropUnclosedIntradayBar(rows: OHLCVData[], now: Date = new Date()): OHLCVData[] {
-  if (rows.length === 0) return rows;
+// Cache nến hôm nay đã "đóng băng" cho mốc GIỮA PHIÊN (11:00–15:00), theo (ticker, ngày VN).
+// Module-level → chia sẻ giữa /api/rpi và /api/og/art trong cùng tiến trình adn-web
+// (web ↔ Discord đọc CÙNG 1 snapshot). Reset khi redeploy / prune khi phình.
+const artMidBarSnapshot = new Map<string, OHLCVData>();
+
+function vnDateAndMinutes(now: Date): { dateKey: string; minutes: number; weekend: boolean } {
   const vn = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
-  const vnToday = `${vn.getFullYear()}-${String(vn.getMonth() + 1).padStart(2, "0")}-${String(vn.getDate()).padStart(2, "0")}`;
-  const vnMinutes = vn.getHours() * 60 + vn.getMinutes();
-  const lastDate = rows[rows.length - 1].date.slice(0, 10);
-  // Nến hôm nay + phiên chưa đóng (trước 15:00) → chưa chốt → bỏ.
-  if (lastDate === vnToday && vnMinutes < 15 * 60) {
-    return rows.slice(0, -1);
+  const dateKey = `${vn.getFullYear()}-${String(vn.getMonth() + 1).padStart(2, "0")}-${String(vn.getDate()).padStart(2, "0")}`;
+  const day = vn.getDay();
+  return { dateKey, minutes: vn.getHours() * 60 + vn.getMinutes(), weekend: day === 0 || day === 6 };
+}
+
+/**
+ * ART theo mốc SNAPSHOT 11:00 & 15:00 (giờ VN, T2–T6) — thay vì tính live từng tick.
+ *
+ * ART/RPI là chỉ báo THEO NGÀY. Tính trên nến intraday CHƯA CHỐT làm Stochastic %K(5)
+ * (trọng số 70%) nhảy loạn theo tick → "CẠN KIỆT XU HƯỚNG TĂNG" ảo giữa phiên (vd STB 01/07:
+ * 2.49 → 5.0 → 2.21 dù giá đi ngang). Snapshot theo mốc để ART chỉ đổi 2 lần/ngày, đứng yên giữa:
+ *  - Trước 11:00 / cuối tuần → nến hôm nay CHƯA vào mốc → dùng nến ĐÃ ĐÓNG (bỏ nến hôm nay).
+ *  - 11:00–15:00 → SNAPSHOT GIỮA PHIÊN: đóng băng nến hôm nay ở lần tính đầu sau 11:00, ĐỨNG YÊN tới 15:00.
+ *  - Sau 15:00 → phiên đã đóng, nến hôm nay đã cố định → dùng trực tiếp (bản chốt cuối).
+ * Cache theo (ticker, ngày) → web ↔ Discord ↔ VN30 cùng 1 giá trị trong mỗi mốc.
+ */
+export function snapshotArtRows(ticker: string, rows: OHLCVData[], now: Date = new Date()): OHLCVData[] {
+  if (rows.length === 0) return rows;
+  const { dateKey, minutes, weekend } = vnDateAndMinutes(now);
+  const last = rows[rows.length - 1];
+  const lastIsToday = last.date.slice(0, 10) === dateKey;
+
+  // Trước 11:00 hoặc cuối tuần → dùng nến đã đóng.
+  if (weekend || minutes < 11 * 60) {
+    return lastIsToday ? rows.slice(0, -1) : rows;
   }
-  return rows;
+  // Sau 15:00 → nến hôm nay đã chốt → dùng trực tiếp.
+  if (minutes >= 15 * 60) return rows;
+  // 11:00–15:00 → không có nến hôm nay thì thôi; có thì đóng băng (snapshot giữa phiên).
+  if (!lastIsToday) return rows;
+  const key = `${ticker.toUpperCase()}:${dateKey}`;
+  let frozen = artMidBarSnapshot.get(key);
+  if (!frozen) {
+    if (artMidBarSnapshot.size > 3000) artMidBarSnapshot.clear();
+    frozen = { ...last };
+    artMidBarSnapshot.set(key, frozen);
+  }
+  return [...rows.slice(0, -1), frozen];
 }
