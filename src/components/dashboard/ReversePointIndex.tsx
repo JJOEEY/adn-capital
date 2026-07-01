@@ -13,7 +13,7 @@ import {
   ReferenceLine,
   ReferenceArea,
 } from "recharts";
-import { calculateRPI, getLatestRPI, type OHLCVData } from "@/lib/rpi/calculator";
+import { calculateRPI, getLatestRPI, dropUnclosedIntradayBar, type OHLCVData } from "@/lib/rpi/calculator";
 import { useTopic } from "@/hooks/useTopic";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -284,7 +284,7 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
 
   const rpiResults = useMemo(() => {
     if (ohlcvData.length < 30) return [];
-    return calculateRPI(ohlcvData);
+    return calculateRPI(dropUnclosedIntradayBar(ohlcvData));
   }, [ohlcvData]);
 
   const latest = useMemo(() => getLatestRPI(rpiResults), [rpiResults]);

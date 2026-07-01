@@ -255,3 +255,24 @@ export function calculateRPIFromVN30(
 export function getLatestRPI(results: RPIResult[]): RPIResult | null {
   return [...results].reverse().find((r) => r.rpi !== null) ?? null;
 }
+
+/**
+ * Bỏ nến phiên HÔM NAY nếu chưa đóng cửa (trước 15:00 giờ VN).
+ *
+ * ART/RPI là chỉ báo THEO NGÀY. Nếu tính trên nến intraday CHƯA CHỐT, Stochastic %K(5)
+ * (trọng số 70%) nhảy loạn theo từng tick → cho ra "CẠN KIỆT XU HƯỚNG TĂNG" ảo giữa phiên
+ * (vd STB 01/07: 2.49 → 5.0 → 2.21 dù giá đi ngang) rồi về lại khi đóng cửa. Loại nến chưa
+ * chốt để ART chỉ đổi 1 lần/ngày sau 15:00, ổn định và nhất quán web ↔ Discord.
+ */
+export function dropUnclosedIntradayBar(rows: OHLCVData[], now: Date = new Date()): OHLCVData[] {
+  if (rows.length === 0) return rows;
+  const vn = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
+  const vnToday = `${vn.getFullYear()}-${String(vn.getMonth() + 1).padStart(2, "0")}-${String(vn.getDate()).padStart(2, "0")}`;
+  const vnMinutes = vn.getHours() * 60 + vn.getMinutes();
+  const lastDate = rows[rows.length - 1].date.slice(0, 10);
+  // Nến hôm nay + phiên chưa đóng (trước 15:00) → chưa chốt → bỏ.
+  if (lastDate === vnToday && vnMinutes < 15 * 60) {
+    return rows.slice(0, -1);
+  }
+  return rows;
+}

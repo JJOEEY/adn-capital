@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getTopicEnvelope } from "@/lib/datahub/core";
 import { buildTopicContext } from "@/lib/datahub/producer-context";
 import { getMarketPayloadRows, readMarketNumber } from "@/lib/market-price-normalization";
-import { calculateRPI, getLatestRPI, OHLCVData } from "@/lib/rpi/calculator";
+import { calculateRPI, getLatestRPI, dropUnclosedIntradayBar, OHLCVData } from "@/lib/rpi/calculator";
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
   const ticker = (req.nextUrl.searchParams.get("ticker") || "VN30").toUpperCase().replace(/[^A-Z0-9]/g, "") || "VN30";
   const context = await buildTopicContext({ force });
   const envelope = await getTopicEnvelope(`vn:historical:${ticker}:1d`, context);
-  const rows = toOhlcvRows(envelope.value);
+  const rows = dropUnclosedIntradayBar(toOhlcvRows(envelope.value));
   const history = calculateRPI(rows);
   const latest = getLatestRPI(history);
 
