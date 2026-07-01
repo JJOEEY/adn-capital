@@ -5,7 +5,7 @@
  * Tức là phải qua 2.5 ngày giao dịch (bỏ qua T7, CN) mới được bán.
  *
  * VD: Mua Thứ 2 -> Bán sớm nhất Thứ 4 chiều (T+2 buổi chiều = T+2.5)
- *     Mua Thứ 4 -> Bán sớm nhất Thứ Hai tuần sau (vì T5, T6 = +2, nhưng T7/CN bỏ qua)
+ *     Mua Thứ 4 -> Bán sớm nhất Thứ 6 chiều (T5 = +1, T6 = +2 -> về TK chiều T6)
  */
 
 /**
@@ -27,19 +27,13 @@ function addTradingDays(date: Date, days: number): Date {
 /**
  * Kiểm tra xem cổ phiếu mua vào buyDate có đủ T+2.5 để bán vào targetSellDate không.
  *
- * T+2.5 = sau 2 ngày giao dịch đầy đủ + buổi chiều ngày thứ 3.
- * Trong thực tế: targetSellDate >= buyDate + 3 ngày giao dịch (đơn giản hóa).
+ * Theo luật VN hiện hành (T+2.5): cổ phiếu mua ngày T (T = ngày mua, không tính vào)
+ * sẽ về tài khoản chiều T+2 (~13h) và bán được ngay chiều đó.
+ * Ngày mua KHÔNG tính vào -> ngày bán sớm nhất = buyDate + 2 ngày giao dịch.
  *
- * Theo quy định HOSE: Mua T, về TK T+2 buổi chiều -> bán được từ T+3 (ngày giao dịch).
- * Nhưng quy tắc T+2.5 cho phép bán buổi chiều T+2. Để đơn giản và an toàn:
- * Bán được khi targetSellDate >= buyDate + 3 ngày giao dịch (calendar-wise).
+ * VD: Mua Thứ 2 (T) -> +1 Thứ 3 -> +2 Thứ 4 => bán được chiều Thứ 4.
  *
- * Cập nhật: Theo luật VN hiện hành (T+2.5), cổ phiếu mua T sẽ:
- * - T+2 buổi chiều (14h): về TK
- * - Bán được chiều T+2 hoặc T+3 trở đi
- *
- * Ở đây ta dùng: bán được nếu targetSellDate >= ngày giao dịch thứ 3 tính từ buyDate.
- * Tức buyDate chỉ cần cách targetSellDate ít nhất 3 trading days.
+ * Ở đây ta dùng: bán được nếu targetSellDate >= ngày giao dịch thứ 2 tính từ buyDate.
  */
 export function checkT25Eligibility(
   buyDate: Date | string,
@@ -48,8 +42,8 @@ export function checkT25Eligibility(
   const buy = new Date(buyDate);
   const sell = new Date(targetSellDate);
 
-  // Ngày bán sớm nhất = buyDate + 3 ngày giao dịch (T+2.5 rule)
-  const earliestSellDate = addTradingDays(buy, 3);
+  // Ngày bán sớm nhất = buyDate + 2 ngày giao dịch (T+2.5: về TK chiều T+2)
+  const earliestSellDate = addTradingDays(buy, 2);
 
   // Reset giờ để so sánh ngày
   const sellDay = new Date(sell.getFullYear(), sell.getMonth(), sell.getDate());
@@ -73,7 +67,7 @@ export function checkT25Eligibility(
   return {
     eligible: sellDay >= earliestDay,
     earliestSellDate,
-    tradingDaysLeft: Math.max(0, 3 - tradingDays),
+    tradingDaysLeft: Math.max(0, 2 - tradingDays),
   };
 }
 
