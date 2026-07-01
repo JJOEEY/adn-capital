@@ -53,6 +53,28 @@ const LATEST_TICK_STALE_MS = Math.max(30_000, Number(process.env.ADN_STOCK_CHART
 const INTRADAY_BRIDGE_DAYS: Record<string, number> = { "1m": 5, "5m": 10, "15m": 20, "30m": 30, "1h": 60, "4h": 180 };
 const TIMEFRAME_MINUTES: Record<string, number> = { "1m": 1, "5m": 5, "15m": 15, "30m": 30, "1h": 60, "4h": 240 };
 
+// Chỉ số KHÔNG scale nghìn→VND (giá index nhỏ như HNX ~230, UPCoM ~90 sẽ bị ×1000 thành rác).
+const CHART_INDEX_SYMBOLS = new Set([
+  "VNINDEX", "VN30", "VN100", "VNXALL", "VNALL", "HNX", "HNXINDEX", "HNX30",
+  "UPCOM", "UPCOMINDEX", "VN30F1M", "VN30F2M",
+]);
+
+// Chuẩn hoá nến CỔ PHIẾU về VND (khớp Tổng quan). Data pipeline lẫn lộn thang: có mã lịch sử VND
+// (STB 71200) nhưng nến hôm nay từ collector khác lại ở NGHÌN (70) → vực thẳm nến cuối; có mã cả
+// chuỗi ở nghìn (FPT 71). Chuẩn TỪNG nến: giá < 1000 (thang nghìn) → ×1000. Giá cổ phiếu VN ở VND
+// luôn ≥ 1000 nên an toàn; chỉ số được miễn.
+function ensureStockVndScale(symbol: string, candles: Candle[]): Candle[] {
+  if (CHART_INDEX_SYMBOLS.has(symbol.toUpperCase())) return candles;
+  const toVnd = (value: number) => (Number.isFinite(value) && value > 0 && value < 1000 ? value * 1000 : value);
+  return candles.map((c) => ({
+    ...c,
+    open: toVnd(c.open),
+    high: toVnd(c.high),
+    low: toVnd(c.low),
+    close: toVnd(c.close),
+  }));
+}
+
 function getCache(cacheKey: string): ChartPayload | null {
   const key = cacheKey.toUpperCase();
   const cached = chartCache.get(key);
@@ -498,7 +520,7 @@ async function loadChartData(symbol: string, timeframe: string, force: boolean):
     if (!candles.length) {
       throw new Error("CHART_INTRADAY_UNAVAILABLE");
     }
-    const payload: ChartPayload = { symbol, timeframe, candles, source: "database_v2" };
+    const payload: ChartPayload = { symbol, timeframe, candles: ensureStockVndScale(symbol, candles), source: "database_v2" };
     setCache(payload);
     return payload;
   }
@@ -514,7 +536,7 @@ async function loadChartData(symbol: string, timeframe: string, force: boolean):
     throw new Error("CHART_DATABASE_V2_UNAVAILABLE");
   }
 
-  const payload: ChartPayload = { symbol, timeframe, candles, source: "database_v2" };
+  const payload: ChartPayload = { symbol, timeframe, candles: ensureStockVndScale(symbol, candles), source: "database_v2" };
   setCache(payload);
   return payload;
 }
@@ -584,14 +606,14 @@ async function loadLatestChartCandle(symbol: string, timeframe: string): Promise
   const latestDaily = mergeTickIntoDailyCandle(symbol, dailyCandles, tick.payload, tick.updatedAt);
   if (!latestDaily) return null;
   if (timeframe === "1D") {
-    return { symbol, timeframe, candles: [latestDaily], source: "database_v2", realtime: true };
+    return { symbol, timeframe, candles: ensureStockVndScale(symbol, [latestDaily]), source: "database_v2", realtime: true };
   }
 
   const today = candleDateKey(latestDaily);
   const mergedDaily = dailyCandles.filter((candle) => candleDateKey(candle) !== today).concat(latestDaily);
   const candles = aggregateCandles(mergedDaily, timeframe);
   const latest = candles.at(-1);
-  return latest ? { symbol, timeframe, candles: [latest], source: "database_v2", realtime: true } : null;
+  return latest ? { symbol, timeframe, candles: ensureStockVndScale(symbol, [latest]), source: "database_v2", realtime: true } : null;
 }
 
 // DEV-ONLY: khi local không nối được DB/bridge, trả nến mẫu (random-walk tất định theo mã)
