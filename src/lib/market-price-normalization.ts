@@ -121,7 +121,10 @@ export function alignMarketPriceToAnchor(
         return itemGap < bestGap ? item : best;
       }, candidates[0]);
 
-  return Math.round(selected / 10) * 10;
+  // Cùng lỗi round /10*10 như applyMarketPriceScale: với giá thang NGHÌN (vd tick 42.9) thì
+  // round(42.9/10)*10 = 40 → nến live rơi về 40 (BID hiện 40.000 giữa phiên). Chỉ round bội-10 ở
+  // thang VND (≥1000); giá nhỏ (nghìn) giữ 2 số lẻ.
+  return selected >= 1000 ? Math.round(selected / 10) * 10 : Math.round(selected * 100) / 100;
 }
 
 export function normalizeMarketBoardRow<T extends JsonRecord>(row: T): T {
