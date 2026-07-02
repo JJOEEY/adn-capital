@@ -1,0 +1,16 @@
+# Cargo workspace for the Lumen desktop app.
+#
+# Members:
+#   src-tauri        — the Tauri 2 application (links system webview; build locally)
+#   crates/raw-core  — pure-Rust RAW decode + demosaic + color management
+#                      (no Tauri/webview deps → unit-testable in headless CI)
+[workspace]
+resolver = "2"
+members = ["src-tauri", "crates/raw-core", "crates/ai-core"]
+
+# Profiles must live in the workspace root (ignored if placed in members).
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true

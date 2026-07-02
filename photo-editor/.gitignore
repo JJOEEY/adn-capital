@@ -1,0 +1,23 @@
+# deps / build
+node_modules
+dist
+dist-ssr
+*.local
+
+# tauri / rust
+/target
+src-tauri/target
+src-tauri/gen
+
+# AI model weights (downloaded separately, not committed — large binaries)
+src-tauri/resources/models/*.onnx
+
+# license issuer private key — NEVER commit
+scripts/.lumen-issuer-key.json
+
+# editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.log

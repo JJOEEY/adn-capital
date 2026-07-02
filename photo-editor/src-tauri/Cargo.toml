@@ -1,0 +1,40 @@
+[package]
+name = "lumen"
+version = "0.1.0"
+description = "Lumen — desktop-first photo editor with on-device AI"
+authors = ["Lumen"]
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+# The library that holds the app logic; main.rs is a thin launcher.
+name = "lumen_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+image = "0.25"
+thiserror = "2"
+# RAW decode + color management (pure-Rust workspace crate).
+raw-core = { path = "../crates/raw-core" }
+# AI matting pre/post-processing; the `ai` feature pulls in the ONNX runtime.
+ai-core = { path = "../crates/ai-core" }
+
+# Auto-update plugins are desktop-only.
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+
+[features]
+# Build with `--features ai` to enable on-device background removal (downloads the
+# ONNX runtime and requires the BiRefNet model in resources/models/).
+ai = ["ai-core/inference"]
+
+# Profile lives in the workspace root Cargo.toml.
