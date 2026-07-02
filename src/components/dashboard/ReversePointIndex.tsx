@@ -13,7 +13,7 @@ import {
   ReferenceLine,
   ReferenceArea,
 } from "recharts";
-import { calculateRPI, getLatestRPI, snapshotArtRows, type OHLCVData } from "@/lib/rpi/calculator";
+import { calculateRPI, detectBottomSignal, getLatestRPI, snapshotArtRows, type OHLCVData } from "@/lib/rpi/calculator";
 import { useTopic } from "@/hooks/useTopic";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -21,12 +21,13 @@ import { useTopic } from "@/hooks/useTopic";
  *  Formerly known as TEI. Dashboard widget for VN30.
  *  Formula: RSI(7)×5% + Stochastic %K(5)×70% + ROC(5)×25%  → 0–5
  *
- *  Zones:
- *   < 1.0  → 🟢 Hoảng loạn cực độ   (Cực kỳ an toàn để mua)
- *   1–2    → 🟢 Hoảng loạn - An toàn
- *   2–3.5  → 🟡 Trung tính
- *   3.5–4.8→ 🔴 Hưng phấn - Nguy hiểm
- *   > 4.8  → 🔴 Hưng phấn cực độ
+ *  Zones (nhãn THUẬN-TREND — backtest 47 mã 2019–2026: ART cao = trend khỏe
+ *  → fwd return tốt nhất; 1–2.5 là vùng yếu nhất; đọc contrarian là thua):
+ *   < 1.0  → 🔴 Hoảng loạn (chờ ổn định — badge bắt đáy khi vượt lại MA10)
+ *   1–2.5  → 🟠 Suy yếu — hạ tỷ trọng
+ *   2.5–4  → 🟡 Trung tính
+ *   4–4.8  → 🟢 Trend khỏe — giữ hàng
+ *   > 4.8  → 🟢 Trend rất mạnh
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 const CHART_THEME = {
@@ -35,21 +36,21 @@ const CHART_THEME = {
   gaugeCenter: "var(--bg-page)",
 };
 
-/* ── Classify ART — chỉ đổi text label, giữ nguyên màu sắc gauge ─────────────── */
+/* ── Classify ART — nhãn THUẬN-TREND (đúng cái thực sự chạy trong backtest) ── */
 function classifyART(v: number) {
-  if (v < 1.0)  return { label: "HOẢNG LOẠN CỰC ĐỘ - AN TOÀN", sublabel: "Cơ hội mua tốt nhất", color: "#22C55E" };
-  if (v < 2.5)  return { label: "AN TOÀN",                   sublabel: "Cơ hội mua tốt",     color: "#22C55E" };
-  if (v < 4.0)  return { label: "TRUNG TÍNH",               sublabel: "Theo dõi thêm",      color: "#EAB308" };
-  if (v < 4.8) return { label: "RỦI RO",                    sublabel: "Cẩn trọng rủi ro",    color: "#EF4444" };
-  return         { label: "HƯNG PHẤN CỰC ĐỘ - NGUY HIỂM", sublabel: "Nguy hiểm cao nhất",  color: "#EF4444" };
+  if (v < 1.0)  return { label: "HOẢNG LOẠN",     sublabel: "Đang rơi mạnh — chờ tín hiệu ổn định", color: "#EF4444" };
+  if (v < 2.5)  return { label: "SUY YẾU",         sublabel: "Trend yếu — hạ tỷ trọng",              color: "#F97316" };
+  if (v < 4.0)  return { label: "TRUNG TÍNH",      sublabel: "Theo dõi thêm",                        color: "#EAB308" };
+  if (v < 4.8)  return { label: "TREND KHỎE",      sublabel: "Xu hướng mạnh — giữ hàng",             color: "#22C55E" };
+  return          { label: "TREND RẤT MẠNH", sublabel: "Cực khỏe — giữ, kéo chốt lời theo",    color: "#16A34A" };
 }
 
 const ART_ZONE_ROWS = [
-  { text: "Hưng phấn cực độ (> 4.8)", value: "4.8+", bg: "#EF4444" },
-  { text: "Hưng phấn - Nguy hiểm (4-4.8)", value: "4.0", bg: "#F97316" },
+  { text: "Trend rất mạnh (> 4.8) — giữ", value: "4.8+", bg: "#16A34A" },
+  { text: "Trend khỏe (4-4.8) — giữ hàng", value: "4.0", bg: "#22C55E" },
   { text: "Trung tính (2.5-4)", value: "2.5", bg: "#EAB308" },
-  { text: "Hoảng loạn - An toàn (1-2.5)", value: "1.5", bg: "#22C55E" },
-  { text: "Hoảng loạn cực độ (< 1)", value: "<1", bg: "#16A34A" },
+  { text: "Suy yếu (1-2.5) — hạ tỷ trọng", value: "1.5", bg: "#F97316" },
+  { text: "Hoảng loạn (< 1) — chờ ổn định", value: "<1", bg: "#EF4444" },
 ];
 
 function getColorConfig(color: string) {
@@ -61,13 +62,13 @@ function getColorConfig(color: string) {
       text: "#22c55e",
       badge: { background: "rgba(34,197,94,0.10)", color: "#22c55e", borderColor: "rgba(34,197,94,0.30)" },
     };
-  if (color === "#EAB308")
+  if (color === "#EAB308" || color === "#F97316")
     return {
       border: "rgba(234,179,8,0.30)",
       shadow: "shadow-[0_0_30px_-8px_rgba(245,158,11,0.3)]",
       glow: "rgba(234,179,8,0.15)",
-      text: "#eab308",
-      badge: { background: "rgba(234,179,8,0.10)", color: "#eab308", borderColor: "rgba(234,179,8,0.30)" },
+      text: color === "#F97316" ? "#f97316" : "#eab308",
+      badge: { background: "rgba(234,179,8,0.10)", color: color === "#F97316" ? "#f97316" : "#eab308", borderColor: "rgba(234,179,8,0.30)" },
     };
   return {
     border: "rgba(239,68,68,0.40)",
@@ -79,16 +80,17 @@ function getColorConfig(color: string) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
- *  ART GAUGE SVG — 60-segment smooth gradient (Green→Yellow→Red)
+ *  ART GAUGE SVG — 60-segment smooth gradient (Red→Yellow→Green, thuận-trend:
+ *  thấp = hoảng loạn/yếu (đỏ), cao = trend khỏe (xanh))
  * ═══════════════════════════════════════════════════════════════════════════ */
 const ART_COLORS: [number, [number, number, number]][] = [
-  [0.0, [22, 163, 74]],    // deep green (Hoảng loạn cực độ)
-  [0.2, [74, 222, 128]],   // light green
-  [0.35, [163, 230, 53]],  // yellow-green
+  [0.0, [220, 38, 38]],    // deep red (Hoảng loạn)
+  [0.2, [239, 68, 68]],    // red
+  [0.35, [249, 115, 22]],  // orange (Suy yếu)
   [0.5, [234, 179, 8]],    // yellow (Trung tính)
-  [0.7, [249, 115, 22]],   // orange
-  [0.85, [239, 68, 68]],   // red (Hưng phấn)
-  [1.0, [220, 38, 38]],    // deep red (Hưng phấn cực độ)
+  [0.7, [163, 230, 53]],   // yellow-green
+  [0.85, [74, 222, 128]],  // light green (Trend khỏe)
+  [1.0, [22, 163, 74]],    // deep green (Trend rất mạnh)
 ];
 
 function interpolateColor(t: number, stops: [number, [number, number, number]][]): string {
@@ -289,6 +291,12 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
 
   const latest = useMemo(() => getLatestRPI(rpiResults), [rpiResults]);
 
+  // Badge bắt đáy: hoảng loạn sâu (zd50<−1.8) + vượt lại MA10 (backtest fwd10 +4.07%/fwd40 +12.4%)
+  const bottomSignal = useMemo(() => {
+    if (ohlcvData.length < 170) return { state: "none" as const, zd50: null };
+    return detectBottomSignal(snapshotArtRows("VN30", ohlcvData));
+  }, [ohlcvData]);
+
   const chartData = useMemo(() => {
     const valid = rpiResults.filter((r) => r.rpi !== null);
     return valid.slice(-60).map((r) => {
@@ -362,6 +370,18 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
                   {updatedDate && (
                     <p className="text-[11px] mt-0.5" style={{ color: "var(--text-muted)" }}>Cập nhật: {updatedDate}</p>
                   )}
+                  {bottomSignal.state === "bottom_signal" && (
+                    <p className="mt-1.5 inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-black"
+                      style={{ background: "rgba(34,197,94,0.12)", color: "#22c55e", borderColor: "rgba(34,197,94,0.35)" }}>
+                      ⚡ BẮT ĐÁY — hoảng loạn đã ổn định
+                    </p>
+                  )}
+                  {bottomSignal.state === "panic_wait" && (
+                    <p className="mt-1.5 inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold"
+                      style={{ background: "rgba(239,68,68,0.10)", color: "#ef4444", borderColor: "rgba(239,68,68,0.30)" }}>
+                      ⏳ Hoảng loạn — chưa ổn định, chưa vào
+                    </p>
+                  )}
                 </>
               )}
             </div>
@@ -420,11 +440,11 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
                       </linearGradient>
                     </defs>
 
-                    <ReferenceArea y1={4.8} y2={5.0} fill="rgba(220, 38, 38, 0.12)" strokeOpacity={0} />
-                    <ReferenceArea y1={3.5} y2={4.8} fill="rgba(239, 68, 68, 0.08)" strokeOpacity={0} />
-                    <ReferenceArea y1={2.0} y2={3.5} fill="rgba(245, 158, 11, 0.04)" strokeOpacity={0} />
-                    <ReferenceArea y1={1.0} y2={2.0} fill="rgba(34, 197, 94, 0.08)" strokeOpacity={0} />
-                    <ReferenceArea y1={0} y2={1.0} fill="rgba(22, 163, 74, 0.12)" strokeOpacity={0} />
+                    <ReferenceArea y1={4.8} y2={5.0} fill="rgba(22, 163, 74, 0.12)" strokeOpacity={0} />
+                    <ReferenceArea y1={4.0} y2={4.8} fill="rgba(34, 197, 94, 0.08)" strokeOpacity={0} />
+                    <ReferenceArea y1={2.5} y2={4.0} fill="rgba(245, 158, 11, 0.04)" strokeOpacity={0} />
+                    <ReferenceArea y1={1.0} y2={2.5} fill="rgba(249, 115, 22, 0.08)" strokeOpacity={0} />
+                    <ReferenceArea y1={0} y2={1.0} fill="rgba(220, 38, 38, 0.12)" strokeOpacity={0} />
 
                     <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey="displayDate" tick={{ fontSize: 9, fill: "var(--text-muted)" }}
@@ -434,10 +454,10 @@ export const ReversePointIndex = memo(function ReversePointIndex() {
                       tick={{ fontSize: 10, fill: "var(--text-muted)" }} tickFormatter={(v: number) => v.toFixed(1)}
                       axisLine={{ stroke: "var(--border)" }} tickLine={{ stroke: "var(--border)" }} width={30} />
 
-                    <ReferenceLine y={4.8} stroke="#DC2626" strokeDasharray="4 4" strokeOpacity={0.5} />
-                    <ReferenceLine y={3.5} stroke="#EF4444" strokeDasharray="6 3" strokeOpacity={0.4} />
-                    <ReferenceLine y={2.0} stroke="#EAB308" strokeDasharray="6 3" strokeOpacity={0.3} />
-                    <ReferenceLine y={1.0} stroke="#22C55E" strokeDasharray="6 3" strokeOpacity={0.4} />
+                    <ReferenceLine y={4.8} stroke="#16A34A" strokeDasharray="4 4" strokeOpacity={0.5} />
+                    <ReferenceLine y={4.0} stroke="#22C55E" strokeDasharray="6 3" strokeOpacity={0.4} />
+                    <ReferenceLine y={2.5} stroke="#EAB308" strokeDasharray="6 3" strokeOpacity={0.3} />
+                    <ReferenceLine y={1.0} stroke="#EF4444" strokeDasharray="6 3" strokeOpacity={0.4} />
 
                     <Tooltip content={<CustomTooltip />} cursor={{ stroke: "var(--border)", strokeDasharray: "4 4" }} />
                     <Area type="monotone" dataKey="ma7" name="Trung Bình (MA7)"

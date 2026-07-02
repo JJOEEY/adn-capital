@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { getTopicEnvelope } from "@/lib/datahub/core";
 import { buildTopicContext } from "@/lib/datahub/producer-context";
 import { getMarketPayloadRows, readMarketNumber } from "@/lib/market-price-normalization";
-import { calculateRPI, getLatestRPI, snapshotArtRows, OHLCVData } from "@/lib/rpi/calculator";
+import { calculateRPI, detectBottomSignal, getLatestRPI, snapshotArtRows, OHLCVData } from "@/lib/rpi/calculator";
 import { renderArtImageBuffer } from "@/lib/og/art-image";
 
 export const dynamic = "force-dynamic";
@@ -43,7 +43,9 @@ export async function GET(req: NextRequest) {
   const ticker = (req.nextUrl.searchParams.get("ticker") || "VN30").toUpperCase().replace(/[^A-Z0-9]/g, "") || "VN30";
   const context = await buildTopicContext({ force: false });
   const envelope = await getTopicEnvelope(`vn:historical:${ticker}:1d`, context);
-  const latest = getLatestRPI(calculateRPI(snapshotArtRows(ticker, toOhlcvRows(envelope.value))));
+  const rows = snapshotArtRows(ticker, toOhlcvRows(envelope.value));
+  const latest = getLatestRPI(calculateRPI(rows));
+  const bottom = rows.length >= 170 ? detectBottomSignal(rows) : { state: "none" as const, zd50: null };
 
   const buffer = await renderArtImageBuffer({
     ticker,
@@ -52,6 +54,7 @@ export async function GET(req: NextRequest) {
     classification: latest?.classification ?? null,
     classColor: latest?.classColor ?? null,
     date: latest?.date ?? null,
+    bottomSignal: bottom.state,
   });
 
   return new Response(buffer, {

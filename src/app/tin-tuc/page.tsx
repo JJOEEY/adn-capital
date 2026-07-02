@@ -153,12 +153,13 @@ function sentimentMeta(sentiment: string | null) {
   };
 }
 
+// Nhãn THUẬN-TREND (đồng bộ ReversePointIndex/tei): cao = trend khỏe, thấp = yếu/hoảng loạn.
 function classifyART(value: number) {
-  if (value < 1) return { label: "An toàn cao", tone: "Tích lũy sâu", color: "#22c55e" };
-  if (value < 2.5) return { label: "An toàn", tone: "Cơ hội chọn lọc", color: "#16a34a" };
+  if (value < 1) return { label: "Hoảng loạn", tone: "Chờ tín hiệu ổn định", color: "var(--danger)" };
+  if (value < 2.5) return { label: "Suy yếu", tone: "Hạ tỷ trọng", color: "#f97316" };
   if (value < 4) return { label: "Trung tính", tone: "Theo dõi thêm", color: "#f59e0b" };
-  if (value < 4.8) return { label: "Rủi ro", tone: "Cần thận trọng", color: "#f97316" };
-  return { label: "Hưng phấn cao", tone: "Ưu tiên quản trị rủi ro", color: "var(--danger)" };
+  if (value < 4.8) return { label: "Trend khỏe", tone: "Giữ hàng", color: "#22c55e" };
+  return { label: "Trend rất mạnh", tone: "Giữ, kéo chốt lời theo", color: "#16a34a" };
 }
 
 function classifyADNCore(value: number, max: number) {

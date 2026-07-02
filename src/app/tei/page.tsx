@@ -15,7 +15,7 @@ import {
   ReferenceArea,
 } from "recharts";
 import { RefreshCw, Calendar, Search, ChevronDown } from "lucide-react";
-import { calculateRPI, getLatestRPI, type OHLCVData, type RPIResult } from "@/lib/rpi/calculator";
+import { calculateRPI, detectBottomSignal, getLatestRPI, type OHLCVData, type RPIResult } from "@/lib/rpi/calculator";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useSubscription } from "@/hooks/useSubscription";
 import { LockOverlay } from "@/components/ui/LockOverlay";
@@ -103,27 +103,29 @@ function formatDateSlash(dateStr: string): string {
   return `${d}/${m}/${y}`;
 }
 
-/* ── Classify TEI ──────────────────────────────────────────────────────── */
+/* ── Classify TEI — nhãn THUẬN-TREND (backtest 47 mã 2019–2026: cao = trend
+ * khỏe → fwd return tốt nhất; 1–2.5 là vùng yếu nhất; đọc contrarian là thua) ── */
 function classifyTEI(v: number) {
-  if (v < 1.0)  return { label: "HOẢNG LOẠN CỰC ĐỘ - AN TOÀN", color: "#22C55E" };
-  if (v < 2.5)  return { label: "AN TOÀN",                   color: "#22C55E" };
+  if (v < 1.0)  return { label: "HOẢNG LOẠN - CHỜ ỔN ĐỊNH", color: "#EF4444" };
+  if (v < 2.5)  return { label: "SUY YẾU - HẠ TỶ TRỌNG",    color: "#F97316" };
   if (v < 4.0)  return { label: "TRUNG TÍNH",               color: "#EAB308" };
-  if (v < 4.8) return { label: "RỦI RO",                    color: "#EF4444" };
-  return         { label: "HƯNG PHẤN CỰC ĐỘ - NGUY HIỂM", color: "#EF4444" };
+  if (v < 4.8)  return { label: "TREND KHỎE - GIỮ HÀNG",    color: "#22C55E" };
+  return          { label: "TREND RẤT MẠNH",           color: "#16A34A" };
 }
 
 
 /* ══════════════════════════════════════════════════════════════════════════
- *  GAUGE SVG — Semicircle 0–5, smooth multi-segment gradient, needle
+ *  GAUGE SVG — Semicircle 0–5, gradient Đỏ→Vàng→Xanh (thuận-trend:
+ *  thấp = hoảng loạn/yếu, cao = trend khỏe)
  * ══════════════════════════════════════════════════════════════════════════ */
 const TEI_COLORS: [number, [number, number, number]][] = [
-  [0.0, [22, 163, 74]],
-  [0.2, [74, 222, 128]],
-  [0.35, [163, 230, 53]],
+  [0.0, [220, 38, 38]],
+  [0.2, [239, 68, 68]],
+  [0.35, [249, 115, 22]],
   [0.5, [234, 179, 8]],
-  [0.7, [249, 115, 22]],
-  [0.85, [239, 68, 68]],
-  [1.0, [220, 38, 38]],
+  [0.7, [163, 230, 53]],
+  [0.85, [74, 222, 128]],
+  [1.0, [22, 163, 74]],
 ];
 
 function interpolateColor(t: number, stops: [number, [number, number, number]][]): string {
@@ -339,6 +341,12 @@ export default function TEIPage() {
 
   const latest = useMemo(() => getLatestRPI(rpiResults), [rpiResults]);
 
+  // Badge bắt đáy: hoảng loạn sâu (zd50<−1.8) + vượt lại MA10 (backtest fwd10 +4.07%/fwd40 +12.4%)
+  const bottomSignal = useMemo(() => {
+    if (ohlcvData.length < 170) return { state: "none" as const, zd50: null };
+    return detectBottomSignal(ohlcvData);
+  }, [ohlcvData]);
+
   // Chart data with timeline filter
   const chartData: ChartPoint[] = useMemo(() => {
     const valid = rpiResults.filter((r) => r.rpi !== null);
@@ -521,6 +529,18 @@ export default function TEIPage() {
                     {classification.label}
                   </p>
                   <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>Cập nhật: {updatedDate}</p>
+                  {bottomSignal.state === "bottom_signal" && (
+                    <p className="mt-2 inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-black"
+                      style={{ background: "rgba(34,197,94,0.12)", color: "#22c55e", borderColor: "rgba(34,197,94,0.35)" }}>
+                      ⚡ BẮT ĐÁY — hoảng loạn đã ổn định
+                    </p>
+                  )}
+                  {bottomSignal.state === "panic_wait" && (
+                    <p className="mt-2 inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-bold"
+                      style={{ background: "rgba(239,68,68,0.10)", color: "#ef4444", borderColor: "rgba(239,68,68,0.30)" }}>
+                      ⏳ Hoảng loạn — chưa ổn định, chưa vào
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -528,12 +548,11 @@ export default function TEIPage() {
               <div className="space-y-5">
                 <div className="border border-[var(--border)] rounded-xl p-5 bg-[var(--surface-2)]">
                   {[
-                  { text: "Hưng phấn cực độ (>= 4.8)",        value: "4.8+", bg: "#EF4444" },
-                    { text: "Hưng phấn - Nguy hiểm (4–4.8)",  value: "4.0",  bg: "#F97316" },
+                    { text: "Trend rất mạnh (>= 4.8) — giữ",   value: "4.8+", bg: "#16A34A" },
+                    { text: "Trend khỏe (4–4.8) — giữ hàng",   value: "4.0",  bg: "#22C55E" },
                     { text: "Trung tính (2.5–4)",               value: "2.5",  bg: "#EAB308" },
-                    { text: "Hoảng loạn - An toàn (1–2.5)",   value: "1.5",  bg: "#22C55E" },
-                    { text: "Hoảng loạn cực độ (< 1)",           value: "<1",   bg: "#16A34A" },
-
+                    { text: "Suy yếu (1–2.5) — hạ tỷ trọng",   value: "1.5",  bg: "#F97316" },
+                    { text: "Hoảng loạn (< 1) — chờ ổn định",  value: "<1",   bg: "#EF4444" },
                   ].map((item, i) => (
                     <div key={item.value}
                       className={`flex items-center justify-between py-3 ${i < 2 ? "border-b border-[var(--border)]" : ""}`}>
@@ -635,9 +654,9 @@ export default function TEIPage() {
                         </linearGradient>
                       </defs>
 
-                      <ReferenceArea y1={4.0} y2={5.0} fill="rgba(239, 68, 68, 0.08)" strokeOpacity={0} />
+                      <ReferenceArea y1={4.0} y2={5.0} fill="rgba(34, 197, 94, 0.08)" strokeOpacity={0} />
                       <ReferenceArea y1={1.0} y2={4.0} fill="rgba(245, 158, 11, 0.04)" strokeOpacity={0} />
-                      <ReferenceArea y1={0} y2={1.0} fill="rgba(34, 197, 94, 0.08)" strokeOpacity={0} />
+                      <ReferenceArea y1={0} y2={1.0} fill="rgba(220, 38, 38, 0.08)" strokeOpacity={0} />
 
                       <CartesianGrid stroke={CHART_THEME.grid} strokeDasharray="3 3" vertical={false} />
 
@@ -660,8 +679,8 @@ export default function TEIPage() {
                         width={35}
                       />
 
-                      <ReferenceLine y={4.0} stroke="#EF4444" strokeDasharray="6 3" strokeOpacity={0.4} />
-                      <ReferenceLine y={1.0} stroke="#22C55E" strokeDasharray="6 3" strokeOpacity={0.4} />
+                      <ReferenceLine y={4.0} stroke="#22C55E" strokeDasharray="6 3" strokeOpacity={0.4} />
+                      <ReferenceLine y={1.0} stroke="#EF4444" strokeDasharray="6 3" strokeOpacity={0.4} />
 
                       <Tooltip content={<CustomTooltip />} cursor={{ stroke: CHART_THEME.cursor, strokeDasharray: "4 4" }} />
 

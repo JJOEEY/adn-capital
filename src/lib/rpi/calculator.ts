@@ -54,9 +54,11 @@ function median(arr: number[]): number {
     : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
+// Nhãn theo cách đọc THUẬN-TREND (backtest 47 mã 2019–2026: ART cao = trend khỏe
+// → return tương lai TỐT NHẤT; ART thấp = suy yếu/hoảng loạn → kém). Đọc contrarian là thua.
 function classify(rpi: number): { classification: string; classColor: string } {
-  if (rpi >= 4.0) return { classification: "CẠN KIỆT XU HƯỚNG TĂNG", classColor: "red" };
-  if (rpi <= 1.0) return { classification: "CẠN KIỆT XU HƯỚNG GIẢM", classColor: "green" };
+  if (rpi >= 4.0) return { classification: "TREND KHỎE - GIỮ HÀNG", classColor: "green" };
+  if (rpi <= 1.0) return { classification: "HOẢNG LOẠN - CHỜ ỔN ĐỊNH", classColor: "red" };
   return { classification: "TRUNG TÍNH", classColor: "yellow" };
 }
 
@@ -254,6 +256,45 @@ export function calculateRPIFromVN30(
 
 export function getLatestRPI(results: RPIResult[]): RPIResult | null {
   return [...results].reverse().find((r) => r.rpi !== null) ?? null;
+}
+
+/* ── Badge BẮT ĐÁY (hoảng loạn + đã ổn định) ─────────────────────────────
+ * Backtest 47 mã 2019–2026: hoảng loạn sâu (zd50 < −1.8) + giá vượt lại MA10
+ * → fwd10 +4.07% / fwd40 +12.4%, chỉ 30% phiên giảm (baseline +0.76%/+3.28%).
+ * Hoảng loạn nhưng CHƯA vượt MA10 (dao rơi) → fwd10 chỉ +0.55% → phải chờ.
+ * zd50 = z-score rolling 250 phiên (min 120) của (close/SMA50 − 1) — tự thích
+ * nghi theo biến động từng mã nên cùng ngưỡng dùng được cho mọi mã lẫn index.
+ */
+export type BottomSignalState = "none" | "panic_wait" | "bottom_signal";
+
+export function detectBottomSignal(ohlcv: OHLCVData[]): { state: BottomSignalState; zd50: number | null } {
+  const closes = ohlcv.map((d) => d.close);
+  const n = closes.length;
+  if (n < 170) return { state: "none", zd50: null };
+
+  const sma = (arr: number[], end: number, win: number) => {
+    let sum = 0;
+    for (let i = end - win + 1; i <= end; i += 1) sum += arr[i];
+    return sum / win;
+  };
+
+  // chuỗi d50 = close/SMA50 − 1 (bắt đầu từ index 49)
+  const d50: number[] = [];
+  for (let i = 49; i < n; i += 1) d50.push(closes[i] / sma(closes, i, 50) - 1);
+
+  // z-score của d50 cuối trên cửa sổ 250 gần nhất (min 120)
+  const win = Math.min(250, d50.length);
+  if (win < 120) return { state: "none", zd50: null };
+  const tail = d50.slice(-win);
+  const mean = tail.reduce((s, v) => s + v, 0) / win;
+  // ddof=1 (sample std) — khớp pandas .std() dùng trong backtest.
+  const sd = Math.sqrt(tail.reduce((s, v) => s + (v - mean) ** 2, 0) / (win - 1));
+  if (!Number.isFinite(sd) || sd === 0) return { state: "none", zd50: null };
+  const zd50 = (d50[d50.length - 1] - mean) / sd;
+
+  if (zd50 >= -1.8) return { state: "none", zd50 };
+  const aboveMA10 = closes[n - 1] > sma(closes, n - 1, 10);
+  return { state: aboveMA10 ? "bottom_signal" : "panic_wait", zd50 };
 }
 
 // Cache nến hôm nay đã "đóng băng" cho mốc GIỮA PHIÊN (11:00–15:00), theo (ticker, ngày VN).

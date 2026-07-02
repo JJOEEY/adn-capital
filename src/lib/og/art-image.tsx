@@ -1,9 +1,10 @@
 import { ImageResponse } from "next/og";
 import { loadBriefFonts } from "@/lib/n8n/brief-image-render";
 
+// Gradient thuận-trend: thấp = hoảng loạn/yếu (đỏ) → cao = trend khỏe (xanh).
 const TEI_COLORS: [number, [number, number, number]][] = [
-  [0.0, [22, 163, 74]], [0.2, [74, 222, 128]], [0.35, [163, 230, 53]],
-  [0.5, [234, 179, 8]], [0.7, [249, 115, 22]], [0.85, [239, 68, 68]], [1.0, [220, 38, 38]],
+  [0.0, [220, 38, 38]], [0.2, [239, 68, 68]], [0.35, [249, 115, 22]],
+  [0.5, [234, 179, 8]], [0.7, [163, 230, 53]], [0.85, [74, 222, 128]], [1.0, [22, 163, 74]],
 ];
 
 function interpolateColor(t: number): string {
@@ -54,12 +55,16 @@ export type ArtImageData = {
   classification: string | null;
   classColor: string | null;
   date: string | null;
+  /** Badge bắt đáy (hoảng loạn + đã ổn định / chưa ổn định) — từ detectBottomSignal. */
+  bottomSignal?: "none" | "panic_wait" | "bottom_signal";
 };
+
+const CLASS_COLOR_HEX: Record<string, string> = { green: "#22C55E", red: "#EF4444", yellow: "#EAB308" };
 
 export async function renderArtImageBuffer(d: ArtImageData): Promise<ArrayBuffer> {
   const fonts = loadBriefFonts();
   const value = d.value ?? 0;
-  const color = d.classColor || "#ECE7DB";
+  const color = CLASS_COLOR_HEX[d.classColor || ""] || d.classColor || "#ECE7DB";
   const gauge = `data:image/svg+xml;base64,${Buffer.from(buildGaugeSvg(value)).toString("base64")}`;
   const el = (
     <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", background: "#12161d", padding: "34px 44px", fontFamily: "Manrope", color: "#ECE7DB" }}>
@@ -77,6 +82,16 @@ export async function renderArtImageBuffer(d: ArtImageData): Promise<ArrayBuffer
           <div style={{ display: "flex", fontSize: 26, color: "#8b9085", marginBottom: 14 }}>ĐIỂM</div>
         </div>
         <div style={{ display: "flex", fontSize: 30, fontWeight: 800, color, letterSpacing: 4 }}>{d.classification || ""}</div>
+        {d.bottomSignal === "bottom_signal" ? (
+          <div style={{ display: "flex", fontSize: 19, fontWeight: 800, color: "#22C55E", marginTop: 8, padding: "4px 14px", border: "1px solid rgba(34,197,94,0.45)", borderRadius: 999, background: "rgba(34,197,94,0.12)" }}>
+            ⚡ BẮT ĐÁY — hoảng loạn đã ổn định
+          </div>
+        ) : null}
+        {d.bottomSignal === "panic_wait" ? (
+          <div style={{ display: "flex", fontSize: 19, fontWeight: 700, color: "#EF4444", marginTop: 8, padding: "4px 14px", border: "1px solid rgba(239,68,68,0.40)", borderRadius: 999, background: "rgba(239,68,68,0.10)" }}>
+            ⏳ Hoảng loạn — chưa ổn định, chưa vào
+          </div>
+        ) : null}
         <div style={{ display: "flex", fontSize: 18, color: "#8b9085", marginTop: 10 }}>
           MA7 {d.ma7 != null ? Number(d.ma7).toFixed(2) : "—"}  ·  cập nhật {d.date || ""}
         </div>
